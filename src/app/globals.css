@@ -1,26 +1,37 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --erp-accent: #2563eb;
+  --erp-accent-light: #3b82f6;
+  --erp-bg-start: #e2e8f0;
+  --erp-bg-mid: #cbd5e0;
+  --erp-surface: #ffffff;
+  --erp-border: #e2e8f0;
+  --erp-text: #1a202c;
+  --erp-text-muted: #64748b;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-erp-accent: var(--erp-accent);
+  --color-erp-accent-light: var(--erp-accent-light);
+  --color-erp-surface: var(--erp-surface);
+  --color-erp-border: var(--erp-border);
+  --font-sans: var(--font-noto-sans-kr), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: linear-gradient(135deg, var(--erp-bg-start) 0%, var(--erp-bg-mid) 50%, var(--erp-bg-start) 100%);
+  color: var(--erp-text);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+.erp-panel {
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: 16px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 4px 12px rgba(0, 0, 0, 0.04);
 }

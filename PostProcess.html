@@ -1,0 +1,2479 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>후공정 - 미래SMT</title>
+  <script>window.ERP_ACTIVE_PAGE = 'post-process';</script>
+  <?!= include('SharedStyles'); ?>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+      background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 50%, #e2e8f0 100%);
+      min-height: 100vh;
+      color: #1a202c;
+      padding: 24px 16px 40px;
+      line-height: 1.55;
+    }
+    .header {
+      background: #fff;
+      border-radius: 16px;
+      padding: 22px 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      border: 1px solid rgba(0,0,0,.06);
+    }
+    .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+    .header-sub { font-size: 13px; color: #64748b; margin-top: 4px; font-weight: 500; }
+    .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .view-tabs {
+      display: inline-flex;
+      gap: 6px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 4px;
+    }
+    .view-tab-btn {
+      border: 1px solid transparent;
+      background: transparent;
+      color: #475569;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 7px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .view-tab-btn.active {
+      background: #ffffff;
+      border-color: #cbd5e1;
+      color: #0f172a;
+    }
+    .home-button, .nav-button {
+      background: #f7fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: #4a5568;
+      font-size: 18px;
+      cursor: pointer;
+      transition: all .2s ease;
+      width: 44px;
+      height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .home-button:hover, .nav-button:hover { background: #edf2f7; border-color: #cbd5e0; }
+    .nav-button.active { opacity: .55; cursor: default; }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px 22px 28px;
+      border: 1px solid rgba(0,0,0,.06);
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+    .field { margin-bottom: 18px; }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 8px;
+    }
+    .field select {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      font-size: 15px;
+      font-family: inherit;
+      background: #fff;
+    }
+    .post-order-picker { position: relative; }
+    .post-order-trigger {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 12px;
+      font-size: 15px;
+      font-family: inherit;
+      background: #fff;
+      color: #0f172a;
+      text-align: left;
+      cursor: pointer;
+    }
+    .post-order-trigger.sel-none { background: #fff; border-color: #e2e8f0; color: #0f172a; }
+    .post-order-trigger.sel-progress { background: #fef9c3; border-color: #fde047; color: #854d0e; }
+    .post-order-trigger.sel-full { background: #ecfdf5; border-color: #86efac; color: #166534; }
+    .post-order-label {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .post-order-chevron { flex-shrink: 0; font-size: 11px; color: #64748b; }
+    .post-order-menu {
+      display: none;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      z-index: 30;
+      max-height: 280px;
+      overflow-y: auto;
+      background: #fff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+      padding: 6px;
+    }
+    .post-order-picker.open .post-order-menu { display: block; }
+    .post-order-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      width: 100%;
+      text-align: left;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1.4;
+      cursor: pointer;
+      font-family: inherit;
+      background: #fff;
+      color: #0f172a;
+    }
+    .post-order-item:hover { filter: brightness(0.98); }
+    .post-order-item.st-none { background: #fff; color: #0f172a; border-color: #e2e8f0; }
+    .post-order-item.st-progress { background: #fef9c3; color: #854d0e; border-color: #fde047; }
+    .post-order-item.st-full { background: #ecfdf5; color: #166534; border-color: #86efac; }
+    .post-order-item.selected { box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25); border-color: #6ee7b7; }
+    .post-order-item + .post-order-item { margin-top: 4px; }
+    .post-order-dot { flex-shrink: 0; font-size: 12px; line-height: 1.4; }
+    .post-order-text { flex: 1; min-width: 0; word-break: break-word; }
+    .post-order-qty-badge {
+      flex-shrink: 0;
+      align-self: center;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #475569;
+      font-variant-numeric: tabular-nums;
+    }
+    .post-order-item.st-progress .post-order-qty-badge { background: #fef08a; color: #854d0e; }
+    .post-order-item.st-full .post-order-qty-badge { background: #bbf7d0; color: #166534; }
+    .post-order-menu-empty {
+      padding: 12px;
+      text-align: center;
+      color: #64748b;
+      font-size: 13px;
+    }
+    .info-rows {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 22px;
+      padding: 14px 16px;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
+    .info-rows .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 14px;
+    }
+    .info-rows .k { color: #64748b; font-weight: 600; flex-shrink: 0; }
+    .info-rows .v { color: #1e293b; font-weight: 600; text-align: right; word-break: break-word; }
+
+    .count-block {
+      text-align: center;
+      padding: 8px 12px 8px;
+    }
+    .count-block .target {
+      font-size: 15px;
+      color: #475569;
+      margin-top: 8px;
+      font-weight: 500;
+    }
+    .count-block .warn {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #b45309;
+      font-weight: 600;
+    }
+
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .btn-grid.btn-grid-adjust {
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .input-panels:not(.two-cols):not(.three-cols) .btn-grid-adjust .btn-big {
+      padding: 28px 14px;
+      font-size: 36px;
+    }
+    .input-panels:not(.two-cols):not(.three-cols) .btn-grid-adjust .btn-big .btn-step-label {
+      font-size: 16px;
+    }
+    .btn-big .btn-step-label {
+      display: block;
+      font-size: 18px;
+      font-weight: 800;
+      margin-top: 6px;
+      opacity: 0.9;
+    }
+    .btn-big {
+      padding: 20px 16px;
+      font-size: 28px;
+      font-weight: 700;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: filter .15s, transform .05s;
+    }
+    .btn-big:active { transform: scale(0.98); }
+    .btn-big:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .btn-minus {
+      background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+      color: #334155;
+      border: 1px solid #cbd5e1;
+    }
+    .btn-plus {
+      background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(4, 120, 87, 0.35);
+    }
+    .btn-plus:hover:not(:disabled) { filter: brightness(1.05); }
+    .btn-minus:hover:not(:disabled) { filter: brightness(0.98); }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+      justify-content: center;
+    }
+    .btn-secondary {
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      color: #475569;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-secondary:hover { background: #f8fafc; }
+    .btn-secondary.danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+    .journal-modal-box {
+      width: 100%;
+      background: #fff;
+      border: 1px solid rgba(0,0,0,.06);
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .journal-head {
+      padding: 10px 12px;
+      background: #f1f5f9;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 13px;
+      font-weight: 700;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .journal-table-wrap { max-height: calc(100vh - 260px); overflow: auto; }
+    .progress-cards {
+      padding: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 10px;
+    }
+    .progress-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: #fff;
+      padding: 12px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+    .progress-card .title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+      word-break: break-all;
+    }
+    .progress-card .sub {
+      font-size: 13px;
+      color: #334155;
+      margin-bottom: 8px;
+      word-break: break-word;
+    }
+    .progress-card .meta {
+      display: grid;
+      gap: 8px;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .progress-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .progress-kpi {
+      border: 1px solid #dbe5ef;
+      border-radius: 10px;
+      background: #f8fafc;
+      padding: 8px 6px;
+      text-align: center;
+    }
+    .progress-kpi-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .progress-kpi-value {
+      font-size: 20px;
+      font-weight: 800;
+      line-height: 1.1;
+      color: #0f172a;
+      font-variant-numeric: tabular-nums;
+    }
+    .progress-kpi.current .progress-kpi-value { color: #047857; }
+    .progress-kpi.cumulative .progress-kpi-value { color: #1d4ed8; }
+    .progress-kpi.total .progress-kpi-value { color: #7c3aed; }
+    @media (max-width: 700px) {
+      .progress-kpis { grid-template-columns: 1fr; }
+    }
+    .journal-empty { padding: 16px; color: #64748b; font-size: 13px; text-align: center; }
+    .hist-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .hist-table th, .hist-table td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    .hist-table th { background: #f8fafc; color: #475569; font-weight: 600; }
+    .hist-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .msg { margin-top: 14px; min-height: 1.25em; font-size: 13px; text-align: center; }
+    .msg.err { color: #b91c1c; }
+    .msg.ok { color: #047857; }
+    .loading { text-align: center; padding: 40px 16px; color: #64748b; }
+
+    .adjust-panel { margin-top: 4px; margin-bottom: 4px; }
+    .step-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(15, 23, 42, 0.45);
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .step-modal-overlay.open { display: flex; }
+    .step-modal-box {
+      width: 100%;
+      max-width: 360px;
+      background: #fff;
+      border-radius: 14px;
+      padding: 20px 18px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+    }
+    .step-modal-head {
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px;
+    }
+    .step-modal-head h4 { margin: 0; font-size: 17px; color: #0f172a; flex: 1; min-width: 0; }
+    .step-modal-close {
+      flex-shrink: 0; width: 36px; height: 36px; border: none; background: transparent;
+      border-radius: 8px; font-size: 22px; color: #64748b; cursor: pointer; line-height: 1;
+    }
+    .step-modal-close:hover { background: #f1f5f9; color: #0f172a; }
+    .step-modal-hint { margin: 0 0 14px; font-size: 12px; color: #64748b; line-height: 1.45; }
+    .step-modal-fields { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .step-modal-fields label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .step-modal-fields input {
+      width: 120px;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      text-align: right;
+    }
+    .step-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .step-modal-actions .btn-primary {
+      padding: 9px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+      color: #fff;
+      cursor: pointer;
+    }
+    .step-modal-actions .btn-primary:hover { filter: brightness(1.05); }
+    .extra-panel { margin-top: 0; }
+    .input-panels {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      align-items: stretch;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .input-panels.two-cols {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .input-panels.three-cols {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .order-search-wrap { margin-bottom: 10px; }
+    .order-search-wrap input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .order-search-wrap input::placeholder { color: #94a3b8; }
+    .order-search-wrap input:focus {
+      outline: none;
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+    .post-input-layout {
+      display: grid;
+      grid-template-columns: minmax(480px, 560px) minmax(0, 1fr);
+      gap: 0;
+      align-items: stretch;
+      height: calc(100vh - 168px);
+      max-height: calc(100vh - 168px);
+      min-height: 0;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.07);
+      background: #fff;
+    }
+    .post-order-sidebar.card {
+      border-radius: 0;
+      border: none;
+      box-shadow: none;
+      margin: 0;
+      padding: 0;
+      background: #f1f5f9;
+      border-right: 2px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .post-sidebar-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 14px 14px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      background: #e8eef4;
+    }
+    .post-sidebar-head h4 {
+      font-size: 15px;
+      font-weight: 800;
+      color: #0f172a;
+      margin: 0;
+    }
+    .post-active-slot-pill {
+      flex-shrink: 0;
+      font-size: 11px;
+      font-weight: 800;
+      color: #0369a1;
+      background: #fff;
+      border: 1px solid #bae6fd;
+      border-radius: 999px;
+      padding: 4px 10px;
+      white-space: nowrap;
+    }
+    .post-order-legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 14px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #64748b;
+      border-bottom: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .post-order-legend span { white-space: nowrap; }
+    .post-order-sidebar .order-search-wrap {
+      margin: 10px 12px 8px;
+    }
+    .post-order-sidebar .order-search-wrap input {
+      background: #fff;
+      font-size: 13px;
+      padding: 11px 12px;
+    }
+    .post-order-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      overflow-x: hidden;
+      padding: 8px 12px 4px;
+      align-content: start;
+    }
+    .post-order-pager {
+      flex-shrink: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 12px 10px;
+      border-top: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .post-order-pager.is-visible { display: flex; }
+    .post-order-pager-btn {
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #334155;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .post-order-pager-btn:hover:not(:disabled) { background: #f1f5f9; }
+    .post-order-pager-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .post-order-pager-info {
+      font-size: 12px;
+      font-weight: 700;
+      color: #64748b;
+      min-width: 72px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .post-order-empty {
+      grid-column: 1 / -1;
+      padding: 16px 8px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 12px;
+    }
+    .post-order-card {
+      border: 2px solid #cbd5e1;
+      background: #fff;
+      border-radius: 10px;
+      padding: 10px 10px 9px;
+      cursor: pointer;
+      box-sizing: border-box;
+      min-width: 0;
+      transition: border-color .15s ease, box-shadow .15s ease, transform .1s ease;
+    }
+    .post-order-card:active { transform: scale(0.99); }
+    .post-order-card:hover { border-color: #94a3b8; }
+    .post-order-card.selected {
+      border-color: #0284c7 !important;
+      box-shadow: inset 0 0 0 1px #0284c7, 0 0 0 2px rgba(2, 132, 199, 0.12);
+    }
+    .post-order-card.st-none {
+      background: linear-gradient(90deg, #94a3b8 4px, #f1f5f9 4px);
+      border-color: #cbd5e1;
+    }
+    .post-order-card.st-progress {
+      background: linear-gradient(90deg, #ca8a04 4px, #fef9c3 4px);
+      border-color: #facc15;
+    }
+    .post-order-card.st-full {
+      background: linear-gradient(90deg, #16a34a 4px, #dcfce7 4px);
+      border-color: #4ade80;
+    }
+    .post-order-card.st-none .post-order-customer,
+    .post-order-card.st-none .post-order-info-v { color: #475569; }
+    .post-order-card.st-progress .post-order-customer,
+    .post-order-card.st-progress .post-order-info-v { color: #713f12; }
+    .post-order-card.st-full .post-order-customer,
+    .post-order-card.st-full .post-order-info-v { color: #14532d; }
+    .post-order-customer {
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .post-order-info {
+      display: grid;
+      gap: 3px;
+    }
+    .post-order-info-row {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      min-width: 0;
+      font-size: 11px;
+      line-height: 1.25;
+    }
+    .post-order-info-k {
+      flex-shrink: 0;
+      font-size: 9px;
+      font-weight: 700;
+      color: #94a3b8;
+      min-width: 28px;
+    }
+    .post-order-info-v {
+      font-weight: 700;
+      color: #334155;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .post-order-info-v.is-product {
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+    .post-order-info-v.is-qty {
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+    }
+    .post-panels-area {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+    .post-panels-area .post-input-panel.card {
+      border-radius: 0;
+      box-shadow: none;
+      border: none;
+      margin: 0;
+    }
+    .post-input-panel {
+      border: 2px solid transparent;
+      transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+      position: relative;
+      padding: 18px 18px 20px;
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .input-panels.two-cols .post-input-panel:not(:last-child),
+    .input-panels.three-cols .post-input-panel:not(:last-child) {
+      border-right: 2px solid #e2e8f0;
+    }
+    .post-input-panel.is-active {
+      background: linear-gradient(180deg, #f0f9ff 0%, #fff 120px);
+      box-shadow: inset 0 3px 0 #0284c7;
+    }
+    .post-panel-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e2e8f0;
+      flex-shrink: 0;
+    }
+    .post-panel-slot-badge {
+      font-size: 11px;
+      font-weight: 800;
+      color: #fff;
+      background: #0284c7;
+      border-radius: 6px;
+      padding: 4px 9px;
+      flex-shrink: 0;
+    }
+    .post-input-panel:not(.is-active) .post-panel-slot-badge {
+      color: #64748b;
+      background: #e2e8f0;
+    }
+    .post-panel-badge {
+      font-size: 11px;
+      font-weight: 800;
+      color: #0369a1;
+      background: #e0f2fe;
+      border-radius: 999px;
+      padding: 4px 10px;
+      flex-shrink: 0;
+    }
+    .post-input-panel:not(.is-active) .post-panel-badge {
+      color: #64748b;
+      background: #f1f5f9;
+    }
+    .post-panel-order {
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      min-width: 0;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.35;
+    }
+    .post-panel-head .post-panel-settings-btn {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      font-size: 16px;
+    }
+    .post-panel-head > .post-panel-settings-btn:only-of-type {
+      margin-left: auto;
+    }
+    .post-panel-head > .btn-secondary {
+      margin-left: auto;
+    }
+    .post-work-body {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .post-work-product-block {
+      text-align: center;
+      padding: 8px 4px 14px;
+      flex-shrink: 0;
+    }
+    .post-work-product-top {
+      margin-bottom: 6px;
+      min-height: 22px;
+    }
+    .post-work-kind-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 999px;
+      letter-spacing: -0.02em;
+    }
+    .post-work-kind-badge.is-empty { display: none; }
+    .post-work-kind-badge.kind-semi {
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+    }
+    .post-work-kind-badge.kind-finished {
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+    }
+    .post-work-product {
+      font-size: clamp(20px, 3.2vw, 28px);
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.25;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      margin-bottom: 10px;
+    }
+    .post-work-product.is-empty {
+      font-size: 16px;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+    .post-work-meta {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      font-size: 13px;
+    }
+    .post-work-meta-item {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 5px;
+    }
+    .post-work-meta-item .mk {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+    }
+    .post-work-meta-item .mv {
+      font-weight: 800;
+      color: #334155;
+    }
+    .post-kpi-strip {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 8px 16px;
+      flex-shrink: 0;
+    }
+    .post-kpi-box {
+      text-align: center;
+      min-width: 64px;
+    }
+    .post-kpi-box.is-main .post-kpi-val {
+      color: #047857;
+    }
+    .post-kpi-lbl {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      margin-bottom: 4px;
+      letter-spacing: 0.02em;
+    }
+    .post-kpi-val {
+      display: block;
+      font-size: clamp(32px, 5vw, 48px);
+      font-weight: 900;
+      color: #334155;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .post-kpi-sep {
+      font-size: 32px;
+      font-weight: 300;
+      color: #cbd5e1;
+      padding-bottom: 6px;
+      line-height: 1;
+    }
+    .post-adjust-zone {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 16px 14px 14px;
+      margin-top: auto;
+      flex-shrink: 0;
+    }
+    .post-register-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: #475569;
+      margin-bottom: 8px;
+    }
+    .post-register-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+    .post-register-input {
+      flex: 1;
+      min-width: 0;
+      padding: 14px 16px;
+      border: 2px solid #cbd5e1;
+      border-radius: 12px;
+      font-size: 28px;
+      font-weight: 800;
+      font-family: inherit;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      background: #fff;
+      color: #0f172a;
+    }
+    .post-register-input:focus {
+      outline: none;
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+    }
+    .post-register-input:disabled {
+      background: #f1f5f9;
+      color: #94a3b8;
+    }
+    .post-register-btn {
+      flex-shrink: 0;
+      min-width: 108px;
+      padding: 14px 18px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+      color: #fff;
+      font-size: 17px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+      box-shadow: 0 4px 14px rgba(4, 120, 87, 0.3);
+    }
+    .post-register-btn:hover:not(:disabled) { filter: brightness(1.05); }
+    .post-register-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    .post-register-hint {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      min-height: 18px;
+    }
+    .post-register-hint.zero { color: #b91c1c; }
+    .input-panels:not(.two-cols):not(.three-cols) .post-adjust-zone {
+      max-width: 440px;
+      margin-left: auto;
+      margin-right: auto;
+      width: 100%;
+    }
+    .post-input-panel .count-block {
+      flex-shrink: 0;
+      padding: 0 8px 8px;
+    }
+    .post-input-panel .progress-wrap {
+      margin-top: 0;
+    }
+    .post-input-panel .progress-bar-bg {
+      height: 18px;
+    }
+    .post-input-panel .msg {
+      margin-top: 10px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .post-panel-settings-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #64748b;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+      transition: background .15s, border-color .15s, color .15s;
+      font-size: 18px;
+      line-height: 1;
+      padding: 0;
+    }
+    .post-panel-settings-btn:hover {
+      background: #f8fafc;
+      border-color: #94a3b8;
+      color: #0f172a;
+    }
+    .post-panel-settings-btn svg {
+      width: 20px;
+      height: 20px;
+      display: block;
+    }
+    .post-panel-settings-menu {
+      display: none;
+      position: fixed;
+      z-index: 1500;
+      min-width: 168px;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+      padding: 6px;
+    }
+    .post-panel-settings-menu.open { display: block; }
+    .post-panel-menu-item {
+      display: block;
+      width: 100%;
+      border: none;
+      background: transparent;
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .post-panel-menu-item:hover:not(:disabled) { background: #f1f5f9; }
+    .post-panel-menu-item:disabled { opacity: 0.45; cursor: not-allowed; }
+    .post-panel-menu-item.danger { color: #b91c1c; }
+    .post-panel-menu-item.danger:hover:not(:disabled) { background: #fef2f2; }
+    .post-panel-menu-divider {
+      height: 1px;
+      background: #e2e8f0;
+      margin: 4px 6px;
+    }
+    @media (max-width: 960px) {
+      .post-input-layout {
+        grid-template-columns: 1fr;
+        min-height: 0;
+      }
+      .post-order-sidebar.card {
+        border-right: none;
+        border-bottom: 2px solid #e2e8f0;
+        height: auto;
+        max-height: 42vh;
+      }
+      .post-order-list { flex: 1 1 auto; min-height: 0; }
+      .input-panels.two-cols .post-input-panel:not(:last-child),
+      .input-panels.three-cols .post-input-panel:not(:last-child) {
+        border-right: none;
+        border-bottom: 2px solid #e2e8f0;
+      }
+    }
+    @media (max-width: 520px) {
+      .post-order-list {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .progress-wrap {
+      margin-top: 14px;
+      max-width: 100%;
+    }
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .progress-bar-bg {
+      height: 14px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      width: 0%;
+      max-width: 100%;
+      background: linear-gradient(90deg, #34d399, #047857);
+      transition: width 0.25s ease, background 0.2s ease;
+    }
+    .progress-bar-fill.is-over {
+      background: linear-gradient(90deg, #fbbf24, #b45309);
+    }
+    .progress-bar-fill.is-full {
+      background: linear-gradient(90deg, #10b981, #065f46);
+    }
+    @media (max-width: 1100px) {
+      .input-panels.two-cols {
+        grid-template-columns: 1fr;
+      }
+      .input-panels.three-cols {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body<?!= embed ? ' class="erp-embed"' : '' ?>>
+  <div class="container erp-unified-panel">
+    <div class="header">
+      <div>
+        <h1>후공정</h1>
+        <div class="header-sub">등록 · 생산 이력</div>
+      </div>
+      <div class="header-right">
+        <div class="view-tabs">
+          <button type="button" class="view-tab-btn active" id="tabInput">등록</button>
+          <button type="button" class="view-tab-btn" id="tabPlan">생산이력</button>
+        </div>
+        <div class="erp-header-nav-wrap">
+          <?!= include('SharedNav'); ?>
+        </div>
+      </div>
+    </div>
+    <div id="viewInput" class="erp-page-body">
+      <div id="rootLoading" class="loading">불러오는 중…</div>
+      <div id="postInputLayout" class="post-input-layout" style="display:none;">
+        <aside class="post-order-sidebar card">
+          <div class="post-sidebar-head">
+            <h4>주문 선택</h4>
+            <span class="post-active-slot-pill">→ <span id="postActivePanelHint">입력 1</span></span>
+          </div>
+          <div class="post-order-legend">
+            <span>○ 대기</span>
+            <span>◐ 진행중</span>
+            <span>● 완료</span>
+          </div>
+          <div class="order-search-wrap">
+            <input type="search" id="orderSearchFilter" autocomplete="off" placeholder="주문번호 · 고객사 · 제품명 검색" aria-label="주문서 검색" />
+          </div>
+          <input type="hidden" id="orderSelect" value="" aria-hidden="true" />
+          <input type="hidden" id="orderSelect2" value="" aria-hidden="true" />
+          <input type="hidden" id="orderSelect3" value="" aria-hidden="true" />
+          <div id="postOrderCardList" class="post-order-list"></div>
+          <div id="postOrderPager" class="post-order-pager" aria-label="주문 목록 페이지">
+            <button type="button" class="post-order-pager-btn" id="postOrderPagerPrev">이전</button>
+            <span class="post-order-pager-info" id="postOrderPagerInfo">1 / 1</span>
+            <button type="button" class="post-order-pager-btn" id="postOrderPagerNext">다음</button>
+          </div>
+        </aside>
+        <div class="post-panels-area">
+          <div id="inputPanels" class="input-panels">
+            <div id="rootMain" class="card post-input-panel is-active" data-panel-suffix="">
+              <div class="post-panel-head">
+                <span class="post-panel-slot-badge">입력 1</span>
+                <span class="post-panel-order" id="postPanelOrderLabel">— 주문 미선택 —</span>
+                <button type="button" class="post-panel-settings-btn js-post-panel-settings" data-panel-suffix="" aria-label="설정" title="설정">⚙</button>
+              </div>
+              <div class="post-work-body">
+                <div class="post-work-product-block">
+                  <div class="post-work-product-top">
+                    <span class="post-work-kind-badge is-empty" id="dispProductKind"></span>
+                  </div>
+                  <div class="post-work-product is-empty" id="dispProductName">주문을 선택하세요</div>
+                  <div class="post-work-meta">
+                    <span class="post-work-meta-item"><span class="mk">고객</span><span class="mv" id="dispOrderNo">—</span></span>
+                    <span class="post-work-meta-item"><span class="mk">주문</span><span class="mv" id="dispOrderNum">—</span></span>
+                  </div>
+                </div>
+                <div class="post-kpi-strip">
+                  <div class="post-kpi-box is-main">
+                    <span class="post-kpi-lbl">누적</span>
+                    <span class="post-kpi-val" id="dispCumulative">0</span>
+                  </div>
+                  <div class="post-kpi-sep">/</div>
+                  <div class="post-kpi-box">
+                    <span class="post-kpi-lbl">목표</span>
+                    <span class="post-kpi-val" id="dispTotalQty">0</span>
+                  </div>
+                </div>
+                <div class="count-block">
+                  <div class="target" id="dispRatio" style="display:none;" aria-hidden="true"></div>
+                  <div class="progress-wrap" id="progressWrap" style="display:none;" aria-hidden="true">
+                    <div class="progress-meta">
+                      <span>진행률</span>
+                      <span id="progressPctLabel">0%</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                      <div class="progress-bar-fill" id="progressFill" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+                    </div>
+                  </div>
+                  <div class="warn" id="dispWarn" style="display:none;"></div>
+                </div>
+                <div class="adjust-panel post-adjust-zone">
+                  <label class="post-register-label" for="qtyInput">이번 등록 수량</label>
+                  <div class="post-register-row">
+                    <input type="number" id="qtyInput" class="post-register-input" min="1" step="1" placeholder="0" disabled />
+                    <button type="button" class="post-register-btn" id="btnPostSubmit" disabled>등록</button>
+                  </div>
+                  <p class="post-register-hint" id="postRegisterHint"></p>
+                </div>
+                <div id="msg" class="msg"></div>
+              </div>
+            </div>
+            <div id="rootMainExtra" class="card post-input-panel extra-panel" style="display:none;" data-panel-suffix="2">
+              <div class="post-panel-head">
+                <span class="post-panel-slot-badge">입력 2</span>
+                <span class="post-panel-order" id="postPanelOrderLabel2">— 주문 미선택 —</span>
+                <button type="button" class="btn-secondary" id="btnCloseInput2" style="margin-left:auto;padding:6px 10px;font-size:12px;flex-shrink:0;">닫기</button>
+                <button type="button" class="post-panel-settings-btn js-post-panel-settings" data-panel-suffix="2" aria-label="설정" title="설정">⚙</button>
+              </div>
+              <div class="post-work-body">
+                <div class="post-work-product-block">
+                  <div class="post-work-product-top">
+                    <span class="post-work-kind-badge is-empty" id="dispProductKind2"></span>
+                  </div>
+                  <div class="post-work-product is-empty" id="dispProductName2">주문을 선택하세요</div>
+                  <div class="post-work-meta">
+                    <span class="post-work-meta-item"><span class="mk">고객</span><span class="mv" id="dispOrderNo2">—</span></span>
+                    <span class="post-work-meta-item"><span class="mk">주문</span><span class="mv" id="dispOrderNum2">—</span></span>
+                  </div>
+                </div>
+                <div class="post-kpi-strip">
+                  <div class="post-kpi-box is-main">
+                    <span class="post-kpi-lbl">누적</span>
+                    <span class="post-kpi-val" id="dispCumulative2">0</span>
+                  </div>
+                  <div class="post-kpi-sep">/</div>
+                  <div class="post-kpi-box">
+                    <span class="post-kpi-lbl">목표</span>
+                    <span class="post-kpi-val" id="dispTotalQty2">0</span>
+                  </div>
+                </div>
+                <div class="count-block">
+                  <div class="target" id="dispRatio2" style="display:none;" aria-hidden="true"></div>
+                  <div class="progress-wrap" id="progressWrap2" style="display:none;" aria-hidden="true">
+                    <div class="progress-meta">
+                      <span>진행률</span>
+                      <span id="progressPctLabel2">0%</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                      <div class="progress-bar-fill" id="progressFill2" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+                    </div>
+                  </div>
+                  <div class="warn" id="dispWarn2" style="display:none;"></div>
+                </div>
+                <div class="adjust-panel post-adjust-zone">
+                  <label class="post-register-label" for="qtyInput2">이번 등록 수량</label>
+                  <div class="post-register-row">
+                    <input type="number" id="qtyInput2" class="post-register-input" min="1" step="1" placeholder="0" disabled />
+                    <button type="button" class="post-register-btn" id="btnPostSubmit2" disabled>등록</button>
+                  </div>
+                  <p class="post-register-hint" id="postRegisterHint2"></p>
+                </div>
+                <div id="msg2" class="msg"></div>
+              </div>
+            </div>
+            <div id="rootMainExtra3" class="card post-input-panel extra-panel" style="display:none;" data-panel-suffix="3">
+              <div class="post-panel-head">
+                <span class="post-panel-slot-badge">입력 3</span>
+                <span class="post-panel-order" id="postPanelOrderLabel3">— 주문 미선택 —</span>
+                <button type="button" class="btn-secondary" id="btnCloseInput3" style="margin-left:auto;padding:6px 10px;font-size:12px;flex-shrink:0;">닫기</button>
+                <button type="button" class="post-panel-settings-btn js-post-panel-settings" data-panel-suffix="3" aria-label="설정" title="설정">⚙</button>
+              </div>
+              <div class="post-work-body">
+                <div class="post-work-product-block">
+                  <div class="post-work-product-top">
+                    <span class="post-work-kind-badge is-empty" id="dispProductKind3"></span>
+                  </div>
+                  <div class="post-work-product is-empty" id="dispProductName3">주문을 선택하세요</div>
+                  <div class="post-work-meta">
+                    <span class="post-work-meta-item"><span class="mk">고객</span><span class="mv" id="dispOrderNo3">—</span></span>
+                    <span class="post-work-meta-item"><span class="mk">주문</span><span class="mv" id="dispOrderNum3">—</span></span>
+                  </div>
+                </div>
+                <div class="post-kpi-strip">
+                  <div class="post-kpi-box is-main">
+                    <span class="post-kpi-lbl">누적</span>
+                    <span class="post-kpi-val" id="dispCumulative3">0</span>
+                  </div>
+                  <div class="post-kpi-sep">/</div>
+                  <div class="post-kpi-box">
+                    <span class="post-kpi-lbl">목표</span>
+                    <span class="post-kpi-val" id="dispTotalQty3">0</span>
+                  </div>
+                </div>
+                <div class="count-block">
+                  <div class="target" id="dispRatio3" style="display:none;" aria-hidden="true"></div>
+                  <div class="progress-wrap" id="progressWrap3" style="display:none;" aria-hidden="true">
+                    <div class="progress-meta">
+                      <span>진행률</span>
+                      <span id="progressPctLabel3">0%</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                      <div class="progress-bar-fill" id="progressFill3" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+                    </div>
+                  </div>
+                  <div class="warn" id="dispWarn3" style="display:none;"></div>
+                </div>
+                <div class="adjust-panel post-adjust-zone">
+                  <label class="post-register-label" for="qtyInput3">이번 등록 수량</label>
+                  <div class="post-register-row">
+                    <input type="number" id="qtyInput3" class="post-register-input" min="1" step="1" placeholder="0" disabled />
+                    <button type="button" class="post-register-btn" id="btnPostSubmit3" disabled>등록</button>
+                  </div>
+                  <p class="post-register-hint" id="postRegisterHint3"></p>
+                </div>
+                <div id="msg3" class="msg"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="viewPlan" class="erp-page-body" style="display:none;">
+      <div class="card">
+        <div id="postPlanRoot"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="postPanelSettingsMenu" class="post-panel-settings-menu" role="menu" aria-hidden="true">
+    <button type="button" class="post-panel-menu-item js-post-menu-reset danger" role="menuitem">0으로 초기화</button>
+    <div class="post-panel-menu-divider js-post-menu-add-divider" style="display:none;"></div>
+    <button type="button" class="post-panel-menu-item js-post-menu-add" role="menuitem" style="display:none;">입력 추가</button>
+  </div>
+
+  <script type="application/json" id="gas-webapp-url"><?!= JSON.stringify(ScriptApp.getService().getUrl()) ?></script>
+  <?!= include('PlanCalendarWidget'); ?>
+  <script>
+    var cachedBaseUrl = null;
+    (function syncWebAppUrlFromServer() {
+      try {
+        var el = document.getElementById('gas-webapp-url');
+        if (el && el.textContent) {
+          cachedBaseUrl = JSON.parse(el.textContent.trim());
+          window.cachedBaseUrl = cachedBaseUrl;
+        }
+      } catch (e) {}
+    })();
+
+    var orders = [];
+    /** 현재 카드 클릭 시 주문이 배정될 입력 패널 ('' | '2' | '3') */
+    var activePanelSuffix = '';
+    /** 시트 기준 누적(서버에서 받은 값만 갱신 — 새로고침 시 이 값으로 목표 대비 표시) */
+    var counts = {};
+    /** 같은 날짜(KST) 서버 기준 현재 입력(주문서+모델) */
+    var sessionTallyByOrder = {};
+    var busy = false;
+    var pendingDeltaByOrder = {};
+    var flushTimer = null;
+    var flushInFlight = false;
+    var postOrderCardPage = 1;
+    var POST_ORDER_PAGE_SIZE = 8;
+    var POST_CLIENT_CACHE_KEY = 'postProcessPage_v1';
+    var POST_CLIENT_CACHE_TTL_MS = 90000;
+    var postLoadToken = 0;
+
+    var settingsMenuSuffix = '';
+
+    function postPanelSuffixList_() {
+      return ['', '2', '3'];
+    }
+
+    function maxQtyForRegister_(ord) {
+      if (!ord) return 0;
+      var current = resolvePostCountForOrder(ord);
+      var pend = pendingDeltaByOrder[String(ord._countKey || '').trim()] || 0;
+      current = Math.max(0, current + pend);
+      var target = Math.floor(Number(ord.quantity) || 0);
+      if (target <= 0) return 999999;
+      return Math.max(0, target - current);
+    }
+
+    function updateRegisterState(sfx) {
+      sfx = sfx != null ? String(sfx) : '';
+      var ord = getSelectedOrder('orderSelect' + sfx);
+      var qtyInp = document.getElementById('qtyInput' + sfx);
+      var btn = document.getElementById('btnPostSubmit' + sfx);
+      var hint = document.getElementById('postRegisterHint' + sfx);
+      if (!qtyInp || !btn) return;
+      var maxQ = maxQtyForRegister_(ord);
+      if (!ord || busy) {
+        qtyInp.disabled = true;
+        btn.disabled = true;
+        if (hint) {
+          hint.textContent = ord ? '' : '왼쪽에서 주문을 선택하세요';
+          hint.classList.toggle('zero', !ord);
+        }
+        return;
+      }
+      qtyInp.disabled = false;
+      if (maxQ <= 0) {
+        btn.disabled = true;
+        if (hint) {
+          hint.textContent = '목표 수량에 도달했습니다';
+          hint.classList.add('zero');
+        }
+        return;
+      }
+      var qty = parseInt(qtyInp.value, 10);
+      var okQty = !isNaN(qty) && qty > 0 && qty <= maxQ;
+      btn.disabled = !okQty;
+      if (hint) {
+        hint.textContent = '등록 가능 최대 ' + maxQ.toLocaleString() + '개';
+        hint.classList.toggle('zero', false);
+      }
+    }
+
+    function prefillRegisterQty_(sfx, ord) {
+      sfx = sfx != null ? String(sfx) : '';
+      var qtyInp = document.getElementById('qtyInput' + sfx);
+      if (!qtyInp) return;
+      if (!ord) {
+        qtyInp.value = '';
+        return;
+      }
+      var maxQ = maxQtyForRegister_(ord);
+      if (maxQ <= 0) {
+        qtyInp.value = '';
+        return;
+      }
+      if (!qtyInp.value || parseInt(qtyInp.value, 10) <= 0) {
+        qtyInp.value = String(Math.min(maxQ, 1));
+      }
+    }
+
+    function closePanelSettingsMenu() {
+      var menu = document.getElementById('postPanelSettingsMenu');
+      if (menu) {
+        menu.classList.remove('open');
+        menu.setAttribute('aria-hidden', 'true');
+        menu.style.top = '';
+        menu.style.left = '';
+        menu.style.visibility = '';
+        menu.style.display = '';
+      }
+      settingsMenuSuffix = '';
+    }
+
+    function getNextAddablePanelSuffix_() {
+      var extra2 = document.getElementById('rootMainExtra');
+      var extra3 = document.getElementById('rootMainExtra3');
+      if (extra2 && extra2.style.display === 'none') return '2';
+      if (extra3 && extra3.style.display === 'none') return '3';
+      return '';
+    }
+
+    function refreshPanelSettingsMenuItems_() {
+      var menu = document.getElementById('postPanelSettingsMenu');
+      if (!menu) return;
+      var sfx = settingsMenuSuffix;
+      var resetBtn = menu.querySelector('.js-post-menu-reset');
+      var addBtn = menu.querySelector('.js-post-menu-add');
+      var addDiv = menu.querySelector('.js-post-menu-add-divider');
+      if (resetBtn) resetBtn.disabled = !getSelectedOrder('orderSelect' + sfx) || busy;
+      var nextAdd = getNextAddablePanelSuffix_();
+      if (addBtn) {
+        if (nextAdd) {
+          addBtn.style.display = '';
+          addBtn.textContent = '입력 추가';
+          addBtn.disabled = false;
+        } else {
+          addBtn.style.display = 'none';
+        }
+      }
+      if (addDiv) addDiv.style.display = nextAdd ? '' : 'none';
+    }
+
+    function addNextInputPanel_() {
+      var next = getNextAddablePanelSuffix_();
+      if (next === '2') {
+        document.getElementById('rootMainExtra').style.display = 'block';
+        setActivePanelSuffix('2');
+        updateDisplayForSuffix('2');
+      } else if (next === '3') {
+        document.getElementById('rootMainExtra3').style.display = 'block';
+        setActivePanelSuffix('3');
+        updateDisplayForSuffix('3');
+      }
+      refreshInputPanelsLayout();
+      renderPostOrderCards();
+    }
+
+    function syncPanelSettingsMenuState(sfx) {
+      var menu = document.getElementById('postPanelSettingsMenu');
+      if (!menu || !menu.classList.contains('open')) return;
+      if (String(settingsMenuSuffix) !== String(sfx != null ? sfx : '')) return;
+      refreshPanelSettingsMenuItems_();
+    }
+
+    function openPanelSettingsMenu(sfx, anchorEl) {
+      sfx = sfx != null ? String(sfx) : '';
+      settingsMenuSuffix = sfx;
+      var menu = document.getElementById('postPanelSettingsMenu');
+      if (!menu || !anchorEl) return;
+      refreshPanelSettingsMenuItems_();
+      menu.classList.add('open');
+      menu.setAttribute('aria-hidden', 'false');
+      menu.style.visibility = 'hidden';
+      var mw = menu.offsetWidth;
+      var mh = menu.offsetHeight;
+      var r = anchorEl.getBoundingClientRect();
+      var top = r.top - mh - 8;
+      var left = r.right - mw;
+      if (top < 8) top = r.bottom + 8;
+      if (left < 8) left = 8;
+      if (left + mw > window.innerWidth - 8) left = window.innerWidth - mw - 8;
+      menu.style.top = top + 'px';
+      menu.style.left = left + 'px';
+      menu.style.visibility = 'visible';
+    }
+
+    function togglePanelSettingsMenu(sfx, anchorEl) {
+      var menu = document.getElementById('postPanelSettingsMenu');
+      if (menu && menu.classList.contains('open') && String(settingsMenuSuffix) === String(sfx != null ? sfx : '')) {
+        closePanelSettingsMenu();
+        return;
+      }
+      closePanelSettingsMenu();
+      openPanelSettingsMenu(sfx, anchorEl);
+    }
+
+    function submitPostRegister(sfx) {
+      sfx = sfx != null ? String(sfx) : '';
+      var ord = getSelectedOrder('orderSelect' + sfx);
+      if (!ord || busy) return;
+      if (flushInFlight || hasPendingDelta()) {
+        setMsg('저장 중입니다. 잠시 후 다시 시도하세요.', 'err', sfx ? 'msg' + sfx : 'msg');
+        return;
+      }
+      var qtyInp = document.getElementById('qtyInput' + sfx);
+      var qty = parseInt(qtyInp ? qtyInp.value : '', 10);
+      var maxQ = maxQtyForRegister_(ord);
+      if (isNaN(qty) || qty <= 0) {
+        setMsg('등록 수량을 입력하세요.', 'err', sfx ? 'msg' + sfx : 'msg');
+        return;
+      }
+      if (maxQ < 999999 && qty > maxQ) {
+        setMsg('잔량(' + maxQ + ')을 초과할 수 없습니다.', 'err', sfx ? 'msg' + sfx : 'msg');
+        return;
+      }
+      var key = String(ord._countKey || '').trim();
+      if (!key) return;
+      busy = true;
+      updateRegisterState(sfx);
+      setMsg('등록 중…', '', sfx ? 'msg' + sfx : 'msg');
+      google.script.run
+        .withSuccessHandler(function (r) {
+          busy = false;
+          if (!r || !r.ok) {
+            setMsg((r && r.message) ? r.message : '등록 실패', 'err', sfx ? 'msg' + sfx : 'msg');
+            updateRegisterState(sfx);
+            return;
+          }
+          var rk = String(r.orderNumber || key).trim();
+          counts[rk] = Math.max(0, normalizeCountValue(r.counted));
+          sessionTallyByOrder[rk] = Math.max(0, normalizeCountValue(r.todayInput));
+          if (qtyInp) qtyInp.value = '';
+          updateDisplay();
+          var planned = Math.floor(Number(r.planned) || 0);
+          setMsg(
+            qty + '개 등록 · 누적 ' + r.counted + (planned > 0 ? ' / ' + planned : ''),
+            'ok',
+            sfx ? 'msg' + sfx : 'msg'
+          );
+          var inpFocus = document.getElementById('qtyInput' + sfx);
+          if (inpFocus && !inpFocus.disabled) {
+            prefillRegisterQty_(sfx, getSelectedOrder('orderSelect' + sfx));
+            inpFocus.focus();
+            inpFocus.select();
+          }
+          notifyOrdersDataChanged_();
+        })
+        .withFailureHandler(function (err) {
+          busy = false;
+          setMsg(err.message || String(err), 'err', sfx ? 'msg' + sfx : 'msg');
+          updateRegisterState(sfx);
+        })
+        .postProcessAdjustCount(key, qty);
+    }
+
+    function notifyOrdersDataChanged_() {
+      try {
+        if (window.erpCallNotifyOrdersChanged) window.erpCallNotifyOrdersChanged();
+      } catch (eNotify) {}
+    }
+
+    function ensureUiOrderKeys() {
+      for (var i = 0; i < orders.length; i++) {
+        var o = orders[i] || {};
+        var on = String(o.orderNumber || '').trim();
+        if (o._uiKey && o._countKey && o._countProductLabel) continue;
+        var pn = String(o.productName || '').trim();
+        var vv = String(o.version || '').trim();
+        var qty = Math.floor(Number(o.quantity) || 0);
+        var up = Number(o.unitPrice);
+        var upStr = isFinite(up) ? String(Math.round(up)) : '0';
+        var labelParts = [];
+        var base = pn + (vv ? ' ' + vv : '');
+        var code = String(o.productCode || '').trim();
+        if (base) labelParts.push(base);
+        else if (code) labelParts.push(code);
+        if (code && base) labelParts.push('[' + code + ']');
+        labelParts.push('수량' + qty);
+        labelParts.push('단가' + upStr);
+        var sr = o.sheetRow != null ? Number(o.sheetRow) : 0;
+        if (sr >= 2) labelParts.push('#행' + Math.floor(sr));
+        o._countProductLabel = String(o._countProductLabel || labelParts.join(' · '));
+        o._uiKey = String(o._uiKey || on + '\x1e' + String(o.sheetRow != null ? o.sheetRow : i) + '\x1e' + String(i));
+        o._countKey = String(o._countKey || on + '\x1f' + o._countProductLabel);
+      }
+    }
+
+    /** 주문 1행별 누적 — 동일 제품명·다른 수량 행은 주문서 단독키로 합치지 않음 */
+    function resolvePostCountForOrder(ord) {
+      if (!ord) return 0;
+      var key = String(ord._countKey || '').trim();
+      if (key && counts[key] != null && counts[key] !== '') {
+        return normalizeCountValue(counts[key]);
+      }
+      var on = String(ord.orderNumber || '').trim();
+      var full = String(ord._countProductLabel || '').trim();
+      if (on && full) {
+        var ck = on + '\x1f' + full;
+        if (counts[ck] != null && counts[ck] !== '') return normalizeCountValue(counts[ck]);
+      }
+      var pn = String(ord.productName || '').trim();
+      if (on && pn) {
+        var legacyK = on + '\x1f' + pn;
+        if (counts[legacyK] != null && counts[legacyK] !== '') {
+          var dupes = 0;
+          for (var i = 0; i < orders.length; i++) {
+            var o2 = orders[i] || {};
+            if (String(o2.orderNumber || '').trim() === on && String(o2.productName || '').trim() === pn) dupes++;
+          }
+          if (dupes <= 1) return normalizeCountValue(counts[legacyK]);
+        }
+      }
+      if (on && (!full || key.indexOf('\x1f') < 0)) {
+        if (counts[on] != null && counts[on] !== '') return normalizeCountValue(counts[on]);
+      }
+      return 0;
+    }
+
+    function findOrderForJournalItem(it) {
+      var on = String(it.orderNo || '').trim();
+      var prod = String(it.product || '').trim();
+      if (!on) return null;
+      var exact = null;
+      var legacy = null;
+      var legacyN = 0;
+      for (var i = 0; i < orders.length; i++) {
+        var ord = orders[i] || {};
+        if (String(ord.orderNumber || '').trim() !== on) continue;
+        var full = String(ord._countProductLabel || '').trim();
+        if (prod && (prod === full || prod === String(ord._countKey || '').split('\x1f')[1])) {
+          exact = ord;
+          break;
+        }
+        var pn = String(ord.productName || '').trim();
+        if (prod && pn === prod) {
+          legacy = ord;
+          legacyN++;
+        }
+      }
+      if (exact) return exact;
+      if (legacyN === 1) return legacy;
+      return null;
+    }
+
+    function normalizeCountValue(v) {
+      var n = typeof v === 'number' ? v : parseInt(v, 10);
+      if (isNaN(n)) n = 0;
+      return Math.max(0, n);
+    }
+
+    function hasPendingDelta() {
+      for (var k in pendingDeltaByOrder) {
+        if (!Object.prototype.hasOwnProperty.call(pendingDeltaByOrder, k)) continue;
+        if ((pendingDeltaByOrder[k] || 0) !== 0) return true;
+      }
+      return false;
+    }
+
+    function scheduleFlushPending(delayMs) {
+      if (flushTimer) clearTimeout(flushTimer);
+      flushTimer = setTimeout(flushPendingAdjusts, delayMs == null ? 120 : delayMs);
+    }
+
+    function flushPendingAdjusts() {
+      // 저장 RPC가 끝나기 전에 타이머가 돌면 여기서 그냥 return 하면 pending이 서버로 안 나가고,
+      // 이후 success에서 r.counted만 반영되며 숫자가 '롤백'된 것처럼 보임 → 반드시 재시도 예약
+      if (flushInFlight || busy) {
+        scheduleFlushPending(busy ? 400 : 180);
+        return;
+      }
+      var key = '';
+      for (var k in pendingDeltaByOrder) {
+        if (!Object.prototype.hasOwnProperty.call(pendingDeltaByOrder, k)) continue;
+        if ((pendingDeltaByOrder[k] || 0) !== 0) {
+          key = k;
+          break;
+        }
+      }
+      if (!key) return;
+      var sendDelta = pendingDeltaByOrder[key] || 0;
+      delete pendingDeltaByOrder[key];
+      if (!sendDelta) return;
+      flushInFlight = true;
+      google.script.run
+        .withSuccessHandler(function (r) {
+          flushInFlight = false;
+          if (!r || !r.ok) {
+            pendingDeltaByOrder[key] = (pendingDeltaByOrder[key] || 0) + sendDelta;
+            sessionTallyByOrder[key] = Math.max(0, (sessionTallyByOrder[key] || 0) - sendDelta);
+            setMsg((r && r.message) ? r.message : '저장 지연 · 재시도 중', 'err');
+            scheduleFlushPending(1200);
+            return;
+          }
+          var okKey = String(r.orderNumber || key).trim();
+          var remain = pendingDeltaByOrder[okKey] || 0;
+          counts[okKey] = Math.max(0, normalizeCountValue(r.counted) + remain);
+          sessionTallyByOrder[okKey] = Math.max(0, normalizeCountValue(r.todayInput) + remain);
+          updateDisplay();
+          if (!hasPendingDelta()) {
+            setMsg('저장 완료', 'ok');
+            notifyOrdersDataChanged_();
+          } else scheduleFlushPending(0);
+        })
+        .withFailureHandler(function () {
+          flushInFlight = false;
+          pendingDeltaByOrder[key] = (pendingDeltaByOrder[key] || 0) + sendDelta;
+          sessionTallyByOrder[key] = Math.max(0, (sessionTallyByOrder[key] || 0) - sendDelta);
+          setMsg('네트워크 지연 · 재시도 중', 'err');
+          scheduleFlushPending(1500);
+        })
+        .postProcessAdjustCount(key, sendDelta);
+    }
+
+    function formatModel(ord) {
+      if (!ord) return '—';
+      var pn = String(ord.productName || '').trim();
+      var v = String(ord.version || '').trim();
+      if (pn && v) return pn + ' (' + v + ')';
+      return pn || v || '—';
+    }
+
+    function postProductKindMeta(ord) {
+      ord = ord || {};
+      var label = String(ord.postProcessKindLabel || '').trim();
+      var kind = String(ord.postProcessKind || '').trim();
+      if (!label) {
+        if (ord.detailInfo && ord.detailInfo.source === 'combo-bom') {
+          kind = 'finished';
+          label = '완제품';
+        } else {
+          kind = 'semi';
+          label = '반제품';
+        }
+      }
+      var cls = kind === 'finished' ? 'post-product-badge-finished' : 'post-product-badge-semi';
+      return { label: label, cls: cls };
+    }
+
+    function setMsg(text, kind, msgId) {
+      var el = document.getElementById(msgId || 'msg');
+      if (!el) return;
+      el.textContent = text || '';
+      el.className = 'msg' + (kind === 'err' ? ' err' : kind === 'ok' ? ' ok' : '');
+    }
+
+    function setViewMode(mode) {
+      var isPlan = mode === 'plan';
+      var vInput = document.getElementById('viewInput');
+      var vPlan = document.getElementById('viewPlan');
+      var tInput = document.getElementById('tabInput');
+      var tPlan = document.getElementById('tabPlan');
+      if (vInput) vInput.style.display = isPlan ? 'none' : '';
+      if (vPlan) vPlan.style.display = isPlan ? '' : 'none';
+      if (tInput) tInput.classList.toggle('active', !isPlan);
+      if (tPlan) tPlan.classList.toggle('active', isPlan);
+      if (isPlan) ensurePostPlanWidget();
+    }
+
+    var postPlanWidget = null;
+    function ensurePostPlanWidget() {
+      if (!postPlanWidget && window.initScopedPlanCalendar) {
+        postPlanWidget = window.initScopedPlanCalendar({ rootId: 'postPlanRoot', scope: 'post', mode: 'history' });
+      } else if (postPlanWidget && postPlanWidget.ensure) {
+        postPlanWidget.ensure();
+      }
+    }
+
+    function getSelectedOrder(selectId) {
+      var hidden = document.getElementById(selectId || 'orderSelect');
+      var v = hidden ? hidden.value : '';
+      if (!v) return null;
+      for (var i = 0; i < orders.length; i++) {
+        if (orders[i] && String(orders[i]._uiKey || '') === v) return orders[i];
+      }
+      return null;
+    }
+
+    function hasSelectedOrder(selectId) {
+      var hidden = document.getElementById(selectId || 'orderSelect');
+      return !!(hidden && hidden.value);
+    }
+
+    function applyWorkPanelProductKind_(sfx, ord) {
+      var el = document.getElementById('dispProductKind' + sfx);
+      if (!el) return;
+      if (!ord) {
+        el.textContent = '';
+        el.className = 'post-work-kind-badge is-empty';
+        return;
+      }
+      var meta = postProductKindMeta(ord);
+      el.textContent = meta.label;
+      el.className =
+        'post-work-kind-badge ' + (meta.cls.indexOf('finished') >= 0 ? 'kind-finished' : 'kind-semi');
+    }
+
+    function updateDisplayForSuffix(sfx) {
+      sfx = sfx || '';
+      var ord = getSelectedOrder('orderSelect' + sfx);
+      var hasOrder = hasSelectedOrder('orderSelect' + sfx);
+      var progressWrap = document.getElementById('progressWrap' + sfx);
+      var progressFill = document.getElementById('progressFill' + sfx);
+      var progressPct = document.getElementById('progressPctLabel' + sfx);
+
+      var prodNameEl = document.getElementById('dispProductName' + sfx);
+      var orderNumEl = document.getElementById('dispOrderNum' + sfx);
+
+      if (!ord) {
+        prefillRegisterQty_(sfx, null);
+        document.getElementById('dispOrderNo' + sfx).textContent = '—';
+        if (orderNumEl) orderNumEl.textContent = '—';
+        if (prodNameEl) {
+          prodNameEl.textContent = '주문을 선택하세요';
+          prodNameEl.classList.add('is-empty');
+        }
+        applyWorkPanelProductKind_(sfx, null);
+        document.getElementById('dispTotalQty' + sfx).textContent = '0';
+        document.getElementById('dispCumulative' + sfx).textContent = '0';
+        document.getElementById('dispRatio' + sfx).textContent = '';
+        document.getElementById('dispWarn' + sfx).style.display = 'none';
+        if (progressWrap) progressWrap.style.display = 'none';
+        if (progressFill) {
+          progressFill.style.width = '0%';
+          progressFill.classList.remove('is-over', 'is-full');
+          progressFill.setAttribute('aria-valuenow', '0');
+        }
+        if (progressPct) progressPct.textContent = '0%';
+        updatePostPanelOrderLabel(sfx);
+        syncPanelSettingsMenuState(sfx);
+        updateRegisterState(sfx);
+        return;
+      }
+
+      var key = String(ord._countKey || '').trim();
+      var sb = resolvePostCountForOrder(ord);
+      var pend = pendingDeltaByOrder[key] || 0;
+      var ratioTotal = Math.max(0, sb + pend);
+      var pq = ord.quantity != null && ord.quantity !== '' ? Number(ord.quantity) : 0;
+      var pqOk = !isNaN(pq) && pq > 0;
+      var atOrOverGoal = pqOk && ratioTotal >= pq;
+      var totalQtyFloor = pqOk ? Math.floor(pq) : 0;
+
+      syncPanelSettingsMenuState(sfx);
+
+      document.getElementById('dispOrderNo' + sfx).textContent = String(ord.customer || '').trim() || '—';
+      if (orderNumEl) orderNumEl.textContent = String(ord.orderNumber || '').trim() || '—';
+      if (prodNameEl) {
+        prodNameEl.textContent = formatModel(ord);
+        prodNameEl.classList.remove('is-empty');
+      }
+      applyWorkPanelProductKind_(sfx, ord);
+      document.getElementById('dispTotalQty' + sfx).textContent = String(totalQtyFloor);
+      document.getElementById('dispCumulative' + sfx).textContent = String(ratioTotal);
+
+      var warn = document.getElementById('dispWarn' + sfx);
+      if (pqOk) {
+        if (ratioTotal >= pq) {
+          warn.style.display = 'block';
+          warn.textContent = ratioTotal > pq ? '목표 수량을 초과했습니다.' : '목표 수량에 도달했습니다.';
+        } else {
+          warn.style.display = 'none';
+        }
+        var pctRaw = Math.round((ratioTotal / pq) * 1000) / 10;
+        var barW = Math.min(100, Math.round((ratioTotal / pq) * 10000) / 100);
+        if (progressWrap) {
+          progressWrap.style.display = 'block';
+          progressWrap.setAttribute('aria-hidden', 'false');
+        }
+        if (progressPct) progressPct.textContent = pctRaw + '%';
+        if (progressFill) {
+          progressFill.style.width = barW + '%';
+          progressFill.classList.toggle('is-over', ratioTotal > pq);
+          progressFill.classList.toggle('is-full', ratioTotal >= pq && ratioTotal <= pq);
+          progressFill.setAttribute('aria-valuenow', String(Math.min(100, Math.round(barW))));
+        }
+      } else {
+        warn.style.display = 'none';
+        if (progressWrap) {
+          progressWrap.style.display = 'none';
+          progressWrap.setAttribute('aria-hidden', 'true');
+        }
+        if (progressFill) {
+          progressFill.style.width = '0%';
+          progressFill.classList.remove('is-over', 'is-full');
+        }
+        if (progressPct) progressPct.textContent = '—';
+      }
+      updatePostPanelOrderLabel(sfx);
+      prefillRegisterQty_(sfx, ord);
+      updateRegisterState(sfx);
+    }
+
+    function updateDisplay() {
+      renderPostOrderCards();
+      updateDisplayForSuffix('');
+      var extra2 = document.getElementById('rootMainExtra');
+      if (extra2 && extra2.style.display !== 'none') updateDisplayForSuffix('2');
+      var extra3 = document.getElementById('rootMainExtra3');
+      if (extra3 && extra3.style.display !== 'none') updateDisplayForSuffix('3');
+    }
+
+    function refreshInputPanelsLayout() {
+      var p = document.getElementById('inputPanels');
+      var visibleCount = 1;
+      var extra2 = document.getElementById('rootMainExtra');
+      var extra3 = document.getElementById('rootMainExtra3');
+      if (extra2 && extra2.style.display !== 'none') visibleCount++;
+      if (extra3 && extra3.style.display !== 'none') visibleCount++;
+      if (p) {
+        p.classList.remove('two-cols', 'three-cols');
+        if (visibleCount >= 3) p.classList.add('three-cols');
+        else if (visibleCount >= 2) p.classList.add('two-cols');
+      }
+    }
+
+    function ordersMatchingFilter(searchId) {
+      var inp = document.getElementById(searchId || 'orderSearchFilter');
+      var q = inp && inp.value ? String(inp.value).trim().toLowerCase() : '';
+      if (!q) return orders.slice();
+      return orders.filter(function (O) {
+        if (!O) return false;
+        var on = String(O.orderNumber || '').toLowerCase();
+        var cu = String(O.customer || '').toLowerCase();
+        var pn = String(O.productName || '').toLowerCase();
+        var pd = String(O.postProcessLabel || O.postProcessDisplayName || '').toLowerCase();
+        var pc = String(O.productCode || '').toLowerCase();
+        return (
+          on.indexOf(q) >= 0 ||
+          cu.indexOf(q) >= 0 ||
+          pn.indexOf(q) >= 0 ||
+          (pd && pd.indexOf(q) >= 0) ||
+          pc.indexOf(q) >= 0
+        );
+      });
+    }
+
+    function postNum(n) {
+      var x = Math.floor(Number(n) || 0);
+      return x.toLocaleString('ko-KR');
+    }
+
+    function getActivePanelSuffix() {
+      return activePanelSuffix != null ? String(activePanelSuffix) : '';
+    }
+
+    function panelLabelForSuffix(sfx) {
+      if (sfx === '2') return '입력 2';
+      if (sfx === '3') return '입력 3';
+      return '입력 1';
+    }
+
+    function setActivePanelSuffix(sfx) {
+      sfx = sfx != null ? String(sfx) : '';
+      if (sfx !== '' && sfx !== '2' && sfx !== '3') sfx = '';
+      var panelEl =
+        sfx === '2'
+          ? document.getElementById('rootMainExtra')
+          : sfx === '3'
+            ? document.getElementById('rootMainExtra3')
+            : document.getElementById('rootMain');
+      if (panelEl && panelEl.style.display === 'none' && sfx !== '') {
+        sfx = '';
+      }
+      activePanelSuffix = sfx;
+      var panels = document.querySelectorAll('.post-input-panel');
+      for (var i = 0; i < panels.length; i++) {
+        var p = panels[i];
+        var ps = p.getAttribute('data-panel-suffix') || '';
+        p.classList.toggle('is-active', ps === activePanelSuffix);
+      }
+      var hint = document.getElementById('postActivePanelHint');
+      if (hint) hint.textContent = panelLabelForSuffix(activePanelSuffix);
+    }
+
+    function updatePostPanelOrderLabel(sfx) {
+      sfx = sfx != null ? String(sfx) : '';
+      var el = document.getElementById('postPanelOrderLabel' + sfx);
+      if (!el) return;
+      var ord = getSelectedOrder('orderSelect' + sfx);
+      el.textContent = ord ? formatModel(ord) : '— 주문 미선택 —';
+    }
+
+    function updatePostOrderPager_(filteredLen) {
+      var pager = document.getElementById('postOrderPager');
+      var prevBtn = document.getElementById('postOrderPagerPrev');
+      var nextBtn = document.getElementById('postOrderPagerNext');
+      var infoEl = document.getElementById('postOrderPagerInfo');
+      if (!pager || !prevBtn || !nextBtn || !infoEl) return;
+      var len = Math.max(0, Math.floor(Number(filteredLen) || 0));
+      var totalPages = Math.max(1, Math.ceil(len / POST_ORDER_PAGE_SIZE));
+      if (postOrderCardPage > totalPages) postOrderCardPage = totalPages;
+      if (postOrderCardPage < 1) postOrderCardPage = 1;
+      if (len <= POST_ORDER_PAGE_SIZE) {
+        pager.classList.remove('is-visible');
+        return;
+      }
+      pager.classList.add('is-visible');
+      infoEl.textContent = postOrderCardPage + ' / ' + totalPages + ' · ' + len + '건';
+      prevBtn.disabled = postOrderCardPage <= 1;
+      nextBtn.disabled = postOrderCardPage >= totalPages;
+    }
+
+    function renderPostOrderCards() {
+      var listEl = document.getElementById('postOrderCardList');
+      if (!listEl) return;
+      var filtered = ordersMatchingFilter('orderSearchFilter');
+      var sfxList = ['', '2', '3'];
+      var si;
+      for (si = 0; si < sfxList.length; si++) {
+        var sfxP = sfxList[si];
+        var panelP =
+          sfxP === '2'
+            ? document.getElementById('rootMainExtra')
+            : sfxP === '3'
+              ? document.getElementById('rootMainExtra3')
+              : document.getElementById('rootMain');
+        if (panelP && panelP.style.display === 'none') continue;
+        var hiddenP = document.getElementById('orderSelect' + sfxP);
+        if (!hiddenP || !hiddenP.value) continue;
+        var keepP = filtered.some(function (x) {
+          return String(x._uiKey || '') === String(hiddenP.value);
+        });
+        if (!keepP) {
+          hiddenP.value = '';
+          updatePostPanelOrderLabel(sfxP);
+        }
+      }
+      if (!filtered.length) {
+        listEl.innerHTML =
+          '<div class="post-order-empty">' +
+          (orders.length ? '검색 결과 없음' : '표시할 주문이 없습니다') +
+          '</div>';
+        updatePostOrderPager_(0);
+        return;
+      }
+      var totalPages = Math.max(1, Math.ceil(filtered.length / POST_ORDER_PAGE_SIZE));
+      if (postOrderCardPage > totalPages) postOrderCardPage = totalPages;
+      var startIdx = (postOrderCardPage - 1) * POST_ORDER_PAGE_SIZE;
+      var pageItems = filtered.slice(startIdx, startIdx + POST_ORDER_PAGE_SIZE);
+      var activeSfx = getActivePanelSuffix();
+      var hidden = document.getElementById('orderSelect' + activeSfx);
+      var activeKey = hidden ? String(hidden.value || '') : '';
+      var html = '';
+      var i;
+      for (i = 0; i < pageItems.length; i++) {
+        var O = pageItems[i] || {};
+        var v = String(O._uiKey || '');
+        var stCls = postOrderOptionClass(O);
+        var selCls = activeKey && activeKey === v ? ' selected' : '';
+        var total = Math.max(0, Math.floor(Number(O.quantity) || 0));
+        var cust = String(O.customer || '').trim() || '—';
+        var oNum = String(O.orderNumber || '').trim() || '—';
+        var pnm = formatModel(O);
+        html +=
+          '<div class="post-order-card ' +
+          stCls +
+          selCls +
+          '" data-ui-key="' +
+          esc(v) +
+          '" role="button" tabindex="0">' +
+          '<div class="post-order-customer">' +
+          esc(postOrderOptionPrefix(O) + ' ' + cust) +
+          '</div>' +
+          '<div class="post-order-info">' +
+          '<div class="post-order-info-row"><span class="post-order-info-k">주문</span><span class="post-order-info-v">' +
+          esc(oNum) +
+          '</span></div>' +
+          '<div class="post-order-info-row"><span class="post-order-info-k">제품</span><span class="post-order-info-v is-product">' +
+          esc(pnm) +
+          '</span></div>' +
+          '<div class="post-order-info-row"><span class="post-order-info-k">수량</span><span class="post-order-info-v is-qty">' +
+          esc(total > 0 ? postNum(total) : '—') +
+          '</span></div>' +
+          '</div></div>';
+      }
+      listEl.innerHTML = html;
+      updatePostOrderPager_(filtered.length);
+    }
+
+    function selectIdToSuffix(selectId) {
+      if (selectId === 'orderSelect2') return '2';
+      if (selectId === 'orderSelect3') return '3';
+      return '';
+    }
+
+    function postOrderEffectiveCount(ord) {
+      if (!ord) return 0;
+      var key = String(ord._countKey || '').trim();
+      var base = resolvePostCountForOrder(ord);
+      var pend = key ? (pendingDeltaByOrder[key] || 0) : 0;
+      return Math.max(0, base + pend);
+    }
+
+    function buildPostOrderOptionLabel(O) {
+      O = O || {};
+      var pnm = String(O.productName || '').trim();
+      var vv = String(O.version || '').trim();
+      var cust = String(O.customer || '').trim();
+      var oNum = String(O.orderNumber || '').trim();
+      var label = (oNum || '—') + ' · ' + (cust || '—') + ' · ' + pnm;
+      if (vv) label += ' v' + vv;
+      return label;
+    }
+
+    function buildPostOrderQtyBadge(O) {
+      O = O || {};
+      var total = Math.max(0, Math.floor(Number(O.quantity) || 0));
+      var cum = postOrderEffectiveCount(O);
+      var st = postOrderOptionState(O);
+      if (st === 'full') return (cum > 0 ? cum : total) + '개 완료';
+      if (st === 'progress') {
+        if (total > 0) return cum + '/' + total + '개';
+        return cum + '개 진행중';
+      }
+      if (total > 0) return total + '개';
+      return '';
+    }
+
+    function postOrderOptionState(ord) {
+      ord = ord || {};
+      var total = Math.max(0, Math.floor(Number(ord.quantity) || 0));
+      var cum = postOrderEffectiveCount(ord);
+      if (cum <= 0) return 'none';
+      if (total > 0 && cum >= total) return 'full';
+      return 'progress';
+    }
+
+    function postOrderOptionClass(ord) {
+      var st = postOrderOptionState(ord);
+      if (st === 'full') return 'st-full';
+      if (st === 'progress') return 'st-progress';
+      return 'st-none';
+    }
+
+    function postOrderOptionPrefix(ord) {
+      var st = postOrderOptionState(ord);
+      if (st === 'full') return '●';
+      if (st === 'progress') return '◐';
+      return '○';
+    }
+
+    function setPostOrderSelection(selectId, uiKey) {
+      var hidden = document.getElementById(selectId);
+      if (!hidden) return;
+      hidden.value = uiKey || '';
+      if (uiKey) {
+        var filteredSel = ordersMatchingFilter('orderSearchFilter');
+        var fi;
+        for (fi = 0; fi < filteredSel.length; fi++) {
+          if (String(filteredSel[fi]._uiKey || '') === String(uiKey)) {
+            postOrderCardPage = Math.floor(fi / POST_ORDER_PAGE_SIZE) + 1;
+            break;
+          }
+        }
+      }
+      var sfx = selectIdToSuffix(selectId);
+      updatePostPanelOrderLabel(sfx);
+      renderPostOrderCards();
+    }
+
+    function readPostClientCache_() {
+      try {
+        var raw = sessionStorage.getItem(POST_CLIENT_CACHE_KEY);
+        if (!raw) return null;
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.res || !parsed.savedAt) return null;
+        if (Date.now() - Number(parsed.savedAt) > POST_CLIENT_CACHE_TTL_MS) return null;
+        return parsed.res;
+      } catch (eRead) {
+        return null;
+      }
+    }
+
+    function writePostClientCache_(res) {
+      try {
+        if (!res || !res.ok) return;
+        sessionStorage.setItem(POST_CLIENT_CACHE_KEY, JSON.stringify({ res: res, savedAt: Date.now() }));
+      } catch (eWrite) {}
+    }
+
+    function applyPostPageData_(res, fullReset) {
+      document.getElementById('rootLoading').style.display = 'none';
+      var layoutEl = document.getElementById('postInputLayout');
+      if (layoutEl) layoutEl.style.display = '';
+      if (!res || !res.ok) {
+        if (fullReset) {
+          setMsg((res && res.error) ? res.error : '불러오지 못했습니다.', 'err');
+          orders = [];
+          counts = {};
+          sessionTallyByOrder = {};
+          var sfE = document.getElementById('orderSearchFilter');
+          if (sfE) sfE.value = '';
+          renderPostOrderCards();
+          updateDisplayForSuffix('');
+          updateDisplayForSuffix('2');
+          updateDisplayForSuffix('3');
+        }
+        return;
+      }
+      orders = res.orders || [];
+      ensureUiOrderKeys();
+      counts = res.counts || {};
+      if (res.dailyInputs) sessionTallyByOrder = res.dailyInputs;
+      if (fullReset) {
+        var sf = document.getElementById('orderSearchFilter');
+        if (sf) sf.value = '';
+        setActivePanelSuffix('');
+      }
+      renderPostOrderCards();
+      updateDisplayForSuffix('');
+      updateDisplayForSuffix('2');
+      updateDisplayForSuffix('3');
+    }
+
+    function loadData() {
+      setMsg('');
+      sessionTallyByOrder = {};
+      pendingDeltaByOrder = {};
+      if (flushTimer) clearTimeout(flushTimer);
+      flushTimer = null;
+      flushInFlight = false;
+      refreshPostOrdersFromServer_(true);
+    }
+
+    function refreshPostOrdersFromServer_(fullReset, opts) {
+      opts = opts || {};
+      var token = ++postLoadToken;
+      if (!opts.skipCache) {
+        var cached = readPostClientCache_();
+        if (cached && cached.ok) {
+          applyPostPageData_(cached, fullReset);
+        } else {
+          document.getElementById('rootLoading').style.display = 'block';
+          var layoutHide = document.getElementById('postInputLayout');
+          if (layoutHide) layoutHide.style.display = 'none';
+        }
+      }
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (token !== postLoadToken) return;
+          applyPostPageData_(res, fullReset);
+          if (res && res.ok) writePostClientCache_(res);
+          if (window.erpMarkOrdersRevisionSeen) window.erpMarkOrdersRevisionSeen();
+        })
+        .withFailureHandler(function (err) {
+          if (token !== postLoadToken) return;
+          document.getElementById('rootLoading').style.display = 'none';
+          var layoutEl = document.getElementById('postInputLayout');
+          if (layoutEl) layoutEl.style.display = '';
+          if (fullReset && !orders.length) setMsg(err.message || String(err), 'err');
+        })
+        .getPostProcessPageData();
+    }
+
+    window.erpRefreshForOrdersChange = function () {
+      if (hasPendingDelta() || flushInFlight) return;
+      refreshPostOrdersFromServer_(false, { skipCache: true });
+    };
+
+    function runReset(sfx) {
+      sfx = sfx || '';
+      var ord = getSelectedOrder('orderSelect' + sfx);
+      if (!ord || busy) return;
+      if (flushInFlight || hasPendingDelta()) {
+        setMsg('저장 중입니다. 잠시 후 다시 시도하세요.', 'err', sfx ? 'msg' + sfx : 'msg');
+        return;
+      }
+      if (!window.confirm('이 주문서의 누적 수량을 0으로 초기화할까요?')) return;
+      busy = true;
+      updateDisplayForSuffix(sfx);
+      setMsg('', '', sfx ? 'msg' + sfx : 'msg');
+      google.script.run
+        .withSuccessHandler(function (r) {
+          busy = false;
+          if (!r || !r.ok) {
+            setMsg((r && r.message) ? r.message : '초기화 실패', 'err', sfx ? 'msg' + sfx : 'msg');
+            updateDisplayForSuffix(sfx);
+            return;
+          }
+          var rk = String(r.orderNumber);
+          counts[rk] = normalizeCountValue(r.counted);
+          sessionTallyByOrder[rk] = 0;
+          updateDisplayForSuffix(sfx);
+          setMsg('초기화했습니다.', 'ok', sfx ? 'msg' + sfx : 'msg');
+          notifyOrdersDataChanged_();
+        })
+        .withFailureHandler(function (err) {
+          busy = false;
+          setMsg(err.message || String(err), 'err', sfx ? 'msg' + sfx : 'msg');
+          updateDisplayForSuffix(sfx);
+        })
+        .postProcessResetCount(String(ord._countKey || '').trim());
+    }
+
+    function esc(v) {
+      return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    var postOrderCardListEl = document.getElementById('postOrderCardList');
+    if (postOrderCardListEl) {
+      postOrderCardListEl.addEventListener('click', function (ev) {
+        var card = ev.target && ev.target.closest ? ev.target.closest('.post-order-card[data-ui-key]') : null;
+        if (!card) return;
+        var uiKey = card.getAttribute('data-ui-key') || '';
+        var sfx = getActivePanelSuffix();
+        setPostOrderSelection('orderSelect' + sfx, uiKey);
+        setMsg('', '', sfx ? 'msg' + sfx : 'msg');
+        updateDisplayForSuffix(sfx);
+        var qtyEl = document.getElementById('qtyInput' + sfx);
+        if (qtyEl && !qtyEl.disabled) {
+          setTimeout(function () {
+            qtyEl.focus();
+            qtyEl.select();
+          }, 30);
+        }
+      });
+    }
+    var inputPanelsEl = document.getElementById('inputPanels');
+    if (inputPanelsEl) {
+      inputPanelsEl.addEventListener('click', function (ev) {
+        var settingsBtn = ev.target && ev.target.closest ? ev.target.closest('.js-post-panel-settings') : null;
+        if (settingsBtn) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var sfxSet = settingsBtn.getAttribute('data-panel-suffix') || '';
+          setActivePanelSuffix(sfxSet);
+          renderPostOrderCards();
+          togglePanelSettingsMenu(sfxSet, settingsBtn);
+          return;
+        }
+        if (ev.target && ev.target.closest && ev.target.closest('button')) return;
+        var panel = ev.target && ev.target.closest ? ev.target.closest('.post-input-panel[data-panel-suffix]') : null;
+        if (!panel || panel.style.display === 'none') return;
+        setActivePanelSuffix(panel.getAttribute('data-panel-suffix') || '');
+        renderPostOrderCards();
+      });
+    }
+    document.addEventListener('click', function (ev) {
+      var menu = document.getElementById('postPanelSettingsMenu');
+      if (!menu || !menu.classList.contains('open')) return;
+      if (ev.target && ev.target.closest && ev.target.closest('.js-post-panel-settings')) return;
+      if (ev.target && ev.target.closest && ev.target.closest('#postPanelSettingsMenu')) return;
+      closePanelSettingsMenu();
+    });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') closePanelSettingsMenu();
+    });
+    var postPanelSettingsMenu = document.getElementById('postPanelSettingsMenu');
+    if (postPanelSettingsMenu) {
+      postPanelSettingsMenu.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        var resetItem = ev.target && ev.target.closest ? ev.target.closest('.js-post-menu-reset') : null;
+        var addItem = ev.target && ev.target.closest ? ev.target.closest('.js-post-menu-add') : null;
+        var sfxMenu = settingsMenuSuffix;
+        if (resetItem && !resetItem.disabled) {
+          closePanelSettingsMenu();
+          runReset(sfxMenu);
+          return;
+        }
+        if (addItem && !addItem.disabled) {
+          closePanelSettingsMenu();
+          addNextInputPanel_();
+        }
+      });
+    }
+    var orderSearchEl = document.getElementById('orderSearchFilter');
+    if (orderSearchEl) {
+      orderSearchEl.addEventListener('input', function () {
+        postOrderCardPage = 1;
+        renderPostOrderCards();
+      });
+    }
+    var postOrderPagerPrev = document.getElementById('postOrderPagerPrev');
+    var postOrderPagerNext = document.getElementById('postOrderPagerNext');
+    if (postOrderPagerPrev) {
+      postOrderPagerPrev.addEventListener('click', function () {
+        if (postOrderCardPage <= 1) return;
+        postOrderCardPage--;
+        renderPostOrderCards();
+      });
+    }
+    if (postOrderPagerNext) {
+      postOrderPagerNext.addEventListener('click', function () {
+        postOrderCardPage++;
+        renderPostOrderCards();
+      });
+    }
+    function wirePostRegisterPanel_(sfx) {
+      var qtyInp = document.getElementById('qtyInput' + sfx);
+      var btn = document.getElementById('btnPostSubmit' + sfx);
+      if (qtyInp) {
+        qtyInp.addEventListener('input', function () {
+          updateRegisterState(sfx);
+        });
+        qtyInp.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            var btnGo = document.getElementById('btnPostSubmit' + sfx);
+            if (btnGo && !btnGo.disabled) submitPostRegister(sfx);
+          }
+        });
+      }
+      if (btn) {
+        btn.addEventListener('click', function () {
+          submitPostRegister(sfx);
+        });
+      }
+    }
+    wirePostRegisterPanel_('');
+    wirePostRegisterPanel_('2');
+    wirePostRegisterPanel_('3');
+    document.getElementById('tabInput').addEventListener('click', function () { setViewMode('input'); });
+    document.getElementById('tabPlan').addEventListener('click', function () { setViewMode('plan'); });
+    document.getElementById('btnCloseInput2').addEventListener('click', function () {
+      document.getElementById('rootMainExtra').style.display = 'none';
+      setPostOrderSelection('orderSelect2', '');
+      setMsg('', '', 'msg2');
+      if (getActivePanelSuffix() === '2') setActivePanelSuffix('');
+      updateDisplayForSuffix('2');
+      refreshInputPanelsLayout();
+      renderPostOrderCards();
+    });
+    document.getElementById('btnCloseInput3').addEventListener('click', function () {
+      document.getElementById('rootMainExtra3').style.display = 'none';
+      setPostOrderSelection('orderSelect3', '');
+      setMsg('', '', 'msg3');
+      if (getActivePanelSuffix() === '3') setActivePanelSuffix('');
+      updateDisplayForSuffix('3');
+      refreshInputPanelsLayout();
+      renderPostOrderCards();
+    });
+    window.addEventListener('load', function () {
+      setActivePanelSuffix('');
+      loadData();
+      setViewMode('input');
+      updateDisplayForSuffix('2');
+      updateDisplayForSuffix('3');
+      refreshInputPanelsLayout();
+    });
+  </script>
+</body>
+</html>

@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // GAS 참고 자료
+    "Code.js",
+    "*.html",
   ]),
 ]);
 

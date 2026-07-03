@@ -1,0 +1,1961 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>주문서 관리 - 미래SMT</title>
+  <script>window.ERP_ACTIVE_PAGE = 'order';</script>
+  <?!= include('SharedStyles'); ?>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+      background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 50%, #e2e8f0 100%);
+      min-height: 100vh;
+      color: #1a202c;
+      padding: 30px 20px;
+      line-height: 1.6;
+    }
+    .header {
+      background: #fff;
+      border-radius: 16px;
+      padding: 28px 48px;
+      margin-bottom: 32px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid rgba(0,0,0,.06);
+    }
+    .header-right { display: flex; align-items: center; gap: 14px; }
+    .home-button, .nav-button {
+      background: #f7fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: #4a5568;
+      font-size: 20px;
+      cursor: pointer;
+      transition: all .2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+    }
+    .home-button:hover, .nav-button:hover {
+      background: #edf2f7;
+      border-color: #cbd5e0;
+      transform: scale(1.05);
+    }
+    .nav-button.active { opacity: 0.55; cursor: default; }
+    .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.8px; color: #1a202c; }
+    .main-content {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
+      padding: 48px;
+      border: 1px solid rgba(0,0,0,.06);
+    }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .section-title { font-size: 26px; font-weight: 700; color: #1a202c; margin: 0; letter-spacing: -0.5px; }
+    .btn-primary {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+      transition: transform .2s, box-shadow .2s;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.45); }
+    .table-container { overflow-x: auto; border-radius: 12px; border: 1px solid #e2e8f0; }
+    table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+    thead { background: #f7fafc; }
+    th {
+      padding: 16px 20px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 600;
+      color: #4a5568;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    td { padding: 18px 20px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #2d3748; }
+    tbody tr { transition: background .2s; }
+    tbody tr:hover { background: #f7fafc; }
+    .order-row { cursor: pointer; }
+    .order-row:hover { background: #ecfdf5 !important; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .loading, .empty-state { text-align: center; padding: 60px 20px; color: #718096; }
+    .loading-pulse { display: inline-block; animation: ordPulse 1.1s ease-in-out infinite; }
+    @keyframes ordPulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+    .empty-state-icon { font-size: 64px; margin-bottom: 16px; opacity: 0.5; }
+    .empty-state-message { font-size: 18px; font-weight: 600; color: #4a5568; margin-bottom: 8px; }
+    .empty-state-submessage { font-size: 14px; color: #718096; }
+    .btn-small {
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+    }
+    .flow-badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .flow-badge.pending { background: #f1f5f9; color: #475569; }
+    .flow-badge.progress { background: #fef3c7; color: #92400e; }
+    .flow-badge.done { background: #dcfce7; color: #166534; }
+    .cat-badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      letter-spacing: -0.2px;
+    }
+    .cat-badge.cat-mass { background: #dbeafe; color: #1d4ed8; }
+    .cat-badge.cat-sample { background: #fef3c7; color: #b45309; }
+    .cat-badge.cat-material { background: #ede9fe; color: #6d28d9; }
+    .cat-badge.cat-other { background: #f1f5f9; color: #475569; }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0; top: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,.5);
+      overflow: auto;
+    }
+    .modal-content {
+      background: #f8fafc;
+      margin: 24px auto;
+      padding: 32px;
+      border-radius: 16px;
+      max-width: 960px;
+      width: 96%;
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.8);
+    }
+    .close-button {
+      position: absolute;
+      top: 16px;
+      right: 20px;
+      font-size: 28px;
+      font-weight: bold;
+      color: #4a5568;
+      cursor: pointer;
+      background: none;
+      border: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .close-button:hover { background: rgba(0,0,0,.08); color: #1a202c; }
+    .order-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px 20px;
+      margin-top: 24px;
+    }
+    @media (max-width: 600px) {
+      .order-form-grid { grid-template-columns: 1fr; }
+    }
+    .form-field { display: flex; flex-direction: column; gap: 6px; }
+    .form-field.full { grid-column: 1 / -1; }
+    .form-field label { font-size: 13px; font-weight: 600; color: #4a5568; }
+    .form-field input, .form-field select, .form-field textarea {
+      padding: 10px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .form-field input:focus, .form-field select:focus, .form-field textarea:focus {
+      outline: none;
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+    .form-field input[readonly] { background: #f1f5f9; color: #64748b; }
+    .modal-actions {
+      margin-top: 28px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+    .btn-secondary {
+      background: #fff;
+      border: 1.5px solid #e2e8f0;
+      color: #4a5568;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-secondary:hover { background: #f7fafc; }
+    .btn-danger {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #b91c1c;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-danger:hover { background: #fee2e2; }
+    .hint-text { font-size: 12px; color: #64748b; margin-top: 4px; }
+    #orderModalTitle { font-size: 22px; font-weight: 700; color: #1a202c; padding-right: 40px; }
+    .order-items-box { border: 1px solid #e2e8f0; border-radius: 10px; overflow-x: auto; overflow-y: hidden; background: #fff; }
+    .order-items-table { width: 100%; min-width: 860px; border-collapse: collapse; table-layout: fixed; }
+    .order-items-table th, .order-items-table td { padding: 8px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+    .order-items-table th { background: #f8fafc; text-transform: none; letter-spacing: 0; }
+    .order-items-table input { width: 100%; padding: 8px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; }
+    .order-page-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 28px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .order-page-tab {
+      padding: 12px 22px;
+      border: none;
+      background: transparent;
+      font-size: 15px;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      font-family: inherit;
+      transition: color .2s, border-color .2s;
+    }
+    .order-page-tab:hover { color: #1a202c; }
+    .order-page-tab.active {
+      color: #059669;
+      border-bottom-color: #059669;
+    }
+    .order-tab-panel[hidden] { display: none !important; }
+    .order-status-hint {
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 14px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body<?!= embed ? ' class="erp-embed"' : '' ?>>
+  <div class="container erp-unified-panel">
+    <div class="header">
+      <div class="header-left">
+        <h1>주문서 관리</h1>
+      </div>
+      <div class="header-right">
+        <div class="erp-page-actions" id="erpOrderListActions">
+          <button type="button" class="btn-primary" onclick="openNewOrder()">+ 신규 주문</button>
+        </div>
+        <div class="erp-header-nav-wrap">
+          <?!= include('SharedNav'); ?>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-content erp-page-body">
+      <div class="order-page-tabs" role="tablist" aria-label="주문서 관리 탭">
+        <button type="button" class="order-page-tab active" data-tab="list" role="tab" aria-selected="true">주문서 목록</button>
+        <button type="button" class="order-page-tab" data-tab="status" role="tab" aria-selected="false">주문서 현황</button>
+      </div>
+      <div id="orderTabList" class="order-tab-panel" role="tabpanel">
+        <div class="table-container">
+          <div id="tableContent">
+            <div class="loading">
+              <div class="loading-pulse">주문서 목록을 불러오는 중...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="orderTabStatus" class="order-tab-panel" role="tabpanel" hidden>
+        <p class="order-status-hint">주문서별 SMT · 후공정 · 출하(납품) 진행률 · 행 클릭 시 직접 수정</p>
+        <style>
+    .updated-at {
+      text-align: right;
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+    .order-filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+    }
+    .order-filter-bar label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+    }
+    .order-filter-bar select {
+      min-width: 200px;
+      max-width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      font-size: 13px;
+      font-family: inherit;
+      background: #fff;
+      color: #1e293b;
+    }
+    .order-filter-bar .filter-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #475569;
+      cursor: pointer;
+      user-select: none;
+    }
+    .order-filter-bar .filter-check input { cursor: pointer; }
+    .order-filter-hint {
+      font-size: 12px;
+      color: #64748b;
+      margin-left: auto;
+    }
+    .table-wrap { overflow-x: auto; }
+    .dashboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      min-width: 1000px;
+    }
+    .dashboard-table th,
+    .dashboard-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: middle;
+    }
+    .dashboard-table th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #475569;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .dashboard-table tr:hover td { background: #fafbfc; }
+    .dashboard-table tbody tr.od-row-clickable { cursor: pointer; }
+    .dashboard-table tbody tr.od-row-clickable:hover td { background: #f1f5f9; }
+    .direct-badge {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #92400e;
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      vertical-align: middle;
+    }
+    .cell-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .progress-cell {
+      min-width: 210px;
+      cursor: pointer;
+      border-radius: 8px;
+      padding: 4px 2px;
+      margin: -4px -2px;
+      outline: none;
+    }
+    .progress-cell:hover { background: rgba(148, 163, 184, 0.12); }
+    .progress-cell:focus-visible {
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px #3b82f6;
+    }
+    .bar-track {
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      width: 0%;
+      transition: width .25s ease;
+    }
+    .bar-fill.smt { background: linear-gradient(90deg, #0284c7, #0369a1); }
+    .bar-fill.post { background: linear-gradient(90deg, #16a34a, #15803d); }
+    .bar-fill.outbound { background: linear-gradient(90deg, #d97706, #b45309); }
+    .bar-label {
+      font-size: 12px;
+      color: #475569;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .loading { text-align: center; padding: 30px; color: #64748b; font-size: 14px; }
+    .pager {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .pager button {
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #334155;
+      border-radius: 8px;
+      height: 32px;
+      padding: 0 10px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .pager button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+    .pager .pager-info {
+      font-size: 12px;
+      color: #64748b;
+      min-width: 88px;
+      text-align: center;
+    }
+    .od-modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      z-index: 1200;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .od-modal-backdrop.open { display: flex; }
+    .od-modal {
+      width: 100%;
+      max-width: 460px;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+    .od-modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+      border-bottom: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .od-modal-head h3 { font-size: 16px; font-weight: 700; color: #0f172a; }
+    .od-modal-close {
+      border: none;
+      background: transparent;
+      font-size: 22px;
+      line-height: 1;
+      color: #64748b;
+      cursor: pointer;
+      padding: 4px;
+    }
+    .od-modal-body { padding: 18px; }
+    .od-modal-product { font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 6px; }
+    .od-modal-meta { font-size: 12px; color: #64748b; margin-bottom: 8px; line-height: 1.5; }
+    .od-modal-hint {
+      font-size: 12px;
+      color: #475569;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+      line-height: 1.55;
+    }
+    .od-modal-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .od-modal-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 6px;
+    }
+    .od-modal-field input {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .od-modal-reg { font-size: 11px; color: #64748b; margin-top: 4px; }
+    .od-modal-msg { min-height: 18px; font-size: 12px; color: #64748b; margin-bottom: 10px; }
+    .od-modal-msg.err { color: #dc2626; }
+    .od-modal-msg.ok { color: #059669; }
+    .od-modal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .od-modal-actions button {
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #334155;
+      font-size: 13px;
+      font-family: inherit;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    .od-modal-actions .od-btn-primary {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      border-color: #2563eb;
+      color: #fff;
+      font-weight: 600;
+    }
+    .od-modal-actions .od-btn-danger {
+      color: #b45309;
+      border-color: #fcd34d;
+      background: #fffbeb;
+    }
+    @media (max-width: 900px) {
+      .main-content { padding: 16px; }
+      .dashboard-table th,
+      .dashboard-table td { padding: 9px 10px; font-size: 13px; }
+      .progress-cell { min-width: 180px; }
+    }
+</style>
+
+      <div class="updated-at" id="progressUpdatedAt">갱신: -</div>
+      <div class="order-filter-bar" id="orderFilterBar" style="display:none;">
+        <label for="customerFilterSelect">고객사</label>
+        <select id="customerFilterSelect" aria-label="고객사별 필터">
+          <option value="">전체</option>
+        </select>
+        <label class="filter-check" for="showCompletedOrders">
+          <input type="checkbox" id="showCompletedOrders" />
+          완료 주문 표시
+        </label>
+        <span class="order-filter-hint" id="orderFilterHint"></span>
+      </div>
+      <div class="table-wrap" id="dashboardTableWrap">
+        <div class="loading">진행률 불러오는 중…</div>
+      </div>
+      <div class="pager" id="dashboardPager" style="display:none;">
+        <button type="button" id="pagerPrev">이전</button>
+        <div class="pager-info" id="pagerInfo">1 / 1</div>
+        <button type="button" id="pagerNext">다음</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="od-modal-backdrop" id="odDirectModal" aria-hidden="true">
+    <div class="od-modal" role="dialog" aria-labelledby="odDirectModalTitle">
+      <div class="od-modal-head">
+        <h3 id="odDirectModalTitle">직접 진행 수정</h3>
+        <button type="button" class="od-modal-close" id="odDirectModalClose" aria-label="닫기">&times;</button>
+      </div>
+      <div class="od-modal-body">
+        <div class="od-modal-product" id="odModalProduct">—</div>
+        <div class="od-modal-meta" id="odModalMeta">—</div>
+        <div class="od-modal-hint">SMT·후공정·출하 등록 없이도 진행 수량을 직접 맞출 수 있습니다.</div>
+        <div class="od-modal-grid">
+          <div class="od-modal-field">
+            <label for="odModalSmt">SMT 완료</label>
+            <input type="number" id="odModalSmt" min="0" step="1">
+            <div class="od-modal-reg" id="odModalSmtReg">등록 실적 0</div>
+          </div>
+          <div class="od-modal-field">
+            <label for="odModalPost">후공정 완료</label>
+            <input type="number" id="odModalPost" min="0" step="1">
+            <div class="od-modal-reg" id="odModalPostReg">등록 실적 0</div>
+          </div>
+          <div class="od-modal-field">
+            <label for="odModalShip">납품(출하) 완료</label>
+            <input type="number" id="odModalShip" min="0" step="1">
+            <div class="od-modal-reg" id="odModalShipReg">등록 실적 0</div>
+          </div>
+        </div>
+        <div class="od-modal-msg" id="odModalMsg"></div>
+        <div class="od-modal-actions">
+          <button type="button" class="od-btn-primary" id="odModalSave">저장</button>
+          <button type="button" class="od-btn-danger" id="odModalRevert">등록 실적만 사용</button>
+          <button type="button" id="odModalCancel">취소</button>
+        </div>
+      </div>
+    </div>
+
+<script>
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function formatYmdHmForDashboard(value) {
+      if (!value) return '-';
+      var d = new Date(value);
+      if (isNaN(d.getTime())) return String(value);
+      var y = d.getFullYear();
+      var mo = ('0' + (d.getMonth() + 1)).slice(-2);
+      var da = ('0' + d.getDate()).slice(-2);
+      var hh = ('0' + d.getHours()).slice(-2);
+      var mm = ('0' + d.getMinutes()).slice(-2);
+      return y + '-' + mo + '-' + da + ' ' + hh + ':' + mm;
+    }
+
+    function clampPercent(v) {
+      var n = Number(v);
+      if (isNaN(n)) return 0;
+      if (n < 0) return 0;
+      if (n > 100) return 100;
+      return Math.round(n);
+    }
+
+    /** 'percent' | 'qty' — 진행률 바 클릭 시 전환 */
+    var dashboardProgressLabelMode = 'percent';
+
+    function formatProgressLabel(mode, pct, done, target) {
+      if (mode === 'qty') {
+        var d = Math.max(0, Math.floor(Number(done) || 0));
+        var t = Math.max(0, Math.floor(Number(target) || 0));
+        if (t > 0) return d + ' / ' + t;
+        return String(d);
+      }
+      return clampPercent(pct) + '%';
+    }
+
+    function progressBarHtml(pct, type, mode, done, target) {
+      var p = clampPercent(pct);
+      var label = formatProgressLabel(mode, pct, done, target);
+      var tip = mode === 'qty' ? '클릭하여 진행률(%) 표시' : '클릭하여 수량(완료/목표) 표시';
+      return (
+        '<div class="progress-cell js-progress-toggle" role="button" tabindex="0" title="' + escapeHtml(tip) + '">' +
+          '<div class="bar-track"><div class="bar-fill ' + escapeHtml(type) + '" style="width:' + p + '%;"></div></div>' +
+          '<div class="bar-label ' + escapeHtml(type) + '-label">' + escapeHtml(label) + '</div>' +
+        '</div>'
+      );
+    }
+
+    function rerenderOrderTableKeepingPage() {
+      var root = document.getElementById('dashboardTableWrap');
+      if (!root || !dashboardCurrentRows.length) return;
+      root.innerHTML = renderOrderProgressTable(dashboardCurrentRows);
+    }
+
+    function dashboardRowKeyForDataAttr(or) {
+      var o = or || {};
+      var rk =
+        o.rowKey != null && String(o.rowKey).trim() !== ''
+          ? String(o.rowKey).trim()
+          : String(o.orderNumber != null ? o.orderNumber : '').trim() +
+            '\x1f' +
+            String(o.productName != null ? o.productName : '').trim() +
+            '\x1f' +
+            String(o.productCode != null ? o.productCode : '').trim();
+      return encodeURIComponent(rk);
+    }
+
+    var lastOrderTableSignature = '';
+    var dashboardCurrentRows = [];
+    var dashboardCustomerFilter = '';
+    var dashboardHideCompleted = true;
+    var dashboardPage = 1;
+    var dashboardPageSize = 10;
+    var dashboardTotalRows = 0;
+    var dashboardTotalPages = 1;
+    var dashboardLoadToken = 0;
+    var DASHBOARD_CLIENT_CACHE_KEY = 'orderDashboardPage_v5';
+    var DASHBOARD_CLIENT_CACHE_TTL_MS = 90000;
+
+    function dashboardLoadOptions_(pageOverride) {
+      return {
+        page: pageOverride != null ? pageOverride : dashboardPage,
+        pageSize: dashboardPageSize,
+        customer: dashboardCustomerFilter || '',
+        hideCompleted: dashboardHideCompleted
+      };
+    }
+
+    function dashboardClientCacheKey_(opts) {
+      opts = opts || {};
+      return [
+        String(opts.page || 1),
+        String(opts.pageSize || 10),
+        String(opts.customer || ''),
+        opts.hideCompleted === false ? '0' : '1'
+      ].join('|');
+    }
+
+    function readDashboardClientCache_(opts) {
+      try {
+        var raw = sessionStorage.getItem(DASHBOARD_CLIENT_CACHE_KEY);
+        if (!raw) return null;
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.res || !parsed.savedAt) return null;
+        if (Date.now() - Number(parsed.savedAt) > DASHBOARD_CLIENT_CACHE_TTL_MS) return null;
+        if (parsed.key !== dashboardClientCacheKey_(opts)) return null;
+        return parsed.res;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function writeDashboardClientCache_(opts, res) {
+      try {
+        sessionStorage.setItem(
+          DASHBOARD_CLIENT_CACHE_KEY,
+          JSON.stringify({ key: dashboardClientCacheKey_(opts), res: res, savedAt: Date.now() })
+        );
+      } catch (e2) {}
+    }
+
+    function clearDashboardClientCache_() {
+      try {
+        sessionStorage.removeItem(DASHBOARD_CLIENT_CACHE_KEY);
+      } catch (eClr) {}
+    }
+
+    function buildCustomerFilterOptions(customers) {
+      var sel = document.getElementById('customerFilterSelect');
+      var bar = document.getElementById('orderFilterBar');
+      if (!sel || !bar) return;
+      var prev = sel.value || '';
+      var names = Array.isArray(customers) ? customers.slice() : [];
+      sel.innerHTML = '<option value="">전체</option>';
+      for (var j = 0; j < names.length; j++) {
+        var opt = document.createElement('option');
+        opt.value = names[j];
+        opt.textContent = names[j];
+        sel.appendChild(opt);
+      }
+      if (prev === '' || names.indexOf(prev) >= 0) {
+        sel.value = prev;
+        dashboardCustomerFilter = prev;
+      } else {
+        sel.value = '';
+        dashboardCustomerFilter = '';
+      }
+      bar.style.display = 'flex';
+    }
+
+    function updateOrderFilterHint_(res) {
+      var hint = document.getElementById('orderFilterHint');
+      if (!hint || !res) return;
+      var parts = [];
+      if (res.hideCompleted !== false && (res.completedHiddenCount || 0) > 0) {
+        parts.push('완료 ' + res.completedHiddenCount + '건 숨김');
+      }
+      if (res.totalRows != null) parts.push('표시 ' + res.totalRows + '건');
+      hint.textContent = parts.join(' · ');
+    }
+
+    function applyDashboardPageResponse_(res, opts) {
+      opts = opts || {};
+      var root = document.getElementById('dashboardTableWrap');
+      var upd = document.getElementById('progressUpdatedAt');
+      if (!root || !upd || !res) return;
+      dashboardCurrentRows = Array.isArray(res.rows) ? res.rows.slice() : [];
+      dashboardPage = res.page || 1;
+      dashboardTotalRows = res.totalRows != null ? res.totalRows : dashboardCurrentRows.length;
+      dashboardTotalPages = res.totalPages || 1;
+      dashboardHideCompleted = res.hideCompleted !== false;
+      buildCustomerFilterOptions(res.customers || []);
+      updateOrderFilterHint_(res);
+      var showCompletedEl = document.getElementById('showCompletedOrders');
+      if (showCompletedEl) showCompletedEl.checked = !dashboardHideCompleted;
+      var sig = dashboardClientCacheKey_(opts) + ':' + (res.updatedAt || '');
+      if (!dashboardCurrentRows.length) {
+        root.innerHTML =
+          dashboardTotalRows === 0 && dashboardCustomerFilter
+            ? '<div class="loading">선택한 고객사에 해당하는 주문이 없습니다.</div>'
+            : '<div class="loading">표시할 주문(제품) 행이 없습니다.</div>';
+        lastOrderTableSignature = sig;
+        updatePager(0);
+      } else if (opts.forceRender || sig !== lastOrderTableSignature || !updateOrderProgressBarsOnly(dashboardCurrentRows)) {
+        root.innerHTML = renderOrderProgressTable(dashboardCurrentRows);
+        lastOrderTableSignature = sig;
+        updatePager(dashboardTotalRows);
+      } else {
+        updatePager(dashboardTotalRows);
+      }
+      upd.textContent = '갱신: ' + formatYmdHmForDashboard(res.updatedAt || new Date().toISOString());
+    }
+
+    function decodeDashboardRowKeyAttr(enc) {
+      try { return decodeURIComponent(String(enc || '')); } catch (e) { return String(enc || ''); }
+    }
+
+    function findDashboardRowByKeyAttr(enc) {
+      var rk = decodeDashboardRowKeyAttr(enc);
+      for (var i = 0; i < dashboardCurrentRows.length; i++) {
+        var row = dashboardCurrentRows[i] || {};
+        if (String(row.rowKey || '') === rk) return row;
+        if (dashboardRowKeyForDataAttr(row) === enc) return row;
+      }
+      return null;
+    }
+
+    function mergeDashboardRowUpdate(row) {
+      if (!row || !row.rowKey) return;
+      var enc = dashboardRowKeyForDataAttr(row);
+      for (var i = 0; i < dashboardCurrentRows.length; i++) {
+        var cur = dashboardCurrentRows[i] || {};
+        if (String(cur.rowKey || '') === String(row.rowKey) || dashboardRowKeyForDataAttr(cur) === enc) {
+          dashboardCurrentRows[i] = Object.assign({}, cur, row);
+          clearDashboardClientCache_();
+          rerenderOrderTableKeepingPage();
+          return;
+        }
+      }
+    }
+
+    var odDirectModalRowKey = '';
+
+    function setOdModalMsg(text, kind) {
+      var el = document.getElementById('odModalMsg');
+      if (!el) return;
+      el.textContent = text || '';
+      el.className = 'od-modal-msg' + (kind === 'err' ? ' err' : kind === 'ok' ? ' ok' : '');
+    }
+
+    function closeDirectProgressModal() {
+      odDirectModalRowKey = '';
+      var modal = document.getElementById('odDirectModal');
+      if (modal) { modal.classList.remove('open'); modal.setAttribute('aria-hidden', 'true'); }
+      setOdModalMsg('');
+    }
+
+    function fillDirectProgressModal(row) {
+      row = row || {};
+      var tgt = Math.max(0, Math.floor(Number(row.quantity) || 0));
+      var smtEff = Math.max(0, Math.floor(Number(row.smtProducedQty) || 0));
+      var postEff = Math.max(0, Math.floor(Number(row.postCountedQty) || 0));
+      var shipEff = Math.max(0, Math.floor(Number(row.shippedQty) || 0));
+      var smtReg = Math.max(0, Math.floor(Number(row.smtRegisteredQty != null ? row.smtRegisteredQty : smtEff) || 0));
+      var postReg = Math.max(0, Math.floor(Number(row.postRegisteredQty != null ? row.postRegisteredQty : postEff) || 0));
+      var shipReg = Math.max(0, Math.floor(Number(row.shippedRegisteredQty != null ? row.shippedRegisteredQty : shipEff) || 0));
+      document.getElementById('odModalProduct').textContent =
+        (row.customer ? row.customer + ' · ' : '') + (row.orderNumber || '—') + ' · ' + (row.productName || '—');
+      document.getElementById('odModalMeta').textContent =
+        '목표 수량 ' + tgt.toLocaleString() + (row.hasDirectProgress ? ' · 직접 수정 적용 중' : '');
+      document.getElementById('odModalSmt').value = String(smtEff);
+      document.getElementById('odModalPost').value = String(postEff);
+      document.getElementById('odModalShip').value = String(shipEff);
+      document.getElementById('odModalSmtReg').textContent = '등록 실적 ' + smtReg.toLocaleString();
+      document.getElementById('odModalPostReg').textContent = '등록 실적 ' + postReg.toLocaleString();
+      document.getElementById('odModalShipReg').textContent = '등록 실적 ' + shipReg.toLocaleString();
+      var revertBtn = document.getElementById('odModalRevert');
+      if (revertBtn) revertBtn.style.display = row.hasDirectProgress ? '' : 'none';
+    }
+
+    function openDirectProgressModal(rowKeyEnc) {
+      var row = findDashboardRowByKeyAttr(rowKeyEnc);
+      odDirectModalRowKey = row ? String(row.rowKey || decodeDashboardRowKeyAttr(rowKeyEnc)) : decodeDashboardRowKeyAttr(rowKeyEnc);
+      setOdModalMsg('');
+      document.getElementById('odModalSave').disabled = false;
+      function showModal(r) {
+        fillDirectProgressModal(r);
+        var modal = document.getElementById('odDirectModal');
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+        setTimeout(function () {
+          var inp = document.getElementById('odModalSmt');
+          if (inp) { inp.focus(); inp.select(); }
+        }, 80);
+      }
+      if (row) { showModal(row); return; }
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (!res || !res.ok || !res.row) {
+            alert((res && res.error) ? res.error : '행 정보를 불러오지 못했습니다.');
+            return;
+          }
+          odDirectModalRowKey = String(res.row.rowKey || odDirectModalRowKey);
+          showModal(res.row);
+        })
+        .withFailureHandler(function (err) { alert(err && err.message ? err.message : String(err)); })
+        .getOrderDirectProgressDetail(odDirectModalRowKey);
+    }
+
+    function saveDirectProgressModal(revert) {
+      if (!odDirectModalRowKey) return;
+      var btnSave = document.getElementById('odModalSave');
+      var btnRevert = document.getElementById('odModalRevert');
+      if (btnSave) btnSave.disabled = true;
+      if (btnRevert) btnRevert.disabled = true;
+      setOdModalMsg(revert ? '되돌리는 중…' : '저장 중…', '');
+      var payload = { rowKey: odDirectModalRowKey };
+      if (revert) payload.revertToProduction = true;
+      else {
+        payload.smtQty = document.getElementById('odModalSmt').value;
+        payload.postQty = document.getElementById('odModalPost').value;
+        payload.shipQty = document.getElementById('odModalShip').value;
+      }
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (btnSave) btnSave.disabled = false;
+          if (btnRevert) btnRevert.disabled = false;
+          if (!res || !res.ok) {
+            setOdModalMsg((res && res.error) ? res.error : '저장에 실패했습니다.', 'err');
+            return;
+          }
+          if (res.row) mergeDashboardRowUpdate(res.row);
+          setOdModalMsg(revert ? '등록 실적만 사용하도록 되돌렸습니다.' : '저장되었습니다.', 'ok');
+          if (window.erpCallNotifyOrdersChanged) window.erpCallNotifyOrdersChanged();
+          setTimeout(closeDirectProgressModal, 350);
+        })
+        .withFailureHandler(function (err) {
+          if (btnSave) btnSave.disabled = false;
+          if (btnRevert) btnRevert.disabled = false;
+          setOdModalMsg(err && err.message ? err.message : String(err), 'err');
+        })
+        .setOrderDirectProgress(payload);
+    }
+
+    function renderOrderProgressTable(orderRows) {
+      var rowsHtml = '';
+      for (var j = 0; j < (orderRows || []).length; j++) {
+        var or = orderRows[j] || {};
+        var oNum = or.orderNumber != null ? String(or.orderNumber).trim() : '';
+        if (!oNum) continue;
+        var smtPct = clampPercent(or.smtProgressPercent);
+        var postPct = clampPercent(or.postProgressPercent);
+        var outPct = clampPercent(or.outboundPercent);
+        var qty = Number(or.quantity) || 0;
+        var smtDone = Math.max(0, Math.floor(Number(or.smtProducedQty) || 0));
+        var postRaw = Math.max(0, Math.floor(Number(or.postCountedQty) || 0));
+        var postDone = qty > 0 ? Math.min(postRaw, qty) : postRaw;
+        var shippedRaw = Math.max(0, Math.floor(Number(or.shippedQty) || 0));
+        var shipDone = qty > 0 ? Math.min(shippedRaw, qty) : shippedRaw;
+        var cust = String(or.customer != null ? or.customer : '').trim();
+        var directBadge = or.hasDirectProgress ? '<span class="direct-badge">직접</span>' : '';
+        rowsHtml +=
+          '<tr class="od-row-clickable" data-row-key="' + dashboardRowKeyForDataAttr(or) + '" title="클릭하여 SMT·후공정·납품 진행 수량 직접 수정">' +
+            '<td>' + escapeHtml(cust || '—') + '</td>' +
+            '<td>' + escapeHtml(oNum) + directBadge + '</td>' +
+            '<td>' + escapeHtml(or.productName || '-') + '</td>' +
+            '<td class="cell-num">' + escapeHtml(String(qty)) + '</td>' +
+            '<td>' + progressBarHtml(smtPct, 'smt', dashboardProgressLabelMode, smtDone, qty) + '</td>' +
+            '<td>' + progressBarHtml(postPct, 'post', dashboardProgressLabelMode, postDone, qty) + '</td>' +
+            '<td>' + progressBarHtml(outPct, 'outbound', dashboardProgressLabelMode, shipDone, qty) + '</td>' +
+          '</tr>';
+      }
+
+      if (!rowsHtml) return '<div class="loading">표시할 주문(제품) 행이 없습니다.</div>';
+      return (
+        '<table class="dashboard-table">' +
+          '<thead><tr>' +
+            '<th>고객사</th>' +
+            '<th>주문서</th>' +
+            '<th>제품</th>' +
+            '<th class="cell-num">수량</th>' +
+            '<th title="막대·숫자 클릭 시 % ↔ 수량 전환">SMT 진행률</th>' +
+            '<th title="막대·숫자 클릭 시 % ↔ 수량 전환">후공정 진행률</th>' +
+            '<th title="완제품 고객 납품(출하) 대수 · 생산 불출과 별도 · 막대 클릭 시 % ↔ 수량">납품(출하) 진행률</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rowsHtml + '</tbody>' +
+        '</table>'
+      );
+    }
+
+    function updatePager(totalRows) {
+      var pager = document.getElementById('dashboardPager');
+      var prev = document.getElementById('pagerPrev');
+      var next = document.getElementById('pagerNext');
+      var info = document.getElementById('pagerInfo');
+      if (!pager || !prev || !next || !info) return;
+      var totalPages = dashboardTotalPages || Math.max(1, Math.ceil((totalRows || 0) / dashboardPageSize));
+      pager.style.display = totalRows > 0 ? 'flex' : 'none';
+      if (dashboardPage > totalPages) dashboardPage = totalPages;
+      prev.disabled = dashboardPage <= 1;
+      next.disabled = dashboardPage >= totalPages;
+      info.textContent = dashboardPage + ' / ' + totalPages + ' (' + (totalRows || 0) + '건)';
+    }
+
+    function updateOrderProgressBarsOnly(orderRows) {
+      var table = document.querySelector('#dashboardTableWrap table.dashboard-table');
+      if (!table) return false;
+      var rowByKey = {};
+      var trList = table.querySelectorAll('tbody tr[data-row-key]');
+      for (var ri = 0; ri < trList.length; ri++) {
+        var enc = trList[ri].getAttribute('data-row-key') || '';
+        if (enc) rowByKey[enc] = trList[ri];
+      }
+      for (var j = 0; j < orderRows.length; j++) {
+        var or = orderRows[j] || {};
+        var on = or.orderNumber != null ? String(or.orderNumber).trim() : '';
+        if (!on) continue;
+        var encK = dashboardRowKeyForDataAttr(or);
+        var row = rowByKey[encK];
+        if (!row) continue;
+        var smtPct = clampPercent(or.smtProgressPercent);
+        var postPct = clampPercent(or.postProgressPercent);
+        var outPct = clampPercent(or.outboundPercent);
+        var qty = Number(or.quantity) || 0;
+        var smtDone = Math.max(0, Math.floor(Number(or.smtProducedQty) || 0));
+        var postRaw = Math.max(0, Math.floor(Number(or.postCountedQty) || 0));
+        var postDone = qty > 0 ? Math.min(postRaw, qty) : postRaw;
+        var shippedRaw = Math.max(0, Math.floor(Number(or.shippedQty) || 0));
+        var shipDone = qty > 0 ? Math.min(shippedRaw, qty) : shippedRaw;
+        var smtFill = row.querySelector('.bar-fill.smt');
+        var smtLabel = row.querySelector('.bar-label.smt-label');
+        var postFill = row.querySelector('.bar-fill.post');
+        var postLabel = row.querySelector('.bar-label.post-label');
+        var outFill = row.querySelector('.bar-fill.outbound');
+        var outLabel = row.querySelector('.bar-label.outbound-label');
+        if (smtFill) smtFill.style.width = smtPct + '%';
+        if (smtLabel) smtLabel.textContent = formatProgressLabel(dashboardProgressLabelMode, or.smtProgressPercent, smtDone, qty);
+        if (postFill) postFill.style.width = postPct + '%';
+        if (postLabel) postLabel.textContent = formatProgressLabel(dashboardProgressLabelMode, or.postProgressPercent, postDone, qty);
+        if (outFill) outFill.style.width = outPct + '%';
+        if (outLabel) outLabel.textContent = formatProgressLabel(dashboardProgressLabelMode, or.outboundPercent, shipDone, qty);
+      }
+      return true;
+    }
+
+    function loadDashboardProgress(pageOverride, opts) {
+      opts = opts || {};
+      var root = document.getElementById('dashboardTableWrap');
+      var loadOpts = dashboardLoadOptions_(pageOverride);
+      if (pageOverride != null) dashboardPage = pageOverride;
+      var cached = opts.skipCache ? null : readDashboardClientCache_(loadOpts);
+      if (cached && cached.ok) {
+        applyDashboardPageResponse_(cached, { forceRender: true, page: loadOpts.page, pageSize: loadOpts.pageSize, customer: loadOpts.customer, hideCompleted: loadOpts.hideCompleted });
+      } else if (root && !dashboardCurrentRows.length) {
+        root.innerHTML = '<div class="loading">진행률 불러오는 중…</div>';
+      }
+      var token = ++dashboardLoadToken;
+
+      function failLoad(msg) {
+        if (token !== dashboardLoadToken) return;
+        if (root && !dashboardCurrentRows.length) {
+          root.innerHTML = '<div class="loading">' + escapeHtml(msg || '진행률을 불러오지 못했습니다.') + '</div>';
+        }
+      }
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          if (token !== dashboardLoadToken) return;
+          if (!res || !res.ok) {
+            failLoad((res && res.error) ? res.error : '진행률을 불러오지 못했습니다.');
+            return;
+          }
+          writeDashboardClientCache_(loadOpts, res);
+          applyDashboardPageResponse_(res, loadOpts);
+          if (window.erpMarkOrdersRevisionSeen) window.erpMarkOrdersRevisionSeen();
+        })
+        .withFailureHandler(failLoad)
+        .getOrderDashboardPageData(loadOpts);
+    }
+
+    window.refreshOrderStatusTab = function () {
+      clearDashboardClientCache_();
+      loadDashboardProgress(dashboardPage, { skipCache: true });
+    };
+
+    window.initOrderStatusTab = function () { if (window.__orderStatusTabInited__) return; window.__orderStatusTabInited__ = true;
+      var tableWrap = document.getElementById('dashboardTableWrap');
+      if (tableWrap) {
+        tableWrap.addEventListener('click', function (ev) {
+          if (ev.target.closest('.js-progress-toggle')) {
+            ev.stopPropagation();
+            dashboardProgressLabelMode = dashboardProgressLabelMode === 'percent' ? 'qty' : 'percent';
+            rerenderOrderTableKeepingPage();
+            return;
+          }
+          var tr = ev.target.closest('tbody tr[data-row-key]');
+          if (tr) openDirectProgressModal(tr.getAttribute('data-row-key'));
+        });
+        tableWrap.addEventListener('keydown', function (ev) {
+          if (ev.key !== 'Enter' && ev.key !== ' ') return;
+          if (!ev.target.closest('.js-progress-toggle')) return;
+          ev.preventDefault();
+          dashboardProgressLabelMode = dashboardProgressLabelMode === 'percent' ? 'qty' : 'percent';
+          rerenderOrderTableKeepingPage();
+        });
+      }
+      var odClose = document.getElementById('odDirectModalClose');
+      var odCancel = document.getElementById('odModalCancel');
+      var odSave = document.getElementById('odModalSave');
+      var odRevert = document.getElementById('odModalRevert');
+      var odModal = document.getElementById('odDirectModal');
+      if (odClose) odClose.addEventListener('click', closeDirectProgressModal);
+      if (odCancel) odCancel.addEventListener('click', closeDirectProgressModal);
+      if (odSave) odSave.addEventListener('click', function () { saveDirectProgressModal(false); });
+      if (odRevert) odRevert.addEventListener('click', function () {
+        if (!confirm('직접 수정을 해제하고 SMT·후공정·출하 등록 실적만 사용할까요?')) return;
+        saveDirectProgressModal(true);
+      });
+      if (odModal) {
+        odModal.addEventListener('click', function (ev) { if (ev.target === odModal) closeDirectProgressModal(); });
+      }
+      var prevBtn = document.getElementById('pagerPrev');
+      var nextBtn = document.getElementById('pagerNext');
+      var customerSel = document.getElementById('customerFilterSelect');
+      var showCompletedEl = document.getElementById('showCompletedOrders');
+      if (customerSel) {
+        customerSel.addEventListener('change', function () {
+          dashboardCustomerFilter = customerSel.value || '';
+          loadDashboardProgress(1);
+        });
+      }
+      if (showCompletedEl) {
+        showCompletedEl.addEventListener('change', function () {
+          dashboardHideCompleted = !showCompletedEl.checked;
+          loadDashboardProgress(1);
+        });
+      }
+      if (prevBtn) {
+        prevBtn.addEventListener('click', function () {
+          if (dashboardPage <= 1) return;
+          loadDashboardProgress(dashboardPage - 1);
+        });
+      }
+      if (nextBtn) {
+        nextBtn.addEventListener('click', function () {
+          if (dashboardPage >= dashboardTotalPages) return;
+          loadDashboardProgress(dashboardPage + 1);
+        });
+      }
+      loadDashboardProgress(1);
+      setInterval(function () {
+        loadDashboardProgress(dashboardPage, { skipCache: true });
+      }, 600000);
+    };
+</script>
+      </div>
+    </div>
+  </div>
+
+  <div id="orderModal" class="modal">
+    <div class="modal-content">
+      <button type="button" class="close-button" onclick="closeOrderModal()" aria-label="닫기">&times;</button>
+      <h2 id="orderModalTitle">주문서 상세</h2>
+      <div class="order-form-grid">
+        <div class="form-field full">
+          <label for="fieldOrderNumber">주문서번호</label>
+          <input type="text" id="fieldOrderNumber" placeholder="비우면 자동생성">
+        </div>
+        <div class="form-field">
+          <label for="fieldOrderDate">주문일</label>
+          <input type="date" id="fieldOrderDate">
+        </div>
+        <div class="form-field">
+          <label for="fieldDeliveryDate">납기일</label>
+          <input type="date" id="fieldDeliveryDate">
+        </div>
+        <div class="form-field full">
+          <label for="fieldCustomer">고객사</label>
+          <input type="text" id="fieldCustomer" placeholder="고객사명">
+        </div>
+        <div class="form-field">
+          <label for="fieldCategory">구분</label>
+          <select id="fieldCategory" required>
+            <option value="양산">양산</option>
+            <option value="샘플">샘플</option>
+            <option value="자재">자재</option>
+          </select>
+        </div>
+        <datalist id="productCodeOptions"></datalist>
+        <div class="form-field full">
+          <label>주문 제품 목록</label>
+          <div class="order-items-box">
+            <div id="orderItemsRoot"></div>
+          </div>
+          <div style="margin-top:8px;">
+            <button type="button" class="btn-secondary" onclick="addOrderItemRow()">+ 제품 추가</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-danger" id="btnDeleteOrder" style="display:none;" onclick="deleteOrderFromModal()">삭제</button>
+        <button type="button" class="btn-secondary" onclick="closeOrderModal()">취소</button>
+        <button type="button" class="btn-primary" onclick="saveOrderFromModal()">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" id="gas-webapp-url"><?!= JSON.stringify(ScriptApp.getService().getUrl()) ?></script>
+  <script>window.ORDER_INITIAL_TAB = '<?!= initialTab || "list" ?>';</script>
+  <script>
+    const CACHE_KEY = 'webAppBaseUrl';
+    const CACHE_DURATION = 30 * 60 * 1000;
+    let cachedBaseUrl = null;
+    (function syncWebAppUrlFromServer() {
+      var u = null;
+      try {
+        var el = document.getElementById('gas-webapp-url');
+        if (el && el.textContent) u = JSON.parse(el.textContent.trim());
+      } catch (e) {}
+      if (u) {
+        cachedBaseUrl = u;
+        window.cachedBaseUrl = u;
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ url: u, timestamp: Date.now() }));
+        } catch (e) {}
+      }
+    })();
+
+    const ORDERS_LIST_SESSION_KEY = 'miraeSMT_ordersList_v1';
+    const ORDERS_LIST_SESSION_MAX_MS = 8 * 60 * 1000;
+    let lastOrdersRenderFingerprint = null;
+    let ordersListCache = [];
+    let isEditMode = false;
+    let editingOrderNumber = null;
+    let productOptions = [];
+    let orderItems = [];
+
+    function parseOrderDateSort(s) {
+      if (!s) return 0;
+      var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10)).getTime();
+      var t = Date.parse(s);
+      return isNaN(t) ? 0 : t;
+    }
+
+    function sortOrdersNewestFirst(orders) {
+      return (orders || []).slice().sort(function(a, b) {
+        var db = parseOrderDateSort(b.orderDate);
+        var da = parseOrderDateSort(a.orderDate);
+        if (db !== da) return db - da;
+        return (b.orderNumber || '').localeCompare(a.orderNumber || '', undefined, { numeric: true });
+      });
+    }
+
+    /** 시트 행 목록 → 주문서번호별 1건 요약 */
+    function groupOrdersByNumber(orders) {
+      var map = {};
+      (orders || []).forEach(function (o) {
+        var no = (o.orderNumber || '').trim();
+        if (!no) return;
+        if (!map[no]) {
+          map[no] = {
+            orderNumber: no,
+            orderDate: o.orderDate || '',
+            deliveryDate: o.deliveryDate || '',
+            customer: o.customer || '',
+            category: o.category || '',
+            items: [],
+            totalQuantity: 0,
+            totalAmount: 0
+          };
+        }
+        map[no].items.push(o);
+        map[no].totalQuantity += Number(o.quantity) || 0;
+        map[no].totalAmount += Number(o.orderAmount) || 0;
+      });
+      return Object.keys(map).map(function (k) { return map[k]; });
+    }
+
+    function formatProductSummary(group) {
+      var items = (group && group.items) || [];
+      if (!items.length) return '-';
+      var first = (items[0].productName || '').trim() || '-';
+      if (items.length === 1) return first;
+      return first + ' 외 ' + (items.length - 1) + '건';
+    }
+
+    function formatCurrency(n) {
+      var x = Number(n) || 0;
+      return '₩ ' + x.toLocaleString();
+    }
+
+    var ORDER_CATEGORIES = ['양산', '샘플', '자재'];
+
+    function normalizeCategory(cat) {
+      var c = String(cat || '').trim();
+      if (ORDER_CATEGORIES.indexOf(c) >= 0) return c;
+      if (c === '확정') return '양산';
+      return c || '양산';
+    }
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function formatCategoryBadge(cat) {
+      var c = normalizeCategory(cat);
+      var cls = 'cat-other';
+      if (c === '양산') cls = 'cat-mass';
+      else if (c === '샘플') cls = 'cat-sample';
+      else if (c === '자재') cls = 'cat-material';
+      return '<span class="cat-badge ' + cls + '">' + escapeHtml(c) + '</span>';
+    }
+
+    function onError(err) {
+      console.error(err);
+      alert('오류: ' + (err && err.message ? err.message : err));
+    }
+
+    function findProductByCode(code) {
+      var c = String(code || '').trim();
+      if (!c) return null;
+      for (var i = 0; i < productOptions.length; i++) {
+        if (String(productOptions[i].productCode || '').trim() === c) return productOptions[i];
+      }
+      return null;
+    }
+
+    function normalizeProductName(v) {
+      return String(v || '')
+        .replace(/\u00A0/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+    }
+
+    function sanitizeProductNameInput(v) {
+      // datalist 표시 라벨에 코드가 붙어 들어온 경우(예: "제품명 (P001)") 대비
+      var s = String(v || '').replace(/\u00A0/g, ' ').trim();
+      var m = s.match(/^(.*)\s+\([^)]+\)\s*$/);
+      if (m && m[1]) return m[1].trim();
+      return s;
+    }
+
+    function findProductByName(name) {
+      var n = normalizeProductName(sanitizeProductNameInput(name));
+      if (!n) return null;
+      var fallback = null;
+      for (var i = 0; i < productOptions.length; i++) {
+        var p = productOptions[i] || {};
+        if (normalizeProductName(p.productName) !== n) continue;
+        var code = String(p.productCode || '').trim();
+        if (code) return p; // 코드 있는 항목 우선
+        if (!fallback) fallback = p;
+      }
+      return fallback;
+    }
+
+    function resolveProductFromInput(rawInput) {
+      var input = sanitizeProductNameInput(rawInput);
+      var norm = normalizeProductName(input);
+      if (!norm) return null;
+
+      // 1) 정확한 제품명
+      var byName = findProductByName(input);
+      if (byName) return byName;
+
+      // 2) 정확한 제품코드
+      var byCode = findProductByCode(input);
+      if (byCode) return byCode;
+
+      // 3) 시작 일치(제품명/제품코드) - 단일 후보면 채택
+      var starts = [];
+      for (var i = 0; i < productOptions.length; i++) {
+        var p = productOptions[i] || {};
+        var pn = normalizeProductName(p.productName);
+        var pc = String(p.productCode || '').trim().toLowerCase();
+        if ((pn && pn.indexOf(norm) === 0) || (pc && pc.indexOf(norm) === 0)) starts.push(p);
+      }
+      if (starts.length === 1) return starts[0];
+      if (starts.length > 1) {
+        var startsWithCode = starts.filter(function (x) { return String((x && x.productCode) || '').trim() !== ''; });
+        if (startsWithCode.length === 1) return startsWithCode[0];
+      }
+
+      // 4) 포함 일치(제품명/제품코드) - 단일 후보면 채택
+      var contains = [];
+      for (var j = 0; j < productOptions.length; j++) {
+        var q = productOptions[j] || {};
+        var qn = normalizeProductName(q.productName);
+        var qc = String(q.productCode || '').trim().toLowerCase();
+        if ((qn && qn.indexOf(norm) >= 0) || (qc && qc.indexOf(norm) >= 0)) contains.push(q);
+      }
+      if (contains.length === 1) return contains[0];
+      if (contains.length > 1) {
+        var containsWithCode = contains.filter(function (x) { return String((x && x.productCode) || '').trim() !== ''; });
+        if (containsWithCode.length === 1) return containsWithCode[0];
+      }
+      return null;
+    }
+
+    function applyProductPickToRow(idx, p) {
+      if (!p || idx < 0 || idx >= orderItems.length) return;
+      orderItems[idx].productName = String(p.productName || '').trim();
+      orderItems[idx].productCode = String(p.productCode || '').trim();
+    }
+
+    /** 제품코드(추천 선택·정확 일치) → 제품명 자동 입력 */
+    function tryApplyProductFromCode(idx, codeRaw) {
+      if (idx < 0 || idx >= orderItems.length) return false;
+      var code = String(codeRaw != null ? codeRaw : '').trim();
+      orderItems[idx].productCode = code;
+      if (!code) return false;
+      var p = findProductByCode(code);
+      if (!p) return false;
+      orderItems[idx].productName = String(p.productName || '').trim();
+      return true;
+    }
+
+    function renderProductDatalists() {
+      var codeList = document.getElementById('productCodeOptions');
+      if (!codeList) return;
+      var codeHtml = '';
+      for (var i = 0; i < productOptions.length; i++) {
+        var p = productOptions[i] || {};
+        var code = String(p.productCode || '').trim();
+        var name = String(p.productName || '').trim();
+        if (!code) continue;
+        var label = name || '';
+        codeHtml +=
+          '<option value="' +
+          code.replace(/"/g, '&quot;') +
+          '"' +
+          (label ? ' label="' + label.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '"' : '') +
+          '></option>';
+      }
+      codeList.innerHTML = codeHtml;
+    }
+
+    function onOrdersLoaded(orders) {
+      orders = orders || [];
+      var fp = JSON.stringify(orders);
+      if (fp === lastOrdersRenderFingerprint) {
+        ordersListCache = orders;
+        return;
+      }
+      lastOrdersRenderFingerprint = fp;
+      ordersListCache = orders;
+      try {
+        sessionStorage.setItem(ORDERS_LIST_SESSION_KEY, JSON.stringify(orders));
+        sessionStorage.setItem(ORDERS_LIST_SESSION_KEY + '_ts', String(Date.now()));
+      } catch (e) {}
+
+      var container = document.getElementById('tableContent');
+      var sorted = sortOrdersNewestFirst(orders);
+
+      if (!sorted.length) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div>' +
+          '<div class="empty-state-message">등록된 주문서가 없습니다</div>' +
+          '<div class="empty-state-submessage">견적서 관리에서 견적 상세를 연 뒤 「주문서 생성」으로 등록할 수 있습니다.</div></div>';
+        return;
+      }
+
+      var grouped = sortOrdersNewestFirst(groupOrdersByNumber(sorted));
+
+      var html = '<table><thead><tr>' +
+        '<th>주문일</th><th>납기일</th><th>주문서번호</th><th>고객사</th><th>제품</th>' +
+        '<th class="text-right">수량합계</th><th class="text-right">주문금액</th><th>구분</th></tr></thead><tbody>';
+
+      grouped.forEach(function (group) {
+        var onum = (group.orderNumber || '').replace(/'/g, "\\'");
+        var itemCount = (group.items || []).length;
+        html += '<tr class="order-row" onclick="editOrder(\'' + onum + '\')" title="' + itemCount + '개 제품">' +
+          '<td>' + (group.orderDate || '-') + '</td>' +
+          '<td>' + (group.deliveryDate || '-') + '</td>' +
+          '<td><strong>' + (group.orderNumber || '-') + '</strong></td>' +
+          '<td>' + (group.customer || '-') + '</td>' +
+          '<td>' + formatProductSummary(group) + '</td>' +
+          '<td class="text-right">' + (Number(group.totalQuantity) || 0).toLocaleString() + '</td>' +
+          '<td class="text-right"><strong>' + formatCurrency(group.totalAmount) + '</strong></td>' +
+          '<td>' + formatCategoryBadge(group.category) + '</td></tr>';
+      });
+
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+
+    function loadOrdersListWithSessionCache() {
+      try {
+        var raw = sessionStorage.getItem(ORDERS_LIST_SESSION_KEY);
+        var ts = sessionStorage.getItem(ORDERS_LIST_SESSION_KEY + '_ts');
+        if (raw != null && ts && (Date.now() - parseInt(ts, 10) < ORDERS_LIST_SESSION_MAX_MS)) {
+          onOrdersLoaded(JSON.parse(raw));
+        }
+      } catch (e) {}
+      google.script.run
+        .withSuccessHandler(function(orders) { onOrdersLoaded(orders || []); })
+        .withFailureHandler(onError)
+        .getOrders();
+    }
+
+    function resolveInitialOrderTab() {
+      try {
+        var u = new URL(window.location.href);
+        if (u.searchParams.get('tab') === 'status') return 'status';
+      } catch (eUrl) {}
+      try {
+        if (sessionStorage.getItem('orderPageTab') === 'status') {
+          sessionStorage.removeItem('orderPageTab');
+          return 'status';
+        }
+      } catch (eSs) {}
+      if (window.ORDER_INITIAL_TAB === 'status') return 'status';
+      return 'list';
+    }
+
+    var orderActiveTab = 'list';
+
+    window.switchOrderTab = function (tab) {
+      tab = tab === 'status' ? 'status' : 'list';
+      orderActiveTab = tab;
+      var listEl = document.getElementById('orderTabList');
+      var statusEl = document.getElementById('orderTabStatus');
+      var actionsEl = document.getElementById('erpOrderListActions');
+      if (listEl) {
+        if (tab === 'list') listEl.removeAttribute('hidden');
+        else listEl.setAttribute('hidden', '');
+      }
+      if (statusEl) {
+        if (tab === 'status') statusEl.removeAttribute('hidden');
+        else statusEl.setAttribute('hidden', '');
+      }
+      if (actionsEl) actionsEl.style.display = tab === 'list' ? '' : 'none';
+      document.querySelectorAll('.order-page-tab').forEach(function (btn) {
+        var on = btn.getAttribute('data-tab') === tab;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      if (tab === 'status' && typeof window.initOrderStatusTab === 'function') {
+        window.initOrderStatusTab();
+      }
+      try {
+        if (window.history && window.history.replaceState) {
+          var u2 = new URL(window.location.href);
+          if (tab === 'status') u2.searchParams.set('tab', 'status');
+          else u2.searchParams.delete('tab');
+          window.history.replaceState({}, '', u2.toString());
+        }
+      } catch (eHist) {}
+    };
+
+    window.erpApplyPendingOrderTab = function () {
+      var tab = resolveInitialOrderTab();
+      if (tab === 'status') window.switchOrderTab('status');
+    };
+
+    window.erpRefreshForOrdersChange = function () {
+      loadOrdersListWithSessionCache();
+      if (typeof window.refreshOrderStatusTab === 'function') window.refreshOrderStatusTab();
+    };
+
+    function initOrderManagementPage() {
+      document.querySelectorAll('.order-page-tab').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          window.switchOrderTab(btn.getAttribute('data-tab'));
+        });
+      });
+      window.switchOrderTab(resolveInitialOrderTab());
+      if (!cachedBaseUrl) {
+        var cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          try {
+            var cacheData = JSON.parse(cached);
+            if (Date.now() - cacheData.timestamp < CACHE_DURATION) cachedBaseUrl = cacheData.url;
+            else sessionStorage.removeItem(CACHE_KEY);
+          } catch (e) { sessionStorage.removeItem(CACHE_KEY); }
+        }
+      }
+      if (!cachedBaseUrl) {
+        google.script.run
+          .withSuccessHandler(function(baseUrl) {
+            if (baseUrl) {
+              cachedBaseUrl = baseUrl;
+              try {
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify({ url: baseUrl, timestamp: Date.now() }));
+              } catch (e) {}
+            }
+          })
+          .withFailureHandler(function(e) { console.error(e); })
+          .getWebAppUrl();
+      }
+      loadOrdersListWithSessionCache();
+      google.script.run
+        .withSuccessHandler(function(rows) {
+          productOptions = rows || [];
+          renderProductDatalists();
+          if (document.getElementById('orderModal').style.display === 'block') renderOrderItems();
+        })
+        .withFailureHandler(function() {
+          productOptions = [];
+          renderProductDatalists();
+          if (document.getElementById('orderModal').style.display === 'block') renderOrderItems();
+        })
+        .getMrpProductOptions();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initOrderManagementPage);
+    } else {
+      initOrderManagementPage();
+    }
+
+    function closeOrderModal() {
+      document.getElementById('orderModal').style.display = 'none';
+      isEditMode = false;
+      editingOrderNumber = null;
+    }
+
+    document.addEventListener('keydown', function(event) {
+      if (event.key !== 'Escape') return;
+      var modal = document.getElementById('orderModal');
+      if (modal && modal.style.display === 'block') closeOrderModal();
+    });
+
+    function todayYmd() {
+      var d = new Date();
+      var y = d.getFullYear();
+      var m = String(d.getMonth() + 1).padStart(2, '0');
+      var day = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    }
+
+    function orderLinesToItems(lines) {
+      return (lines || []).map(function (o) {
+        var qty = Number(o.quantity) || 0;
+        var unitPrice = o.unitPrice != null ? (Number(o.unitPrice) || 0) : (qty > 0 ? Math.round((Number(o.orderAmount) || 0) / qty) : 0);
+        return {
+          productCode: String(o.productCode != null ? o.productCode : '').trim(),
+          productName: o.productName || '',
+          quantity: String(qty),
+          unitPrice: String(unitPrice),
+          orderAmount: String(o.orderAmount != null ? o.orderAmount : qty * unitPrice)
+        };
+      });
+    }
+
+    function populateOrderModal(order) {
+      var lines = order.items && order.items.length ? order.items : [order];
+      document.getElementById('fieldOrderNumber').value = order.orderNumber || (lines[0] && lines[0].orderNumber) || '';
+      document.getElementById('fieldOrderDate').value = ((order.orderDate || (lines[0] && lines[0].orderDate)) || '').slice(0, 10);
+      document.getElementById('fieldDeliveryDate').value = ((order.deliveryDate || (lines[0] && lines[0].deliveryDate)) || '').slice(0, 10);
+      document.getElementById('fieldCustomer').value = order.customer || (lines[0] && lines[0].customer) || '';
+      var catEl = document.getElementById('fieldCategory');
+      if (catEl) catEl.value = normalizeCategory(order.category || (lines[0] && lines[0].category));
+      orderItems = orderLinesToItems(lines);
+      if (!orderItems.length) {
+        orderItems = [{ productCode: '', productName: '', quantity: '0', unitPrice: '0', orderAmount: '0' }];
+      }
+      renderOrderItems();
+    }
+
+    function openNewOrder() {
+      isEditMode = false;
+      editingOrderNumber = null;
+      document.getElementById('orderModalTitle').textContent = '신규 주문서';
+      populateOrderModal({
+        orderNumber: '',
+        orderDate: todayYmd(),
+        deliveryDate: '',
+        customer: '',
+        category: '양산',
+        productName: '',
+        quantity: 0,
+        orderAmount: 0,
+        detailInfo: {}
+      });
+      var noEl = document.getElementById('fieldOrderNumber');
+      noEl.value = '';
+      noEl.readOnly = false;
+      noEl.placeholder = '비우면 자동생성';
+      document.getElementById('btnDeleteOrder').style.display = 'none';
+      document.getElementById('orderModal').style.display = 'block';
+    }
+
+    function ensureOrderItemsSeed() {
+      if (!orderItems.length) {
+        orderItems = [{ productCode: '', productName: '', quantity: '0', unitPrice: '0', orderAmount: '0' }];
+      }
+    }
+
+    function renderOrderItems() {
+      ensureOrderItemsSeed();
+      var root = document.getElementById('orderItemsRoot');
+      var html =
+        '<table class="order-items-table"><thead><tr>' +
+        '<th style="width:16%;">제품코드</th>' +
+        '<th style="width:36%;">제품명</th>' +
+        '<th style="width:12%;">수량</th>' +
+        '<th style="width:14%;">단가(원)</th>' +
+        '<th style="width:14%;">주문금액(원)</th>' +
+        '<th style="width:8%;"></th></tr></thead><tbody>';
+      for (var i = 0; i < orderItems.length; i++) {
+        var it = orderItems[i] || {};
+        var qty = Number(it.quantity) || 0;
+        var unitPrice = Number(it.unitPrice) || 0;
+        var amount = qty * unitPrice;
+        html += '<tr>';
+        html +=
+          '<td><input type="text" class="oi-code" data-idx="' +
+          i +
+          '" list="productCodeOptions" placeholder="코드 (추천)" value="' +
+          (it.productCode || '').replace(/"/g, '&quot;') +
+          '" autocomplete="off"></td>';
+        html +=
+          '<td><input type="text" class="oi-name" data-idx="' +
+          i +
+          '" placeholder="제품명 직접 입력" value="' +
+          (it.productName || '').replace(/"/g, '&quot;') +
+          '"></td>';
+        html += '<td><input type="number" class="oi-qty" data-idx="' + i + '" min="0" step="1" value="' + (it.quantity || '0') + '"></td>';
+        html += '<td><input type="number" class="oi-price" data-idx="' + i + '" min="0" step="1" value="' + (it.unitPrice || '0') + '"></td>';
+        html += '<td><input type="number" class="oi-amt" data-idx="' + i + '" min="0" step="1" value="' + String(amount) + '" readonly></td>';
+        html += '<td><button type="button" class="btn-secondary oi-del" data-idx="' + i + '"' + (orderItems.length <= 1 ? ' disabled' : '') + '>삭제</button></td>';
+        html += '</tr>';
+      }
+      html += '</tbody></table>';
+      root.innerHTML = html;
+    }
+
+    function addOrderItemRow() {
+      orderItems.push({
+        productCode: '',
+        productName: '',
+        quantity: '0',
+        unitPrice: '0',
+        orderAmount: '0'
+      });
+      renderOrderItems();
+    }
+
+    function editOrder(orderNumber) {
+      if (!orderNumber) return;
+      isEditMode = true;
+      editingOrderNumber = orderNumber;
+
+      var cachedLines = ordersListCache.filter(function (o) {
+        return (o.orderNumber || '').trim() === String(orderNumber).trim();
+      });
+      if (cachedLines.length) {
+        document.getElementById('orderModalTitle').textContent = '주문서 수정 (' + cachedLines.length + '개 제품)';
+        populateOrderModal({
+          orderNumber: orderNumber,
+          orderDate: cachedLines[0].orderDate,
+          deliveryDate: cachedLines[0].deliveryDate,
+          customer: cachedLines[0].customer,
+          category: cachedLines[0].category,
+          items: cachedLines
+        });
+        document.getElementById('fieldOrderNumber').readOnly = true;
+        document.getElementById('btnDeleteOrder').style.display = 'inline-block';
+        document.getElementById('orderModal').style.display = 'block';
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function (bundle) {
+          if (!bundle || !bundle.items || !bundle.items.length) {
+            alert('주문서를 찾을 수 없습니다.');
+            return;
+          }
+          document.getElementById('orderModalTitle').textContent = '주문서 수정 (' + bundle.items.length + '개 제품)';
+          populateOrderModal(bundle);
+          document.getElementById('fieldOrderNumber').readOnly = true;
+          document.getElementById('btnDeleteOrder').style.display = 'inline-block';
+          document.getElementById('orderModal').style.display = 'block';
+        })
+        .withFailureHandler(onError)
+        .getOrdersByNumber(orderNumber);
+    }
+
+    function saveOrderFromModal() {
+      var items = [];
+      for (var i = 0; i < orderItems.length; i++) {
+        var r = orderItems[i] || {};
+        var productCode = String(r.productCode != null ? r.productCode : '').trim();
+        var productName = sanitizeProductNameInput(r.productName || '');
+        var quantity = Number(r.quantity) || 0;
+        var unitPrice = Number(r.unitPrice) || 0;
+        var orderAmount = quantity * unitPrice;
+        if (!productName && !productCode && quantity <= 0 && orderAmount <= 0) continue;
+        if (!productName) {
+          alert((i + 1) + '행 제품명을 입력하세요.');
+          return;
+        }
+        if (quantity <= 0) {
+          alert((i + 1) + '행 수량은 0보다 커야 합니다.');
+          return;
+        }
+        if (unitPrice < 0) {
+          alert((i + 1) + '행 단가는 0 이상이어야 합니다.');
+          return;
+        }
+        items.push({
+          productCode: productCode,
+          productName: productName,
+          quantity: quantity,
+          unitPrice: unitPrice,
+          orderAmount: orderAmount
+        });
+      }
+      if (!items.length) {
+        alert('제품을 1개 이상 입력하세요.');
+        return;
+      }
+      var category = normalizeCategory(document.getElementById('fieldCategory').value);
+      for (var k = 0; k < items.length; k++) {
+        items[k].category = category;
+      }
+      var payload = {
+        orderNumber: isEditMode ? (editingOrderNumber || '') : document.getElementById('fieldOrderNumber').value.trim(),
+        orderDate: document.getElementById('fieldOrderDate').value || todayYmd(),
+        deliveryDate: document.getElementById('fieldDeliveryDate').value || '',
+        customer: document.getElementById('fieldCustomer').value.trim(),
+        category: category,
+        items: items
+      };
+      payload.source = 'manual';
+
+      if (isEditMode && editingOrderNumber) {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (!res || !res.ok) {
+              alert((res && res.error) ? res.error : '수정에 실패했습니다.');
+              return;
+            }
+            closeOrderModal();
+            loadOrdersListWithSessionCache();
+            if (window.erpCallNotifyOrdersChanged) window.erpCallNotifyOrdersChanged();
+          })
+          .withFailureHandler(onError)
+          .updateOrderBatch(payload);
+      } else {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (!res || !res.ok) {
+              alert((res && res.error) ? res.error : '신규 저장에 실패했습니다.');
+              return;
+            }
+            closeOrderModal();
+            loadOrdersListWithSessionCache();
+            if (window.erpCallNotifyOrdersChanged) window.erpCallNotifyOrdersChanged();
+          })
+          .withFailureHandler(onError)
+          .saveOrderBatch(payload);
+      }
+    }
+
+    document.getElementById('orderItemsRoot').addEventListener('input', function (ev) {
+      var idx = parseInt(ev.target.getAttribute('data-idx'), 10);
+      if (isNaN(idx) || idx < 0 || idx >= orderItems.length) return;
+      if (ev.target.classList.contains('oi-code')) {
+        orderItems[idx].productCode = ev.target.value || '';
+      }
+      if (ev.target.classList.contains('oi-name')) {
+        orderItems[idx].productName = ev.target.value || '';
+      }
+      if (ev.target.classList.contains('oi-qty')) orderItems[idx].quantity = ev.target.value || '0';
+      if (ev.target.classList.contains('oi-price')) orderItems[idx].unitPrice = ev.target.value || '0';
+      if (ev.target.classList.contains('oi-qty') || ev.target.classList.contains('oi-price')) {
+        var q = Number(orderItems[idx].quantity) || 0;
+        var p = Number(orderItems[idx].unitPrice) || 0;
+        orderItems[idx].orderAmount = String(q * p);
+        var rowEl = ev.target.closest('tr');
+        if (rowEl) {
+          var amtEl = rowEl.querySelector('.oi-amt');
+          if (amtEl) amtEl.value = String(q * p);
+        }
+      }
+    });
+    document.getElementById('orderItemsRoot').addEventListener('change', function (ev) {
+      var idx = parseInt(ev.target.getAttribute('data-idx'), 10);
+      if (isNaN(idx) || idx < 0 || idx >= orderItems.length) return;
+      if (ev.target.classList.contains('oi-code')) {
+        if (tryApplyProductFromCode(idx, ev.target.value)) {
+          renderOrderItems();
+        }
+        return;
+      }
+      if (ev.target.classList.contains('oi-name')) {
+        orderItems[idx].productName = ev.target.value || '';
+      }
+    });
+    document.getElementById('orderItemsRoot').addEventListener('blur', function (ev) {
+      var idx = parseInt(ev.target.getAttribute('data-idx'), 10);
+      if (isNaN(idx) || idx < 0 || idx >= orderItems.length) return;
+      if (!ev.target.classList.contains('oi-code')) return;
+      if (tryApplyProductFromCode(idx, ev.target.value)) {
+        renderOrderItems();
+      }
+    }, true);
+    document.getElementById('orderItemsRoot').addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.oi-del');
+      if (!btn) return;
+      var idx = parseInt(btn.getAttribute('data-idx'), 10);
+      if (isNaN(idx) || idx < 0 || idx >= orderItems.length) return;
+      if (orderItems.length <= 1) return;
+      orderItems.splice(idx, 1);
+      renderOrderItems();
+    });
+
+    function deleteOrderFromModal() {
+      if (!editingOrderNumber) return;
+      if (!confirm('주문서 ' + editingOrderNumber + '의 모든 제품 행을 삭제할까요?')) return;
+      google.script.run
+        .withSuccessHandler(function(ok) {
+          if (!ok) {
+            alert('삭제에 실패했습니다.');
+            return;
+          }
+          closeOrderModal();
+          loadOrdersListWithSessionCache();
+          if (window.erpCallNotifyOrdersChanged) window.erpCallNotifyOrdersChanged();
+        })
+        .withFailureHandler(onError)
+        .deleteOrder(editingOrderNumber);
+    }
+
+    function setOrderStatus(orderNumber, status) {
+      if (!orderNumber) return;
+      google.script.run
+        .withSuccessHandler(function(ok) {
+          if (!ok) {
+            alert('상태 변경에 실패했습니다.');
+            return;
+          }
+          loadOrdersListWithSessionCache();
+        })
+        .withFailureHandler(onError)
+        .setOrderStatus(orderNumber, status);
+    }
+  </script>
+</body>
+</html>
