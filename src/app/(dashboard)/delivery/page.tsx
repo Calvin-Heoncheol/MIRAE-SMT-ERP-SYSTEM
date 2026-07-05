@@ -1,5 +1,5 @@
-import { PagePlaceholder } from '@/components/dashboard/page-placeholder'
+import { redirect } from 'next/navigation'
 
 export default function DeliveryPage() {
-  return <PagePlaceholder title="납품출하" />
+  redirect('/delivery/plan')
 }

@@ -1,4 +1,5 @@
 import { createSupabaseClient } from '@/lib/supabase'
+import { syncAssemblyGroupsForOrder } from '@/lib/assembly/repository'
 import type { OrderListGroup, OrderRecord, OrderRowPayload } from './types'
 import { groupOrdersFromRecords } from './utils'
 
@@ -7,7 +8,7 @@ export type FetchOrdersResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type SaveOrderResult =
-  | { ok: true; orderNumber: string }
+  | { ok: true; orderId: string; orderNumber: string }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type DeleteOrderResult =
@@ -31,7 +32,8 @@ async function insertOrderLines(orderId: string, items: OrderRowPayload['items']
   const rows = items.map((item, index) => ({
     order_id: orderId,
     line_seq: index,
-    product_code: item.productCode,
+    product_id: item.productId || null,
+    product_code: item.productId || item.productCode,
     product_name: item.productName,
     quantity: item.quantity,
     unit_price: item.unitPrice,
@@ -42,7 +44,9 @@ async function insertOrderLines(orderId: string, items: OrderRowPayload['items']
   if (error) throw new Error(error.message)
 }
 
-export async function fetchOrders(): Promise<FetchOrdersResult> {
+export async function fetchOrders(options?: {
+  includeDerivedLines?: boolean
+}): Promise<FetchOrdersResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return {
       ok: false,
@@ -57,13 +61,15 @@ export async function fetchOrders(): Promise<FetchOrdersResult> {
       .from('orders')
       .select('*, order_lines(*)')
       .order('order_date', { ascending: false })
-      .order('order_number', { ascending: false })
+      .order('created_at', { ascending: false })
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }
     }
 
-    const orders = groupOrdersFromRecords((data || []) as OrderRecord[])
+    const orders = groupOrdersFromRecords((data || []) as OrderRecord[], {
+      includeDerivedLines: options?.includeDerivedLines,
+    })
     return { ok: true, orders }
   } catch (error) {
     return {
@@ -74,7 +80,7 @@ export async function fetchOrders(): Promise<FetchOrdersResult> {
   }
 }
 
-export async function fetchOrderByNumber(orderNumber: string): Promise<OrderListGroup | null> {
+export async function fetchOrderById(orderId: string): Promise<OrderListGroup | null> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return null
   }
@@ -83,11 +89,16 @@ export async function fetchOrderByNumber(orderNumber: string): Promise<OrderList
   const { data, error } = await supabase
     .from('orders')
     .select('*, order_lines(*)')
-    .eq('order_number', orderNumber)
+    .eq('id', orderId)
     .maybeSingle()
 
   if (error || !data) return null
   return groupOrdersFromRecords([data as OrderRecord])[0] ?? null
+}
+
+/** @deprecated orderNumber는 id(MRO-0001)와 동일 */
+export async function fetchOrderByNumber(orderNumber: string): Promise<OrderListGroup | null> {
+  return fetchOrderById(orderNumber)
 }
 
 export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderResult> {
@@ -97,36 +108,16 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
 
   try {
     const supabase = createSupabaseClient()
-    let orderNumber = payload.order_number?.trim() || ''
-
-    if (!orderNumber) {
-      const { data: generated, error: rpcError } = await supabase.rpc('generate_order_number')
-      if (rpcError) return { ok: false, reason: 'query', detail: rpcError.message }
-      if (!generated || typeof generated !== 'string') {
-        return { ok: false, reason: 'query', detail: '주문서 번호를 생성하지 못했습니다.' }
-      }
-      orderNumber = generated
-    } else {
-      const { data: existing } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('order_number', orderNumber)
-        .maybeSingle()
-      if (existing) {
-        return { ok: false, reason: 'query', detail: `이미 존재하는 주문서번호입니다: ${orderNumber}` }
-      }
-    }
 
     const { data: inserted, error } = await supabase
       .from('orders')
       .insert({
-        order_number: orderNumber,
         order_date: payload.order_date,
         delivery_date: payload.delivery_date || null,
         customer: payload.customer,
         category: payload.category,
         source: payload.source || 'manual',
-        source_quote_number: payload.source_quote_number || null,
+        source_quote_id: payload.source_quote_id || null,
       })
       .select('id')
       .single()
@@ -136,7 +127,8 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
     }
 
     await insertOrderLines(inserted.id, payload.items)
-    return { ok: true, orderNumber }
+    await syncAssemblyGroupsForOrder(inserted.id)
+    return { ok: true, orderId: inserted.id, orderNumber: inserted.id }
   } catch (error) {
     return {
       ok: false,
@@ -146,7 +138,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
   }
 }
 
-export async function updateOrder(orderNumber: string, payload: OrderRowPayload): Promise<SaveOrderResult> {
+export async function updateOrder(orderId: string, payload: OrderRowPayload): Promise<SaveOrderResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
@@ -156,12 +148,12 @@ export async function updateOrder(orderNumber: string, payload: OrderRowPayload)
     const { data: existing, error: fetchError } = await supabase
       .from('orders')
       .select('id')
-      .eq('order_number', orderNumber)
+      .eq('id', orderId)
       .maybeSingle()
 
     if (fetchError) return { ok: false, reason: 'query', detail: fetchError.message }
     if (!existing?.id) {
-      return { ok: false, reason: 'query', detail: `주문서를 찾을 수 없습니다: ${orderNumber}` }
+      return { ok: false, reason: 'query', detail: `주문서를 찾을 수 없습니다: ${orderId}` }
     }
 
     const { error: updateError } = await supabase
@@ -181,7 +173,8 @@ export async function updateOrder(orderNumber: string, payload: OrderRowPayload)
     if (deleteError) return { ok: false, reason: 'query', detail: deleteError.message }
 
     await insertOrderLines(existing.id, payload.items)
-    return { ok: true, orderNumber }
+    await syncAssemblyGroupsForOrder(existing.id)
+    return { ok: true, orderId: existing.id, orderNumber: existing.id }
   } catch (error) {
     return {
       ok: false,
@@ -191,8 +184,8 @@ export async function updateOrder(orderNumber: string, payload: OrderRowPayload)
   }
 }
 
-export async function deleteOrder(orderNumber: string): Promise<DeleteOrderResult> {
-  if (!orderNumber.trim()) return { ok: true }
+export async function deleteOrder(orderId: string): Promise<DeleteOrderResult> {
+  if (!orderId.trim()) return { ok: true }
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return {
@@ -204,7 +197,7 @@ export async function deleteOrder(orderNumber: string): Promise<DeleteOrderResul
 
   try {
     const supabase = createSupabaseClient()
-    const { error } = await supabase.from('orders').delete().eq('order_number', orderNumber)
+    const { error } = await supabase.from('orders').delete().eq('id', orderId)
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }

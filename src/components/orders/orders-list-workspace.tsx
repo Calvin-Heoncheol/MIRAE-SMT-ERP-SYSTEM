@@ -23,7 +23,6 @@ export function OrdersListWorkspace({ result }: OrdersListWorkspaceProps) {
   const [modalSession, setModalSession] = useState(0)
 
   const orders = result.ok ? result.orders : []
-  const existingOrderNumbers = orders.map((order) => order.orderNumber)
 
   function openCreate() {
     setModalSession((value) => value + 1)
@@ -84,7 +83,6 @@ export function OrdersListWorkspace({ result }: OrdersListWorkspaceProps) {
           open
           mode={modal.mode}
           order={modal.mode === 'edit' ? modal.order : null}
-          existingOrderNumbers={existingOrderNumbers}
           onClose={closeModal}
           onSaved={handleSaved}
           onDeleted={handleDeleted}

@@ -1,10 +1,7 @@
-import { PagePlaceholder } from '@/components/dashboard/page-placeholder'
+import { PostProcessHistoryWorkspace } from '@/components/post-process/post-process-history-workspace'
+import { fetchPostProcessProductionHistory } from '@/lib/post-process/repository'
 
-export default function PostProcessHistoryPage() {
-  return (
-    <PagePlaceholder
-      title="생산이력"
-      description="후공정 생산 기록 조회 화면은 추후 구현 예정입니다."
-    />
-  )
+export default async function PostProcessHistoryPage() {
+  const result = await fetchPostProcessProductionHistory()
+  return <PostProcessHistoryWorkspace result={result} />
 }

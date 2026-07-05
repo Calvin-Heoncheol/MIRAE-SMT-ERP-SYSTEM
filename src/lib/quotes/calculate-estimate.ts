@@ -25,7 +25,6 @@ import type {
   SmtBoardDetail,
   SmtPcbBoard,
 } from './types'
-import { generateQuoteNumberPreview } from './utils'
 
 type SmtComponentFields = Pick<SmtPcbBoard, 'chip' | 'icPin' | 'bga' | 'smtOdd' | 'smtSpecial'>
 
@@ -300,9 +299,7 @@ export function calculateEstimate(
   const qty = Number(data.boardQty) || 0
   const today = formatSeoulDate()
   const quoteType = data.quoteType === 'domestic' ? 'domestic' : 'export'
-  const quoteNumber = data.existingQuoteNumber
-    ? String(data.existingQuoteNumber)
-    : generateQuoteNumberPreview(quoteType, options.existingQuoteNumbers || [])
+  const quoteNumber = data.existingQuoteNumber ? String(data.existingQuoteNumber) : '저장 시 자동 발급'
 
   const pcbBoards = normalizeSmtPcbBoards(data)
   const smtAgg = aggregateSmtFromPcbBoards(pcbBoards, quoteType)

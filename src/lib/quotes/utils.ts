@@ -8,7 +8,6 @@ import type {
   QuoteType,
   SmtPcbBoard,
 } from './types'
-import { inferQuoteTypeFromNumber } from './format'
 
 export function defaultSmtPcbBoard(index = 0): SmtPcbBoard {
   return {
@@ -40,7 +39,6 @@ export function defaultDipPcbBoard(index = 0): DipPcbBoard {
 
 export function inferQuoteType(source: {
   quoteType?: QuoteType
-  quoteNumber?: string
   detailInfo?: QuoteDetailInfo
 }): QuoteType {
   const settingsType = source.detailInfo?.settings?.quoteType
@@ -50,27 +48,7 @@ export function inferQuoteType(source: {
   if (source.quoteType) {
     return source.quoteType === 'domestic' ? 'domestic' : 'export'
   }
-  if (source.quoteNumber) {
-    return inferQuoteTypeFromNumber(source.quoteNumber)
-  }
   return 'export'
-}
-
-export function generateQuoteNumberPreview(quoteType: QuoteType, existingNumbers: string[] = []): string {
-  const yearShort = new Date().getFullYear().toString().slice(2)
-  const prefix = (quoteType === 'domestic' ? 'MSK' : 'MSQ') + yearShort
-  let maxNumber = 0
-
-  for (const quoteNumber of existingNumbers) {
-    if (quoteNumber.startsWith(prefix)) {
-      const numberPart = Number.parseInt(quoteNumber.slice(prefix.length), 10)
-      if (!Number.isNaN(numberPart) && numberPart > maxNumber) {
-        maxNumber = numberPart
-      }
-    }
-  }
-
-  return `${prefix}${String(maxNumber + 1).padStart(4, '0')}`
 }
 
 export function parseQuoteDateForSort(quoteDate: string) {
@@ -87,21 +65,23 @@ export function sortQuotesNewestFirst(quotes: QuoteListItem[]) {
   return [...quotes].sort((a, b) => {
     const dateDiff = parseQuoteDateForSort(b.quoteDate) - parseQuoteDateForSort(a.quoteDate)
     if (dateDiff !== 0) return dateDiff
-    return (b.quoteNumber || '').localeCompare(a.quoteNumber || '', undefined, { numeric: true })
+    return b.createdAt.localeCompare(a.createdAt)
   })
 }
 
 export function mapQuoteRecord(record: QuoteRecord): QuoteListItem {
   const detailInfo = record.detail_info || {}
   return {
-    quoteNumber: record.quote_number,
+    quoteId: record.id,
+    quoteNumber: record.id,
     quoteDate: record.quote_date,
-    quoteType: inferQuoteType({ quoteNumber: record.quote_number, detailInfo }),
+    quoteType: inferQuoteType({ detailInfo }),
     customer: record.customer,
     productName: record.product_name,
     boardQty: record.board_qty,
     totalAmount: Number(record.total_amount) || 0,
     detailInfo,
+    createdAt: record.created_at,
   }
 }
 

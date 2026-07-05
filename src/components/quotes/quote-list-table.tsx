@@ -1,6 +1,7 @@
 'use client'
 
 import { formatQuoteMoneyTotal, formatQuoteMoneyUnit } from '@/lib/quotes/format'
+import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import type { QuoteListItem } from '@/lib/quotes/types'
 
 type QuoteListTableProps = {
@@ -34,7 +35,7 @@ export function QuoteListTable({ quotes, emptyMessage, onSelectQuote }: QuoteLis
                 견적일
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
-                견적서번호
+                견적코드
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
                 고객사
@@ -61,7 +62,9 @@ export function QuoteListTable({ quotes, emptyMessage, onSelectQuote }: QuoteLis
                 onClick={() => onSelectQuote?.(quote)}
               >
                 <td className="px-4 py-3 text-sm text-slate-700">{quote.quoteDate || '-'}</td>
-                <td className="px-4 py-3 text-sm font-medium text-blue-700">{quote.quoteNumber}</td>
+                <td className="px-4 py-3 font-mono text-xs text-blue-700" title={quote.quoteNumber}>
+                  {formatInternalCodeLabel(quote.quoteNumber)}
+                </td>
                 <td className="px-4 py-3 text-sm text-slate-700">{quote.customer || '-'}</td>
                 <td className="px-4 py-3 text-sm text-slate-700">{quote.productName || '-'}</td>
                 <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">

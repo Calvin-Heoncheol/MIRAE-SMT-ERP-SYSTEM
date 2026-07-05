@@ -1,23 +1,46 @@
 'use client'
 
+import { type Dispatch, type SetStateAction } from 'react'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
-import { computeLineAmount } from '@/lib/orders/utils'
+import { ProductCombobox } from '@/components/orders/product-combobox'
 import type { OrderItemForm } from '@/lib/orders/form-state'
+import { computeLineAmount } from '@/lib/orders/utils'
+import type { Product } from '@/lib/products/types'
 
 type OrderItemsFormProps = {
   items: OrderItemForm[]
-  onChange: (items: OrderItemForm[]) => void
+  customer: string
+  products: Product[]
+  onChange: Dispatch<SetStateAction<OrderItemForm[]>>
 }
 
-export function OrderItemsForm({ items, onChange }: OrderItemsFormProps) {
+function applyProductToItem(item: OrderItemForm, product: Product): OrderItemForm {
+  const next: OrderItemForm = {
+    ...item,
+    productId: product.id,
+    productCode: product.productCode,
+    productName: product.productName,
+  }
+
+  const currentPrice = Math.round(Number(item.unitPrice) || 0)
+  if (product.defaultUnitPrice > 0 && currentPrice <= 0) {
+    next.unitPrice = String(product.defaultUnitPrice)
+  }
+
+  return next
+}
+
+export function OrderItemsForm({ items, customer, products, onChange }: OrderItemsFormProps) {
   function patchItem(index: number, patch: Partial<OrderItemForm>) {
-    onChange(items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)))
+    onChange((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
+    )
   }
 
   function addRow() {
     onChange([
       ...items,
-      { productCode: '', productName: '', quantity: '0', unitPrice: '0' },
+      { productId: '', productCode: '', productName: '', quantity: '0', unitPrice: '0' },
     ])
   }
 
@@ -26,17 +49,35 @@ export function OrderItemsForm({ items, onChange }: OrderItemsFormProps) {
     onChange(items.filter((_, itemIndex) => itemIndex !== index))
   }
 
+  function selectProduct(index: number, product: Product) {
+    onChange((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? applyProductToItem(item, product) : item,
+      ),
+    )
+  }
+
+  const inputClassName =
+    'w-full min-w-0 rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100'
+
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="min-w-full border-collapse text-sm">
+      <div className="rounded-lg border border-slate-200">
+        <table className="min-w-[640px] w-full border-collapse text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-3 py-2 text-left font-semibold text-slate-600">제품코드</th>
-              <th className="px-3 py-2 text-left font-semibold text-slate-600">제품명</th>
-              <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
-              <th className="px-3 py-2 text-right font-semibold text-slate-600">단가(원)</th>
-              <th className="px-3 py-2 text-right font-semibold text-slate-600">주문금액(원)</th>
+              <th className="min-w-[280px] px-3 py-2 text-left text-sm font-semibold text-slate-600">
+                제품명
+              </th>
+              <th className="min-w-[72px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
+                수량
+              </th>
+              <th className="min-w-[96px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
+                단가 (원)
+              </th>
+              <th className="min-w-[104px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
+                금액 (원)
+              </th>
               <th className="w-16 px-3 py-2" />
             </tr>
           </thead>
@@ -45,42 +86,41 @@ export function OrderItemsForm({ items, onChange }: OrderItemsFormProps) {
               const amount = computeLineAmount(Number(item.quantity), Number(item.unitPrice))
               return (
                 <tr key={index} className="border-t border-slate-100">
-                  <td className="px-3 py-2">
-                    <input
-                      value={item.productCode}
-                      onChange={(event) => patchItem(index, { productCode: event.target.value })}
-                      placeholder="코드 (선택)"
-                      className="w-full min-w-[100px] rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
+                  <td className="px-3 py-2 align-top">
+                    <ProductCombobox
                       value={item.productName}
-                      onChange={(event) => patchItem(index, { productName: event.target.value })}
-                      placeholder="제품명"
-                      className="w-full min-w-[160px] rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
+                      products={products}
+                      customer={customer}
+                      field="name"
+                      placeholder="제품명 입력 또는 검색"
+                      ariaLabel={`${index + 1}행 제품명`}
+                      inputClassName={`${inputClassName} min-w-[280px]`}
+                      onValueChange={(productName) =>
+                        patchItem(index, { productName, productId: '', productCode: '' })
+                      }
+                      onProductSelect={(product) => selectProduct(index, product)}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 align-top">
                     <QuoteNumericInput
                       min={0}
                       value={String(item.quantity)}
                       onChange={(quantity) => patchItem(index, { quantity })}
-                      className="w-full min-w-[80px] rounded-lg border border-slate-200 px-2.5 py-2 text-right text-sm"
+                      className={`${inputClassName} min-w-[80px] text-right`}
                     />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 align-top">
                     <QuoteNumericInput
                       min={0}
                       value={String(item.unitPrice)}
                       onChange={(unitPrice) => patchItem(index, { unitPrice })}
-                      className="w-full min-w-[100px] rounded-lg border border-slate-200 px-2.5 py-2 text-right text-sm"
+                      className={`${inputClassName} min-w-[100px] text-right`}
                     />
                   </td>
-                  <td className="px-3 py-2 text-right text-sm font-medium tabular-nums text-slate-800">
+                  <td className="px-3 py-2 text-right text-sm font-medium tabular-nums text-slate-800 align-top">
                     {amount.toLocaleString('ko-KR')}
                   </td>
-                  <td className="px-3 py-2 text-center">
+                  <td className="px-3 py-2 text-center align-top">
                     <button
                       type="button"
                       onClick={() => removeRow(index)}
@@ -96,6 +136,10 @@ export function OrderItemsForm({ items, onChange }: OrderItemsFormProps) {
           </tbody>
         </table>
       </div>
+      <p className="text-xs text-slate-500">
+        제품명은 등록된 제품 목록과 정확히 일치해야 저장됩니다. 선택 후 제품명을 수정·삭제하면 저장되지
+        않습니다.
+      </p>
       <button
         type="button"
         onClick={addRow}

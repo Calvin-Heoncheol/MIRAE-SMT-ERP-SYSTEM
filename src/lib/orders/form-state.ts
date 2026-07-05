@@ -1,4 +1,5 @@
 export type OrderItemForm = {
+  productId: string
   productCode: string
   productName: string
   quantity: string | number
@@ -6,7 +7,6 @@ export type OrderItemForm = {
 }
 
 export type OrderFormState = {
-  orderNumber: string
   orderDate: string
   deliveryDate: string
   customer: string
@@ -15,6 +15,7 @@ export type OrderFormState = {
 
 export function defaultOrderItemForm(): OrderItemForm {
   return {
+    productId: '',
     productCode: '',
     productName: '',
     quantity: '0',
@@ -22,9 +23,18 @@ export function defaultOrderItemForm(): OrderItemForm {
   }
 }
 
-export function orderItemsFromDetail(items: { productCode: string; productName: string; quantity: number; unitPrice: number }[]) {
+export function orderItemsFromDetail(
+  items: {
+    productId?: string | null
+    productCode: string
+    productName: string
+    quantity: number
+    unitPrice: number
+  }[],
+) {
   if (!items.length) return [defaultOrderItemForm()]
   return items.map((item) => ({
+    productId: item.productId || '',
     productCode: item.productCode || '',
     productName: item.productName || '',
     quantity: String(item.quantity || 0),

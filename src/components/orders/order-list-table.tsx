@@ -1,7 +1,7 @@
 'use client'
 
 import { OrderCategoryBadge } from '@/components/orders/order-category-badge'
-import { formatOrderMoney, formatProductSummary } from '@/lib/orders/utils'
+import { formatInternalCodeLabel, formatOrderMoney, formatProductSummary } from '@/lib/orders/utils'
 import type { OrderListGroup } from '@/lib/orders/types'
 
 type OrderListTableProps = {
@@ -35,7 +35,7 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
                 납기일
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
-                주문서번호
+                주문코드
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
                 고객사
@@ -43,10 +43,10 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
                 제품
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-emerald-900 uppercase">
+              <th className="min-w-[72px] whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-emerald-900 uppercase">
                 수량합계
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-emerald-900 uppercase">
+              <th className="min-w-[96px] whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-emerald-900 uppercase">
                 주문금액
               </th>
               <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-emerald-900 uppercase">
@@ -63,7 +63,9 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
               >
                 <td className="px-4 py-3 text-sm text-slate-700">{order.orderDate || '-'}</td>
                 <td className="px-4 py-3 text-sm text-slate-700">{order.deliveryDate || '-'}</td>
-                <td className="px-4 py-3 text-sm font-semibold text-emerald-800">{order.orderNumber}</td>
+                <td className="px-4 py-3 font-mono text-xs text-emerald-800" title={order.orderNumber}>
+                  {formatInternalCodeLabel(order.orderNumber)}
+                </td>
                 <td className="px-4 py-3 text-sm text-slate-700">{order.customer || '-'}</td>
                 <td className="px-4 py-3 text-sm text-slate-700">{formatProductSummary(order)}</td>
                 <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-700">

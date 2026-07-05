@@ -1,7 +1,8 @@
-import { PostProductionInputWorkspace } from '@/components/post-process/post-production-input-workspace'
-import { fetchPostProcessPageData } from '@/lib/post-process/repository'
+import { ProductionInputWorkspace } from '@/components/production-input/production-input-workspace'
+import { fetchProductionInputPageData } from '@/lib/production-input/repository'
+import { POST_PROCESS_PRODUCTION_INPUT_CONFIG } from '@/lib/post-process/config'
 
 export default async function PostProcessInputPage() {
-  const result = await fetchPostProcessPageData()
-  return <PostProductionInputWorkspace result={result} />
+  const result = await fetchProductionInputPageData(POST_PROCESS_PRODUCTION_INPUT_CONFIG)
+  return <ProductionInputWorkspace result={result} config={POST_PROCESS_PRODUCTION_INPUT_CONFIG} />
 }

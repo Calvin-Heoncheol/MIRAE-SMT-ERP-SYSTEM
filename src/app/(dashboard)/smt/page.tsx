@@ -1,5 +1,5 @@
-import { PagePlaceholder } from '@/components/dashboard/page-placeholder'
+import { redirect } from 'next/navigation'
 
 export default function SmtPage() {
-  return <PagePlaceholder title="SMT" />
+  redirect('/smt/plan')
 }

@@ -1,7 +1,9 @@
--- Supabase SQL Editor에서 실행하세요 (setup-quotations.sql, setup-orders.sql 이후)
+-- Supabase SQL Editor에서 실행하세요 (setup-products.sql 이후)
+--
+-- 내부 자재코드 = id (MRM-0001, MRM-0002 … 자동 발급)
 
 create table if not exists public.materials (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   customer text default '',
   material_name text not null default '',
   specification text default '',
@@ -16,10 +18,12 @@ create table if not exists public.materials (
   moq numeric default 0,
   unit_price numeric default 0,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint materials_id_mrm_format_check check (id ~ '^MRM-[0-9]+$')
 );
 
-comment on table public.materials is '자재등록 마스터 (고객사+CPN 기준 품목)';
+comment on table public.materials is '자재등록 마스터 — 내부코드=id(MRM-0001), CPN은 고객 품번';
+comment on column public.materials.id is '내부 자재코드 MRM-0001 (INSERT 시 자동 발급, 수정 불가)';
 comment on column public.materials.customer is '고객사';
 comment on column public.materials.material_name is '자재명';
 comment on column public.materials.specification is '규격';
@@ -41,7 +45,6 @@ create index if not exists materials_mpn_idx on public.materials (mpn);
 create index if not exists materials_spn_idx on public.materials (spn);
 create index if not exists materials_supplier_idx on public.materials (supplier);
 
--- 고객사 + CPN 조합 유일 (CPN이 있을 때만 — GAS 자재등록과 동일)
 create unique index if not exists materials_customer_cpn_unique_idx
   on public.materials (customer, cpn)
   where cpn <> '';
@@ -70,12 +73,41 @@ begin
 end;
 $$;
 
--- CSV/엑셀 import 시 빈 칸이 NULL로 들어와도 빈 문자열·0으로 정규화
+create or replace function public.generate_material_code()
+returns text
+language plpgsql
+as $$
+declare
+  max_num integer;
+  next_num integer;
+begin
+  select coalesce(max(
+    nullif(regexp_replace(id, '^MRM-', ''), '')::integer
+  ), 0)
+  into max_num
+  from public.materials
+  where id ~ '^MRM-[0-9]+$';
+
+  next_num := max_num + 1;
+  return 'MRM-' || lpad(next_num::text, 4, '0');
+end;
+$$;
+
+grant execute on function public.generate_material_code() to anon, authenticated;
+
 create or replace function public.normalize_materials_row()
 returns trigger
 language plpgsql
 as $$
 begin
+  if tg_op = 'INSERT' then
+    if new.id is null or trim(new.id) = '' then
+      new.id := public.generate_material_code();
+    end if;
+  elsif tg_op = 'UPDATE' and new.id is distinct from old.id then
+    new.id := old.id;
+  end if;
+
   new.customer := coalesce(trim(new.customer), '');
   new.material_name := coalesce(trim(new.material_name), '');
   new.specification := coalesce(trim(new.specification), '');
@@ -104,19 +136,3 @@ create trigger materials_updated_at
   before update on public.materials
   for each row
   execute function public.touch_materials_updated_at();
-
--- 이미 materials 테이블을 만든 뒤 import 오류(23502)가 나면 아래를 한 번 실행하세요.
--- alter table public.materials alter column customer drop not null;
--- alter table public.materials alter column specification drop not null;
--- alter table public.materials alter column process drop not null;
--- alter table public.materials drop constraint if exists materials_process_check;
--- alter table public.materials alter column cpn drop not null;
--- alter table public.materials alter column mpn drop not null;
--- alter table public.materials alter column mpn2 drop not null;
--- alter table public.materials alter column spn drop not null;
--- alter table public.materials alter column spn2 drop not null;
--- alter table public.materials alter column supplier drop not null;
--- alter table public.materials alter column supply_type drop not null;
--- alter table public.materials drop constraint if exists materials_supply_type_check;
--- alter table public.materials alter column moq drop not null;
--- alter table public.materials alter column unit_price drop not null;

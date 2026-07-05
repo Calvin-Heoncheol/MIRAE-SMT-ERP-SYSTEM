@@ -1,0 +1,1 @@
+-- [대체됨] migrate-products-mrp-id.sql 사용 (MRP0001 자동 발급)

@@ -1,26 +1,33 @@
-export type PostProcessOrderState = 'none' | 'progress' | 'full'
+export type PostProcessProductionSource = 'manual'
 
-export type PostProcessProductKind = 'semi' | 'finished'
-
-export type PostProcessOrderLine = {
-  uiKey: string
-  countKey: string
-  orderNumber: string
-  orderDate: string
-  customer: string
-  productCode: string
-  productName: string
-  productLabel: string
+export type PostProcessProductionRecord = {
+  id: string
+  recordDate: string
+  assemblyGroupId: string
   quantity: number
-  unitPrice: number
-  lineSeq: number
-  productKind: PostProcessProductKind
-  productKindLabel: string
+  source: PostProcessProductionSource
+  note: string
+  createdAt: string
 }
 
-export type PostProcessCounts = Record<string, number>
+export type CreatePostProcessProductionRecordInput = {
+  assemblyGroupId: string
+  quantity: number
+  recordDate?: string
+  source?: PostProcessProductionSource
+  note?: string
+}
 
-export type PostProcessPageData = {
-  orders: PostProcessOrderLine[]
-  counts: PostProcessCounts
+export type PostProcessProductionHistoryRow = {
+  id: string
+  recordDate: string
+  createdAt: string
+  orderNumber: string
+  customer: string
+  productName: string
+  productCode: string
+  targetQuantity: number
+  quantity: number
+  source: PostProcessProductionSource
+  note: string
 }

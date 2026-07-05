@@ -1,5 +1,5 @@
-import { OrdersStatusWorkspace } from '@/components/orders/orders-status-workspace'
+import { redirect } from 'next/navigation'
 
 export default function OrdersStatusPage() {
-  return <OrdersStatusWorkspace />
+  redirect('/production/status')
 }

@@ -1,21 +1,26 @@
 -- Supabase SQL Editor에서 실행하세요
+--
+-- 내부 견적코드 = id (MRQ-0001, MRQ-0002 … 자동 발급)
 
 create table if not exists public.quotations (
-  id uuid primary key default gen_random_uuid(),
+  id text primary key,
   quote_date date not null default current_date,
-  quote_number text not null unique,
   customer text not null default '',
   product_name text not null default '',
   board_qty integer not null default 0 check (board_qty >= 0),
   total_amount numeric not null default 0 check (total_amount >= 0),
   detail_info jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint quotations_id_mrq_format_check check (id ~ '^MRQ-[0-9]+$')
 );
+
+comment on table public.quotations is '견적 마스터 — 내부코드=id(MRQ-0001)';
+comment on column public.quotations.id is '내부 견적코드 MRQ-0001 (INSERT 시 자동 발급, 수정 불가)';
 
 create index if not exists quotations_quote_date_idx on public.quotations (quote_date desc);
 create index if not exists quotations_customer_idx on public.quotations (customer);
-create index if not exists quotations_quote_number_idx on public.quotations (quote_number desc);
+create index if not exists quotations_created_at_idx on public.quotations (created_at desc);
 
 alter table public.quotations enable row level security;
 
@@ -40,38 +45,65 @@ create policy "quotations public delete"
   on public.quotations for delete
   using (true);
 
--- 견적서 번호 자동 생성 (MSK26xxxx=국내 / MSQ26xxxx=해외)
-create or replace function public.generate_quote_number(p_quote_type text)
+create or replace function public.touch_quotations_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+create or replace function public.generate_quote_code()
 returns text
 language plpgsql
 as $$
 declare
-  prefix text;
-  year_short text;
   max_num integer;
   next_num integer;
 begin
-  year_short := to_char(current_date, 'YY');
-  if p_quote_type = 'domestic' then
-    prefix := 'MSK' || year_short;
-  else
-    prefix := 'MSQ' || year_short;
-  end if;
-
   select coalesce(max(
-    nullif(regexp_replace(quote_number, '^' || prefix, ''), '')::integer
+    nullif(regexp_replace(id, '^MRQ-', ''), '')::integer
   ), 0)
   into max_num
   from public.quotations
-  where quote_number like prefix || '%';
+  where id ~ '^MRQ-[0-9]+$';
 
   next_num := max_num + 1;
-  return prefix || lpad(next_num::text, 4, '0');
+  return 'MRQ-' || lpad(next_num::text, 4, '0');
 end;
 $$;
 
-grant execute on function public.generate_quote_number(text) to anon, authenticated;
+grant execute on function public.generate_quote_code() to anon, authenticated;
 
--- 기존 DB에 quote_type 컬럼이 남아 있으면 아래를 한 번 실행하세요.
--- drop index if exists quotations_quote_type_idx;
--- alter table public.quotations drop column if exists quote_type;
+create or replace function public.normalize_quotations_row()
+returns trigger
+language plpgsql
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.id is null or trim(new.id) = '' then
+      new.id := public.generate_quote_code();
+    end if;
+  elsif tg_op = 'UPDATE' and new.id is distinct from old.id then
+    new.id := old.id;
+  end if;
+
+  new.customer := coalesce(trim(new.customer), '');
+  new.product_name := coalesce(trim(new.product_name), '');
+  return new;
+end;
+$$;
+
+drop trigger if exists quotations_normalize_row on public.quotations;
+create trigger quotations_normalize_row
+  before insert or update on public.quotations
+  for each row
+  execute function public.normalize_quotations_row();
+
+drop trigger if exists quotations_updated_at on public.quotations;
+create trigger quotations_updated_at
+  before update on public.quotations
+  for each row
+  execute function public.touch_quotations_updated_at();

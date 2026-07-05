@@ -13,12 +13,13 @@ import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
 import { ORDER_CATEGORIES } from '@/lib/orders/types'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
+import { fetchProducts } from '@/lib/products/repository'
+import type { Product } from '@/lib/products/types'
 
 type OrderModalProps = {
   open: boolean
   mode: 'create' | 'edit'
   order?: OrderListGroup | null
-  existingOrderNumbers?: string[]
   onClose: () => void
   onSaved?: () => void
   onDeleted?: () => void
@@ -28,7 +29,6 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
   const today = todayYmdSeoul()
   if (order) {
     return {
-      orderNumber: order.orderNumber,
       orderDate: order.orderDate || today,
       deliveryDate: order.deliveryDate || '',
       customer: order.customer || '',
@@ -36,7 +36,6 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
     }
   }
   return {
-    orderNumber: '',
     orderDate: today,
     deliveryDate: addDaysYmd(today, 30),
     customer: '',
@@ -50,7 +49,7 @@ function OrderModalContent({
   onClose,
   onSaved,
   onDeleted,
-}: Omit<OrderModalProps, 'open' | 'existingOrderNumbers'>) {
+}: Omit<OrderModalProps, 'open'>) {
   const [form, setForm] = useState<OrderFormState>(() => createInitialForm(order))
   const [items, setItems] = useState<OrderItemForm[]>(() =>
     order ? orderItemsFromDetail(order.items) : [defaultOrderItemForm()],
@@ -58,6 +57,19 @@ function OrderModalContent({
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [products, setProducts] = useState<Product[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchProducts().then((result) => {
+      if (!cancelled && result.ok) {
+        setProducts(result.products)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -76,7 +88,7 @@ function OrderModalContent({
   }
 
   async function handleSave() {
-    const validation = validateOrderItems(items)
+    const validation = validateOrderItems(items, products, form.customer.trim())
     if (!validation.ok) {
       setSaveError(validation.message)
       return
@@ -88,13 +100,12 @@ function OrderModalContent({
     }
 
     const payload = {
-      order_number: mode === 'create' ? form.orderNumber.trim() || undefined : order?.orderNumber,
       order_date: form.orderDate || todayYmdSeoul(),
       delivery_date: form.deliveryDate || '',
       customer: form.customer.trim(),
       category: form.category,
       source: order?.source || 'manual',
-      source_quote_number: order?.sourceQuoteNumber || null,
+      source_quote_id: order?.sourceQuoteId || null,
       items: validation.items,
     }
 
@@ -103,7 +114,7 @@ function OrderModalContent({
 
     const result =
       mode === 'edit' && order
-        ? await updateOrder(order.orderNumber, payload)
+        ? await updateOrder(order.orderId, payload)
         : await createOrder(payload)
 
     setSaving(false)
@@ -125,7 +136,7 @@ function OrderModalContent({
     setDeleting(true)
     setSaveError(null)
 
-    const result = await deleteOrder(order.orderNumber)
+    const result = await deleteOrder(order.orderId)
     setDeleting(false)
 
     if (!result.ok) {
@@ -138,7 +149,7 @@ function OrderModalContent({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-      <div className="relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
           <h2 className="text-lg font-bold text-slate-900">
             {mode === 'edit' ? `주문서 수정 (${items.length}개 제품)` : '신규 주문서'}
@@ -166,18 +177,18 @@ function OrderModalContent({
           </div>
         </div>
 
-        <div className="overflow-y-auto p-6">
+        <div className="overflow-x-auto overflow-y-auto p-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">주문서번호</span>
-              <input
-                value={form.orderNumber}
-                onChange={(event) => updateForm('orderNumber', event.target.value)}
-                readOnly={mode === 'edit'}
-                placeholder="비우면 자동 생성"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
-              />
-            </label>
+            {mode === 'edit' && order ? (
+              <label className="block text-sm sm:col-span-2">
+                <span className="mb-1 block font-medium text-slate-600">주문코드</span>
+                <input
+                  value={order.orderNumber}
+                  readOnly
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600"
+                />
+              </label>
+            ) : null}
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-600">구분</span>
               <select
@@ -223,7 +234,12 @@ function OrderModalContent({
 
           <div className="mt-6">
             <h3 className="mb-3 text-sm font-bold text-slate-900">제품</h3>
-            <OrderItemsForm items={items} onChange={setItems} />
+            <OrderItemsForm
+              items={items}
+              customer={form.customer}
+              products={products}
+              onChange={setItems}
+            />
           </div>
 
           {saveError ? <p className="mt-4 text-sm text-red-600">{saveError}</p> : null}

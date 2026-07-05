@@ -58,7 +58,6 @@ export type QuoteDetailInfo = {
 export type QuoteRecord = {
   id: string
   quote_date: string
-  quote_number: string
   customer: string
   product_name: string
   board_qty: number
@@ -69,6 +68,7 @@ export type QuoteRecord = {
 }
 
 export type QuoteListItem = {
+  quoteId: string
   quoteNumber: string
   quoteDate: string
   quoteType: QuoteType
@@ -77,6 +77,7 @@ export type QuoteListItem = {
   boardQty: number
   totalAmount: number
   detailInfo: QuoteDetailInfo
+  createdAt: string
 }
 
 export type EstimateInput = {

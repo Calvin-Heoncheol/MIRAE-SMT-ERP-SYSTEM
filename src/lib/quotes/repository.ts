@@ -8,7 +8,7 @@ export type FetchQuotesResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type SaveQuoteResult =
-  | { ok: true; quoteNumber: string }
+  | { ok: true; quoteId: string; quoteNumber: string }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type DeleteQuotesResult =
@@ -38,7 +38,7 @@ export async function fetchQuotes(): Promise<FetchQuotesResult> {
       .from('quotations')
       .select('*')
       .order('quote_date', { ascending: false })
-      .order('quote_number', { ascending: false })
+      .order('created_at', { ascending: false })
 
     if (error) {
       return {
@@ -59,40 +59,31 @@ export async function fetchQuotes(): Promise<FetchQuotesResult> {
   }
 }
 
-export async function createQuote(payload: QuoteRowPayload, quoteType: QuoteType): Promise<SaveQuoteResult> {
+export async function createQuote(payload: QuoteRowPayload, _quoteType: QuoteType): Promise<SaveQuoteResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
 
   try {
     const supabase = createSupabaseClient()
-    const { data: quoteNumber, error: rpcError } = await supabase.rpc('generate_quote_number', {
-      p_quote_type: quoteType,
-    })
+    const { data, error } = await supabase
+      .from('quotations')
+      .insert({
+        quote_date: payload.quote_date,
+        customer: payload.customer,
+        product_name: payload.product_name,
+        board_qty: payload.board_qty,
+        total_amount: payload.total_amount,
+        detail_info: payload.detail_info,
+      })
+      .select('id')
+      .single()
 
-    if (rpcError) {
-      return { ok: false, reason: 'query', detail: rpcError.message }
+    if (error || !data?.id) {
+      return { ok: false, reason: 'query', detail: error?.message || '견적서 저장에 실패했습니다.' }
     }
 
-    if (!quoteNumber || typeof quoteNumber !== 'string') {
-      return { ok: false, reason: 'query', detail: '견적서 번호를 생성하지 못했습니다.' }
-    }
-
-    const { error } = await supabase.from('quotations').insert({
-      quote_date: payload.quote_date,
-      quote_number: quoteNumber,
-      customer: payload.customer,
-      product_name: payload.product_name,
-      board_qty: payload.board_qty,
-      total_amount: payload.total_amount,
-      detail_info: payload.detail_info,
-    })
-
-    if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
-    }
-
-    return { ok: true, quoteNumber }
+    return { ok: true, quoteId: data.id, quoteNumber: data.id }
   } catch (error) {
     return {
       ok: false,
@@ -102,7 +93,7 @@ export async function createQuote(payload: QuoteRowPayload, quoteType: QuoteType
   }
 }
 
-export async function updateQuote(quoteNumber: string, payload: QuoteRowPayload): Promise<SaveQuoteResult> {
+export async function updateQuote(quoteId: string, payload: QuoteRowPayload): Promise<SaveQuoteResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
@@ -120,13 +111,13 @@ export async function updateQuote(quoteNumber: string, payload: QuoteRowPayload)
         detail_info: payload.detail_info,
         updated_at: new Date().toISOString(),
       })
-      .eq('quote_number', quoteNumber)
+      .eq('id', quoteId)
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }
     }
 
-    return { ok: true, quoteNumber }
+    return { ok: true, quoteId, quoteNumber: quoteId }
   } catch (error) {
     return {
       ok: false,
@@ -136,8 +127,8 @@ export async function updateQuote(quoteNumber: string, payload: QuoteRowPayload)
   }
 }
 
-export async function deleteQuotes(quoteNumbers: string[]): Promise<DeleteQuotesResult> {
-  if (!quoteNumbers.length) {
+export async function deleteQuotes(quoteIds: string[]): Promise<DeleteQuotesResult> {
+  if (!quoteIds.length) {
     return { ok: true, deletedCount: 0 }
   }
 
@@ -151,13 +142,13 @@ export async function deleteQuotes(quoteNumbers: string[]): Promise<DeleteQuotes
 
   try {
     const supabase = createSupabaseClient()
-    const { error } = await supabase.from('quotations').delete().in('quote_number', quoteNumbers)
+    const { error } = await supabase.from('quotations').delete().in('id', quoteIds)
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }
     }
 
-    return { ok: true, deletedCount: quoteNumbers.length }
+    return { ok: true, deletedCount: quoteIds.length }
   } catch (error) {
     return {
       ok: false,

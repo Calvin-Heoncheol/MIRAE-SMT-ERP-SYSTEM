@@ -47,45 +47,61 @@ export function sortOrderGroupsNewestFirst(groups: OrderListGroup[]) {
   return [...groups].sort((a, b) => {
     const dateDiff = parseOrderDateForSort(b.orderDate) - parseOrderDateForSort(a.orderDate)
     if (dateDiff !== 0) return dateDiff
-    return b.orderNumber.localeCompare(a.orderNumber, undefined, { numeric: true })
+    return b.createdAt.localeCompare(a.createdAt)
   })
 }
 
 export function mapOrderLineRecord(line: {
+  id?: string
+  product_id?: string | null
   product_code: string
   product_name: string
   quantity: number
   unit_price: number
   order_amount: number
+  derived_from_line_id?: string | null
 }): OrderLineItem {
   return {
-    productCode: line.product_code || '',
+    lineId: line.id,
+    productId: line.product_id || null,
+    productCode: line.product_code || line.product_id || '',
     productName: line.product_name || '',
     quantity: Number(line.quantity) || 0,
     unitPrice: Number(line.unit_price) || 0,
     orderAmount: Number(line.order_amount) || 0,
+    derivedFromLineId: line.derived_from_line_id || null,
   }
 }
 
-export function mapOrderRecord(record: OrderRecord): OrderListGroup {
-  const lines = [...(record.order_lines || [])].sort((a, b) => a.line_seq - b.line_seq)
+export function mapOrderRecord(
+  record: OrderRecord,
+  options?: { includeDerivedLines?: boolean },
+): OrderListGroup {
+  const lines = [...(record.order_lines || [])]
+    .filter((line) => options?.includeDerivedLines || !line.derived_from_line_id)
+    .sort((a, b) => a.line_seq - b.line_seq)
   const items = lines.map(mapOrderLineRecord)
   return {
-    orderNumber: record.order_number,
+    orderId: record.id,
+    orderNumber: record.id,
     orderDate: formatOrderDate(record.order_date),
     deliveryDate: formatOrderDate(record.delivery_date),
     customer: record.customer || '',
     category: normalizeOrderCategory(record.category),
     source: record.source || 'manual',
-    sourceQuoteNumber: record.source_quote_number,
+    sourceQuoteId: record.source_quote_id,
+    createdAt: record.created_at,
     items,
     totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
     totalAmount: items.reduce((sum, item) => sum + item.orderAmount, 0),
   }
 }
 
-export function groupOrdersFromRecords(records: OrderRecord[]): OrderListGroup[] {
-  return sortOrderGroupsNewestFirst(records.map(mapOrderRecord))
+export function groupOrdersFromRecords(
+  records: OrderRecord[],
+  options?: { includeDerivedLines?: boolean },
+): OrderListGroup[] {
+  return sortOrderGroupsNewestFirst(records.map((record) => mapOrderRecord(record, options)))
 }
 
 export function formatProductSummary(group: OrderListGroup) {
@@ -95,27 +111,15 @@ export function formatProductSummary(group: OrderListGroup) {
   return `${first} 외 ${group.items.length - 1}건`
 }
 
-export function generateOrderNumberPreview(existingNumbers: string[] = []) {
-  const now = new Date()
-  const yymm =
-    String(now.getFullYear()).slice(2) + String(now.getMonth() + 1).padStart(2, '0')
-  const prefix = `MRO${yymm}`
-  let maxNumber = 0
-
-  for (const orderNumber of existingNumbers) {
-    if (orderNumber.startsWith(prefix)) {
-      const numberPart = Number.parseInt(orderNumber.slice(prefix.length), 10)
-      if (!Number.isNaN(numberPart) && numberPart > maxNumber) {
-        maxNumber = numberPart
-      }
-    }
-  }
-
-  return `${prefix}${String(maxNumber + 1).padStart(3, '0')}`
-}
-
 export function computeLineAmount(quantity: number, unitPrice: number) {
   const qty = Math.max(0, Math.floor(Number(quantity) || 0))
   const price = Math.max(0, Math.round(Number(unitPrice) || 0))
   return qty * price
+}
+
+export function formatInternalCodeLabel(code: string) {
+  const value = code.trim()
+  if (!value) return '—'
+  if (value.length <= 14) return value
+  return `${value.slice(0, 8)}…${value.slice(-4)}`
 }
