@@ -3,13 +3,17 @@
 import type { ReactNode } from 'react'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import {
+  getSmtSetupBaseMinutes,
   getSmtSetupRate,
+  SMT_SETUP_FIRST_ARTICLE_MINUTES,
+  SMT_SETUP_MINUTES_PER_PART,
   SMT_UNIT_BGA_BALL,
   SMT_UNIT_CHIP,
   SMT_UNIT_IC_PIN,
   SMT_UNIT_ODD,
   SMT_UNIT_SPECIAL,
 } from '@/lib/quotes/constants'
+import { getSmtSetupPartCount } from '@/lib/quotes/calculate-estimate'
 import { formatQuoteMoneyUnit } from '@/lib/quotes/format'
 import type { SmtBoardForm } from '@/lib/quotes/form-state'
 import type { QuoteType } from '@/lib/quotes/types'
@@ -50,6 +54,18 @@ function FormSection({
 
 export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }: SmtPcbBoardFormProps) {
   const isDouble = board.smtSide === 'double'
+  const setupRate = getSmtSetupRate(quoteType)
+  const partCount = getSmtSetupPartCount({
+    smtSide: board.smtSide,
+    smtTopCount: Number(board.smtTopCount) || 0,
+    smtBotCount: Number(board.smtBotCount) || 0,
+  })
+  const setupMinutes =
+    partCount > 0
+      ? getSmtSetupBaseMinutes(isDouble ? 'double' : 'single') +
+        SMT_SETUP_FIRST_ARTICLE_MINUTES +
+        partCount * SMT_SETUP_MINUTES_PER_PART
+      : 0
 
   function patch(patch: Partial<SmtBoardForm>) {
     onChange({ ...board, ...patch })
@@ -104,12 +120,12 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
         </FormSection>
 
         <FormSection
-          title="IC / BGA (핀·볼 총수)"
+          title="IC / BGA (핀·볼 수)"
           description="부품 개수가 아닙니다. 보드에 실린 IC 핀 수·BGA 볼 수 합계를 입력합니다. 예: 6PIN IC 10개 → 60"
         >
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs font-medium text-slate-600">
-              IC PIN (핀 총수)
+              IC PIN (핀 수)
               <QuoteNumericInput
                 min={0}
                 value={board.icPin}
@@ -119,7 +135,7 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
               <UnitPreview krw={SMT_UNIT_IC_PIN} suffix="/PIN" quoteType={quoteType} />
             </label>
             <label className="text-xs font-medium text-slate-600">
-              BGA BALL (볼 총수)
+              BGA BALL (볼 수)
               <QuoteNumericInput
                 min={0}
                 value={board.bga}
@@ -132,7 +148,7 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
         </FormSection>
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3">
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
@@ -141,14 +157,6 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
           />
           AOI 및 외관검사 (단면 {formatQuoteMoneyUnit(100, quoteType)} · 양면{' '}
           {formatQuoteMoneyUnit(200, quoteType)})
-        </label>
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={board.pcbWashEnabled}
-            onChange={(event) => patch({ pcbWashEnabled: event.target.checked })}
-          />
-          PCB 세척 ({formatQuoteMoneyUnit(100, quoteType)})
         </label>
       </div>
 
@@ -175,21 +183,51 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
       </div>
 
       <div className="mt-4 border-t border-dashed border-slate-200 pt-4">
-        <p className="mb-2 text-xs font-semibold text-slate-600">SET-UP (부품 종수)</p>
-        <label className="text-xs font-medium text-slate-600">
-          총 종수
-          <QuoteNumericInput
-            min={0}
-            value={board.smtTopCount}
-            onChange={(smtTopCount) => patch({ smtTopCount, smtBotCount: '0' })}
-            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm"
-          />
-          <UnitPreview
-            krw={getSmtSetupRate(quoteType, isDouble ? 'double' : 'single')}
-            suffix="/분"
-            quoteType={quoteType}
-          />
-        </label>
+        <p className="mb-1 text-xs font-semibold text-slate-600">SET-UP (부품 종수)</p>
+        <p className="mb-3 text-[11px] leading-relaxed text-slate-400">
+          세팅 총 소요시간 = 기본시간({isDouble ? '105' : '60'}분) + 초품검사(20분) + 부품 종수 × 2분
+        </p>
+        {isDouble ? (
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs font-medium text-slate-600">
+              1차면 종수
+              <QuoteNumericInput
+                min={0}
+                value={board.smtTopCount}
+                onChange={(smtTopCount) => patch({ smtTopCount })}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm"
+              />
+            </label>
+            <label className="text-xs font-medium text-slate-600">
+              2차면 종수
+              <QuoteNumericInput
+                min={0}
+                value={board.smtBotCount}
+                onChange={(smtBotCount) => patch({ smtBotCount })}
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm"
+              />
+            </label>
+          </div>
+        ) : (
+          <label className="text-xs font-medium text-slate-600">
+            부품 종수
+            <QuoteNumericInput
+              min={0}
+              value={board.smtTopCount}
+              onChange={(smtTopCount) => patch({ smtTopCount, smtBotCount: '0' })}
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm"
+            />
+          </label>
+        )}
+        <div className="mt-2 space-y-1 text-[11px] text-slate-400">
+          <p>장비 임율: {formatQuoteMoneyUnit(setupRate, quoteType)}/분</p>
+          {partCount > 0 ? (
+            <p>
+              합계 종수 {partCount}종 · 세팅 총 소요시간 {setupMinutes}분 · 예상 SET-UP{' '}
+              {formatQuoteMoneyUnit(setupMinutes * setupRate, quoteType)}
+            </p>
+          ) : null}
+        </div>
       </div>
     </div>
   )

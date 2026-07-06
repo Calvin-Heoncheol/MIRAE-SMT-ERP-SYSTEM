@@ -2,11 +2,11 @@ import {
   AOI_UNIT_PRICE_DOUBLE,
   AOI_UNIT_PRICE_SINGLE,
   DIP_UNIT,
-  PCB_WASH_UNIT_PRICE,
   POST_RATE,
-  SMT_SETUP_BASE_MINUTES,
+  SMT_SETUP_FIRST_ARTICLE_MINUTES,
   SMT_SETUP_MINUTES_PER_PART,
   SMT_PLACEMENT_MIN_SCORE,
+  getSmtSetupBaseMinutes,
   getSmtSetupRate,
   getSmtPlacementMinFee,
   SMT_UNIT_BGA_BALL,
@@ -44,17 +44,12 @@ function computeSmtChipOddLabor(input: SmtComponentFields) {
   )
 }
 
-function computeSmtOtherLabor(
-  input: SmtComponentFields,
-  aoiUnit: number,
-  pcbWashUnit: number,
-) {
+function computeSmtOtherLabor(input: SmtComponentFields, aoiUnit: number) {
   return (
     (Number(input.smtSpecial) || 0) * SMT_UNIT_SPECIAL +
     (Number(input.icPin) || 0) * SMT_UNIT_IC_PIN +
     (Number(input.bga) || 0) * SMT_UNIT_BGA_BALL +
-    aoiUnit +
-    pcbWashUnit
+    aoiUnit
   )
 }
 
@@ -83,15 +78,23 @@ function hasSmtComponentInputs(input: SmtComponentFields) {
   )
 }
 
+export function getSmtSetupPartCount(board: Pick<SmtPcbBoard, 'smtSide' | 'smtTopCount' | 'smtBotCount'>) {
+  const smtSide = board.smtSide === 'double' ? 'double' : 'single'
+  const top = Number(board.smtTopCount) || 0
+  const bot = Number(board.smtBotCount) || 0
+  return smtSide === 'double' ? top + bot : top
+}
+
 function computeSmtSetup(partCount: number, quoteType: QuoteType, smtSide: 'single' | 'double') {
   const count = Math.max(0, Math.floor(Number(partCount) || 0))
   if (count <= 0) {
     return { setupMinutes: 0, setupAmount: 0, setupMinApplied: false, setupRate: 0 }
   }
 
-  const setupMinutes =
-    SMT_SETUP_BASE_MINUTES + count * SMT_SETUP_MINUTES_PER_PART
-  const setupRate = getSmtSetupRate(quoteType, smtSide)
+  const baseMinutes = getSmtSetupBaseMinutes(smtSide)
+  const partSetupMinutes = count * SMT_SETUP_MINUTES_PER_PART
+  const setupMinutes = baseMinutes + SMT_SETUP_FIRST_ARTICLE_MINUTES + partSetupMinutes
+  const setupRate = getSmtSetupRate(quoteType)
   return {
     setupMinutes,
     setupAmount: setupMinutes * setupRate,
@@ -100,8 +103,14 @@ function computeSmtSetup(partCount: number, quoteType: QuoteType, smtSide: 'sing
   }
 }
 
-function computeSmtPlacementScore(input: SmtComponentFields) {
-  return (Number(input.chip) || 0) + (Number(input.smtOdd) || 0)
+export function computeSmtPlacementScore(input: SmtComponentFields) {
+  return (
+    (Number(input.chip) || 0) +
+    (Number(input.smtOdd) || 0) +
+    (Number(input.smtSpecial) || 0) +
+    (Number(input.icPin) || 0) +
+    (Number(input.bga) || 0)
+  )
 }
 
 function shouldApplyMinPlacementFee(input: SmtComponentFields) {
@@ -114,16 +123,14 @@ function computeSmtLaborPerUnit(board: SmtPcbBoard, quoteType: QuoteType) {
   const chipTotal = computeSmtChipTotal(comp)
   const smtSide = board.smtSide === 'double' ? 'double' : 'single'
   const aoiEnabled = board.aoiEnabled === true
-  const pcbWashEnabled = board.pcbWashEnabled === true
   const aoiUnit = aoiEnabled ? (smtSide === 'double' ? AOI_UNIT_PRICE_DOUBLE : AOI_UNIT_PRICE_SINGLE) : 0
-  const pcbWashUnit = pcbWashEnabled ? PCB_WASH_UNIT_PRICE : 0
+  const pcbWashUnit = 0
   const chipOddLabor = computeSmtChipOddLabor(comp)
-  const otherLabor = computeSmtOtherLabor(comp, aoiUnit, pcbWashUnit)
+  const otherLabor = computeSmtOtherLabor(comp, aoiUnit)
   const smtLaborRaw = chipOddLabor + otherLabor
-  const hasChipOdd = computeSmtPlacementScore(comp) > 0
-  const hasSmtLabor =
-    smtLaborRaw > 0 || hasSmtComponentInputs(comp) || aoiEnabled || pcbWashEnabled
-  const applyMinFee = hasChipOdd && shouldApplyMinPlacementFee(comp)
+  const hasPlacementInputs = hasSmtComponentInputs(comp)
+  const hasSmtLabor = smtLaborRaw > 0 || hasPlacementInputs || aoiEnabled
+  const applyMinFee = hasPlacementInputs && shouldApplyMinPlacementFee(comp)
   const minPlacementFee = getSmtPlacementMinFee(quoteType)
 
   const smtLaborUnit = applyMinFee
@@ -228,7 +235,7 @@ export function aggregateSmtFromPcbBoards(pcbBoards: SmtPcbBoard[], quoteType: Q
     if (lab.smtLaborMinApplied) anyLaborMin = true
 
     const smtSide = board.smtSide === 'double' ? 'double' : 'single'
-    const partCount = Number(board.smtTopCount) || 0
+    const partCount = getSmtSetupPartCount(board)
     const setup = computeSmtSetup(partCount, quoteType, smtSide)
     const setupMinutes = setup.setupMinutes
     const setupAmt = setup.setupAmount

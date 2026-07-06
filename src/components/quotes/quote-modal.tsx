@@ -6,10 +6,8 @@ import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import {
   SMT_PLACEMENT_MIN_SCORE,
-  SMT_SETUP_RATE,
-  SMT_SETUP_RATE_EXPORT_DOUBLE,
-  SMT_SETUP_RATE_EXPORT_SINGLE,
   getSmtPlacementMinFee,
+  getSmtSetupRate,
 } from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
@@ -435,16 +433,9 @@ function QuoteModalContent({
               <h3 className="mb-1 text-sm font-bold text-slate-900">1. SMT 공정</h3>
               <p className="mb-3 text-xs text-slate-500">
                 PCB 보드 수만큼 PCB별 실装·SET-UP 입력 · 일반 부품은 <strong>부품 개수</strong>, IC/BGA는{' '}
-                <strong>핀·볼 총수</strong> · {SMT_PLACEMENT_MIN_SCORE}점 이하 PCB는 최소 실장비{' '}
-                {formatQuoteMoneyUnit(getSmtPlacementMinFee(quoteType), quoteType)} + AOI 별도 · SET-UP{' '}
-                {isDomestic ? (
-                  <>{formatQuoteMoneyUnit(SMT_SETUP_RATE, quoteType)}/분</>
-                ) : (
-                  <>
-                    단면 {formatQuoteMoneyUnit(SMT_SETUP_RATE_EXPORT_SINGLE, quoteType)}/분 · 양면{' '}
-                    {formatQuoteMoneyUnit(SMT_SETUP_RATE_EXPORT_DOUBLE, quoteType)}/분
-                  </>
-                )}
+                <strong>핀·볼 수</strong> · {SMT_PLACEMENT_MIN_SCORE}점 이하 PCB는 최소 실장비{' '}
+                {formatQuoteMoneyUnit(getSmtPlacementMinFee(quoteType), quoteType)} + AOI 별도 · SET-UP 장비 임율{' '}
+                {formatQuoteMoneyUnit(getSmtSetupRate(quoteType), quoteType)}/분
               </p>
               <div className="space-y-3">
                 {smtForms.map((board, index) => (
@@ -508,24 +499,6 @@ function QuoteModalContent({
                   value={form.materialCost}
                   onChange={(materialCost) => updateForm('materialCost', materialCost)}
                   placeholder="원자재 원가를 입력하세요"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                />
-              </label>
-            </section>
-
-            <section className="mb-4 rounded-xl border border-slate-200 p-4">
-              <h3 className="mb-1 text-sm font-bold text-slate-900">5. 영업 할인</h3>
-              <p className="mb-3 text-xs text-slate-500">
-                공정 단가표는 그대로 두고, 최종 합계에서만 차감합니다. (원화 입력)
-              </p>
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-slate-600">특별 할인 (주문 총액, 원)</span>
-                <QuoteNumericInput
-                  min={0}
-                  step={1000}
-                  value={form.specialDiscount}
-                  onChange={(specialDiscount) => updateForm('specialDiscount', specialDiscount)}
-                  placeholder="0"
                   className="w-full rounded-lg border border-slate-200 px-3 py-2"
                 />
               </label>
@@ -662,12 +635,7 @@ function QuoteModalContent({
                       : formatQuoteMoneyUnit(0, quoteType)}
                   </span>
                 </div>
-                {result && result.values.specialDiscount > 0 ? (
-                  <div className="flex items-center justify-between text-red-600">
-                    <span className="font-semibold">특별 할인 (VAT 별도)</span>
-                    <span>-{formatQuoteMoneyTotal(result.values.specialDiscount, quoteType)}</span>
-                  </div>
-                ) : null}
+
                 <div className="flex items-center justify-between text-base">
                   <span className="font-bold text-slate-900">최종 합계 금액 (VAT 별도)</span>
                   <span className="font-bold text-blue-700">

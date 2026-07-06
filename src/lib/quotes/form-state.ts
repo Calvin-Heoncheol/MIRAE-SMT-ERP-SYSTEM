@@ -49,8 +49,7 @@ export function defaultDipBoardForm(index = 0): DipBoardForm {
 }
 
 export function smtBoardToForm(board: SmtPcbBoard): SmtBoardForm {
-  const totalSetupCount =
-    (Number(board.smtTopCount) || 0) + (Number(board.smtBotCount) || 0)
+  const isDouble = board.smtSide === 'double'
 
   return {
     pcbName: board.pcbName,
@@ -59,15 +58,17 @@ export function smtBoardToForm(board: SmtPcbBoard): SmtBoardForm {
     smtSpecial: toNumericField(board.smtSpecial),
     icPin: toNumericField(board.icPin),
     bga: toNumericField(board.bga),
-    smtSide: board.smtSide === 'double' ? 'double' : 'single',
+    smtSide: isDouble ? 'double' : 'single',
     aoiEnabled: board.aoiEnabled,
     pcbWashEnabled: board.pcbWashEnabled,
-    smtTopCount: toNumericField(totalSetupCount),
-    smtBotCount: '0',
+    smtTopCount: toNumericField(board.smtTopCount),
+    smtBotCount: isDouble ? toNumericField(board.smtBotCount) : '0',
   }
 }
 
 export function smtBoardFormToModel(form: SmtBoardForm): SmtPcbBoard {
+  const isDouble = form.smtSide === 'double'
+
   return {
     pcbName: form.pcbName.trim() || 'PCB',
     chip: parseNumericField(form.chip),
@@ -79,7 +80,7 @@ export function smtBoardFormToModel(form: SmtBoardForm): SmtPcbBoard {
     aoiEnabled: form.aoiEnabled,
     pcbWashEnabled: form.pcbWashEnabled,
     smtTopCount: parseNumericField(form.smtTopCount),
-    smtBotCount: 0,
+    smtBotCount: isDouble ? parseNumericField(form.smtBotCount) : 0,
   }
 }
 

@@ -2,10 +2,8 @@ import {
   AOI_UNIT_PRICE_DOUBLE,
   AOI_UNIT_PRICE_SINGLE,
   DIP_UNIT,
-  PCB_WASH_UNIT_PRICE,
   POST_RATE,
   SMT_PLACEMENT_MIN_SCORE,
-  getSmtSetupRate,
   getSmtPlacementMinFee,
   SMT_UNIT_BGA_BALL,
   SMT_UNIT_CHIP,
@@ -13,7 +11,7 @@ import {
   SMT_UNIT_ODD,
   SMT_UNIT_SPECIAL,
 } from './constants'
-import { calculateEstimate } from './calculate-estimate'
+import { calculateEstimate, computeSmtPlacementScore } from './calculate-estimate'
 import { formatQuoteMoneyUnit } from './format'
 import type { EstimateResult, QuoteListItem, QuoteType } from './types'
 import { toEstimateInputFromDetail } from './utils'
@@ -85,7 +83,7 @@ function previewSmtRows(result: EstimateResult, quoteType: QuoteType): PreviewRo
     })
 
     const useMinPlacementFee = board.laborMinApplied && board.laborMinAdjustment > 0
-    const placementScore = board.chip + board.smtOdd
+    const placementScore = computeSmtPlacementScore(board)
 
     if (useMinPlacementFee) {
       rows.push({
@@ -148,15 +146,7 @@ function previewSmtRows(result: EstimateResult, quoteType: QuoteType): PreviewRo
           indent: 2,
         })
       }
-      if (board.pcbWashEnabled && board.pcbWashUnit > 0) {
-        rows.push({
-          label: 'PCB 세척',
-          unit: PCB_WASH_UNIT_PRICE,
-          count: '1 PCB',
-          amount: board.pcbWashUnit,
-          indent: 2,
-        })
-      }
+
     }
 
     if (board.setupAmount > 0) {
