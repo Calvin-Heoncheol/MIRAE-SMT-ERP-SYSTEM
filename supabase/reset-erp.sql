@@ -16,12 +16,18 @@ drop table if exists public.semi_product_bom_items cascade;
 drop table if exists public.finished_product_bom_items cascade;
 drop table if exists public.order_lines cascade;
 drop table if exists public.orders cascade;
+drop table if exists public.approvals cascade;
 drop table if exists public.quotations cascade;
 drop table if exists public.products cascade;
 drop table if exists public.materials cascade;
 
 drop function if exists public.generate_product_code() cascade;
 drop function if exists public.generate_material_code() cascade;
+drop function if exists public.generate_approval_doc_number() cascade;
+drop function if exists public.generate_approval_doc_number(date) cascade;
+drop function if exists public.generate_approval_doc_number(date, text) cascade;
+drop function if exists public.generate_approval_doc_prefix(text) cascade;
+drop function if exists public.generate_approval_code() cascade;
 drop function if exists public.generate_quote_code() cascade;
 drop function if exists public.generate_order_code() cascade;
 drop function if exists public.generate_order_number() cascade;

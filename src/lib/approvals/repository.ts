@@ -1,0 +1,147 @@
+import { createSupabaseClient } from '@/lib/supabase'
+import type { ApprovalCategory } from './categories'
+import type { ApprovalRecord, ApprovalRowPayload } from './types'
+import { mapApprovalRecord, sortApprovalsNewestFirst } from './utils'
+
+export type FetchApprovalsResult =
+  | { ok: true; approvals: ReturnType<typeof mapApprovalRecord>[] }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export type SaveApprovalResult =
+  | { ok: true; id: string; docNumber: string }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export type DeleteApprovalsResult =
+  | { ok: true; deletedCount: number }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+function missingEnvResult(): SaveApprovalResult {
+  return {
+    ok: false,
+    reason: 'env',
+    detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+  }
+}
+
+export async function fetchApprovals(): Promise<FetchApprovalsResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('approvals')
+      .select('*')
+      .order('written_date', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    const approvals = sortApprovalsNewestFirst((data as ApprovalRecord[]).map(mapApprovalRecord))
+    return { ok: true, approvals }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function createApproval(payload: ApprovalRowPayload): Promise<SaveApprovalResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('approvals')
+      .insert(payload)
+      .select('id, doc_number')
+      .single()
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return { ok: true, id: data.id, docNumber: data.doc_number }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function updateApproval(id: string, payload: ApprovalRowPayload): Promise<SaveApprovalResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('approvals')
+      .update(payload)
+      .eq('id', id)
+      .select('id, doc_number')
+      .single()
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return { ok: true, id: data.id, docNumber: data.doc_number }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function deleteApprovals(ids: string[]): Promise<DeleteApprovalsResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return { ok: false, reason: 'env', detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.' }
+  }
+
+  if (!ids.length) {
+    return { ok: true, deletedCount: 0 }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { error, count } = await supabase.from('approvals').delete({ count: 'exact' }).in('id', ids)
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return { ok: true, deletedCount: count ?? ids.length }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function fetchApprovalsByCategory(category: ApprovalCategory): Promise<FetchApprovalsResult> {
+  const result = await fetchApprovals()
+  if (!result.ok) return result
+  return {
+    ok: true,
+    approvals: result.approvals.filter((approval) => approval.category === category),
+  }
+}
