@@ -161,7 +161,7 @@ select
   mat.material_name,
   mat.cpn,
   mat.mpn,
-  mat.process,
+  mat.type,
   bom.quantity_per,
   bom.ref_designator,
   bom.note

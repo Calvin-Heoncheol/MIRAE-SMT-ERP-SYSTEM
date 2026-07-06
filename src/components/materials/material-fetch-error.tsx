@@ -11,8 +11,15 @@ export function MaterialFetchError({ result }: { result: Extract<FetchMaterialsR
       <p className="mt-1 whitespace-pre-wrap">{result.detail}</p>
       {missingTable ? (
         <p className="mt-3 text-xs text-amber-800">
-          Supabase SQL Editor에서 <code className="rounded bg-white/70 px-1">supabase/setup-materials.sql</code>을
-          실행해 주세요.
+          Supabase SQL Editor에서{' '}
+          <code className="rounded bg-white/70 px-1">supabase/setup-materials.sql</code>
+          {result.detail.includes('material_mpns') ? (
+            <>
+              {' '}
+              또는 기존 DB라면 <code className="rounded bg-white/70 px-1">supabase/migrate-material-mpns.sql</code>
+            </>
+          ) : null}{' '}
+          을 실행해 주세요.
         </p>
       ) : null}
     </div>

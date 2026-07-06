@@ -1,7 +1,7 @@
 import type { SmtProductionHistoryRow } from '@/lib/smt/types'
 
 export type ProductionStatusLine = {
-  orderLineId: string
+  orderId: string
   orderNumber: string
   customer: string
   productName: string

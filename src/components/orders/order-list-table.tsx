@@ -35,7 +35,7 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
                 납기일
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
-                주문코드
+                주문서번호
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
                 고객사

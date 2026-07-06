@@ -2,7 +2,21 @@
 
 alter table public.materials alter column customer drop not null;
 alter table public.materials alter column specification drop not null;
-alter table public.materials alter column process drop not null;
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'materials' and column_name = 'process'
+  ) then
+    alter table public.materials alter column process drop not null;
+  end if;
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'materials' and column_name = 'type'
+  ) then
+    alter table public.materials alter column type drop not null;
+  end if;
+end $$;
 alter table public.materials drop constraint if exists materials_process_check;
 alter table public.materials alter column cpn drop not null;
 alter table public.materials alter column mpn drop not null;
@@ -23,7 +37,7 @@ begin
   new.customer := coalesce(trim(new.customer), '');
   new.material_name := coalesce(trim(new.material_name), '');
   new.specification := coalesce(trim(new.specification), '');
-  new.process := coalesce(trim(new.process), '');
+  new.type := coalesce(trim(new.type), '');
   new.cpn := coalesce(trim(new.cpn), '');
   new.mpn := coalesce(trim(new.mpn), '');
   new.mpn2 := coalesce(trim(new.mpn2), '');

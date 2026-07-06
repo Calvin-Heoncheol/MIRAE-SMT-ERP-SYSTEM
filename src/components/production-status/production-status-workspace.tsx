@@ -38,7 +38,7 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">생산현황</h1>
         <p className="mt-1 text-sm text-slate-500">
-          오늘 생산 실적과 주문 라인별 SMT · 후공정 · 출하 진행을 확인합니다.
+          오늘 생산 실적과 주문서별 SMT · 후공정 · 출하 진행을 확인합니다.
         </p>
       </div>
 
@@ -49,7 +49,7 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-slate-800">주문 라인별 진행</h2>
+        <h2 className="text-base font-bold text-slate-800">주문서별 진행</h2>
         <input
           type="search"
           value={search}
@@ -62,7 +62,7 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
       <ProductionStatusTable lines={filteredLines} />
 
       <p className="text-xs text-slate-400">
-        SMT는 주문 라인(반제품) 기준입니다. 후공정·출하는 연결된 완제품 조립 기준으로 같은 진행률이 표시됩니다.
+        SMT는 주문서 내 반제품 라인 합계 기준입니다. 후공정·출하는 해당 주문서의 완제품 조립 합계 기준입니다.
       </p>
     </div>
   )

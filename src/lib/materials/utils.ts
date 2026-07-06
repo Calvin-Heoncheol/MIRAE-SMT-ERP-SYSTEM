@@ -1,6 +1,14 @@
-import type { Material, MaterialPayload, MaterialProcess, MaterialRecord, MaterialSupplyType } from './types'
+import type {
+  Material,
+  MaterialAlternateMpn,
+  MaterialAlternateMpnRecord,
+  MaterialPayload,
+  MaterialRecord,
+  MaterialSupplyType,
+  MaterialType,
+} from './types'
 
-export function normalizeMaterialProcess(value: string): MaterialProcess {
+export function normalizeMaterialType(value: string): MaterialType {
   const trimmed = value.trim()
   if (!trimmed) return ''
   const upper = trimmed.toUpperCase().replace(/\s+/g, '')
@@ -15,18 +23,44 @@ export function normalizeMaterialSupplyType(value: string): MaterialSupplyType {
   return ''
 }
 
+function mapMaterialAlternateMpnRecord(record: MaterialAlternateMpnRecord): MaterialAlternateMpn {
+  return {
+    id: record.id,
+    materialId: record.material_id,
+    mpn: record.mpn || '',
+    sortOrder: Math.max(0, Math.floor(Number(record.sort_order) || 0)),
+    note: record.note || '',
+    createdAt: record.created_at,
+  }
+}
+
+function sortAlternateMpns(mpns: MaterialAlternateMpn[]) {
+  return [...mpns].sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+    return a.createdAt.localeCompare(b.createdAt)
+  })
+}
+
+export function formatAlternateMpnSummary(alternateMpns: string[]) {
+  if (!alternateMpns.length) return ''
+  if (alternateMpns.length === 1) return alternateMpns[0]
+  return `${alternateMpns[0]} 외 ${alternateMpns.length - 1}건`
+}
+
 export function mapMaterialRecord(record: MaterialRecord): Material {
+  const alternateMpnRows = sortAlternateMpns((record.material_mpns || []).map(mapMaterialAlternateMpnRecord))
+  const alternateMpns = alternateMpnRows.map((item) => item.mpn.trim()).filter(Boolean)
+
   return {
     id: record.id,
     customer: record.customer,
     materialName: record.material_name,
     specification: record.specification,
-    process: record.process,
+    type: normalizeMaterialType(record.type),
     cpn: record.cpn,
-    mpn: record.mpn,
-    mpn2: record.mpn2,
-    spn: record.spn,
-    spn2: record.spn2,
+    mpn: record.mpn || '',
+    alternateMpns,
+    alternateMpnRows,
     supplier: record.supplier,
     supplyType: record.supply_type,
     moq: Number(record.moq) || 0,
@@ -41,12 +75,9 @@ export function toMaterialRow(payload: MaterialPayload) {
     customer: payload.customer.trim(),
     material_name: payload.materialName.trim(),
     specification: payload.specification.trim(),
-    process: normalizeMaterialProcess(payload.process),
+    type: normalizeMaterialType(payload.type),
     cpn: payload.cpn.trim(),
     mpn: payload.mpn.trim(),
-    mpn2: payload.mpn2.trim(),
-    spn: payload.spn.trim(),
-    spn2: payload.spn2.trim(),
     supplier: payload.supplier.trim(),
     supply_type: normalizeMaterialSupplyType(payload.supplyType),
     moq: payload.moq,

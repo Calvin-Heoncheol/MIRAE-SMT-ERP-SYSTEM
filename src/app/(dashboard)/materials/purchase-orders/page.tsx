@@ -1,10 +1,7 @@
-import { PagePlaceholder } from '@/components/dashboard/page-placeholder'
+import { MaterialPurchaseOrdersWorkspace } from '@/components/materials/purchase-orders/material-purchase-orders-workspace'
+import { fetchMaterialPurchaseOrders } from '@/lib/materials/purchase-orders/repository'
 
-export default function MaterialPurchaseOrdersPage() {
-  return (
-    <PagePlaceholder
-      title="자재 발주"
-      description="자재 발주 화면은 추후 구현 예정입니다."
-    />
-  )
+export default async function MaterialPurchaseOrdersPage() {
+  const result = await fetchMaterialPurchaseOrders()
+  return <MaterialPurchaseOrdersWorkspace result={result} />
 }

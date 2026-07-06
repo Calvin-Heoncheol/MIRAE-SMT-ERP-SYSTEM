@@ -202,11 +202,10 @@ export async function createDeliveryRecord(
 
     const currentTotal = Math.max(0, Math.floor(Number(totals?.total_quantity) || 0))
 
-    const [productsResult, smtCountsResult, postCountsResult, assemblyGroupsResult] = await Promise.all([
+    const [productsResult, smtCountsResult, postCountsResult] = await Promise.all([
       fetchProducts(),
       fetchSmtCumulativeCounts(),
       fetchPostProcessCumulativeCounts(),
-      fetchAssemblyGroups(productById),
     ])
 
     if (!productsResult.ok) {
@@ -218,11 +217,14 @@ export async function createDeliveryRecord(
     if (!postCountsResult.ok) {
       return { ok: false, reason: 'query', detail: postCountsResult.detail }
     }
+
+    const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
+    const assemblyGroupsResult = await fetchAssemblyGroups(productById)
+
     if (!assemblyGroupsResult.ok) {
       return { ok: false, reason: 'query', detail: assemblyGroupsResult.detail }
     }
 
-    const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
     const group = assemblyGroupsResult.groups.find((item) => item.id === assemblyGroupId)
 
     if (!group) {

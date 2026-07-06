@@ -85,6 +85,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
       todayStages: buildTodayProductionStages(todaySmtRecords, todayPostRecords, todayDeliveryResult.rows),
       todaySmtRecords,
       lines: buildProductionStatusLines(
+        ordersResult.orders,
         smtLines,
         assemblyResult.groups,
         smtCounts,

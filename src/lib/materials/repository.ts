@@ -15,7 +15,11 @@ export type DeleteMaterialResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export function isMissingMaterialsTable(detail: string) {
-  return detail.includes('materials') || detail.includes('schema cache')
+  return (
+    detail.includes('materials') ||
+    detail.includes('material_mpns') ||
+    detail.includes('schema cache')
+  )
 }
 
 function missingEnvResult(): { ok: false; reason: 'env'; detail: string } {
@@ -35,7 +39,19 @@ export async function fetchMaterials(): Promise<FetchMaterialsResult> {
     const supabase = createSupabaseClient()
     const { data, error } = await supabase
       .from('materials')
-      .select('*')
+      .select(
+        `
+        *,
+        material_mpns (
+          id,
+          material_id,
+          mpn,
+          sort_order,
+          note,
+          created_at
+        )
+      `,
+      )
       .order('customer', { ascending: true })
       .order('material_name', { ascending: true })
 

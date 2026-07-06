@@ -1,5 +1,11 @@
-import { SmtTabPlaceholder } from '@/components/smt/smt-tab-placeholder'
+import { SmtPlanWorkspace } from '@/components/smt/smt-plan-workspace'
+import { fetchSmtPlanPageData } from '@/lib/smt/plan/repository'
+import { getWeekStartMondayYmd } from '@/lib/smt/plan/utils'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 
-export default function SmtPlanPage() {
-  return <SmtTabPlaceholder description="생산계획 화면은 추후 구현 예정입니다." />
+export default async function SmtPlanPage() {
+  const weekStart = getWeekStartMondayYmd(todayYmdSeoul())
+  const result = await fetchSmtPlanPageData(weekStart)
+
+  return <SmtPlanWorkspace initialResult={result} initialWeekStart={weekStart} />
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { MATERIAL_COLUMN_LABELS } from '@/lib/materials/types'
-import { formatMaterialMoney } from '@/lib/materials/utils'
+import { formatAlternateMpnSummary, formatMaterialMoney } from '@/lib/materials/utils'
 import type { Material } from '@/lib/materials/types'
 
 type MaterialListTableProps = {
@@ -54,7 +54,7 @@ export function MaterialListTable({ materials, emptyMessage }: MaterialListTable
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1280px] table-fixed border-collapse">
+        <table className="w-full min-w-[1040px] table-fixed border-collapse">
           <thead className="bg-violet-50/80">
             <tr>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
@@ -67,7 +67,7 @@ export function MaterialListTable({ materials, emptyMessage }: MaterialListTable
                 {MATERIAL_COLUMN_LABELS.specification}
               </th>
               <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-violet-900 uppercase">
-                {MATERIAL_COLUMN_LABELS.process}
+                {MATERIAL_COLUMN_LABELS.type}
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
                 {MATERIAL_COLUMN_LABELS.cpn}
@@ -76,13 +76,7 @@ export function MaterialListTable({ materials, emptyMessage }: MaterialListTable
                 {MATERIAL_COLUMN_LABELS.mpn}
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
-                {MATERIAL_COLUMN_LABELS.mpn2}
-              </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
-                {MATERIAL_COLUMN_LABELS.spn}
-              </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
-                {MATERIAL_COLUMN_LABELS.spn2}
+                {MATERIAL_COLUMN_LABELS.alternateMpns}
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
                 {MATERIAL_COLUMN_LABELS.supplier}
@@ -110,14 +104,14 @@ export function MaterialListTable({ materials, emptyMessage }: MaterialListTable
                 <td className="px-3 py-2.5">
                   <TruncatedText value={material.specification} maxWidthClass="max-w-52" />
                 </td>
-                <td className="px-3 py-2.5 text-center text-sm text-slate-700">{cell(material.process)}</td>
+                <td className="px-3 py-2.5 text-center text-sm text-slate-700">{cell(material.type)}</td>
                 <td className={`px-3 py-2.5 font-medium text-violet-800 ${codeCellClass}`}>
                   {cell(material.cpn)}
                 </td>
                 <td className={`px-3 py-2.5 text-slate-700 ${codeCellClass}`}>{cell(material.mpn)}</td>
-                <td className={`px-3 py-2.5 text-slate-700 ${codeCellClass}`}>{cell(material.mpn2)}</td>
-                <td className={`px-3 py-2.5 text-slate-700 ${codeCellClass}`}>{cell(material.spn)}</td>
-                <td className={`px-3 py-2.5 text-slate-700 ${codeCellClass}`}>{cell(material.spn2)}</td>
+                <td className={`px-3 py-2.5 text-slate-700 ${codeCellClass}`}>
+                  {cell(formatAlternateMpnSummary(material.alternateMpns))}
+                </td>
                 <td className="px-3 py-2.5">
                   <TruncatedText value={material.supplier} maxWidthClass="max-w-32" />
                 </td>
