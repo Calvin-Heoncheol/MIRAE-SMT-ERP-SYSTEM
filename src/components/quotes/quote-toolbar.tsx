@@ -45,7 +45,7 @@ export function QuoteNewMenu({ onOpenNew }: QuoteNewMenuProps) {
             className="block w-full px-4 py-3 text-left text-sm font-semibold text-slate-800 hover:bg-slate-50"
           >
             해외용 견적서
-            <span className="mt-0.5 block text-xs font-normal text-slate-500">USD · 영문 미리보기/PDF</span>
+            <span className="mt-0.5 block text-xs font-normal text-slate-500">원화 · 영문 미리보기/PDF</span>
           </button>
           <button
             type="button"

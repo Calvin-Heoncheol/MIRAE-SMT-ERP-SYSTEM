@@ -1,5 +1,7 @@
-import { ModuleTabPlaceholder } from '@/components/dashboard/module-tab-placeholder'
+import { DeliveryInputWorkspace } from '@/components/delivery/delivery-input-workspace'
+import { fetchDeliveryInputPageData } from '@/lib/delivery/repository'
 
-export default function DeliveryInputPage() {
-  return <ModuleTabPlaceholder description="출하입력 화면은 추후 구현 예정입니다." />
+export default async function DeliveryInputPage() {
+  const result = await fetchDeliveryInputPageData()
+  return <DeliveryInputWorkspace result={result} />
 }

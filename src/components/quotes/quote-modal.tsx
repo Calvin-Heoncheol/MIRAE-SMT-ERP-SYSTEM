@@ -5,14 +5,24 @@ import { DipPcbBoardForm } from '@/components/quotes/dip-pcb-board-form'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import {
+  AOI_UNIT_PRICE_DOUBLE,
+  AOI_UNIT_PRICE_SINGLE,
+  POST_RATE,
   SMT_PLACEMENT_MIN_SCORE,
   getSmtPlacementMinFee,
   getSmtSetupRate,
 } from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
-import { formatQuoteMoneyTotal, formatQuoteMoneyUnit } from '@/lib/quotes/format'
-import { buildPreviewRows, formatPreviewRowUnit, SECTION_TOTAL_ROW_CLASS } from '@/lib/quotes/preview-rows'
+import { formatQuoteMoneyTotal, formatQuoteMoneyUnit, formatQuoteValidityText } from '@/lib/quotes/format'
+import {
+  buildPreviewRows,
+  formatPreviewRowUnit,
+  isPreviewHighlightRow,
+  SECTION_TOTAL_ROW_CLASS,
+  SECTION_TOTAL_ROW_ACCENT_CLASS,
+  BOARD_SUBTOTAL_ROW_CLASS,
+} from '@/lib/quotes/preview-rows'
 import {
   defaultDipBoardForm,
   defaultSmtBoardForm,
@@ -183,8 +193,8 @@ function QuoteModalContent({
   const isDomestic = quoteType === 'domestic'
   const typeBadge = isDomestic ? '국내용 견적서' : '해외용 견적서'
   const previewTitle = isDomestic ? '견 적 서' : 'QUOTATION'
-  const unitColLabel = isDomestic ? '개수당 단가' : '개수당 단가 (USD)'
-  const totalColLabel = isDomestic ? '대당 합계' : '대당 합계 (USD)'
+  const unitColLabel = '단가'
+  const totalColLabel = '대당 합계'
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -329,6 +339,8 @@ function QuoteModalContent({
   }
 
   const previewCustomer = form.customer.trim() || '-'
+  const previewIssueDate =
+    mode === 'edit' && quote?.quoteDate ? quote.quoteDate : result?.date || ''
   const previewProduct = form.productName.trim() || '-'
   const qtyLabel = isDomestic ? 'EA' : ' EA'
   const previewRows = result ? buildPreviewRows(result, form, quoteType) : []
@@ -430,11 +442,13 @@ function QuoteModalContent({
             </section>
 
             <section className="mb-4 rounded-xl border border-slate-200 p-4">
-              <h3 className="mb-1 text-sm font-bold text-slate-900">1. SMT 공정</h3>
+              <h3 className="mb-1 text-sm font-bold text-slate-900">1. SMT</h3>
               <p className="mb-3 text-xs text-slate-500">
-                PCB 보드 수만큼 PCB별 실装·SET-UP 입력 · 일반 부품은 <strong>부품 개수</strong>, IC/BGA는{' '}
+                PCB 보드 수만큼 PCB별 실장·SET-UP 입력 · 일반 부품은 <strong>부품 개수</strong>, IC/BGA는{' '}
                 <strong>핀·볼 수</strong> · {SMT_PLACEMENT_MIN_SCORE}점 이하 PCB는 최소 실장비{' '}
-                {formatQuoteMoneyUnit(getSmtPlacementMinFee(quoteType), quoteType)} + AOI 별도 · SET-UP 장비 임율{' '}
+                {formatQuoteMoneyUnit(getSmtPlacementMinFee(quoteType), quoteType)} · AOI 포함 (단면{' '}
+                {formatQuoteMoneyUnit(AOI_UNIT_PRICE_SINGLE, quoteType)} · 양면{' '}
+                {formatQuoteMoneyUnit(AOI_UNIT_PRICE_DOUBLE, quoteType)}) · SET-UP 장비 임율{' '}
                 {formatQuoteMoneyUnit(getSmtSetupRate(quoteType), quoteType)}/분
               </p>
               <div className="space-y-3">
@@ -470,9 +484,9 @@ function QuoteModalContent({
               <h3 className="mb-3 text-sm font-bold text-slate-900">3. 후공정 (분)</h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {[
-                  ['postAssembly', '조립', 540],
-                  ['postTest', '테스트', 540],
-                  ['postPacking', '포장', 540],
+                  ['postAssembly', '조립', POST_RATE],
+                  ['postTest', '테스트', POST_RATE],
+                  ['postPacking', '포장', POST_RATE],
                 ].map(([key, label, unit]) => (
                   <label key={key} className="text-xs font-medium text-slate-600">
                     {label}
@@ -535,44 +549,41 @@ function QuoteModalContent({
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
                 <h3 className="text-2xl font-bold tracking-[0.2em] text-slate-900">{previewTitle}</h3>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                  {typeBadge}
-                </span>
+                <p className="text-xl font-bold tracking-wide text-slate-900 sm:text-2xl">
+                  {result?.estNo || '-'}
+                </p>
               </div>
 
-              <div className="mb-4 grid grid-cols-1 gap-3 text-sm text-slate-700 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <p>
-                    <b>관리번호:</b> {result?.estNo || '-'}
-                  </p>
-                  <p>
-                    <b>발행일자:</b> {result?.date || '-'}
-                  </p>
-                  <p>
-                    <b>고객사:</b> {previewCustomer}
-                  </p>
-                  <p>
-                    <b>제품명:</b> {previewProduct}
-                  </p>
-                  <p>
-                    <b>생산 수량:</b> {result ? `${result.qty.toLocaleString('ko-KR')}${qtyLabel}` : '-'}
-                  </p>
-                </div>
-                <div className="space-y-1 sm:text-right">
-                  <p>
-                    <b>공급자:</b> 미래SMT
-                  </p>
-                  <p>
-                    <b>담당자:</b> 영업관리팀
-                  </p>
-                </div>
+              <div className="mb-4 grid grid-cols-1 gap-2.5 text-sm text-slate-700 sm:grid-cols-2 sm:gap-x-7">
+                <p>
+                  <b>발행일자:</b> {previewIssueDate || '-'}
+                </p>
+                <p className="sm:text-right">
+                  <b>고객사:</b> {previewCustomer}
+                </p>
+                <p>
+                  <b>유효기간:</b>{' '}
+                  {previewIssueDate ? formatQuoteValidityText(previewIssueDate) : '-'}
+                </p>
+                <p className="sm:text-right">
+                  <b>공급자:</b> 미래SMT
+                </p>
+                <p>
+                  <b>제품명:</b> {previewProduct}
+                </p>
+                <p className="sm:text-right">
+                  <b>담당자:</b> 영업관리팀
+                </p>
+                <p>
+                  <b>생산 수량:</b> {result ? `${result.qty.toLocaleString('ko-KR')}${qtyLabel}` : '-'}
+                </p>
               </div>
 
               <div className="overflow-x-auto rounded-lg border border-slate-200">
                 <table className="min-w-full border-collapse text-sm">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">공정 세부 항목</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">항목</th>
                       <th className="px-3 py-2 text-right font-semibold text-slate-600">{unitColLabel}</th>
                       <th className="px-3 py-2 text-center font-semibold text-slate-600">개수</th>
                       <th className="px-3 py-2 text-right font-semibold text-slate-600">{totalColLabel}</th>
@@ -584,12 +595,20 @@ function QuoteModalContent({
                         {previewRows.map((row, index) => (
                           <tr
                             key={`${row.label}-${index}`}
-                            className={`border-t border-slate-100 ${row.sectionTotal ? SECTION_TOTAL_ROW_CLASS : ''}`}
+                            className={`border-t border-slate-100 ${
+                              isPreviewHighlightRow(row)
+                                ? SECTION_TOTAL_ROW_CLASS
+                                : row.boardSubtotal
+                                  ? BOARD_SUBTOTAL_ROW_CLASS
+                                  : ''
+                            }`}
                           >
                             <td
                               className={`px-3 py-2 ${
                                 row.emphasize ? 'font-semibold text-slate-900' : 'text-slate-600'
-                              } ${row.indent === 1 ? 'pl-6 text-xs' : row.indent === 2 ? 'pl-10 text-xs' : ''}`}
+                              } ${row.indent === 1 ? 'pl-6 text-xs' : row.indent === 2 ? 'pl-10 text-xs' : ''} ${
+                                isPreviewHighlightRow(row) ? SECTION_TOTAL_ROW_ACCENT_CLASS : ''
+                              }`}
                             >
                               <span className="block">{row.label}</span>
                               {row.subLabel ? (

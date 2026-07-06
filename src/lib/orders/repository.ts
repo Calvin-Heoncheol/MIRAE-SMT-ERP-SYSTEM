@@ -1,7 +1,7 @@
 import { createSupabaseClient } from '@/lib/supabase'
 import { syncAssemblyGroupsForOrder } from '@/lib/assembly/repository'
 import type { OrderListGroup, OrderRecord, OrderRowPayload } from './types'
-import { groupOrdersFromRecords } from './utils'
+import { groupOrdersFromRecords, validateOrderCodeInput } from './utils'
 
 export type FetchOrdersResult =
   | { ok: true; orders: OrderListGroup[] }
@@ -109,18 +109,45 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
   try {
     const supabase = createSupabaseClient()
 
-    const { data: inserted, error } = await supabase
-      .from('orders')
-      .insert({
-        order_date: payload.order_date,
-        delivery_date: payload.delivery_date || null,
-        customer: payload.customer,
-        category: payload.category,
-        source: payload.source || 'manual',
-        source_quote_id: payload.source_quote_id || null,
-      })
-      .select('id')
-      .single()
+    const rawOrderCode = payload.id?.trim() || ''
+    const orderCodeResult = validateOrderCodeInput(rawOrderCode)
+    if (!orderCodeResult.ok) {
+      return { ok: false, reason: 'query', detail: orderCodeResult.message }
+    }
+    const orderCode = orderCodeResult.code
+
+    if (orderCode) {
+      const codeCheck = await supabase.from('orders').select('id').eq('id', orderCode).maybeSingle()
+      if (codeCheck.error) {
+        return { ok: false, reason: 'query', detail: codeCheck.error.message }
+      }
+      if (codeCheck.data?.id) {
+        return { ok: false, reason: 'query', detail: `이미 사용 중인 주문코드입니다: ${orderCode}` }
+      }
+    }
+
+    const insertRow: {
+      id?: string
+      order_date: string
+      delivery_date: string | null
+      customer: string
+      category: string
+      source: string
+      source_quote_id: string | null
+    } = {
+      order_date: payload.order_date,
+      delivery_date: payload.delivery_date || null,
+      customer: payload.customer,
+      category: payload.category,
+      source: payload.source || 'manual',
+      source_quote_id: payload.source_quote_id || null,
+    }
+
+    if (orderCode) {
+      insertRow.id = orderCode
+    }
+
+    const { data: inserted, error } = await supabase.from('orders').insert(insertRow).select('id').single()
 
     if (error || !inserted?.id) {
       return { ok: false, reason: 'query', detail: error?.message || '주문서 저장에 실패했습니다.' }

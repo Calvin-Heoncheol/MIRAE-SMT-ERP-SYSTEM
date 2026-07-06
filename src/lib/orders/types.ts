@@ -56,6 +56,7 @@ export type OrderRecord = {
 }
 
 export type OrderRowPayload = {
+  id?: string
   order_date: string
   delivery_date: string
   customer: string

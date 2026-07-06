@@ -4,12 +4,14 @@
 
 drop view if exists public.smt_production_totals cascade;
 drop view if exists public.post_process_production_totals cascade;
+drop view if exists public.delivery_totals cascade;
 drop view if exists public.order_assembly_group_detail cascade;
 drop view if exists public.semi_product_bom_detail cascade;
 drop view if exists public.finished_product_bom_detail cascade;
 
 drop table if exists public.smt_production_records cascade;
 drop table if exists public.post_process_production_records cascade;
+drop table if exists public.delivery_records cascade;
 drop table if exists public.order_assembly_group_lines cascade;
 drop table if exists public.order_assembly_groups cascade;
 drop table if exists public.semi_product_bom_items cascade;
@@ -32,3 +34,5 @@ drop function if exists public.generate_quote_code() cascade;
 drop function if exists public.generate_order_code() cascade;
 drop function if exists public.generate_order_number() cascade;
 drop function if exists public.generate_quote_number(text) cascade;
+drop function if exists public.generate_delivery_number(date) cascade;
+drop function if exists public.delivery_records_set_id() cascade;

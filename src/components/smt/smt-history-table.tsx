@@ -1,9 +1,5 @@
 import type { SmtProductionHistoryRow } from '@/lib/smt/types'
-import {
-  formatSmtHistoryDateTime,
-  formatSmtPcbSideLabel,
-  formatSmtProductionSourceLabel,
-} from '@/lib/smt/history-utils'
+import { formatSmtHistoryDateTime, formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
 
 type SmtHistoryTableProps = {
   rows: SmtProductionHistoryRow[]
@@ -30,7 +26,7 @@ export function SmtHistoryTable({ rows, emptyMessage }: SmtHistoryTableProps) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-[1120px] w-full border-collapse">
+        <table className="min-w-[980px] w-full border-collapse">
           <thead className="bg-sky-50/80">
             <tr>
               <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-sky-900 uppercase">
@@ -57,9 +53,6 @@ export function SmtHistoryTable({ rows, emptyMessage }: SmtHistoryTableProps) {
               <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-sky-900 uppercase">
                 수량
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold tracking-wide text-sky-900 uppercase">
-                등록경로
-              </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-sky-900 uppercase">
                 비고
               </th>
@@ -85,9 +78,6 @@ export function SmtHistoryTable({ rows, emptyMessage }: SmtHistoryTableProps) {
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm font-semibold tabular-nums text-sky-800">
                   {row.quantity.toLocaleString('ko-KR')}
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm text-slate-600">
-                  {formatSmtProductionSourceLabel(row.source)}
                 </td>
                 <td className="px-4 py-2.5 text-sm text-slate-500">{cell(row.note)}</td>
               </tr>

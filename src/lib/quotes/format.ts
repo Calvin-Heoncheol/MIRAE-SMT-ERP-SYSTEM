@@ -21,14 +21,43 @@ export function formatQuoteUsdTotal(krw: number) {
   return formatQuoteUsd(krw, 3)
 }
 
-export function formatQuoteMoneyTotal(krw: number, quoteType: QuoteType) {
-  return quoteType === 'domestic' ? formatQuoteKrw(krw) : formatQuoteUsdTotal(krw)
+export function formatQuoteMoneyTotal(krw: number, _quoteType?: QuoteType) {
+  return formatQuoteKrw(krw)
 }
 
-export function formatQuoteMoneyUnit(krw: number, quoteType: QuoteType) {
-  return quoteType === 'domestic' ? formatQuoteKrw(krw) : formatQuoteUsdUnit(krw)
+export function formatQuoteMoneyUnit(krw: number, _quoteType?: QuoteType) {
+  return formatQuoteKrw(krw)
 }
 
 export function inferQuoteTypeFromNumber(quoteNumber: string): QuoteType {
   return quoteNumber.startsWith('MSK') ? 'domestic' : 'export'
+}
+
+export const QUOTE_VALIDITY_DAYS = 14
+
+export function formatQuoteValidUntil(issueDate: string, validDays = QUOTE_VALIDITY_DAYS) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(issueDate.trim())
+  if (!match) return '-'
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const base = new Date(Date.UTC(year, month - 1, day))
+  base.setUTCDate(base.getUTCDate() + validDays)
+
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(base)
+}
+
+export function formatQuoteValidityText(issueDate: string, validDays = QUOTE_VALIDITY_DAYS) {
+  return formatQuoteValidUntil(issueDate, validDays)
+}
+
+export function formatQuoteSetupMinutes(minutes: number) {
+  const rounded = Math.round(minutes * 10) / 10
+  return Number.isInteger(rounded) ? `${rounded}분` : `${rounded.toFixed(1)}분`
 }

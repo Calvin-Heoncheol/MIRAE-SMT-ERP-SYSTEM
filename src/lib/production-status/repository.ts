@@ -6,6 +6,7 @@ import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { buildProductionOrderLines } from '@/lib/production-input/utils'
 import { fetchProducts } from '@/lib/products/repository'
+import { fetchDeliveryCumulativeCounts, fetchDeliveryTodayRecords } from '@/lib/delivery/repository'
 import { fetchPostProcessCumulativeCounts, fetchPostProcessTodayProduction } from '@/lib/post-process/repository'
 import { fetchSmtCumulativeCounts, fetchSmtTodayProduction } from '@/lib/smt/repository'
 import { buildProductionStatusLines, buildTodayProductionStages } from './utils'
@@ -31,12 +32,14 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
 
   await ensureAssemblyGroupsForOrders(orderIds)
 
-  const [smtCountsResult, todaySmtResult, postCountsResult, todayPostResult, smtOrdersResult] =
+  const [smtCountsResult, todaySmtResult, postCountsResult, todayPostResult, deliveryCountsResult, todayDeliveryResult, smtOrdersResult] =
     await Promise.all([
       fetchSmtCumulativeCounts(),
       fetchSmtTodayProduction(),
       fetchPostProcessCumulativeCounts(),
       fetchPostProcessTodayProduction(),
+      fetchDeliveryCumulativeCounts(),
+      fetchDeliveryTodayRecords(),
       fetchOrders({ includeDerivedLines: true }),
     ])
 
@@ -52,6 +55,12 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
   if (!todayPostResult.ok) {
     return todayPostResult
   }
+  if (!deliveryCountsResult.ok) {
+    return deliveryCountsResult
+  }
+  if (!todayDeliveryResult.ok) {
+    return todayDeliveryResult
+  }
   if (!smtOrdersResult.ok) {
     return smtOrdersResult
   }
@@ -65,7 +74,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
 
   const smtCounts = smtCountsResult.counts
   const postCounts = postCountsResult.counts
-  const shipCounts: Record<string, number> = {}
+  const shipCounts = deliveryCountsResult.counts
   const todaySmtRecords = todaySmtResult.rows
   const todayPostRecords = todayPostResult.rows
 
@@ -73,7 +82,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     ok: true,
     data: {
       todayDate: todayYmdSeoul(),
-      todayStages: buildTodayProductionStages(todaySmtRecords, todayPostRecords),
+      todayStages: buildTodayProductionStages(todaySmtRecords, todayPostRecords, todayDeliveryResult.rows),
       todaySmtRecords,
       lines: buildProductionStatusLines(
         smtLines,

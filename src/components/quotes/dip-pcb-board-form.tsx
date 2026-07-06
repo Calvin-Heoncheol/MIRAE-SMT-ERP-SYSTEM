@@ -1,6 +1,7 @@
 'use client'
 
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
+import { DIP_UNIT } from '@/lib/quotes/constants'
 import { formatQuoteMoneyUnit } from '@/lib/quotes/format'
 import type { DipBoardForm } from '@/lib/quotes/form-state'
 import type { QuoteType } from '@/lib/quotes/types'
@@ -27,9 +28,9 @@ export function DipPcbBoardForm({ board, quoteType, onChange }: DipPcbBoardFormP
       <p className="mb-2 text-xs font-semibold text-slate-600">수납땜</p>
       <div className="grid grid-cols-3 gap-3">
         {[
-          ['dipGeneral', '일반(1~3PIN)', 400],
-          ['dipConnector', '중형(4~10PIN)', 450],
-          ['dipWire', '대형(10PIN+)', 500],
+          ['dipGeneral', '소형(1~3PIN)', DIP_UNIT.dipGeneral],
+          ['dipConnector', '중형(4~10PIN)', DIP_UNIT.dipConnector],
+          ['dipWire', '대형(10PIN+)', DIP_UNIT.dipWire],
         ].map(([key, label, unit]) => (
           <label key={key} className="text-xs font-medium text-slate-600">
             {label}
@@ -47,9 +48,9 @@ export function DipPcbBoardForm({ board, quoteType, onChange }: DipPcbBoardFormP
       <p className="mb-2 mt-4 text-xs font-semibold text-slate-600">WAVE</p>
       <div className="grid grid-cols-3 gap-3">
         {[
-          ['waveGeneral', '일반(1~3PIN)', 300],
-          ['waveConnector', '중형(4~10PIN)', 350],
-          ['waveWire', '대형(10PIN+)', 400],
+          ['waveGeneral', '일반(1~3PIN)', DIP_UNIT.waveGeneral],
+          ['waveConnector', '중형(4~10PIN)', DIP_UNIT.waveConnector],
+          ['waveWire', '대형(10PIN+)', DIP_UNIT.waveWire],
         ].map(([key, label, unit]) => (
           <label key={key} className="text-xs font-medium text-slate-600">
             {label}

@@ -5,7 +5,7 @@ import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import {
   getSmtSetupBaseMinutes,
   getSmtSetupRate,
-  SMT_SETUP_FIRST_ARTICLE_MINUTES,
+  SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
   SMT_SETUP_MINUTES_PER_PART,
   SMT_UNIT_BGA_BALL,
   SMT_UNIT_CHIP,
@@ -13,8 +13,8 @@ import {
   SMT_UNIT_ODD,
   SMT_UNIT_SPECIAL,
 } from '@/lib/quotes/constants'
-import { getSmtSetupPartCount } from '@/lib/quotes/calculate-estimate'
-import { formatQuoteMoneyUnit } from '@/lib/quotes/format'
+import { computeSmtSetupBillingMinutes, getSmtSetupPartCount } from '@/lib/quotes/calculate-estimate'
+import { formatQuoteMoneyUnit, formatQuoteSetupMinutes } from '@/lib/quotes/format'
 import type { SmtBoardForm } from '@/lib/quotes/form-state'
 import type { QuoteType } from '@/lib/quotes/types'
 
@@ -60,12 +60,9 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
     smtTopCount: Number(board.smtTopCount) || 0,
     smtBotCount: Number(board.smtBotCount) || 0,
   })
+  const setupBaseMinutes = getSmtSetupBaseMinutes(isDouble ? 'double' : 'single')
   const setupMinutes =
-    partCount > 0
-      ? getSmtSetupBaseMinutes(isDouble ? 'double' : 'single') +
-        SMT_SETUP_FIRST_ARTICLE_MINUTES +
-        partCount * SMT_SETUP_MINUTES_PER_PART
-      : 0
+    partCount > 0 ? computeSmtSetupBillingMinutes(partCount, isDouble ? 'double' : 'single') : 0
 
   function patch(patch: Partial<SmtBoardForm>) {
     onChange({ ...board, ...patch })
@@ -149,18 +146,6 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
       </div>
 
       <div className="mt-3">
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={board.aoiEnabled}
-            onChange={(event) => patch({ aoiEnabled: event.target.checked })}
-          />
-          AOI 및 외관검사 (단면 {formatQuoteMoneyUnit(100, quoteType)} · 양면{' '}
-          {formatQuoteMoneyUnit(200, quoteType)})
-        </label>
-      </div>
-
-      <div className="mt-3">
         <p className="mb-2 text-xs font-medium text-slate-600">단면 / 양면</p>
         <div className="flex gap-4 text-sm text-slate-700">
           <label className="flex items-center gap-2">
@@ -185,7 +170,7 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
       <div className="mt-4 border-t border-dashed border-slate-200 pt-4">
         <p className="mb-1 text-xs font-semibold text-slate-600">SET-UP (부품 종수)</p>
         <p className="mb-3 text-[11px] leading-relaxed text-slate-400">
-          세팅 총 소요시간 = 기본시간({isDouble ? '105' : '60'}분) + 초품검사(20분) + 부품 종수 × 2분
+          세팅 총 소요시간 = 기본시간({setupBaseMinutes}분) + 초품검사(종당 {SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART}초) + SETTING(종당 {SMT_SETUP_MINUTES_PER_PART}분)
         </p>
         {isDouble ? (
           <div className="grid grid-cols-2 gap-3">
@@ -223,8 +208,8 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
           <p>장비 임율: {formatQuoteMoneyUnit(setupRate, quoteType)}/분</p>
           {partCount > 0 ? (
             <p>
-              합계 종수 {partCount}종 · 세팅 총 소요시간 {setupMinutes}분 · 예상 SET-UP{' '}
-              {formatQuoteMoneyUnit(setupMinutes * setupRate, quoteType)}
+              합계 종수 {partCount}종 · 세팅 총 소요시간 {formatQuoteSetupMinutes(setupMinutes)} · 예상 SET-UP{' '}
+              {formatQuoteMoneyUnit(Math.round(setupMinutes * setupRate), quoteType)}
             </p>
           ) : null}
         </div>

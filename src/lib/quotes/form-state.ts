@@ -9,7 +9,6 @@ export type SmtBoardForm = {
   icPin: string
   bga: string
   smtSide: 'single' | 'double'
-  aoiEnabled: boolean
   pcbWashEnabled: boolean
   smtTopCount: string
   smtBotCount: string
@@ -59,7 +58,6 @@ export function smtBoardToForm(board: SmtPcbBoard): SmtBoardForm {
     icPin: toNumericField(board.icPin),
     bga: toNumericField(board.bga),
     smtSide: isDouble ? 'double' : 'single',
-    aoiEnabled: board.aoiEnabled,
     pcbWashEnabled: board.pcbWashEnabled,
     smtTopCount: toNumericField(board.smtTopCount),
     smtBotCount: isDouble ? toNumericField(board.smtBotCount) : '0',
@@ -77,7 +75,7 @@ export function smtBoardFormToModel(form: SmtBoardForm): SmtPcbBoard {
     icPin: parseNumericField(form.icPin),
     bga: parseNumericField(form.bga),
     smtSide: form.smtSide,
-    aoiEnabled: form.aoiEnabled,
+    aoiEnabled: true,
     pcbWashEnabled: form.pcbWashEnabled,
     smtTopCount: parseNumericField(form.smtTopCount),
     smtBotCount: isDouble ? parseNumericField(form.smtBotCount) : 0,

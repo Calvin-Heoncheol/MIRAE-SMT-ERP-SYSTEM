@@ -1,6 +1,29 @@
 import type { OrderCategory, OrderLineItem, OrderListGroup, OrderRecord } from './types'
 import { ORDER_CATEGORIES } from './types'
 
+export const ORDER_CODE_MAX_LENGTH = 100
+
+/** MRO 자동 발급 코드 판별용 */
+export const MRO_ORDER_CODE_PATTERN = /^MRO-[0-9]+$/
+
+export function normalizeOrderCodeInput(value: string) {
+  return value.trim()
+}
+
+export function validateOrderCodeInput(
+  value: string,
+): { ok: true; code: string } | { ok: false; message: string } {
+  const code = normalizeOrderCodeInput(value)
+  if (!code) return { ok: true, code: '' }
+  if (code.length > ORDER_CODE_MAX_LENGTH) {
+    return {
+      ok: false,
+      message: `주문코드는 ${ORDER_CODE_MAX_LENGTH}자 이하여야 합니다.`,
+    }
+  }
+  return { ok: true, code }
+}
+
 export function formatOrderMoney(amount: number) {
   return `₩${Math.round(Number(amount) || 0).toLocaleString('ko-KR')}`
 }

@@ -3,7 +3,7 @@ import {
   AOI_UNIT_PRICE_SINGLE,
   DIP_UNIT,
   POST_RATE,
-  SMT_SETUP_FIRST_ARTICLE_MINUTES,
+  SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
   SMT_SETUP_MINUTES_PER_PART,
   SMT_PLACEMENT_MIN_SCORE,
   getSmtSetupBaseMinutes,
@@ -85,19 +85,31 @@ export function getSmtSetupPartCount(board: Pick<SmtPcbBoard, 'smtSide' | 'smtTo
   return smtSide === 'double' ? top + bot : top
 }
 
+/** SET-UP 청구 분 = 기본시간 + 초품검사(종당 20초) + SETTING(종당 3분) */
+export function computeSmtSetupBillingMinutes(
+  partCount: number,
+  smtSide: 'single' | 'double',
+): number {
+  const count = Math.max(0, Math.floor(Number(partCount) || 0))
+  if (count <= 0) return 0
+
+  const baseMinutes = getSmtSetupBaseMinutes(smtSide)
+  const firstArticleMinutes = (count * SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART) / 60
+  const settingMinutes = count * SMT_SETUP_MINUTES_PER_PART
+  return baseMinutes + firstArticleMinutes + settingMinutes
+}
+
 function computeSmtSetup(partCount: number, quoteType: QuoteType, smtSide: 'single' | 'double') {
   const count = Math.max(0, Math.floor(Number(partCount) || 0))
   if (count <= 0) {
     return { setupMinutes: 0, setupAmount: 0, setupMinApplied: false, setupRate: 0 }
   }
 
-  const baseMinutes = getSmtSetupBaseMinutes(smtSide)
-  const partSetupMinutes = count * SMT_SETUP_MINUTES_PER_PART
-  const setupMinutes = baseMinutes + SMT_SETUP_FIRST_ARTICLE_MINUTES + partSetupMinutes
+  const setupMinutes = computeSmtSetupBillingMinutes(count, smtSide)
   const setupRate = getSmtSetupRate(quoteType)
   return {
     setupMinutes,
-    setupAmount: setupMinutes * setupRate,
+    setupAmount: Math.round(setupMinutes * setupRate),
     setupMinApplied: true,
     setupRate,
   }
@@ -122,14 +134,13 @@ function computeSmtLaborPerUnit(board: SmtPcbBoard, quoteType: QuoteType) {
   const comp = readSmtBoardComponentFields(board)
   const chipTotal = computeSmtChipTotal(comp)
   const smtSide = board.smtSide === 'double' ? 'double' : 'single'
-  const aoiEnabled = board.aoiEnabled === true
-  const aoiUnit = aoiEnabled ? (smtSide === 'double' ? AOI_UNIT_PRICE_DOUBLE : AOI_UNIT_PRICE_SINGLE) : 0
+  const aoiUnit = smtSide === 'double' ? AOI_UNIT_PRICE_DOUBLE : AOI_UNIT_PRICE_SINGLE
   const pcbWashUnit = 0
   const chipOddLabor = computeSmtChipOddLabor(comp)
   const otherLabor = computeSmtOtherLabor(comp, aoiUnit)
   const smtLaborRaw = chipOddLabor + otherLabor
   const hasPlacementInputs = hasSmtComponentInputs(comp)
-  const hasSmtLabor = smtLaborRaw > 0 || hasPlacementInputs || aoiEnabled
+  const hasSmtLabor = smtLaborRaw > 0 || hasPlacementInputs
   const applyMinFee = hasPlacementInputs && shouldApplyMinPlacementFee(comp)
   const minPlacementFee = getSmtPlacementMinFee(quoteType)
 
@@ -158,7 +169,7 @@ export function normalizeSmtPcbBoards(data: EstimateInput): SmtPcbBoard[] {
       return {
         pcbName: String(board.pcbName || `PCB ${index + 1}`).trim() || `PCB ${index + 1}`,
         smtSide: board.smtSide === 'double' ? 'double' : 'single',
-        aoiEnabled: board.aoiEnabled === true,
+        aoiEnabled: true,
         pcbWashEnabled: board.pcbWashEnabled === true,
         smtTopCount: Number(board.smtTopCount) || 0,
         smtBotCount: Number(board.smtBotCount) || 0,
@@ -171,7 +182,7 @@ export function normalizeSmtPcbBoards(data: EstimateInput): SmtPcbBoard[] {
     {
       pcbName: 'PCB 1',
       smtSide: data.smtSide === 'double' ? 'double' : 'single',
-      aoiEnabled: data.aoiEnabled === true,
+      aoiEnabled: true,
       pcbWashEnabled: data.pcbWashEnabled === true,
       smtTopCount: Number(data.smtTopCount) || 0,
       smtBotCount: Number(data.smtBotCount) || 0,

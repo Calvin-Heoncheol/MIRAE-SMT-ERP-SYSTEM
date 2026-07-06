@@ -7,6 +7,7 @@ export type OrderItemForm = {
 }
 
 export type OrderFormState = {
+  orderCode: string
   orderDate: string
   deliveryDate: string
   customer: string

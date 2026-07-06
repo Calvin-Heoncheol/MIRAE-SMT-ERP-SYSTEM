@@ -38,5 +38,5 @@ export type ProductionInputConfig = {
   productKindLabel: string
   fetchErrorTitle: string
   qtyInputId: string
-  productionModule: 'smt' | 'post_process'
+  productionModule: 'smt' | 'post_process' | 'delivery'
 }

@@ -152,13 +152,15 @@ export function ProductionInputPanel({
         {order ? (
           <>
             <div className="shrink-0">
-              <h2 className="text-xl font-bold leading-snug text-slate-900 break-keep">
+              <p className="text-sm text-slate-500">
+                <span>{order.customer}</span>
+                <span className="text-slate-300"> · </span>
+                <span>{order.orderNumber}</span>
+              </p>
+              <h2 className="mt-1 text-xl font-bold leading-snug text-slate-900 break-keep">
                 {formatProductionProductName(order)}
               </h2>
-              <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
-                <span>{order.orderNumber}</span>
-                <span className="text-slate-300">·</span>
-                <span>{order.customer}</span>
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
                   {order.productKindLabel}
                 </span>

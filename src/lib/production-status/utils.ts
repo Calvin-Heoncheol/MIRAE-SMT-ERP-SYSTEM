@@ -1,4 +1,5 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
+import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 import type { PostProcessProductionHistoryRow } from '@/lib/post-process/types'
 import type { SmtProductionHistoryRow } from '@/lib/smt/types'
 import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-input/types'
@@ -29,9 +30,11 @@ function buildAssemblyByOrderLineId(assemblyGroups: OrderAssemblyGroup[]) {
 export function buildTodayProductionStages(
   smtRecords: SmtProductionHistoryRow[],
   postRecords: PostProcessProductionHistoryRow[] = [],
+  deliveryRecords: DeliveryHistoryRow[] = [],
 ): TodayProductionStage[] {
   const smtQuantity = smtRecords.reduce((sum, row) => sum + row.quantity, 0)
   const postQuantity = postRecords.reduce((sum, row) => sum + row.quantity, 0)
+  const deliveryQuantity = deliveryRecords.reduce((sum, row) => sum + row.quantity, 0)
 
   return [
     {
@@ -51,9 +54,9 @@ export function buildTodayProductionStages(
     {
       key: 'shipment',
       label: TODAY_PRODUCTION_STAGE_LABELS.shipment,
-      recordCount: 0,
-      quantity: 0,
-      linked: false,
+      recordCount: deliveryRecords.length,
+      quantity: deliveryQuantity,
+      linked: true,
     },
   ]
 }

@@ -1,6 +1,6 @@
 -- Supabase SQL Editor에서 실행하세요 (setup-quotations.sql 이후)
 --
--- 내부 주문코드 = id (MRO-0001, MRO-0002 … 자동 발급)
+-- 주문코드 = id — 고객사 PO/NO 직접 입력 또는 MRO-0001 자동 발급
 
 create table if not exists public.orders (
   id text primary key,
@@ -12,11 +12,12 @@ create table if not exists public.orders (
   source_quote_id text references public.quotations(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint orders_id_mro_format_check check (id ~ '^MRO-[0-9]+$')
+  constraint orders_id_not_blank_check check (length(trim(id)) > 0),
+  constraint orders_id_length_check check (char_length(id) <= 100)
 );
 
-comment on table public.orders is '주문 마스터 — 내부코드=id(MRO-0001)';
-comment on column public.orders.id is '내부 주문코드 MRO-0001 (INSERT 시 자동 발급, 수정 불가)';
+comment on table public.orders is '주문 마스터 — 주문코드=id(고객사 PO/NO 또는 MRO-0001)';
+comment on column public.orders.id is '주문코드 — 고객사 PO/NO 또는 MRO-0001 (INSERT 시 비어 있으면 자동 발급, 수정 불가)';
 comment on column public.orders.source_quote_id is '원본 견적 FK (quotations.id = MRQ-0001)';
 
 create table if not exists public.order_lines (

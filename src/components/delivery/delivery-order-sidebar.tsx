@@ -1,19 +1,17 @@
 'use client'
 
-import type { ProductionOrderLine, ProductionOrderState } from '@/lib/production-input/types'
+import type { ProductionOrderLine } from '@/lib/production-input/types'
+import { formatProductionProductName, getProgressPercent } from '@/lib/production-input/utils'
+import type { DeliveryAvailability } from '@/lib/delivery/utils'
 import {
-  formatProductionProductName,
-  formatProductionSideProgressLabel,
-  getProductionOrderPrefix,
-  getProductionOrderState,
-  getProgressPercent,
-  PRODUCTION_ORDER_PAGE_SIZE,
-  resolveProductionCount,
-} from '@/lib/production-input/utils'
+  DELIVERY_ORDER_PAGE_SIZE,
+  getDeliveryOrderPrefix,
+  getDeliveryOrderState,
+} from '@/lib/delivery/utils'
 
-type ProductionOrderSidebarProps = {
+type DeliveryOrderSidebarProps = {
   orders: ProductionOrderLine[]
-  counts: Record<string, number>
+  availabilityByGroupId: Record<string, DeliveryAvailability>
   selectedKey: string
   search: string
   page: number
@@ -22,33 +20,33 @@ type ProductionOrderSidebarProps = {
   onPageChange: (page: number) => void
 }
 
-function stateAccentClass(state: ProductionOrderState) {
-  if (state === 'full') return 'border-l-emerald-500'
+function stateAccentClass(state: ReturnType<typeof getDeliveryOrderState>) {
+  if (state === 'full') return 'border-l-violet-600'
   if (state === 'progress') return 'border-l-amber-500'
   return 'border-l-slate-300'
 }
 
-function progressBarClass(state: ProductionOrderState, complete: boolean) {
-  if (complete) return 'bg-emerald-500'
+function progressBarClass(state: ReturnType<typeof getDeliveryOrderState>, complete: boolean) {
+  if (complete) return 'bg-violet-600'
   if (state === 'progress') return 'bg-amber-500'
   return 'bg-slate-300'
 }
 
-export function ProductionOrderSidebar({
+export function DeliveryOrderSidebar({
   orders,
-  counts,
+  availabilityByGroupId,
   selectedKey,
   search,
   page,
   onSearchChange,
   onSelect,
   onPageChange,
-}: ProductionOrderSidebarProps) {
-  const totalPages = Math.max(1, Math.ceil(orders.length / PRODUCTION_ORDER_PAGE_SIZE))
+}: DeliveryOrderSidebarProps) {
+  const totalPages = Math.max(1, Math.ceil(orders.length / DELIVERY_ORDER_PAGE_SIZE))
   const currentPage = Math.min(Math.max(page, 1), totalPages)
-  const startIdx = (currentPage - 1) * PRODUCTION_ORDER_PAGE_SIZE
-  const pageItems = orders.slice(startIdx, startIdx + PRODUCTION_ORDER_PAGE_SIZE)
-  const showPager = orders.length > PRODUCTION_ORDER_PAGE_SIZE
+  const startIdx = (currentPage - 1) * DELIVERY_ORDER_PAGE_SIZE
+  const pageItems = orders.slice(startIdx, startIdx + DELIVERY_ORDER_PAGE_SIZE)
+  const showPager = orders.length > DELIVERY_ORDER_PAGE_SIZE
 
   return (
     <aside className="flex min-h-0 flex-col border-r border-slate-200 bg-slate-100">
@@ -64,7 +62,7 @@ export function ProductionOrderSidebar({
         <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
           ◐ 진행중
         </span>
-        <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+        <span className="rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700">
           ● 완료
         </span>
       </div>
@@ -75,7 +73,7 @@ export function ProductionOrderSidebar({
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="주문번호 · 고객사 · 제품명 검색"
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
         />
       </div>
 
@@ -86,12 +84,23 @@ export function ProductionOrderSidebar({
           </p>
         ) : (
           pageItems.map((order) => {
-            const state = getProductionOrderState(order, counts)
+            const groupId = order.assemblyGroupId || order.orderLineId
+            const availability =
+              availabilityByGroupId[groupId] ?? {
+                targetQuantity: order.quantity,
+                smtSets: 0,
+                postProduced: 0,
+                shipped: 0,
+                productionCap: 0,
+                shippable: 0,
+              }
+            const state = getDeliveryOrderState(availability)
             const selected = selectedKey === order.uiKey
-            const cumulative = resolveProductionCount(order, counts)
-            const target = Math.max(0, Math.floor(order.quantity))
-            const progress = getProgressPercent(cumulative, target)
-            const complete = target > 0 && cumulative >= target
+            const shipped = availability.shipped
+            const target = availability.targetQuantity
+            const remaining = Math.max(0, target - shipped)
+            const progress = getProgressPercent(shipped, target)
+            const complete = target > 0 && shipped >= target
 
             return (
               <button
@@ -102,14 +111,14 @@ export function ProductionOrderSidebar({
                   'rounded-xl border border-slate-200 border-l-4 bg-white p-3 text-left transition',
                   stateAccentClass(state),
                   selected
-                    ? 'border-sky-400 ring-2 ring-sky-100'
+                    ? 'border-violet-400 ring-2 ring-violet-100'
                     : 'hover:border-slate-300 hover:shadow-sm',
                 ].join(' ')}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs text-slate-500">
-                      {getProductionOrderPrefix(state)} {order.customer || '—'} · {order.orderNumber}
+                      {getDeliveryOrderPrefix(state)} {order.customer || '—'} · {order.orderNumber}
                     </p>
                     <p className="mt-0.5 truncate text-sm font-bold text-slate-900">
                       {formatProductionProductName(order)}
@@ -123,13 +132,13 @@ export function ProductionOrderSidebar({
                 <div className="mt-2.5">
                   <div className="mb-1 flex justify-between text-[11px] font-medium text-slate-500">
                     <span className="tabular-nums">
-                      {formatProductionSideProgressLabel(order, counts)}
+                      {shipped.toLocaleString('ko-KR')}
                       {target > 0 ? ` / ${target.toLocaleString('ko-KR')}` : ''}
                     </span>
                     <span>
-                      {order.splitPcbSides ? '병목 남음 ' : '남음 '}
+                      남음{' '}
                       <span className="font-bold text-slate-700 tabular-nums">
-                        {Math.max(0, target - cumulative).toLocaleString('ko-KR')}
+                        {remaining.toLocaleString('ko-KR')}
                       </span>
                     </span>
                   </div>

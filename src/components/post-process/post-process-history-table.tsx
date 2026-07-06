@@ -1,8 +1,5 @@
 import type { PostProcessProductionHistoryRow } from '@/lib/post-process/types'
-import {
-  formatPostProcessHistoryDateTime,
-  formatPostProcessProductionSourceLabel,
-} from '@/lib/post-process/history-utils'
+import { formatPostProcessHistoryDateTime } from '@/lib/post-process/history-utils'
 
 type PostProcessHistoryTableProps = {
   rows: PostProcessProductionHistoryRow[]
@@ -29,7 +26,7 @@ export function PostProcessHistoryTable({ rows, emptyMessage }: PostProcessHisto
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-[960px] w-full border-collapse">
+        <table className="min-w-[880px] w-full border-collapse">
           <thead className="bg-emerald-50/80">
             <tr>
               <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
@@ -53,9 +50,6 @@ export function PostProcessHistoryTable({ rows, emptyMessage }: PostProcessHisto
               <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-emerald-900 uppercase">
                 등록수량
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold tracking-wide text-emerald-900 uppercase">
-                등록경로
-              </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
                 비고
               </th>
@@ -78,9 +72,6 @@ export function PostProcessHistoryTable({ rows, emptyMessage }: PostProcessHisto
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm font-bold tabular-nums text-emerald-700">
                   {row.quantity.toLocaleString('ko-KR')}
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm text-slate-600">
-                  {formatPostProcessProductionSourceLabel(row.source)}
                 </td>
                 <td className="px-4 py-2.5 text-sm text-slate-600">{cell(row.note)}</td>
               </tr>

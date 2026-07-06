@@ -12,7 +12,7 @@ import {
 import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
 import { ORDER_CATEGORIES } from '@/lib/orders/types'
 import type { OrderListGroup } from '@/lib/orders/types'
-import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
+import { addDaysYmd, todayYmdSeoul, validateOrderCodeInput } from '@/lib/orders/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
 
@@ -29,6 +29,7 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
   const today = todayYmdSeoul()
   if (order) {
     return {
+      orderCode: order.orderNumber,
       orderDate: order.orderDate || today,
       deliveryDate: order.deliveryDate || '',
       customer: order.customer || '',
@@ -36,6 +37,7 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
     }
   }
   return {
+    orderCode: '',
     orderDate: today,
     deliveryDate: addDaysYmd(today, 30),
     customer: '',
@@ -99,6 +101,12 @@ function OrderModalContent({
       return
     }
 
+    const orderCodeResult = validateOrderCodeInput(form.orderCode)
+    if (!orderCodeResult.ok) {
+      setSaveError(orderCodeResult.message)
+      return
+    }
+
     const payload = {
       order_date: form.orderDate || todayYmdSeoul(),
       delivery_date: form.deliveryDate || '',
@@ -107,6 +115,7 @@ function OrderModalContent({
       source: order?.source || 'manual',
       source_quote_id: order?.sourceQuoteId || null,
       items: validation.items,
+      ...(mode === 'create' && orderCodeResult.code ? { id: orderCodeResult.code } : {}),
     }
 
     setSaving(true)
@@ -179,16 +188,26 @@ function OrderModalContent({
 
         <div className="overflow-x-auto overflow-y-auto p-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {mode === 'edit' && order ? (
-              <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-medium text-slate-600">주문코드</span>
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block font-medium text-slate-600">고객사 PO/NO</span>
+              {mode === 'edit' && order ? (
                 <input
                   value={order.orderNumber}
                   readOnly
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600"
                 />
-              </label>
-            ) : null}
+              ) : (
+                <>
+                  <input
+                    value={form.orderCode}
+                    onChange={(event) => updateForm('orderCode', event.target.value)}
+                    placeholder="고객사 PO/NO"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm text-slate-900 placeholder:text-slate-400"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">비우면 MRO-0001 형식으로 자동 발급됩니다.</p>
+                </>
+              )}
+            </label>
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-600">구분</span>
               <select

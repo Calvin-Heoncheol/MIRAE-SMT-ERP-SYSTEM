@@ -1,5 +1,7 @@
-import { ModuleTabPlaceholder } from '@/components/dashboard/module-tab-placeholder'
+import { DeliveryHistoryWorkspace } from '@/components/delivery/delivery-history-workspace'
+import { fetchDeliveryHistory } from '@/lib/delivery/repository'
 
-export default function DeliveryHistoryPage() {
-  return <ModuleTabPlaceholder description="출하이력 화면은 추후 구현 예정입니다." />
+export default async function DeliveryHistoryPage() {
+  const result = await fetchDeliveryHistory()
+  return <DeliveryHistoryWorkspace result={result} />
 }
