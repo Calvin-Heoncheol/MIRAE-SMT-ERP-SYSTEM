@@ -7,6 +7,11 @@ import { normalizeSignoffs } from './signoffs'
 function normalizeDetailInfo(raw: ApprovalRecord['detail_info']) {
   return {
     detailItems: Array.isArray(raw?.detailItems) ? raw.detailItems : [],
+    amountBasis:
+      raw?.amountBasis === 'supply' || raw?.amountBasis === 'total' || raw?.amountBasis === 'exempt'
+        ? raw.amountBasis
+        : 'supply',
+    paymentType: raw?.paymentType === 'immediate' || raw?.paymentType === 'recurring' ? raw.paymentType : '',
     paymentMethod: String(raw?.paymentMethod ?? ''),
     attachments: String(raw?.attachments ?? ''),
     attachmentFiles: Array.isArray(raw?.attachmentFiles)

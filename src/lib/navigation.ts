@@ -13,14 +13,12 @@ export const NAV_ITEMS: NavItem[] = [
   { label: '홈', href: '/' },
   { label: '견적', href: '/quotations' },
   {
-    label: '품의서',
-    href: '/approvals/raw-materials',
+    label: '결재서',
+    href: '/approvals',
     children: [
-      { label: '원자재', href: '/approvals/raw-materials' },
-      { label: '부자재', href: '/approvals/sub-materials' },
-      { label: '장비', href: '/approvals/equipment' },
-      { label: '설비', href: '/approvals/facilities' },
-      { label: '기타', href: '/approvals/misc' },
+      { label: '품의서', href: '/approvals' },
+      { label: '지출결의서', href: '/expense-reports' },
+      { label: '휴가원', href: '/leave-requests' },
     ],
   },
   {

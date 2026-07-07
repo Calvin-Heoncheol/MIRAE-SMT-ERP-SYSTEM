@@ -5,7 +5,6 @@ export const APPROVAL_DEPARTMENTS = [
   { value: '생산2팀', label: '생산2팀' },
   { value: '생산3팀', label: '생산3팀' },
   { value: '생산4팀', label: '생산4팀' },
-  { value: '영업', label: '영업' },
   { value: '품질관리', label: '품질관리' },
 ] as const
 
@@ -21,6 +20,7 @@ export function isApprovalDepartment(value: string): value is ApprovalDepartment
 
 export function normalizeApprovalDepartment(value: string) {
   const trimmed = value.trim()
+  if (trimmed === '영업' || trimmed === '영업부') return DEFAULT_APPROVAL_DEPARTMENT
   if (isApprovalDepartment(trimmed)) return trimmed
 
   const byLabel = APPROVAL_DEPARTMENTS.find((item) => item.label === trimmed)

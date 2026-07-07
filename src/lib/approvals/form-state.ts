@@ -1,8 +1,17 @@
-import type { ApprovalAttachmentFile, ApprovalDetailInfo, ApprovalDetailItem, ApprovalListItem } from './types'
+import type { ApprovalCategory } from './categories'
+import { getApprovalIntroBodyPlaceholder } from './categories'
 import { DEFAULT_APPROVAL_DEPARTMENT, normalizeApprovalDepartment } from './departments'
 import { formatSeoulDateInput } from './date'
 import { createDefaultSignoffs, normalizeSignoffs } from './signoffs'
 import type { ApprovalSignoff } from './signoffs'
+import type {
+  ApprovalAmountBasis,
+  ApprovalAttachmentFile,
+  ApprovalDetailInfo,
+  ApprovalDetailItem,
+  ApprovalListItem,
+  ApprovalPaymentType,
+} from './types'
 
 export type ApprovalFormState = {
   writtenDate: string
@@ -14,6 +23,8 @@ export type ApprovalFormState = {
   subject: string
   introBody: string
   detailItems: ApprovalDetailItem[]
+  amountBasis: ApprovalAmountBasis
+  paymentType: ApprovalPaymentType
   paymentMethod: string
   attachments: string
   attachmentFiles: ApprovalAttachmentFile[]
@@ -21,10 +32,13 @@ export type ApprovalFormState = {
   signoffs: ApprovalSignoff[]
 }
 
-export function defaultApprovalDetailItem(): ApprovalDetailItem {
+export function defaultApprovalDetailItem(category?: ApprovalCategory): ApprovalDetailItem {
   return {
     name: '',
     model: '',
+    partNumber: '',
+    unit: '',
+    supplier: '',
     qty: '',
     unitPrice: '',
     amount: '',
@@ -33,7 +47,7 @@ export function defaultApprovalDetailItem(): ApprovalDetailItem {
   }
 }
 
-export function createDefaultApprovalForm(): ApprovalFormState {
+export function createDefaultApprovalForm(category: ApprovalCategory = 'consumables'): ApprovalFormState {
   return {
     writtenDate: formatSeoulDateInput(),
     docNumber: '',
@@ -42,13 +56,31 @@ export function createDefaultApprovalForm(): ApprovalFormState {
     author: '',
     processingDate: '결재 후 즉시',
     subject: '',
-    introBody: '품의 드리오니 검토 후 재가 바랍니다.',
-    detailItems: [defaultApprovalDetailItem()],
+    introBody: '',
+    detailItems: [defaultApprovalDetailItem(category)],
+    amountBasis: 'supply',
+    paymentType: '',
     paymentMethod: '',
     attachments: '',
     attachmentFiles: [],
     remarks: '',
     signoffs: createDefaultSignoffs(),
+  }
+}
+
+function normalizeDetailItem(raw: Partial<ApprovalDetailItem>): ApprovalDetailItem {
+  const model = String(raw.model ?? raw.partNumber ?? '')
+  return {
+    name: String(raw.name ?? ''),
+    model,
+    partNumber: String(raw.partNumber ?? model),
+    unit: String(raw.unit ?? ''),
+    supplier: String(raw.supplier ?? ''),
+    qty: String(raw.qty ?? ''),
+    unitPrice: String(raw.unitPrice ?? ''),
+    amount: String(raw.amount ?? ''),
+    dueDate: String(raw.dueDate ?? ''),
+    note: String(raw.note ?? ''),
   }
 }
 
@@ -64,8 +96,10 @@ export function approvalToForm(approval: ApprovalListItem): ApprovalFormState {
     subject: approval.subject,
     introBody: approval.introBody,
     detailItems: approval.detailInfo.detailItems.length
-      ? approval.detailInfo.detailItems
-      : [defaultApprovalDetailItem()],
+      ? approval.detailInfo.detailItems.map((item) => normalizeDetailItem(item))
+      : [defaultApprovalDetailItem(approval.category)],
+    amountBasis: normalizeAmountBasis(approval.detailInfo.amountBasis),
+    paymentType: normalizePaymentType(approval.detailInfo.paymentType),
     paymentMethod: approval.detailInfo.paymentMethod,
     attachments: approval.detailInfo.attachments,
     attachmentFiles: approval.detailInfo.attachmentFiles ?? [],
@@ -77,12 +111,24 @@ export function approvalToForm(approval: ApprovalListItem): ApprovalFormState {
 export function formToDetailInfo(form: ApprovalFormState): ApprovalDetailInfo {
   return {
     detailItems: form.detailItems,
-    paymentMethod: form.paymentMethod,
+    amountBasis: form.amountBasis,
+    paymentType: form.paymentType,
+    paymentMethod: form.paymentType === 'immediate' ? form.paymentMethod : '',
     attachments: form.attachments,
     attachmentFiles: form.attachmentFiles,
     remarks: form.remarks,
     signoffs: form.signoffs,
   }
+}
+
+function normalizeAmountBasis(value: unknown): ApprovalAmountBasis {
+  if (value === 'supply' || value === 'total' || value === 'exempt') return value
+  return 'supply'
+}
+
+function normalizePaymentType(value: unknown): ApprovalPaymentType {
+  if (value === 'immediate' || value === 'recurring') return value
+  return ''
 }
 
 export function parseNumericField(value: string) {
@@ -100,10 +146,61 @@ export function computeLineAmount(qty: string, unitPrice: string) {
   return String(quantity * price)
 }
 
-export function computeApprovalTotalAmount(form: ApprovalFormState) {
+function computeSupplyFromEnteredAmount(amount: number, amountBasis: ApprovalAmountBasis) {
+  if (amount <= 0) return 0
+  if (amountBasis === 'total') return Math.round((amount / (1 + APPROVAL_VAT_RATE)) * 100) / 100
+  return amount
+}
+
+export const APPROVAL_VAT_RATE = 0.1
+
+export function computeApprovalSupplyAmount(
+  form: Pick<ApprovalFormState, 'detailItems' | 'amountBasis'>,
+  category?: ApprovalCategory,
+) {
+  if (category === 'duty-tax') {
+    return form.detailItems.reduce((sum, item) => sum + parseNumericField(item.unitPrice), 0)
+  }
   return form.detailItems.reduce((sum, item) => {
     const amount = parseNumericField(item.amount)
-    if (amount > 0) return sum + amount
-    return sum + parseNumericField(item.qty) * parseNumericField(item.unitPrice)
+    if (amount > 0) return sum + computeSupplyFromEnteredAmount(amount, form.amountBasis)
+    return sum + computeSupplyFromEnteredAmount(parseNumericField(item.qty) * parseNumericField(item.unitPrice), form.amountBasis)
   }, 0)
+}
+
+export function computeApprovalVatAmount(supplyAmount: number, category?: ApprovalCategory, form?: Pick<ApprovalFormState, 'detailItems'>) {
+  if (category === 'duty-tax' && form) {
+    return form.detailItems.reduce((sum, item) => sum + parseNumericField(item.amount), 0)
+  }
+  if (supplyAmount <= 0) return 0
+  return Math.round(supplyAmount * APPROVAL_VAT_RATE)
+}
+
+export function computeApprovalGrandTotal(
+  form: Pick<ApprovalFormState, 'detailItems' | 'amountBasis'>,
+  category?: ApprovalCategory,
+) {
+  const supplyAmount = computeApprovalSupplyAmount(form, category)
+  if (category === 'duty-tax') {
+    return supplyAmount + computeApprovalVatAmount(supplyAmount, category, form)
+  }
+  if (form.amountBasis === 'exempt') {
+    return supplyAmount
+  }
+  if (form.amountBasis === 'total') {
+    return form.detailItems.reduce((sum, item) => {
+      const amount = parseNumericField(item.amount)
+      if (amount > 0) return sum + amount
+      return sum + parseNumericField(item.qty) * parseNumericField(item.unitPrice)
+    }, 0)
+  }
+  return supplyAmount + computeApprovalVatAmount(supplyAmount)
+}
+
+/** DB total_amount — 공급가액 + 부가세(10%) */
+export function computeApprovalTotalAmount(
+  form: Pick<ApprovalFormState, 'detailItems' | 'amountBasis'>,
+  category?: ApprovalCategory,
+) {
+  return computeApprovalGrandTotal(form, category)
 }

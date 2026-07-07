@@ -1,6 +1,6 @@
 'use client'
 
-import { getApprovalCategoryLabel } from '@/lib/approvals/categories'
+import { getApprovalCategoryLabel, getApprovalCategoryShortLabel } from '@/lib/approvals/categories'
 import type { ApprovalListItem } from '@/lib/approvals/types'
 import { formatApprovalMoney, getSignoffStatusLabel } from '@/lib/approvals/utils'
 
@@ -45,7 +45,7 @@ export function ApprovalListTable({ approvals, emptyMessage, onSelectApproval }:
                 결재상태
               </th>
               <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-blue-800 uppercase">
-                합계금액
+                합계(VAT포함)
               </th>
             </tr>
           </thead>
@@ -59,7 +59,7 @@ export function ApprovalListTable({ approvals, emptyMessage, onSelectApproval }:
                 <td className="px-4 py-3 text-sm text-slate-700">{approval.writtenDate || '-'}</td>
                 <td className="px-4 py-3 font-mono text-xs text-blue-700">{approval.docNumber || approval.id}</td>
                 <td className="px-4 py-3 text-sm text-slate-700">
-                  {getApprovalCategoryLabel(approval.category)}
+                  {getApprovalCategoryShortLabel(approval.category)}
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-700">{approval.subject || '-'}</td>
                 <td className="px-4 py-3 text-sm text-slate-700">{approval.author || '-'}</td>

@@ -1,9 +1,8 @@
 export const APPROVAL_SIGNOFF_STEPS = [
-  { role: 'draft', label: '작성', auto: true },
-  { role: 'review1', label: '검토1' },
-  { role: 'review2', label: '검토2' },
-  { role: 'review3', label: '검토3' },
-  { role: 'approval', label: '승인' },
+  { role: 'team_leader', label: '팀장' },
+  { role: 'director', label: '이사' },
+  { role: 'executive_vp', label: '전무' },
+  { role: 'president', label: '사장' },
 ] as const
 
 export type ApprovalSignoffRole = (typeof APPROVAL_SIGNOFF_STEPS)[number]['role']
@@ -12,27 +11,21 @@ export type ApprovalSignoff = {
   role: ApprovalSignoffRole
   label: string
   status: 'pending' | 'approved'
-  approverName?: string
   approvedAt?: string
 }
 
-export const APPROVER_NAME_STORAGE_KEY = 'mirae-approval-signer-name'
-
 const LEGACY_ROLE_MAP: Record<string, ApprovalSignoffRole> = {
-  draft: 'draft',
-  review1: 'review1',
-  review2: 'review2',
-  review3: 'review3',
-  approval: 'approval',
-  manager: 'review1',
-  director: 'review2',
-  executive: 'review3',
-  ceo: 'approval',
-}
-
-export function isAutoSignoffRole(role: ApprovalSignoffRole) {
-  const step = APPROVAL_SIGNOFF_STEPS.find((entry) => entry.role === role)
-  return step !== undefined && 'auto' in step && step.auto === true
+  team_leader: 'team_leader',
+  director: 'director',
+  executive_vp: 'executive_vp',
+  president: 'president',
+  manager: 'team_leader',
+  review1: 'team_leader',
+  review2: 'director',
+  review3: 'executive_vp',
+  approval: 'president',
+  executive: 'executive_vp',
+  ceo: 'president',
 }
 
 export function createDefaultSignoffs(): ApprovalSignoff[] {
@@ -63,7 +56,6 @@ export function normalizeSignoffs(raw: unknown): ApprovalSignoff[] {
       role: step.role,
       label: step.label,
       status: (item as ApprovalSignoff).status === 'approved' ? 'approved' : 'pending',
-      approverName: String((item as ApprovalSignoff).approverName ?? '').trim() || undefined,
       approvedAt: String((item as ApprovalSignoff).approvedAt ?? '').trim() || undefined,
     })
   }
@@ -79,34 +71,13 @@ export function normalizeSignoffs(raw: unknown): ApprovalSignoff[] {
 }
 
 export function canApproveSignoff(signoffs: ApprovalSignoff[], role: ApprovalSignoffRole) {
-  if (isAutoSignoffRole(role)) return false
   const index = signoffs.findIndex((item) => item.role === role)
   if (index < 0) return false
   if (signoffs[index].status === 'approved') return false
   return signoffs.slice(0, index).every((item) => item.status === 'approved')
 }
 
-export function applyAuthorSignoff(signoffs: ApprovalSignoff[], authorName: string): ApprovalSignoff[] {
-  const name = authorName.trim()
-  if (!name) return signoffs
-
-  return signoffs.map((item) =>
-    item.role === 'draft'
-      ? {
-          ...item,
-          status: 'approved' as const,
-          approverName: name,
-          approvedAt: new Date().toISOString(),
-        }
-      : item,
-  )
-}
-
-export function applySignoff(
-  signoffs: ApprovalSignoff[],
-  role: ApprovalSignoffRole,
-  approverName: string,
-): ApprovalSignoff[] {
+export function applySignoff(signoffs: ApprovalSignoff[], role: ApprovalSignoffRole): ApprovalSignoff[] {
   if (!canApproveSignoff(signoffs, role)) return signoffs
 
   return signoffs.map((item) =>
@@ -114,7 +85,6 @@ export function applySignoff(
       ? {
           ...item,
           status: 'approved',
-          approverName: approverName.trim(),
           approvedAt: new Date().toISOString(),
         }
       : item,
@@ -132,13 +102,8 @@ export function getSignoffProgress(signoffs: ApprovalSignoff[]) {
 export function getSignoffStatusLabel(signoffs: ApprovalSignoff[]) {
   const { isComplete, nextPending, approvedCount, total } = getSignoffProgress(signoffs)
   if (isComplete) return '결재완료'
-  if (approvedCount === 0) return `${nextPending?.label ?? '작성'} 대기`
+  if (approvedCount === 0) return `${nextPending?.label ?? '팀장'} 대기`
   return `${nextPending?.label ?? '결재'} 대기 (${approvedCount}/${total})`
-}
-
-export function getSignoffActionLabel(role: ApprovalSignoffRole) {
-  if (role === 'approval') return '승인하기'
-  return '검토하기'
 }
 
 export function formatSignoffDate(iso?: string) {
@@ -151,14 +116,4 @@ export function formatSignoffDate(iso?: string) {
     month: 'numeric',
     day: 'numeric',
   }).format(date)
-}
-
-export function readStoredApproverName() {
-  if (typeof window === 'undefined') return ''
-  return window.localStorage.getItem(APPROVER_NAME_STORAGE_KEY) ?? ''
-}
-
-export function storeApproverName(name: string) {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(APPROVER_NAME_STORAGE_KEY, name.trim())
 }

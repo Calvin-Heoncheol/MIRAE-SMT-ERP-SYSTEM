@@ -1,18 +1,31 @@
 'use client'
 
 import { ApprovalAttachmentsField } from '@/components/approvals/approval-attachments-field'
+import { ApprovalPaymentMethodField } from '@/components/approvals/approval-payment-method-field'
 import { ApprovalSignoffPanel } from '@/components/approvals/approval-signoff-panel'
-import type { ApprovalCategory } from '@/lib/approvals/categories'
-import { getApprovalCategoryLabel, getApprovalDetailColumns } from '@/lib/approvals/categories'
+import type { ApprovalCategory, ApprovalDetailColumn } from '@/lib/approvals/categories'
+import {
+  getApprovalCategoryDescription,
+  getApprovalCategoryExamples,
+  getApprovalCategoryLabel,
+  getApprovalDetailColumns,
+  getApprovalIntroBodyPlaceholder,
+  getApprovalSubjectPlaceholder,
+  usesAmountBasisSelector,
+  usesComputedLineAmount,
+} from '@/lib/approvals/categories'
 import type { ApprovalFormState } from '@/lib/approvals/form-state'
 import {
-  computeApprovalTotalAmount,
+  computeApprovalGrandTotal,
+  computeApprovalSupplyAmount,
+  computeApprovalVatAmount,
   computeLineAmount,
   defaultApprovalDetailItem,
 } from '@/lib/approvals/form-state'
 import { APPROVAL_DEPARTMENTS } from '@/lib/approvals/departments'
 import { formatApprovalMoney } from '@/lib/approvals/utils'
 import type { ApprovalSignoffRole } from '@/lib/approvals/signoffs'
+import type { ApprovalAmountBasis } from '@/lib/approvals/types'
 
 type ApprovalFormDocumentProps = {
   category: ApprovalCategory
@@ -21,10 +34,58 @@ type ApprovalFormDocumentProps = {
   readOnly?: boolean
   canSign?: boolean
   signing?: boolean
-  onSign?: (role: ApprovalSignoffRole, approverName: string) => Promise<void> | void
+  onSign?: (role: ApprovalSignoffRole) => Promise<void> | void
   isDocNumberDraft?: boolean
   pendingAttachmentFiles?: File[]
   onPendingAttachmentFilesChange?: (files: File[]) => void
+}
+
+function AmountBasisField({
+  amountBasis,
+  readOnly,
+  onChange,
+}: {
+  amountBasis: ApprovalAmountBasis
+  readOnly: boolean
+  onChange: (value: ApprovalAmountBasis) => void
+}) {
+  return (
+    <div className="block text-sm">
+      <span className="mb-2 block text-xs font-semibold tracking-wide text-slate-500">금액 기준</span>
+      <div className="flex flex-wrap gap-4">
+        <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={amountBasis === 'supply'}
+            disabled={readOnly}
+            onChange={() => onChange(amountBasis === 'supply' ? '' : 'supply')}
+            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+          />
+          공급가액 기준
+        </label>
+        <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={amountBasis === 'total'}
+            disabled={readOnly}
+            onChange={() => onChange(amountBasis === 'total' ? '' : 'total')}
+            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+          />
+          공급대가 기준
+        </label>
+        <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={amountBasis === 'exempt'}
+            disabled={readOnly}
+            onChange={() => onChange(amountBasis === 'exempt' ? '' : 'exempt')}
+            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+          />
+          면세
+        </label>
+      </div>
+    </div>
+  )
 }
 
 function Field({
@@ -34,6 +95,7 @@ function Field({
   readOnly,
   className = '',
   type = 'text',
+  placeholder,
 }: {
   label: string
   value: string
@@ -41,6 +103,7 @@ function Field({
   readOnly?: boolean
   className?: string
   type?: string
+  placeholder?: string
 }) {
   return (
     <label className={`block text-sm ${className}`}>
@@ -53,8 +116,9 @@ function Field({
         <input
           type={type}
           value={value}
+          placeholder={placeholder}
           onChange={(event) => onChange?.(event.target.value)}
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400"
         />
       )}
     </label>
@@ -67,12 +131,14 @@ function TextAreaField({
   onChange,
   readOnly,
   rows = 3,
+  placeholder,
 }: {
   label: string
   value: string
   onChange?: (value: string) => void
   readOnly?: boolean
   rows?: number
+  placeholder?: string
 }) {
   return (
     <label className="block text-sm">
@@ -85,8 +151,9 @@ function TextAreaField({
         <textarea
           value={value}
           rows={rows}
+          placeholder={placeholder}
           onChange={(event) => onChange?.(event.target.value)}
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400"
         />
       )}
     </label>
@@ -105,8 +172,14 @@ export function ApprovalFormDocument({
   pendingAttachmentFiles = [],
   onPendingAttachmentFilesChange,
 }: ApprovalFormDocumentProps) {
-  const totalAmount = computeApprovalTotalAmount(form)
+  const supplyAmount = computeApprovalSupplyAmount(form, category)
+  const vatAmount = computeApprovalVatAmount(supplyAmount, category, form)
+  const grandTotal = computeApprovalGrandTotal(form, category)
   const detailColumns = getApprovalDetailColumns(category)
+  const introBodyPlaceholder = getApprovalIntroBodyPlaceholder(category)
+  const subjectPlaceholder = getApprovalSubjectPlaceholder(category)
+  const amountBasis = form.amountBasis || 'supply'
+  const showAmountBasisSelector = usesAmountBasisSelector(category)
 
   function patch(patch: Partial<ApprovalFormState>) {
     onChange({ ...form, ...patch })
@@ -116,7 +189,7 @@ export function ApprovalFormDocument({
     const detailItems = form.detailItems.map((item, itemIndex) => {
       if (itemIndex !== index) return item
       const next = { ...item, ...patch }
-      if ('qty' in patch || 'unitPrice' in patch) {
+      if (usesComputedLineAmount(category) && ('qty' in patch || 'unitPrice' in patch)) {
         next.amount = computeLineAmount(next.qty, next.unitPrice)
       }
       return next
@@ -125,12 +198,62 @@ export function ApprovalFormDocument({
   }
 
   function addDetailRow() {
-    onChange({ ...form, detailItems: [...form.detailItems, defaultApprovalDetailItem()] })
+    onChange({ ...form, detailItems: [...form.detailItems, defaultApprovalDetailItem(category)] })
   }
 
   function removeDetailRow(index: number) {
     if (form.detailItems.length <= 1) return
     onChange({ ...form, detailItems: form.detailItems.filter((_, itemIndex) => itemIndex !== index) })
+  }
+
+  function formatDetailCellValue(item: ApprovalFormState['detailItems'][number], column: ApprovalDetailColumn) {
+    const raw = item[column.key]
+    if (!raw) return '-'
+    if (column.computed || column.key === 'amount') {
+      const numeric = Number(String(raw).replace(/,/g, ''))
+      if (!Number.isNaN(numeric) && numeric > 0) return formatApprovalMoney(numeric)
+    }
+    return raw
+  }
+
+  function renderDetailCell(
+    item: ApprovalFormState['detailItems'][number],
+    index: number,
+    column: ApprovalDetailColumn,
+  ) {
+    if (readOnly || column.computed) {
+      return (
+        <span
+          className={[
+            'block rounded px-2 py-1.5 text-sm',
+            column.computed || column.key === 'amount'
+              ? 'bg-slate-50 text-slate-700 tabular-nums'
+              : 'text-slate-800',
+          ].join(' ')}
+        >
+          {formatDetailCellValue(item, column)}
+        </span>
+      )
+    }
+
+    if (column.inputType === 'date') {
+      return (
+        <input
+          type="date"
+          value={item[column.key]}
+          onChange={(event) => updateDetail(index, { [column.key]: event.target.value })}
+          className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+        />
+      )
+    }
+
+    return (
+      <input
+        value={item[column.key]}
+        onChange={(event) => updateDetail(index, { [column.key]: event.target.value })}
+        className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+      />
+    )
   }
 
   return (
@@ -150,7 +273,11 @@ export function ApprovalFormDocument({
 
         <div className="border-t border-slate-100 pt-4 text-center">
           <h2 className="text-2xl font-bold tracking-[0.45em] text-slate-900">품 의 서</h2>
-          <p className="mt-1.5 text-xs text-slate-500">{getApprovalCategoryLabel(category)}</p>
+          <p className="mt-1.5 text-sm font-semibold text-slate-700">{getApprovalCategoryLabel(category)}</p>
+          <p className="mt-1 text-xs text-slate-500">{getApprovalCategoryDescription(category)}</p>
+          <p className="mt-1 text-[11px] text-slate-400">
+            해당 항목: {getApprovalCategoryExamples(category)}
+          </p>
         </div>
       </div>
 
@@ -217,6 +344,7 @@ export function ApprovalFormDocument({
           label="제     목"
           value={form.subject}
           readOnly={readOnly}
+          placeholder={subjectPlaceholder || undefined}
           onChange={(subject) => patch({ subject })}
         />
       </div>
@@ -227,6 +355,7 @@ export function ApprovalFormDocument({
           value={form.introBody}
           readOnly={readOnly}
           rows={4}
+          placeholder={introBodyPlaceholder || undefined}
           onChange={(introBody) => patch({ introBody })}
         />
       </div>
@@ -236,8 +365,23 @@ export function ApprovalFormDocument({
       </div>
 
       <div>
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-slate-800">1. 상세 내역</p>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">1. 상세 내역</p>
+            {showAmountBasisSelector ? (
+              <p className="mt-0.5 text-xs font-medium text-red-600">
+                {amountBasis === 'total'
+                  ? '단가·금액은 공급대가 기준으로 입력합니다. 공급가액과 부가세는 자동 역산됩니다.'
+                  : amountBasis === 'exempt'
+                    ? '단가·금액은 면세 금액 기준으로 입력합니다. 부가세는 0원으로 처리됩니다.'
+                    : '단가·금액은 공급가액(VAT 별도) 기준으로 입력합니다.'}
+              </p>
+            ) : (
+              <p className="mt-0.5 text-xs font-medium text-red-600">
+                관세/부가세는 각각 별도 입력하며, 최종 금액은 두 금액의 합산으로 계산됩니다.
+              </p>
+            )}
+          </div>
           {!readOnly ? (
             <button
               type="button"
@@ -248,6 +392,16 @@ export function ApprovalFormDocument({
             </button>
           ) : null}
         </div>
+
+        {showAmountBasisSelector ? (
+          <div className="mb-3">
+            <AmountBasisField
+              amountBasis={amountBasis}
+              readOnly={readOnly}
+              onChange={(value) => patch({ amountBasis: value || 'supply' })}
+            />
+          </div>
+        ) : null}
 
         <div className="overflow-x-auto rounded-lg border border-slate-200">
           <table className="min-w-[920px] w-full border-collapse text-sm">
@@ -268,26 +422,7 @@ export function ApprovalFormDocument({
                   <td className="px-3 py-2 text-slate-500">{index + 1}</td>
                   {detailColumns.map((column) => (
                     <td key={column.key} className="px-2 py-2">
-                      {readOnly || column.computed ? (
-                        <span
-                          className={[
-                            'block rounded px-2 py-1.5 text-sm',
-                            column.computed ? 'bg-slate-50 text-slate-700 tabular-nums' : 'text-slate-800',
-                          ].join(' ')}
-                        >
-                          {item[column.key]
-                            ? column.computed
-                              ? formatApprovalMoney(Number(item[column.key]))
-                              : item[column.key]
-                            : '-'}
-                        </span>
-                      ) : (
-                        <input
-                          value={item[column.key]}
-                          onChange={(event) => updateDetail(index, { [column.key]: event.target.value })}
-                          className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                        />
-                      )}
+                      {renderDetailCell(item, index, column)}
                     </td>
                   ))}
                   {!readOnly ? (
@@ -307,18 +442,28 @@ export function ApprovalFormDocument({
           </table>
         </div>
 
-        <p className="mt-3 text-right text-sm font-semibold text-slate-800">
-          합계금액: {formatApprovalMoney(totalAmount)}
-        </p>
+        <div className="mt-3 space-y-1 text-right text-sm text-slate-800">
+          <p>
+            {category === 'duty-tax' ? '관세 합계' : '공급가액 합계'}:{' '}
+            <span className="font-semibold tabular-nums">{formatApprovalMoney(supplyAmount)}</span>
+          </p>
+          <p>
+            {category === 'duty-tax' ? '부가세 합계' : `부가세 (${amountBasis === 'exempt' ? '0%' : '10%'})`}:{' '}
+            <span className="font-semibold tabular-nums">{formatApprovalMoney(vatAmount)}</span>
+          </p>
+          <p className="text-base">
+            {category === 'duty-tax' ? '합계금액' : '공급대가'} ({category === 'duty-tax' ? '관세+부가세' : amountBasis === 'exempt' ? '면세' : 'VAT 포함'}):{' '}
+            <span className="font-bold tabular-nums text-slate-900">{formatApprovalMoney(grandTotal)}</span>
+          </p>
+        </div>
       </div>
 
       <div className="mt-5 space-y-4">
-        <TextAreaField
-          label="2. 결제 방법"
-          value={form.paymentMethod}
+        <ApprovalPaymentMethodField
+          paymentType={form.paymentType}
+          paymentMethod={form.paymentMethod}
           readOnly={readOnly}
-          rows={2}
-          onChange={(paymentMethod) => patch({ paymentMethod })}
+          onChange={(paymentPatch) => patch(paymentPatch)}
         />
         <ApprovalAttachmentsField
           description={form.attachments}

@@ -4,6 +4,9 @@ import type { ApprovalSignoff } from './signoffs'
 export type ApprovalDetailItem = {
   name: string
   model: string
+  partNumber: string
+  unit: string
+  supplier: string
   qty: string
   unitPrice: string
   amount: string
@@ -20,8 +23,13 @@ export type ApprovalAttachmentFile = {
   uploadedAt: string
 }
 
+export type ApprovalPaymentType = 'immediate' | 'recurring' | ''
+export type ApprovalAmountBasis = 'supply' | 'total' | 'exempt' | ''
+
 export type ApprovalDetailInfo = {
   detailItems: ApprovalDetailItem[]
+  amountBasis: ApprovalAmountBasis
+  paymentType: ApprovalPaymentType
   paymentMethod: string
   attachments: string
   attachmentFiles: ApprovalAttachmentFile[]

@@ -18,8 +18,8 @@ import {
   type ApprovalFormState,
 } from '@/lib/approvals/form-state'
 import { createApproval, deleteApprovals, updateApproval } from '@/lib/approvals/repository'
-import { applySignoff, applyAuthorSignoff, type ApprovalSignoffRole } from '@/lib/approvals/signoffs'
-import type { ApprovalListItem, ApprovalRowPayload } from './types'
+import { applySignoff, type ApprovalSignoffRole } from '@/lib/approvals/signoffs'
+import type { ApprovalListItem, ApprovalRowPayload } from '@/lib/approvals/types'
 
 type ApprovalModalProps = {
   open: boolean
@@ -43,7 +43,7 @@ function buildPayload(category: ApprovalCategory, form: ApprovalFormState, mode:
     processing_date: form.processingDate.trim(),
     subject: form.subject.trim(),
     intro_body: form.introBody.trim(),
-    total_amount: computeApprovalTotalAmount(form),
+    total_amount: computeApprovalTotalAmount(form, category),
     detail_info: formToDetailInfo(form),
   }
 
@@ -79,13 +79,13 @@ export function ApprovalModal({
       setForm(nextForm)
       initialAttachmentPathsRef.current = nextForm.attachmentFiles.map((file) => file.path)
     } else {
-      setForm(createDefaultApprovalForm())
+      setForm(createDefaultApprovalForm(category))
       initialAttachmentPathsRef.current = []
     }
     setPendingFiles([])
     setRemovedFilePaths([])
     setSaveError('')
-  }, [open, mode, approval])
+  }, [open, mode, approval, category])
 
   if (!open) return null
 
@@ -121,7 +121,7 @@ export function ApprovalModal({
       return
     }
     if (!form.author.trim()) {
-      setSaveError('작성자를 입력해 주세요. (작성 결재칸에 반영됩니다)')
+      setSaveError('작성자를 입력해 주세요.')
       return
     }
     if (!isApprovalDepartment(form.department)) {
@@ -132,8 +132,7 @@ export function ApprovalModal({
     setSaving(true)
     setSaveError('')
 
-    const signoffs = applyAuthorSignoff(form.signoffs, form.author)
-    const baseForm = { ...form, signoffs, docNumber: mode === 'create' ? '' : form.docNumber }
+    const baseForm = { ...form, docNumber: mode === 'create' ? '' : form.docNumber }
     const payload = buildPayload(category, baseForm, mode)
 
     const result =
@@ -199,13 +198,13 @@ export function ApprovalModal({
     onDeleted?.()
   }
 
-  async function handleSign(role: ApprovalSignoffRole, approverName: string) {
+  async function handleSign(role: ApprovalSignoffRole) {
     if (!approval || mode !== 'edit') return
 
     setSigning(true)
     setSaveError('')
 
-    const nextSignoffs = applySignoff(form.signoffs, role, approverName)
+    const nextSignoffs = applySignoff(form.signoffs, role)
     const nextForm = { ...form, signoffs: nextSignoffs }
     const payload = buildPayload(category, nextForm, 'edit')
     const result = await updateApproval(approval.id, payload)

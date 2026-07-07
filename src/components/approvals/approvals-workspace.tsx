@@ -8,6 +8,8 @@ import { ApprovalListTable } from '@/components/approvals/approval-list-table'
 import { ApprovalModal } from '@/components/approvals/approval-modal'
 import {
   APPROVAL_CATEGORIES,
+  getApprovalCategoryDescription,
+  getApprovalCategoryExamples,
   getApprovalCategoryLabel,
   type ApprovalCategory,
 } from '@/lib/approvals/categories'
@@ -61,9 +63,15 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
       <div className="flex min-h-[calc(100vh-60px)] w-full flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">품의서 관리</h1>
+            <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">결재서 · 품의서</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">품의서 관리</h1>
             <p className="mt-1 text-sm text-slate-500">
               {getApprovalCategoryLabel(category)} 품의서를 작성하고 목록을 관리합니다.
+            </p>
+            <p className="mt-1 text-xs text-slate-400">{getApprovalCategoryDescription(category)}</p>
+            <p className="mt-0.5 text-xs text-slate-400">
+              <span className="font-medium text-slate-500">해당 항목:</span>{' '}
+              {getApprovalCategoryExamples(category)}
             </p>
           </div>
           <button
@@ -89,7 +97,7 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
                     : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
                 ].join(' ')}
               >
-                {item.label}
+                {item.shortLabel}
               </Link>
             )
           })}

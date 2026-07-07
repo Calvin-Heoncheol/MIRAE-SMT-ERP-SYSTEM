@@ -5,7 +5,15 @@
 create table if not exists public.approvals (
   id text primary key,
   category text not null check (
-    category in ('raw-materials', 'sub-materials', 'equipment', 'facilities', 'misc')
+    category in (
+      'consumables',
+      'equipment-purchase',
+      'facility-investment',
+      'maintenance',
+      'duty-tax',
+      'exhibition-program',
+      'general'
+    )
   ),
   doc_number text not null,
   written_date date not null default current_date,
@@ -26,7 +34,7 @@ create table if not exists public.approvals (
 comment on table public.approvals is '품의서 마스터 — 품의코드·문서번호 MRA-0001';
 comment on column public.approvals.id is '품의코드 MRA-0001 (INSERT 시 자동 발급, 수정 불가)';
 comment on column public.approvals.doc_number is '문서번호 MRA-0001 (id와 동일, INSERT 시 자동 발급)';
-comment on column public.approvals.category is '원자재/부자재/장비/설비/기타';
+comment on column public.approvals.category is '부자재/장비구입/설비투자/유지보수/관세/전시회/기타';
 comment on column public.approvals.detail_info is '상세내역·결제방법·첨부서류 등 JSON';
 
 create index if not exists approvals_written_date_idx on public.approvals (written_date desc);
