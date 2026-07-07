@@ -19,7 +19,7 @@ import {
 } from '@/lib/approvals/form-state'
 import { createApproval, deleteApprovals, updateApproval } from '@/lib/approvals/repository'
 import { applySignoff, applyAuthorSignoff, type ApprovalSignoffRole } from '@/lib/approvals/signoffs'
-import type { ApprovalListItem, ApprovalRowPayload } from './types'
+import type { ApprovalListItem, ApprovalRowPayload } from '@/lib/approvals/types'
 
 type ApprovalModalProps = {
   open: boolean

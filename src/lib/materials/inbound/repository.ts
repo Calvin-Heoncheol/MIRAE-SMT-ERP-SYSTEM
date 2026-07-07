@@ -23,6 +23,14 @@ export type SaveMaterialInboundResult =
   | { ok: true; inboundId: string; inboundNumber: string }
   | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
 
+function missingFetchEnvResult(): FetchMaterialInboundsResult {
+  return {
+    ok: false,
+    reason: 'env',
+    detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+  }
+}
+
 function missingEnvResult(): SaveMaterialInboundResult {
   return {
     ok: false,
@@ -114,7 +122,7 @@ function validateInboundPayload(payload: MaterialInboundRowPayload): string | nu
 
 export async function fetchMaterialInbounds(): Promise<FetchMaterialInboundsResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return missingEnvResult()
+    return missingFetchEnvResult()
   }
 
   try {
