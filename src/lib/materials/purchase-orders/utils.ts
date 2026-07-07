@@ -73,7 +73,7 @@ export function mapMaterialPurchaseOrderLineRecord(line: {
   inbound_quantity: number
 }): MaterialPurchaseOrderLineItem {
   return {
-    lineId: line.id,
+    lineId: line.id || '',
     materialId: line.material_id || null,
     cpn: line.cpn || '',
     materialName: line.material_name || '',
@@ -125,6 +125,13 @@ export function computeMaterialPurchaseOrderLineAmount(quantity: number, unitPri
   return qty * price
 }
 
+/** 발주수량 − 누적입고 (입고예정·발주연동 입고 공통) */
+export function computePurchaseOrderRemainingQuantity(orderedQuantity: number, inboundQuantity: number) {
+  const ordered = Math.max(0, Number(orderedQuantity) || 0)
+  const received = Math.max(0, Number(inboundQuantity) || 0)
+  return Math.max(0, ordered - received)
+}
+
 export function formatInternalCodeLabel(code: string) {
   const value = code.trim()
   if (!value) return '—'
@@ -161,12 +168,12 @@ export function materialMatchesMpn(material: Material, mpn: string) {
 
 export function filterMaterialsForPurchaseOrder(
   materials: Material[],
-  supplier: string,
+  supplier: string | null | undefined,
   query: string,
   field?: 'cpn' | 'mpn' | 'cpnOrMpn',
 ) {
   const q = query.trim().toLowerCase()
-  const supplierTrim = supplier.trim()
+  const supplierTrim = String(supplier ?? '').trim()
 
   return materials.filter((material) => {
     if (supplierTrim && material.supplier.trim() && material.supplier.trim() !== supplierTrim) {
@@ -203,7 +210,7 @@ export function filterMaterialsForPurchaseOrder(
 
 export function resolveMaterialFromFieldInput(
   materials: Material[],
-  supplier: string,
+  supplier: string | null | undefined,
   field: 'cpn' | 'mpn',
   value: string,
 ): Material | null {
@@ -221,7 +228,7 @@ export function resolveMaterialFromFieldInput(
 
 export function resolveMaterialFromCpnOrMpnInput(
   materials: Material[],
-  supplier: string,
+  supplier: string | null | undefined,
   value: string,
 ): Material | null {
   const trimmed = value.trim()
@@ -235,7 +242,7 @@ export function resolveMaterialFromCpnOrMpnInput(
 
 export function resolveMaterialFromInput(
   materials: Material[],
-  supplier: string,
+  supplier: string | null | undefined,
   materialName: string,
   cpn?: string,
 ): Material | null {
@@ -259,7 +266,7 @@ export function resolveMaterialFromInput(
 
 export function resolveMaterialPurchaseOrderLineMaterial(
   materials: Material[],
-  supplier: string,
+  supplier: string | null | undefined,
   item: { materialId?: string | null; materialName: string; cpn: string; mpn: string },
 ): Material | null {
   const materialId = String(item.materialId || '').trim()

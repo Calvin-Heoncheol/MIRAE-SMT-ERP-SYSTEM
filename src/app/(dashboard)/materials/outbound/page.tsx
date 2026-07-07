@@ -1,10 +1,5 @@
-import { PagePlaceholder } from '@/components/dashboard/page-placeholder'
+import { redirect } from 'next/navigation'
 
-export default function MaterialOutboundPage() {
-  return (
-    <PagePlaceholder
-      title="자재 불출"
-      description="자재 불출 화면은 추후 구현 예정입니다."
-    />
-  )
+export default function MaterialOutboundRedirectPage() {
+  redirect('/materials/inventory/outbound')
 }

@@ -31,6 +31,7 @@ export type QuoteDetailAmounts = {
   test: number
   packing: number
   materialCost: number
+  materialManagementCost: number
   setupCost: number
   subMaterialCost: number
 }
@@ -126,6 +127,7 @@ export type EstimateResult = {
   common: {
     smtSetup: number
     smtSetupPartCount: number
+    smtInspectionPerUnit: number
     smtLaborPerUnit: number
     smtLaborRawPerUnit: number
     smtLaborMinApplied: boolean
@@ -134,6 +136,7 @@ export type EstimateResult = {
     pcbBoardDetails: SmtBoardDetail[]
     dipBoardDetails: DipBoardDetail[]
     subMaterial: number
+    materialManagement: number
     specialDiscount: number
     subtotalBeforeDiscount: number
     grandTotal: string
@@ -152,7 +155,10 @@ export type SmtBoardDetail = SmtPcbBoard & {
   laborMinApplied: boolean
   laborMinAdjustment: number
   chipTotal: number
-  aoiUnit: number
+  aoiInspectionUnit: number
+  xrayInspectionUnit: number
+  visualInspectionUnit: number
+  inspectionUnit: number
   pcbWashUnit: number
 }
 
