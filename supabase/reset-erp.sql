@@ -9,6 +9,8 @@ drop view if exists public.order_assembly_group_detail cascade;
 drop view if exists public.semi_product_bom_detail cascade;
 drop view if exists public.finished_product_bom_detail cascade;
 
+drop table if exists public.material_inbound_lines cascade;
+drop table if exists public.material_inbound_records cascade;
 drop table if exists public.material_purchase_order_lines cascade;
 drop table if exists public.material_purchase_orders cascade;
 drop table if exists public.smt_production_records cascade;
@@ -26,6 +28,7 @@ drop table if exists public.products cascade;
 drop table if exists public.material_mpns cascade;
 drop table if exists public.materials cascade;
 
+drop function if exists public.generate_material_inbound_code() cascade;
 drop function if exists public.generate_material_purchase_order_code() cascade;
 drop function if exists public.generate_product_code() cascade;
 drop function if exists public.generate_material_code() cascade;

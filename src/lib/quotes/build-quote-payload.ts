@@ -47,6 +47,7 @@ export function buildQuoteDetailInfo(
       test: 0,
       packing: 0,
       materialCost: materialCostPerUnit * qty,
+      materialManagementCost: result.common.materialManagement,
       setupCost: result.common.smtSetup,
       subMaterialCost: result.common.subMaterial,
     },

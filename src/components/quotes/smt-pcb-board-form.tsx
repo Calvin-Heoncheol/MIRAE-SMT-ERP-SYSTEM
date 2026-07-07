@@ -14,7 +14,7 @@ import {
   SMT_UNIT_SPECIAL,
 } from '@/lib/quotes/constants'
 import { computeSmtSetupBillingMinutes, getSmtSetupPartCount } from '@/lib/quotes/calculate-estimate'
-import { formatQuoteMoneyUnit, formatQuoteSetupMinutes } from '@/lib/quotes/format'
+import { formatQuoteKrw, formatQuoteSetupMinutes } from '@/lib/quotes/format'
 import type { SmtBoardForm } from '@/lib/quotes/form-state'
 import type { QuoteType } from '@/lib/quotes/types'
 
@@ -25,10 +25,10 @@ type SmtPcbBoardFormProps = {
   onPcbNameChange?: () => void
 }
 
-function UnitPreview({ krw, suffix = '', quoteType }: { krw: number; suffix?: string; quoteType: QuoteType }) {
+function UnitPreview({ krw, suffix = '' }: { krw: number; suffix?: string; quoteType: QuoteType }) {
   return (
     <span className="mt-1 block text-[11px] text-slate-400">
-      {formatQuoteMoneyUnit(krw, quoteType)}
+      {formatQuoteKrw(krw)}
       {suffix}
     </span>
   )
@@ -205,11 +205,11 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
           </label>
         )}
         <div className="mt-2 space-y-1 text-[11px] text-slate-400">
-          <p>장비 임율: {formatQuoteMoneyUnit(setupRate, quoteType)}/분</p>
+          <p>장비 임율: {formatQuoteKrw(setupRate)}/분</p>
           {partCount > 0 ? (
             <p>
               합계 종수 {partCount}종 · 세팅 총 소요시간 {formatQuoteSetupMinutes(setupMinutes)} · 예상 SET-UP{' '}
-              {formatQuoteMoneyUnit(Math.round(setupMinutes * setupRate), quoteType)}
+              {formatQuoteKrw(Math.round(setupMinutes * setupRate))}
             </p>
           ) : null}
         </div>

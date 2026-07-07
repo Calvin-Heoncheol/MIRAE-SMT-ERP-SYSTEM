@@ -12,7 +12,7 @@ import {
 type MaterialComboboxProps = {
   value: string
   materials: Material[]
-  supplier: string
+  supplier?: string
   placeholder?: string
   ariaLabel: string
   inputClassName?: string
@@ -37,7 +37,7 @@ function formatMaterialOptionSubLabel(material: Material) {
 export function MaterialCombobox({
   value,
   materials,
-  supplier,
+  supplier = '',
   placeholder,
   ariaLabel,
   inputClassName,

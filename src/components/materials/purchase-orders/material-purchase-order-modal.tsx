@@ -207,11 +207,7 @@ function MaterialPurchaseOrderModalContent({
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600"
                 />
               </label>
-            ) : (
-              <div className="rounded-lg border border-dashed border-violet-200 bg-violet-50/50 px-4 py-3 text-sm text-violet-900 sm:col-span-2">
-                발주번호는 저장 시 <span className="font-mono font-semibold">MRP-YYMMDD</span> 형식으로 자동 발급됩니다.
-              </div>
-            )}
+            ) : null}
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-600">발주일</span>
               <input

@@ -5,8 +5,8 @@ import { DipPcbBoardForm } from '@/components/quotes/dip-pcb-board-form'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import {
-  AOI_UNIT_PRICE_DOUBLE,
-  AOI_UNIT_PRICE_SINGLE,
+  AOI_INSPECTION_UNIT_DOUBLE,
+  AOI_INSPECTION_UNIT_SINGLE,
   POST_RATE,
   SMT_PLACEMENT_MIN_SCORE,
   getSmtPlacementMinFee,
@@ -14,14 +14,16 @@ import {
 } from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
-import { formatQuoteMoneyTotal, formatQuoteMoneyUnit, formatQuoteValidityText } from '@/lib/quotes/format'
+import { COMPANY_NAME_EN } from '@/lib/app-config'
+import { exportSummaryFromKrw, formatQuoteKrw, formatQuoteMoneyTotal, formatQuoteMoneyUnit, formatQuoteValidityText } from '@/lib/quotes/format'
+import { getPreviewLabels } from '@/lib/quotes/preview-i18n'
 import {
   buildPreviewRows,
+  formatPreviewRowDescription,
   formatPreviewRowUnit,
   isPreviewHighlightRow,
   SECTION_TOTAL_ROW_CLASS,
   SECTION_TOTAL_ROW_ACCENT_CLASS,
-  BOARD_SUBTOTAL_ROW_CLASS,
 } from '@/lib/quotes/preview-rows'
 import {
   defaultDipBoardForm,
@@ -192,9 +194,7 @@ function QuoteModalContent({
 
   const isDomestic = quoteType === 'domestic'
   const typeBadge = isDomestic ? '국내용 견적서' : '해외용 견적서'
-  const previewTitle = isDomestic ? '견 적 서' : 'QUOTATION'
-  const unitColLabel = '단가'
-  const totalColLabel = '대당 합계'
+  const previewLabels = getPreviewLabels(quoteType)
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -342,12 +342,15 @@ function QuoteModalContent({
   const previewIssueDate =
     mode === 'edit' && quote?.quoteDate ? quote.quoteDate : result?.date || ''
   const previewProduct = form.productName.trim() || '-'
-  const qtyLabel = isDomestic ? 'EA' : ' EA'
   const previewRows = result ? buildPreviewRows(result, form, quoteType) : []
+  const exportSummary =
+    result && quoteType === 'export'
+      ? exportSummaryFromKrw(result.values.grandTotal, result.qty || 1)
+      : null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-      <div className="relative flex max-h-[92vh] w-full max-w-[min(1400px,98vw)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="relative flex max-h-[92vh] w-full max-w-[min(1600px,98vw)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         {mode === 'edit' ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
             <h2 className="text-lg font-bold text-slate-900">
@@ -391,13 +394,13 @@ function QuoteModalContent({
           </button>
         )}
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[1fr_600px]">
-          <div className="overflow-y-auto border-slate-200 p-5 lg:border-r">
-            <div className="mb-4 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <div className="overflow-y-auto border-slate-200 p-4 lg:border-r">
+            <div className="mb-3 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
               {typeBadge}
             </div>
 
-            <section className="mb-4 rounded-xl border border-slate-200 p-4">
+            <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
               <h3 className="mb-3 text-sm font-bold text-slate-900">기본 정보</h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block text-sm">
@@ -441,15 +444,15 @@ function QuoteModalContent({
               </div>
             </section>
 
-            <section className="mb-4 rounded-xl border border-slate-200 p-4">
+            <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
               <h3 className="mb-1 text-sm font-bold text-slate-900">1. SMT</h3>
               <p className="mb-3 text-xs text-slate-500">
                 PCB 보드 수만큼 PCB별 실장·SET-UP 입력 · 일반 부품은 <strong>부품 개수</strong>, IC/BGA는{' '}
                 <strong>핀·볼 수</strong> · {SMT_PLACEMENT_MIN_SCORE}점 이하 PCB는 최소 실장비{' '}
-                {formatQuoteMoneyUnit(getSmtPlacementMinFee(quoteType), quoteType)} · AOI 포함 (단면{' '}
-                {formatQuoteMoneyUnit(AOI_UNIT_PRICE_SINGLE, quoteType)} · 양면{' '}
-                {formatQuoteMoneyUnit(AOI_UNIT_PRICE_DOUBLE, quoteType)}) · SET-UP 장비 임율{' '}
-                {formatQuoteMoneyUnit(getSmtSetupRate(quoteType), quoteType)}/분
+                {formatQuoteKrw(getSmtPlacementMinFee(quoteType))} · 검사(AOI/X-RAY/외관 각 단면{' '}
+                {formatQuoteKrw(AOI_INSPECTION_UNIT_SINGLE)} · 양면{' '}
+                {formatQuoteKrw(AOI_INSPECTION_UNIT_DOUBLE)}) · SET-UP 장비 임율{' '}
+                {formatQuoteKrw(getSmtSetupRate(quoteType))}/분
               </p>
               <div className="space-y-3">
                 {smtForms.map((board, index) => (
@@ -463,7 +466,7 @@ function QuoteModalContent({
               </div>
             </section>
 
-            <section className="mb-4 rounded-xl border border-slate-200 p-4">
+            <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
               <h3 className="mb-1 text-sm font-bold text-slate-900">2. 납땜 (개수)</h3>
               <p className="mb-3 text-xs text-slate-500">
                 PCB 보드 수만큼 PCB별 수납땜·WAVE 개수 입력 (PCB 명칭은 SMT와 동기화)
@@ -480,7 +483,7 @@ function QuoteModalContent({
               </div>
             </section>
 
-            <section className="mb-4 rounded-xl border border-slate-200 p-4">
+            <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
               <h3 className="mb-3 text-sm font-bold text-slate-900">3. 후공정 (분)</h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {[
@@ -497,14 +500,14 @@ function QuoteModalContent({
                       className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
                     />
                     <span className="mt-1 block text-[11px] text-slate-400">
-                      {formatQuoteMoneyUnit(unit as number, quoteType)}/분
+                      {formatQuoteKrw(unit as number)}/분
                     </span>
                   </label>
                 ))}
               </div>
             </section>
 
-            <section className="mb-4 rounded-xl border border-slate-200 p-4">
+            <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
               <h3 className="mb-3 text-sm font-bold text-slate-900">4. 자재</h3>
               <label className="block text-sm">
                 <span className="mb-1 block font-medium text-slate-600">원자재 원가(대당)</span>
@@ -545,48 +548,49 @@ function QuoteModalContent({
             </div>
           </div>
 
-          <div className="overflow-y-auto bg-slate-50 p-5">
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
-                <h3 className="text-2xl font-bold tracking-[0.2em] text-slate-900">{previewTitle}</h3>
-                <p className="text-xl font-bold tracking-wide text-slate-900 sm:text-2xl">
+          <div className="flex min-h-0 flex-col overflow-y-auto bg-slate-50/70 p-3 lg:p-4">
+            <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-slate-200 bg-white p-3 lg:p-4">
+              <div className="mb-3 flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+                <h3 className="text-lg font-bold tracking-[0.15em] text-slate-900">{previewLabels.title}</h3>
+                <p className="text-base font-bold tracking-wide text-slate-900 lg:text-lg">
                   {result?.estNo || '-'}
                 </p>
               </div>
 
-              <div className="mb-4 grid grid-cols-1 gap-2.5 text-sm text-slate-700 sm:grid-cols-2 sm:gap-x-7">
+              <div className="mb-3 grid grid-cols-1 gap-1.5 text-xs text-slate-700 sm:grid-cols-2 sm:gap-x-5 lg:text-sm">
                 <p>
-                  <b>발행일자:</b> {previewIssueDate || '-'}
+                  <b>{previewLabels.issueDate}:</b> {previewIssueDate || '-'}
                 </p>
                 <p className="sm:text-right">
-                  <b>고객사:</b> {previewCustomer}
+                  <b>{previewLabels.customer}:</b> {previewCustomer}
                 </p>
                 <p>
-                  <b>유효기간:</b>{' '}
+                  <b>{previewLabels.validity}:</b>{' '}
                   {previewIssueDate ? formatQuoteValidityText(previewIssueDate) : '-'}
                 </p>
                 <p className="sm:text-right">
-                  <b>공급자:</b> 미래SMT
+                  <b>{previewLabels.supplier}:</b> {isDomestic ? '미래SMT' : COMPANY_NAME_EN}
                 </p>
                 <p>
-                  <b>제품명:</b> {previewProduct}
+                  <b>{previewLabels.product}:</b> {previewProduct}
                 </p>
                 <p className="sm:text-right">
-                  <b>담당자:</b> 영업관리팀
+                  <b>{previewLabels.contact}:</b> {isDomestic ? '영업관리팀' : 'Sales Team'}
                 </p>
                 <p>
-                  <b>생산 수량:</b> {result ? `${result.qty.toLocaleString('ko-KR')}${qtyLabel}` : '-'}
+                  <b>{previewLabels.quantity}:</b>{' '}
+                  {result ? previewLabels.formatQty(result.qty) : '-'}
                 </p>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <div className="min-h-0 flex-1 overflow-x-auto rounded-lg border border-slate-200">
                 <table className="min-w-full border-collapse text-sm">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">항목</th>
-                      <th className="px-3 py-2 text-right font-semibold text-slate-600">{unitColLabel}</th>
-                      <th className="px-3 py-2 text-center font-semibold text-slate-600">개수</th>
-                      <th className="px-3 py-2 text-right font-semibold text-slate-600">{totalColLabel}</th>
+                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-slate-600 lg:px-3 lg:py-2">{previewLabels.colItem}</th>
+                      <th className="px-2 py-1.5 text-right text-xs font-semibold text-slate-600 lg:px-3 lg:py-2">{previewLabels.colUnit}</th>
+                      <th className="whitespace-nowrap px-2 py-1.5 text-center text-xs font-semibold text-slate-600 lg:px-3 lg:py-2">{previewLabels.colQty}</th>
+                      <th className="px-2 py-1.5 text-right text-xs font-semibold text-slate-600 lg:px-3 lg:py-2">{previewLabels.colPerUnitTotal}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -596,33 +600,29 @@ function QuoteModalContent({
                           <tr
                             key={`${row.label}-${index}`}
                             className={`border-t border-slate-100 ${
-                              isPreviewHighlightRow(row)
-                                ? SECTION_TOTAL_ROW_CLASS
-                                : row.boardSubtotal
-                                  ? BOARD_SUBTOTAL_ROW_CLASS
-                                  : ''
+                              isPreviewHighlightRow(row) ? SECTION_TOTAL_ROW_CLASS : ''
                             }`}
                           >
                             <td
-                              className={`px-3 py-2 ${
+                              className={`px-2 py-1.5 lg:px-3 lg:py-2 ${
                                 row.emphasize ? 'font-semibold text-slate-900' : 'text-slate-600'
-                              } ${row.indent === 1 ? 'pl-6 text-xs' : row.indent === 2 ? 'pl-10 text-xs' : ''} ${
+                              } ${row.indent === 1 ? 'pl-5 text-xs lg:pl-6' : row.indent === 2 ? 'pl-8 text-xs lg:pl-10' : ''} ${
                                 isPreviewHighlightRow(row) ? SECTION_TOTAL_ROW_ACCENT_CLASS : ''
                               }`}
                             >
                               <span className="block">{row.label}</span>
-                              {row.subLabel ? (
-                                <span className="mt-0.5 block text-slate-500">{row.subLabel}</span>
+                              {formatPreviewRowDescription(row) ? (
+                                <span className="mt-0.5 block text-slate-500">{formatPreviewRowDescription(row)}</span>
                               ) : null}
                             </td>
-                            <td className="px-3 py-2 text-right text-xs text-slate-600">
+                            <td className="px-2 py-1.5 text-right text-xs text-slate-600 lg:px-3 lg:py-2">
                               {formatPreviewRowUnit(row, quoteType)}
                             </td>
-                            <td className="px-3 py-2 text-center text-xs text-slate-600">
+                            <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs tabular-nums text-slate-600 lg:px-3 lg:py-2">
                               {row.count != null ? row.count : '-'}
                             </td>
                             <td
-                              className={`px-3 py-2 text-right ${
+                              className={`px-2 py-1.5 text-right lg:px-3 lg:py-2 ${
                                 row.amountEmphasize ? 'font-semibold text-slate-900' : 'text-xs text-slate-600'
                               }`}
                             >
@@ -634,7 +634,7 @@ function QuoteModalContent({
                     ) : (
                       <tr>
                         <td colSpan={4} className="px-3 py-10 text-center text-slate-400">
-                          {mode === 'edit' ? '미리보기를 불러오는 중...' : '견적서를 생성해주세요'}
+                          {mode === 'edit' ? previewLabels.loadingPreview : previewLabels.emptyPreview}
                         </td>
                       </tr>
                     )}
@@ -642,24 +642,28 @@ function QuoteModalContent({
                 </table>
               </div>
 
-              <div className="mt-4 space-y-2 border-t border-slate-200 pt-4 text-sm">
+              <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-700">대당 단가 (VAT 별도)</span>
+                  <span className="font-semibold text-slate-700">{previewLabels.perUnitPriceVat}</span>
                   <span className="font-semibold text-slate-900">
                     {result
-                      ? formatQuoteMoneyUnit(
-                          Math.floor(result.values.grandTotal / (result.qty || 1)),
-                          quoteType,
-                        )
+                      ? exportSummary
+                        ? exportSummary.unitFormatted
+                        : formatQuoteMoneyUnit(
+                            Math.floor(result.values.grandTotal / (result.qty || 1)),
+                            quoteType,
+                          )
                       : formatQuoteMoneyUnit(0, quoteType)}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-base">
-                  <span className="font-bold text-slate-900">최종 합계 금액 (VAT 별도)</span>
+                  <span className="font-bold text-slate-900">{previewLabels.grandTotalVat}</span>
                   <span className="font-bold text-blue-700">
                     {result
-                      ? formatQuoteMoneyTotal(result.values.grandTotal, quoteType)
+                      ? exportSummary
+                        ? exportSummary.totalFormatted
+                        : formatQuoteMoneyTotal(result.values.grandTotal, quoteType)
                       : formatQuoteMoneyTotal(0, quoteType)}
                   </span>
                 </div>

@@ -2,7 +2,7 @@
 
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { DIP_UNIT } from '@/lib/quotes/constants'
-import { formatQuoteMoneyUnit } from '@/lib/quotes/format'
+import { formatQuoteKrw } from '@/lib/quotes/format'
 import type { DipBoardForm } from '@/lib/quotes/form-state'
 import type { QuoteType } from '@/lib/quotes/types'
 
@@ -12,8 +12,8 @@ type DipPcbBoardFormProps = {
   onChange: (board: DipBoardForm) => void
 }
 
-function UnitPreview({ krw, quoteType }: { krw: number; quoteType: QuoteType }) {
-  return <span className="mt-1 block text-[11px] text-slate-400">{formatQuoteMoneyUnit(krw, quoteType)}</span>
+function UnitPreview({ krw }: { krw: number; quoteType: QuoteType }) {
+  return <span className="mt-1 block text-[11px] text-slate-400">{formatQuoteKrw(krw)}</span>
 }
 
 export function DipPcbBoardForm({ board, quoteType, onChange }: DipPcbBoardFormProps) {

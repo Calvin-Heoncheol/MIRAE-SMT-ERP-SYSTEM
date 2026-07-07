@@ -1,6 +1,6 @@
 'use client'
 
-import { formatQuoteMoneyTotal, formatQuoteMoneyUnit } from '@/lib/quotes/format'
+import { exportSummaryFromKrw, formatQuoteMoneyTotal, formatQuoteMoneyUnit } from '@/lib/quotes/format'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import type { QuoteListItem } from '@/lib/quotes/types'
 
@@ -10,9 +10,12 @@ type QuoteListTableProps = {
   onSelectQuote?: (quote: QuoteListItem) => void
 }
 
-function quoteUnitPrice(quote: QuoteListItem) {
+function quoteUnitPriceDisplay(quote: QuoteListItem) {
   const qty = quote.boardQty || 1
-  return Math.floor(quote.totalAmount / qty)
+  if (quote.quoteType === 'export') {
+    return exportSummaryFromKrw(quote.totalAmount, qty).unitFormatted
+  }
+  return formatQuoteMoneyUnit(Math.floor(quote.totalAmount / qty), quote.quoteType)
 }
 
 export function QuoteListTable({ quotes, emptyMessage, onSelectQuote }: QuoteListTableProps) {
@@ -68,7 +71,7 @@ export function QuoteListTable({ quotes, emptyMessage, onSelectQuote }: QuoteLis
                 <td className="px-4 py-3 text-sm text-slate-700">{quote.customer || '-'}</td>
                 <td className="px-4 py-3 text-sm text-slate-700">{quote.productName || '-'}</td>
                 <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">
-                  {formatQuoteMoneyUnit(quoteUnitPrice(quote), quote.quoteType)}
+                  {quoteUnitPriceDisplay(quote)}
                 </td>
                 <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-700">
                   {quote.boardQty.toLocaleString('ko-KR')}

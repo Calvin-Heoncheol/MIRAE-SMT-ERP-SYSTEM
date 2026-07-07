@@ -1,6 +1,4 @@
 import {
-  AOI_UNIT_PRICE_DOUBLE,
-  AOI_UNIT_PRICE_SINGLE,
   DIP_UNIT,
   POST_RATE,
   SMT_PLACEMENT_MIN_SCORE,
@@ -10,10 +8,14 @@ import {
   SMT_UNIT_IC_PIN,
   SMT_UNIT_ODD,
   SMT_UNIT_SPECIAL,
-  SUB_MATERIAL_RATE,
 } from './constants'
-import { calculateEstimate, computeSmtPlacementScore } from './calculate-estimate'
+import {
+  calculateEstimate,
+  computeSmtPlacementScore,
+  computeSmtSetupBillingBreakdown,
+} from './calculate-estimate'
 import { formatQuoteMoneyUnit, formatQuoteSetupMinutes } from './format'
+import { getPreviewLabels } from './preview-i18n'
 import type { DipBoardDetail, EstimateResult, QuoteListItem, QuoteType, SmtBoardDetail } from './types'
 import { toEstimateInputFromDetail } from './utils'
 
@@ -21,7 +23,7 @@ export type PreviewSection = 'smt' | 'dip' | 'post' | 'material'
 
 export type PreviewRow = {
   label: string
-  subLabel?: string
+  description?: string
   unit?: number | null
   unitLabel?: string
   count?: number | string | null
@@ -53,8 +55,12 @@ export function formatPreviewRowUnit(row: PreviewRow, quoteType: QuoteType) {
   return '-'
 }
 
+export function formatPreviewRowDescription(row: PreviewRow) {
+  return row.description?.trim() || ''
+}
+
 export function isPreviewHighlightRow(row: PreviewRow) {
-  return Boolean(row.sectionTotal || row.boardTotal)
+  return Boolean(row.boardTotal)
 }
 
 function quotePerUnitTotal(total: number, qty: number) {
@@ -65,15 +71,24 @@ function smtSetupPerUnit(setupAmount: number, qty: number) {
   return Math.round(setupAmount / (qty || 1))
 }
 
-function smtBoardPerUnit(board: SmtBoardDetail, qty: number) {
-  return board.laborUnit + smtSetupPerUnit(board.setupAmount, qty)
+function smtBoardLaborPerUnit(board: SmtBoardDetail) {
+  return board.laborUnit
 }
 
-/** SMT 대당 합계 = 실장비(대당) + SET-UP(총액, 수량 무관) 안분 */
+function setupComponentPerUnit(minutes: number, rate: number, qty: number) {
+  return smtSetupPerUnit(Math.round(minutes * rate), qty)
+}
+
+function smtBoardInspectionPerUnit(board: SmtBoardDetail) {
+  return board.inspectionUnit
+}
+
+/** SMT 대당 합계 = 실장비(대당) + SET-UP(총액 안분) + 검사(대당) */
 function previewSmtSectionPerUnit(result: EstimateResult) {
   const qty = result.qty || 1
   const laborTotal = Math.floor(result.common.smtLaborPerUnit * qty)
-  return quotePerUnitTotal(laborTotal + result.common.smtSetup, qty)
+  const inspectionTotal = Math.floor(result.common.smtInspectionPerUnit * qty)
+  return quotePerUnitTotal(laborTotal + result.common.smtSetup + inspectionTotal, qty)
 }
 
 export function previewFormFromQuote(quote: QuoteListItem): PreviewFormFields {
@@ -94,33 +109,45 @@ function smtDetailRowsForBoard(
   board: SmtBoardDetail,
   result: EstimateResult,
   quoteType: QuoteType,
-  multiPcb: boolean,
 ): PreviewRow[] {
+  const labels = getPreviewLabels(quoteType)
   const rows: PreviewRow[] = []
   const useMinPlacementFee = board.laborMinApplied && board.laborMinAdjustment > 0
   const placementScore = computeSmtPlacementScore(board)
 
   if (useMinPlacementFee) {
     rows.push({
-      label: '최소 실장비',
-      subLabel: `(${placementScore}점 · ${SMT_PLACEMENT_MIN_SCORE}점 이하)`,
+      label: labels.minPlacement,
+      description: labels.minPlacementDesc(placementScore, SMT_PLACEMENT_MIN_SCORE),
       unit: getSmtPlacementMinFee(quoteType),
-      count: '1 PCB',
+      count: labels.onePcb,
       amount: board.laborMinAdjustment,
       indent: 2,
     })
   } else {
     if (board.chip > 0) {
-      rows.push({ label: 'CHIP', unit: SMT_UNIT_CHIP, count: `${board.chip}개`, amount: board.chip * SMT_UNIT_CHIP, indent: 2 })
+      rows.push({
+        label: 'CHIP',
+        unit: SMT_UNIT_CHIP,
+        count: labels.partsCount(board.chip),
+        amount: board.chip * SMT_UNIT_CHIP,
+        indent: 2,
+      })
     }
     if (board.smtOdd > 0) {
-      rows.push({ label: '이형', unit: SMT_UNIT_ODD, count: `${board.smtOdd}개`, amount: board.smtOdd * SMT_UNIT_ODD, indent: 2 })
+      rows.push({
+        label: labels.oddParts,
+        unit: SMT_UNIT_ODD,
+        count: labels.partsCount(board.smtOdd),
+        amount: board.smtOdd * SMT_UNIT_ODD,
+        indent: 2,
+      })
     }
     if (board.smtSpecial > 0) {
       rows.push({
-        label: '특수/모듈',
+        label: labels.specialParts,
         unit: SMT_UNIT_SPECIAL,
-        count: `${board.smtSpecial}개`,
+        count: labels.partsCount(board.smtSpecial),
         amount: board.smtSpecial * SMT_UNIT_SPECIAL,
         indent: 2,
       })
@@ -145,25 +172,43 @@ function smtDetailRowsForBoard(
     }
   }
 
-  if (board.aoiUnit > 0 && board.laborUnit > 0) {
-    const sideLabel = board.smtSide === 'double' ? '양면' : '단면'
+  return rows
+}
+
+function inspectionDetailRowsForBoard(board: SmtBoardDetail, quoteType: QuoteType): PreviewRow[] {
+  if (board.inspectionUnit <= 0) return []
+
+  const labels = getPreviewLabels(quoteType)
+  const sideLabel = board.smtSide === 'double' ? labels.sideDouble : labels.sideSingle
+  const rows: PreviewRow[] = []
+
+  if (board.aoiInspectionUnit > 0) {
     rows.push({
-      label: multiPcb
-        ? `AOI 및 외관검사 (${sideLabel}) ${board.pcbName}`
-        : `AOI 및 외관검사 (${sideLabel})`,
-      unit: board.smtSide === 'double' ? AOI_UNIT_PRICE_DOUBLE : AOI_UNIT_PRICE_SINGLE,
-      count: '1 PCB',
-      amount: board.aoiUnit,
+      label: labels.aoiInspection,
+      description: sideLabel,
+      unit: board.aoiInspectionUnit,
+      count: labels.onePcb,
+      amount: board.aoiInspectionUnit,
       indent: 2,
     })
   }
-
-  if (board.setupAmount > 0) {
+  if (board.xrayInspectionUnit > 0) {
     rows.push({
-      label: multiPcb ? `SET-UP ${board.pcbName}` : 'SET-UP',
-      unit: board.setupRate,
-      count: formatQuoteSetupMinutes(board.setupMinutes),
-      amount: smtSetupPerUnit(board.setupAmount, result.qty),
+      label: labels.xrayInspection,
+      description: sideLabel,
+      unit: board.xrayInspectionUnit,
+      count: labels.onePcb,
+      amount: board.xrayInspectionUnit,
+      indent: 2,
+    })
+  }
+  if (board.visualInspectionUnit > 0) {
+    rows.push({
+      label: labels.visualInspection,
+      description: sideLabel,
+      unit: board.visualInspectionUnit,
+      count: labels.onePcb,
+      amount: board.visualInspectionUnit,
       indent: 2,
     })
   }
@@ -171,11 +216,61 @@ function smtDetailRowsForBoard(
   return rows
 }
 
-function dipDetailRowsForBoard(board: DipBoardDetail): PreviewRow[] {
+function smtSetupDetailRowsForBoard(
+  board: SmtBoardDetail,
+  result: EstimateResult,
+  quoteType: QuoteType,
+): PreviewRow[] {
+  if (board.setupAmount <= 0) return []
+
+  const labels = getPreviewLabels(quoteType)
+  const qty = result.qty || 1
+  const smtSide = board.smtSide === 'double' ? 'double' : 'single'
+  const breakdown = computeSmtSetupBillingBreakdown(board.setupPartCount, smtSide)
+
+  function setupDetailRow(
+    label: string,
+    description: string,
+    minutes: number,
+    count: string,
+  ): PreviewRow {
+    return {
+      label,
+      description,
+      count,
+      amount: setupComponentPerUnit(minutes, board.setupRate, qty),
+      indent: 2,
+    }
+  }
+
+  return [
+    setupDetailRow(
+      labels.setupBaseTime,
+      labels.setupBaseDesc,
+      breakdown.baseMinutes,
+      formatQuoteSetupMinutes(breakdown.baseMinutes, quoteType),
+    ),
+    setupDetailRow(
+      labels.firstArticle,
+      labels.setupFirstArticleDesc,
+      breakdown.firstArticleMinutes,
+      formatQuoteSetupMinutes(breakdown.firstArticleMinutes, quoteType),
+    ),
+    setupDetailRow(
+      'SETTING',
+      labels.setupSettingDesc,
+      breakdown.settingMinutes,
+      formatQuoteSetupMinutes(breakdown.settingMinutes, quoteType),
+    ),
+  ]
+}
+
+function dipDetailRowsForBoard(board: DipBoardDetail, quoteType: QuoteType): PreviewRow[] {
+  const labels = getPreviewLabels(quoteType)
   const rows: PreviewRow[] = []
   if (board.dipGeneral > 0) {
     rows.push({
-      label: '수납땜 소형(1~3PIN)',
+      label: labels.dipGeneral,
       unit: DIP_UNIT.dipGeneral,
       count: board.dipGeneral,
       amount: board.dipGeneral * DIP_UNIT.dipGeneral,
@@ -184,7 +279,7 @@ function dipDetailRowsForBoard(board: DipBoardDetail): PreviewRow[] {
   }
   if (board.dipConnector > 0) {
     rows.push({
-      label: '수납땜 중형(4~10PIN)',
+      label: labels.dipConnector,
       unit: DIP_UNIT.dipConnector,
       count: board.dipConnector,
       amount: board.dipConnector * DIP_UNIT.dipConnector,
@@ -193,7 +288,7 @@ function dipDetailRowsForBoard(board: DipBoardDetail): PreviewRow[] {
   }
   if (board.dipWire > 0) {
     rows.push({
-      label: '수납땜 대형(10PIN+)',
+      label: labels.dipWire,
       unit: DIP_UNIT.dipWire,
       count: board.dipWire,
       amount: board.dipWire * DIP_UNIT.dipWire,
@@ -202,7 +297,7 @@ function dipDetailRowsForBoard(board: DipBoardDetail): PreviewRow[] {
   }
   if (board.waveGeneral > 0) {
     rows.push({
-      label: 'WAVE 일반(1~3PIN)',
+      label: labels.waveGeneral,
       unit: DIP_UNIT.waveGeneral,
       count: board.waveGeneral,
       amount: board.waveGeneral * DIP_UNIT.waveGeneral,
@@ -211,7 +306,7 @@ function dipDetailRowsForBoard(board: DipBoardDetail): PreviewRow[] {
   }
   if (board.waveConnector > 0) {
     rows.push({
-      label: 'WAVE 중형(4~10PIN)',
+      label: labels.waveConnector,
       unit: DIP_UNIT.waveConnector,
       count: board.waveConnector,
       amount: board.waveConnector * DIP_UNIT.waveConnector,
@@ -220,7 +315,7 @@ function dipDetailRowsForBoard(board: DipBoardDetail): PreviewRow[] {
   }
   if (board.waveWire > 0) {
     rows.push({
-      label: 'WAVE 대형(10PIN+)',
+      label: labels.waveWire,
       unit: DIP_UNIT.waveWire,
       count: board.waveWire,
       amount: board.waveWire * DIP_UNIT.waveWire,
@@ -230,31 +325,32 @@ function dipDetailRowsForBoard(board: DipBoardDetail): PreviewRow[] {
   return rows
 }
 
-function postDetailRows(form: PreviewFormFields, indent: number): PreviewRow[] {
+function postDetailRows(form: PreviewFormFields, indent: number, quoteType: QuoteType): PreviewRow[] {
+  const labels = getPreviewLabels(quoteType)
   const rows: PreviewRow[] = []
   if (Number(form.postAssembly) > 0) {
     rows.push({
-      label: '조립',
+      label: labels.assembly,
       unit: POST_RATE,
-      count: `${form.postAssembly}분`,
+      count: labels.minutesCount(form.postAssembly),
       amount: Number(form.postAssembly) * POST_RATE,
       indent,
     })
   }
   if (Number(form.postTest) > 0) {
     rows.push({
-      label: '테스트',
+      label: labels.test,
       unit: POST_RATE,
-      count: `${form.postTest}분`,
+      count: labels.minutesCount(form.postTest),
       amount: Number(form.postTest) * POST_RATE,
       indent,
     })
   }
   if (Number(form.postPacking) > 0) {
     rows.push({
-      label: '포장',
+      label: labels.packing,
       unit: POST_RATE,
-      count: `${form.postPacking}분`,
+      count: labels.minutesCount(form.postPacking),
       amount: Number(form.postPacking) * POST_RATE,
       indent,
     })
@@ -266,17 +362,20 @@ function hasPostInputs(form: PreviewFormFields) {
   return Number(form.postAssembly) > 0 || Number(form.postTest) > 0 || Number(form.postPacking) > 0
 }
 
-function previewMaterialRows(result: EstimateResult, form: PreviewFormFields): PreviewRow[] {
+function previewMaterialRows(result: EstimateResult, form: PreviewFormFields, quoteType: QuoteType): PreviewRow[] {
+  const labels = getPreviewLabels(quoteType)
   const materialPerUnit = Number(form.materialCost) || 0
+  const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, result.qty)
   const subMaterialPerUnit = quotePerUnitTotal(result.common.subMaterial, result.qty)
   const hasRaw = materialPerUnit > 0
+  const hasMgmt = result.common.materialManagement > 0
   const hasSub = result.common.subMaterial > 0
-  if (!hasRaw && !hasSub) return []
+  if (!hasRaw && !hasMgmt && !hasSub) return []
 
   const rows: PreviewRow[] = [
     {
-      label: '자재',
-      amount: materialPerUnit + subMaterialPerUnit,
+      label: labels.materials,
+      amount: materialPerUnit + materialMgmtPerUnit + subMaterialPerUnit,
       emphasize: true,
       amountEmphasize: true,
       sectionTotal: 'material',
@@ -285,19 +384,27 @@ function previewMaterialRows(result: EstimateResult, form: PreviewFormFields): P
 
   if (hasRaw) {
     rows.push({
-      label: '원자재',
+      label: labels.rawMaterial,
       unit: materialPerUnit,
-      count: '1대',
+      count: labels.oneUnit,
       amount: materialPerUnit,
+      indent: 1,
+    })
+  }
+  if (hasMgmt) {
+    rows.push({
+      label: labels.managementFee,
+      unit: materialMgmtPerUnit,
+      count: labels.oneUnit,
+      amount: materialMgmtPerUnit,
       indent: 1,
     })
   }
   if (hasSub) {
     rows.push({
-      label: '부자재',
-      subLabel: `(생산비용의 ${SUB_MATERIAL_RATE * 100}%)`,
+      label: labels.subMaterial,
       unit: subMaterialPerUnit,
-      count: '1대',
+      count: labels.oneUnit,
       amount: subMaterialPerUnit,
       indent: 1,
     })
@@ -311,6 +418,7 @@ function buildBoardCentricPreviewRows(
   form: PreviewFormFields,
   quoteType: QuoteType,
 ): PreviewRow[] {
+  const labels = getPreviewLabels(quoteType)
   const qty = result.qty || 1
   const pcbCount = result.common.pcbBoardDetails.length
   const multiPcb = pcbCount > 1
@@ -321,24 +429,28 @@ function buildBoardCentricPreviewRows(
   for (let index = 0; index < pcbCount; index += 1) {
     const smtBoard = result.common.pcbBoardDetails[index]
     const dipBoard = result.common.dipBoardDetails[index]
-    const smt = smtBoardPerUnit(smtBoard, qty)
+    const smtLabor = smtBoardLaborPerUnit(smtBoard)
+    const setupPerUnit = smtSetupPerUnit(smtBoard.setupAmount, qty)
+    const inspectionPerUnit = smtBoardInspectionPerUnit(smtBoard)
     const dip = dipBoard?.boardUnit ?? 0
     const boardPost = singlePcb ? postPerUnit : 0
-    const smtDetails = smtDetailRowsForBoard(smtBoard, result, quoteType, multiPcb)
-    const dipDetails = dipBoard ? dipDetailRowsForBoard(dipBoard) : []
+    const smtDetails = smtDetailRowsForBoard(smtBoard, result, quoteType)
+    const setupDetails = smtSetupDetailRowsForBoard(smtBoard, result, quoteType)
+    const inspectionDetails = inspectionDetailRowsForBoard(smtBoard, quoteType)
+    const dipDetails = dipBoard ? dipDetailRowsForBoard(dipBoard, quoteType) : []
 
     rows.push({
       label: `■ ${smtBoard.pcbName}`,
-      amount: smt + dip + boardPost,
+      amount: smtLabor + setupPerUnit + inspectionPerUnit + dip + boardPost,
       boardTotal: true,
       emphasize: true,
       amountEmphasize: true,
     })
 
-    if (smt > 0 || smtDetails.length > 0) {
+    if (smtLabor > 0 || smtDetails.length > 0) {
       rows.push({
         label: 'SMT',
-        amount: smt,
+        amount: smtLabor,
         indent: 1,
         boardSubtotal: true,
         emphasize: true,
@@ -347,9 +459,33 @@ function buildBoardCentricPreviewRows(
       rows.push(...smtDetails)
     }
 
+    if (setupPerUnit > 0 || setupDetails.length > 0) {
+      rows.push({
+        label: 'SET-UP',
+        amount: setupPerUnit,
+        indent: 1,
+        boardSubtotal: true,
+        emphasize: true,
+        amountEmphasize: true,
+      })
+      rows.push(...setupDetails)
+    }
+
+    if (inspectionPerUnit > 0 || inspectionDetails.length > 0) {
+      rows.push({
+        label: labels.inspection,
+        amount: inspectionPerUnit,
+        indent: 1,
+        boardSubtotal: true,
+        emphasize: true,
+        amountEmphasize: true,
+      })
+      rows.push(...inspectionDetails)
+    }
+
     if (dip > 0 || dipDetails.length > 0) {
       rows.push({
-        label: '납땜',
+        label: labels.soldering,
         amount: dip,
         indent: 1,
         boardSubtotal: true,
@@ -361,29 +497,29 @@ function buildBoardCentricPreviewRows(
 
     if (singlePcb && (postPerUnit > 0 || hasPostInputs(form))) {
       rows.push({
-        label: '후공정',
+        label: labels.postProcess,
         amount: postPerUnit,
         indent: 1,
         boardSubtotal: true,
         emphasize: true,
         amountEmphasize: true,
       })
-      rows.push(...postDetailRows(form, 2))
+      rows.push(...postDetailRows(form, 2, quoteType))
     }
   }
 
   if (!singlePcb && (postPerUnit > 0 || hasPostInputs(form))) {
     rows.push({
-      label: '후공정 (완제품 공통)',
+      label: labels.postProcess,
       amount: postPerUnit,
       emphasize: true,
       amountEmphasize: true,
       sectionTotal: 'post',
     })
-    rows.push(...postDetailRows(form, 1))
+    rows.push(...postDetailRows(form, 1, quoteType))
   }
 
-  rows.push(...previewMaterialRows(result, form))
+  rows.push(...previewMaterialRows(result, form, quoteType))
   return rows
 }
 
@@ -401,7 +537,7 @@ export type PreviewBoardRow = {
 
 export type PreviewMatrixMaterialRow = {
   label: string
-  subLabel?: string
+  description?: string
   amountPerUnit: number
 }
 
@@ -429,32 +565,40 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
 
   const boardRows = result.common.pcbBoardDetails.map((smtBoard, index) => {
     const dipBoard = result.common.dipBoardDetails[index]
-    const smt = smtBoardPerUnit(smtBoard, qty)
+    const smtLabor = smtBoardLaborPerUnit(smtBoard)
+    const setup = smtSetupPerUnit(smtBoard.setupAmount, qty)
+    const inspection = smtBoardInspectionPerUnit(smtBoard)
     const dip = dipBoard?.boardUnit ?? 0
     const post = postOnBoardRow ? postPerUnit : null
 
     return {
       pcbName: smtBoard.pcbName,
-      smtPerUnit: smt,
+      smtPerUnit: smtLabor + setup + inspection,
       dipPerUnit: dip,
       postPerUnit: post,
-      rowTotalPerUnit: smt + dip + (post ?? 0),
+      rowTotalPerUnit: smtLabor + setup + inspection + dip + (post ?? 0),
     }
   })
 
   const sharedPostRow = !postOnBoardRow && postPerUnit > 0 ? { postPerUnit } : null
 
   const materialPerUnit = Number(form.materialCost) || 0
+  const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, qty)
   const subMaterialPerUnit = quotePerUnitTotal(result.common.subMaterial, qty)
   const materialRows: PreviewMatrixMaterialRow[] = []
 
   if (materialPerUnit > 0) {
     materialRows.push({ label: '원자재', amountPerUnit: materialPerUnit })
   }
+  if (materialMgmtPerUnit > 0) {
+    materialRows.push({
+      label: '관리비',
+      amountPerUnit: materialMgmtPerUnit,
+    })
+  }
   if (subMaterialPerUnit > 0) {
     materialRows.push({
       label: '부자재',
-      subLabel: `(생산비용의 ${SUB_MATERIAL_RATE * 100}%)`,
       amountPerUnit: subMaterialPerUnit,
     })
   }
@@ -469,7 +613,7 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
       rowTotalPerUnit: smtPerUnit + dipPerUnit + postPerUnit,
     },
     materialRows,
-    materialTotalPerUnit: materialPerUnit + subMaterialPerUnit,
+    materialTotalPerUnit: materialPerUnit + materialMgmtPerUnit + subMaterialPerUnit,
     grandPerUnit: Math.floor(result.values.grandTotal / qty),
   }
 }

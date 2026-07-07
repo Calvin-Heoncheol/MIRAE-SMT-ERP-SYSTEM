@@ -1,32 +1,52 @@
 import { QUOTE_KRW_PER_USD } from './constants'
 import type { QuoteType } from './types'
 
+const EXPORT_USD_FRACTION_DIGITS = 4
+
 export function formatQuoteKrw(krw: number) {
   return `₩${Math.round(krw).toLocaleString('ko-KR')}`
 }
 
-export function formatQuoteUsd(krw: number, fractionDigits = 3) {
-  const usd = (Number(krw) || 0) / QUOTE_KRW_PER_USD
+export function roundUsd(usd: number) {
+  const factor = 10 ** EXPORT_USD_FRACTION_DIGITS
+  return Math.round(usd * factor) / factor
+}
+
+export function krwToUsd(krw: number) {
+  return roundUsd((Number(krw) || 0) / QUOTE_KRW_PER_USD)
+}
+
+export function formatUsdAmount(usd: number) {
   return `$${usd.toLocaleString('en-US', {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
+    minimumFractionDigits: EXPORT_USD_FRACTION_DIGITS,
+    maximumFractionDigits: EXPORT_USD_FRACTION_DIGITS,
   })}`
 }
 
-export function formatQuoteUsdUnit(krw: number) {
-  return formatQuoteUsd(krw, 4)
+export function formatQuoteUsd(krw: number) {
+  return formatUsdAmount(krwToUsd(krw))
 }
 
-export function formatQuoteUsdTotal(krw: number) {
-  return formatQuoteUsd(krw, 3)
+/** 해외용 1페이지 요약: 합계(USD) 기준으로 단가를 역산해 검산 오차를 최소화 */
+export function exportSummaryFromKrw(grandTotalKrw: number, qty: number) {
+  const totalUsd = krwToUsd(grandTotalKrw)
+  const safeQty = qty || 1
+  const unitUsd = roundUsd(totalUsd / safeQty)
+
+  return {
+    totalUsd,
+    unitUsd,
+    totalFormatted: formatUsdAmount(totalUsd),
+    unitFormatted: formatUsdAmount(unitUsd),
+  }
 }
 
-export function formatQuoteMoneyTotal(krw: number, _quoteType?: QuoteType) {
-  return formatQuoteKrw(krw)
+export function formatQuoteMoneyTotal(krw: number, quoteType?: QuoteType) {
+  return quoteType === 'export' ? formatQuoteUsd(krw) : formatQuoteKrw(krw)
 }
 
-export function formatQuoteMoneyUnit(krw: number, _quoteType?: QuoteType) {
-  return formatQuoteKrw(krw)
+export function formatQuoteMoneyUnit(krw: number, quoteType?: QuoteType) {
+  return quoteType === 'export' ? formatQuoteUsd(krw) : formatQuoteKrw(krw)
 }
 
 export function inferQuoteTypeFromNumber(quoteNumber: string): QuoteType {
@@ -57,7 +77,8 @@ export function formatQuoteValidityText(issueDate: string, validDays = QUOTE_VAL
   return formatQuoteValidUntil(issueDate, validDays)
 }
 
-export function formatQuoteSetupMinutes(minutes: number) {
+export function formatQuoteSetupMinutes(minutes: number, quoteType?: QuoteType) {
   const rounded = Math.round(minutes * 10) / 10
-  return Number.isInteger(rounded) ? `${rounded}분` : `${rounded.toFixed(1)}분`
+  const value = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+  return quoteType === 'export' ? `${value} min` : `${value}분`
 }

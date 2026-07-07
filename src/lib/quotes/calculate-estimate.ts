@@ -1,8 +1,7 @@
 import {
-  AOI_UNIT_PRICE_DOUBLE,
-  AOI_UNIT_PRICE_SINGLE,
   DIP_UNIT,
   POST_RATE,
+  getBoardInspectionUnits,
   SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
   SMT_SETUP_MINUTES_PER_PART,
   SMT_PLACEMENT_MIN_SCORE,
@@ -15,6 +14,7 @@ import {
   SMT_UNIT_ODD,
   SMT_UNIT_SPECIAL,
   SUB_MATERIAL_RATE,
+  RAW_MATERIAL_MANAGEMENT_RATE,
 } from './constants'
 import type {
   DipBoardDetail,
@@ -44,13 +44,41 @@ function computeSmtChipOddLabor(input: SmtComponentFields) {
   )
 }
 
-function computeSmtOtherLabor(input: SmtComponentFields, aoiUnit: number) {
+function computeSmtOtherLabor(input: SmtComponentFields) {
   return (
     (Number(input.smtSpecial) || 0) * SMT_UNIT_SPECIAL +
     (Number(input.icPin) || 0) * SMT_UNIT_IC_PIN +
-    (Number(input.bga) || 0) * SMT_UNIT_BGA_BALL +
-    aoiUnit
+    (Number(input.bga) || 0) * SMT_UNIT_BGA_BALL
   )
+}
+
+function computeBoardInspection(board: SmtPcbBoard) {
+  const comp = readSmtBoardComponentFields(board)
+  const smtSide = board.smtSide === 'double' ? 'double' : 'single'
+  const chipOddLabor = computeSmtChipOddLabor(comp)
+  const otherLabor = computeSmtOtherLabor(comp)
+  const smtLaborRaw = chipOddLabor + otherLabor
+  const hasPlacementInputs = hasSmtComponentInputs(comp)
+  const hasSmtLabor = smtLaborRaw > 0 || hasPlacementInputs
+  const applyMinFee = hasPlacementInputs && shouldApplyMinPlacementFee(comp)
+  const shouldCharge = applyMinFee || hasSmtLabor
+
+  if (!shouldCharge) {
+    return {
+      aoiInspectionUnit: 0,
+      xrayInspectionUnit: 0,
+      visualInspectionUnit: 0,
+      inspectionUnit: 0,
+    }
+  }
+
+  const units = getBoardInspectionUnits(smtSide)
+  return {
+    aoiInspectionUnit: units.aoi,
+    xrayInspectionUnit: units.xray,
+    visualInspectionUnit: units.visual,
+    inspectionUnit: units.aoi + units.xray + units.visual,
+  }
 }
 
 function computeSmtChipTotal(input: SmtComponentFields) {
@@ -85,18 +113,41 @@ export function getSmtSetupPartCount(board: Pick<SmtPcbBoard, 'smtSide' | 'smtTo
   return smtSide === 'double' ? top + bot : top
 }
 
+export type SmtSetupBillingBreakdown = {
+  partCount: number
+  baseMinutes: number
+  firstArticleMinutes: number
+  settingMinutes: number
+  totalMinutes: number
+}
+
 /** SET-UP 청구 분 = 기본시간 + 초품검사(종당 20초) + SETTING(종당 3분) */
-export function computeSmtSetupBillingMinutes(
+export function computeSmtSetupBillingBreakdown(
   partCount: number,
   smtSide: 'single' | 'double',
-): number {
+): SmtSetupBillingBreakdown {
   const count = Math.max(0, Math.floor(Number(partCount) || 0))
-  if (count <= 0) return 0
+  if (count <= 0) {
+    return { partCount: 0, baseMinutes: 0, firstArticleMinutes: 0, settingMinutes: 0, totalMinutes: 0 }
+  }
 
   const baseMinutes = getSmtSetupBaseMinutes(smtSide)
   const firstArticleMinutes = (count * SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART) / 60
   const settingMinutes = count * SMT_SETUP_MINUTES_PER_PART
-  return baseMinutes + firstArticleMinutes + settingMinutes
+  return {
+    partCount: count,
+    baseMinutes,
+    firstArticleMinutes,
+    settingMinutes,
+    totalMinutes: baseMinutes + firstArticleMinutes + settingMinutes,
+  }
+}
+
+export function computeSmtSetupBillingMinutes(
+  partCount: number,
+  smtSide: 'single' | 'double',
+): number {
+  return computeSmtSetupBillingBreakdown(partCount, smtSide).totalMinutes
 }
 
 function computeSmtSetup(partCount: number, quoteType: QuoteType, smtSide: 'single' | 'double') {
@@ -133,19 +184,17 @@ function shouldApplyMinPlacementFee(input: SmtComponentFields) {
 function computeSmtLaborPerUnit(board: SmtPcbBoard, quoteType: QuoteType) {
   const comp = readSmtBoardComponentFields(board)
   const chipTotal = computeSmtChipTotal(comp)
-  const smtSide = board.smtSide === 'double' ? 'double' : 'single'
-  const aoiUnit = smtSide === 'double' ? AOI_UNIT_PRICE_DOUBLE : AOI_UNIT_PRICE_SINGLE
-  const pcbWashUnit = 0
   const chipOddLabor = computeSmtChipOddLabor(comp)
-  const otherLabor = computeSmtOtherLabor(comp, aoiUnit)
+  const otherLabor = computeSmtOtherLabor(comp)
   const smtLaborRaw = chipOddLabor + otherLabor
   const hasPlacementInputs = hasSmtComponentInputs(comp)
   const hasSmtLabor = smtLaborRaw > 0 || hasPlacementInputs
   const applyMinFee = hasPlacementInputs && shouldApplyMinPlacementFee(comp)
   const minPlacementFee = getSmtPlacementMinFee(quoteType)
+  const pcbWashUnit = 0
 
   const smtLaborUnit = applyMinFee
-    ? minPlacementFee + aoiUnit
+    ? minPlacementFee
     : hasSmtLabor
       ? chipOddLabor + otherLabor
       : 0
@@ -156,7 +205,6 @@ function computeSmtLaborPerUnit(board: SmtPcbBoard, quoteType: QuoteType) {
     smtLaborMinApplied: applyMinFee,
     smtLaborMinAdjustment: applyMinFee ? minPlacementFee : 0,
     chipTotal,
-    aoiUnit,
     pcbWashUnit,
   }
 }
@@ -236,14 +284,17 @@ export function aggregateSmtFromPcbBoards(pcbBoards: SmtPcbBoard[], quoteType: Q
   let anyLaborMin = false
   let setupTotal = 0
   let setupPartCountTotal = 0
+  let inspectionUnit = 0
   const boardDetails: SmtBoardDetail[] = []
 
   for (const board of pcbBoards) {
     const lab = computeSmtLaborPerUnit(board, quoteType)
+    const inspection = computeBoardInspection(board)
     laborUnit += lab.smtLaborUnit
     laborRaw += lab.smtLaborRaw
     laborMinAdj += lab.smtLaborMinAdjustment
     if (lab.smtLaborMinApplied) anyLaborMin = true
+    inspectionUnit += inspection.inspectionUnit
 
     const smtSide = board.smtSide === 'double' ? 'double' : 'single'
     const partCount = getSmtSetupPartCount(board)
@@ -267,7 +318,10 @@ export function aggregateSmtFromPcbBoards(pcbBoards: SmtPcbBoard[], quoteType: Q
       laborMinApplied: lab.smtLaborMinApplied,
       laborMinAdjustment: lab.smtLaborMinAdjustment,
       chipTotal: lab.chipTotal,
-      aoiUnit: lab.aoiUnit,
+      aoiInspectionUnit: inspection.aoiInspectionUnit,
+      xrayInspectionUnit: inspection.xrayInspectionUnit,
+      visualInspectionUnit: inspection.visualInspectionUnit,
+      inspectionUnit: inspection.inspectionUnit,
       pcbWashUnit: lab.pcbWashUnit,
     })
   }
@@ -279,6 +333,7 @@ export function aggregateSmtFromPcbBoards(pcbBoards: SmtPcbBoard[], quoteType: Q
     smtLaborMinAdjustment: laborMinAdj,
     smtSetupAmount: setupTotal,
     setupPartCount: setupPartCountTotal,
+    smtInspectionPerUnit: inspectionUnit,
     boardDetails,
   }
 }
@@ -324,6 +379,7 @@ export function calculateEstimate(
   const smtUnit = smtAgg.smtLaborUnit
   const smtSetupAmount = smtAgg.smtSetupAmount
   const setupPartCount = smtAgg.setupPartCount
+  const smtInspectionPerUnit = smtAgg.smtInspectionPerUnit
 
   const dipBoards = normalizeDipPcbBoards(data)
   const dipAgg = aggregateDipFromPcbBoards(dipBoards)
@@ -336,13 +392,15 @@ export function calculateEstimate(
   const matUnit = Number(data.materialCost) || 0
 
   const matTotalRaw = matUnit * qty
-  const smtTotal = Math.floor(smtUnit * qty) + smtSetupAmount
+  const smtTotal = Math.floor(smtUnit * qty) + smtSetupAmount + Math.floor(smtInspectionPerUnit * qty)
   const dipTotal = Math.floor(dipUnit * qty)
   const postProcessTotal = Math.floor(postProcessUnit * qty)
   const laborFinal = smtTotal + dipTotal + postProcessTotal
+  const materialManagementTotal =
+    matTotalRaw > 0 ? Math.round(matTotalRaw * RAW_MATERIAL_MANAGEMENT_RATE) : 0
   const subMaterialTotal = Math.round(laborFinal * SUB_MATERIAL_RATE)
 
-  const subtotalBeforeDiscount = laborFinal + matTotalRaw + subMaterialTotal
+  const subtotalBeforeDiscount = laborFinal + matTotalRaw + materialManagementTotal + subMaterialTotal
   let specialDiscount = Math.max(0, Math.round(Number(data.specialDiscount) || 0))
   if (specialDiscount > subtotalBeforeDiscount) specialDiscount = subtotalBeforeDiscount
   const grandTotal = subtotalBeforeDiscount - specialDiscount
@@ -364,6 +422,7 @@ export function calculateEstimate(
     common: {
       smtSetup: smtSetupAmount,
       smtSetupPartCount: setupPartCount,
+      smtInspectionPerUnit,
       smtLaborPerUnit: smtAgg.smtLaborUnit,
       smtLaborRawPerUnit: smtAgg.smtLaborRaw,
       smtLaborMinApplied: smtAgg.smtLaborMinApplied,
@@ -372,6 +431,7 @@ export function calculateEstimate(
       pcbBoardDetails: smtAgg.boardDetails,
       dipBoardDetails: dipAgg.boardDetails,
       subMaterial: subMaterialTotal,
+      materialManagement: materialManagementTotal,
       specialDiscount,
       subtotalBeforeDiscount,
       unitTotal: Math.floor(grandTotal / (qty || 1)).toLocaleString('ko-KR'),

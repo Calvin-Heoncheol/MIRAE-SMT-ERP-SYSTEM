@@ -31,9 +31,8 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/materials',
     children: [
       { label: '자재목록', href: '/materials' },
+      { label: '재고현황', href: '/materials/inventory' },
       { label: '발주', href: '/materials/purchase-orders' },
-      { label: '입고', href: '/materials/inbound' },
-      { label: '불출', href: '/materials/outbound' },
     ],
   },
   {
