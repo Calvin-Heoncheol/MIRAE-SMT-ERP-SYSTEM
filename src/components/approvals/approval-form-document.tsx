@@ -267,7 +267,7 @@ export function ApprovalFormDocument({
         onSign={onSign}
       />
 
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="document-meta-grid mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 print:grid-cols-2">
         <Field
           label="작성일자"
           type="date"

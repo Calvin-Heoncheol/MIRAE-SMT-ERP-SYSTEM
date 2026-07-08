@@ -98,6 +98,26 @@ body {
     print-color-adjust: exact;
   }
 
+  body.document-printing #document-print-root .document-form-header > div {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 1.5rem !important;
+  }
+
+  body.document-printing #document-print-root .document-form-header .document-signoff-slot {
+    width: 300px !important;
+    max-width: 42% !important;
+    flex-shrink: 0 !important;
+  }
+
+  body.document-printing #document-print-root .document-meta-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 1rem !important;
+  }
+
   body.document-printing #document-print-root .document-form-header {
     padding-top: 2mm !important;
   }

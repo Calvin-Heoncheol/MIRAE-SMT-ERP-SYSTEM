@@ -27,7 +27,7 @@ export function DocumentFormHeader({
 }: DocumentFormHeaderProps) {
   return (
     <div className={`document-form-header px-1 pt-4 sm:pt-5 ${className}`}>
-      <div className="flex items-start justify-between gap-6 sm:gap-10">
+      <div className="flex items-start justify-between gap-6 sm:gap-10 print:flex-row print:items-start print:justify-between">
         <div className="flex min-h-[76px] min-w-0 flex-1 flex-col justify-center">
           <h2
             className="text-[1.75rem] font-bold leading-tight text-slate-900 sm:text-[2rem]"
@@ -40,7 +40,7 @@ export function DocumentFormHeader({
           ) : null}
         </div>
 
-        <div className="w-[min(100%,320px)] shrink-0 pt-0.5 sm:w-[300px]">
+        <div className="document-signoff-slot w-[min(100%,320px)] shrink-0 pt-0.5 sm:w-[300px] print:w-[300px]">
           <ApprovalSignoffPanel
             signoffs={signoffs}
             canSign={canSign}

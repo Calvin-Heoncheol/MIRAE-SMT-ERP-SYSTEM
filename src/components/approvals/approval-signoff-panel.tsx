@@ -45,7 +45,7 @@ export function ApprovalSignoffPanel({
 
   return (
     <div>
-      <div className="flex overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
+      <div className="approval-signoff-panel flex overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
         {showSideLabel ? (
           <div className="flex w-8 shrink-0 items-center justify-center border-r border-slate-200 bg-slate-50">
             <span
@@ -103,7 +103,7 @@ export function ApprovalSignoffPanel({
                               disabled={signing}
                               onClick={() => handleToggle(item.role)}
                               className={[
-                                'inline-flex items-center justify-center rounded border-2 border-blue-600 bg-blue-600 font-bold text-white hover:border-blue-700 hover:bg-blue-700 disabled:opacity-60',
+                                'no-print inline-flex items-center justify-center rounded border-2 border-blue-600 bg-blue-600 font-bold text-white hover:border-blue-700 hover:bg-blue-700 disabled:opacity-60',
                                 boxSize,
                               ].join(' ')}
                               aria-label={`${item.label} 결재 취소`}
@@ -111,16 +111,16 @@ export function ApprovalSignoffPanel({
                             >
                               ✓
                             </button>
-                          ) : (
-                            <span
-                              className={[
-                                'inline-flex items-center justify-center rounded border-2 border-blue-600 bg-blue-600 font-bold text-white',
-                                boxSize,
-                              ].join(' ')}
-                            >
-                              ✓
-                            </span>
-                          )}
+                          ) : null}
+                          <span
+                            className={[
+                              'items-center justify-center rounded border-2 border-blue-600 bg-blue-600 font-bold text-white',
+                              boxSize,
+                              canRevoke ? 'hidden print:inline-flex' : 'inline-flex',
+                            ].join(' ')}
+                          >
+                            ✓
+                          </span>
                           {!compact ? (
                             <p className="text-[10px] leading-tight text-slate-500">
                               {formatSignoffDate(item.approvedAt)}
@@ -128,16 +128,24 @@ export function ApprovalSignoffPanel({
                           ) : null}
                         </>
                       ) : canApprove ? (
-                        <button
-                          type="button"
-                          disabled={signing}
-                          onClick={() => handleToggle(item.role)}
-                          className={[
-                            'no-print inline-flex items-center justify-center rounded border-2 border-slate-300 bg-white hover:border-blue-500 disabled:opacity-60',
-                            boxSize,
-                          ].join(' ')}
-                          aria-label={`${item.label} 결재`}
-                        />
+                        <>
+                          <span
+                            className={[
+                              'hidden items-center justify-center rounded border-2 border-slate-200 bg-slate-50 print:inline-flex',
+                              boxSize,
+                            ].join(' ')}
+                          />
+                          <button
+                            type="button"
+                            disabled={signing}
+                            onClick={() => handleToggle(item.role)}
+                            className={[
+                              'no-print inline-flex items-center justify-center rounded border-2 border-slate-300 bg-white hover:border-blue-500 disabled:opacity-60',
+                              boxSize,
+                            ].join(' ')}
+                            aria-label={`${item.label} 결재`}
+                          />
+                        </>
                       ) : (
                         <span
                           className={[

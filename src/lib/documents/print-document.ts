@@ -147,10 +147,10 @@ export async function printDocumentById(rootId: string, options: PrintDocumentOp
   const iframe = document.createElement('iframe')
   iframe.setAttribute('aria-hidden', 'true')
   iframe.style.position = 'fixed'
-  iframe.style.right = '0'
-  iframe.style.bottom = '0'
-  iframe.style.width = '0'
-  iframe.style.height = '0'
+  iframe.style.left = '-10000px'
+  iframe.style.top = '0'
+  iframe.style.width = '794px'
+  iframe.style.height = '1123px'
   iframe.style.border = '0'
   iframe.style.opacity = '0'
   iframe.style.pointerEvents = 'none'
@@ -198,6 +198,35 @@ export async function printDocumentById(rootId: string, options: PrintDocumentOp
         border-radius: 0 !important;
         box-shadow: none !important;
         background: #fff !important;
+      }
+      #document-print-root .document-form-header > div {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: flex-start !important;
+        justify-content: space-between !important;
+        gap: 1.5rem !important;
+      }
+      #document-print-root .document-form-header .document-signoff-slot {
+        width: 300px !important;
+        max-width: 42% !important;
+        flex-shrink: 0 !important;
+      }
+      #document-print-root .document-meta-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 1rem !important;
+      }
+      #document-print-root .approval-signoff-panel table {
+        table-layout: fixed !important;
+      }
+      #document-print-root .rounded-lg.border.border-slate-200.bg-slate-50,
+      #document-print-root .min-h-\\[38px\\].rounded-lg.border,
+      #document-print-root .min-h-\\[72px\\].rounded-lg.border {
+        border: none !important;
+        background: transparent !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        min-height: 0 !important;
       }
       .no-print,
       .print\\:hidden {

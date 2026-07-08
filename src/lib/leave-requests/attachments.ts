@@ -1,3 +1,4 @@
+import { buildStorageObjectPath } from '@/lib/documents/storage-filename'
 import { createSupabaseClient } from '@/lib/supabase'
 import type { LeaveRequestAttachmentFile } from './types'
 
@@ -7,11 +8,6 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024
 export type UploadLeaveRequestFilesResult =
   | { ok: true; files: LeaveRequestAttachmentFile[] }
   | { ok: false; detail: string }
-
-function sanitizeFilename(name: string) {
-  const base = name.trim() || 'file'
-  return base.replace(/[^\w.\-()가-힣]/g, '_').slice(0, 120)
-}
 
 export function getLeaveRequestAttachmentPublicUrl(path: string) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -34,7 +30,7 @@ export async function uploadLeaveRequestFiles(
         return { ok: false, detail: `${file.name} 파일이 20MB를 초과합니다.` }
       }
 
-      const path = `${requestId}/${Date.now()}-${sanitizeFilename(file.name)}`
+      const path = buildStorageObjectPath(requestId, file.name)
       const { error } = await supabase.storage.from(LEAVE_REQUEST_ATTACHMENTS_BUCKET).upload(path, file, {
         cacheControl: '3600',
         upsert: false,

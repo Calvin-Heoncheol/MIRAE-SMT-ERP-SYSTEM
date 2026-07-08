@@ -84,7 +84,7 @@ export function LeaveRequestFormDocument({
         onSign={onSign}
       />
 
-      <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="document-meta-grid mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 print:grid-cols-2">
         <div className="text-sm">
           <span className="mb-1 block text-xs font-semibold text-slate-500">문서번호</span>
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-800">
@@ -264,9 +264,6 @@ export function LeaveRequestFormDocument({
           <div className="min-w-[180px] border-b border-slate-400 px-2 pb-1">
             <InlineInput value={form.author} readOnly={readOnly} onChange={(author) => patch({ author })} />
           </div>
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-400 text-xs text-slate-500">
-            인
-          </span>
         </div>
       </div>
 

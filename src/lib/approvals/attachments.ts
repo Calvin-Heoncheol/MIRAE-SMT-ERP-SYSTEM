@@ -1,3 +1,4 @@
+import { buildStorageObjectPath } from '@/lib/documents/storage-filename'
 import { createSupabaseClient } from '@/lib/supabase'
 import type { ApprovalAttachmentFile } from './types'
 
@@ -7,11 +8,6 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024
 export type UploadApprovalFilesResult =
   | { ok: true; files: ApprovalAttachmentFile[] }
   | { ok: false; detail: string }
-
-function sanitizeFilename(name: string) {
-  const base = name.trim() || 'file'
-  return base.replace(/[^\w.\-()가-힣]/g, '_').slice(0, 120)
-}
 
 export function getApprovalAttachmentPublicUrl(path: string) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -23,8 +19,14 @@ export function formatApprovalSaveError(detail: string) {
   if (/Could not find the table.*approvals/i.test(detail) || /relation.*approvals.*does not exist/i.test(detail)) {
     return 'approvals 테이블이 없습니다. Supabase SQL Editor에서 supabase/setup-approvals.sql 을 실행한 뒤, 다시 시도해 주세요.'
   }
+  if (/approvals_id_apr_format_check/i.test(detail)) {
+    return '문서번호 형식이 맞지 않습니다. Supabase SQL Editor에서 supabase/migrate-approvals-doc-number-mra.sql 을 실행해 MRA-0001 형식으로 마이그레이션한 뒤, 다시 저장해 주세요.'
+  }
   if (/Bucket not found/i.test(detail) || /approval-attachments/i.test(detail)) {
     return '첨부파일 저장소가 없습니다. Supabase SQL Editor에서 supabase/setup-approvals-storage.sql 을 실행해 주세요.'
+  }
+  if (/Invalid key/i.test(detail)) {
+    return '첨부파일 이름에 사용할 수 없는 문자가 포함되어 있습니다. 파일명을 영문·숫자 위주로 바꾸거나, 다시 저장해 주세요.'
   }
   return detail
 }
@@ -44,7 +46,7 @@ export async function uploadApprovalFiles(
         return { ok: false, detail: `${file.name} 파일이 20MB를 초과합니다.` }
       }
 
-      const path = `${approvalId}/${Date.now()}-${sanitizeFilename(file.name)}`
+      const path = buildStorageObjectPath(approvalId, file.name)
       const { error } = await supabase.storage.from(APPROVAL_ATTACHMENTS_BUCKET).upload(path, file, {
         cacheControl: '3600',
         upsert: false,
