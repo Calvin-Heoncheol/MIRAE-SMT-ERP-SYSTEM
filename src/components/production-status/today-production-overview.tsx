@@ -15,16 +15,22 @@ const STAGE_STYLES: Record<
     text: 'text-sky-800',
     hover: 'hover:border-sky-300 hover:shadow-sm',
   },
-  post_process: {
+  post_process_2: {
     border: 'border-emerald-200',
     bg: 'bg-emerald-50',
     text: 'text-emerald-800',
     hover: '',
   },
-  shipment: {
-    border: 'border-violet-200',
-    bg: 'bg-violet-50',
-    text: 'text-violet-800',
+  post_process_3: {
+    border: 'border-teal-200',
+    bg: 'bg-teal-50',
+    text: 'text-teal-800',
+    hover: '',
+  },
+  post_process_4: {
+    border: 'border-cyan-200',
+    bg: 'bg-cyan-50',
+    text: 'text-cyan-800',
     hover: '',
   },
 }
@@ -58,14 +64,14 @@ export function TodayProductionOverview({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {stages.map((stage) => {
             const style = STAGE_STYLES[stage.key]
             const clickable = stage.key === 'smt' && stage.linked
 
             const content = (
               <>
-                <p className="text-sm font-semibold text-slate-600">{stage.label}</p>
+                <p className="text-sm font-semibold text-slate-700">{stage.label}</p>
                 {stage.linked ? (
                   <>
                     <p className={`mt-2 text-2xl font-bold tabular-nums ${style.text}`}>

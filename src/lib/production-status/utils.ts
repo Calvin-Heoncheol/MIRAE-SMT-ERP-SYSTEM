@@ -1,5 +1,4 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
-import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { formatProductSummary } from '@/lib/orders/utils'
 import type { PostProcessProductionHistoryRow } from '@/lib/post-process/types'
@@ -9,12 +8,52 @@ import {
   getProgressPercent,
   resolveProductionCount,
 } from '@/lib/production-input/utils'
-import type { ProductionStatusLine, TodayProductionStage, TodayProductionStageKey } from './types'
+import { PRODUCTION_TODAY_STAGE_DEFS } from './teams'
+import type { ProductionStatusLine, TodayProductionStage } from './types'
 
-export const TODAY_PRODUCTION_STAGE_LABELS: Record<TodayProductionStageKey, string> = {
-  smt: 'SMT',
-  post_process: '후공정',
-  shipment: '출하',
+function sumRecordQuantity<T extends { quantity: number }>(records: T[]) {
+  return {
+    recordCount: records.length,
+    quantity: records.reduce((sum, row) => sum + row.quantity, 0),
+  }
+}
+
+function filterPostRecordsByTeam(records: PostProcessProductionHistoryRow[], team: string) {
+  const anyHasTeam = records.some((row) => row.team.trim())
+  if (!anyHasTeam) {
+    return team === '생산2팀' ? records : []
+  }
+  return records.filter((row) => row.team.trim() === team)
+}
+
+export function buildTodayProductionStages(
+  smtRecords: SmtProductionHistoryRow[],
+  postRecords: PostProcessProductionHistoryRow[] = [],
+): TodayProductionStage[] {
+  const smtTotals = sumRecordQuantity(smtRecords)
+
+  return PRODUCTION_TODAY_STAGE_DEFS.map((def) => {
+    if (def.key === 'smt') {
+      return {
+        key: def.key,
+        label: def.label,
+        recordCount: smtTotals.recordCount,
+        quantity: smtTotals.quantity,
+        linked: true,
+      }
+    }
+
+    const teamRecords = filterPostRecordsByTeam(postRecords, def.postTeam ?? '')
+    const teamTotals = sumRecordQuantity(teamRecords)
+
+    return {
+      key: def.key,
+      label: def.label,
+      recordCount: teamTotals.recordCount,
+      quantity: teamTotals.quantity,
+      linked: true,
+    }
+  })
 }
 
 function groupSmtLinesByOrderNumber(smtLines: ProductionOrderLine[]) {
@@ -39,40 +78,6 @@ function groupAssemblyGroupsByOrderId(assemblyGroups: OrderAssemblyGroup[]) {
   }
 
   return map
-}
-
-export function buildTodayProductionStages(
-  smtRecords: SmtProductionHistoryRow[],
-  postRecords: PostProcessProductionHistoryRow[] = [],
-  deliveryRecords: DeliveryHistoryRow[] = [],
-): TodayProductionStage[] {
-  const smtQuantity = smtRecords.reduce((sum, row) => sum + row.quantity, 0)
-  const postQuantity = postRecords.reduce((sum, row) => sum + row.quantity, 0)
-  const deliveryQuantity = deliveryRecords.reduce((sum, row) => sum + row.quantity, 0)
-
-  return [
-    {
-      key: 'smt',
-      label: TODAY_PRODUCTION_STAGE_LABELS.smt,
-      recordCount: smtRecords.length,
-      quantity: smtQuantity,
-      linked: true,
-    },
-    {
-      key: 'post_process',
-      label: TODAY_PRODUCTION_STAGE_LABELS.post_process,
-      recordCount: postRecords.length,
-      quantity: postQuantity,
-      linked: true,
-    },
-    {
-      key: 'shipment',
-      label: TODAY_PRODUCTION_STAGE_LABELS.shipment,
-      recordCount: deliveryRecords.length,
-      quantity: deliveryQuantity,
-      linked: true,
-    },
-  ]
 }
 
 export function buildProductionStatusLines(

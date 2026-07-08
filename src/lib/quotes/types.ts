@@ -1,5 +1,8 @@
 export type QuoteType = 'export' | 'domestic'
 
+/** 해외용 견적서 미리보기·입력 화면 표시 통화 */
+export type QuoteDisplayCurrency = 'usd' | 'krw'
+
 export type SmtPcbBoard = {
   pcbName: string
   chip: number

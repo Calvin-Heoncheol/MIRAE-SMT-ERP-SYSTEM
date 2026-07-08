@@ -21,15 +21,16 @@ export type PreviewLabels = {
   minPlacement: string
   oddParts: string
   specialParts: string
-  aoiInspection: string
-  xrayInspection: string
-  visualInspection: string
+  inspectionCombined: string
   inspection: string
   soldering: string
   postProcess: string
   assembly: string
   test: string
   packing: string
+  assemblyDesc: string
+  testDesc: string
+  packingDesc: string
   materials: string
   rawMaterial: string
   managementFee: string
@@ -76,15 +77,16 @@ const DOMESTIC_LABELS: PreviewLabels = {
   minPlacement: '최소 실장비',
   oddParts: '이형',
   specialParts: '특수/모듈',
-  aoiInspection: 'AOI 검사',
-  xrayInspection: 'X-RAY 검사',
-  visualInspection: '외관검사',
+  inspectionCombined: 'AOI, X-RAY 및 외관검사',
   inspection: '검사',
   soldering: '납땜',
   postProcess: '후공정',
   assembly: '조립',
   test: '테스트',
   packing: '포장',
+  assemblyDesc: 'Base · Illumination · Top · Bottom',
+  testDesc: '경사도 · 화이트밸런스 · MSR',
+  packingDesc: '액세서리 · 제품',
   materials: '자재',
   rawMaterial: '원자재',
   managementFee: '관리비',
@@ -131,15 +133,16 @@ const EXPORT_LABELS: PreviewLabels = {
   minPlacement: 'Min Placement Fee',
   oddParts: 'Odd-Form',
   specialParts: 'Special/Module',
-  aoiInspection: 'AOI Inspection',
-  xrayInspection: 'X-Ray Inspection',
-  visualInspection: 'Visual Inspection',
+  inspectionCombined: 'AOI, X-Ray & Visual Inspection',
   inspection: 'Inspection',
   soldering: 'Soldering',
   postProcess: 'Post-Process',
   assembly: 'Assembly',
   test: 'Test',
   packing: 'Packing',
+  assemblyDesc: 'Base · Illumination · Top · Bottom',
+  testDesc: 'Slope · White Balance · MSR',
+  packingDesc: 'Accessories · Product',
   materials: 'Materials',
   rawMaterial: 'Raw Material',
   managementFee: 'Management Fee',

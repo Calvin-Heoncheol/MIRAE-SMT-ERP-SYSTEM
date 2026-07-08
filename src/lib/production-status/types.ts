@@ -16,7 +16,11 @@ export type ProductionStatusLine = {
   shipPercent: number
 }
 
-export type TodayProductionStageKey = 'smt' | 'post_process' | 'shipment'
+export type TodayProductionStageKey =
+  | 'smt'
+  | 'post_process_2'
+  | 'post_process_3'
+  | 'post_process_4'
 
 export type TodayProductionStage = {
   key: TodayProductionStageKey

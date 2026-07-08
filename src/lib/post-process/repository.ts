@@ -41,6 +41,7 @@ function mapPostProcessProductionRecord(row: {
   assembly_group_id: string
   quantity: number
   source: string
+  team?: string | null
   note: string
   created_at: string
 }): PostProcessProductionRecord {
@@ -50,6 +51,7 @@ function mapPostProcessProductionRecord(row: {
     assemblyGroupId: row.assembly_group_id,
     quantity: Math.max(0, Math.floor(Number(row.quantity) || 0)),
     source: row.source === 'manual' ? 'manual' : 'manual',
+    team: String(row.team ?? '').trim(),
     note: row.note || '',
     createdAt: row.created_at,
   }
@@ -154,17 +156,29 @@ export async function createPostProcessProductionRecord(
     const recordDate = input.recordDate?.trim() || todayYmdSeoul()
     const source: PostProcessProductionSource = input.source || 'manual'
 
-    const { data: inserted, error: insertError } = await supabase
+    const insertPayload = {
+      record_date: recordDate,
+      assembly_group_id: assemblyGroupId,
+      quantity,
+      source,
+      team: input.team?.trim() || '',
+      note: input.note?.trim() || '',
+    }
+
+    let { data: inserted, error: insertError } = await supabase
       .from('post_process_production_records')
-      .insert({
-        record_date: recordDate,
-        assembly_group_id: assemblyGroupId,
-        quantity,
-        source,
-        note: input.note?.trim() || '',
-      })
+      .insert(insertPayload)
       .select('*')
       .single()
+
+    if (insertError?.message.includes('team')) {
+      const { team: _team, ...legacyPayload } = insertPayload
+      ;({ data: inserted, error: insertError } = await supabase
+        .from('post_process_production_records')
+        .insert(legacyPayload)
+        .select('*')
+        .single())
+    }
 
     if (insertError || !inserted) {
       return {
@@ -194,6 +208,7 @@ type PostProcessProductionHistoryRecordRow = {
   assembly_group_id: string
   quantity: number
   source: string
+  team?: string | null
   note: string
   created_at: string
   order_assembly_groups:
@@ -255,6 +270,7 @@ function mapPostProcessProductionHistoryRow(
     targetQuantity: Math.max(0, Math.floor(Number(assemblyGroup.target_quantity) || 0)),
     quantity: record.quantity,
     source: record.source,
+    team: record.team,
     note: record.note,
   }
 }
@@ -275,17 +291,13 @@ async function fetchPostProcessProductionRecords(options?: {
     return missingEnvResult()
   }
 
-  try {
-    const supabase = createSupabaseClient()
-    let query = supabase
-      .from('post_process_production_records')
-      .select(
-        `
+  const selectWithTeam = `
         id,
         record_date,
         assembly_group_id,
         quantity,
         source,
+        team,
         note,
         created_at,
         order_assembly_groups (
@@ -301,16 +313,32 @@ async function fetchPostProcessProductionRecords(options?: {
             customer
           )
         )
-      `,
-      )
-      .order('created_at', { ascending: false })
-      .limit(options?.limit ?? 1000)
+      `
 
-    if (options?.recordDate) {
-      query = query.eq('record_date', options.recordDate)
+  const selectWithoutTeam = selectWithTeam.replace('\n        team,\n', '\n')
+
+  try {
+    const supabase = createSupabaseClient()
+
+    async function runQuery(includeTeam: boolean) {
+      let query = supabase
+        .from('post_process_production_records')
+        .select(includeTeam ? selectWithTeam : selectWithoutTeam)
+        .order('created_at', { ascending: false })
+        .limit(options?.limit ?? 1000)
+
+      if (options?.recordDate) {
+        query = query.eq('record_date', options.recordDate)
+      }
+
+      return query
     }
 
-    const { data, error } = await query
+    let { data, error } = await runQuery(true)
+
+    if (error?.message.includes('team')) {
+      ;({ data, error } = await runQuery(false))
+    }
 
     if (error) {
       if (isMissingPostProcessProductionTable(error.message)) {
@@ -321,7 +349,7 @@ async function fetchPostProcessProductionRecords(options?: {
 
     const rows: PostProcessProductionHistoryRow[] = []
     for (const row of data || []) {
-      const mapped = mapPostProcessProductionHistoryRow(row as PostProcessProductionHistoryRecordRow)
+      const mapped = mapPostProcessProductionHistoryRow(row as unknown as PostProcessProductionHistoryRecordRow)
       if (mapped) rows.push(mapped)
     }
 

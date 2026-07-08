@@ -2,7 +2,11 @@ import { APP_SHORT_NAME, COMPANY_ADDRESS, COMPANY_NAME_EN, COMPANY_QUOTE_EMAIL }
 import { exportSummaryFromKrw, formatQuoteMoneyTotal, formatQuoteValidityText } from './format'
 import { getPreviewLabels } from './preview-i18n'
 import {
+  buildPdfBoardDetailRows,
   buildQuotePreviewData,
+  filterPdfBoardDetailsMaterialSummaryRows,
+  filterPdfBoardDetailsPostSummaryRows,
+  filterPdfBreakdownRows,
   formatPreviewRowDescription,
   formatPreviewRowUnit,
   isPreviewHighlightRow,
@@ -20,32 +24,117 @@ function escapeHtml(value: string) {
     .replaceAll("'", '&#39;')
 }
 
-function buildPreviewRowHtml(row: PreviewRow, quoteType: QuoteType) {
-  const sectionBg = `background:${SECTION_TOTAL_ROW_BG};`
-  const indent = row.indent === 1 ? 'padding-left:24px;' : row.indent === 2 ? 'padding-left:40px;' : ''
-  const labelStyle = row.emphasize
-    ? 'font-weight:700;color:#0f172a;'
-    : row.indent
-      ? 'font-size:13px;color:#475569;'
-      : 'color:#1e293b;'
-  const amountStyle = row.amountEmphasize ? 'font-weight:700;color:#0f172a;' : 'font-size:13px;color:#475569;'
-  const highlight = isPreviewHighlightRow(row)
-  const cellBg = highlight ? sectionBg : ''
-  const rowClass = highlight ? 'section-total-row' : ''
-  const description = formatPreviewRowDescription(row)
-  const descriptionHtml = description
-    ? `<br><span style="font-size:11px;color:#64748b;">${escapeHtml(description)}</span>`
-    : ''
-  const unit = formatPreviewRowUnit(row, quoteType)
-  const count = row.count != null ? escapeHtml(String(row.count)) : '-'
-  const amount = row.amount != null ? formatQuoteMoneyTotal(row.amount, quoteType) : '-'
+function buildSectionPageHeaderHtml(
+  quote: QuoteListItem,
+  estimate: ReturnType<typeof buildQuotePreviewData>['estimate'],
+  title: string,
+  note: string,
+) {
+  return `<div class="detail-header">
+    <h2>${title}</h2>
+    <p class="detail-ref">${escapeHtml(estimate.estNo)} · ${escapeHtml(quote.productName?.trim() || '-')}</p>
+    <p class="detail-note">${note}</p>
+  </div>`
+}
 
-  return `<tr class="${rowClass}" style="border-top:${highlight ? '2px solid #64748b' : '1px solid #e2e8f0'};">
-    <td style="padding:8px 12px;${indent}${labelStyle}${cellBg}${highlight ? 'border-left:4px solid #475569;' : ''}">${escapeHtml(row.label)}${descriptionHtml}</td>
-    <td style="padding:8px 12px;text-align:right;${cellBg}font-size:13px;color:#475569;">${unit}</td>
-    <td style="padding:8px 12px;text-align:center;white-space:nowrap;${cellBg}font-size:13px;color:#475569;">${count}</td>
-    <td style="padding:8px 12px;text-align:right;${amountStyle}${cellBg}">${amount}</td>
+function formatBoardDetailCellAmount(value: number, quoteType: QuoteType) {
+  if (!value) return '-'
+  return formatQuoteMoneyTotal(value, quoteType)
+}
+
+function buildBoardDetailsMatrixRowHtml(
+  row: ReturnType<typeof buildPdfBoardDetailRows>[number],
+  quoteType: QuoteType,
+) {
+  return `<tr class="board-matrix-row">
+    <td class="matrix-board">${escapeHtml(row.pcbName)}</td>
+    <td class="matrix-num">${formatBoardDetailCellAmount(row.smt, quoteType)}</td>
+    <td class="matrix-num">${formatBoardDetailCellAmount(row.setup, quoteType)}</td>
+    <td class="matrix-num">${formatBoardDetailCellAmount(row.inspection, quoteType)}</td>
+    <td class="matrix-num">${formatBoardDetailCellAmount(row.soldering, quoteType)}</td>
+    <td class="matrix-total">${formatBoardDetailCellAmount(row.total, quoteType)}</td>
   </tr>`
+}
+
+function buildBoardDetailsBoardTableHtml(quote: QuoteListItem) {
+  const { estimate } = buildQuotePreviewData(quote)
+  const boardDetailRows = buildPdfBoardDetailRows(estimate)
+  if (!boardDetailRows.length) return ''
+
+  const labels = getPreviewLabels(quote.quoteType)
+  const totalLabel = quote.quoteType === 'domestic' ? '합계' : 'Total'
+
+  return `<div class="board-summary-section">
+    <table class="quote-table board-details-table board-details-board-table board-details-matrix-table board-summary-table">
+      <colgroup>
+        <col class="matrix-col-board" />
+        <col class="matrix-col-num" />
+        <col class="matrix-col-num" />
+        <col class="matrix-col-num" />
+        <col class="matrix-col-num" />
+        <col class="matrix-col-total" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>SMT</th>
+          <th>SMD</th>
+          <th>SET-UP</th>
+          <th>${labels.inspection}</th>
+          <th>${labels.soldering}</th>
+          <th>${totalLabel}</th>
+        </tr>
+      </thead>
+      <tbody>${boardDetailRows.map((row) => buildBoardDetailsMatrixRowHtml(row, quote.quoteType)).join('')}</tbody>
+    </table>
+  </div>`
+}
+
+function buildBoardSummaryTotalTableHtml(sectionLabel: string, amount: number, quote: QuoteListItem) {
+  const totalLabel = quote.quoteType === 'domestic' ? '합계' : 'Total'
+  const rowLabel = quote.quoteType === 'domestic' ? '합계' : 'Total'
+  const amountText = amount > 0 ? formatQuoteMoneyTotal(amount, quote.quoteType) : '-'
+
+  return `<div class="board-summary-section">
+    <table class="quote-table board-details-table board-summary-table board-summary-total-table">
+      <colgroup>
+        <col class="summary-col-item" />
+        <col class="summary-col-total" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>${escapeHtml(sectionLabel)}</th>
+          <th>${totalLabel}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="board-summary-total-row">
+          <td class="matrix-board">${rowLabel}</td>
+          <td class="matrix-total">${amountText}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>`
+}
+
+function buildBoardDetailsTableHtml(quote: QuoteListItem) {
+  const { rows } = buildQuotePreviewData(quote)
+  const boardSection = buildBoardDetailsBoardTableHtml(quote)
+  const postRow = filterPdfBoardDetailsPostSummaryRows(rows, quote.quoteType)[0]
+  const materialRow = filterPdfBoardDetailsMaterialSummaryRows(rows, quote.quoteType)[0]
+  const labels = getPreviewLabels(quote.quoteType)
+
+  const postSection =
+    postRow?.amount != null ? buildBoardSummaryTotalTableHtml(labels.postProcess, postRow.amount, quote) : ''
+  const materialSection =
+    materialRow?.amount != null ? buildBoardSummaryTotalTableHtml(labels.materials, materialRow.amount, quote) : ''
+
+  if (!boardSection && !postSection && !materialSection) return ''
+
+  return `<div class="breakdown-sections board-details-groups">
+    ${boardSection}
+    ${postSection}
+    ${materialSection}
+  </div>`
 }
 
 function splitPreviewRowsIntoGroups(rows: PreviewRow[]) {
@@ -65,9 +154,52 @@ function splitPreviewRowsIntoGroups(rows: PreviewRow[]) {
   return groups
 }
 
-function buildDetailLineItemsTableHtml(rows: PreviewRow[], quoteType: QuoteType) {
+function buildPreviewRowHtml(row: PreviewRow, quoteType: QuoteType) {
+  const isBoardTotal = Boolean(row.boardTotal)
+  const isBoardSubtotal = Boolean(row.boardSubtotal)
+  const isSectionTotal = Boolean(row.sectionTotal)
+  const sectionBg = isBoardTotal || isSectionTotal ? SECTION_TOTAL_ROW_BG : isBoardSubtotal ? '#e2e8f0' : ''
+  const indent = row.indent === 1 ? 'padding-left:24px;' : row.indent === 2 ? 'padding-left:40px;' : ''
+  const labelStyle =
+    isBoardTotal || row.emphasize
+      ? 'font-weight:700;color:#0f172a;'
+      : row.indent
+        ? 'font-size:13px;color:#475569;'
+        : 'color:#1e293b;'
+  const amountStyle = row.amountEmphasize || isBoardTotal || isBoardSubtotal
+    ? 'font-weight:700;color:#0f172a;'
+    : 'font-size:13px;color:#475569;'
+  const highlight = isPreviewHighlightRow(row)
+  const cellBg = sectionBg ? `background:${sectionBg};` : ''
+  const rowClass = highlight ? 'section-total-row' : isBoardSubtotal ? 'board-subtotal-row' : ''
+  const description = formatPreviewRowDescription(row)
+  const descriptionHtml = description
+    ? `<br><span style="font-size:11px;color:#64748b;">${escapeHtml(description)}</span>`
+    : ''
+  const unit = formatPreviewRowUnit(row, quoteType)
+  const count = row.count != null ? escapeHtml(String(row.count)) : '-'
+  const amount = row.amount != null ? formatQuoteMoneyTotal(row.amount, quoteType) : '-'
+  const borderTop = highlight ? '2px solid #64748b' : '1px solid #e2e8f0'
+
+  return `<tr class="${rowClass}" style="border-top:${borderTop};">
+    <td style="padding:8px 12px;${indent}${labelStyle}${cellBg}${highlight ? 'border-left:4px solid #475569;' : ''}">${escapeHtml(row.label)}${descriptionHtml}</td>
+    <td style="padding:8px 12px;text-align:right;${cellBg}font-size:13px;color:#475569;">${unit}</td>
+    <td style="padding:8px 12px;text-align:center;white-space:nowrap;${cellBg}font-size:13px;color:#475569;">${count}</td>
+    <td style="padding:8px 12px;text-align:right;${amountStyle}${cellBg}">${amount}</td>
+  </tr>`
+}
+
+function buildQuoteBreakdownTableHtml(
+  rows: PreviewRow[],
+  quoteType: QuoteType,
+  variant: 'default' | 'board-summary' = 'default',
+) {
   const groups = splitPreviewRowsIntoGroups(rows)
   const labels = getPreviewLabels(quoteType)
+  const tableClass =
+    variant === 'board-summary'
+      ? 'quote-table line-items-table board-summary-table'
+      : 'quote-table line-items-table'
   const tableHead = `<thead>
       <tr>
         <th>${labels.colItem}</th>
@@ -80,13 +212,27 @@ function buildDetailLineItemsTableHtml(rows: PreviewRow[], quoteType: QuoteType)
   return groups
     .map(
       (group) => `<div class="quote-row-group">
-    <table class="quote-table line-items-table">
+    <table class="${tableClass}">
       ${tableHead}
       <tbody>${group.map((row) => buildPreviewRowHtml(row, quoteType)).join('')}</tbody>
     </table>
   </div>`,
     )
     .join('')
+}
+
+function buildBreakdownSectionHtml(
+  title: string,
+  rows: PreviewRow[],
+  quoteType: QuoteType,
+  modifier = '',
+) {
+  if (!rows.length) return ''
+
+  return `<div class="breakdown-section ${modifier}">
+    <h3 class="breakdown-section-title">${escapeHtml(title)}</h3>
+    ${buildQuoteBreakdownTableHtml(rows, quoteType)}
+  </div>`
 }
 
 function buildQuoteSummaryMetaHtml(
@@ -196,7 +342,9 @@ function buildQuoteSummaryTableHtml(
   const totalLabel = isDomestic ? '총 합계 (VAT 별도)' : 'Total (excl. VAT)'
   const productColLabel = isDomestic ? '제품명' : 'Product'
   const grandLabel = isDomestic ? '최종 합계 금액 (VAT 별도)' : 'Grand Total (excl. VAT)'
-  const note = isDomestic ? '※ 세부내역은 다음 페이지를 참고해 주세요.' : '※ See the following page(s) for details.'
+  const note = isDomestic
+    ? '※ 보드별 상세·세부 산정내역은 다음 페이지를 참고해 주세요.'
+    : '※ See board summary and detailed breakdown on the following pages.'
 
   return `<div class="summary-amount-section">
     <h2 class="summary-section-title">${sectionTitle}</h2>
@@ -231,12 +379,61 @@ function buildQuoteDetailHeaderHtml(
   estimate: ReturnType<typeof buildQuotePreviewData>['estimate'],
 ) {
   const isDomestic = quote.quoteType === 'domestic'
-  const title = isDomestic ? '견적 세부내역' : 'Quotation Details'
+  const title = isDomestic ? '보드별 상세' : 'Board Summary'
+  const note = isDomestic
+    ? '보드·후공정·자재 대당 합계입니다.'
+    : 'Per-unit totals by board, post-process, and materials.'
 
-  return `<div class="detail-header">
-    <h2>${title}</h2>
-    <p class="detail-ref">${escapeHtml(estimate.estNo)} · ${escapeHtml(quote.productName?.trim() || '-')}</p>
-  </div>`
+  return `${buildSectionPageHeaderHtml(quote, estimate, title, note)}`
+}
+
+function buildQuoteDetailedBreakdownPage(quote: QuoteListItem) {
+  const { estimate, rows } = buildQuotePreviewData(quote)
+  const smtRows = filterPdfBreakdownRows(rows, 'smt', quote.quoteType)
+  if (!smtRows.length) return ''
+
+  const isDomestic = quote.quoteType === 'domestic'
+  const pageTitle = isDomestic ? 'SMT 세부 산정내역' : 'SMT Detailed Breakdown'
+  const pageNote = isDomestic
+    ? 'SMT·SET-UP·검사·납땜 항목별 단가·수량 기준 산정식입니다.'
+    : 'Itemized SMT, SET-UP, inspection, and soldering calculation.'
+  const footerNote = isDomestic
+    ? '※ 후공정·자재 세부 산정내역은 다음 페이지를 참고해 주세요.'
+    : '※ See the following page for post-process and materials breakdown.'
+
+  return `<section class="quote-page quote-page-breakdown">
+    <div class="quote-card">
+      ${buildSectionPageHeaderHtml(quote, estimate, pageTitle, pageNote)}
+      <div class="breakdown-sections">
+        ${buildBreakdownSectionHtml('SMT', smtRows, quote.quoteType, 'breakdown-section-smt')}
+      </div>
+      <p class="detail-footer-note">${footerNote}</p>
+    </div>
+  </section>`
+}
+
+function buildQuotePostMaterialBreakdownPage(quote: QuoteListItem) {
+  const { estimate, rows } = buildQuotePreviewData(quote)
+  const postRows = filterPdfBreakdownRows(rows, 'post', quote.quoteType)
+  const materialRows = filterPdfBreakdownRows(rows, 'material', quote.quoteType)
+  if (!postRows.length && !materialRows.length) return ''
+
+  const labels = getPreviewLabels(quote.quoteType)
+  const isDomestic = quote.quoteType === 'domestic'
+  const pageTitle = isDomestic ? '후공정·자재 세부 산정내역' : 'Post-Process & Materials Breakdown'
+  const pageNote = isDomestic
+    ? '후공정·자재 항목별 단가·수량 기준 산정식입니다.'
+    : 'Itemized post-process and materials calculation.'
+
+  return `<section class="quote-page quote-page-post-material">
+    <div class="quote-card">
+      ${buildSectionPageHeaderHtml(quote, estimate, pageTitle, pageNote)}
+      <div class="breakdown-sections">
+        ${buildBreakdownSectionHtml(labels.postProcess, postRows, quote.quoteType, 'breakdown-section-post')}
+        ${buildBreakdownSectionHtml(labels.materials, materialRows, quote.quoteType, 'breakdown-section-material')}
+      </div>
+    </div>
+  </section>`
 }
 
 function buildQuoteSummaryPage(quote: QuoteListItem) {
@@ -252,18 +449,28 @@ function buildQuoteSummaryPage(quote: QuoteListItem) {
 }
 
 function buildQuoteDetailPage(quote: QuoteListItem) {
-  const { estimate, rows } = buildQuotePreviewData(quote)
+  const { estimate } = buildQuotePreviewData(quote)
+  const isDomestic = quote.quoteType === 'domestic'
+  const footerNote = isDomestic
+    ? '※ SMT 세부 산정내역은 다음 페이지를 참고해 주세요.'
+    : '※ See the following pages for the SMT detailed breakdown.'
 
   return `<section class="quote-page quote-page-detail">
     <div class="quote-card">
       ${buildQuoteDetailHeaderHtml(quote, estimate)}
-      ${buildDetailLineItemsTableHtml(rows, quote.quoteType)}
+      ${buildBoardDetailsTableHtml(quote)}
+      <p class="detail-footer-note">${footerNote}</p>
     </div>
   </section>`
 }
 
 function buildQuotePages(quote: QuoteListItem) {
-  return buildQuoteSummaryPage(quote) + buildQuoteDetailPage(quote)
+  return (
+    buildQuoteSummaryPage(quote) +
+    buildQuoteDetailPage(quote) +
+    buildQuoteDetailedBreakdownPage(quote) +
+    buildQuotePostMaterialBreakdownPage(quote)
+  )
 }
 
 function buildQuotesPdfHtml(quotes: QuoteListItem[]) {
@@ -560,8 +767,9 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[]) {
     }
     .detail-header h2 {
       margin: 0 0 4px;
-      font-size: 20px;
-      letter-spacing: 0.05em;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
       color: #0f172a;
     }
     .detail-ref {
@@ -569,8 +777,157 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[]) {
       font-size: 13px;
       color: #64748b;
     }
-    .quote-page-detail .quote-card {
+    .detail-note {
+      margin: 6px 0 0;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .detail-footer-note {
+      margin: 16px 0 0;
+      font-size: 12px;
+      color: #94a3b8;
+      text-align: center;
+    }
+    .quote-page-detail .quote-card,
+    .quote-page-breakdown .quote-card,
+    .quote-page-post-material .quote-card,
+    .quote-page-post .quote-card,
+    .quote-page-material .quote-card {
       padding-top: 24px;
+    }
+    .board-details-groups {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .board-details-groups .board-summary-section {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .board-details-groups .board-summary-section-title {
+      margin: 0 0 10px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #475569;
+    }
+    .board-details-groups .board-summary-table {
+      margin-bottom: 0;
+      table-layout: fixed;
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #e2e8f0;
+    }
+    .board-details-groups .board-summary-table thead {
+      background: #1e293b;
+    }
+    .board-details-groups .board-summary-table th {
+      padding: 10px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #e2e8f0;
+      text-align: center;
+      border: none;
+      white-space: nowrap;
+    }
+    .board-details-groups .board-summary-table td {
+      padding: 11px 10px;
+      vertical-align: middle;
+      border-top: 1px solid #e2e8f0;
+    }
+    .board-details-groups .board-summary-table td.matrix-board {
+      text-align: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+      background: ${SECTION_TOTAL_ROW_BG};
+      border-left: 4px solid #475569;
+      word-break: keep-all;
+    }
+    .board-details-groups .board-summary-table td.matrix-num {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: #1e293b;
+      white-space: nowrap;
+    }
+    .board-details-groups .board-summary-table td.matrix-total {
+      text-align: center;
+      font-size: 13px;
+      font-weight: 800;
+      color: #0f172a;
+      background: ${SECTION_TOTAL_ROW_BG};
+      white-space: nowrap;
+    }
+    .board-details-groups .board-summary-total-table {
+      width: 100%;
+    }
+    .board-details-groups .board-summary-total-table .summary-col-item {
+      width: 70%;
+    }
+    .board-details-groups .board-summary-total-table .summary-col-total {
+      width: 30%;
+    }
+    .breakdown-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .breakdown-section-title {
+      margin: 0 0 10px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #334155;
+    }
+    .board-details-table {
+      margin-bottom: 0;
+    }
+    .board-details-matrix-table {
+      table-layout: fixed;
+      width: 100%;
+    }
+    .board-details-matrix-table .matrix-col-board {
+      width: 24%;
+    }
+    .board-details-matrix-table .matrix-col-num {
+      width: 15.2%;
+    }
+    .board-details-matrix-table .matrix-col-total {
+      width: 15.2%;
+    }
+    .board-details-matrix-table th,
+    .board-details-matrix-table td {
+      padding: 11px 10px;
+      vertical-align: middle;
+    }
+    .board-details-matrix-table th {
+      padding: 10px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #e2e8f0;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .board-details-matrix-table tr.board-matrix-row {
+      border-top: 1px solid #e2e8f0;
+    }
+    .board-details-shared-table thead {
+      background: #475569;
+    }
+    .board-details-table th {
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #e2e8f0;
+      border: none;
+    }
+    .board-details-table th:last-child {
+      text-align: right;
+    }
+    .board-details-table td {
+      vertical-align: top;
     }
     .quote-table {
       width: 100%;
@@ -682,6 +1039,41 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[]) {
       .quote-summary-block {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
+      }
+      .board-details-board-table thead {
+        background: #1e293b !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .board-details-shared-table thead {
+        background: #475569 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .board-details-table thead {
+        background: #1e293b !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .board-details-table th {
+        color: #e2e8f0 !important;
+      }
+      .board-details-matrix-table td.matrix-board,
+      .board-details-matrix-table td.matrix-total {
+        background: ${SECTION_TOTAL_ROW_BG} !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .board-total-row td,
+      .board-shared-post-row td,
+      .board-shared-material-row td {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .quote-table tr.board-subtotal-row td {
+        background-color: #e2e8f0 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
       .quote-table tr.section-total-row td {
         background-color: ${SECTION_TOTAL_ROW_BG} !important;

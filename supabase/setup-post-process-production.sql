@@ -8,6 +8,7 @@ create table if not exists public.post_process_production_records (
   assembly_group_id uuid not null references public.order_assembly_groups(id) on delete cascade,
   quantity integer not null check (quantity > 0),
   source text not null default 'manual' check (source in ('manual')),
+  team text not null default '',
   note text not null default '',
   created_at timestamptz not null default now()
 );
@@ -17,6 +18,7 @@ comment on column public.post_process_production_records.record_date is '기록�
 comment on column public.post_process_production_records.assembly_group_id is '주문 조립 그룹 FK (order_assembly_groups.id)';
 comment on column public.post_process_production_records.quantity is '이번 등록 완제품 세트 수량';
 comment on column public.post_process_production_records.source is 'manual=생산입력 화면';
+comment on column public.post_process_production_records.team is '생산팀 (생산2팀, 생산3팀, 생산4팀)';
 
 create index if not exists post_process_production_records_assembly_group_id_idx
   on public.post_process_production_records (assembly_group_id);

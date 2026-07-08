@@ -6,6 +6,7 @@ export type PostProcessProductionRecord = {
   assemblyGroupId: string
   quantity: number
   source: PostProcessProductionSource
+  team: string
   note: string
   createdAt: string
 }
@@ -15,6 +16,7 @@ export type CreatePostProcessProductionRecordInput = {
   quantity: number
   recordDate?: string
   source?: PostProcessProductionSource
+  team?: string
   note?: string
 }
 
@@ -29,5 +31,6 @@ export type PostProcessProductionHistoryRow = {
   targetQuantity: number
   quantity: number
   source: PostProcessProductionSource
+  team: string
   note: string
 }

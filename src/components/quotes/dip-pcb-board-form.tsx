@@ -2,21 +2,39 @@
 
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { DIP_UNIT } from '@/lib/quotes/constants'
-import { formatQuoteKrw } from '@/lib/quotes/format'
+import { formatQuoteMoneyByDisplay } from '@/lib/quotes/format'
 import type { DipBoardForm } from '@/lib/quotes/form-state'
-import type { QuoteType } from '@/lib/quotes/types'
+import type { QuoteDisplayCurrency, QuoteType } from '@/lib/quotes/types'
 
 type DipPcbBoardFormProps = {
   board: DipBoardForm
   quoteType: QuoteType
+  displayCurrency?: QuoteDisplayCurrency
   onChange: (board: DipBoardForm) => void
 }
 
-function UnitPreview({ krw }: { krw: number; quoteType: QuoteType }) {
-  return <span className="mt-1 block text-[11px] text-slate-400">{formatQuoteKrw(krw)}</span>
+function UnitPreview({
+  krw,
+  quoteType,
+  displayCurrency = 'usd',
+}: {
+  krw: number
+  quoteType: QuoteType
+  displayCurrency?: QuoteDisplayCurrency
+}) {
+  return (
+    <span className="mt-1 block text-[11px] text-slate-400">
+      {formatQuoteMoneyByDisplay(krw, quoteType, displayCurrency)}
+    </span>
+  )
 }
 
-export function DipPcbBoardForm({ board, quoteType, onChange }: DipPcbBoardFormProps) {
+export function DipPcbBoardForm({
+  board,
+  quoteType,
+  displayCurrency = 'usd',
+  onChange,
+}: DipPcbBoardFormProps) {
   function patch(patch: Partial<DipBoardForm>) {
     onChange({ ...board, ...patch })
   }
@@ -40,7 +58,7 @@ export function DipPcbBoardForm({ board, quoteType, onChange }: DipPcbBoardFormP
               onChange={(value) => patch({ [key]: value } as Partial<DipBoardForm>)}
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm"
             />
-            <UnitPreview krw={unit as number} quoteType={quoteType} />
+            <UnitPreview krw={unit as number} quoteType={quoteType} displayCurrency={displayCurrency} />
           </label>
         ))}
       </div>
@@ -60,7 +78,7 @@ export function DipPcbBoardForm({ board, quoteType, onChange }: DipPcbBoardFormP
               onChange={(value) => patch({ [key]: value } as Partial<DipBoardForm>)}
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm"
             />
-            <UnitPreview krw={unit as number} quoteType={quoteType} />
+            <UnitPreview krw={unit as number} quoteType={quoteType} displayCurrency={displayCurrency} />
           </label>
         ))}
       </div>

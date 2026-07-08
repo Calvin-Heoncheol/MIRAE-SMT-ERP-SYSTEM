@@ -1,5 +1,5 @@
 import { QUOTE_KRW_PER_USD } from './constants'
-import type { QuoteType } from './types'
+import type { QuoteDisplayCurrency, QuoteType } from './types'
 
 const EXPORT_USD_FRACTION_DIGITS = 4
 
@@ -41,12 +41,46 @@ export function exportSummaryFromKrw(grandTotalKrw: number, qty: number) {
   }
 }
 
+export function resolveQuoteDisplayCurrency(
+  quoteType: QuoteType,
+  displayCurrency: QuoteDisplayCurrency = 'usd',
+): QuoteDisplayCurrency {
+  return quoteType === 'domestic' ? 'krw' : displayCurrency
+}
+
+export function formatQuoteMoneyByDisplay(
+  krw: number,
+  quoteType: QuoteType,
+  displayCurrency: QuoteDisplayCurrency = 'usd',
+) {
+  return resolveQuoteDisplayCurrency(quoteType, displayCurrency) === 'usd'
+    ? formatQuoteUsd(krw)
+    : formatQuoteKrw(krw)
+}
+
 export function formatQuoteMoneyTotal(krw: number, quoteType?: QuoteType) {
   return quoteType === 'export' ? formatQuoteUsd(krw) : formatQuoteKrw(krw)
 }
 
 export function formatQuoteMoneyUnit(krw: number, quoteType?: QuoteType) {
   return quoteType === 'export' ? formatQuoteUsd(krw) : formatQuoteKrw(krw)
+}
+
+export function formatQuotePreviewSummary(
+  grandTotalKrw: number,
+  qty: number,
+  quoteType: QuoteType,
+  displayCurrency: QuoteDisplayCurrency = 'usd',
+) {
+  if (quoteType === 'export' && resolveQuoteDisplayCurrency(quoteType, displayCurrency) === 'usd') {
+    return exportSummaryFromKrw(grandTotalKrw, qty)
+  }
+
+  const safeQty = qty || 1
+  return {
+    unitFormatted: formatQuoteKrw(Math.floor(grandTotalKrw / safeQty)),
+    totalFormatted: formatQuoteKrw(grandTotalKrw),
+  }
 }
 
 export function inferQuoteTypeFromNumber(quoteNumber: string): QuoteType {

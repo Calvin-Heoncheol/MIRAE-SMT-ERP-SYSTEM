@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { DipPcbBoardForm } from '@/components/quotes/dip-pcb-board-form'
+import { QuoteCurrencyToggle } from '@/components/quotes/quote-currency-toggle'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import {
@@ -15,7 +16,11 @@ import {
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
 import { COMPANY_NAME_EN } from '@/lib/app-config'
-import { exportSummaryFromKrw, formatQuoteKrw, formatQuoteMoneyTotal, formatQuoteMoneyUnit, formatQuoteValidityText } from '@/lib/quotes/format'
+import {
+  formatQuoteMoneyByDisplay,
+  formatQuotePreviewSummary,
+  formatQuoteValidityText,
+} from '@/lib/quotes/format'
 import { getPreviewLabels } from '@/lib/quotes/preview-i18n'
 import {
   buildPreviewRows,
@@ -38,7 +43,7 @@ import {
 } from '@/lib/quotes/form-state'
 import { createQuote, deleteQuotes, updateQuote } from '@/lib/quotes/repository'
 import { exportQuotesToPdf } from '@/lib/quotes/export-quote-pdf'
-import type { EstimateResult, QuoteListItem, QuoteType } from '@/lib/quotes/types'
+import type { EstimateResult, QuoteDisplayCurrency, QuoteListItem, QuoteType } from '@/lib/quotes/types'
 import { toEstimateInputFromDetail } from '@/lib/quotes/utils'
 
 type QuoteModalProps = {
@@ -191,6 +196,7 @@ function QuoteModalContent({
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [displayCurrency, setDisplayCurrency] = useState<QuoteDisplayCurrency>('usd')
 
   const isDomestic = quoteType === 'domestic'
   const typeBadge = isDomestic ? '국내용 견적서' : '해외용 견적서'
@@ -343,10 +349,13 @@ function QuoteModalContent({
     mode === 'edit' && quote?.quoteDate ? quote.quoteDate : result?.date || ''
   const previewProduct = form.productName.trim() || '-'
   const previewRows = result ? buildPreviewRows(result, form, quoteType) : []
-  const exportSummary =
-    result && quoteType === 'export'
-      ? exportSummaryFromKrw(result.values.grandTotal, result.qty || 1)
-      : null
+  const previewSummary = result
+    ? formatQuotePreviewSummary(result.values.grandTotal, result.qty || 1, quoteType, displayCurrency)
+    : null
+
+  function formatAmount(krw: number) {
+    return formatQuoteMoneyByDisplay(krw, quoteType, displayCurrency)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
@@ -449,10 +458,10 @@ function QuoteModalContent({
               <p className="mb-3 text-xs text-slate-500">
                 PCB 보드 수만큼 PCB별 실장·SET-UP 입력 · 일반 부품은 <strong>부품 개수</strong>, IC/BGA는{' '}
                 <strong>핀·볼 수</strong> · {SMT_PLACEMENT_MIN_SCORE}점 이하 PCB는 최소 실장비{' '}
-                {formatQuoteKrw(getSmtPlacementMinFee(quoteType))} · 검사(AOI/X-RAY/외관 각 단면{' '}
-                {formatQuoteKrw(AOI_INSPECTION_UNIT_SINGLE)} · 양면{' '}
-                {formatQuoteKrw(AOI_INSPECTION_UNIT_DOUBLE)}) · SET-UP 장비 임율{' '}
-                {formatQuoteKrw(getSmtSetupRate(quoteType))}/분
+                {formatAmount(getSmtPlacementMinFee(quoteType))} · 검사(AOI/X-RAY/외관 각 단면{' '}
+                {formatAmount(AOI_INSPECTION_UNIT_SINGLE)} · 양면{' '}
+                {formatAmount(AOI_INSPECTION_UNIT_DOUBLE)}) · SET-UP 장비 임율{' '}
+                {formatAmount(getSmtSetupRate(quoteType))}/분
               </p>
               <div className="space-y-3">
                 {smtForms.map((board, index) => (
@@ -460,6 +469,7 @@ function QuoteModalContent({
                     key={index}
                     board={board}
                     quoteType={quoteType}
+                    displayCurrency={displayCurrency}
                     onChange={(next) => updateSmtBoard(index, next)}
                   />
                 ))}
@@ -477,6 +487,7 @@ function QuoteModalContent({
                     key={index}
                     board={board}
                     quoteType={quoteType}
+                    displayCurrency={displayCurrency}
                     onChange={(next) => updateDipBoard(index, next)}
                   />
                 ))}
@@ -500,7 +511,7 @@ function QuoteModalContent({
                       className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
                     />
                     <span className="mt-1 block text-[11px] text-slate-400">
-                      {formatQuoteKrw(unit as number)}/분
+                      {formatAmount(unit as number)}/분
                     </span>
                   </label>
                 ))}
@@ -522,7 +533,7 @@ function QuoteModalContent({
             </section>
 
             <div className="flex flex-col gap-2">
-              <div className={mode === 'edit' ? '' : 'flex gap-3'}>
+              <div className={mode === 'edit' ? 'flex gap-2' : 'flex gap-3'}>
                 {mode === 'create' ? (
                   <button
                     type="button"
@@ -533,13 +544,14 @@ function QuoteModalContent({
                     견적서 생성
                   </button>
                 ) : null}
+                {!isDomestic ? (
+                  <QuoteCurrencyToggle value={displayCurrency} onChange={setDisplayCurrency} />
+                ) : null}
                 <button
                   type="button"
                   onClick={handleSave}
                   disabled={saving}
-                  className={`rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 ${
-                    mode === 'edit' ? 'w-full' : 'flex-1'
-                  }`}
+                  className="flex-1 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
                 >
                   {saving ? '저장 중...' : mode === 'edit' ? '견적서 수정 저장' : '견적서 저장'}
                 </button>
@@ -616,7 +628,7 @@ function QuoteModalContent({
                               ) : null}
                             </td>
                             <td className="px-2 py-1.5 text-right text-xs text-slate-600 lg:px-3 lg:py-2">
-                              {formatPreviewRowUnit(row, quoteType)}
+                              {formatPreviewRowUnit(row, quoteType, displayCurrency)}
                             </td>
                             <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs tabular-nums text-slate-600 lg:px-3 lg:py-2">
                               {row.count != null ? row.count : '-'}
@@ -626,7 +638,7 @@ function QuoteModalContent({
                                 row.amountEmphasize ? 'font-semibold text-slate-900' : 'text-xs text-slate-600'
                               }`}
                             >
-                              {row.amount != null ? formatQuoteMoneyTotal(row.amount, quoteType) : '-'}
+                              {row.amount != null ? formatAmount(row.amount) : '-'}
                             </td>
                           </tr>
                         ))}
@@ -646,25 +658,18 @@ function QuoteModalContent({
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-700">{previewLabels.perUnitPriceVat}</span>
                   <span className="font-semibold text-slate-900">
-                    {result
-                      ? exportSummary
-                        ? exportSummary.unitFormatted
-                        : formatQuoteMoneyUnit(
-                            Math.floor(result.values.grandTotal / (result.qty || 1)),
-                            quoteType,
-                          )
-                      : formatQuoteMoneyUnit(0, quoteType)}
+                    {result && previewSummary
+                      ? previewSummary.unitFormatted
+                      : formatAmount(0)}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between text-base">
                   <span className="font-bold text-slate-900">{previewLabels.grandTotalVat}</span>
                   <span className="font-bold text-blue-700">
-                    {result
-                      ? exportSummary
-                        ? exportSummary.totalFormatted
-                        : formatQuoteMoneyTotal(result.values.grandTotal, quoteType)
-                      : formatQuoteMoneyTotal(0, quoteType)}
+                    {result && previewSummary
+                      ? previewSummary.totalFormatted
+                      : formatAmount(0)}
                   </span>
                 </div>
               </div>

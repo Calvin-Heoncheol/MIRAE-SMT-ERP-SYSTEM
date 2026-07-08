@@ -14,21 +14,31 @@ import {
   SMT_UNIT_SPECIAL,
 } from '@/lib/quotes/constants'
 import { computeSmtSetupBillingMinutes, getSmtSetupPartCount } from '@/lib/quotes/calculate-estimate'
-import { formatQuoteKrw, formatQuoteSetupMinutes } from '@/lib/quotes/format'
-import type { SmtBoardForm } from '@/lib/quotes/form-state'
-import type { QuoteType } from '@/lib/quotes/types'
+import { formatQuoteMoneyByDisplay, formatQuoteSetupMinutes } from '@/lib/quotes/format'
+import type { QuoteDisplayCurrency, QuoteType } from '@/lib/quotes/types'
 
 type SmtPcbBoardFormProps = {
   board: SmtBoardForm
   quoteType: QuoteType
+  displayCurrency?: QuoteDisplayCurrency
   onChange: (board: SmtBoardForm) => void
   onPcbNameChange?: () => void
 }
 
-function UnitPreview({ krw, suffix = '' }: { krw: number; suffix?: string; quoteType: QuoteType }) {
+function UnitPreview({
+  krw,
+  suffix = '',
+  quoteType,
+  displayCurrency = 'usd',
+}: {
+  krw: number
+  suffix?: string
+  quoteType: QuoteType
+  displayCurrency?: QuoteDisplayCurrency
+}) {
   return (
     <span className="mt-1 block text-[11px] text-slate-400">
-      {formatQuoteKrw(krw)}
+      {formatQuoteMoneyByDisplay(krw, quoteType, displayCurrency)}
       {suffix}
     </span>
   )
@@ -52,7 +62,13 @@ function FormSection({
   )
 }
 
-export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }: SmtPcbBoardFormProps) {
+export function SmtPcbBoardForm({
+  board,
+  quoteType,
+  displayCurrency = 'usd',
+  onChange,
+  onPcbNameChange,
+}: SmtPcbBoardFormProps) {
   const isDouble = board.smtSide === 'double'
   const setupRate = getSmtSetupRate(quoteType)
   const partCount = getSmtSetupPartCount({
@@ -91,7 +107,7 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
                 onChange={(chip) => patch({ chip })}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm"
               />
-              <UnitPreview krw={SMT_UNIT_CHIP} suffix="/개" quoteType={quoteType} />
+              <UnitPreview krw={SMT_UNIT_CHIP} suffix="/개" quoteType={quoteType} displayCurrency={displayCurrency} />
             </label>
             <label className="text-xs font-medium text-slate-600">
               이형
@@ -101,7 +117,7 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
                 onChange={(smtOdd) => patch({ smtOdd })}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm"
               />
-              <UnitPreview krw={SMT_UNIT_ODD} suffix="/개" quoteType={quoteType} />
+              <UnitPreview krw={SMT_UNIT_ODD} suffix="/개" quoteType={quoteType} displayCurrency={displayCurrency} />
             </label>
             <label className="text-xs font-medium text-slate-600">
               특수/모듈
@@ -111,7 +127,7 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
                 onChange={(smtSpecial) => patch({ smtSpecial })}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm"
               />
-              <UnitPreview krw={SMT_UNIT_SPECIAL} suffix="/개" quoteType={quoteType} />
+              <UnitPreview krw={SMT_UNIT_SPECIAL} suffix="/개" quoteType={quoteType} displayCurrency={displayCurrency} />
             </label>
           </div>
         </FormSection>
@@ -129,7 +145,7 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
                 onChange={(icPin) => patch({ icPin })}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm"
               />
-              <UnitPreview krw={SMT_UNIT_IC_PIN} suffix="/PIN" quoteType={quoteType} />
+              <UnitPreview krw={SMT_UNIT_IC_PIN} suffix="/PIN" quoteType={quoteType} displayCurrency={displayCurrency} />
             </label>
             <label className="text-xs font-medium text-slate-600">
               BGA BALL (볼 수)
@@ -139,7 +155,7 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
                 onChange={(bga) => patch({ bga })}
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm"
               />
-              <UnitPreview krw={SMT_UNIT_BGA_BALL} suffix="/BALL" quoteType={quoteType} />
+              <UnitPreview krw={SMT_UNIT_BGA_BALL} suffix="/BALL" quoteType={quoteType} displayCurrency={displayCurrency} />
             </label>
           </div>
         </FormSection>
@@ -205,11 +221,11 @@ export function SmtPcbBoardForm({ board, quoteType, onChange, onPcbNameChange }:
           </label>
         )}
         <div className="mt-2 space-y-1 text-[11px] text-slate-400">
-          <p>장비 임율: {formatQuoteKrw(setupRate)}/분</p>
+          <p>장비 임율: {formatQuoteMoneyByDisplay(setupRate, quoteType, displayCurrency)}/분</p>
           {partCount > 0 ? (
             <p>
-              합계 종수 {partCount}종 · 세팅 총 소요시간 {formatQuoteSetupMinutes(setupMinutes)} · 예상 SET-UP{' '}
-              {formatQuoteKrw(Math.round(setupMinutes * setupRate))}
+              합계 종수 {partCount}종 · 세팅 총 소요시간 {formatQuoteSetupMinutes(setupMinutes, quoteType)} · 예상 SET-UP{' '}
+              {formatQuoteMoneyByDisplay(Math.round(setupMinutes * setupRate), quoteType, displayCurrency)}
             </p>
           ) : null}
         </div>

@@ -82,7 +82,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     ok: true,
     data: {
       todayDate: todayYmdSeoul(),
-      todayStages: buildTodayProductionStages(todaySmtRecords, todayPostRecords, todayDeliveryResult.rows),
+      todayStages: buildTodayProductionStages(todaySmtRecords, todayPostRecords),
       todaySmtRecords,
       lines: buildProductionStatusLines(
         ordersResult.orders,

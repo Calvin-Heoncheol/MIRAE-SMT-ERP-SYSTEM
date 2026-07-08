@@ -13,7 +13,6 @@ import {
   SMT_UNIT_IC_PIN,
   SMT_UNIT_ODD,
   SMT_UNIT_SPECIAL,
-  SUB_MATERIAL_RATE,
   RAW_MATERIAL_MANAGEMENT_RATE,
 } from './constants'
 import type {
@@ -398,9 +397,8 @@ export function calculateEstimate(
   const laborFinal = smtTotal + dipTotal + postProcessTotal
   const materialManagementTotal =
     matTotalRaw > 0 ? Math.round(matTotalRaw * RAW_MATERIAL_MANAGEMENT_RATE) : 0
-  const subMaterialTotal = Math.round(laborFinal * SUB_MATERIAL_RATE)
 
-  const subtotalBeforeDiscount = laborFinal + matTotalRaw + materialManagementTotal + subMaterialTotal
+  const subtotalBeforeDiscount = laborFinal + matTotalRaw + materialManagementTotal
   let specialDiscount = Math.max(0, Math.round(Number(data.specialDiscount) || 0))
   if (specialDiscount > subtotalBeforeDiscount) specialDiscount = subtotalBeforeDiscount
   const grandTotal = subtotalBeforeDiscount - specialDiscount
@@ -430,7 +428,7 @@ export function calculateEstimate(
       pcbBoardCount: Number(data.pcbBoardCount) || pcbBoards.length,
       pcbBoardDetails: smtAgg.boardDetails,
       dipBoardDetails: dipAgg.boardDetails,
-      subMaterial: subMaterialTotal,
+      subMaterial: 0,
       materialManagement: materialManagementTotal,
       specialDiscount,
       subtotalBeforeDiscount,
