@@ -5,6 +5,7 @@ import { MaterialCombobox } from '@/components/materials/purchase-orders/materia
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import type { DirectInboundItemForm } from '@/lib/materials/inbound/form-state'
 import type { Material } from '@/lib/materials/types'
+import { barcodeMatchesPart } from '@/lib/materials/utils'
 
 type InboundDirectLinesFormProps = {
   items: DirectInboundItemForm[]
@@ -78,12 +79,20 @@ export function InboundDirectLinesForm({ items, materials, onChange }: InboundDi
     const normalized = normalizeScanCode(code)
     if (!normalized) return null
 
-    return (
-      materials.find((material) => {
-        const candidates = [material.cpn, material.mpn, ...material.alternateMpns]
-        return candidates.some((candidate) => normalizeScanCode(candidate) === normalized)
-      }) ?? null
-    )
+    // 여러 자재가 일치할 수 있으므로, 일치하는 부품번호가 가장 긴(가장 구체적인) 자재를 선택
+    let best: Material | null = null
+    let bestLength = -1
+    for (const material of materials) {
+      const candidates = [material.cpn, material.mpn, ...material.alternateMpns]
+      for (const candidate of candidates) {
+        const trimmed = candidate.trim()
+        if (trimmed.length > bestLength && barcodeMatchesPart(code, trimmed)) {
+          bestLength = trimmed.length
+          best = material
+        }
+      }
+    }
+    return best
   }
 
   function applyScannedMaterial(material: Material) {

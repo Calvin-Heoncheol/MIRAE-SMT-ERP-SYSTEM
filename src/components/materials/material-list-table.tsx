@@ -1,12 +1,13 @@
 'use client'
 
 import { MATERIAL_COLUMN_LABELS } from '@/lib/materials/types'
-import { formatAlternateMpnSummary, formatMaterialMoney } from '@/lib/materials/utils'
+import { formatMaterialMoney } from '@/lib/materials/utils'
 import type { Material } from '@/lib/materials/types'
 
 type MaterialListTableProps = {
   materials: Material[]
   emptyMessage: string
+  onSelectMaterial?: (material: Material) => void
 }
 
 function cell(value: string) {
@@ -41,7 +42,7 @@ function TruncatedText({
   )
 }
 
-export function MaterialListTable({ materials, emptyMessage }: MaterialListTableProps) {
+export function MaterialListTable({ materials, emptyMessage, onSelectMaterial }: MaterialListTableProps) {
   if (!materials.length) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
@@ -54,7 +55,7 @@ export function MaterialListTable({ materials, emptyMessage }: MaterialListTable
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1040px] table-fixed border-collapse">
+        <table className="w-full min-w-[940px] table-fixed border-collapse">
           <thead className="bg-violet-50/80">
             <tr>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
@@ -76,9 +77,6 @@ export function MaterialListTable({ materials, emptyMessage }: MaterialListTable
                 {MATERIAL_COLUMN_LABELS.mpn}
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
-                {MATERIAL_COLUMN_LABELS.alternateMpns}
-              </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
                 {MATERIAL_COLUMN_LABELS.supplier}
               </th>
               <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-violet-900 uppercase">
@@ -94,7 +92,11 @@ export function MaterialListTable({ materials, emptyMessage }: MaterialListTable
           </thead>
           <tbody>
             {materials.map((material) => (
-              <tr key={material.id} className="border-t border-slate-100 hover:bg-violet-50/40">
+              <tr
+                key={material.id}
+                className="cursor-pointer border-t border-slate-100 hover:bg-violet-50/50"
+                onClick={() => onSelectMaterial?.(material)}
+              >
                 <td className="px-3 py-2.5">
                   <TruncatedText value={material.customer} maxWidthClass="max-w-28" />
                 </td>
@@ -109,9 +111,6 @@ export function MaterialListTable({ materials, emptyMessage }: MaterialListTable
                   {cell(material.cpn)}
                 </td>
                 <td className={`px-3 py-2.5 text-slate-700 ${codeCellClass}`}>{cell(material.mpn)}</td>
-                <td className={`px-3 py-2.5 text-slate-700 ${codeCellClass}`}>
-                  {cell(formatAlternateMpnSummary(material.alternateMpns))}
-                </td>
                 <td className="px-3 py-2.5">
                   <TruncatedText value={material.supplier} maxWidthClass="max-w-32" />
                 </td>

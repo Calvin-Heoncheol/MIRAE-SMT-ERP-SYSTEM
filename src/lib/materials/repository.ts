@@ -1,6 +1,6 @@
 import { createSupabaseClient } from '@/lib/supabase'
-import type { Material, MaterialPayload } from './types'
-import { mapMaterialRecord, toMaterialRow } from './utils'
+import type { Material, MaterialAlternateMpn, MaterialPayload } from './types'
+import { mapMaterialAlternateMpnRecord, mapMaterialRecord, toMaterialRow } from './utils'
 
 export type FetchMaterialsResult =
   | { ok: true; materials: Material[] }
@@ -11,6 +11,14 @@ export type SaveMaterialResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type DeleteMaterialResult =
+  | { ok: true }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export type AddAlternateMpnResult =
+  | { ok: true; row: MaterialAlternateMpn }
+  | { ok: false; reason: 'env' | 'query' | 'duplicate'; detail: string }
+
+export type RemoveAlternateMpnResult =
   | { ok: true }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
@@ -107,6 +115,68 @@ export async function updateMaterial(id: string, payload: MaterialPayload): Prom
     }
 
     return { ok: true, id }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function addAlternateMpn(
+  materialId: string,
+  mpn: string,
+  sortOrder = 0,
+): Promise<AddAlternateMpnResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const trimmed = mpn.trim()
+  if (!trimmed) {
+    return { ok: false, reason: 'query', detail: '대체 MPN이 비어 있습니다.' }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('material_mpns')
+      .insert({ material_id: materialId, mpn: trimmed, sort_order: sortOrder })
+      .select('id, material_id, mpn, sort_order, note, created_at')
+      .single()
+
+    if (error) {
+      if (error.code === '23505' || error.message.includes('duplicate')) {
+        return { ok: false, reason: 'duplicate', detail: '이미 등록된 MPN입니다.' }
+      }
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return { ok: true, row: mapMaterialAlternateMpnRecord(data) }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function removeAlternateMpn(id: string): Promise<RemoveAlternateMpnResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { error } = await supabase.from('material_mpns').delete().eq('id', id)
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return { ok: true }
   } catch (error) {
     return {
       ok: false,
