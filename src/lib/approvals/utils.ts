@@ -1,18 +1,26 @@
 import type { ApprovalCategory } from './categories'
-import type { ApprovalDetailInfo, ApprovalListItem, ApprovalRecord } from './types'
+import type {
+  ApprovalAmountBasis,
+  ApprovalDetailInfo,
+  ApprovalListItem,
+  ApprovalPaymentType,
+  ApprovalRecord,
+} from './types'
 
 import { normalizeApprovalDepartment } from './departments'
 import { normalizeSignoffs } from './signoffs'
 
 function normalizeDetailInfo(raw: ApprovalRecord['detail_info']): ApprovalDetailInfo {
+  const amountBasis: ApprovalAmountBasis =
+    raw?.amountBasis === 'supply' || raw?.amountBasis === 'total' || raw?.amountBasis === 'exempt'
+      ? raw.amountBasis
+      : 'supply'
+  const paymentType: ApprovalPaymentType =
+    raw?.paymentType === 'immediate' ? 'immediate' : raw?.paymentType === 'recurring' ? 'recurring' : ''
   return {
     detailItems: Array.isArray(raw?.detailItems) ? raw.detailItems : [],
-    amountBasis:
-      raw?.amountBasis === 'supply' || raw?.amountBasis === 'total' || raw?.amountBasis === 'exempt'
-        ? raw.amountBasis
-        : 'supply',
-    paymentType:
-      raw?.paymentType === 'immediate' ? 'immediate' : raw?.paymentType === 'recurring' ? 'recurring' : '',
+    amountBasis,
+    paymentType,
     paymentMethod: String(raw?.paymentMethod ?? ''),
     attachments: String(raw?.attachments ?? ''),
     attachmentFiles: Array.isArray(raw?.attachmentFiles)
