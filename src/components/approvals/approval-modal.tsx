@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ApprovalFormDocument } from '@/components/approvals/approval-form-document'
+import { DocumentPrintActions } from '@/components/documents/document-print-actions'
 import type { ApprovalCategory } from '@/lib/approvals/categories'
 import { getApprovalCategoryLabel } from '@/lib/approvals/categories'
 import {
@@ -18,7 +19,7 @@ import {
   type ApprovalFormState,
 } from '@/lib/approvals/form-state'
 import { createApproval, deleteApprovals, updateApproval } from '@/lib/approvals/repository'
-import { applySignoff, type ApprovalSignoffRole } from '@/lib/approvals/signoffs'
+import { toggleSignoff, type ApprovalSignoffRole } from '@/lib/approvals/signoffs'
 import type { ApprovalListItem, ApprovalRowPayload } from '@/lib/approvals/types'
 
 type ApprovalModalProps = {
@@ -204,7 +205,7 @@ export function ApprovalModal({
     setSigning(true)
     setSaveError('')
 
-    const nextSignoffs = applySignoff(form.signoffs, role)
+    const nextSignoffs = toggleSignoff(form.signoffs, role)
     const nextForm = { ...form, signoffs: nextSignoffs }
     const payload = buildPayload(category, nextForm, 'edit')
     const result = await updateApproval(approval.id, payload)
@@ -223,7 +224,7 @@ export function ApprovalModal({
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 sm:p-6">
       <div className="my-4 w-full max-w-5xl rounded-2xl bg-slate-100 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+        <div className="no-print flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900">
               {mode === 'edit' ? '품의서 수정' : '새 품의서'} · {getApprovalCategoryLabel(category)}
@@ -234,13 +235,19 @@ export function ApprovalModal({
                 : approval?.docNumber || approval?.id}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100"
-          >
-            닫기
-          </button>
+          <div className="flex items-center gap-3">
+            <DocumentPrintActions
+              title={`품의서 ${form.docNumber || approval?.docNumber || approval?.id || ''}`}
+              disabled={mode === 'create'}
+            />
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100"
+            >
+              닫기
+            </button>
+          </div>
         </div>
 
         <div className="space-y-4 p-5">
@@ -262,7 +269,7 @@ export function ApprovalModal({
             onPendingAttachmentFilesChange={setPendingFiles}
           />
 
-          <div className="flex flex-col gap-2">
+          <div className="no-print flex flex-col gap-2">
             <div className="flex gap-3">
               <button
                 type="button"

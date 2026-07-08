@@ -2,11 +2,10 @@
 
 import { ApprovalAttachmentsField } from '@/components/approvals/approval-attachments-field'
 import { ApprovalPaymentMethodField } from '@/components/approvals/approval-payment-method-field'
-import { ApprovalSignoffPanel } from '@/components/approvals/approval-signoff-panel'
+import { DocumentBrandFooter } from '@/components/documents/document-brand-footer'
+import { DocumentFormHeader } from '@/components/documents/document-form-header'
 import type { ApprovalCategory, ApprovalDetailColumn } from '@/lib/approvals/categories'
 import {
-  getApprovalCategoryDescription,
-  getApprovalCategoryExamples,
   getApprovalCategoryLabel,
   getApprovalDetailColumns,
   getApprovalIntroBodyPlaceholder,
@@ -257,31 +256,18 @@ export function ApprovalFormDocument({
   }
 
   return (
-    <div className="rounded-xl border border-slate-300 bg-white p-6 shadow-sm">
-      <div className="border-b border-slate-200 pb-4">
-        <div className="mb-4 flex justify-end">
-          <div className="w-full sm:w-[min(100%,420px)]">
-            <p className="mb-1 text-right text-[11px] font-semibold text-slate-500">결 재</p>
-            <ApprovalSignoffPanel
-              signoffs={form.signoffs}
-              canSign={canSign}
-              signing={signing}
-              onSign={onSign}
-            />
-          </div>
-        </div>
+    <div id="document-print-root" className="rounded-xl border border-slate-300 bg-white p-6 shadow-sm">
+      <DocumentFormHeader
+        title="품 의 서"
+        titleTracking="0.15em"
+        subtitle={getApprovalCategoryLabel(category)}
+        signoffs={form.signoffs}
+        canSign={canSign}
+        signing={signing}
+        onSign={onSign}
+      />
 
-        <div className="border-t border-slate-100 pt-4 text-center">
-          <h2 className="text-2xl font-bold tracking-[0.45em] text-slate-900">품 의 서</h2>
-          <p className="mt-1.5 text-sm font-semibold text-slate-700">{getApprovalCategoryLabel(category)}</p>
-          <p className="mt-1 text-xs text-slate-500">{getApprovalCategoryDescription(category)}</p>
-          <p className="mt-1 text-[11px] text-slate-400">
-            해당 항목: {getApprovalCategoryExamples(category)}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="document-meta-grid mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 print:grid-cols-2">
         <Field
           label="작성일자"
           type="date"
@@ -296,7 +282,7 @@ export function ApprovalFormDocument({
             readOnly
           />
           {isDocNumberDraft ? (
-            <p className="mt-1 text-[11px] text-slate-400">MRA-0001부터 생성 순서대로 자동 발급됩니다.</p>
+            <p className="no-print mt-1 text-[11px] text-slate-400">MRA-0001부터 생성 순서대로 자동 발급됩니다.</p>
           ) : null}
         </div>
         <label className="block text-sm">
@@ -386,7 +372,7 @@ export function ApprovalFormDocument({
             <button
               type="button"
               onClick={addDetailRow}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              className="no-print rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
             >
               행 추가
             </button>
@@ -413,7 +399,7 @@ export function ApprovalFormDocument({
                     {column.label}
                   </th>
                 ))}
-                {!readOnly ? <th className="px-3 py-2" /> : null}
+                {!readOnly ? <th className="no-print px-3 py-2" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -426,7 +412,7 @@ export function ApprovalFormDocument({
                     </td>
                   ))}
                   {!readOnly ? (
-                    <td className="px-2 py-2">
+                    <td className="no-print px-2 py-2">
                       <button
                         type="button"
                         onClick={() => removeDetailRow(index)}
@@ -482,6 +468,8 @@ export function ApprovalFormDocument({
           onChange={(remarks) => patch({ remarks })}
         />
       </div>
+
+      <DocumentBrandFooter />
     </div>
   )
 }

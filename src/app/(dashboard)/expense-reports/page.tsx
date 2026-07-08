@@ -1,10 +1,7 @@
-import { PagePlaceholder } from '@/components/dashboard/page-placeholder'
+import { ExpenseReportsWorkspace } from '@/components/expense-reports/expense-reports-workspace'
+import { fetchExpenseReports } from '@/lib/expense-reports/repository'
 
-export default function ExpenseReportsPage() {
-  return (
-    <PagePlaceholder
-      title="지출결의서"
-      description="지출결의서 작성·결재 화면은 추후 구현 예정입니다."
-    />
-  )
+export default async function ExpenseReportsPage() {
+  const result = await fetchExpenseReports()
+  return <ExpenseReportsWorkspace result={result} />
 }

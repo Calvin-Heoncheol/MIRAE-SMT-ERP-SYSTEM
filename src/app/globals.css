@@ -35,3 +35,137 @@ body {
     0 1px 3px rgba(0, 0, 0, 0.05),
     0 4px 12px rgba(0, 0, 0, 0.04);
 }
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 12mm 12mm 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body.document-printing {
+    background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 화면 UI는 숨기고, 인쇄 복제본만 출력 */
+  body.document-printing > *:not(#document-print-host) {
+    display: none !important;
+  }
+
+  body.document-printing .no-print {
+    display: none !important;
+  }
+
+  body.document-printing #document-print-host {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    visibility: visible !important;
+  }
+
+  body.document-printing #document-print-host *,
+  body.document-printing #document-print-root,
+  body.document-printing #document-print-root * {
+    visibility: visible !important;
+    color: inherit;
+  }
+
+  body.document-printing #document-print-root {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 8px !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.document-printing #document-print-root .document-form-header > div {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 1.5rem !important;
+  }
+
+  body.document-printing #document-print-root .document-form-header .document-signoff-slot {
+    width: 300px !important;
+    max-width: 42% !important;
+    flex-shrink: 0 !important;
+  }
+
+  body.document-printing #document-print-root .document-meta-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 1rem !important;
+  }
+
+  body.document-printing #document-print-root .document-form-header {
+    padding-top: 2mm !important;
+  }
+
+  body.document-printing #document-print-root .document-brand-footer {
+    margin-top: 8mm !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  body.document-printing #document-print-root .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  body.document-printing #document-print-root table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  body.document-printing #document-print-root th,
+  body.document-printing #document-print-root td {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  body.document-printing #document-print-root input:not([type='checkbox']):not([type='radio']),
+  body.document-printing #document-print-root select,
+  body.document-printing #document-print-root textarea {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    appearance: none;
+    -webkit-appearance: none;
+    color: #0f172a !important;
+  }
+
+  body.document-printing #document-print-root tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.document-printing #document-print-root img {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

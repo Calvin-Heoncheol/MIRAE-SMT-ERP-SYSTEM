@@ -1,16 +1,16 @@
 'use client'
 
 import { useRef } from 'react'
-import { getApprovalAttachmentPublicUrl } from '@/lib/approvals/attachments'
-import type { ApprovalAttachmentFile } from '@/lib/approvals/types'
+import { getLeaveRequestAttachmentPublicUrl } from '@/lib/leave-requests/attachments'
+import type { LeaveRequestAttachmentFile } from '@/lib/leave-requests/types'
 
-type ApprovalAttachmentsFieldProps = {
+type LeaveRequestAttachmentsFieldProps = {
   description: string
-  files: ApprovalAttachmentFile[]
+  files: LeaveRequestAttachmentFile[]
   pendingFiles: File[]
   readOnly?: boolean
   onDescriptionChange: (value: string) => void
-  onFilesChange: (files: ApprovalAttachmentFile[]) => void
+  onFilesChange: (files: LeaveRequestAttachmentFile[]) => void
   onPendingFilesChange: (files: File[]) => void
 }
 
@@ -20,7 +20,7 @@ function formatFileSize(size: number) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function ApprovalAttachmentsField({
+export function LeaveRequestAttachmentsField({
   description,
   files,
   pendingFiles,
@@ -28,7 +28,7 @@ export function ApprovalAttachmentsField({
   onDescriptionChange,
   onFilesChange,
   onPendingFilesChange,
-}: ApprovalAttachmentsFieldProps) {
+}: LeaveRequestAttachmentsFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   function handleFilePick(event: React.ChangeEvent<HTMLInputElement>) {
@@ -42,14 +42,14 @@ export function ApprovalAttachmentsField({
     onPendingFilesChange(pendingFiles.filter((_, i) => i !== index))
   }
 
-  function removeUploaded(file: ApprovalAttachmentFile) {
+  function removeUploaded(file: LeaveRequestAttachmentFile) {
     onFilesChange(files.filter((item) => item.id !== file.id))
   }
 
   return (
     <div className="space-y-3">
       <label className="block text-sm">
-        <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-500">3. 첨부서류</span>
+        <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-500">첨부서류</span>
         {readOnly ? (
           <div className="min-h-[56px] whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
             {description || '-'}
@@ -59,7 +59,7 @@ export function ApprovalAttachmentsField({
             value={description}
             rows={2}
             onChange={(event) => onDescriptionChange(event.target.value)}
-            placeholder="예: 납부 안내서 1부, 견적서 1부"
+            placeholder="예: 진단서 1부, 청첩장 1부"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
           />
         )}
@@ -77,13 +77,7 @@ export function ApprovalAttachmentsField({
               >
                 파일 선택
               </button>
-              <input
-                ref={inputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFilePick}
-              />
+              <input ref={inputRef} type="file" multiple className="hidden" onChange={handleFilePick} />
             </>
           ) : null}
         </div>
@@ -101,7 +95,7 @@ export function ApprovalAttachmentsField({
               >
                 <div className="min-w-0">
                   <a
-                    href={getApprovalAttachmentPublicUrl(file.path)}
+                    href={getLeaveRequestAttachmentPublicUrl(file.path)}
                     target="_blank"
                     rel="noreferrer"
                     className="block truncate text-sm font-medium text-blue-700 hover:underline"
@@ -128,9 +122,7 @@ export function ApprovalAttachmentsField({
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-amber-900">{file.name}</p>
-                  <p className="text-[11px] text-amber-700">
-                    {formatFileSize(file.size)} · 저장 시 업로드
-                  </p>
+                  <p className="text-[11px] text-amber-700">{formatFileSize(file.size)} · 저장 시 업로드</p>
                 </div>
                 {!readOnly ? (
                   <button
@@ -145,9 +137,6 @@ export function ApprovalAttachmentsField({
             ))}
           </ul>
         )}
-        {!readOnly ? (
-          <p className="mt-2 text-[11px] text-slate-400">파일당 최대 20MB · 저장 시 Supabase Storage에 업로드됩니다.</p>
-        ) : null}
       </div>
     </div>
   )
