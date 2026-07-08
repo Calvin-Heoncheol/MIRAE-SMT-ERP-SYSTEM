@@ -1,10 +1,7 @@
-import { PagePlaceholder } from '@/components/dashboard/page-placeholder'
+import { LeaveRequestsWorkspace } from '@/components/leave-requests/leave-requests-workspace'
+import { fetchLeaveRequests } from '@/lib/leave-requests/repository'
 
-export default function LeaveRequestsPage() {
-  return (
-    <PagePlaceholder
-      title="휴가원"
-      description="휴가원 신청·결재 화면은 추후 구현 예정입니다."
-    />
-  )
+export default async function LeaveRequestsPage() {
+  const result = await fetchLeaveRequests()
+  return <LeaveRequestsWorkspace result={result} />
 }

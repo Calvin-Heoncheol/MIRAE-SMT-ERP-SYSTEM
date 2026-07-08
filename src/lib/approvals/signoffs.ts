@@ -77,6 +77,13 @@ export function canApproveSignoff(signoffs: ApprovalSignoff[], role: ApprovalSig
   return signoffs.slice(0, index).every((item) => item.status === 'approved')
 }
 
+export function canRevokeSignoff(signoffs: ApprovalSignoff[], role: ApprovalSignoffRole) {
+  const index = signoffs.findIndex((item) => item.role === role)
+  if (index < 0) return false
+  if (signoffs[index].status !== 'approved') return false
+  return signoffs.slice(index + 1).every((item) => item.status === 'pending')
+}
+
 export function applySignoff(signoffs: ApprovalSignoff[], role: ApprovalSignoffRole): ApprovalSignoff[] {
   if (!canApproveSignoff(signoffs, role)) return signoffs
 
@@ -89,6 +96,31 @@ export function applySignoff(signoffs: ApprovalSignoff[], role: ApprovalSignoffR
         }
       : item,
   )
+}
+
+export function revokeSignoff(signoffs: ApprovalSignoff[], role: ApprovalSignoffRole): ApprovalSignoff[] {
+  if (!canRevokeSignoff(signoffs, role)) return signoffs
+
+  return signoffs.map((item) =>
+    item.role === role
+      ? {
+          ...item,
+          status: 'pending',
+          approvedAt: undefined,
+        }
+      : item,
+  )
+}
+
+export function toggleSignoff(signoffs: ApprovalSignoff[], role: ApprovalSignoffRole): ApprovalSignoff[] {
+  const index = signoffs.findIndex((item) => item.role === role)
+  if (index < 0) return signoffs
+
+  if (signoffs[index].status === 'approved') {
+    return revokeSignoff(signoffs, role)
+  }
+
+  return applySignoff(signoffs, role)
 }
 
 export function getSignoffProgress(signoffs: ApprovalSignoff[]) {
@@ -116,4 +148,29 @@ export function formatSignoffDate(iso?: string) {
     month: 'numeric',
     day: 'numeric',
   }).format(date)
+}
+
+export function resolveApprovalDateFromSignoffs(signoffs: ApprovalSignoff[]): string {
+  const { isComplete } = getSignoffProgress(signoffs)
+  if (!isComplete) return ''
+
+  const finalSignoff = [...signoffs].reverse().find((item) => item.status === 'approved' && item.approvedAt)
+  if (!finalSignoff?.approvedAt) return ''
+
+  const date = new Date(finalSignoff.approvedAt)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+
+  const year = parts.find((part) => part.type === 'year')?.value ?? ''
+  const month = parts.find((part) => part.type === 'month')?.value ?? ''
+  const day = parts.find((part) => part.type === 'day')?.value ?? ''
+  if (!year || !month || !day) return ''
+
+  return `${year}-${month}-${day}`
 }
