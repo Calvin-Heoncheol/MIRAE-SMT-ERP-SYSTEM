@@ -26,6 +26,9 @@ import { formatApprovalMoney } from '@/lib/approvals/utils'
 import type { ApprovalSignoffRole } from '@/lib/approvals/signoffs'
 import type { ApprovalAmountBasis } from '@/lib/approvals/types'
 
+const approvalSectionClass =
+  'approval-document-section rounded-lg border border-slate-300 p-4 print:border-slate-400 print:p-3'
+
 type ApprovalFormDocumentProps = {
   category: ApprovalCategory
   form: ApprovalFormState
@@ -87,6 +90,57 @@ function AmountBasisField({
   )
 }
 
+function InlineField({
+  label,
+  value,
+  onChange,
+  readOnly,
+  placeholder,
+}: {
+  label: string
+  value: string
+  onChange?: (value: string) => void
+  readOnly?: boolean
+  placeholder?: string
+}) {
+  return (
+    <div className="approval-inline-field flex items-center gap-3 text-sm">
+      <span className="shrink-0 text-xs font-semibold tracking-wide text-slate-500">{label}</span>
+      {readOnly ? (
+        <div className="min-h-[38px] flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+          {value || '-'}
+        </div>
+      ) : (
+        <input
+          type="text"
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => onChange?.(event.target.value)}
+          className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400"
+        />
+      )}
+    </div>
+  )
+}
+
+function getDetailColumnStyle(column: ApprovalDetailColumn): React.CSSProperties | undefined {
+  switch (column.key) {
+    case 'amount':
+      return { width: 80 }
+    case 'qty':
+    case 'unit':
+      return { width: 36 }
+    case 'unitPrice':
+      return { width: 56 }
+    case 'note':
+      return { width: 72 }
+    case 'dueDate':
+      return { width: 88 }
+    default:
+      return undefined
+  }
+}
+
 function Field({
   label,
   value,
@@ -108,9 +162,12 @@ function Field({
     <label className={`block text-sm ${className}`}>
       <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-500">{label}</span>
       {readOnly ? (
-        <div className="min-h-[38px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
-          {value || '-'}
-        </div>
+        <input
+          readOnly
+          type={type}
+          value={value || '-'}
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
+        />
       ) : (
         <input
           type={type}
@@ -224,7 +281,7 @@ export function ApprovalFormDocument({
       return (
         <span
           className={[
-            'block rounded px-2 py-1.5 text-sm',
+            'approval-detail-cell-value block rounded px-2 py-1.5 text-sm',
             column.computed || column.key === 'amount'
               ? 'bg-slate-50 text-slate-700 tabular-nums'
               : 'text-slate-800',
@@ -265,27 +322,34 @@ export function ApprovalFormDocument({
         canSign={canSign}
         signing={signing}
         onSign={onSign}
+        className={`${approvalSectionClass} pb-4`}
       />
 
-      <div className="document-meta-grid mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 print:grid-cols-2">
+      <div
+        className={`approval-meta-grid document-meta-grid ${approvalSectionClass} mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 print:mt-3 print:grid-cols-3 print:gap-x-3 print:gap-y-1`}
+      >
         <Field
           label="작성일자"
           type="date"
           value={form.writtenDate}
           readOnly={readOnly}
+          className="approval-meta-field"
           onChange={(writtenDate) => patch({ writtenDate })}
         />
-        <div>
-          <Field
-            label="문서번호"
-            value={isDocNumberDraft && !form.docNumber ? '저장 시 자동 부여' : form.docNumber}
-            readOnly
-          />
+        <div className="approval-meta-field">
+          <label className="block text-sm">
+            <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-500">문서번호</span>
+            <input
+              readOnly
+              value={isDocNumberDraft && !form.docNumber ? '저장 시 자동 부여' : form.docNumber}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-800"
+            />
+          </label>
           {isDocNumberDraft ? (
             <p className="no-print mt-1 text-[11px] text-slate-400">MRA-0001부터 생성 순서대로 자동 발급됩니다.</p>
           ) : null}
         </div>
-        <label className="block text-sm">
+        <label className="approval-meta-field block text-sm">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-500">작성부서</span>
           {readOnly ? (
             <div className="min-h-[38px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
@@ -309,24 +373,27 @@ export function ApprovalFormDocument({
           label="보존기간"
           value={form.retentionPeriod}
           readOnly={readOnly}
+          className="approval-meta-field"
           onChange={(retentionPeriod) => patch({ retentionPeriod })}
         />
         <Field
           label="작 성 자"
           value={form.author}
           readOnly={readOnly}
+          className="approval-meta-field"
           onChange={(author) => patch({ author })}
         />
         <Field
           label="처리일자"
           value={form.processingDate}
           readOnly={readOnly}
+          className="approval-meta-field"
           onChange={(processingDate) => patch({ processingDate })}
         />
       </div>
 
-      <div className="mt-4">
-        <Field
+      <div className={`${approvalSectionClass} mt-4 print:mt-2`}>
+        <InlineField
           label="제     목"
           value={form.subject}
           readOnly={readOnly}
@@ -335,7 +402,7 @@ export function ApprovalFormDocument({
         />
       </div>
 
-      <div className="mt-5">
+      <div className={`${approvalSectionClass} mt-4 print:mt-2`}>
         <TextAreaField
           label="본문"
           value={form.introBody}
@@ -346,11 +413,11 @@ export function ApprovalFormDocument({
         />
       </div>
 
-      <div className="my-5 text-center text-sm font-semibold tracking-[0.4em] text-slate-500">
+      <div className="my-5 text-center text-sm font-semibold tracking-[0.4em] text-slate-500 print:my-3">
         - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 다 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 음 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -
       </div>
 
-      <div>
+      <div className={`${approvalSectionClass} approval-document-section--breakable mt-4 print:mt-2`}>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-slate-800">1. 상세 내역</p>
@@ -390,12 +457,22 @@ export function ApprovalFormDocument({
         ) : null}
 
         <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="min-w-[920px] w-full border-collapse text-sm">
+          <table className="approval-detail-table min-w-[920px] w-full border-collapse text-sm print:min-w-0">
+            <colgroup>
+              <col style={{ width: 32 }} />
+              {detailColumns.map((column) => (
+                <col key={column.key} style={getDetailColumnStyle(column)} />
+              ))}
+              {!readOnly ? <col className="no-print" style={{ width: 48 }} /> : null}
+            </colgroup>
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">NO</th>
+                <th className="whitespace-nowrap px-2 py-2 text-left text-xs font-semibold text-slate-600">NO</th>
                 {detailColumns.map((column) => (
-                  <th key={column.key} className="px-3 py-2 text-left font-semibold text-slate-600">
+                  <th
+                    key={column.key}
+                    className="whitespace-nowrap px-2 py-2 text-left text-xs font-semibold text-slate-600"
+                  >
                     {column.label}
                   </th>
                 ))}
@@ -405,9 +482,9 @@ export function ApprovalFormDocument({
             <tbody>
               {form.detailItems.map((item, index) => (
                 <tr key={index} className="border-t border-slate-100">
-                  <td className="px-3 py-2 text-slate-500">{index + 1}</td>
+                  <td className="px-2 py-1.5 text-xs text-slate-500">{index + 1}</td>
                   {detailColumns.map((column) => (
-                    <td key={column.key} className="px-2 py-2">
+                    <td key={column.key} className="px-1.5 py-1.5">
                       {renderDetailCell(item, index, column)}
                     </td>
                   ))}
@@ -428,7 +505,7 @@ export function ApprovalFormDocument({
           </table>
         </div>
 
-        <div className="mt-3 space-y-1 text-right text-sm text-slate-800">
+        <div className="approval-totals-row mt-3 flex flex-wrap items-baseline justify-end gap-x-6 gap-y-1 text-sm text-slate-800 print:gap-x-4">
           <p>
             {category === 'duty-tax' ? '관세 합계' : '공급가액 합계'}:{' '}
             <span className="font-semibold tabular-nums">{formatApprovalMoney(supplyAmount)}</span>
@@ -444,29 +521,26 @@ export function ApprovalFormDocument({
         </div>
       </div>
 
-      <div className="mt-5 space-y-4">
-        <ApprovalPaymentMethodField
-          paymentType={form.paymentType}
-          paymentMethod={form.paymentMethod}
-          readOnly={readOnly}
-          onChange={(paymentPatch) => patch(paymentPatch)}
-        />
-        <ApprovalAttachmentsField
-          description={form.attachments}
-          files={form.attachmentFiles}
-          pendingFiles={pendingAttachmentFiles}
-          readOnly={readOnly}
-          onDescriptionChange={(attachments) => patch({ attachments })}
-          onFilesChange={(attachmentFiles) => patch({ attachmentFiles })}
-          onPendingFilesChange={(files) => onPendingAttachmentFilesChange?.(files)}
-        />
-        <TextAreaField
-          label="4. 특이사항"
-          value={form.remarks}
-          readOnly={readOnly}
-          rows={2}
-          onChange={(remarks) => patch({ remarks })}
-        />
+      <div className="mt-4 space-y-4 print:mt-2 print:space-y-2">
+        <div className={approvalSectionClass}>
+          <ApprovalPaymentMethodField
+            paymentType={form.paymentType}
+            paymentMethod={form.paymentMethod}
+            readOnly={readOnly}
+            onChange={(paymentPatch) => patch(paymentPatch)}
+          />
+        </div>
+        <div className={approvalSectionClass}>
+          <ApprovalAttachmentsField
+            description={form.attachments}
+            files={form.attachmentFiles}
+            pendingFiles={pendingAttachmentFiles}
+            readOnly={readOnly}
+            onDescriptionChange={(attachments) => patch({ attachments })}
+            onFilesChange={(attachmentFiles) => patch({ attachmentFiles })}
+            onPendingFilesChange={(files) => onPendingAttachmentFilesChange?.(files)}
+          />
+        </div>
       </div>
 
       <DocumentBrandFooter />

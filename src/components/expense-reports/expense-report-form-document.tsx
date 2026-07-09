@@ -161,14 +161,14 @@ export function ExpenseReportFormDocument({
       />
 
       <div className={`${cellBorder} mt-4`}>
-        <div className="flex items-end gap-4 px-4 py-3">
-          <span className="shrink-0 pb-1 text-sm font-semibold text-slate-800">일금</span>
-          <div className="min-w-0 flex-1 border-b border-slate-500 pb-1 text-center text-sm font-semibold tracking-wide text-slate-900">
+        <div className="flex items-end gap-2 px-4 py-3">
+          <span className="w-8 shrink-0 pb-1 text-xs font-semibold text-slate-800">일금</span>
+          <div className="w-[34%] max-w-[220px] shrink-0 border-b border-slate-500 pb-1 text-center text-sm font-semibold tracking-wide text-slate-900">
             {totalAmount > 0 ? formatKoreanMoneyText(totalAmount) : '\u00A0'}
           </div>
-          <div className="flex shrink-0 items-end gap-1 border-b border-slate-500 pb-1">
-            <span className="pb-px text-sm font-semibold text-slate-700">₩</span>
-            <span className="min-w-[88px] text-right text-base font-semibold tabular-nums text-slate-900">
+          <div className="flex min-w-0 flex-1 items-end gap-1 border-b border-slate-500 pb-1">
+            <span className="shrink-0 pb-px text-sm font-semibold text-slate-700">₩</span>
+            <span className="min-w-0 flex-1 text-right text-base font-semibold tabular-nums text-slate-900">
               {totalAmount > 0 ? Math.round(totalAmount).toLocaleString('ko-KR') : '\u00A0'}
             </span>
           </div>
