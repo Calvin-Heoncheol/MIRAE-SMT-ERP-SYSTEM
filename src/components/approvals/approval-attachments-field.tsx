@@ -65,7 +65,7 @@ export function ApprovalAttachmentsField({
         )}
       </label>
 
-      <div>
+      <div className="no-print">
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="text-xs font-semibold text-slate-500">첨부 파일</p>
           {!readOnly ? (

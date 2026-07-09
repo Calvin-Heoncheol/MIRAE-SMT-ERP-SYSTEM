@@ -168,9 +168,22 @@ export function computeApprovalSupplyAmount(
   }, 0)
 }
 
-export function computeApprovalVatAmount(supplyAmount: number, category?: ApprovalCategory, form?: Pick<ApprovalFormState, 'detailItems'>) {
+export function computeApprovalVatAmount(
+  supplyAmount: number,
+  category?: ApprovalCategory,
+  form?: Pick<ApprovalFormState, 'detailItems' | 'amountBasis'>,
+) {
   if (category === 'duty-tax' && form) {
     return form.detailItems.reduce((sum, item) => sum + parseNumericField(item.amount), 0)
+  }
+  if (form?.amountBasis === 'exempt') return 0
+  if (form?.amountBasis === 'total' && form) {
+    const grandTotal = form.detailItems.reduce((sum, item) => {
+      const amount = parseNumericField(item.amount)
+      if (amount > 0) return sum + amount
+      return sum + parseNumericField(item.qty) * parseNumericField(item.unitPrice)
+    }, 0)
+    return Math.max(0, grandTotal - supplyAmount)
   }
   if (supplyAmount <= 0) return 0
   return Math.round(supplyAmount * APPROVAL_VAT_RATE)
@@ -194,7 +207,7 @@ export function computeApprovalGrandTotal(
       return sum + parseNumericField(item.qty) * parseNumericField(item.unitPrice)
     }, 0)
   }
-  return supplyAmount + computeApprovalVatAmount(supplyAmount)
+  return supplyAmount + computeApprovalVatAmount(supplyAmount, category, form)
 }
 
 /** DB total_amount — 공급가액 + 부가세(10%) */
