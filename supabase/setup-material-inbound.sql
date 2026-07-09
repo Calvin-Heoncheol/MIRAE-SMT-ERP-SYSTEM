@@ -1,6 +1,6 @@
 -- Supabase SQL Editor에서 실행하세요 (setup-material-purchase-orders.sql 이후)
 --
--- 입고번호 = id — MRI-YYMMDD 또는 MRI-YYMMDD01 … 자동 발급
+-- 입고번호 = id — MRIB-0001, MRIB-0002 … 자동 발급
 
 create table if not exists public.material_inbound_records (
   id text primary key,
@@ -12,15 +12,15 @@ create table if not exists public.material_inbound_records (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint material_inbound_records_id_not_blank_check check (length(trim(id)) > 0),
-  constraint material_inbound_records_id_format_check check (id ~ '^MRI-[0-9]{6}([0-9]{2})?$'),
+  constraint material_inbound_records_id_format_check check (id ~ '^MRIB-[0-9]+$'),
   constraint material_inbound_records_purchase_order_check check (
     (inbound_type = 'purchase' and purchase_order_id is not null)
     or (inbound_type <> 'purchase' and purchase_order_id is null)
   )
 );
 
-comment on table public.material_inbound_records is '자재 입고 전표 — MRI-260707';
-comment on column public.material_inbound_records.id is '입고번호 MRI-YYMMDD (INSERT 시 자동 발급, 수정 불가)';
+comment on table public.material_inbound_records is '자재 입고 전표 — MRIB-0001';
+comment on column public.material_inbound_records.id is '입고번호 MRIB-0001 (INSERT 시 자동 발급, 수정 불가)';
 comment on column public.material_inbound_records.inbound_type is 'opening=기초, purchase=발주, supplied=사급, return=반품';
 comment on column public.material_inbound_records.purchase_order_id is '발주연동 입고 시 발주 FK';
 
@@ -100,44 +100,18 @@ returns text
 language plpgsql
 as $$
 declare
-  seoul_date date;
-  year_short text;
-  month2 text;
-  day2 text;
-  prefix text;
-  has_base boolean := false;
-  max_suffix integer := 0;
-  row_id text;
-  suffix_text text;
-  suffix_num integer;
+  max_num integer;
+  next_num integer;
 begin
-  seoul_date := (timezone('Asia/Seoul', now()))::date;
-  year_short := to_char(seoul_date, 'YY');
-  month2 := to_char(seoul_date, 'MM');
-  day2 := to_char(seoul_date, 'DD');
-  prefix := 'MRI-' || year_short || month2 || day2;
+  select coalesce(max(
+    nullif(regexp_replace(id, '^MRIB-', ''), '')::integer
+  ), 0)
+  into max_num
+  from public.material_inbound_records
+  where id ~ '^MRIB-[0-9]+$';
 
-  for row_id in
-    select id
-    from public.material_inbound_records
-    where inbound_date = seoul_date
-  loop
-    if row_id = prefix then
-      has_base := true;
-    elsif row_id ~ ('^' || prefix || '[0-9]{2}$') then
-      suffix_text := substring(row_id from length(prefix) + 1 for 2);
-      suffix_num := suffix_text::integer;
-      if suffix_num > max_suffix then
-        max_suffix := suffix_num;
-      end if;
-    end if;
-  end loop;
-
-  if not has_base and max_suffix = 0 then
-    return prefix;
-  end if;
-
-  return prefix || lpad((max_suffix + 1)::text, 2, '0');
+  next_num := max_num + 1;
+  return 'MRIB-' || lpad(next_num::text, 4, '0');
 end;
 $$;
 

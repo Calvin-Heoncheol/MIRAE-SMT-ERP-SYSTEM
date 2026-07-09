@@ -76,7 +76,7 @@ export function InventoryStatusTable({ rows, emptyMessage }: InventoryStatusTabl
                 규격
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
-                CPN
+                자재코드
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
                 MPN
@@ -113,7 +113,7 @@ export function InventoryStatusTable({ rows, emptyMessage }: InventoryStatusTabl
                   <TruncatedText value={row.specification} maxWidthClass="max-w-44" />
                 </td>
                 <td className={`px-3 py-2.5 font-medium text-violet-800 ${codeCellClass}`}>
-                  {cell(row.cpn)}
+                  {cell(row.id)}
                 </td>
                 <td className={`px-3 py-2.5 text-slate-700 ${codeCellClass}`}>{cell(row.mpn)}</td>
                 <td className="px-3 py-2.5 text-center text-sm text-slate-700">{cell(row.type)}</td>

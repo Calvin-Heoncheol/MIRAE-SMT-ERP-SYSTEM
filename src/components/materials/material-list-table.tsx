@@ -71,7 +71,7 @@ export function MaterialListTable({ materials, emptyMessage, onSelectMaterial }:
                 {MATERIAL_COLUMN_LABELS.type}
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
-                {MATERIAL_COLUMN_LABELS.cpn}
+                {MATERIAL_COLUMN_LABELS.id}
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
                 {MATERIAL_COLUMN_LABELS.mpn}
@@ -108,7 +108,7 @@ export function MaterialListTable({ materials, emptyMessage, onSelectMaterial }:
                 </td>
                 <td className="px-3 py-2.5 text-center text-sm text-slate-700">{cell(material.type)}</td>
                 <td className={`px-3 py-2.5 font-medium text-violet-800 ${codeCellClass}`}>
-                  {cell(material.cpn)}
+                  {cell(material.id)}
                 </td>
                 <td className={`px-3 py-2.5 text-slate-700 ${codeCellClass}`}>{cell(material.mpn)}</td>
                 <td className="px-3 py-2.5">

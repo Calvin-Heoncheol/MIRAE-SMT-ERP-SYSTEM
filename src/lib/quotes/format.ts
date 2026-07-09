@@ -2,6 +2,39 @@ import { QUOTE_KRW_PER_USD } from './constants'
 import type { QuoteDisplayCurrency, QuoteType } from './types'
 
 const EXPORT_USD_FRACTION_DIGITS = 4
+/** 해외용 1페이지 요약(Unit Price · Total) */
+const EXPORT_USD_SUMMARY_FRACTION_DIGITS = 2
+
+function roundExportSummaryUsd(usd: number) {
+  const factor = 10 ** EXPORT_USD_SUMMARY_FRACTION_DIGITS
+  return Math.round(usd * factor) / factor
+}
+
+export function formatUsdAmount(usd: number, fractionDigits = EXPORT_USD_FRACTION_DIGITS) {
+  return `$${usd.toLocaleString('en-US', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })}`
+}
+
+/** 해외용 1페이지: 단가(2dp) × 수량 = 합계(2dp) 검산 일치 */
+export function exportPage1SummaryAmounts(grandTotalKrw: number, qty: number) {
+  const totalUsdPrecise = krwToUsd(grandTotalKrw)
+  const safeQty = qty || 1
+  const unitUsd = roundExportSummaryUsd(totalUsdPrecise / safeQty)
+  const totalUsd = roundExportSummaryUsd(unitUsd * safeQty)
+  return { unitUsd, totalUsd, totalUsdPrecise }
+}
+
+/** 해외용 1페이지 요약 금액 — 소수점 2자리 */
+export function formatExportSummaryUsd(usd: number) {
+  return formatUsdAmount(roundExportSummaryUsd(usd), EXPORT_USD_SUMMARY_FRACTION_DIGITS)
+}
+
+/** @deprecated Use formatExportSummaryUsd */
+export function formatExportUnitPrice(usd: number) {
+  return formatExportSummaryUsd(usd)
+}
 
 export function formatQuoteKrw(krw: number) {
   return `₩${Math.round(krw).toLocaleString('ko-KR')}`
@@ -14,13 +47,6 @@ export function roundUsd(usd: number) {
 
 export function krwToUsd(krw: number) {
   return roundUsd((Number(krw) || 0) / QUOTE_KRW_PER_USD)
-}
-
-export function formatUsdAmount(usd: number) {
-  return `$${usd.toLocaleString('en-US', {
-    minimumFractionDigits: EXPORT_USD_FRACTION_DIGITS,
-    maximumFractionDigits: EXPORT_USD_FRACTION_DIGITS,
-  })}`
 }
 
 export function formatQuoteUsd(krw: number) {

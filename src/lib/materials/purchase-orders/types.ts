@@ -4,7 +4,7 @@ export type MaterialPurchaseOrderStatus = (typeof MATERIAL_PURCHASE_ORDER_STATUS
 export type MaterialPurchaseOrderLineItem = {
   lineId?: string
   materialId?: string | null
-  cpn: string
+  materialCode: string
   materialName: string
   specification: string
   mpn: string

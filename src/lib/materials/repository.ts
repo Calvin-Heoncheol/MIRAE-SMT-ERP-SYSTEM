@@ -1,6 +1,6 @@
 import { createSupabaseClient } from '@/lib/supabase'
-import type { Material, MaterialAlternateMpn, MaterialPayload } from './types'
-import { mapMaterialAlternateMpnRecord, mapMaterialRecord, toMaterialRow } from './utils'
+import type { CreateMaterialPayload, Material, MaterialAlternateMpn, MaterialPayload } from './types'
+import { mapMaterialAlternateMpnRecord, mapMaterialRecord, toMaterialInsertRow, toMaterialRow } from './utils'
 
 export type FetchMaterialsResult =
   | { ok: true; materials: Material[] }
@@ -78,14 +78,23 @@ export async function fetchMaterials(): Promise<FetchMaterialsResult> {
   }
 }
 
-export async function createMaterial(payload: MaterialPayload): Promise<SaveMaterialResult> {
+export async function createMaterial(payload: CreateMaterialPayload): Promise<SaveMaterialResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
 
+  const id = payload.id.trim()
+  if (!id) {
+    return { ok: false, reason: 'query', detail: '자재코드를 입력해 주세요.' }
+  }
+
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase.from('materials').insert(toMaterialRow(payload)).select('id').single()
+    const { data, error } = await supabase
+      .from('materials')
+      .insert(toMaterialInsertRow(payload))
+      .select('id')
+      .single()
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }

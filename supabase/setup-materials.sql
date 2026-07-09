@@ -1,6 +1,6 @@
 -- Supabase SQL Editor에서 실행하세요 (setup-products.sql 이후)
 --
--- 내부 자재코드 = id (MRM-0001, MRM-0002 … 자동 발급)
+-- 자재코드 = id — INSERT 시 직접 입력 (자동 발급 없음)
 
 create table if not exists public.materials (
   id text primary key,
@@ -8,7 +8,6 @@ create table if not exists public.materials (
   material_name text not null default '',
   specification text default '',
   type text default '',
-  cpn text default '',
   mpn text default '',
   supplier text default '',
   supply_type text default '',
@@ -16,16 +15,15 @@ create table if not exists public.materials (
   unit_price numeric default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint materials_id_mrm_format_check check (id ~ '^MRM-[0-9]+$')
+  constraint materials_id_not_blank_check check (length(trim(id)) > 0)
 );
 
-comment on table public.materials is '자재등록 마스터 — 내부코드=id(MRM-0001), CPN은 고객 품번';
-comment on column public.materials.id is '내부 자재코드 MRM-0001 (INSERT 시 자동 발급, 수정 불가)';
+comment on table public.materials is '자재등록 마스터 — 자재코드=id (INSERT 시 직접 입력)';
+comment on column public.materials.id is '자재코드 (INSERT 시 필수, 수정 불가)';
 comment on column public.materials.customer is '고객사';
 comment on column public.materials.material_name is '자재명';
 comment on column public.materials.specification is '규격';
 comment on column public.materials.type is '자재 구분 (SMD / DIP)';
-comment on column public.materials.cpn is '고객 품번 (CPN)';
 comment on column public.materials.mpn is '기본 제조사 품번 (MPN)';
 comment on column public.materials.supplier is '공급업체';
 comment on column public.materials.supply_type is '도급/사급';
@@ -34,13 +32,8 @@ comment on column public.materials.unit_price is '단가';
 
 create index if not exists materials_customer_idx on public.materials (customer);
 create index if not exists materials_material_name_idx on public.materials (material_name);
-create index if not exists materials_cpn_idx on public.materials (cpn);
 create index if not exists materials_mpn_idx on public.materials (mpn);
 create index if not exists materials_supplier_idx on public.materials (supplier);
-
-create unique index if not exists materials_customer_cpn_unique_idx
-  on public.materials (customer, cpn)
-  where cpn <> '';
 
 alter table public.materials enable row level security;
 
@@ -66,36 +59,15 @@ begin
 end;
 $$;
 
-create or replace function public.generate_material_code()
-returns text
-language plpgsql
-as $$
-declare
-  max_num integer;
-  next_num integer;
-begin
-  select coalesce(max(
-    nullif(regexp_replace(id, '^MRM-', ''), '')::integer
-  ), 0)
-  into max_num
-  from public.materials
-  where id ~ '^MRM-[0-9]+$';
-
-  next_num := max_num + 1;
-  return 'MRM-' || lpad(next_num::text, 4, '0');
-end;
-$$;
-
-grant execute on function public.generate_material_code() to anon, authenticated;
-
 create or replace function public.normalize_materials_row()
 returns trigger
 language plpgsql
 as $$
 begin
   if tg_op = 'INSERT' then
-    if new.id is null or trim(new.id) = '' then
-      new.id := public.generate_material_code();
+    new.id := coalesce(trim(new.id), '');
+    if new.id = '' then
+      raise exception 'materials.id 는 INSERT 시 필수입니다.';
     end if;
   elsif tg_op = 'UPDATE' and new.id is distinct from old.id then
     new.id := old.id;
@@ -105,7 +77,6 @@ begin
   new.material_name := coalesce(trim(new.material_name), '');
   new.specification := coalesce(trim(new.specification), '');
   new.type := coalesce(trim(new.type), '');
-  new.cpn := coalesce(trim(new.cpn), '');
   new.mpn := coalesce(trim(new.mpn), '');
   new.supplier := coalesce(trim(new.supplier), '');
   new.supply_type := coalesce(trim(new.supply_type), '');

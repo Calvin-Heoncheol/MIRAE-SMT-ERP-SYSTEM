@@ -12,7 +12,7 @@ export type MaterialInboundLineItem = {
   lineId: string
   materialId: string
   purchaseOrderLineId: string | null
-  cpn: string
+  materialCode: string
   materialName: string
   specification: string
   mpn: string
@@ -40,7 +40,7 @@ export type MaterialInboundLineRecord = {
   purchase_order_line_id: string | null
   quantity: number
   materials?: {
-    cpn: string
+    id: string
     material_name: string
     specification: string
     mpn: string

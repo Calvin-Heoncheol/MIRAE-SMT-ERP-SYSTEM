@@ -1,6 +1,6 @@
 export type MaterialPurchaseOrderItemForm = {
   materialId: string
-  cpn: string
+  materialCode: string
   materialName: string
   specification: string
   mpn: string
@@ -17,7 +17,7 @@ export type MaterialPurchaseOrderFormState = {
 export function defaultMaterialPurchaseOrderItemForm(): MaterialPurchaseOrderItemForm {
   return {
     materialId: '',
-    cpn: '',
+    materialCode: '',
     materialName: '',
     specification: '',
     mpn: '',
@@ -29,7 +29,7 @@ export function defaultMaterialPurchaseOrderItemForm(): MaterialPurchaseOrderIte
 export function materialPurchaseOrderItemsFromDetail(
   items: {
     materialId?: string | null
-    cpn: string
+    materialCode: string
     materialName: string
     specification: string
     mpn: string
@@ -40,7 +40,7 @@ export function materialPurchaseOrderItemsFromDetail(
   if (!items.length) return [defaultMaterialPurchaseOrderItemForm()]
   return items.map((item) => ({
     materialId: item.materialId || '',
-    cpn: item.cpn || '',
+    materialCode: item.materialCode || '',
     materialName: item.materialName || '',
     specification: item.specification || '',
     mpn: item.mpn || '',

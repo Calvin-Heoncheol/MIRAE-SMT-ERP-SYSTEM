@@ -22,7 +22,7 @@ function matchesQuery(order: MaterialPurchaseOrderListGroup, query: string) {
   const haystack = [
     order.orderNumber,
     order.supplier,
-    ...order.items.flatMap((item) => [item.materialName, item.cpn, item.mpn, item.specification]),
+    ...order.items.flatMap((item) => [item.materialName, item.materialCode, item.mpn, item.specification]),
   ]
     .join(' ')
     .toLowerCase()

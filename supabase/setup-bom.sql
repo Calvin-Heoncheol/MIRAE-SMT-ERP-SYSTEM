@@ -164,7 +164,6 @@ select
   bom.material_id,
   mat.id as material_code,
   mat.material_name,
-  mat.cpn,
   mat.mpn,
   mat.type,
   bom.quantity_per,
@@ -175,7 +174,7 @@ join public.products product on product.id = bom.product_id
 join public.materials mat on mat.id = bom.material_id
 order by bom.product_id, mat.material_name, bom.ref_designator;
 
-comment on view public.semi_product_bom_detail is '반제품 BOM 상세 (자재명·CPN 포함)';
+comment on view public.semi_product_bom_detail is '반제품 BOM 상세 (자재코드·자재명·MPN 포함)';
 
 drop view if exists public.order_assembly_group_detail;
 

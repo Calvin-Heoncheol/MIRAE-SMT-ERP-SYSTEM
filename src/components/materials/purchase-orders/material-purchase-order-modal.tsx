@@ -247,7 +247,7 @@ function MaterialPurchaseOrderModalContent({
                 <table className="min-w-[720px] w-full border-collapse text-sm">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">CPN</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">자재코드</th>
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">MPN</th>
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">자재명</th>
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">규격</th>
@@ -259,7 +259,7 @@ function MaterialPurchaseOrderModalContent({
                   <tbody>
                     {order?.items.map((item, index) => (
                       <tr key={item.lineId || index} className="border-t border-slate-100">
-                        <td className="px-3 py-2">{item.cpn || '-'}</td>
+                        <td className="px-3 py-2">{item.materialCode || '-'}</td>
                         <td className="px-3 py-2">{item.mpn || '-'}</td>
                         <td className="px-3 py-2">{item.materialName}</td>
                         <td className="px-3 py-2">{item.specification || '-'}</td>

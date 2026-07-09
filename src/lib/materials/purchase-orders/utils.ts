@@ -1,4 +1,5 @@
 import type { Material } from '@/lib/materials/types'
+import { materialMatchesMpnValue, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
 import type {
   MaterialPurchaseOrderLineItem,
   MaterialPurchaseOrderListGroup,
@@ -75,7 +76,7 @@ export function mapMaterialPurchaseOrderLineRecord(line: {
   return {
     lineId: line.id || '',
     materialId: line.material_id || null,
-    cpn: line.cpn || '',
+    materialCode: line.material_id || line.cpn || '',
     materialName: line.material_name || '',
     specification: line.specification || '',
     mpn: line.mpn || '',
@@ -139,38 +140,38 @@ export function formatInternalCodeLabel(code: string) {
   return `${value.slice(0, 8)}…${value.slice(-4)}`
 }
 
-export function formatMaterialOptionLabel(material: Material, field: 'cpn' | 'mpn' | 'cpnOrMpn' = 'cpnOrMpn') {
+export function formatMaterialOptionLabel(
+  material: Material,
+  field: 'id' | 'mpn' | 'idOrMpn' = 'idOrMpn',
+) {
   const name = material.materialName.trim() || '-'
-  const cpn = material.cpn.trim()
+  const code = material.id.trim()
   const mpn = material.mpn.trim() || material.alternateMpns[0]?.trim() || ''
 
-  if (field === 'cpnOrMpn') {
-    const partNo = [cpn, mpn].filter(Boolean).join(' / ')
+  if (field === 'idOrMpn') {
+    const partNo = [code, mpn].filter(Boolean).join(' / ')
     if (partNo) return `${partNo} · ${name}`
     return name
   }
 
   if (field === 'mpn') {
-    const primary = mpn || '-'
-    return `${primary} · ${name}`
+    return `${mpn || '-'} · ${name}`
   }
 
-  if (cpn) return `${cpn} · ${name}`
-  return name
+  return `${code} · ${name}`
 }
 
 export function materialMatchesMpn(material: Material, mpn: string) {
-  const target = mpn.trim()
-  if (!target) return false
-  const mpns = [material.mpn, ...material.alternateMpns].map((value) => value.trim()).filter(Boolean)
-  return mpns.includes(target)
+  return materialMatchesMpnValue(material, mpn)
 }
+
+export type MaterialSearchField = 'id' | 'mpn' | 'idOrMpn'
 
 export function filterMaterialsForPurchaseOrder(
   materials: Material[],
   supplier: string | null | undefined,
   query: string,
-  field?: 'cpn' | 'mpn' | 'cpnOrMpn',
+  field?: MaterialSearchField,
 ) {
   const q = query.trim().toLowerCase()
   const supplierTrim = String(supplier ?? '').trim()
@@ -181,25 +182,24 @@ export function filterMaterialsForPurchaseOrder(
     }
     if (!q) return true
 
-    if (field === 'cpn') {
-      return material.cpn.trim().toLowerCase().includes(q)
+    if (field === 'id') {
+      return material.id.trim().toLowerCase().includes(q)
     }
 
-    if (field === 'mpn' || field === 'cpnOrMpn') {
-      const cpnMatch = material.cpn.trim().toLowerCase().includes(q)
+    if (field === 'mpn' || field === 'idOrMpn') {
+      const idMatch = material.id.trim().toLowerCase().includes(q)
       const mpns = [material.mpn, ...material.alternateMpns]
       const mpnMatch = mpns.some((value) => value.trim().toLowerCase().includes(q))
       if (field === 'mpn') return mpnMatch
-      return cpnMatch || mpnMatch
+      return idMatch || mpnMatch
     }
 
     const haystack = [
       material.materialName,
-      material.cpn,
+      material.id,
       material.mpn,
       ...material.alternateMpns,
       material.specification,
-      material.id,
       material.supplier,
     ]
       .join(' ')
@@ -211,14 +211,17 @@ export function filterMaterialsForPurchaseOrder(
 export function resolveMaterialFromFieldInput(
   materials: Material[],
   supplier: string | null | undefined,
-  field: 'cpn' | 'mpn',
+  field: 'id' | 'mpn',
   value: string,
 ): Material | null {
   const trimmed = value.trim()
   if (!trimmed) return null
 
+  const byCode = resolveMaterialByInventoryCode(materials, trimmed, { supplier })
+  if (byCode) return byCode
+
   const candidates = filterMaterialsForPurchaseOrder(materials, supplier, trimmed, field).filter((material) => {
-    if (field === 'cpn') return material.cpn.trim() === trimmed
+    if (field === 'id') return material.id.trim() === trimmed
     return materialMatchesMpn(material, trimmed)
   })
 
@@ -226,38 +229,41 @@ export function resolveMaterialFromFieldInput(
   return null
 }
 
+export function resolveMaterialFromCodeOrMpnInput(
+  materials: Material[],
+  supplier: string | null | undefined,
+  value: string,
+): Material | null {
+  return resolveMaterialByInventoryCode(materials, value, { supplier })
+}
+
+/** @deprecated Use resolveMaterialFromCodeOrMpnInput */
 export function resolveMaterialFromCpnOrMpnInput(
   materials: Material[],
   supplier: string | null | undefined,
   value: string,
 ): Material | null {
-  const trimmed = value.trim()
-  if (!trimmed) return null
-
-  const byCpn = resolveMaterialFromFieldInput(materials, supplier, 'cpn', trimmed)
-  if (byCpn) return byCpn
-
-  return resolveMaterialFromFieldInput(materials, supplier, 'mpn', trimmed)
+  return resolveMaterialFromCodeOrMpnInput(materials, supplier, value)
 }
 
 export function resolveMaterialFromInput(
   materials: Material[],
   supplier: string | null | undefined,
   materialName: string,
-  cpn?: string,
+  materialCode?: string,
 ): Material | null {
   const name = materialName.trim()
   if (!name) return null
 
-  const cpnTrim = String(cpn || '').trim()
+  const codeTrim = String(materialCode || '').trim()
   const candidates = filterMaterialsForPurchaseOrder(materials, supplier, name).filter((material) => {
     if (material.materialName.trim() !== name) return false
-    if (cpnTrim && material.cpn.trim() !== cpnTrim) return false
+    if (codeTrim && material.id.trim() !== codeTrim) return false
     return true
   })
 
   if (candidates.length === 1) return candidates[0]
-  if (!cpnTrim) {
+  if (!codeTrim) {
     const exactName = candidates.filter((material) => material.materialName.trim() === name)
     if (exactName.length === 1) return exactName[0]
   }
@@ -267,19 +273,16 @@ export function resolveMaterialFromInput(
 export function resolveMaterialPurchaseOrderLineMaterial(
   materials: Material[],
   supplier: string | null | undefined,
-  item: { materialId?: string | null; materialName: string; cpn: string; mpn: string },
+  item: { materialId?: string | null; materialName: string; materialCode: string; mpn: string },
 ): Material | null {
   const materialId = String(item.materialId || '').trim()
-  if (materialId) {
-    const byId = materials.find((material) => material.id === materialId)
-    if (byId) return byId
+  const materialCode = item.materialCode.trim()
+  const code = materialId || materialCode
+
+  if (code) {
+    const byCode = resolveMaterialByInventoryCode(materials, code, { supplier })
+    if (byCode) return byCode
   }
 
-  const cpn = item.cpn.trim()
-  if (cpn) {
-    const byCpn = resolveMaterialFromFieldInput(materials, supplier, 'cpn', cpn)
-    if (byCpn) return byCpn
-  }
-
-  return resolveMaterialFromInput(materials, supplier, item.materialName, item.cpn)
+  return resolveMaterialFromInput(materials, supplier, item.materialName, materialCode)
 }

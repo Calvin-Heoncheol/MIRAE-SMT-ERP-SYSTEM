@@ -12,7 +12,7 @@ export function materialPurchaseOrderItemFormToModel(item: MaterialPurchaseOrder
 
   return {
     materialId: materialId || null,
-    cpn: String(item.cpn || '').trim(),
+    materialCode: String(item.materialCode || '').trim(),
     materialName: String(item.materialName || '').trim(),
     specification: String(item.specification || '').trim(),
     mpn: String(item.mpn || '').trim(),
@@ -33,7 +33,7 @@ export function validateMaterialPurchaseOrderItems(
     .map(materialPurchaseOrderItemFormToModel)
     .filter(
       (item) =>
-        item.cpn ||
+        item.materialCode ||
         item.materialName ||
         item.quantity > 0 ||
         item.orderAmount > 0,
@@ -47,8 +47,8 @@ export function validateMaterialPurchaseOrderItems(
 
   for (let index = 0; index < parsed.length; index += 1) {
     const item = parsed[index]
-    if (!item.cpn) {
-      return { ok: false as const, message: `${index + 1}행 CPN을 선택하세요.` }
+    if (!item.materialCode) {
+      return { ok: false as const, message: `${index + 1}행 자재코드를 선택하세요.` }
     }
     if (item.quantity <= 0) {
       return { ok: false as const, message: `${index + 1}행 수량은 0보다 커야 합니다.` }
@@ -68,14 +68,14 @@ export function validateMaterialPurchaseOrderItems(
       }
       return {
         ok: false as const,
-        message: `${index + 1}행 해당 자재는 등록되어 있지 않습니다. CPN을 다시 확인해 주세요.`,
+        message: `${index + 1}행 해당 자재는 등록되어 있지 않습니다. 자재코드를 다시 확인해 주세요.`,
       }
     }
 
     validated.push({
       ...item,
       materialId: matched.id,
-      cpn: matched.cpn,
+      materialCode: matched.id,
       materialName: matched.materialName,
       specification: matched.specification,
       mpn: matched.mpn,

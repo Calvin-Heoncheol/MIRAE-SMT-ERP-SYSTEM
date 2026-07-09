@@ -28,7 +28,6 @@ export type MaterialRecord = {
   material_name: string
   specification: string
   type: MaterialType
-  cpn: string
   mpn: string
   supplier: string
   supply_type: MaterialSupplyType
@@ -45,7 +44,6 @@ export type Material = {
   materialName: string
   specification: string
   type: MaterialType
-  cpn: string
   mpn: string
   alternateMpns: string[]
   alternateMpnRows: MaterialAlternateMpn[]
@@ -57,12 +55,15 @@ export type Material = {
   updatedAt: string
 }
 
+export type CreateMaterialPayload = MaterialPayload & {
+  id: string
+}
+
 export type MaterialPayload = {
   customer: string
   materialName: string
   specification: string
   type: MaterialType
-  cpn: string
   mpn: string
   supplier: string
   supplyType: MaterialSupplyType
@@ -71,11 +72,11 @@ export type MaterialPayload = {
 }
 
 export const MATERIAL_COLUMN_LABELS = {
+  id: '자재코드',
   customer: '고객사',
   materialName: '자재명',
   specification: '규격',
   type: '구분',
-  cpn: 'CPN',
   mpn: 'MPN',
   alternateMpns: '대체 MPN',
   supplier: '공급업체',

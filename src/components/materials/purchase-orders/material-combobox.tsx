@@ -54,7 +54,7 @@ export function MaterialCombobox({
   const [mounted, setMounted] = useState(false)
 
   const options = useMemo(
-    () => filterMaterialsForPurchaseOrder(materials, supplier, value, 'cpn').slice(0, MAX_OPTIONS),
+    () => filterMaterialsForPurchaseOrder(materials, supplier, value, 'id').slice(0, MAX_OPTIONS),
     [materials, supplier, value],
   )
 
@@ -121,7 +121,7 @@ export function MaterialCombobox({
   }
 
   function tryResolveOnBlur() {
-    const resolved = resolveMaterialFromFieldInput(materials, supplier, 'cpn', value)
+    const resolved = resolveMaterialFromFieldInput(materials, supplier, 'id', value)
     if (resolved) {
       onMaterialSelect(resolved)
     }
@@ -183,7 +183,7 @@ export function MaterialCombobox({
                 index === activeIndex ? 'bg-violet-50 text-violet-900' : 'text-slate-700 hover:bg-slate-50',
               ].join(' ')}
             >
-              <span className="block font-semibold">{formatMaterialOptionLabel(material, 'cpn')}</span>
+              <span className="block font-semibold">{formatMaterialOptionLabel(material, 'id')}</span>
               <span className="mt-0.5 block text-xs text-slate-400">{formatMaterialOptionSubLabel(material)}</span>
             </button>
           </li>

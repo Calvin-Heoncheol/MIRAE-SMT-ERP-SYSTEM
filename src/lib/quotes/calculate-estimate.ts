@@ -1,7 +1,7 @@
 import {
   DIP_UNIT,
   POST_RATE,
-  getBoardInspectionUnits,
+  getBoardInspectionUnit,
   SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
   SMT_SETUP_MINUTES_PER_PART,
   SMT_PLACEMENT_MIN_SCORE,
@@ -71,12 +71,12 @@ function computeBoardInspection(board: SmtPcbBoard) {
     }
   }
 
-  const units = getBoardInspectionUnits(smtSide)
+  const inspectionUnit = getBoardInspectionUnit(smtSide)
   return {
-    aoiInspectionUnit: units.aoi,
-    xrayInspectionUnit: units.xray,
-    visualInspectionUnit: units.visual,
-    inspectionUnit: units.aoi + units.xray + units.visual,
+    aoiInspectionUnit: 0,
+    xrayInspectionUnit: 0,
+    visualInspectionUnit: 0,
+    inspectionUnit,
   }
 }
 

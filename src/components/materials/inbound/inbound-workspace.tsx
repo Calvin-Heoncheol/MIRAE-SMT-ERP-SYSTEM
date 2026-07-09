@@ -13,6 +13,11 @@ type InboundWorkspaceProps = {
   result: FetchMaterialInboundPageResult
 }
 
+type ModalState =
+  | { open: false }
+  | { open: true; mode: 'create' }
+  | { open: true; mode: 'edit'; inbound: MaterialInboundListGroup }
+
 function matchesQuery(inbound: MaterialInboundListGroup, query: string) {
   if (!query) return true
 
@@ -21,7 +26,7 @@ function matchesQuery(inbound: MaterialInboundListGroup, query: string) {
     inbound.purchaseOrderNumber || '',
     inbound.note,
     getInboundTypeLabel(inbound.inboundType),
-    ...inbound.items.flatMap((item) => [item.cpn, item.materialName, item.mpn]),
+    ...inbound.items.flatMap((item) => [item.materialCode, item.materialName, item.mpn]),
   ]
     .join(' ')
     .toLowerCase()
@@ -32,7 +37,7 @@ function matchesQuery(inbound: MaterialInboundListGroup, query: string) {
 export function InboundWorkspace({ result }: InboundWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
+  const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
   const inbounds = result.ok ? result.inbounds : []
@@ -43,16 +48,26 @@ export function InboundWorkspace({ result }: InboundWorkspaceProps) {
     [inbounds, query],
   )
 
-  function openModal() {
+  function openCreate() {
     setModalSession((value) => value + 1)
-    setModalOpen(true)
+    setModal({ open: true, mode: 'create' })
+  }
+
+  function openEdit(inbound: MaterialInboundListGroup) {
+    setModalSession((value) => value + 1)
+    setModal({ open: true, mode: 'edit', inbound })
   }
 
   function closeModal() {
-    setModalOpen(false)
+    setModal({ open: false })
   }
 
   function handleSaved() {
+    closeModal()
+    router.refresh()
+  }
+
+  function handleDeleted() {
     closeModal()
     router.refresh()
   }
@@ -72,7 +87,7 @@ export function InboundWorkspace({ result }: InboundWorkspaceProps) {
           {result.ok ? (
             <button
               type="button"
-              onClick={openModal}
+              onClick={openCreate}
               className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
             >
               + 입고 등록
@@ -85,7 +100,7 @@ export function InboundWorkspace({ result }: InboundWorkspaceProps) {
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="입고번호, 발주번호, 자재명, CPN 검색…"
+            placeholder="입고번호, 발주번호, 자재명, 자재코드 검색…"
             className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-blue-100 placeholder:text-slate-400 focus:border-blue-300 focus:ring-2"
           />
         ) : null}
@@ -96,18 +111,23 @@ export function InboundWorkspace({ result }: InboundWorkspaceProps) {
           <InboundListTable
             inbounds={filtered}
             emptyMessage={query ? '검색 결과가 없습니다' : '등록된 입고 내역이 없습니다'}
+            onSelectInbound={openEdit}
           />
         )}
       </div>
 
-      {result.ok ? (
+      {result.ok && modal.open ? (
         <InboundModal
-          key={modalSession}
-          open={modalOpen}
+          key={`${modal.mode}-${modal.mode === 'edit' ? modal.inbound.inboundId : 'create'}-${modalSession}`}
+          open
+          mode={modal.mode}
+          inbound={modal.mode === 'edit' ? modal.inbound : null}
           materials={result.materials}
           purchaseOrders={result.purchaseOrders}
           onClose={closeModal}
           onSaved={handleSaved}
+          onDeleted={modal.mode === 'edit' ? handleDeleted : undefined}
+          onMaterialsChanged={() => router.refresh()}
         />
       ) : null}
     </>

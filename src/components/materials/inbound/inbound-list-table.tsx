@@ -7,9 +7,10 @@ import { formatInboundMaterialSummary } from '@/lib/materials/inbound/utils'
 type InboundListTableProps = {
   inbounds: MaterialInboundListGroup[]
   emptyMessage: string
+  onSelectInbound?: (inbound: MaterialInboundListGroup) => void
 }
 
-export function InboundListTable({ inbounds, emptyMessage }: InboundListTableProps) {
+export function InboundListTable({ inbounds, emptyMessage, onSelectInbound }: InboundListTableProps) {
   if (!inbounds.length) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
@@ -50,7 +51,11 @@ export function InboundListTable({ inbounds, emptyMessage }: InboundListTablePro
           </thead>
           <tbody>
             {inbounds.map((inbound) => (
-              <tr key={inbound.inboundId} className="border-t border-slate-100 hover:bg-blue-50/40">
+              <tr
+                key={inbound.inboundId}
+                className="cursor-pointer border-t border-slate-100 hover:bg-blue-50/40"
+                onClick={() => onSelectInbound?.(inbound)}
+              >
                 <td className="px-3 py-2.5 font-mono text-sm font-medium text-blue-800">{inbound.inboundNumber}</td>
                 <td className="px-3 py-2.5 text-sm text-slate-700">{inbound.inboundDate}</td>
                 <td className="px-3 py-2.5 text-center text-sm font-medium text-slate-700">

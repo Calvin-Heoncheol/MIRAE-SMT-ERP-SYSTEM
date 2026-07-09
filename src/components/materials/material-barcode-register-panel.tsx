@@ -67,7 +67,7 @@ export function MaterialBarcodeRegisterPanel({
 
     setMessage({
       tone: 'success',
-      text: `${selectedMaterial.cpn} · ${selectedMaterial.materialName}에 "${result.row.mpn}" 대체 MPN을 등록했습니다.`,
+      text: `${selectedMaterial.id} · ${selectedMaterial.materialName}에 "${result.row.mpn}" 대체 MPN을 등록했습니다.`,
     })
     setBarcode('')
     setMaterialQuery('')
@@ -112,13 +112,13 @@ export function MaterialBarcodeRegisterPanel({
           <MaterialCombobox
             value={materialQuery}
             materials={materials}
-            placeholder="CPN, MPN, 자재명 검색…"
+            placeholder="자재코드, MPN, 자재명 검색…"
             ariaLabel="대체 MPN 등록 자재"
             inputClassName={inputClassName}
             onValueChange={setMaterialQuery}
             onMaterialSelect={(material) => {
               setSelectedMaterial(material)
-              setMaterialQuery(material.cpn)
+              setMaterialQuery(material.id)
             }}
           />
         </label>
@@ -135,7 +135,7 @@ export function MaterialBarcodeRegisterPanel({
 
       {selectedMaterial ? (
         <p className="mt-2 text-xs text-slate-600">
-          선택: <span className="font-medium">{selectedMaterial.cpn}</span> · {selectedMaterial.materialName}
+          선택: <span className="font-medium">{selectedMaterial.id}</span> · {selectedMaterial.materialName}
           {selectedMaterial.mpn ? (
             <span className="font-mono text-slate-500"> (MPN: {selectedMaterial.mpn})</span>
           ) : null}

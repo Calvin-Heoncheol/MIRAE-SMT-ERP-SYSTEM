@@ -45,7 +45,6 @@ export function matchesInventoryQuery(row: MaterialInventoryRow, query: string) 
     row.materialName,
     row.specification,
     row.type,
-    row.cpn,
     row.mpn,
     ...row.alternateMpns,
     row.supplier,

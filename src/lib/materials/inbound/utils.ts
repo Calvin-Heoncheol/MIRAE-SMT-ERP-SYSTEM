@@ -3,6 +3,7 @@ import {
   formatMaterialPurchaseOrderDate,
 } from '@/lib/materials/purchase-orders/utils'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
+import type { PurchaseInboundItemForm } from './form-state'
 import type { MaterialInboundListGroup, MaterialInboundRecord, MaterialInboundType } from './types'
 import { MATERIAL_INBOUND_TYPE_LABELS } from './types'
 
@@ -24,7 +25,7 @@ export function mapInboundRecord(record: MaterialInboundRecord): MaterialInbound
     lineId: line.id,
     materialId: line.material_id,
     purchaseOrderLineId: line.purchase_order_line_id,
-    cpn: line.materials?.cpn || '',
+    materialCode: line.materials?.id || line.material_id || '',
     materialName: line.materials?.material_name || '',
     specification: line.materials?.specification || '',
     mpn: line.materials?.mpn || '',
@@ -55,7 +56,7 @@ export function groupInboundsFromRecords(records: MaterialInboundRecord[]): Mate
 
 export function formatInboundMaterialSummary(group: MaterialInboundListGroup) {
   if (!group.items.length) return '-'
-  const first = group.items[0]?.materialName.trim() || group.items[0]?.cpn || '-'
+  const first = group.items[0]?.materialName.trim() || group.items[0]?.materialCode || '-'
   if (group.items.length === 1) return first
   return `${first} 외 ${group.items.length - 1}건`
 }
@@ -79,7 +80,7 @@ export function aggregateOnHandByMaterialId(
 export type PurchaseInboundLineFormSeed = {
   purchaseOrderLineId: string
   materialId: string
-  cpn: string
+  materialCode: string
   materialName: string
   specification: string
   mpn: string
@@ -98,7 +99,7 @@ export function buildPurchaseInboundLineSeeds(order: MaterialPurchaseOrderListGr
       return {
         purchaseOrderLineId: item.lineId || '',
         materialId: item.materialId || '',
-        cpn: item.cpn,
+        materialCode: item.materialCode,
         materialName: item.materialName,
         specification: item.specification,
         mpn: item.mpn,
@@ -112,4 +113,37 @@ export function buildPurchaseInboundLineSeeds(order: MaterialPurchaseOrderListGr
 
 export function filterPurchaseOrdersWithRemaining(orders: MaterialPurchaseOrderListGroup[]) {
   return orders.filter((order) => buildPurchaseInboundLineSeeds(order).length > 0)
+}
+
+export function inboundPurchaseItemsFromDetail(
+  order: MaterialPurchaseOrderListGroup,
+  inbound: MaterialInboundListGroup,
+): PurchaseInboundItemForm[] {
+  const qtyByLineId = new Map(
+    inbound.items
+      .filter((item) => item.purchaseOrderLineId)
+      .map((item) => [item.purchaseOrderLineId as string, item.quantity]),
+  )
+
+  return order.items
+    .filter((item) => item.lineId && qtyByLineId.has(item.lineId))
+    .map((item) => {
+      const orderedQuantity = Number(item.quantity) || 0
+      const receivedQuantity = Number(item.inboundQuantity) || 0
+      const thisInboundQuantity = qtyByLineId.get(item.lineId) ?? 0
+      const remainingQuantity = Math.max(0, orderedQuantity - receivedQuantity + thisInboundQuantity)
+
+      return {
+        purchaseOrderLineId: item.lineId,
+        materialId: item.materialId || '',
+        materialCode: item.materialCode,
+        materialName: item.materialName,
+        specification: item.specification,
+        mpn: item.mpn,
+        orderedQuantity,
+        receivedQuantity,
+        remainingQuantity,
+        quantity: String(thisInboundQuantity),
+      }
+    })
 }

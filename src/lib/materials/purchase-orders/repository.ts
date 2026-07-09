@@ -43,7 +43,7 @@ async function insertMaterialPurchaseOrderLines(
     order_id: orderId,
     line_seq: index,
     material_id: item.materialId || null,
-    cpn: item.cpn,
+    cpn: item.materialCode,
     material_name: item.materialName,
     specification: item.specification,
     mpn: item.mpn,

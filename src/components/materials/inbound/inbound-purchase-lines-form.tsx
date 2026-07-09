@@ -32,7 +32,7 @@ export function InboundPurchaseLinesForm({ items, onChange }: InboundPurchaseLin
       <table className="min-w-[920px] w-full border-collapse text-sm">
         <thead className="bg-slate-50">
           <tr>
-            <th className="px-3 py-2 text-left text-sm font-semibold text-slate-600">CPN</th>
+            <th className="px-3 py-2 text-left text-sm font-semibold text-slate-600">자재코드</th>
             <th className="px-3 py-2 text-left text-sm font-semibold text-slate-600">자재명</th>
             <th className="px-3 py-2 text-right text-sm font-semibold text-slate-600">발주수량</th>
             <th className="px-3 py-2 text-right text-sm font-semibold text-slate-600">기입고</th>
@@ -43,7 +43,7 @@ export function InboundPurchaseLinesForm({ items, onChange }: InboundPurchaseLin
         <tbody>
           {items.map((item, index) => (
             <tr key={item.purchaseOrderLineId} className="border-t border-slate-100">
-              <td className="px-3 py-2 font-medium text-violet-800">{item.cpn || '-'}</td>
+              <td className="px-3 py-2 font-medium text-violet-800">{item.materialCode || '-'}</td>
               <td className="px-3 py-2 text-slate-700">{item.materialName || '-'}</td>
               <td className="px-3 py-2 text-right tabular-nums text-slate-700">
                 {item.orderedQuantity.toLocaleString('ko-KR')}

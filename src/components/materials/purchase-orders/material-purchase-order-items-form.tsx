@@ -29,7 +29,7 @@ function applyMaterialToItem(item: MaterialPurchaseOrderItemForm, material: Mate
   const next: MaterialPurchaseOrderItemForm = {
     ...item,
     materialId: material.id,
-    cpn: material.cpn,
+    materialCode: material.id,
     materialName: material.materialName,
     specification: material.specification,
     mpn: material.mpn,
@@ -61,7 +61,7 @@ export function MaterialPurchaseOrderItemsForm({
       ...items,
       {
         materialId: '',
-        cpn: '',
+        materialCode: '',
         materialName: '',
         specification: '',
         mpn: '',
@@ -87,11 +87,11 @@ export function MaterialPurchaseOrderItemsForm({
     }
   }
 
-  function handleCpnChange(index: number, cpn: string) {
+  function handleMaterialCodeChange(index: number, materialCode: string) {
     onChange((current) =>
       current.map((item, itemIndex) => {
         if (itemIndex !== index) return item
-        return { ...clearMaterialFields(item), cpn }
+        return { ...clearMaterialFields(item), materialCode }
       }),
     )
   }
@@ -107,7 +107,7 @@ export function MaterialPurchaseOrderItemsForm({
         <table className="min-w-[920px] w-full border-collapse text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">CPN</th>
+              <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">자재코드</th>
               <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">MPN</th>
               <th className="min-w-[180px] px-3 py-2 text-left text-sm font-semibold text-slate-600">자재명</th>
               <th className="min-w-[140px] px-3 py-2 text-left text-sm font-semibold text-slate-600">규격</th>
@@ -130,13 +130,13 @@ export function MaterialPurchaseOrderItemsForm({
                 <tr key={index} className="border-t border-slate-100">
                   <td className="px-3 py-2 align-top">
                     <MaterialCombobox
-                      value={item.cpn}
+                      value={item.materialCode}
                       materials={materials}
                       supplier={supplier}
-                      placeholder="CPN 입력 또는 검색"
-                      ariaLabel={`${index + 1}행 CPN`}
+                      placeholder="자재코드 입력 또는 검색"
+                      ariaLabel={`${index + 1}행 자재코드`}
                       inputClassName={`${inputClassName} min-w-[120px]`}
-                      onValueChange={(cpn) => handleCpnChange(index, cpn)}
+                      onValueChange={(materialCode) => handleMaterialCodeChange(index, materialCode)}
                       onMaterialSelect={(material) => selectMaterial(index, material)}
                     />
                   </td>
@@ -185,7 +185,7 @@ export function MaterialPurchaseOrderItemsForm({
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        CPN으로 자재를 선택하세요. 선택 시 MPN·자재명·규격·단가가 자동으로 채워집니다.
+        자재코드로 자재를 선택하세요. 선택 시 MPN·자재명·규격·단가가 자동으로 채워집니다.
       </p>
       <button
         type="button"
