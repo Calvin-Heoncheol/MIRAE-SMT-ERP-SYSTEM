@@ -126,7 +126,7 @@ export function inboundPurchaseItemsFromDetail(
   )
 
   return order.items
-    .filter((item) => item.lineId && qtyByLineId.has(item.lineId))
+    .filter((item): item is typeof item & { lineId: string } => Boolean(item.lineId && qtyByLineId.has(item.lineId)))
     .map((item) => {
       const orderedQuantity = Number(item.quantity) || 0
       const receivedQuantity = Number(item.inboundQuantity) || 0

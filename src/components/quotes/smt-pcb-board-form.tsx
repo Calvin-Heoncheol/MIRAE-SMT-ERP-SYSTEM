@@ -15,6 +15,7 @@ import {
 } from '@/lib/quotes/constants'
 import { computeSmtSetupBillingMinutes, getSmtSetupPartCount } from '@/lib/quotes/calculate-estimate'
 import { formatQuoteMoneyByDisplay, formatQuoteSetupMinutes } from '@/lib/quotes/format'
+import type { SmtBoardForm } from '@/lib/quotes/form-state'
 import type { QuoteDisplayCurrency, QuoteType } from '@/lib/quotes/types'
 
 type SmtPcbBoardFormProps = {
