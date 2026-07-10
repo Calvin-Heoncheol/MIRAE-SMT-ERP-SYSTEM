@@ -216,9 +216,9 @@ type PostProcessProductionHistoryRecordRow = {
         target_quantity: number
         parent_product_id: string
         order_id: string
-        products:
-          | { id: string; product_name: string }
-          | { id: string; product_name: string }[]
+        items:
+          | { id: string; name: string }
+          | { id: string; name: string }[]
           | null
         orders:
           | { id: string; customer: string }
@@ -229,9 +229,9 @@ type PostProcessProductionHistoryRecordRow = {
         target_quantity: number
         parent_product_id: string
         order_id: string
-        products:
-          | { id: string; product_name: string }
-          | { id: string; product_name: string }[]
+        items:
+          | { id: string; name: string }
+          | { id: string; name: string }[]
           | null
         orders:
           | { id: string; customer: string }
@@ -250,8 +250,8 @@ function mapPostProcessProductionHistoryRow(
   const assemblyGroup = Array.isArray(assemblyGroups) ? assemblyGroups[0] : assemblyGroups
   if (!assemblyGroup) return null
 
-  const products = assemblyGroup.products
-  const product = Array.isArray(products) ? products[0] : products
+  const itemRows = assemblyGroup.items
+  const product = Array.isArray(itemRows) ? itemRows[0] : itemRows
 
   const orders = assemblyGroup.orders
   const order = Array.isArray(orders) ? orders[0] : orders
@@ -265,7 +265,7 @@ function mapPostProcessProductionHistoryRow(
     createdAt: record.createdAt,
     orderNumber: order.id || assemblyGroup.order_id || '',
     customer: order.customer || '',
-    productName: product?.product_name || assemblyGroup.parent_product_id || '',
+    productName: product?.name || assemblyGroup.parent_product_id || '',
     productCode: product?.id || assemblyGroup.parent_product_id || '',
     targetQuantity: Math.max(0, Math.floor(Number(assemblyGroup.target_quantity) || 0)),
     quantity: record.quantity,
@@ -304,9 +304,9 @@ async function fetchPostProcessProductionRecords(options?: {
           target_quantity,
           parent_product_id,
           order_id,
-          products (
+          items!order_assembly_groups_parent_product_id_fkey (
             id,
-            product_name
+            name
           ),
           orders (
             id,

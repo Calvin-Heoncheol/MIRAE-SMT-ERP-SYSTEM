@@ -1,6 +1,5 @@
 import { createSupabaseClient } from '@/lib/supabase'
 import { todayYmdSeoul } from '@/lib/orders/utils'
-import { normalizeProductPcbSideMode } from '@/lib/products/utils'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import type { CreateSmtProductionRecordInput, SmtPcbSide, SmtProductionHistoryRow, SmtProductionRecord } from './types'
 
@@ -121,16 +120,7 @@ export async function createSmtProductionRecord(
 
     const { data: orderLine, error: lineError } = await supabase
       .from('order_lines')
-      .select(
-        `
-        id,
-        quantity,
-        product_id,
-        products (
-          pcb_side_mode
-        )
-      `,
-      )
+      .select('id, quantity, product_id')
       .eq('id', orderLineId)
       .maybeSingle()
 
@@ -141,24 +131,13 @@ export async function createSmtProductionRecord(
       return { ok: false, reason: 'validation', detail: '주문 라인을 찾을 수 없습니다.' }
     }
 
-    const productRow = orderLine.products as { pcb_side_mode?: string | null } | { pcb_side_mode?: string | null }[] | null
-    const product = Array.isArray(productRow) ? productRow[0] : productRow
-    const pcbSideMode = normalizeProductPcbSideMode(product?.pcb_side_mode)
-    const requestedPcbSide: SmtPcbSide = input.pcbSide || (pcbSideMode === 'dual' ? 'TOP' : 'SINGLE')
+    const requestedPcbSide: SmtPcbSide = input.pcbSide || 'SINGLE'
 
-    if (pcbSideMode === 'dual') {
-      if (requestedPcbSide !== 'TOP' && requestedPcbSide !== 'BOT') {
-        return {
-          ok: false,
-          reason: 'validation',
-          detail: '양면 제품은 TOP 또는 BOT 면을 선택해야 합니다.',
-        }
-      }
-    } else if (requestedPcbSide !== 'SINGLE') {
+    if (requestedPcbSide !== 'SINGLE') {
       return {
         ok: false,
         reason: 'validation',
-        detail: '단면 제품은 SINGLE 면으로만 등록할 수 있습니다.',
+        detail: '단면(SINGLE)으로만 등록할 수 있습니다.',
       }
     }
 

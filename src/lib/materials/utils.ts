@@ -88,6 +88,69 @@ export function mapMaterialRecord(record: MaterialRecord): Material {
   }
 }
 
+export function mapItemRowToMaterial(row: {
+  id: string
+  name: string
+  specification: string
+  mpn: string
+  material_type?: string | null
+  supply_type?: string | null
+  unit_price?: number | null
+  item_category: number | string
+  created_at: string
+  updated_at: string
+}): Material {
+  const materialTypeRaw = String(row.material_type || '')
+    .trim()
+    .toUpperCase()
+  const type = materialTypeRaw === 'SMD' || materialTypeRaw === 'DIP' ? materialTypeRaw : ''
+
+  const supplyType = row.supply_type?.trim()
+  const normalizedSupplyType =
+    supplyType === '도급' || supplyType === '사급' ? supplyType : ''
+
+  return {
+    id: row.id,
+    customer: '',
+    materialName: row.name || '',
+    specification: row.specification || '',
+    type,
+    mpn: (row.mpn || '').trim(),
+    alternateMpns: [],
+    alternateMpnRows: [],
+    supplier: '',
+    supplyType: normalizedSupplyType,
+    moq: 0,
+    unitPrice: Number(row.unit_price) || 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+export function toItemMaterialInsertRow(payload: CreateMaterialPayload) {
+  return {
+    id: payload.id.trim(),
+    name: payload.materialName.trim(),
+    specification: payload.specification.trim(),
+    mpn: payload.mpn.trim(),
+    material_type: payload.type,
+    supply_type: payload.supplyType,
+    unit_price: payload.unitPrice,
+    item_category: 1 as const,
+  }
+}
+
+export function toItemMaterialUpdateRow(payload: MaterialPayload) {
+  return {
+    name: payload.materialName.trim(),
+    specification: payload.specification.trim(),
+    mpn: payload.mpn.trim(),
+    material_type: payload.type,
+    supply_type: payload.supplyType,
+    unit_price: payload.unitPrice,
+  }
+}
+
 export function toMaterialInsertRow(payload: CreateMaterialPayload) {
   return {
     id: payload.id.trim(),

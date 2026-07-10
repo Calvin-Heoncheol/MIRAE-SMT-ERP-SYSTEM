@@ -25,10 +25,10 @@ export function mapInboundRecord(record: MaterialInboundRecord): MaterialInbound
     lineId: line.id,
     materialId: line.material_id,
     purchaseOrderLineId: line.purchase_order_line_id,
-    materialCode: line.materials?.id || line.material_id || '',
-    materialName: line.materials?.material_name || '',
-    specification: line.materials?.specification || '',
-    mpn: line.materials?.mpn || '',
+    materialCode: line.items?.id || line.material_id || '',
+    materialName: line.items?.name || '',
+    specification: line.items?.specification || '',
+    mpn: line.items?.mpn || '',
     quantity: Number(line.quantity) || 0,
   }))
 

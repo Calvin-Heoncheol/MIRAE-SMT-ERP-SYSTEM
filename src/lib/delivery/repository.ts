@@ -8,7 +8,13 @@ import { fetchPostProcessCumulativeCounts } from '@/lib/post-process/repository'
 import { fetchProducts } from '@/lib/products/repository'
 import { fetchSmtCumulativeCounts } from '@/lib/smt/repository'
 import { createSupabaseClient } from '@/lib/supabase'
-import type { CreateDeliveryRecordInput, DeliveryHistoryRow, DeliveryRecord, DeliverySource } from './types'
+import type {
+  CreateDeliveryRecordInput,
+  DeliveryHistoryRow,
+  DeliveryRecord,
+  DeliverySource,
+  UpdateDeliveryRecordInput,
+} from './types'
 import type { DeliveryInputPageData } from './utils'
 import {
   buildDeliveryAvailabilityMap,
@@ -28,6 +34,18 @@ export type FetchDeliveryCumulativeCountsResult =
 export type CreateDeliveryRecordResult =
   | { ok: true; record: DeliveryRecord; cumulative: number }
   | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+
+export type UpdateDeliveryRecordResult =
+  | { ok: true; record: DeliveryRecord; cumulative: number }
+  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+
+export type DeleteDeliveryRecordResult =
+  | { ok: true }
+  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+
+export type FetchOrderLineUnitPriceResult =
+  | { ok: true; unitPrice: number }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type FetchDeliveryHistoryResult =
   | { ok: true; rows: DeliveryHistoryRow[] }
@@ -317,6 +335,268 @@ export async function createDeliveryRecord(
   }
 }
 
+async function validateDeliveryQuantityChange(
+  assemblyGroupId: string,
+  quantity: number,
+  options: { excludeRecordId?: string; previousQuantity?: number } = {},
+): Promise<
+  | { ok: true; targetQty: number; cumulative: number }
+  | { ok: false; reason: 'query' | 'validation'; detail: string }
+> {
+  const supabase = createSupabaseClient()
+
+  const { data: assemblyGroup, error: groupError } = await supabase
+    .from('order_assembly_groups')
+    .select('id, target_quantity')
+    .eq('id', assemblyGroupId)
+    .maybeSingle()
+
+  if (groupError) {
+    return { ok: false, reason: 'query', detail: groupError.message }
+  }
+  if (!assemblyGroup?.id) {
+    return { ok: false, reason: 'validation', detail: '조립 그룹을 찾을 수 없습니다.' }
+  }
+
+  const targetQty = Math.max(0, Math.floor(Number(assemblyGroup.target_quantity) || 0))
+  const { data: totals, error: totalsError } = await supabase
+    .from('delivery_totals')
+    .select('total_quantity')
+    .eq('assembly_group_id', assemblyGroupId)
+    .maybeSingle()
+
+  if (totalsError) {
+    if (isMissingDeliveryTable(totalsError.message)) {
+      return {
+        ok: false,
+        reason: 'query',
+        detail: 'delivery_records 테이블이 없습니다. setup-delivery-production.sql 을 실행하세요.',
+      }
+    }
+    return { ok: false, reason: 'query', detail: totalsError.message }
+  }
+
+  const currentTotal = Math.max(0, Math.floor(Number(totals?.total_quantity) || 0))
+  const previousQuantity = Math.max(0, Math.floor(Number(options.previousQuantity) || 0))
+  const adjustedTotal = currentTotal - previousQuantity + quantity
+
+  const [productsResult, smtCountsResult, postCountsResult] = await Promise.all([
+    fetchProducts(),
+    fetchSmtCumulativeCounts(),
+    fetchPostProcessCumulativeCounts(),
+  ])
+
+  if (!productsResult.ok) {
+    return { ok: false, reason: 'query', detail: productsResult.detail }
+  }
+  if (!smtCountsResult.ok) {
+    return { ok: false, reason: 'query', detail: smtCountsResult.detail }
+  }
+  if (!postCountsResult.ok) {
+    return { ok: false, reason: 'query', detail: postCountsResult.detail }
+  }
+
+  const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
+  const assemblyGroupsResult = await fetchAssemblyGroups(productById)
+
+  if (!assemblyGroupsResult.ok) {
+    return { ok: false, reason: 'query', detail: assemblyGroupsResult.detail }
+  }
+
+  const group = assemblyGroupsResult.groups.find((item) => item.id === assemblyGroupId)
+
+  if (!group) {
+    return { ok: false, reason: 'validation', detail: '조립 그룹을 찾을 수 없습니다.' }
+  }
+
+  const availability = computeDeliveryAvailability(
+    group,
+    smtCountsResult.counts,
+    postCountsResult.counts,
+    { [assemblyGroupId]: currentTotal },
+    productById,
+  )
+
+  const maxAllowed = availability.shippable + previousQuantity
+
+  if (quantity > maxAllowed) {
+    return {
+      ok: false,
+      reason: 'validation',
+      detail:
+        maxAllowed > 0
+          ? `출하가능 수량(${maxAllowed.toLocaleString('ko-KR')}대)을 초과할 수 없습니다.`
+          : describeDeliveryBlockReason(availability),
+    }
+  }
+
+  if (targetQty > 0 && adjustedTotal > targetQty) {
+    return {
+      ok: false,
+      reason: 'validation',
+      detail: `주문 수량(${targetQty.toLocaleString('ko-KR')}대)을 초과할 수 없습니다.`,
+    }
+  }
+
+  void options.excludeRecordId
+
+  return { ok: true, targetQty, cumulative: adjustedTotal }
+}
+
+export async function fetchOrderLineUnitPrice(
+  orderId: string,
+  productId: string,
+): Promise<FetchOrderLineUnitPriceResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const orderNumber = String(orderId || '').trim()
+  const productCode = String(productId || '').trim()
+  if (!orderNumber || !productCode) {
+    return { ok: true, unitPrice: 0 }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('order_lines')
+      .select('unit_price, product_id, product_code, derived_from_line_id')
+      .eq('order_id', orderNumber)
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    const lines = data || []
+    const match =
+      lines.find(
+        (line) =>
+          !line.derived_from_line_id &&
+          (line.product_id === productCode || line.product_code === productCode),
+      ) ||
+      lines.find((line) => line.product_id === productCode || line.product_code === productCode)
+
+    return {
+      ok: true,
+      unitPrice: Math.max(0, Math.round(Number(match?.unit_price) || 0)),
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function updateDeliveryRecord(
+  recordId: string,
+  input: UpdateDeliveryRecordInput,
+): Promise<UpdateDeliveryRecordResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const id = String(recordId || '').trim()
+  if (!id) {
+    return { ok: false, reason: 'validation', detail: '출하번호를 찾을 수 없습니다.' }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data: existing, error: fetchError } = await supabase
+      .from('delivery_records')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (fetchError) {
+      return { ok: false, reason: 'query', detail: fetchError.message }
+    }
+    if (!existing) {
+      return { ok: false, reason: 'validation', detail: '출하 기록을 찾을 수 없습니다.' }
+    }
+
+    const quantity =
+      input.quantity != null ? Math.floor(Number(input.quantity) || 0) : Math.floor(Number(existing.quantity) || 0)
+    if (quantity < 1) {
+      return { ok: false, reason: 'validation', detail: '출하 수량은 1 이상이어야 합니다.' }
+    }
+
+    const validation = await validateDeliveryQuantityChange(existing.assembly_group_id, quantity, {
+      excludeRecordId: id,
+      previousQuantity: existing.quantity,
+    })
+
+    if (!validation.ok) {
+      return validation
+    }
+
+    const recordDate = input.recordDate?.trim() || String(existing.record_date || '').slice(0, 10)
+    const note = input.note != null ? input.note.trim() : existing.note || ''
+
+    const { data: updated, error: updateError } = await supabase
+      .from('delivery_records')
+      .update({
+        record_date: recordDate,
+        quantity,
+        note,
+      })
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    if (updateError || !updated) {
+      return {
+        ok: false,
+        reason: 'query',
+        detail: updateError?.message || '출하 기록 수정에 실패했습니다.',
+      }
+    }
+
+    return {
+      ok: true,
+      record: mapDeliveryRecord(updated),
+      cumulative: validation.cumulative,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function deleteDeliveryRecord(recordId: string): Promise<DeleteDeliveryRecordResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const id = String(recordId || '').trim()
+  if (!id) {
+    return { ok: false, reason: 'validation', detail: '출하번호를 찾을 수 없습니다.' }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { error } = await supabase.from('delivery_records').delete().eq('id', id)
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 type DeliveryHistoryRecordRow = {
   id: string
   record_date: string
@@ -330,9 +610,9 @@ type DeliveryHistoryRecordRow = {
         target_quantity: number
         parent_product_id: string
         order_id: string
-        products:
-          | { id: string; product_name: string }
-          | { id: string; product_name: string }[]
+        items:
+          | { id: string; name: string }
+          | { id: string; name: string }[]
           | null
         orders:
           | { id: string; customer: string }
@@ -343,9 +623,9 @@ type DeliveryHistoryRecordRow = {
         target_quantity: number
         parent_product_id: string
         order_id: string
-        products:
-          | { id: string; product_name: string }
-          | { id: string; product_name: string }[]
+        items:
+          | { id: string; name: string }
+          | { id: string; name: string }[]
           | null
         orders:
           | { id: string; customer: string }
@@ -362,8 +642,8 @@ function mapDeliveryHistoryRow(row: DeliveryHistoryRecordRow): DeliveryHistoryRo
   const assemblyGroup = Array.isArray(assemblyGroups) ? assemblyGroups[0] : assemblyGroups
   if (!assemblyGroup) return null
 
-  const products = assemblyGroup.products
-  const product = Array.isArray(products) ? products[0] : products
+  const itemRows = assemblyGroup.items
+  const product = Array.isArray(itemRows) ? itemRows[0] : itemRows
 
   const orders = assemblyGroup.orders
   const order = Array.isArray(orders) ? orders[0] : orders
@@ -373,11 +653,12 @@ function mapDeliveryHistoryRow(row: DeliveryHistoryRecordRow): DeliveryHistoryRo
 
   return {
     id: record.id,
+    assemblyGroupId: record.assemblyGroupId,
     recordDate: record.recordDate,
     createdAt: record.createdAt,
     orderNumber: order.id || assemblyGroup.order_id || '',
     customer: order.customer || '',
-    productName: product?.product_name || assemblyGroup.parent_product_id || '',
+    productName: product?.name || assemblyGroup.parent_product_id || '',
     productCode: product?.id || assemblyGroup.parent_product_id || '',
     targetQuantity: Math.max(0, Math.floor(Number(assemblyGroup.target_quantity) || 0)),
     quantity: record.quantity,
@@ -419,9 +700,9 @@ async function fetchDeliveryRecords(options?: {
           target_quantity,
           parent_product_id,
           order_id,
-          products (
+          items!order_assembly_groups_parent_product_id_fkey (
             id,
-            product_name
+            name
           ),
           orders (
             id,

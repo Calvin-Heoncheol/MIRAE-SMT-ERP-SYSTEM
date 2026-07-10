@@ -15,19 +15,13 @@ type OrderItemsFormProps = {
 }
 
 function applyProductToItem(item: OrderItemForm, product: Product): OrderItemForm {
-  const next: OrderItemForm = {
+  return {
     ...item,
     productId: product.id,
     productCode: product.productCode,
     productName: product.productName,
+    unitPrice: String(product.defaultUnitPrice),
   }
-
-  const currentPrice = Math.round(Number(item.unitPrice) || 0)
-  if (product.defaultUnitPrice > 0 && currentPrice <= 0) {
-    next.unitPrice = String(product.defaultUnitPrice)
-  }
-
-  return next
 }
 
 export function OrderItemsForm({ items, customer, products, onChange }: OrderItemsFormProps) {

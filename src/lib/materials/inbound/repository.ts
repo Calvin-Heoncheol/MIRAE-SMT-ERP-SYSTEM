@@ -47,8 +47,48 @@ export function isMissingMaterialInboundTable(detail: string) {
   return (
     detail.includes('material_inbound_records') ||
     detail.includes('material_inbound_lines') ||
-    detail.includes('schema cache')
+    detail.includes('schema cache') ||
+    detail.includes('relationship') ||
+    detail.includes('items')
   )
+}
+
+async function fetchItemsByIds(ids: string[]) {
+  const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+  if (!uniqueIds.length) return new Map<string, { id: string; name: string; specification: string; mpn: string }>()
+
+  const supabase = createSupabaseClient()
+  const { data, error } = await supabase
+    .from('items')
+    .select('id, name, specification, mpn')
+    .in('id', uniqueIds)
+
+  if (error) throw new Error(error.message)
+
+  return new Map(
+    (data || []).map((row) => [
+      row.id,
+      {
+        id: row.id,
+        name: row.name || '',
+        specification: row.specification || '',
+        mpn: row.mpn || '',
+      },
+    ]),
+  )
+}
+
+function attachItemsToInboundRecords(
+  records: MaterialInboundRecord[],
+  itemsById: Map<string, { id: string; name: string; specification: string; mpn: string }>,
+): MaterialInboundRecord[] {
+  return records.map((record) => ({
+    ...record,
+    material_inbound_lines: (record.material_inbound_lines || []).map((line) => ({
+      ...line,
+      items: itemsById.get(line.material_id) ?? null,
+    })),
+  }))
 }
 
 async function fetchPurchaseOrderLinesForValidation(orderId: string) {
@@ -196,13 +236,7 @@ export async function fetchMaterialInbounds(): Promise<FetchMaterialInboundsResu
           line_seq,
           material_id,
           purchase_order_line_id,
-          quantity,
-          materials (
-            id,
-            material_name,
-            specification,
-            mpn
-          )
+          quantity
         )
       `,
       )
@@ -213,7 +247,12 @@ export async function fetchMaterialInbounds(): Promise<FetchMaterialInboundsResu
       return { ok: false, reason: 'query', detail: error.message }
     }
 
-    const inbounds = groupInboundsFromRecords((data || []) as MaterialInboundRecord[])
+    const records = (data || []) as MaterialInboundRecord[]
+    const materialIds = records.flatMap((record) =>
+      (record.material_inbound_lines || []).map((line) => line.material_id),
+    )
+    const itemsById = await fetchItemsByIds(materialIds)
+    const inbounds = groupInboundsFromRecords(attachItemsToInboundRecords(records, itemsById))
     return { ok: true, inbounds }
   } catch (error) {
     return {

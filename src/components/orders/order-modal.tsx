@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { OrderItemsForm } from '@/components/orders/order-items-form'
 import { validateOrderItems } from '@/lib/orders/build-order-payload'
 import {
@@ -15,6 +16,9 @@ import type { OrderListGroup } from '@/lib/orders/types'
 import { addDaysYmd, todayYmdSeoul, validateOrderCodeInput } from '@/lib/orders/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
+import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
+import type { BusinessPartner } from '@/lib/partners/types'
+import { resolvePartnerFromInput } from '@/lib/partners/utils'
 
 type OrderModalProps = {
   open: boolean
@@ -60,12 +64,29 @@ function OrderModalContent({
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [products, setProducts] = useState<Product[]>([])
+  const [salesPartners, setSalesPartners] = useState<BusinessPartner[]>([])
+  const [partnersLoading, setPartnersLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
     fetchProducts().then((result) => {
       if (!cancelled && result.ok) {
         setProducts(result.products)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    setPartnersLoading(true)
+    fetchSalesBusinessPartners().then((result) => {
+      if (cancelled) return
+      setPartnersLoading(false)
+      if (result.ok) {
+        setSalesPartners(result.partners)
       }
     })
     return () => {
@@ -90,14 +111,16 @@ function OrderModalContent({
   }
 
   async function handleSave() {
-    const validation = validateOrderItems(items, products, form.customer.trim())
-    if (!validation.ok) {
-      setSaveError(validation.message)
+    const resolvedPartner = resolvePartnerFromInput(salesPartners, form.customer)
+    if (!resolvedPartner) {
+      setSaveError('거래처등록에 등록된 매출 고객사만 선택할 수 있습니다.')
       return
     }
 
-    if (!form.customer.trim()) {
-      setSaveError('고객사를 입력해 주세요.')
+    const customerName = resolvedPartner.name
+    const validation = validateOrderItems(items, products, customerName)
+    if (!validation.ok) {
+      setSaveError(validation.message)
       return
     }
 
@@ -110,7 +133,7 @@ function OrderModalContent({
     const payload = {
       order_date: form.orderDate || todayYmdSeoul(),
       delivery_date: form.deliveryDate || '',
-      customer: form.customer.trim(),
+      customer: customerName,
       category: form.category,
       source: order?.source || 'manual',
       source_quote_id: order?.sourceQuoteId || null,
@@ -242,12 +265,21 @@ function OrderModalContent({
             </label>
             <label className="block text-sm sm:col-span-2">
               <span className="mb-1 block font-medium text-slate-600">고객사</span>
-              <input
+              <CustomerCombobox
                 value={form.customer}
-                onChange={(event) => updateForm('customer', event.target.value)}
-                placeholder="고객사명"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                partners={salesPartners}
+                placeholder="거래처명 검색 (예: 센서)"
+                inputClassName="w-full rounded-lg border border-slate-200 px-3 py-2"
+                onValueChange={(value) => updateForm('customer', value)}
+                onPartnerSelect={(partner) => updateForm('customer', partner.name)}
               />
+              <p className="mt-1 text-xs text-slate-500">
+                {partnersLoading
+                  ? '매출 거래처 목록을 불러오는 중...'
+                  : salesPartners.length === 0
+                    ? '등록된 매출 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
+                    : '거래처등록의 매출·매입/매출 거래처만 선택할 수 있습니다.'}
+              </p>
             </label>
           </div>
 
@@ -255,7 +287,7 @@ function OrderModalContent({
             <h3 className="mb-3 text-sm font-bold text-slate-900">제품</h3>
             <OrderItemsForm
               items={items}
-              customer={form.customer}
+              customer={resolvePartnerFromInput(salesPartners, form.customer)?.name ?? form.customer}
               products={products}
               onChange={setItems}
             />

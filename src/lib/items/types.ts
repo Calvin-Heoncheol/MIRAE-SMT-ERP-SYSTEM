@@ -1,0 +1,89 @@
+export type ItemMaterialType = '' | 'SMD' | 'DIP'
+
+export const ITEM_MATERIAL_TYPES: ItemMaterialType[] = ['', 'SMD', 'DIP']
+
+export const ITEM_MATERIAL_TYPE_LABELS: Record<ItemMaterialType, string> = {
+  '': '선택 안 함',
+  SMD: 'SMD',
+  DIP: 'DIP',
+}
+
+export type ItemSupplyType = '' | '도급' | '사급'
+
+export const ITEM_SUPPLY_TYPES: ItemSupplyType[] = ['', '도급', '사급']
+
+export const ITEM_SUPPLY_TYPE_LABELS: Record<ItemSupplyType, string> = {
+  '': '선택 안 함',
+  도급: '도급',
+  사급: '사급',
+}
+
+/** 1=원자재, 2=부자재, 3=반제품, 4=완제품 */
+export type ItemCategory = 1 | 2 | 3 | 4
+
+export const ITEM_CATEGORIES: ItemCategory[] = [1, 2, 3, 4]
+
+export const ITEM_CATEGORY_LABELS: Record<ItemCategory, string> = {
+  1: '원자재',
+  2: '부자재',
+  3: '반제품',
+  4: '완제품',
+}
+
+export function isMaterialItemCategory(category: ItemCategory) {
+  return category === 1 || category === 2
+}
+
+export function isProductItemCategory(category: ItemCategory) {
+  return category === 3 || category === 4
+}
+
+/** 원자재(1)만 직접 입력, 나머지는 접두사+일련번호 자동 생성 */
+export function isManualItemCodeCategory(category: ItemCategory) {
+  return category === 1
+}
+
+export const ITEM_CATEGORY_CODE_PREFIX: Record<ItemCategory, string | null> = {
+  1: null,
+  2: 'SUB-',
+  3: 'SFG-',
+  4: 'FG-',
+}
+
+export type Item = {
+  id: string
+  name: string
+  specification: string
+  mpn: string
+  materialType: ItemMaterialType
+  supplyType: ItemSupplyType
+  unitPrice: number
+  itemCategory: ItemCategory
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type ItemPayload = {
+  id: string
+  name: string
+  specification: string
+  mpn: string
+  materialType: ItemMaterialType
+  supplyType: ItemSupplyType
+  unitPrice: number
+  itemCategory: ItemCategory
+}
+
+export type UpdateItemPayload = Omit<ItemPayload, 'id'>
+
+export const ITEM_COLUMN_LABELS = {
+  id: '품목코드',
+  name: '품목명',
+  specification: '규격',
+  mpn: 'MPN',
+  materialType: '구분',
+  supplyType: '도급/사급',
+  unitPrice: '단가',
+  itemCategory: '품목구분',
+} as const

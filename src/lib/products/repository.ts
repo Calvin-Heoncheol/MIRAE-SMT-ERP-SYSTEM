@@ -1,6 +1,6 @@
 import { createSupabaseClient } from '@/lib/supabase'
 import type { Product, ProductPayload } from './types'
-import { mapProductRecord } from './utils'
+import { mapItemRowToProduct } from './utils'
 
 export type FetchProductsResult =
   | { ok: true; products: Product[] }
@@ -11,7 +11,7 @@ export type SaveProductResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export function isMissingProductsTable(detail: string) {
-  return detail.includes('products') || detail.includes('schema cache')
+  return detail.includes('items') || detail.includes('products') || detail.includes('schema cache')
 }
 
 function missingEnvResult(): { ok: false; reason: 'env'; detail: string } {
@@ -30,9 +30,10 @@ export async function fetchProducts(activeOnly = true): Promise<FetchProductsRes
   try {
     const supabase = createSupabaseClient()
     let query = supabase
-      .from('products')
+      .from('items')
       .select('*')
-      .order('product_name', { ascending: true })
+      .in('item_category', [3, 4])
+      .order('name', { ascending: true })
 
     if (activeOnly) {
       query = query.eq('is_active', true)
@@ -44,7 +45,7 @@ export async function fetchProducts(activeOnly = true): Promise<FetchProductsRes
       return { ok: false, reason: 'query', detail: error.message }
     }
 
-    return { ok: true, products: (data || []).map((row) => mapProductRecord(row)) }
+    return { ok: true, products: (data || []).map((row) => mapItemRowToProduct(row)) }
   } catch (error) {
     return {
       ok: false,
@@ -62,13 +63,13 @@ export async function createProduct(payload: ProductPayload): Promise<SaveProduc
   try {
     const supabase = createSupabaseClient()
     const { data, error } = await supabase
-      .from('products')
+      .from('items')
       .insert({
-        customer: payload.customer.trim(),
-        product_name: payload.productName.trim(),
-        default_unit_price: payload.defaultUnitPrice ?? 0,
-        pcb_side_mode: payload.pcbSideMode ?? 'single',
-        product_kind: payload.productKind ?? 'pcb',
+        id: payload.productName.trim(),
+        name: payload.productName.trim(),
+        specification: '',
+        mpn: '',
+        item_category: payload.productKind === 'assembly' ? 4 : 3,
         is_active: payload.isActive !== false,
       })
       .select('id')

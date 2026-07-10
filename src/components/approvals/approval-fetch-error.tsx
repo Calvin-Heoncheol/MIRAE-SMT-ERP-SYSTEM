@@ -17,7 +17,6 @@ export function ApprovalFetchError({ result }: { result: Extract<FetchApprovalsR
           <p>Supabase SQL Editor에서 아래 순서로 실행해 주세요.</p>
           <p>1. `supabase/setup-approvals.sql`</p>
           <p>2. `supabase/setup-approvals-storage.sql` (첨부파일용)</p>
-          <p>3. 기존 DB라면 `supabase/migrate-approvals-doc-number-mra.sql` (MRA-0001 형식)</p>
         </div>
       ) : null}
     </div>

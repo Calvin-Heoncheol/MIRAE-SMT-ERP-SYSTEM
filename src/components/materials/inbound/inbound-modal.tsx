@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { InboundDirectLinesForm } from '@/components/materials/inbound/inbound-direct-lines-form'
+import { InboundOpeningLinesForm } from '@/components/materials/inbound/inbound-opening-lines-form'
 import { InboundPurchaseLinesForm } from '@/components/materials/inbound/inbound-purchase-lines-form'
 import { buildMaterialInboundPayload } from '@/lib/materials/inbound/build-payload'
 import {
@@ -18,6 +19,12 @@ import {
   type MaterialInboundFormState,
   type PurchaseInboundItemForm,
 } from '@/lib/materials/inbound/form-state'
+import {
+  defaultOpeningInboundItemForm,
+  openingInboundItemsFromDetail,
+  openingToDirectInboundItems,
+  type OpeningInboundItemForm,
+} from '@/lib/materials/inbound/opening-form-state'
 import { MATERIAL_INBOUND_TYPE_LABELS, type MaterialInboundType } from '@/lib/materials/inbound/types'
 import type { MaterialInboundListGroup } from '@/lib/materials/inbound/types'
 import {
@@ -43,8 +50,15 @@ type InboundModalProps = {
 
 const INBOUND_TYPE_OPTIONS: MaterialInboundType[] = ['opening', 'purchase', 'supplied', 'return']
 
+function createInitialOpeningItems(inbound?: MaterialInboundListGroup | null): OpeningInboundItemForm[] {
+  if (inbound && inbound.inboundType === 'opening') {
+    return openingInboundItemsFromDetail(inbound.items)
+  }
+  return [defaultOpeningInboundItemForm()]
+}
+
 function createInitialDirectItems(inbound?: MaterialInboundListGroup | null): DirectInboundItemForm[] {
-  if (inbound && inbound.inboundType !== 'purchase') {
+  if (inbound && inbound.inboundType !== 'purchase' && inbound.inboundType !== 'opening') {
     return directInboundItemsFromDetail(inbound.items)
   }
   return [defaultDirectInboundItemForm()]
@@ -67,6 +81,9 @@ function InboundModalContent({
       : defaultMaterialInboundFormState(todayYmdSeoul()),
   )
   const [directItems, setDirectItems] = useState<DirectInboundItemForm[]>(() => createInitialDirectItems(inbound))
+  const [openingItems, setOpeningItems] = useState<OpeningInboundItemForm[]>(() =>
+    createInitialOpeningItems(inbound),
+  )
   const [purchaseItems, setPurchaseItems] = useState<PurchaseInboundItemForm[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -87,9 +104,13 @@ function InboundModalContent({
     ? []
     : form.inboundType === 'purchase'
       ? purchaseItems
-      : directItems
+      : form.inboundType === 'opening'
+        ? openingItems
+        : directItems
   const activeLineCount = activeItems.filter((item) => Number(item.quantity) > 0).length
   const totalInboundQty = activeItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+  const directPayloadItems =
+    form.inboundType === 'opening' ? openingToDirectInboundItems(openingItems) : directItems
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -148,7 +169,7 @@ function InboundModalContent({
       inboundType: form.inboundType,
       purchaseOrderId: form.purchaseOrderId,
       note: form.note,
-      directItems,
+      directItems: directPayloadItems,
       purchaseItems,
       materials,
     })
@@ -314,6 +335,8 @@ function InboundModalContent({
 
           {!hasInboundType ? null : form.inboundType === 'purchase' ? (
             <InboundPurchaseLinesForm items={purchaseItems} onChange={setPurchaseItems} />
+          ) : form.inboundType === 'opening' ? (
+            <InboundOpeningLinesForm items={openingItems} onChange={setOpeningItems} />
           ) : (
             <InboundDirectLinesForm
               items={directItems}

@@ -34,6 +34,28 @@ export function mapProductRecord(row: {
   }
 }
 
+export function mapItemRowToProduct(row: {
+  id: string
+  name: string
+  specification?: string | null
+  mpn?: string | null
+  unit_price?: number | null
+  item_category: number | string
+  is_active: boolean | null
+}): Product {
+  const itemCategory = Number(row.item_category)
+  return {
+    id: row.id,
+    customer: '',
+    productCode: row.id,
+    productName: row.name || '',
+    defaultUnitPrice: Number(row.unit_price) || 0,
+    pcbSideMode: 'single',
+    productKind: itemCategory === 4 ? 'assembly' : 'pcb',
+    isActive: row.is_active !== false,
+  }
+}
+
 export function normalizeSearchText(value: string) {
   return value.trim().toLowerCase()
 }

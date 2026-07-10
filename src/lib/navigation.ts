@@ -13,6 +13,14 @@ export const NAV_ITEMS: NavItem[] = [
   { label: '홈', href: '/' },
   { label: '견적', href: '/quotations' },
   {
+    label: '기초등록',
+    href: '/master/customers',
+    children: [
+      { label: '거래처등록', href: '/master/customers' },
+      { label: '품목등록', href: '/master/products' },
+    ],
+  },
+  {
     label: '결재서',
     href: '/approvals',
     children: [
@@ -28,9 +36,8 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: '자재',
-    href: '/materials',
+    href: '/materials/inventory',
     children: [
-      { label: '자재목록', href: '/materials' },
       { label: '재고현황', href: '/materials/inventory' },
       { label: '발주', href: '/materials/purchase-orders' },
     ],
@@ -54,7 +61,7 @@ export function isNavLinkActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
-const NAV_EXACT_CHILD_PATHS = ['/orders', '/materials'] as const
+const NAV_EXACT_CHILD_PATHS = ['/orders', '/master/customers'] as const
 
 export function isNavChildActive(pathname: string, href: string) {
   if (NAV_EXACT_CHILD_PATHS.includes(href as (typeof NAV_EXACT_CHILD_PATHS)[number])) {

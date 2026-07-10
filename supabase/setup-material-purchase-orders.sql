@@ -1,4 +1,4 @@
--- Supabase SQL Editor에서 실행하세요 (setup-materials.sql 이후)
+-- Supabase SQL Editor에서 실행하세요 (setup-items.sql 이후)
 --
 -- 발주번호 = id — MRP-YYMMDD 또는 MRP-YYMMDD01 … 자동 발급
 
@@ -21,7 +21,7 @@ create table if not exists public.material_purchase_order_lines (
   id uuid primary key default gen_random_uuid(),
   order_id text not null references public.material_purchase_orders(id) on delete cascade,
   line_seq integer not null default 0,
-  material_id text references public.materials(id) on delete set null,
+  material_id text references public.items(id) on delete set null,
   cpn text not null default '',
   material_name text not null default '',
   specification text not null default '',
