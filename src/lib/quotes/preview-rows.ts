@@ -121,6 +121,91 @@ export function filterPdfBreakdownRows(
   return result
 }
 
+export function breakdownBoardColLabel(quoteType: QuoteType) {
+  return quoteType === 'domestic' ? '보드' : 'BOARD'
+}
+
+export function isBreakdownBoardGroupStart(rows: PreviewRow[], index: number) {
+  const boardName = rows[index].boardName
+  if (!boardName) return false
+  if (index === 0) return true
+  return rows[index - 1].boardName !== boardName
+}
+
+export function computeBreakdownBoardRowSpans(rows: PreviewRow[]) {
+  const spans = new Array<number | undefined>(rows.length)
+
+  for (let i = 0; i < rows.length; ) {
+    const boardName = rows[i].boardName
+    if (!boardName) {
+      spans[i] = undefined
+      i += 1
+      continue
+    }
+
+    let j = i + 1
+    while (j < rows.length && rows[j].boardName === boardName) j += 1
+
+    spans[i] = j - i
+    for (let k = i + 1; k < j; k += 1) spans[k] = 0
+    i = j
+  }
+
+  return spans
+}
+
+export function prepareBreakdownSectionTableRows(
+  rows: PreviewRow[],
+  sectionKey: PreviewSection,
+  quoteType: QuoteType,
+): PreviewRow[] {
+  const sectionTotalRow = rows.find((row) => row.sectionTotal)
+  const detailRows = rows.filter((row) => !row.sectionTotal)
+  const totalLabel = quoteType === 'domestic' ? '합계' : 'Total'
+  const tableRows = [...detailRows]
+
+  if (sectionTotalRow) {
+    tableRows.push({
+      ...sectionTotalRow,
+      label: totalLabel,
+      indent: 0,
+      emphasize: true,
+      amountEmphasize: true,
+      boardSubtotal: false,
+      sectionTotal: undefined,
+      boardName: undefined,
+      sectionFooter: sectionKey,
+    })
+  }
+
+  return tableRows
+}
+
+export type BreakdownSectionPreview = {
+  key: PreviewSection
+  title: string
+  rows: PreviewRow[]
+}
+
+export function buildProcessBreakdownSections(
+  allRows: PreviewRow[],
+  quoteType: QuoteType,
+): BreakdownSectionPreview[] {
+  const labels = getPreviewLabels(quoteType)
+  const definitions: { key: PreviewSection; title: string }[] = [
+    { key: 'smt', title: 'SMT' },
+    { key: 'dip', title: pdfSummarySectionLabel(labels.soldering, quoteType) },
+    { key: 'post', title: pdfSummarySectionLabel(labels.postProcess, quoteType) },
+    { key: 'material', title: pdfSummarySectionLabel(labels.materials, quoteType) },
+  ]
+
+  return definitions.flatMap(({ key, title }) => {
+    const sectionRows = filterPdfBreakdownRows(allRows, key, quoteType)
+    if (!sectionRows.length) return []
+    return [{ key, title, rows: prepareBreakdownSectionTableRows(sectionRows, key, quoteType) }]
+  })
+}
+
 /** PDF 항목별 요약 — 후공정 합계 행만 */
 export function filterPdfBoardDetailsPostSummaryRows(
   rows: PreviewRow[],

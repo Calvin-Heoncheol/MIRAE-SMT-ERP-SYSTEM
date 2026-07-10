@@ -1,15 +1,25 @@
-import { APP_SHORT_NAME, COMPANY_ADDRESS, COMPANY_NAME_EN, COMPANY_QUOTE_EMAIL } from '@/lib/app-config'
+import {
+  APP_SHORT_NAME,
+  COMPANY_ADDRESS,
+  COMPANY_NAME_EN,
+  COMPANY_QUOTE_CONTACT_EXPORT,
+  COMPANY_QUOTE_EMAIL,
+} from '@/lib/app-config'
 import { exportPage1SummaryAmounts, formatExportSummaryUsd, formatQuoteMoneyTotal, formatQuoteValidityText } from './format'
 import { getPreviewLabels } from './preview-i18n'
 import {
+  breakdownBoardColLabel,
   buildPdfSummaryBreakdownLines,
   buildQuotePreviewData,
+  computeBreakdownBoardRowSpans,
   filterPdfBreakdownRows,
   formatPreviewRowDescription,
   formatPreviewRowUnit,
+  isBreakdownBoardGroupStart,
   isPreviewHighlightRow,
   PDF_SECTION_COLORS,
   pdfSummarySectionLabel,
+  prepareBreakdownSectionTableRows,
   SECTION_TOTAL_ROW_BG,
   type PdfSummaryBreakdownLine,
   type PreviewRow,
@@ -109,39 +119,6 @@ function splitPreviewRowsIntoGroups(rows: PreviewRow[]) {
   return groups
 }
 
-function breakdownBoardColLabel(quoteType: QuoteType) {
-  return quoteType === 'domestic' ? '보드' : 'BOARD'
-}
-
-function isBoardGroupStart(rows: PreviewRow[], index: number) {
-  const boardName = rows[index].boardName
-  if (!boardName) return false
-  if (index === 0) return true
-  return rows[index - 1].boardName !== boardName
-}
-
-function computeBoardRowSpans(rows: PreviewRow[]) {
-  const spans = new Array<number | undefined>(rows.length)
-
-  for (let i = 0; i < rows.length; ) {
-    const boardName = rows[i].boardName
-    if (!boardName) {
-      spans[i] = undefined
-      i += 1
-      continue
-    }
-
-    let j = i + 1
-    while (j < rows.length && rows[j].boardName === boardName) j += 1
-
-    spans[i] = j - i
-    for (let k = i + 1; k < j; k += 1) spans[k] = 0
-    i = j
-  }
-
-  return spans
-}
-
 function buildPreviewRowHtml(
   row: PreviewRow,
   quoteType: QuoteType,
@@ -228,13 +205,13 @@ function buildQuoteBreakdownTableHtml(
     </thead>`
 
   if (continuous) {
-    const boardSpans = showBoardColumn ? computeBoardRowSpans(rows) : []
+    const boardSpans = showBoardColumn ? computeBreakdownBoardRowSpans(rows) : []
     const bodyHtml = rows
       .map((row, index) =>
         buildPreviewRowHtml(row, quoteType, {
           showBoardColumn,
           boardRowSpan: showBoardColumn ? boardSpans[index] : undefined,
-          boardGroupStart: showBoardColumn && isBoardGroupStart(rows, index),
+          boardGroupStart: showBoardColumn && isBreakdownBoardGroupStart(rows, index),
         }),
       )
       .join('')
@@ -249,13 +226,13 @@ function buildQuoteBreakdownTableHtml(
 
   return groups
     .map((group) => {
-      const boardSpans = showBoardColumn ? computeBoardRowSpans(group) : []
+      const boardSpans = showBoardColumn ? computeBreakdownBoardRowSpans(group) : []
       const bodyHtml = group
         .map((row, index) =>
           buildPreviewRowHtml(row, quoteType, {
             showBoardColumn,
             boardRowSpan: showBoardColumn ? boardSpans[index] : undefined,
-            boardGroupStart: showBoardColumn && isBoardGroupStart(group, index),
+            boardGroupStart: showBoardColumn && isBreakdownBoardGroupStart(group, index),
           }),
         )
         .join('')
@@ -279,24 +256,7 @@ function buildBreakdownSectionHtml(
 ) {
   if (!rows.length) return ''
 
-  const sectionTotalRow = rows.find((row) => row.sectionTotal)
-  const detailRows = rows.filter((row) => !row.sectionTotal)
-  const totalLabel = quoteType === 'domestic' ? '합계' : 'Total'
-  const tableRows = [...detailRows]
-
-  if (sectionTotalRow) {
-    tableRows.push({
-      ...sectionTotalRow,
-      label: totalLabel,
-      indent: 0,
-      emphasize: true,
-      amountEmphasize: true,
-      boardSubtotal: false,
-      sectionTotal: undefined,
-      boardName: undefined,
-      sectionFooter: sectionKey,
-    })
-  }
+  const tableRows = prepareBreakdownSectionTableRows(rows, sectionKey, quoteType)
 
   const showBoardColumn = tableRows.some((row) => row.boardName)
   const sectionClass = `breakdown-section-${sectionKey}`
@@ -379,7 +339,7 @@ function buildQuoteSummaryMetaHtml(
         </div>
         <div class="summary-party-row">
           <dt>${contactLabel}</dt>
-          <dd>${isDomestic ? '영업관리팀' : 'Sales Team'}</dd>
+          <dd>${isDomestic ? '영업관리팀' : escapeHtml(COMPANY_QUOTE_CONTACT_EXPORT)}</dd>
         </div>
       </dl>
     </div>

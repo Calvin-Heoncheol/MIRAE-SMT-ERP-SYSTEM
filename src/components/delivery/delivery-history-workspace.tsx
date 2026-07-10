@@ -42,7 +42,7 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-slate-500">
-            출하입력에서 등록된 납품 실적을 최신순으로 보여줍니다. 출하번호는 MRS+년월일 형식입니다.
+            출하입력에서 등록된 납품 실적을 최신순으로 보여줍니다. 출하번호는 MRS-0001 형식으로 자동 발급됩니다.
           </p>
         </div>
         <div className="text-right text-sm font-medium text-slate-600">

@@ -60,11 +60,11 @@ export function InventoryStatusTable({ rows, emptyMessage }: InventoryStatusTabl
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px] table-fixed border-collapse">
+        <table className="w-full min-w-[900px] table-fixed border-collapse">
           <thead className="bg-blue-50/80">
             <tr>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
-                코드
+                자재코드
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
                 고객사
@@ -74,9 +74,6 @@ export function InventoryStatusTable({ rows, emptyMessage }: InventoryStatusTabl
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
                 규격
-              </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
-                자재코드
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
                 MPN
@@ -112,10 +109,13 @@ export function InventoryStatusTable({ rows, emptyMessage }: InventoryStatusTabl
                 <td className="px-3 py-2.5">
                   <TruncatedText value={row.specification} maxWidthClass="max-w-44" />
                 </td>
-                <td className={`px-3 py-2.5 font-medium text-violet-800 ${codeCellClass}`}>
-                  {cell(row.id)}
+                <td className="max-w-0 overflow-hidden px-3 py-2.5">
+                  <TruncatedText
+                    value={row.mpn}
+                    className="text-slate-700"
+                    maxWidthClass="max-w-full"
+                  />
                 </td>
-                <td className={`px-3 py-2.5 text-slate-700 ${codeCellClass}`}>{cell(row.mpn)}</td>
                 <td className="px-3 py-2.5 text-center text-sm text-slate-700">{cell(row.type)}</td>
                 <td className="px-3 py-2.5 text-center text-sm text-slate-700">{cell(row.supplyType)}</td>
                 <td

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { DipPcbBoardForm } from '@/components/quotes/dip-pcb-board-form'
+import { QuoteBreakdownPreview } from '@/components/quotes/quote-breakdown-preview'
 import { QuoteCurrencyToggle } from '@/components/quotes/quote-currency-toggle'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
@@ -15,21 +16,7 @@ import {
 } from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
-import { COMPANY_NAME_EN } from '@/lib/app-config'
-import {
-  formatQuoteMoneyByDisplay,
-  formatQuotePreviewSummary,
-  formatQuoteValidityText,
-} from '@/lib/quotes/format'
-import { getPreviewLabels } from '@/lib/quotes/preview-i18n'
-import {
-  buildPreviewRows,
-  formatPreviewRowDescription,
-  formatPreviewRowUnit,
-  isPreviewHighlightRow,
-  SECTION_TOTAL_ROW_CLASS,
-  SECTION_TOTAL_ROW_ACCENT_CLASS,
-} from '@/lib/quotes/preview-rows'
+import { formatQuoteMoneyByDisplay } from '@/lib/quotes/format'
 import {
   defaultDipBoardForm,
   defaultSmtBoardForm,
@@ -200,7 +187,6 @@ function QuoteModalContent({
 
   const isDomestic = quoteType === 'domestic'
   const typeBadge = isDomestic ? '국내용 견적서' : '해외용 견적서'
-  const previewLabels = getPreviewLabels(quoteType)
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -348,10 +334,12 @@ function QuoteModalContent({
   const previewIssueDate =
     mode === 'edit' && quote?.quoteDate ? quote.quoteDate : result?.date || ''
   const previewProduct = form.productName.trim() || '-'
-  const previewRows = result ? buildPreviewRows(result, form, quoteType) : []
-  const previewSummary = result
-    ? formatQuotePreviewSummary(result.values.grandTotal, result.qty || 1, quoteType, displayCurrency)
-    : null
+  const previewForm = {
+    postAssembly: form.postAssembly,
+    postTest: form.postTest,
+    postPacking: form.postPacking,
+    materialCost: form.materialCost,
+  }
 
   function formatAmount(krw: number) {
     return formatQuoteMoneyByDisplay(krw, quoteType, displayCurrency)
@@ -561,119 +549,16 @@ function QuoteModalContent({
           </div>
 
           <div className="flex min-h-0 flex-col overflow-y-auto bg-slate-50/70 p-3 lg:p-4">
-            <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-slate-200 bg-white p-3 lg:p-4">
-              <div className="mb-3 flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
-                <h3 className="text-lg font-bold tracking-[0.15em] text-slate-900">{previewLabels.title}</h3>
-                <p className="text-base font-bold tracking-wide text-slate-900 lg:text-lg">
-                  {result?.estNo || '-'}
-                </p>
-              </div>
-
-              <div className="mb-3 grid grid-cols-1 gap-1.5 text-xs text-slate-700 sm:grid-cols-2 sm:gap-x-5 lg:text-sm">
-                <p>
-                  <b>{previewLabels.issueDate}:</b> {previewIssueDate || '-'}
-                </p>
-                <p className="sm:text-right">
-                  <b>{previewLabels.customer}:</b> {previewCustomer}
-                </p>
-                <p>
-                  <b>{previewLabels.validity}:</b>{' '}
-                  {previewIssueDate ? formatQuoteValidityText(previewIssueDate) : '-'}
-                </p>
-                <p className="sm:text-right">
-                  <b>{previewLabels.supplier}:</b> {isDomestic ? '미래SMT' : COMPANY_NAME_EN}
-                </p>
-                <p>
-                  <b>{previewLabels.product}:</b> {previewProduct}
-                </p>
-                <p className="sm:text-right">
-                  <b>{previewLabels.contact}:</b> {isDomestic ? '영업관리팀' : 'Sales Team'}
-                </p>
-                <p>
-                  <b>{previewLabels.quantity}:</b>{' '}
-                  {result ? previewLabels.formatQty(result.qty) : '-'}
-                </p>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-x-auto rounded-lg border border-slate-200">
-                <table className="min-w-full border-collapse text-sm">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="px-2 py-1.5 text-left text-xs font-semibold text-slate-600 lg:px-3 lg:py-2">{previewLabels.colItem}</th>
-                      <th className="px-2 py-1.5 text-right text-xs font-semibold text-slate-600 lg:px-3 lg:py-2">{previewLabels.colUnit}</th>
-                      <th className="whitespace-nowrap px-2 py-1.5 text-center text-xs font-semibold text-slate-600 lg:px-3 lg:py-2">{previewLabels.colQty}</th>
-                      <th className="px-2 py-1.5 text-right text-xs font-semibold text-slate-600 lg:px-3 lg:py-2">{previewLabels.colPerUnitTotal}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result ? (
-                      <>
-                        {previewRows.map((row, index) => (
-                          <tr
-                            key={`${row.label}-${index}`}
-                            className={`border-t border-slate-100 ${
-                              isPreviewHighlightRow(row) ? SECTION_TOTAL_ROW_CLASS : ''
-                            }`}
-                          >
-                            <td
-                              className={`px-2 py-1.5 lg:px-3 lg:py-2 ${
-                                row.emphasize ? 'font-semibold text-slate-900' : 'text-slate-600'
-                              } ${row.indent === 1 ? 'pl-5 text-xs lg:pl-6' : row.indent === 2 ? 'pl-8 text-xs lg:pl-10' : ''} ${
-                                isPreviewHighlightRow(row) ? SECTION_TOTAL_ROW_ACCENT_CLASS : ''
-                              }`}
-                            >
-                              <span className="block">{row.label}</span>
-                              {formatPreviewRowDescription(row) ? (
-                                <span className="mt-0.5 block text-slate-500">{formatPreviewRowDescription(row)}</span>
-                              ) : null}
-                            </td>
-                            <td className="px-2 py-1.5 text-right text-xs text-slate-600 lg:px-3 lg:py-2">
-                              {formatPreviewRowUnit(row, quoteType, displayCurrency)}
-                            </td>
-                            <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs tabular-nums text-slate-600 lg:px-3 lg:py-2">
-                              {row.count != null ? row.count : '-'}
-                            </td>
-                            <td
-                              className={`px-2 py-1.5 text-right lg:px-3 lg:py-2 ${
-                                row.amountEmphasize ? 'font-semibold text-slate-900' : 'text-xs text-slate-600'
-                              }`}
-                            >
-                              {row.amount != null ? formatAmount(row.amount) : '-'}
-                            </td>
-                          </tr>
-                        ))}
-                      </>
-                    ) : (
-                      <tr>
-                        <td colSpan={4} className="px-3 py-10 text-center text-slate-400">
-                          {mode === 'edit' ? previewLabels.loadingPreview : previewLabels.emptyPreview}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-700">{previewLabels.perUnitPriceVat}</span>
-                  <span className="font-semibold text-slate-900">
-                    {result && previewSummary
-                      ? previewSummary.unitFormatted
-                      : formatAmount(0)}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between text-base">
-                  <span className="font-bold text-slate-900">{previewLabels.grandTotalVat}</span>
-                  <span className="font-bold text-blue-700">
-                    {result && previewSummary
-                      ? previewSummary.totalFormatted
-                      : formatAmount(0)}
-                  </span>
-                </div>
-              </div>
-            </div>
+            <QuoteBreakdownPreview
+              quoteType={quoteType}
+              result={result}
+              form={previewForm}
+              displayCurrency={displayCurrency}
+              customer={previewCustomer}
+              productName={previewProduct}
+              issueDate={previewIssueDate}
+              loading={mode === 'edit' && !result}
+            />
           </div>
         </div>
       </div>

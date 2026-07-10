@@ -1,5 +1,4 @@
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
-import { formatDeliveryHistoryDateTime } from '@/lib/delivery/history-utils'
 
 type DeliveryHistoryTableProps = {
   rows: DeliveryHistoryRow[]
@@ -34,9 +33,6 @@ export function DeliveryHistoryTable({ rows, emptyMessage }: DeliveryHistoryTabl
                 기록일
               </th>
               <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
-                등록시각
-              </th>
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
                 주문서번호
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
@@ -63,9 +59,6 @@ export function DeliveryHistoryTable({ rows, emptyMessage }: DeliveryHistoryTabl
                   {cell(row.id)}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-sm text-slate-700">{cell(row.recordDate)}</td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-slate-600">
-                  {formatDeliveryHistoryDateTime(row.createdAt)}
-                </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-sm font-medium text-slate-900">
                   {cell(row.orderNumber)}
                 </td>

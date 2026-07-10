@@ -262,11 +262,11 @@ export async function createDeliveryRecord(
     const source: DeliverySource = input.source || 'manual'
     const shipmentNumber = input.shipmentNumber?.trim() || ''
 
-    if (shipmentNumber && !/^MRS[0-9]{6}(-[0-9]{2})?$/.test(shipmentNumber)) {
+    if (shipmentNumber && !/^MRS-[0-9]+$/.test(shipmentNumber)) {
       return {
         ok: false,
         reason: 'validation',
-        detail: '출하번호 형식이 올바르지 않습니다. (예: MRS260706, MRS260706-02)',
+        detail: '출하번호 형식이 올바르지 않습니다. (예: MRS-0001)',
       }
     }
 

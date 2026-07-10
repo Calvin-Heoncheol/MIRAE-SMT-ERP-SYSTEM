@@ -1,7 +1,7 @@
 -- Supabase SQL Editor에서 실행하세요 (setup-bom.sql 이후)
 --
 -- 출하입력: 조립 그룹(완제품 세트)별 출하(납품) 실적 기록
--- 출하번호(id) = MRS + YYMMDD (KST), 당일 2건째부터 MRS260706-02 형식
+-- 출하번호(id) = MRS-0001, MRS-0002 … 자동 발급
 
 create table if not exists public.delivery_records (
   id text primary key,
@@ -11,11 +11,11 @@ create table if not exists public.delivery_records (
   source text not null default 'manual' check (source in ('manual')),
   note text not null default '',
   created_at timestamptz not null default now(),
-  constraint delivery_records_id_mrs_format_check check (id ~ '^MRS[0-9]{6}(-[0-9]{2})?$')
+  constraint delivery_records_id_mrs_format_check check (id ~ '^MRS-[0-9]+$')
 );
 
-comment on table public.delivery_records is '출하(납품) 실적 — 조립 그룹(완제품)별 등록 이력';
-comment on column public.delivery_records.id is '출하번호 MRS260706 (INSERT 시 record_date 기준 자동 발급, 수정 불가)';
+comment on table public.delivery_records is '출하(납품) 실적 — MRS-0001';
+comment on column public.delivery_records.id is '출하번호 MRS-0001 (INSERT 시 자동 발급, 수정 불가)';
 comment on column public.delivery_records.record_date is '기록일자 (KST)';
 comment on column public.delivery_records.assembly_group_id is '주문 조립 그룹 FK (order_assembly_groups.id)';
 comment on column public.delivery_records.quantity is '이번 등록 출하(납품) 수량';
@@ -46,34 +46,22 @@ returns text
 language plpgsql
 as $$
 declare
-  date_part text;
-  base text;
-  max_seq integer;
+  max_num integer;
+  next_num integer;
 begin
-  date_part := to_char(p_record_date, 'YYMMDD');
-  base := 'MRS' || date_part;
-
   select coalesce(max(
-    case
-      when id = base then 1
-      when id ~ ('^' || base || '-[0-9]{2}$') then
-        nullif(regexp_replace(id, '^' || base || '-', ''), '')::integer
-      else 0
-    end
+    nullif(regexp_replace(id, '^MRS-', ''), '')::integer
   ), 0)
-  into max_seq
+  into max_num
   from public.delivery_records
-  where id = base or id like base || '-%';
+  where id ~ '^MRS-[0-9]+$';
 
-  if max_seq = 0 then
-    return base;
-  end if;
-
-  return base || '-' || lpad((max_seq + 1)::text, 2, '0');
+  next_num := max_num + 1;
+  return 'MRS-' || lpad(next_num::text, 4, '0');
 end;
 $$;
 
-comment on function public.generate_delivery_number(date) is '출하번호 자동 발급 — MRS+YYMMDD, 당일 중복 시 -02 접미';
+comment on function public.generate_delivery_number(date) is '출하번호 자동 발급 — MRS-0001 순번';
 
 grant execute on function public.generate_delivery_number(date) to anon, authenticated;
 
@@ -82,7 +70,7 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if new.id is null or btrim(new.id) = '' then
+  if coalesce(btrim(new.id::text), '') = '' then
     new.id := public.generate_delivery_number(new.record_date);
   end if;
   return new;

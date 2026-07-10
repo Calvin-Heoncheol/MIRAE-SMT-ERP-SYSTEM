@@ -97,7 +97,7 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="코드, 고객사, 자재명, 자재코드, MPN 검색…"
+            placeholder="자재코드, 고객사, 자재명, MPN 검색…"
             className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-blue-100 placeholder:text-slate-400 focus:border-blue-300 focus:ring-2"
           />
         </>

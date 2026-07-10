@@ -13,7 +13,7 @@ export type DeliveryRecord = {
 export type CreateDeliveryRecordInput = {
   assemblyGroupId: string
   quantity: number
-  /** 비어 있으면 record_date 기준 MRS260706 형식 자동 발급 */
+  /** 비어 있으면 MRS-0001 형식 순번 자동 발급 */
   shipmentNumber?: string
   recordDate?: string
   source?: DeliverySource
