@@ -127,7 +127,7 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
   return {
     ok: true,
     data: {
-      orders: buildDeliveryInputOrders(assemblyResult.groups, ordersResult.orders, '완제품'),
+      orders: buildDeliveryInputOrders(assemblyResult.groups, ordersResult.orders, productById),
       deliveryCounts,
       availabilityByGroupId,
     },
@@ -453,33 +453,51 @@ export async function fetchOrderLineUnitPrice(
 
   const orderNumber = String(orderId || '').trim()
   const productCode = String(productId || '').trim()
-  if (!orderNumber || !productCode) {
+  if (!productCode) {
     return { ok: true, unitPrice: 0 }
   }
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
-      .from('order_lines')
-      .select('unit_price, product_id, product_code, derived_from_line_id')
-      .eq('order_id', orderNumber)
 
-    if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
+    if (orderNumber) {
+      const { data, error } = await supabase
+        .from('order_lines')
+        .select('unit_price, product_id, product_code, derived_from_line_id')
+        .eq('order_id', orderNumber)
+
+      if (error) {
+        return { ok: false, reason: 'query', detail: error.message }
+      }
+
+      const lines = data || []
+      const match =
+        lines.find(
+          (line) =>
+            !line.derived_from_line_id &&
+            (line.product_id === productCode || line.product_code === productCode),
+        ) ||
+        lines.find((line) => line.product_id === productCode || line.product_code === productCode)
+
+      const fromOrderLine = Math.max(0, Math.round(Number(match?.unit_price) || 0))
+      if (fromOrderLine > 0) {
+        return { ok: true, unitPrice: fromOrderLine }
+      }
     }
 
-    const lines = data || []
-    const match =
-      lines.find(
-        (line) =>
-          !line.derived_from_line_id &&
-          (line.product_id === productCode || line.product_code === productCode),
-      ) ||
-      lines.find((line) => line.product_id === productCode || line.product_code === productCode)
+    const { data: item, error: itemError } = await supabase
+      .from('items')
+      .select('unit_price')
+      .eq('id', productCode)
+      .maybeSingle()
+
+    if (itemError) {
+      return { ok: false, reason: 'query', detail: itemError.message }
+    }
 
     return {
       ok: true,
-      unitPrice: Math.max(0, Math.round(Number(match?.unit_price) || 0)),
+      unitPrice: Math.max(0, Math.round(Number(item?.unit_price) || 0)),
     }
   } catch (error) {
     return {

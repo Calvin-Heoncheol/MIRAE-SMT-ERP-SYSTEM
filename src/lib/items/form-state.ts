@@ -1,5 +1,5 @@
-import type { Item, ItemPayload, ItemCategory, ItemMaterialType, ItemSupplyType, UpdateItemPayload } from './types'
-import { isMaterialItemCategory } from './types'
+import type { Item, ItemPayload, ItemCategory, ItemMaterialType, ItemPcbSideMode, ItemSupplyType, UpdateItemPayload } from './types'
+import { isMaterialItemCategory, isSemiFinishedItemCategory } from './types'
 import { normalizeItemCategory } from './utils'
 
 export type ItemFormState = {
@@ -10,6 +10,7 @@ export type ItemFormState = {
   mpn: string
   materialType: ItemMaterialType
   supplyType: ItemSupplyType
+  pcbSideMode: ItemPcbSideMode
   unitPrice: string
 }
 
@@ -22,6 +23,7 @@ export function emptyItemForm(): ItemFormState {
     mpn: '',
     materialType: '',
     supplyType: '',
+    pcbSideMode: '',
     unitPrice: '',
   }
 }
@@ -35,6 +37,7 @@ export function itemToForm(item: Item): ItemFormState {
     mpn: item.mpn,
     materialType: item.materialType,
     supplyType: item.supplyType,
+    pcbSideMode: item.pcbSideMode,
     unitPrice: item.unitPrice > 0 ? String(item.unitPrice) : '',
   }
 }
@@ -50,6 +53,9 @@ export function validateItemForm(form: ItemFormState, options?: { isCreate?: boo
   if (!form.name.trim()) return '품목명을 입력해 주세요.'
   if (!category) return '품목구분을 선택해 주세요.'
   if (category === 1 && !form.id.trim()) return '품목코드를 입력해 주세요.'
+  if (category === 3 && form.pcbSideMode !== 'single' && form.pcbSideMode !== 'dual') {
+    return '반제품은 단면/양면을 선택해 주세요.'
+  }
   if (!options?.isCreate && !form.id.trim()) return '품목코드를 찾을 수 없습니다.'
   return null
 }
@@ -61,6 +67,7 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
   }
 
   const isMaterial = isMaterialItemCategory(itemCategory)
+  const isSemiFinished = isSemiFinishedItemCategory(itemCategory)
 
   return {
     id: form.id.trim(),
@@ -69,6 +76,7 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     mpn: isMaterial ? form.mpn.trim() : '',
     materialType: isMaterial ? form.materialType : '',
     supplyType: isMaterial ? form.supplyType : '',
+    pcbSideMode: isSemiFinished ? form.pcbSideMode : '',
     unitPrice: parseUnitPrice(form.unitPrice),
     itemCategory,
   }

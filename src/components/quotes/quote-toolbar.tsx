@@ -31,10 +31,10 @@ export function QuoteNewMenu({ onOpenNew }: QuoteNewMenuProps) {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105"
+        className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
       >
-        새 견적서
-        <span className="text-xs opacity-80">▾</span>
+        견적서 등록
+        <span className="ml-1 text-xs opacity-80">▾</span>
       </button>
 
       {open ? (

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
 
 export default function PostProcessIndexPage() {
-  redirect('/post-process/plan')
+  redirect('/post-process/input')
 }

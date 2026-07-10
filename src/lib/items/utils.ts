@@ -1,4 +1,4 @@
-import type { Item, ItemCategory, ItemMaterialType, ItemPayload, ItemSupplyType } from './types'
+import type { Item, ItemCategory, ItemMaterialType, ItemPayload, ItemPcbSideMode, ItemSupplyType } from './types'
 import { ITEM_CATEGORY_CODE_PREFIX } from './types'
 
 const LEGACY_CATEGORY_MAP: Record<string, ItemCategory> = {
@@ -34,6 +34,13 @@ function normalizeItemSupplyType(value: string | null | undefined): ItemSupplyTy
   return ''
 }
 
+function normalizeItemPcbSideMode(value: string | null | undefined): ItemPcbSideMode {
+  const mode = String(value || '').trim().toLowerCase()
+  if (mode === 'dual') return 'dual'
+  if (mode === 'single') return 'single'
+  return ''
+}
+
 export function mapItemRecord(row: {
   id: string
   name: string
@@ -41,6 +48,7 @@ export function mapItemRecord(row: {
   mpn: string
   material_type?: string | null
   supply_type?: string | null
+  pcb_side_mode?: string | null
   unit_price?: number | null
   item_category: number | string
   is_active: boolean
@@ -56,6 +64,7 @@ export function mapItemRecord(row: {
     mpn: row.mpn || '',
     materialType: normalizeItemMaterialType(row.material_type),
     supplyType: normalizeItemSupplyType(row.supply_type),
+    pcbSideMode: normalizeItemPcbSideMode(row.pcb_side_mode),
     unitPrice: Number(row.unit_price) || 0,
     itemCategory,
     isActive: row.is_active !== false,
@@ -72,6 +81,7 @@ export function toItemInsertRow(payload: ItemPayload) {
     mpn: payload.mpn.trim(),
     material_type: payload.materialType,
     supply_type: payload.supplyType,
+    pcb_side_mode: payload.pcbSideMode,
     unit_price: payload.unitPrice,
     item_category: payload.itemCategory,
   }
@@ -84,6 +94,7 @@ export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
     mpn: payload.mpn.trim(),
     material_type: payload.materialType,
     supply_type: payload.supplyType,
+    pcb_side_mode: payload.pcbSideMode,
     unit_price: payload.unitPrice,
     item_category: payload.itemCategory,
   }
@@ -98,7 +109,15 @@ export function formatItemUnitPrice(value: number) {
 }
 
 export function itemSearchHaystack(item: Item) {
-  return [item.id, item.name, item.specification, item.mpn, item.materialType, item.supplyType]
+  return [
+    item.id,
+    item.name,
+    item.specification,
+    item.mpn,
+    item.materialType,
+    item.supplyType,
+    item.pcbSideMode,
+  ]
     .join(' ')
     .toLowerCase()
 }

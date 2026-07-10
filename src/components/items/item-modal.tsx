@@ -15,13 +15,17 @@ import {
   ITEM_CATEGORY_LABELS,
   ITEM_MATERIAL_TYPES,
   ITEM_MATERIAL_TYPE_LABELS,
+  ITEM_PCB_SIDE_MODES,
+  ITEM_PCB_SIDE_MODE_LABELS,
   ITEM_SUPPLY_TYPES,
   ITEM_SUPPLY_TYPE_LABELS,
   isManualItemCodeCategory,
   isMaterialItemCategory,
+  isSemiFinishedItemCategory,
   type Item,
   type ItemCategory,
   type ItemMaterialType,
+  type ItemPcbSideMode,
   type ItemSupplyType,
 } from '@/lib/items/types'
 import { nextItemCodeForCategory } from '@/lib/items/utils'
@@ -105,6 +109,11 @@ function ItemModalContent({
         next.materialType = ''
         next.supplyType = ''
       }
+      if (value === 3) {
+        if (!next.pcbSideMode) next.pcbSideMode = 'single'
+      } else {
+        next.pcbSideMode = ''
+      }
       if (isCreate) {
         next.id = value ? resolvePreviewItemCode(value, existingItems) : ''
       }
@@ -114,6 +123,8 @@ function ItemModalContent({
 
   const showMaterialFields =
     form.itemCategory !== '' && isMaterialItemCategory(form.itemCategory)
+  const showPcbSideModeField =
+    form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
 
   async function handleSave() {
     const validationError = validateItemForm(form, { isCreate })
@@ -288,6 +299,27 @@ function ItemModalContent({
                 </label>
               </>
             ) : null}
+            {showPcbSideModeField ? (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-600">
+                  단면/양면 <span className="text-red-500">*</span>
+                </span>
+                <select
+                  value={form.pcbSideMode}
+                  onChange={(event) =>
+                    updateForm('pcbSideMode', event.target.value as ItemPcbSideMode)
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                >
+                  <option value="">선택</option>
+                  {ITEM_PCB_SIDE_MODES.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {ITEM_PCB_SIDE_MODE_LABELS[mode]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-600">단가</span>
               <input
@@ -304,6 +336,7 @@ function ItemModalContent({
           <p className="mt-4 text-xs text-slate-500">
             * 품목명·품목구분 필수 · 원자재만 품목코드 직접 입력 (부자재 SUB-, 반제품 SFG-, 완제품 FG- 자동)
             {showMaterialFields ? ' · 규격·MPN·구분·도급/사급은 원자재·부자재에만 해당' : null}
+            {showPcbSideModeField ? ' · 단면/양면은 반제품에만 해당' : null}
           </p>
         </div>
 

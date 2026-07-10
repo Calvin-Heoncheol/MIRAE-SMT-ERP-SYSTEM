@@ -13,12 +13,35 @@ create table if not exists public.items (
   material_type text not null default '' check (material_type in ('', 'SMD', 'DIP')),
   supply_type text not null default '' check (supply_type in ('', '도급', '사급')),
   unit_price numeric not null default 0 check (unit_price >= 0),
+  pcb_side_mode text not null default '' check (pcb_side_mode in ('', 'single', 'dual')),
   item_category smallint not null check (item_category in (1, 2, 3, 4)),
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint items_id_not_blank_check check (length(trim(id)) > 0)
 );
+
+-- 기존 DB: 신규 컬럼 보강 (create table if not exists 는 기존 테이블에 컬럼을 추가하지 않음)
+alter table public.items
+  add column if not exists specification text not null default '';
+alter table public.items
+  add column if not exists mpn text not null default '';
+alter table public.items
+  add column if not exists material_type text not null default '';
+alter table public.items
+  add column if not exists supply_type text not null default '';
+alter table public.items
+  add column if not exists unit_price numeric not null default 0;
+alter table public.items
+  add column if not exists pcb_side_mode text not null default '';
+alter table public.items
+  add column if not exists item_category smallint;
+alter table public.items
+  add column if not exists is_active boolean not null default true;
+alter table public.items
+  add column if not exists created_at timestamptz not null default now();
+alter table public.items
+  add column if not exists updated_at timestamptz not null default now();
 
 comment on table public.items is '품목 마스터 — 품목코드=id (직접 입력)';
 comment on column public.items.id is '품목코드 (PK, 필수, 수정 불가)';
@@ -28,6 +51,7 @@ comment on column public.items.mpn is 'MPN';
 comment on column public.items.material_type is 'SMD / DIP (선택)';
 comment on column public.items.supply_type is '도급/사급 (선택)';
 comment on column public.items.unit_price is '단가';
+comment on column public.items.pcb_side_mode is '단면(single)/양면(dual) — 반제품(3)만 사용';
 comment on column public.items.item_category is '1=원자재, 2=부자재, 3=반제품, 4=완제품 (필수)';
 comment on column public.items.is_active is '사용 여부';
 
@@ -102,6 +126,14 @@ begin
     raise exception '품목구분(1~4)은 필수입니다.';
   end if;
 
+  new.pcb_side_mode := lower(coalesce(trim(new.pcb_side_mode), ''));
+  if new.pcb_side_mode not in ('', 'single', 'dual') then
+    new.pcb_side_mode := '';
+  end if;
+  if new.item_category <> 3 then
+    new.pcb_side_mode := '';
+  end if;
+
   return new;
 end;
 $$;
@@ -134,3 +166,9 @@ create unique index if not exists order_lines_derived_parent_product_unique_idx
 comment on column public.order_lines.product_id is '품목 FK (items.id)';
 comment on column public.order_lines.product_code is 'items.id 복사본 (조회 편의)';
 comment on column public.order_lines.derived_from_line_id is '완제품 주문 줄에서 BOM 펼침으로 생성된 반제품 줄 (주문 UI 비표시)';
+
+-- 기존 DB: product_id FK 가 products 를 가리키면 items 로 교체
+alter table public.order_lines drop constraint if exists order_lines_product_id_fkey;
+alter table public.order_lines
+  add constraint order_lines_product_id_fkey
+  foreign key (product_id) references public.items(id) on delete set null;

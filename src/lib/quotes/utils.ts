@@ -90,6 +90,23 @@ export function filterQuotes(quotes: QuoteListItem[], filter: QuoteListFilter) {
   return quotes.filter((quote) => quote.quoteType === filter)
 }
 
+export function filterQuotesForSearch(quotes: QuoteListItem[], query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return quotes
+  return quotes.filter((quote) => {
+    const haystack = [
+      quote.quoteNumber,
+      quote.customer,
+      quote.productName,
+      quote.quoteDate,
+      quote.quoteType === 'domestic' ? '국내' : '해외',
+    ]
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(q)
+  })
+}
+
 export function toEstimateInputFromDetail(
   quote: QuoteListItem,
   overrides: Partial<EstimateInput> = {},

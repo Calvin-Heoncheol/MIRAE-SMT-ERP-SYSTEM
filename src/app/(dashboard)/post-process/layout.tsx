@@ -5,7 +5,7 @@ export default function PostProcessLayout({ children }: Readonly<{ children: Rea
   return (
     <ModuleTabShell
       title="후공정"
-      description="후공정 생산 계획·입력·이력을 관리합니다."
+      description="후공정 생산 입력·이력을 관리합니다."
       tabs={POST_PROCESS_TABS}
       ariaLabel="후공정 탭"
     >

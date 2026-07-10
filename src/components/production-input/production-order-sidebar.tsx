@@ -51,7 +51,7 @@ export function ProductionOrderSidebar({
   const showPager = orders.length > PRODUCTION_ORDER_PAGE_SIZE
 
   return (
-    <aside className="flex min-h-0 flex-col border-r border-slate-200 bg-slate-100">
+    <aside className="flex min-h-[320px] min-w-0 flex-col border-b border-slate-200 bg-slate-100 lg:min-h-0 lg:border-b-0 lg:border-r">
       <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3">
         <h4 className="text-sm font-bold text-slate-900">주문 선택</h4>
         <span className="text-xs font-medium text-slate-400 tabular-nums">{orders.length}건</span>

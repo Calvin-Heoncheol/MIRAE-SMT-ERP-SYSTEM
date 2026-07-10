@@ -1,6 +1,6 @@
 'use client'
 
-import { ITEM_CATEGORY_LABELS, ITEM_MATERIAL_TYPE_LABELS, ITEM_SUPPLY_TYPE_LABELS } from '@/lib/items/types'
+import { ITEM_CATEGORY_LABELS, ITEM_MATERIAL_TYPE_LABELS, ITEM_PCB_SIDE_MODE_LABELS, ITEM_SUPPLY_TYPE_LABELS, isSemiFinishedItemCategory } from '@/lib/items/types'
 import { formatItemUnitPrice } from '@/lib/items/utils'
 import type { Item } from '@/lib/items/types'
 
@@ -49,6 +49,9 @@ export function ItemListTable({ items, emptyMessage, onSelectItem }: ItemListTab
               <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-700 uppercase">
                 도급/사급
               </th>
+              <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-700 uppercase">
+                단면/양면
+              </th>
               <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-700 uppercase">
                 단가
               </th>
@@ -77,6 +80,12 @@ export function ItemListTable({ items, emptyMessage, onSelectItem }: ItemListTab
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm text-slate-700">
                   {item.supplyType ? ITEM_SUPPLY_TYPE_LABELS[item.supplyType] : '-'}
+                </td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm text-slate-700">
+                  {isSemiFinishedItemCategory(item.itemCategory) &&
+                  (item.pcbSideMode === 'single' || item.pcbSideMode === 'dual')
+                    ? ITEM_PCB_SIDE_MODE_LABELS[item.pcbSideMode]
+                    : '-'}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm tabular-nums text-slate-700">
                   {item.unitPrice > 0 ? formatItemUnitPrice(item.unitPrice) : '-'}

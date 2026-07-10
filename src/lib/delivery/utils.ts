@@ -93,9 +93,9 @@ export function buildDeliveryAvailabilityMap(
 export function buildDeliveryInputOrders(
   groups: OrderAssemblyGroup[],
   orders: Parameters<typeof buildPostProcessAssemblyLines>[1],
-  productKindLabel: string,
+  productById: Record<string, Product>,
 ) {
-  return buildPostProcessAssemblyLines(groups, orders, productKindLabel)
+  return buildPostProcessAssemblyLines(groups, orders, productById)
 }
 
 export type DeliveryOrderState = 'none' | 'progress' | 'full'
@@ -157,3 +157,101 @@ export function filterDeliveryOrders(orders: ProductionOrderLine[], query: strin
 }
 
 export const DELIVERY_ORDER_PAGE_SIZE = 8
+
+export type DeliveryInputFilter = 'all' | 'shippable' | 'partial' | 'complete' | 'blocked'
+
+export function resolveDeliveryAvailabilityForOrder(
+  order: ProductionOrderLine,
+  availabilityByGroupId: Record<string, DeliveryAvailability>,
+): DeliveryAvailability {
+  const groupId = order.assemblyGroupId || order.orderLineId
+  return (
+    availabilityByGroupId[groupId] ?? {
+      targetQuantity: order.quantity,
+      smtSets: 0,
+      postProduced: 0,
+      shipped: 0,
+      productionCap: 0,
+      shippable: 0,
+    }
+  )
+}
+
+export type DeliveryInputSummary = {
+  total: number
+  shippable: number
+  partial: number
+  complete: number
+  blocked: number
+}
+
+export function summarizeDeliveryInputOrders(
+  orders: ProductionOrderLine[],
+  availabilityByGroupId: Record<string, DeliveryAvailability>,
+): DeliveryInputSummary {
+  let shippable = 0
+  let partial = 0
+  let complete = 0
+  let blocked = 0
+
+  for (const order of orders) {
+    const availability = resolveDeliveryAvailabilityForOrder(order, availabilityByGroupId)
+    const state = getDeliveryOrderState(availability)
+
+    if (state === 'full') {
+      complete += 1
+      continue
+    }
+
+    if (availability.shippable > 0) {
+      shippable += 1
+      if (state === 'progress') partial += 1
+      continue
+    }
+
+    if (state === 'progress') {
+      partial += 1
+      blocked += 1
+      continue
+    }
+
+    blocked += 1
+  }
+
+  return { total: orders.length, shippable, partial, complete, blocked }
+}
+
+export function filterDeliveryOrdersByStatus(
+  orders: ProductionOrderLine[],
+  availabilityByGroupId: Record<string, DeliveryAvailability>,
+  filter: DeliveryInputFilter,
+) {
+  if (filter === 'all') return orders
+
+  return orders.filter((order) => {
+    const availability = resolveDeliveryAvailabilityForOrder(order, availabilityByGroupId)
+    const state = getDeliveryOrderState(availability)
+
+    if (filter === 'complete') return state === 'full'
+    if (filter === 'shippable') return availability.shippable > 0
+    if (filter === 'partial') return state === 'progress'
+    if (filter === 'blocked') return state !== 'full' && availability.shippable <= 0
+    return true
+  })
+}
+
+export function getDeliveryStatusLabel(availability: DeliveryAvailability) {
+  const state = getDeliveryOrderState(availability)
+  if (state === 'full') return '완료'
+  if (availability.shippable > 0) return '출하가능'
+  if (state === 'progress') return '부분출하'
+  return '출하불가'
+}
+
+export function getDeliveryStatusTone(availability: DeliveryAvailability) {
+  const state = getDeliveryOrderState(availability)
+  if (state === 'full') return 'complete' as const
+  if (availability.shippable > 0) return 'shippable' as const
+  if (state === 'progress') return 'partial' as const
+  return 'blocked' as const
+}

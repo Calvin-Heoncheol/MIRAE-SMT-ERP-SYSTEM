@@ -101,13 +101,15 @@ export function PartnersWorkspace({ result }: PartnersWorkspaceProps) {
             placeholder="사업자번호, 거래처명, 대표자명, 업태, 전화 검색…"
             className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-slate-100 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2"
           />
-          <button
-            type="button"
-            onClick={openCreate}
-            className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
-          >
-            거래처 등록
-          </button>
+          <div className="ml-auto shrink-0">
+            <button
+              type="button"
+              onClick={openCreate}
+              className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
+            >
+              거래처 등록
+            </button>
+          </div>
         </div>
 
         <PartnerListTable

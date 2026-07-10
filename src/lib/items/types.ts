@@ -38,6 +38,22 @@ export function isProductItemCategory(category: ItemCategory) {
   return category === 3 || category === 4
 }
 
+export function isSemiFinishedItemCategory(category: ItemCategory) {
+  return category === 3
+}
+
+/** 반제품 PCB 면 — single=단면, dual=양면 */
+export type ItemPcbSideMode = '' | 'single' | 'dual'
+
+export const ITEM_PCB_SIDE_MODES = ['single', 'dual'] as const
+
+export type ItemPcbSideModeValue = (typeof ITEM_PCB_SIDE_MODES)[number]
+
+export const ITEM_PCB_SIDE_MODE_LABELS: Record<ItemPcbSideModeValue, string> = {
+  single: '단면',
+  dual: '양면',
+}
+
 /** 원자재(1)만 직접 입력, 나머지는 접두사+일련번호 자동 생성 */
 export function isManualItemCodeCategory(category: ItemCategory) {
   return category === 1
@@ -57,6 +73,7 @@ export type Item = {
   mpn: string
   materialType: ItemMaterialType
   supplyType: ItemSupplyType
+  pcbSideMode: ItemPcbSideMode
   unitPrice: number
   itemCategory: ItemCategory
   isActive: boolean
@@ -71,6 +88,7 @@ export type ItemPayload = {
   mpn: string
   materialType: ItemMaterialType
   supplyType: ItemSupplyType
+  pcbSideMode: ItemPcbSideMode
   unitPrice: number
   itemCategory: ItemCategory
 }
@@ -84,6 +102,7 @@ export const ITEM_COLUMN_LABELS = {
   mpn: 'MPN',
   materialType: '구분',
   supplyType: '도급/사급',
+  pcbSideMode: '단면/양면',
   unitPrice: '단가',
   itemCategory: '품목구분',
 } as const

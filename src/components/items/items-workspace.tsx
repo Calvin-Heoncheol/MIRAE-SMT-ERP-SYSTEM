@@ -83,13 +83,15 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
             placeholder="품목코드, 품목명, 규격, MPN 검색…"
             className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-slate-100 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2"
           />
-          <button
-            type="button"
-            onClick={openCreate}
-            className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
-          >
-            품목 등록
-          </button>
+          <div className="ml-auto shrink-0">
+            <button
+              type="button"
+              onClick={openCreate}
+              className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
+            >
+              품목 등록
+            </button>
+          </div>
         </div>
 
         <ItemListTable

@@ -60,7 +60,7 @@ export function buildProductionOrderLines(
         return
       }
 
-      const pcbSideMode = resolveProductPcbSideMode(item.productId, productById)
+      const pcbSideMode = resolveProductPcbSideMode(productId, productById)
       const splitPcbSides = productionModule === 'smt' && pcbSideMode === 'dual'
 
       const labelParts: string[] = []
@@ -101,7 +101,7 @@ export function buildProductionOrderLines(
 export function buildPostProcessAssemblyLines(
   assemblyGroups: OrderAssemblyGroup[],
   orders: OrderListGroup[],
-  productKindLabel: string,
+  productById: Record<string, Product> = {},
 ): ProductionOrderLine[] {
   const orderById = Object.fromEntries(orders.map((order) => [order.orderId, order]))
   const lines: ProductionOrderLine[] = []
@@ -114,9 +114,16 @@ export function buildPostProcessAssemblyLines(
     const productCode = group.parentProductCode.trim()
     if (!productName && !productCode) continue
 
+    const parentProduct = productById[group.parentProductId]
+    const isFinished = parentProduct?.productKind === 'assembly'
+    const productKindLabel = isFinished ? '완제품' : '반제품'
+
     const labelParts: string[] = []
     if (productName) labelParts.push(productName)
     if (productCode) labelParts.push(`[${productCode}]`)
+    if (isFinished && group.lines.length) {
+      labelParts.push(`구성 ${group.lines.map((line) => line.childProductId).join('+')}`)
+    }
     labelParts.push(`수량${group.targetQuantity}`)
 
     lines.push({
@@ -133,9 +140,9 @@ export function buildPostProcessAssemblyLines(
       quantity: group.targetQuantity,
       unitPrice: 0,
       lineSeq: group.groupSeq,
-      productKind: 'finished',
+      productKind: isFinished ? 'finished' : 'semi',
       productKindLabel,
-      pcbSideMode: 'single',
+      pcbSideMode: parentProduct?.pcbSideMode ?? 'single',
       splitPcbSides: false,
     })
   }
