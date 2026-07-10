@@ -14,6 +14,17 @@ import {
 import { formatExpenseReportMoney, formatKoreanMoneyText } from '@/lib/expense-reports/utils'
 import { EXPENSE_REPORT_ACCOUNT_CATEGORIES } from '@/lib/expense-reports/account-categories'
 import { EXPENSE_REPORT_PROCESSING_METHODS } from '@/lib/expense-reports/processing-methods'
+import {
+  PRINT_CLOSING,
+  PRINT_LABEL,
+  PRINT_SECTION_TITLE,
+  PRINT_SHEET,
+  PRINT_CONTENT,
+  PRINT_TABLE,
+  PRINT_TABLE_LABEL,
+  PRINT_TABLE_VALUE,
+  PRINT_VALUE,
+} from '@/lib/documents/print-classes'
 
 type ExpenseReportFormDocumentProps = {
   form: ExpenseReportFormState
@@ -26,8 +37,8 @@ type ExpenseReportFormDocumentProps = {
 }
 
 const cellBorder = 'border border-slate-400'
-const labelCell = `${cellBorder} bg-slate-50 px-2 py-1.5 text-center text-xs font-semibold text-slate-700`
-const inputCell = `${cellBorder} px-1 py-1`
+const labelCell = `${PRINT_TABLE_LABEL} ${cellBorder} bg-slate-50 px-3 py-2 text-center text-xs font-semibold text-slate-700`
+const inputCell = `${PRINT_TABLE_VALUE} ${cellBorder} px-2 py-2`
 
 function InlineInput({
   value,
@@ -45,7 +56,7 @@ function InlineInput({
   placeholder?: string
 }) {
   if (readOnly) {
-    return <span className={`block px-1 py-1 text-sm text-slate-800 ${className}`}>{value || '\u00A0'}</span>
+    return <span className={`${PRINT_VALUE} block px-1 py-1 text-sm text-slate-800 ${className}`}>{value || '\u00A0'}</span>
   }
   return (
     <input
@@ -53,7 +64,7 @@ function InlineInput({
       value={value}
       placeholder={placeholder}
       onChange={(event) => onChange?.(event.target.value)}
-      className={`w-full border-0 bg-transparent px-1 py-1 text-sm text-slate-800 outline-none placeholder:text-slate-400 ${className}`}
+      className={`${PRINT_VALUE} w-full border-0 bg-transparent px-1 py-1 text-sm text-slate-800 outline-none placeholder:text-slate-400 ${className}`}
     />
   )
 }
@@ -149,7 +160,11 @@ export function ExpenseReportFormDocument({
   }
 
   return (
-    <div id="document-print-root" className="rounded-xl border border-slate-300 bg-white p-6 shadow-sm">
+    <div
+      id="document-print-root"
+      className={`${PRINT_SHEET} rounded-xl border border-slate-300 bg-white shadow-sm`}
+    >
+      <div className={PRINT_CONTENT}>
       <DocumentFormHeader
         title="지 출 결 의 서"
         titleTracking="0.15em"
@@ -160,15 +175,15 @@ export function ExpenseReportFormDocument({
         onSign={onSign}
       />
 
-      <div className={`${cellBorder} mt-4`}>
-        <div className="flex items-end gap-2 px-4 py-3">
-          <span className="w-8 shrink-0 pb-1 text-xs font-semibold text-slate-800">일금</span>
-          <div className="w-[34%] max-w-[220px] shrink-0 border-b border-slate-500 pb-1 text-center text-sm font-semibold tracking-wide text-slate-900">
+      <div className={`expense-report-amount-row ${cellBorder} mt-4`}>
+        <div className="expense-report-amount-inner flex items-end gap-2 px-5 py-4">
+          <span className="expense-report-amount-label w-8 shrink-0 pb-1 text-xs font-semibold text-slate-800">일금</span>
+          <div className="expense-report-amount-korean w-[34%] max-w-[220px] shrink-0 border-b border-slate-500 pb-1 text-center text-sm font-semibold tracking-wide text-slate-900">
             {totalAmount > 0 ? formatKoreanMoneyText(totalAmount) : '\u00A0'}
           </div>
-          <div className="flex min-w-0 flex-1 items-end gap-1 border-b border-slate-500 pb-1">
+          <div className="expense-report-amount-number-wrap flex min-w-0 flex-1 items-end gap-1 border-b border-slate-500 pb-1">
             <span className="shrink-0 pb-px text-sm font-semibold text-slate-700">₩</span>
-            <span className="min-w-0 flex-1 text-right text-base font-semibold tabular-nums text-slate-900">
+            <span className="expense-report-amount-number min-w-0 flex-1 text-right text-sm font-semibold tabular-nums text-slate-900">
               {totalAmount > 0 ? Math.round(totalAmount).toLocaleString('ko-KR') : '\u00A0'}
             </span>
           </div>
@@ -176,7 +191,7 @@ export function ExpenseReportFormDocument({
       </div>
 
       <div className="mt-4 overflow-x-auto">
-        <table className="min-w-[640px] w-full border-collapse text-sm">
+        <table className={`${PRINT_TABLE} min-w-[640px] w-full border-collapse text-sm`}>
           <tbody>
             <tr>
               <td className={`${labelCell} w-[14%]`}>문서번호</td>
@@ -254,7 +269,7 @@ export function ExpenseReportFormDocument({
 
       <div className="mt-5">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-slate-800">내역</p>
+          <p className={`${PRINT_SECTION_TITLE} text-sm font-semibold text-slate-800`}>내역</p>
           {!readOnly ? (
             <div className="flex gap-2">
               <button
@@ -276,7 +291,7 @@ export function ExpenseReportFormDocument({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-[760px] w-full border-collapse text-sm">
+          <table className={`${PRINT_TABLE} min-w-[760px] w-full border-collapse text-sm`}>
             <thead>
               <tr>
                 <th className={`${labelCell} w-[22%]`}>계정과목</th>
@@ -379,9 +394,9 @@ export function ExpenseReportFormDocument({
         </div>
       </div>
 
-      <div className="mt-6 space-y-3 text-center">
+      <div className={`${PRINT_CLOSING} mt-6 space-y-3 text-center`}>
         <p className="text-sm font-medium text-slate-800">위 금액을 영수(청구)합니다.</p>
-        <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-700">
+        <div className={`${PRINT_VALUE} flex flex-wrap items-center justify-center gap-2 text-sm text-slate-700`}>
           {readOnly ? (
             <span>{form.receiptDate || '-'}</span>
           ) : (
@@ -393,12 +408,14 @@ export function ExpenseReportFormDocument({
             />
           )}
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
-          <span className="font-medium text-slate-700">영수자</span>
+        <div className={`${PRINT_VALUE} flex flex-wrap items-center justify-center gap-3 text-sm`}>
+          <span className={`${PRINT_LABEL} font-medium text-slate-700`}>영수자</span>
           <div className="min-w-[180px] border-b border-slate-400 px-2 pb-1">
             <InlineInput value={form.recipient} readOnly={readOnly} onChange={(recipient) => patch({ recipient })} />
           </div>
         </div>
+      </div>
+
       </div>
 
       <DocumentBrandFooter />

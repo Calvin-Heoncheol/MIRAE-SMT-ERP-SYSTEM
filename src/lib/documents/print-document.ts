@@ -23,7 +23,7 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
 #document-print-root .approval-document-section {
   border: 1px solid #94a3b8 !important;
   border-radius: 8px !important;
-  padding: 10px !important;
+  padding: 14px 20px !important;
   break-inside: avoid;
   page-break-inside: avoid;
 }
@@ -34,7 +34,7 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
 #document-print-root .document-form-header > div {
   display: flex !important;
   flex-direction: row !important;
-  align-items: flex-start !important;
+  align-items: center !important;
   justify-content: space-between !important;
   gap: 1.5rem !important;
 }
@@ -54,7 +54,6 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
   flex-direction: row !important;
   align-items: center !important;
   gap: 6px !important;
-  font-size: 11px !important;
   line-height: 1.25 !important;
 }
 #document-print-root .approval-meta-grid .approval-meta-field > span:first-child,
@@ -62,7 +61,6 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
   margin-bottom: 0 !important;
   width: 3.6rem !important;
   flex-shrink: 0 !important;
-  font-size: 10px !important;
   white-space: nowrap !important;
 }
 #document-print-root .approval-meta-grid .approval-meta-field input,
@@ -73,26 +71,40 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
   min-width: 0 !important;
   min-height: 0 !important;
   padding: 0 !important;
-  font-size: 11px !important;
   line-height: 1.25 !important;
 }
-#document-print-root .document-meta-grid {
+#document-print-root .document-meta-grid:not(.approval-meta-grid) {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 1rem !important;
 }
-#document-print-root .document-form-header { padding-top: 2mm !important; }
+#document-print-root .document-form-header { padding: 5mm 4mm !important; }
+#document-print-root .document-form-header__title {
+  padding-top: 2mm !important;
+  padding-bottom: 2mm !important;
+}
 #document-print-root .document-brand-footer {
-  margin-top: 8mm !important;
+  margin-top: 10mm !important;
   page-break-inside: avoid;
   break-inside: avoid;
+}
+#document-print-root .document-brand-logo-frame {
+  height: 72px !important;
+  overflow: hidden !important;
+}
+#document-print-root .document-brand-logo,
+#document-print-root .document-brand-footer img {
+  height: 72px !important;
+  width: auto !important;
+  max-width: 240px !important;
+  object-fit: contain !important;
+  transform: none !important;
 }
 #document-print-root .overflow-x-auto { overflow: visible !important; }
 #document-print-root .approval-detail-table {
   min-width: 0 !important;
   width: 100% !important;
   table-layout: fixed !important;
-  font-size: 10px !important;
 }
 #document-print-root .approval-detail-table th,
 #document-print-root .approval-detail-table td {
@@ -107,7 +119,6 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px !important;
   line-height: 1.3 !important;
   padding: 0 !important;
   background: transparent !important;
@@ -139,6 +150,116 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
 #document-print-root img {
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+}
+#document-print-root .approval-signoff-panel {
+  display: flex !important;
+  overflow: hidden !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+}
+#document-print-root .approval-signoff-panel > div:first-child {
+  display: flex !important;
+  width: 32px !important;
+  flex-shrink: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-right: 1px solid #e2e8f0 !important;
+  background: #f8fafc !important;
+}
+#document-print-root .approval-signoff-panel table {
+  border-collapse: collapse !important;
+}
+#document-print-root .approval-signoff-panel th {
+  border: none !important;
+  border-right: 1px solid #e2e8f0 !important;
+  background: #f8fafc !important;
+  padding: 4px 2px !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+#document-print-root .approval-signoff-panel td {
+  border: none !important;
+  border-right: 1px solid #e2e8f0 !important;
+  border-top: 1px solid #e2e8f0 !important;
+  height: 48px !important;
+  padding: 4px 2px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+#document-print-root .approval-signoff-panel th:last-child,
+#document-print-root .approval-signoff-panel td:last-child {
+  border-right: none !important;
+}
+#document-print-root .document-print-table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+}
+#document-print-root .document-print-table th,
+#document-print-root .document-print-table td {
+  border: 1px solid #94a3b8 !important;
+  padding: 4px 6px !important;
+  vertical-align: middle !important;
+}
+#document-print-root .document-print-table th {
+  background: #f8fafc !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+#document-print-root .expense-report-amount-row {
+  border: 1px solid #94a3b8 !important;
+  margin-top: 1rem !important;
+}
+#document-print-root .expense-report-amount-inner {
+  display: flex !important;
+  align-items: flex-end !important;
+  gap: 0.5rem !important;
+  padding: 1rem 1.25rem !important;
+}
+#document-print-root .expense-report-amount-label {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+#document-print-root .expense-report-amount-korean,
+#document-print-root .expense-report-amount-number {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+#document-print-root .expense-report-amount-korean,
+#document-print-root .expense-report-amount-number-wrap {
+  border-bottom: 1px solid #64748b !important;
+  padding-bottom: 0.25rem !important;
+}
+#document-print-root input[type='date']::-webkit-calendar-picker-indicator {
+  display: none !important;
+}
+#document-print-root .document-print-cell-value {
+  display: block;
+  line-height: 1.35 !important;
+  padding: 0 !important;
+  color: #0f172a !important;
+}
+#document-print-root .approval-totals-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: baseline !important;
+  justify-content: flex-end !important;
+  gap: 4px 16px !important;
+}
+#document-print-root .approval-inline-field {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+#document-print-root .document-print-text-value {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  min-height: 0 !important;
 }
 `
 
@@ -219,7 +340,102 @@ function prepareApprovalDetailTableForPrint(clone: HTMLElement) {
   })
 }
 
+function createPrintValueSpan(value: string, className = 'document-print-cell-value') {
+  const span = document.createElement('span')
+  span.className = className
+  span.textContent = value.trim() || '\u00A0'
+  return span
+}
+
+function replaceInputWithPrintValue(node: HTMLInputElement) {
+  const alignRight = node.className.includes('text-right')
+  const span = createPrintValueSpan(node.value)
+  if (alignRight) span.style.textAlign = 'right'
+  node.replaceWith(span)
+}
+
+function getOptionLabelText(label: HTMLLabelElement) {
+  const clone = label.cloneNode(true) as HTMLLabelElement
+  clone.querySelectorAll('input, button, select, textarea').forEach((node) => node.remove())
+  return clone.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+}
+
+function createPrintCheckboxOption(checked: boolean, text: string) {
+  const wrap = document.createElement('span')
+  wrap.className = 'document-print-option inline-flex items-center gap-2 text-sm text-slate-700'
+
+  const box = document.createElement('span')
+  box.className = [
+    'document-print-check-box inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] font-bold leading-none',
+    checked ? 'is-checked border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white',
+  ].join(' ')
+  box.textContent = checked ? '✓' : ''
+
+  const textSpan = document.createElement('span')
+  textSpan.textContent = text
+
+  wrap.append(box, textSpan)
+  return wrap
+}
+
+function createPrintRadioOption(checked: boolean, text: string) {
+  const wrap = document.createElement('span')
+  wrap.className = 'document-print-option inline-flex items-center gap-2 text-sm text-slate-800'
+
+  const dot = document.createElement('span')
+  dot.className = [
+    'document-print-radio-dot inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px]',
+    checked ? 'is-checked border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white',
+  ].join(' ')
+  dot.textContent = checked ? '●' : ''
+
+  const textSpan = document.createElement('span')
+  textSpan.textContent = text
+
+  wrap.append(dot, textSpan)
+  return wrap
+}
+
+function prepareRadioGroupsForPrint(clone: HTMLElement) {
+  clone.querySelectorAll('input[type="radio"]').forEach((node) => {
+    if (!(node instanceof HTMLInputElement)) return
+    const label = node.closest('label')
+    if (!label) return
+
+    const text = getOptionLabelText(label)
+    label.replaceWith(createPrintRadioOption(node.checked, text))
+  })
+}
+
+function prepareCheckboxGroupsForPrint(clone: HTMLElement) {
+  clone.querySelectorAll('input[type="checkbox"]').forEach((node) => {
+    if (!(node instanceof HTMLInputElement)) return
+    const label = node.closest('label')
+    if (!label) return
+
+    const text = getOptionLabelText(label)
+    label.replaceWith(createPrintCheckboxOption(node.checked, text))
+  })
+}
+
+function replaceTextareaWithPrintValue(node: HTMLTextAreaElement) {
+  const div = document.createElement('div')
+  div.className = 'document-print-body document-print-text-value whitespace-pre-wrap text-sm text-slate-800'
+  div.textContent = node.value.trim() || '-'
+  node.replaceWith(div)
+}
+
 function prepareCloneForPrint(clone: HTMLElement) {
+  clone.querySelectorAll('.no-print').forEach((node) => {
+    node.remove()
+  })
+
+  clone.querySelectorAll('*').forEach((node) => {
+    if (node instanceof HTMLElement && node.classList.contains('print:hidden')) {
+      node.remove()
+    }
+  })
+
   clone.querySelectorAll('[data-expense-line-empty="true"]').forEach((row) => {
     row.remove()
   })
@@ -232,43 +448,79 @@ function prepareCloneForPrint(clone: HTMLElement) {
       null
     const value = node.value.trim()
     const label = selected?.textContent?.trim() ?? value
-    const span = document.createElement('span')
     const inMetaGrid = Boolean(node.closest('.approval-meta-grid'))
-    span.className = inMetaGrid
-      ? 'approval-meta-print-value'
-      : 'block px-1 py-1 text-sm text-slate-800'
-    span.textContent = value ? label : '\u00A0'
+    const span = createPrintValueSpan(
+      value ? label : '',
+      inMetaGrid ? 'approval-meta-print-value' : 'document-print-cell-value',
+    )
     node.replaceWith(span)
   })
 
-  clone.querySelectorAll('input[type="radio"]').forEach((node) => {
+  clone.querySelectorAll('input[type="date"]').forEach((node) => {
     if (!(node instanceof HTMLInputElement)) return
-    if (!node.checked) {
-      const label = node.closest('label')
-      if (label) label.style.opacity = '0.35'
-    }
+    replaceInputWithPrintValue(node)
   })
 
+  clone.querySelectorAll('textarea').forEach((node) => {
+    if (!(node instanceof HTMLTextAreaElement)) return
+    replaceTextareaWithPrintValue(node)
+  })
+
+  prepareCheckboxGroupsForPrint(clone)
+  prepareRadioGroupsForPrint(clone)
   prepareApprovalDetailTableForPrint(clone)
 }
 
-function collectStylesheetHrefs() {
-  return Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-    .map((node) => (node instanceof HTMLLinkElement ? node.href : ''))
+function collectDocumentHeadMarkup() {
+  const links = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+    .map((node) => (node instanceof HTMLLinkElement ? node.outerHTML : ''))
     .filter(Boolean)
+    .join('\n')
+
+  const inlineStyles = Array.from(document.querySelectorAll('style'))
+    .map((node) => node.outerHTML)
+    .join('\n')
+
+  return { links, inlineStyles }
+}
+
+function waitForPrintWindowStyles(doc: Document, maxMs = 800) {
+  const links = Array.from(doc.querySelectorAll('link[rel="stylesheet"]')).filter(
+    (node): node is HTMLLinkElement => node instanceof HTMLLinkElement,
+  )
+
+  if (!links.length) return Promise.resolve()
+
+  return Promise.race([
+    Promise.all(
+      links.map(
+        (link) =>
+          new Promise<void>((resolve) => {
+            if (link.sheet) {
+              resolve()
+              return
+            }
+            link.addEventListener('load', () => resolve(), { once: true })
+            link.addEventListener('error', () => resolve(), { once: true })
+          }),
+      ),
+    ),
+    new Promise<void>((resolve) => {
+      window.setTimeout(resolve, maxMs)
+    }),
+  ])
 }
 
 function buildPrintHtml(clone: HTMLElement, title: string) {
-  const stylesheetLinks = collectStylesheetHrefs()
-    .map((href) => `<link rel="stylesheet" href="${href}">`)
-    .join('\n')
+  const { links, inlineStyles } = collectDocumentHeadMarkup()
 
   return `<!DOCTYPE html>
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
     <title>${title.replace(/</g, '&lt;')}</title>
-    ${stylesheetLinks}
+    ${links}
+    ${inlineStyles}
     <style>${EMBEDDED_PRINT_STYLES}</style>
   </head>
   <body>
@@ -292,8 +544,10 @@ function printInDedicatedWindow(clone: HTMLElement, title: string) {
   }
 
   const triggerPrint = () => {
-    printWindow.focus()
-    printWindow.print()
+    void waitForPrintWindowStyles(doc).then(() => {
+      printWindow.focus()
+      printWindow.print()
+    })
   }
 
   printWindow.addEventListener('afterprint', cleanup)
@@ -357,14 +611,10 @@ export async function printDocumentById(rootId: string, options: PrintDocumentOp
   await waitForImages(clone)
 
   try {
-    if (printInDedicatedWindow(clone, options.title)) {
-      return true
-    }
-
     printInMainDocument(clone, options.title)
     return true
   } catch {
-    window.alert('인쇄창을 열지 못했습니다. 브라우저 팝업 차단을 확인해 주세요.')
+    window.alert('인쇄창을 열지 못했습니다. 다시 시도해 주세요.')
     return false
   }
 }
