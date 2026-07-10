@@ -25,9 +25,18 @@ import { APPROVAL_DEPARTMENTS } from '@/lib/approvals/departments'
 import { formatApprovalMoney } from '@/lib/approvals/utils'
 import type { ApprovalSignoffRole } from '@/lib/approvals/signoffs'
 import type { ApprovalAmountBasis } from '@/lib/approvals/types'
+import {
+  PRINT_BODY,
+  PRINT_DIVIDER,
+  PRINT_LABEL,
+  PRINT_SECTION_TITLE,
+  PRINT_SHEET,
+  PRINT_CONTENT,
+  PRINT_VALUE,
+} from '@/lib/documents/print-classes'
 
 const approvalSectionClass =
-  'approval-document-section rounded-lg border border-slate-300 p-4 print:border-slate-400 print:p-3'
+  'approval-document-section rounded-lg border border-slate-300 px-6 py-5 print:border-slate-400 print:px-5 print:py-4'
 
 type ApprovalFormDocumentProps = {
   category: ApprovalCategory
@@ -53,7 +62,7 @@ function AmountBasisField({
 }) {
   return (
     <div className="block text-sm">
-      <span className="mb-2 block text-xs font-semibold tracking-wide text-slate-500">금액 기준</span>
+      <span className={`${PRINT_LABEL} mb-2 block text-xs font-semibold tracking-wide text-slate-500`}>금액 기준</span>
       <div className="flex flex-wrap gap-4">
         <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input
@@ -105,9 +114,9 @@ function InlineField({
 }) {
   return (
     <div className="approval-inline-field flex items-center gap-3 text-sm">
-      <span className="shrink-0 text-xs font-semibold tracking-wide text-slate-500">{label}</span>
+      <span className={`${PRINT_LABEL} shrink-0 text-xs font-semibold tracking-wide text-slate-500`}>{label}</span>
       {readOnly ? (
-        <div className="min-h-[38px] flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+        <div className={`${PRINT_VALUE} min-h-[38px] flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800`}>
           {value || '-'}
         </div>
       ) : (
@@ -116,7 +125,7 @@ function InlineField({
           value={value}
           placeholder={placeholder}
           onChange={(event) => onChange?.(event.target.value)}
-          className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400"
+          className={`${PRINT_VALUE} min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400`}
         />
       )}
     </div>
@@ -160,13 +169,13 @@ function Field({
 }) {
   return (
     <label className={`block text-sm ${className}`}>
-      <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-500">{label}</span>
+      <span className={`${PRINT_LABEL} mb-1 block text-xs font-semibold tracking-wide text-slate-500`}>{label}</span>
       {readOnly ? (
         <input
           readOnly
           type={type}
           value={value || '-'}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
+          className={`${PRINT_VALUE} w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800`}
         />
       ) : (
         <input
@@ -174,7 +183,7 @@ function Field({
           value={value}
           placeholder={placeholder}
           onChange={(event) => onChange?.(event.target.value)}
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400"
+          className={`${PRINT_VALUE} w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400`}
         />
       )}
     </label>
@@ -198,9 +207,9 @@ function TextAreaField({
 }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-500">{label}</span>
+      <span className={`${PRINT_LABEL} mb-1 block text-xs font-semibold tracking-wide text-slate-500`}>{label}</span>
       {readOnly ? (
-        <div className="min-h-[72px] whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+        <div className={`${PRINT_BODY} min-h-[72px] whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800`}>
           {value || '-'}
         </div>
       ) : (
@@ -209,7 +218,7 @@ function TextAreaField({
           rows={rows}
           placeholder={placeholder}
           onChange={(event) => onChange?.(event.target.value)}
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400"
+          className={`${PRINT_BODY} w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400`}
         />
       )}
     </label>
@@ -313,7 +322,11 @@ export function ApprovalFormDocument({
   }
 
   return (
-    <div id="document-print-root" className="rounded-xl border border-slate-300 bg-white p-6 shadow-sm">
+    <div
+      id="document-print-root"
+      className={`${PRINT_SHEET} rounded-xl border border-slate-300 bg-white shadow-sm`}
+    >
+      <div className={PRINT_CONTENT}>
       <DocumentFormHeader
         title="품 의 서"
         titleTracking="0.15em"
@@ -322,7 +335,7 @@ export function ApprovalFormDocument({
         canSign={canSign}
         signing={signing}
         onSign={onSign}
-        className={`${approvalSectionClass} pb-4`}
+        className={approvalSectionClass}
       />
 
       <div
@@ -338,11 +351,11 @@ export function ApprovalFormDocument({
         />
         <div className="approval-meta-field">
           <label className="block text-sm">
-            <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-500">문서번호</span>
+            <span className={`${PRINT_LABEL} mb-1 block text-xs font-semibold tracking-wide text-slate-500`}>문서번호</span>
             <input
               readOnly
               value={isDocNumberDraft && !form.docNumber ? '저장 시 자동 부여' : form.docNumber}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-800"
+              className={`${PRINT_VALUE} w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-800`}
             />
           </label>
           {isDocNumberDraft ? (
@@ -350,9 +363,9 @@ export function ApprovalFormDocument({
           ) : null}
         </div>
         <label className="approval-meta-field block text-sm">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-500">작성부서</span>
+          <span className={`${PRINT_LABEL} mb-1 block text-xs font-semibold tracking-wide text-slate-500`}>작성부서</span>
           {readOnly ? (
-            <div className="min-h-[38px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+            <div className={`${PRINT_VALUE} min-h-[38px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800`}>
               {form.department || '-'}
             </div>
           ) : (
@@ -413,16 +426,16 @@ export function ApprovalFormDocument({
         />
       </div>
 
-      <div className="my-5 text-center text-sm font-semibold tracking-[0.4em] text-slate-500 print:my-3">
+      <div className={`${PRINT_DIVIDER} my-5 text-center text-sm font-semibold tracking-[0.4em] text-slate-500 print:my-3`}>
         - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 다 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 음 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -
       </div>
 
       <div className={`${approvalSectionClass} approval-document-section--breakable mt-4 print:mt-2`}>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-slate-800">1. 상세 내역</p>
+            <p className={`${PRINT_SECTION_TITLE} text-sm font-semibold text-slate-800`}>1. 상세 내역</p>
             {showAmountBasisSelector ? (
-              <p className="mt-0.5 text-xs font-medium text-red-600">
+              <p className="no-print mt-0.5 text-xs font-medium text-red-600">
                 {amountBasis === 'total'
                   ? '단가·금액은 공급대가 기준으로 입력합니다. 공급가액과 부가세는 자동 역산됩니다.'
                   : amountBasis === 'exempt'
@@ -430,7 +443,7 @@ export function ApprovalFormDocument({
                     : '단가·금액은 공급가액(VAT 별도) 기준으로 입력합니다.'}
               </p>
             ) : (
-              <p className="mt-0.5 text-xs font-medium text-red-600">
+              <p className="no-print mt-0.5 text-xs font-medium text-red-600">
                 관세/부가세는 각각 별도 입력하며, 최종 금액은 두 금액의 합산으로 계산됩니다.
               </p>
             )}
@@ -505,7 +518,7 @@ export function ApprovalFormDocument({
           </table>
         </div>
 
-        <div className="approval-totals-row mt-3 flex flex-wrap items-baseline justify-end gap-x-6 gap-y-1 text-sm text-slate-800 print:gap-x-4">
+        <div className="approval-totals-row document-print-totals mt-3 flex flex-wrap items-baseline justify-end gap-x-6 gap-y-1 text-sm text-slate-800 print:gap-x-4">
           <p>
             {category === 'duty-tax' ? '관세 합계' : '공급가액 합계'}:{' '}
             <span className="font-semibold tabular-nums">{formatApprovalMoney(supplyAmount)}</span>
@@ -514,7 +527,7 @@ export function ApprovalFormDocument({
             {category === 'duty-tax' ? '부가세 합계' : `부가세 (${amountBasis === 'exempt' ? '0%' : '10%'})`}:{' '}
             <span className="font-semibold tabular-nums">{formatApprovalMoney(vatAmount)}</span>
           </p>
-          <p className="text-base">
+          <p>
             {category === 'duty-tax' ? '합계금액' : '공급대가'} ({category === 'duty-tax' ? '관세+부가세' : amountBasis === 'exempt' ? '면세' : 'VAT 포함'}):{' '}
             <span className="font-bold tabular-nums text-slate-900">{formatApprovalMoney(grandTotal)}</span>
           </p>
@@ -541,6 +554,8 @@ export function ApprovalFormDocument({
             onPendingFilesChange={(files) => onPendingAttachmentFilesChange?.(files)}
           />
         </div>
+      </div>
+
       </div>
 
       <DocumentBrandFooter />

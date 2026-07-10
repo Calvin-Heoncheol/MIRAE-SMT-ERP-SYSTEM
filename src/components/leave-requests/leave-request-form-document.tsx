@@ -6,6 +6,18 @@ import { APPROVAL_DEPARTMENTS } from '@/lib/approvals/departments'
 import type { ApprovalSignoffRole } from '@/lib/approvals/signoffs'
 import { formatLeavePeriodLabel, type LeaveRequestFormState } from '@/lib/leave-requests/form-state'
 import { LEAVE_TYPES } from '@/lib/leave-requests/leave-types'
+import {
+  PRINT_BODY,
+  PRINT_CLOSING,
+  PRINT_LABEL,
+  PRINT_SECTION_TITLE,
+  PRINT_SHEET,
+  PRINT_CONTENT,
+  PRINT_TABLE,
+  PRINT_TABLE_LABEL,
+  PRINT_TABLE_VALUE,
+  PRINT_VALUE,
+} from '@/lib/documents/print-classes'
 
 type LeaveRequestFormDocumentProps = {
   form: LeaveRequestFormState
@@ -18,8 +30,8 @@ type LeaveRequestFormDocumentProps = {
 }
 
 const cellBorder = 'border border-slate-400'
-const labelCell = `${cellBorder} bg-slate-50 px-2 py-1.5 text-center text-xs font-semibold text-slate-700`
-const inputCell = `${cellBorder} px-2 py-1.5`
+const labelCell = `${PRINT_TABLE_LABEL} ${cellBorder} bg-slate-50 px-3 py-2 text-center text-xs font-semibold text-slate-700`
+const inputCell = `${PRINT_TABLE_VALUE} ${cellBorder} px-3 py-2`
 
 function InlineInput({
   value,
@@ -39,7 +51,7 @@ function InlineInput({
   maxLength?: number
 }) {
   if (readOnly) {
-    return <span className={`block text-sm text-slate-800 ${className}`}>{value || '\u00A0'}</span>
+    return <span className={`${PRINT_VALUE} block text-sm text-slate-800 ${className}`}>{value || '\u00A0'}</span>
   }
   return (
     <input
@@ -74,7 +86,11 @@ export function LeaveRequestFormDocument({
   }
 
   return (
-    <div id="document-print-root" className="rounded-xl border border-slate-300 bg-white p-6 shadow-sm">
+    <div
+      id="document-print-root"
+      className={`${PRINT_SHEET} rounded-xl border border-slate-300 bg-white shadow-sm`}
+    >
+      <div className={PRINT_CONTENT}>
       <DocumentFormHeader
         title="휴가/조퇴원"
         titleTracking="0.15em"
@@ -86,8 +102,8 @@ export function LeaveRequestFormDocument({
 
       <div className="document-meta-grid mt-6 grid grid-cols-1 gap-3 md:grid-cols-2 print:grid-cols-2">
         <div className="text-sm">
-          <span className="mb-1 block text-xs font-semibold text-slate-500">문서번호</span>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-800">
+          <span className={`${PRINT_LABEL} mb-1 block text-xs font-semibold text-slate-500`}>문서번호</span>
+          <div className={`${PRINT_VALUE} rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-800`}>
             {isDocNumberDraft && !form.docNumber ? '저장 시 자동 부여' : form.docNumber || '-'}
           </div>
           {isDocNumberDraft ? (
@@ -97,7 +113,7 @@ export function LeaveRequestFormDocument({
       </div>
 
       <div className="mt-4 overflow-x-auto">
-        <table className="min-w-[640px] w-full border-collapse text-sm">
+        <table className={`${PRINT_TABLE} min-w-[640px] w-full border-collapse text-sm`}>
           <tbody>
             <tr>
               <td className={`${labelCell} w-24`}>부서</td>
@@ -134,8 +150,8 @@ export function LeaveRequestFormDocument({
       </div>
 
       <div className={`mt-4 ${cellBorder}`}>
-        <div className={`${labelCell} border-b border-slate-400 text-left`}>휴가의 종류</div>
-        <div className="grid gap-2 px-3 py-3 sm:grid-cols-2">
+        <div className={`${PRINT_SECTION_TITLE} ${labelCell} border-b border-slate-400 text-left`}>휴가의 종류</div>
+        <div className="grid gap-2 px-4 py-4 sm:grid-cols-2">
           {LEAVE_TYPES.map((item) => (
             <label key={item.value} className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-800">
               {readOnly ? (
@@ -172,8 +188,8 @@ export function LeaveRequestFormDocument({
       </div>
 
       <div className={`mt-4 ${cellBorder}`}>
-        <div className={`${labelCell} border-b border-slate-400 text-left`}>기간</div>
-        <div className="space-y-3 px-3 py-3 text-sm text-slate-800">
+        <div className={`${PRINT_SECTION_TITLE} ${labelCell} border-b border-slate-400 text-left`}>기간</div>
+        <div className={`${PRINT_VALUE} space-y-3 px-4 py-4 text-sm text-slate-800`}>
           <div className="flex flex-wrap items-center justify-center gap-2">
             {readOnly ? (
               <span>{formatLeavePeriodLabel(form).split(' ~ ')[0]}</span>
@@ -225,10 +241,10 @@ export function LeaveRequestFormDocument({
       </div>
 
       <div className={`mt-4 ${cellBorder}`}>
-        <div className={`${labelCell} border-b border-slate-400 text-left`}>사유</div>
-        <div className="px-3 py-3">
+        <div className={`${PRINT_SECTION_TITLE} ${labelCell} border-b border-slate-400 text-left`}>사유</div>
+        <div className="px-4 py-4">
           {readOnly ? (
-            <div className="min-h-[120px] whitespace-pre-wrap text-sm text-slate-800">{form.reason || '-'}</div>
+            <div className={`${PRINT_BODY} min-h-[120px] whitespace-pre-wrap text-sm text-slate-800`}>{form.reason || '-'}</div>
           ) : (
             <textarea
               value={form.reason}
@@ -241,11 +257,11 @@ export function LeaveRequestFormDocument({
         </div>
       </div>
 
-      <div className="mt-8 space-y-4 text-center">
+      <div className={`${PRINT_CLOSING} mt-8 space-y-4 text-center`}>
         <p className="text-sm font-medium text-slate-800">
           위와 같이 휴가/조퇴원을 제출하오니 허락하여 주시기 바랍니다.
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-slate-700">
+        <div className={`${PRINT_VALUE} flex flex-wrap items-center justify-center gap-2 text-sm text-slate-700`}>
           {readOnly ? (
             <span>
               {writtenParts.year}년 {writtenParts.month}월 {writtenParts.day}일
@@ -259,12 +275,14 @@ export function LeaveRequestFormDocument({
             />
           )}
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
-          <span className="font-medium text-slate-700">작성자</span>
+        <div className={`${PRINT_VALUE} flex flex-wrap items-center justify-center gap-3 text-sm`}>
+          <span className={`${PRINT_LABEL} font-medium text-slate-700`}>작성자</span>
           <div className="min-w-[180px] border-b border-slate-400 px-2 pb-1">
             <InlineInput value={form.author} readOnly={readOnly} onChange={(author) => patch({ author })} />
           </div>
         </div>
+      </div>
+
       </div>
 
       <DocumentBrandFooter />

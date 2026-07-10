@@ -3,6 +3,7 @@
 import { useRef } from 'react'
 import { getApprovalAttachmentPublicUrl } from '@/lib/approvals/attachments'
 import type { ApprovalAttachmentFile } from '@/lib/approvals/types'
+import { PRINT_BODY, PRINT_SECTION_TITLE } from '@/lib/documents/print-classes'
 
 type ApprovalAttachmentsFieldProps = {
   description: string
@@ -49,9 +50,9 @@ export function ApprovalAttachmentsField({
   return (
     <div className="space-y-3">
       <label className="block text-sm">
-        <span className="mb-1 block text-xs font-semibold tracking-wide text-slate-500">3. 첨부서류</span>
+        <span className={`${PRINT_SECTION_TITLE} mb-1 block text-xs font-semibold tracking-wide text-slate-500`}>3. 첨부서류</span>
         {readOnly ? (
-          <div className="min-h-[56px] whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+          <div className={`${PRINT_BODY} min-h-[56px] whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800`}>
             {description || '-'}
           </div>
         ) : (

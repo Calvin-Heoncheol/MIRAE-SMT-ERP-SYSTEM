@@ -1,6 +1,7 @@
 'use client'
 
 import type { ApprovalPaymentType } from '@/lib/approvals/types'
+import { PRINT_BODY, PRINT_SECTION_TITLE } from '@/lib/documents/print-classes'
 
 export const IMMEDIATE_PAYMENT_PLACEHOLDER =
   '예 : XX은행, XXX-XXXXX-XXXXXX, 예금주 : XXXX / 납품 후 7일 이내 현금 결제'
@@ -36,7 +37,7 @@ export function ApprovalPaymentMethodField({
 
   return (
     <div className="block text-sm">
-      <span className="mb-2 block text-xs font-semibold tracking-wide text-slate-500">2. 결제 방법</span>
+      <span className={`${PRINT_SECTION_TITLE} mb-2 block text-xs font-semibold tracking-wide text-slate-500`}>2. 결제 방법</span>
 
       <div className="flex flex-wrap gap-4">
         <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
@@ -64,7 +65,7 @@ export function ApprovalPaymentMethodField({
       {isImmediate ? (
         <div className="mt-3">
           {readOnly ? (
-            <div className="min-h-[72px] whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+            <div className={`${PRINT_BODY} min-h-[72px] whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800`}>
               {paymentMethod.trim() || '-'}
             </div>
           ) : (
