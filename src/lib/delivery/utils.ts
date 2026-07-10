@@ -255,3 +255,43 @@ export function getDeliveryStatusTone(availability: DeliveryAvailability) {
   if (state === 'progress') return 'partial' as const
   return 'blocked' as const
 }
+
+export function buildOrderLineToAssemblyGroupMap(groups: OrderAssemblyGroup[]) {
+  const map = new Map<string, string>()
+  for (const group of groups) {
+    for (const line of group.lines) {
+      map.set(line.orderLineId, group.id)
+    }
+  }
+  return map
+}
+
+export function isAssemblyGroupDeliveryComplete(
+  groupId: string,
+  groups: OrderAssemblyGroup[],
+  deliveryCounts: Record<string, number>,
+) {
+  const group = groups.find((item) => item.id === groupId)
+  if (!group) return false
+
+  const target = Math.max(0, Math.floor(group.targetQuantity))
+  if (target <= 0) return false
+
+  const shipped = Math.max(0, Math.floor(Number(deliveryCounts[groupId]) || 0))
+  return shipped >= target
+}
+
+/** 출하가 목표 수량까지 완료된 조립 그룹에 연결된 생산입력 주문 카드를 제외합니다. */
+export function excludeDeliveryCompleteProductionOrders(
+  orders: ProductionOrderLine[],
+  groups: OrderAssemblyGroup[],
+  deliveryCounts: Record<string, number>,
+) {
+  const lineToGroup = buildOrderLineToAssemblyGroupMap(groups)
+
+  return orders.filter((order) => {
+    const groupId = order.assemblyGroupId || lineToGroup.get(order.orderLineId) || ''
+    if (!groupId) return true
+    return !isAssemblyGroupDeliveryComplete(groupId, groups, deliveryCounts)
+  })
+}

@@ -2,6 +2,8 @@ import {
   ensureAssemblyGroupsForOrders,
   fetchAssemblyGroups,
 } from '@/lib/assembly/repository'
+import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
+import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
 import { fetchProducts } from '@/lib/products/repository'
 import { fetchPostProcessCumulativeCounts } from '@/lib/post-process/repository'
@@ -34,9 +36,11 @@ export async function fetchProductionInputPageData(
   let counts: ProductionCounts = {}
 
   if (config.productionModule === 'smt') {
-    const [countsResult, smtOrdersResult] = await Promise.all([
+    const [countsResult, smtOrdersResult, assemblyResult, deliveryCountsResult] = await Promise.all([
       fetchSmtCumulativeCounts(),
       fetchOrders({ includeDerivedLines: true }),
+      fetchAssemblyGroups(productById),
+      fetchDeliveryCumulativeCounts(),
     ])
 
     if (!countsResult.ok) {
@@ -45,27 +49,40 @@ export async function fetchProductionInputPageData(
     if (!smtOrdersResult.ok) {
       return smtOrdersResult
     }
+    if (!assemblyResult.ok) {
+      return assemblyResult
+    }
+    if (!deliveryCountsResult.ok) {
+      return deliveryCountsResult
+    }
 
     counts = countsResult.counts
+
+    const orders = excludeDeliveryCompleteProductionOrders(
+      buildProductionOrderLines(
+        smtOrdersResult.orders,
+        config.productKindLabel,
+        productById,
+        config.productionModule,
+      ),
+      assemblyResult.groups,
+      deliveryCountsResult.counts,
+    )
 
     return {
       ok: true,
       data: {
-        orders: buildProductionOrderLines(
-          smtOrdersResult.orders,
-          config.productKindLabel,
-          productById,
-          config.productionModule,
-        ),
+        orders,
         counts,
       },
     }
   }
 
   if (config.productionModule === 'post_process') {
-    const [assemblyResult, countsResult] = await Promise.all([
+    const [assemblyResult, countsResult, deliveryCountsResult] = await Promise.all([
       fetchAssemblyGroups(productById),
       fetchPostProcessCumulativeCounts(),
+      fetchDeliveryCumulativeCounts(),
     ])
 
     if (!assemblyResult.ok) {
@@ -74,15 +91,24 @@ export async function fetchProductionInputPageData(
     if (!countsResult.ok) {
       return countsResult
     }
+    if (!deliveryCountsResult.ok) {
+      return deliveryCountsResult
+    }
+
+    const orders = excludeDeliveryCompleteProductionOrders(
+      buildPostProcessAssemblyLines(
+        assemblyResult.groups,
+        ordersResult.orders,
+        productById,
+      ),
+      assemblyResult.groups,
+      deliveryCountsResult.counts,
+    )
 
     return {
       ok: true,
       data: {
-        orders: buildPostProcessAssemblyLines(
-          assemblyResult.groups,
-          ordersResult.orders,
-          productById,
-        ),
+        orders,
         counts: countsResult.counts,
       },
     }
