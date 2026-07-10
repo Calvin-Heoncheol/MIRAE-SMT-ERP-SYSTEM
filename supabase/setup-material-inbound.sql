@@ -28,7 +28,7 @@ create table if not exists public.material_inbound_lines (
   id uuid primary key default gen_random_uuid(),
   inbound_id text not null references public.material_inbound_records(id) on delete cascade,
   line_seq integer not null default 0,
-  material_id text not null references public.materials(id) on delete restrict,
+  material_id text not null references public.items(id) on delete restrict,
   purchase_order_line_id uuid references public.material_purchase_order_lines(id) on delete restrict,
   quantity numeric not null check (quantity > 0),
   unique (inbound_id, line_seq)
@@ -146,3 +146,11 @@ create trigger material_inbound_records_updated_at
   before update on public.material_inbound_records
   for each row
   execute function public.touch_material_inbound_records_updated_at();
+
+-- 기존 DB: material_id FK 가 materials 를 가리키면 items 로 교체
+alter table public.material_inbound_lines drop constraint if exists material_inbound_lines_material_id_fkey;
+alter table public.material_inbound_lines
+  add constraint material_inbound_lines_material_id_fkey
+  foreign key (material_id) references public.items(id) on delete restrict;
+
+comment on column public.material_inbound_lines.material_id is '품목 FK (items.id)';

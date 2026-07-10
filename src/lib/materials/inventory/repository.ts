@@ -2,7 +2,7 @@ import { createSupabaseClient } from '@/lib/supabase'
 import { aggregateOnHandByMaterialId } from '@/lib/materials/inbound/utils'
 import { isMissingMaterialInboundTable } from '@/lib/materials/inbound/repository'
 import { isMissingMaterialsTable } from '@/lib/materials/repository'
-import { mapMaterialRecord } from '@/lib/materials/utils'
+import { mapItemRowToMaterial } from '@/lib/materials/utils'
 import { isMissingMaterialPurchaseOrdersTable } from '@/lib/materials/purchase-orders/repository'
 import type { MaterialInventoryRow, MaterialPurchaseOrderLineAggregateRecord } from './types'
 import { aggregatePendingInboundByMaterialId, mergeMaterialInventoryRows } from './utils'
@@ -37,22 +37,10 @@ export async function fetchMaterialInventoryStatus(): Promise<FetchMaterialInven
 
     const [materialsResult, linesResult, inboundLinesResult] = await Promise.all([
       supabase
-        .from('materials')
-        .select(
-          `
-          *,
-          material_mpns (
-            id,
-            material_id,
-            mpn,
-            sort_order,
-            note,
-            created_at
-          )
-        `,
-        )
-        .order('customer', { ascending: true })
-        .order('material_name', { ascending: true }),
+        .from('items')
+        .select('*')
+        .in('item_category', [1, 2])
+        .order('name', { ascending: true }),
       supabase
         .from('material_purchase_order_lines')
         .select('material_id, quantity, inbound_quantity')
@@ -72,7 +60,7 @@ export async function fetchMaterialInventoryStatus(): Promise<FetchMaterialInven
       return { ok: false, reason: 'query', detail: inboundLinesResult.error.message }
     }
 
-    const materials = (materialsResult.data || []).map((row) => mapMaterialRecord(row))
+    const materials = (materialsResult.data || []).map((row) => mapItemRowToMaterial(row))
     const pendingByMaterialId = aggregatePendingInboundByMaterialId(
       (linesResult.data || []) as MaterialPurchaseOrderLineAggregateRecord[],
     )

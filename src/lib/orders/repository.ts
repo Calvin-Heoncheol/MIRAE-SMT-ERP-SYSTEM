@@ -27,6 +27,13 @@ function isMissingOrdersTable(detail: string) {
   return detail.includes('orders') || detail.includes('order_lines') || detail.includes('schema cache')
 }
 
+function mapOrderSaveError(detail: string) {
+  if (detail.includes('order_lines_product_id_fkey')) {
+    return '주문 품목 FK가 품목등록(items)과 맞지 않습니다. Supabase SQL Editor에서 supabase/setup-items.sql 하단 FK 교체 구문을 실행한 뒤, Supabase Dashboard → Settings → API에서 schema cache를 새로고침해 주세요.'
+  }
+  return detail
+}
+
 async function insertOrderLines(orderId: string, items: OrderRowPayload['items']) {
   const supabase = createSupabaseClient()
   const rows = items.map((item, index) => ({
@@ -160,7 +167,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
     return {
       ok: false,
       reason: 'query',
-      detail: error instanceof Error ? error.message : String(error),
+      detail: mapOrderSaveError(error instanceof Error ? error.message : String(error)),
     }
   }
 }
@@ -206,7 +213,7 @@ export async function updateOrder(orderId: string, payload: OrderRowPayload): Pr
     return {
       ok: false,
       reason: 'query',
-      detail: error instanceof Error ? error.message : String(error),
+      detail: mapOrderSaveError(error instanceof Error ? error.message : String(error)),
     }
   }
 }

@@ -2,7 +2,7 @@ import type { OrderLineRecord } from '@/lib/orders/types'
 import type { Product } from '@/lib/products/types'
 import type {
   ComputedAssemblyGroup,
-  FinishedProductBomRow,
+  BomRow,
   OrderAssemblyGroup,
   OrderAssemblyGroupRecord,
 } from './types'
@@ -15,8 +15,8 @@ export function isUserOrderLine(line: Pick<OrderLineRecord, 'derived_from_line_i
   return !line.derived_from_line_id
 }
 
-export function groupFinishedProductBom(rows: FinishedProductBomRow[]) {
-  const byParent = new Map<string, FinishedProductBomRow[]>()
+export function groupBomByParent(rows: BomRow[]) {
+  const byParent = new Map<string, BomRow[]>()
 
   for (const row of rows) {
     const list = byParent.get(row.parentProductId) ?? []
@@ -48,7 +48,7 @@ function findChildOrderLine(
 
 function tryMatchChildrenOnlyGroup(
   parentProductId: string,
-  children: FinishedProductBomRow[],
+  children: BomRow[],
   orderLines: OrderLineRecord[],
 ): ComputedAssemblyGroup | null {
   const userLines = orderLines.filter(isUserOrderLine)
@@ -93,7 +93,7 @@ function tryMatchChildrenOnlyGroup(
 
 function tryMatchAssemblyParentGroup(
   parentProductId: string,
-  children: FinishedProductBomRow[],
+  children: BomRow[],
   orderLines: OrderLineRecord[],
 ): ComputedAssemblyGroup | null {
   const parentLine = orderLines.find(
@@ -128,10 +128,10 @@ function tryMatchAssemblyParentGroup(
 
 export function computeAssemblyGroupsForOrder(
   orderLines: OrderLineRecord[],
-  bomRows: FinishedProductBomRow[],
+  bomRows: BomRow[],
 ): ComputedAssemblyGroup[] {
   const groups: ComputedAssemblyGroup[] = []
-  const byParent = groupFinishedProductBom(bomRows)
+  const byParent = groupBomByParent(bomRows)
 
   for (const [parentProductId, children] of byParent) {
     const childOnlyGroup = tryMatchChildrenOnlyGroup(parentProductId, children, orderLines)
@@ -149,6 +149,76 @@ export function computeAssemblyGroupsForOrder(
   return groups.sort((a, b) => a.parentProductId.localeCompare(b.parentProductId))
 }
 
+export function computeStandaloneFinishedProductGroups(
+  orderLines: OrderLineRecord[],
+  existingGroups: ComputedAssemblyGroup[],
+  productById: Record<string, Product>,
+): ComputedAssemblyGroup[] {
+  const coveredParents = new Set(existingGroups.map((group) => group.parentProductId))
+  const extras: ComputedAssemblyGroup[] = []
+
+  for (const line of orderLines.filter(isUserOrderLine)) {
+    const productId = resolveLineProductId(line)
+    if (!productId || coveredParents.has(productId)) continue
+
+    const product = productById[productId]
+    if (product?.productKind !== 'assembly') continue
+
+    const targetQuantity = Math.max(0, Math.floor(Number(line.quantity) || 0))
+    if (targetQuantity <= 0 || !line.id) continue
+
+    coveredParents.add(productId)
+    extras.push({
+      parentProductId: productId,
+      targetQuantity,
+      lines: [],
+    })
+  }
+
+  return extras
+}
+
+/** 조립 없는 단일 보드 — 주문 SFG 라인을 후공정 카드로 (FG 미등록·BOM 없음) */
+export function computeStandaloneSemiProductGroups(
+  orderLines: OrderLineRecord[],
+  existingGroups: ComputedAssemblyGroup[],
+  productById: Record<string, Product>,
+): ComputedAssemblyGroup[] {
+  const childIdsInGroups = new Set(
+    existingGroups.flatMap((group) => group.lines.map((line) => line.childProductId)),
+  )
+  const parentIdsInGroups = new Set(existingGroups.map((group) => group.parentProductId))
+  const extras: ComputedAssemblyGroup[] = []
+
+  for (const line of orderLines.filter(isUserOrderLine)) {
+    const productId = resolveLineProductId(line)
+    if (!productId || !line.id) continue
+    if (childIdsInGroups.has(productId)) continue
+    if (parentIdsInGroups.has(productId)) continue
+
+    const product = productById[productId]
+    if (product?.productKind !== 'pcb') continue
+
+    const targetQuantity = Math.max(0, Math.floor(Number(line.quantity) || 0))
+    if (targetQuantity <= 0) continue
+
+    parentIdsInGroups.add(productId)
+    extras.push({
+      parentProductId: productId,
+      targetQuantity,
+      lines: [
+        {
+          orderLineId: line.id,
+          childProductId: productId,
+          quantityPer: 1,
+        },
+      ],
+    })
+  }
+
+  return extras
+}
+
 export type DerivedOrderLineSpec = {
   parentLineId: string
   childProductId: string
@@ -160,11 +230,11 @@ export type DerivedOrderLineSpec = {
 
 export function computeDerivedOrderLineSpecs(
   orderLines: OrderLineRecord[],
-  bomRows: FinishedProductBomRow[],
+  bomRows: BomRow[],
   productById: Record<string, Product>,
 ): DerivedOrderLineSpec[] {
   const specs: DerivedOrderLineSpec[] = []
-  const byParent = groupFinishedProductBom(bomRows)
+  const byParent = groupBomByParent(bomRows)
   const userLines = orderLines.filter(isUserOrderLine)
   const explicitProductIds = new Set(
     userLines.map((line) => resolveLineProductId(line)).filter(Boolean),
@@ -222,7 +292,8 @@ export function isMissingAssemblyTable(detail: string) {
   return (
     detail.includes('order_assembly_groups') ||
     detail.includes('order_assembly_group_lines') ||
-    detail.includes('finished_product_bom_items') ||
+    detail.includes('bom_items') ||
+    detail.includes('bom_detail') ||
     detail.includes('schema cache')
   )
 }

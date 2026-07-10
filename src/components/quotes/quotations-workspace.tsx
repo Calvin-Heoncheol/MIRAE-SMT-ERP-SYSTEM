@@ -1,12 +1,13 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
 import { QuoteListTable } from '@/components/quotes/quote-list-table'
 import { QuoteModal } from '@/components/quotes/quote-modal'
 import { QuoteNewMenu } from '@/components/quotes/quote-toolbar'
 import type { FetchQuotesResult } from '@/lib/quotes/repository'
 import type { QuoteListItem, QuoteType } from '@/lib/quotes/types'
+import { filterQuotesForSearch } from '@/lib/quotes/utils'
 
 type QuotationsWorkspaceProps = {
   result: FetchQuotesResult
@@ -19,10 +20,13 @@ type ModalState =
 
 export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
   const router = useRouter()
+  const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
   const quotes = result.ok ? result.quotes : []
+  const query = search.trim()
+  const filtered = useMemo(() => filterQuotesForSearch(quotes, query), [quotes, query])
   const existingQuoteNumbers = quotes.map((quote) => quote.quoteNumber)
 
   function openCreate(quoteType: QuoteType) {
@@ -49,26 +53,44 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
     router.refresh()
   }
 
+  if (!result.ok) {
+    return <QuoteFetchError result={result} />
+  }
+
   return (
     <>
-      <div className="flex min-h-[calc(100vh-60px)] w-full flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex w-full flex-col gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">견적서 관리</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">견적서</h1>
             <p className="mt-1 text-sm text-slate-500">견적 목록을 확인하고 새 견적서를 작성합니다.</p>
           </div>
-          <QuoteNewMenu onOpenNew={openCreate} />
+          <p className="text-sm font-medium text-slate-600">
+            총 <span className="tabular-nums text-slate-900">{filtered.length.toLocaleString('ko-KR')}</span>건
+            {query ? (
+              <span className="text-slate-400"> / {quotes.length.toLocaleString('ko-KR')}건</span>
+            ) : null}
+          </p>
         </div>
 
-        {!result.ok ? (
-          <QuoteFetchError result={result} />
-        ) : (
-          <QuoteListTable
-            quotes={quotes}
-            emptyMessage="등록된 견적서가 없습니다"
-            onSelectQuote={openEdit}
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="견적번호, 고객사, 제품명, 견적일 검색…"
+            className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-slate-100 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2"
           />
-        )}
+          <div className="ml-auto shrink-0">
+            <QuoteNewMenu onOpenNew={openCreate} />
+          </div>
+        </div>
+
+        <QuoteListTable
+          quotes={filtered}
+          emptyMessage={query ? '검색 결과가 없습니다' : '등록된 견적서가 없습니다'}
+          onSelectQuote={openEdit}
+        />
       </div>
 
       {modal.open ? (

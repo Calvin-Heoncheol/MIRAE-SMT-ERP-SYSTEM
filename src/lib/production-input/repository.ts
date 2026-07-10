@@ -81,7 +81,7 @@ export async function fetchProductionInputPageData(
         orders: buildPostProcessAssemblyLines(
           assemblyResult.groups,
           ordersResult.orders,
-          config.productKindLabel,
+          productById,
         ),
         counts: countsResult.counts,
       },

@@ -2,6 +2,7 @@ import { isMissingOrdersTable, type FetchOrdersResult } from '@/lib/orders/repos
 
 export function OrderFetchError({ result }: { result: Extract<FetchOrdersResult, { ok: false }> }) {
   const missingTable = isMissingOrdersTable(result.detail)
+  const productFkIssue = result.detail.includes('order_lines_product_id_fkey')
 
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
@@ -11,8 +12,13 @@ export function OrderFetchError({ result }: { result: Extract<FetchOrdersResult,
       <p className="mt-1 whitespace-pre-wrap">{result.detail}</p>
       {missingTable ? (
         <p className="mt-3 text-xs text-amber-800">
-          Supabase SQL Editor에서 <code className="rounded bg-white/70 px-1">supabase/setup-orders.sql</code>을
-          실행해 주세요.
+          Supabase SQL Editor에서 <code className="rounded bg-white/70 px-1">supabase/setup-orders.sql</code>과{' '}
+          <code className="rounded bg-white/70 px-1">supabase/setup-items.sql</code>을 실행해 주세요.
+        </p>
+      ) : productFkIssue ? (
+        <p className="mt-3 text-xs text-amber-800">
+          <code className="rounded bg-white/70 px-1">supabase/setup-items.sql</code> 하단 FK 교체 구문을 실행해
+          주세요.
         </p>
       ) : null}
     </div>

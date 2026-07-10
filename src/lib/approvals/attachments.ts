@@ -20,7 +20,7 @@ export function formatApprovalSaveError(detail: string) {
     return 'approvals 테이블이 없습니다. Supabase SQL Editor에서 supabase/setup-approvals.sql 을 실행한 뒤, 다시 시도해 주세요.'
   }
   if (/approvals_id_apr_format_check/i.test(detail)) {
-    return '문서번호 형식이 맞지 않습니다. Supabase SQL Editor에서 supabase/migrate-approvals-doc-number-mra.sql 을 실행해 MRA-0001 형식으로 마이그레이션한 뒤, 다시 저장해 주세요.'
+    return '문서번호 형식이 맞지 않습니다. Supabase SQL Editor에서 supabase/setup-approvals.sql 을 다시 실행하거나, supabase/reset-erp.sql 후 setup 스크립트를 재실행해 주세요.'
   }
   if (/Bucket not found/i.test(detail) || /approval-attachments/i.test(detail)) {
     return '첨부파일 저장소가 없습니다. Supabase SQL Editor에서 supabase/setup-approvals-storage.sql 을 실행해 주세요.'

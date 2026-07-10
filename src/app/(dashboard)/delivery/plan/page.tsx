@@ -1,5 +1,5 @@
-import { ModuleTabPlaceholder } from '@/components/dashboard/module-tab-placeholder'
+import { redirect } from 'next/navigation'
 
 export default function DeliveryPlanPage() {
-  return <ModuleTabPlaceholder description="출하계획 화면은 추후 구현 예정입니다." />
+  redirect('/delivery/input')
 }

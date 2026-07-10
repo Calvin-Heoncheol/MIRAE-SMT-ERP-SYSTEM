@@ -3,6 +3,7 @@ import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 type DeliveryHistoryTableProps = {
   rows: DeliveryHistoryRow[]
   emptyMessage: string
+  onRowClick?: (row: DeliveryHistoryRow) => void
 }
 
 function cell(value: string) {
@@ -10,7 +11,7 @@ function cell(value: string) {
   return trimmed || '-'
 }
 
-export function DeliveryHistoryTable({ rows, emptyMessage }: DeliveryHistoryTableProps) {
+export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: DeliveryHistoryTableProps) {
   if (!rows.length) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
@@ -54,7 +55,13 @@ export function DeliveryHistoryTable({ rows, emptyMessage }: DeliveryHistoryTabl
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100 hover:bg-violet-50/40">
+              <tr
+                key={row.id}
+                onClick={() => onRowClick?.(row)}
+                className={`border-t border-slate-100 hover:bg-violet-50/40 ${
+                  onRowClick ? 'cursor-pointer' : ''
+                }`}
+              >
                 <td className="whitespace-nowrap px-4 py-2.5 text-sm font-semibold tabular-nums text-violet-800">
                   {cell(row.id)}
                 </td>

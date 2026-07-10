@@ -60,17 +60,14 @@ export function InventoryStatusTable({ rows, emptyMessage }: InventoryStatusTabl
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px] table-fixed border-collapse">
+        <table className="w-full min-w-[820px] table-fixed border-collapse">
           <thead className="bg-blue-50/80">
             <tr>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
-                자재코드
+                품목코드
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
-                고객사
-              </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
-                자재명
+                품목명
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
                 규격
@@ -96,9 +93,6 @@ export function InventoryStatusTable({ rows, emptyMessage }: InventoryStatusTabl
             {rows.map((row) => (
               <tr key={row.id} className="border-t border-slate-100 hover:bg-blue-50/40">
                 <td className={`px-3 py-2.5 font-medium text-blue-800 ${codeCellClass}`}>{row.id}</td>
-                <td className="px-3 py-2.5">
-                  <TruncatedText value={row.customer} maxWidthClass="max-w-28" />
-                </td>
                 <td className="px-3 py-2.5">
                   <TruncatedText
                     value={row.materialName}

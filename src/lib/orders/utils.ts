@@ -146,3 +146,21 @@ export function formatInternalCodeLabel(code: string) {
   if (value.length <= 14) return value
   return `${value.slice(0, 8)}…${value.slice(-4)}`
 }
+
+export function filterOrdersForSearch(orders: OrderListGroup[], query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return orders
+  return orders.filter((order) => {
+    const haystack = [
+      order.orderNumber,
+      order.customer,
+      order.category,
+      order.orderDate,
+      order.deliveryDate,
+      ...order.items.flatMap((item) => [item.productCode, item.productName]),
+    ]
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(q)
+  })
+}

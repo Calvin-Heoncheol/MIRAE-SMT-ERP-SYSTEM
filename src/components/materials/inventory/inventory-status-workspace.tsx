@@ -44,7 +44,7 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
         <>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">등록 자재</p>
+              <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">등록 품목</p>
               <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
                 {summary.total.toLocaleString('ko-KR')}
               </p>
@@ -97,7 +97,7 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="자재코드, 고객사, 자재명, MPN 검색…"
+            placeholder="품목코드, 품목명, MPN, 규격 검색…"
             className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-blue-100 placeholder:text-slate-400 focus:border-blue-300 focus:ring-2"
           />
         </>
@@ -109,7 +109,7 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
         <InventoryStatusTable
           rows={filtered}
           emptyMessage={
-            query || filterMode !== 'all' ? '조건에 맞는 재고 항목이 없습니다' : '등록된 자재가 없습니다'
+            query || filterMode !== 'all' ? '조건에 맞는 재고 항목이 없습니다' : '등록된 품목이 없습니다'
           }
         />
       )}

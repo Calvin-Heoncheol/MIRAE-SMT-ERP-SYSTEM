@@ -5,7 +5,7 @@ export default function DeliveryLayout({ children }: Readonly<{ children: React.
   return (
     <ModuleTabShell
       title="출하"
-      description="출하 계획·입력·이력을 관리합니다."
+      description="출하 입력·이력을 관리합니다."
       tabs={DELIVERY_TABS}
       ariaLabel="출하 탭"
     >

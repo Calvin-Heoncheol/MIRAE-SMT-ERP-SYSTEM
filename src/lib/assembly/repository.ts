@@ -5,13 +5,15 @@ import type { Product } from '@/lib/products/types'
 import {
   computeAssemblyGroupsForOrder,
   computeDerivedOrderLineSpecs,
+  computeStandaloneFinishedProductGroups,
+  computeStandaloneSemiProductGroups,
   isMissingAssemblyTable,
   mapAssemblyGroupRecord,
   resolveLineProductId,
 } from './utils'
 import type {
   AssemblyGroupLineRecord,
-  FinishedProductBomRow,
+  BomRow,
   OrderAssemblyGroup,
   OrderAssemblyGroupRecord,
 } from './types'
@@ -32,26 +34,80 @@ function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }
   } as T
 }
 
-async function fetchFinishedProductBomRows(): Promise<
-  { ok: true; rows: FinishedProductBomRow[] } | { ok: false; detail: string }
+async function fetchBomRowsFromItems(): Promise<
+  { ok: true; rows: BomRow[] } | { ok: false; detail: string }
 > {
   const supabase = createSupabaseClient()
   const { data, error } = await supabase
-    .from('finished_product_bom_items')
+    .from('bom_items')
     .select('parent_product_id, child_product_id, quantity_per')
 
   if (error) {
     return { ok: false, detail: error.message }
   }
 
+  const rows = data || []
+  const parentIds = [...new Set(rows.map((row) => String(row.parent_product_id || '').trim()).filter(Boolean))]
+  const categoryById: Record<string, number> = {}
+
+  if (parentIds.length) {
+    const { data: items, error: itemsError } = await supabase
+      .from('items')
+      .select('id, item_category')
+      .in('id', parentIds)
+
+    if (itemsError) {
+      return { ok: false, detail: itemsError.message }
+    }
+
+    for (const item of items || []) {
+      categoryById[String(item.id)] = Number(item.item_category) || 0
+    }
+  }
+
   return {
     ok: true,
-    rows: (data || []).map((row) => ({
+    rows: rows.map((row) => ({
       parentProductId: row.parent_product_id,
       childProductId: row.child_product_id,
       quantityPer: Number(row.quantity_per) || 1,
+      parentItemCategory: categoryById[String(row.parent_product_id)] || undefined,
     })),
   }
+}
+
+async function fetchBomRows(): Promise<
+  { ok: true; rows: BomRow[] } | { ok: false; detail: string }
+> {
+  const supabase = createSupabaseClient()
+  const { data, error } = await supabase
+    .from('bom_detail')
+    .select('parent_product_id, child_product_id, quantity_per, parent_item_category')
+
+  if (!error) {
+    return {
+      ok: true,
+      rows: (data || []).map((row) => ({
+        parentProductId: row.parent_product_id,
+        childProductId: row.child_product_id,
+        quantityPer: Number(row.quantity_per) || 1,
+        parentItemCategory: Number(row.parent_item_category) || undefined,
+      })),
+    }
+  }
+
+  if (!isMissingAssemblyTable(error.message)) {
+    return { ok: false, detail: error.message }
+  }
+
+  return fetchBomRowsFromItems()
+}
+
+function filterFinishedProductBomRows(rows: BomRow[], productById: Record<string, Product> = {}) {
+  return rows.filter((row) => {
+    if (row.parentItemCategory === 4) return true
+    return productById[row.parentProductId]?.productKind === 'assembly'
+  })
 }
 
 async function fetchOrderLines(orderId: string): Promise<
@@ -74,7 +130,7 @@ async function fetchOrderLines(orderId: string): Promise<
 async function syncDerivedOrderLines(
   orderId: string,
   orderLines: OrderLineRecord[],
-  bomRows: FinishedProductBomRow[],
+  bomRows: BomRow[],
   productById: Record<string, Product>,
 ): Promise<{ ok: true; lines: OrderLineRecord[] } | { ok: false; detail: string }> {
   const specs = computeDerivedOrderLineSpecs(orderLines, bomRows, productById)
@@ -149,11 +205,8 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
   }
 
   try {
-    const bomResult = await fetchFinishedProductBomRows()
+    const bomResult = await fetchBomRows()
     if (!bomResult.ok) {
-      if (isMissingAssemblyTable(bomResult.detail)) {
-        return { ok: true, groupCount: 0 }
-      }
       return { ok: false, reason: 'query', detail: bomResult.detail }
     }
 
@@ -167,10 +220,12 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
       ? Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
       : {}
 
+    const finishedProductBomRows = filterFinishedProductBomRows(bomResult.rows, productById)
+
     const derivedResult = await syncDerivedOrderLines(
       trimmedOrderId,
       linesResult.lines,
-      bomResult.rows,
+      finishedProductBomRows,
       productById,
     )
     if (!derivedResult.ok) {
@@ -180,7 +235,12 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
       return { ok: false, reason: 'query', detail: derivedResult.detail }
     }
 
-    const computed = computeAssemblyGroupsForOrder(derivedResult.lines, bomResult.rows)
+    const bomGroups = computeAssemblyGroupsForOrder(derivedResult.lines, finishedProductBomRows)
+    const computed = [
+      ...bomGroups,
+      ...computeStandaloneFinishedProductGroups(derivedResult.lines, bomGroups, productById),
+      ...computeStandaloneSemiProductGroups(derivedResult.lines, bomGroups, productById),
+    ]
     const supabase = createSupabaseClient()
 
     const { data: existingGroups, error: existingError } = await supabase

@@ -39,9 +39,9 @@ export type MaterialInboundLineRecord = {
   material_id: string
   purchase_order_line_id: string | null
   quantity: number
-  materials?: {
+  items?: {
     id: string
-    material_name: string
+    name: string
     specification: string
     mpn: string
   } | null

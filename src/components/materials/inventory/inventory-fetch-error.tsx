@@ -19,16 +19,10 @@ export function InventoryFetchError({
       {missingTable ? (
         <p className="mt-3 text-xs text-amber-800">
           Supabase SQL Editor에서{' '}
-          <code className="rounded bg-white/70 px-1">supabase/setup-materials.sql</code>,{' '}
+          <code className="rounded bg-white/70 px-1">supabase/setup-items.sql</code>,{' '}
           <code className="rounded bg-white/70 px-1">supabase/setup-material-purchase-orders.sql</code>,{' '}
-          <code className="rounded bg-white/70 px-1">supabase/setup-material-inbound.sql</code>
-          {result.detail.includes('material_mpns') ? (
-            <>
-              {' '}
-              또는 <code className="rounded bg-white/70 px-1">supabase/migrate-material-mpns.sql</code>
-            </>
-          ) : null}{' '}
-          을 실행해 주세요.
+          <code className="rounded bg-white/70 px-1">supabase/setup-material-inbound.sql</code>을 실행해
+          주세요.
         </p>
       ) : null}
     </div>

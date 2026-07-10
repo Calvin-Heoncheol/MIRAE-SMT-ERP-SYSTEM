@@ -1,8 +1,12 @@
-export type FinishedProductBomRow = {
+export type BomRow = {
   parentProductId: string
   childProductId: string
   quantityPer: number
+  parentItemCategory?: number
 }
+
+/** @deprecated BomRow 사용 */
+export type FinishedProductBomRow = BomRow
 
 export type AssemblyGroupLineRecord = {
   id: string

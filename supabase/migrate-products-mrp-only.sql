@@ -1,1 +1,0 @@
--- [사용 중단] reset-erp.sql + setup-products.sql (UUID 내부코드) 로 대체됨

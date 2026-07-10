@@ -16,7 +16,10 @@ export function InboundFetchError({
       {missingTable ? (
         <p className="mt-3 text-xs text-amber-800">
           Supabase SQL Editor에서{' '}
-          <code className="rounded bg-white/70 px-1">supabase/setup-material-inbound.sql</code> 을 실행해 주세요.
+          <code className="rounded bg-white/70 px-1">supabase/setup-material-inbound.sql</code>을 실행한 뒤,
+          Supabase Dashboard → Settings → API에서 schema cache를 새로고침해 주세요. 스키마가 맞지 않으면{' '}
+          <code className="rounded bg-white/70 px-1">supabase/reset-erp.sql</code> 후 setup 스크립트를 다시
+          실행하세요.
         </p>
       ) : null}
     </div>
