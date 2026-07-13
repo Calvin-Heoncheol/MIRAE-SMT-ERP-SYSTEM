@@ -7,11 +7,26 @@ import { ItemListTable } from '@/components/items/item-list-table'
 import { ItemModal } from '@/components/items/item-modal'
 import type { FetchItemsResult } from '@/lib/items/repository'
 import { filterItemsForSearch } from '@/lib/items/utils'
-import type { Item } from '@/lib/items/types'
+import {
+  ITEM_CATEGORIES,
+  ITEM_CATEGORY_LABELS,
+  type Item,
+  type ItemCategory,
+} from '@/lib/items/types'
 
 type ItemsWorkspaceProps = {
   result: FetchItemsResult
 }
+
+type ItemCategoryFilter = 'all' | ItemCategory
+
+const CATEGORY_FILTER_OPTIONS: { value: ItemCategoryFilter; label: string }[] = [
+  { value: 'all', label: '전체' },
+  ...ITEM_CATEGORIES.map((category) => ({
+    value: category as ItemCategoryFilter,
+    label: ITEM_CATEGORY_LABELS[category],
+  })),
+]
 
 type ModalState =
   | { open: false }
@@ -21,13 +36,19 @@ type ModalState =
 export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState<ItemCategoryFilter>('all')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
   const items = result.ok ? result.items : []
   const query = search.trim()
+  const hasActiveFilter = Boolean(query) || categoryFilter !== 'all'
 
-  const filtered = useMemo(() => filterItemsForSearch(items, query), [items, query])
+  const filtered = useMemo(() => {
+    const searched = filterItemsForSearch(items, query)
+    if (categoryFilter === 'all') return searched
+    return searched.filter((item) => item.itemCategory === categoryFilter)
+  }, [items, query, categoryFilter])
 
   function openCreate() {
     setModalSession((value) => value + 1)
@@ -69,7 +90,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
           </div>
           <p className="text-sm font-medium text-slate-600">
             총 <span className="tabular-nums text-slate-900">{filtered.length.toLocaleString('ko-KR')}</span>건
-            {query ? (
+            {hasActiveFilter ? (
               <span className="text-slate-400"> / {items.length.toLocaleString('ko-KR')}건</span>
             ) : null}
           </p>
@@ -83,6 +104,26 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
             placeholder="품목코드, 품목명, 규격, MPN 검색…"
             className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-slate-100 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2"
           />
+          <div className="flex flex-wrap gap-2">
+            {CATEGORY_FILTER_OPTIONS.map((option) => {
+              const active = categoryFilter === option.value
+              return (
+                <button
+                  key={String(option.value)}
+                  type="button"
+                  onClick={() => setCategoryFilter(option.value)}
+                  className={[
+                    'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                    active
+                      ? 'bg-blue-600 text-white'
+                      : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                  ].join(' ')}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
           <div className="ml-auto shrink-0">
             <button
               type="button"
@@ -96,7 +137,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
 
         <ItemListTable
           items={filtered}
-          emptyMessage={query ? '검색 결과가 없습니다' : '등록된 품목이 없습니다'}
+          emptyMessage={hasActiveFilter ? '검색 결과가 없습니다' : '등록된 품목이 없습니다'}
           onSelectItem={openEdit}
         />
       </div>

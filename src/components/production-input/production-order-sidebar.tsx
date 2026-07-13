@@ -98,12 +98,15 @@ export function ProductionOrderSidebar({
                 key={order.uiKey}
                 type="button"
                 onClick={() => onSelect(order.uiKey)}
+                aria-pressed={selected}
                 className={[
-                  'rounded-xl border border-slate-200 border-l-4 bg-white p-3 text-left transition',
-                  stateAccentClass(state),
+                  'rounded-xl bg-white p-3 text-left transition',
                   selected
-                    ? 'border-sky-400 ring-2 ring-sky-100'
-                    : 'hover:border-slate-300 hover:shadow-sm',
+                    ? 'border-2 border-sky-500 bg-sky-50 shadow-md ring-2 ring-sky-200'
+                    : [
+                        'border border-slate-200 border-l-4 hover:border-slate-300 hover:shadow-sm',
+                        stateAccentClass(state),
+                      ].join(' '),
                 ].join(' ')}
               >
                 <div className="flex items-start justify-between gap-2">

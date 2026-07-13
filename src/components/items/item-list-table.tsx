@@ -91,7 +91,7 @@ export function ItemListTable({ items, emptyMessage, onSelectItem }: ItemListTab
                   {item.unitPrice > 0 ? formatItemUnitPrice(item.unitPrice) : '-'}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm font-medium text-slate-700">
-                  {item.itemCategory}. {ITEM_CATEGORY_LABELS[item.itemCategory]}
+                  {ITEM_CATEGORY_LABELS[item.itemCategory]}
                 </td>
               </tr>
             ))}

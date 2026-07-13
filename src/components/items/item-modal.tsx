@@ -221,7 +221,7 @@ function ItemModalContent({
                 <option value="">선택</option>
                 {ITEM_CATEGORIES.map((category) => (
                   <option key={category} value={category}>
-                    {category}. {ITEM_CATEGORY_LABELS[category]}
+                    {ITEM_CATEGORY_LABELS[category]}
                   </option>
                 ))}
               </select>

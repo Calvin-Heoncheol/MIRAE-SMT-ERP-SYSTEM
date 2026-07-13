@@ -31,7 +31,11 @@ export async function fetchProductionInputPageData(
   const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
   const orderIds = ordersResult.orders.map((order) => order.orderId)
 
-  await ensureAssemblyGroupsForOrders(orderIds)
+  // Vercel 서버리스 타임아웃 방지: 조립 그룹 동기화가 길면 목록 조회를 막지 않음
+  await Promise.race([
+    ensureAssemblyGroupsForOrders(orderIds),
+    new Promise<void>((resolve) => setTimeout(resolve, 6000)),
+  ])
 
   let counts: ProductionCounts = {}
 

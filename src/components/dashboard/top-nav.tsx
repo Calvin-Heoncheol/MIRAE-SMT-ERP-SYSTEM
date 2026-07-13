@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useRef, useState } from 'react'
-import { APP_SHORT_NAME } from '@/lib/app-config'
 import {
   isNavChildActive,
   isNavItemActive,
@@ -101,22 +100,9 @@ export function TopNav() {
 
   return (
     <header className="sticky top-0 z-50 overflow-visible border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-[60px] max-w-[1760px] items-center gap-10 overflow-visible px-5 lg:px-8">
-        <Link href="/" className="group flex shrink-0 items-center gap-2.5">
-          <span
-            className="h-8 w-1 rounded-full bg-gradient-to-b from-blue-500 to-blue-700"
-            aria-hidden="true"
-          />
-          <span className="flex flex-col leading-tight">
-            <span className="text-[15px] font-bold tracking-tight text-slate-900 group-hover:text-blue-700">
-              {APP_SHORT_NAME}
-            </span>
-            <span className="text-[10px] font-medium text-slate-400">통합 ERP</span>
-          </span>
-        </Link>
-
+      <div className="mx-auto flex h-[60px] max-w-[1760px] items-center justify-center overflow-visible px-5 lg:px-8">
         <nav
-          className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-visible"
+          className="flex min-w-0 items-center justify-center gap-1 overflow-visible"
           aria-label="주 메뉴"
         >
           {NAV_ITEMS.map((item) => {
