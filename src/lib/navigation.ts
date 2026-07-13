@@ -26,6 +26,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { label: '거래처등록', href: '/master/customers' },
       { label: '품목등록', href: '/master/products' },
+      { label: 'BOM등록', href: '/master/bom' },
     ],
   },
   {
