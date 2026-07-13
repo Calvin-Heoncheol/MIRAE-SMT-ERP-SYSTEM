@@ -30,7 +30,7 @@ const CATEGORY_FILTER_OPTIONS: { value: ItemCategoryFilter; label: string }[] = 
 
 type ModalState =
   | { open: false }
-  | { open: true; mode: 'create' }
+  | { open: true; mode: 'create'; initialCategory: ItemCategory | null }
   | { open: true; mode: 'edit'; item: Item }
 
 export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
@@ -52,7 +52,11 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
 
   function openCreate() {
     setModalSession((value) => value + 1)
-    setModal({ open: true, mode: 'create' })
+    setModal({
+      open: true,
+      mode: 'create',
+      initialCategory: categoryFilter === 'all' ? null : categoryFilter,
+    })
   }
 
   function openEdit(item: Item) {
@@ -84,9 +88,6 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">품목등록</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              품목구분 1=원자재(코드 직접입력), 2=부자재(SUB-), 3=반제품(SFG-), 4=완제품(FG-) · 필수: 품목명, 품목구분
-            </p>
           </div>
           <p className="text-sm font-medium text-slate-600">
             총 <span className="tabular-nums text-slate-900">{filtered.length.toLocaleString('ko-KR')}</span>건
@@ -137,6 +138,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
 
         <ItemListTable
           items={filtered}
+          categoryFilter={categoryFilter}
           emptyMessage={hasActiveFilter ? '검색 결과가 없습니다' : '등록된 품목이 없습니다'}
           onSelectItem={openEdit}
         />
@@ -148,6 +150,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
           open
           mode={modal.mode}
           item={modal.mode === 'edit' ? modal.item : null}
+          initialCategory={modal.mode === 'create' ? modal.initialCategory : null}
           existingItems={items}
           onClose={closeModal}
           onSaved={handleSaved}

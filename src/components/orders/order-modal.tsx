@@ -14,6 +14,7 @@ import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
 import { ORDER_CATEGORIES } from '@/lib/orders/types'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { addDaysYmd, todayYmdSeoul, validateOrderCodeInput } from '@/lib/orders/utils'
+import { formatAutoOrderCodeExample } from '@/lib/orders/order-code-prefix'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
@@ -223,11 +224,17 @@ function OrderModalContent({
                 <>
                   <input
                     value={form.orderCode}
-                    onChange={(event) => updateForm('orderCode', event.target.value)}
+                    onChange={(event) => updateForm('orderCode', event.target.value.toUpperCase())}
                     placeholder="고객사 PO/NO"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm text-slate-900 placeholder:text-slate-400"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm uppercase text-slate-900 placeholder:text-slate-400 placeholder:normal-case"
+                    autoCapitalize="characters"
+                    spellCheck={false}
                   />
-                  <p className="mt-1 text-xs text-slate-500">비우면 MRO-0001 형식으로 자동 발급됩니다.</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {form.customer.trim()
+                      ? `비우면 ${formatAutoOrderCodeExample(form.customer)} 형식으로 자동 발급됩니다.`
+                      : '비우면 고객사명 접두사로 자동 발급됩니다. (예: 서창 → SC-0001)'}
+                  </p>
                 </>
               )}
             </label>

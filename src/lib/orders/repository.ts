@@ -103,7 +103,7 @@ export async function fetchOrderById(orderId: string): Promise<OrderListGroup | 
   return groupOrdersFromRecords([data as OrderRecord])[0] ?? null
 }
 
-/** @deprecated orderNumber는 id(MRO-0001)와 동일 */
+/** @deprecated orderNumber는 id와 동일 */
 export async function fetchOrderByNumber(orderNumber: string): Promise<OrderListGroup | null> {
   return fetchOrderById(orderNumber)
 }

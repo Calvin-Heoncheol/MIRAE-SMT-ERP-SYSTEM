@@ -95,6 +95,7 @@ export function mapItemRowToMaterial(row: {
   mpn: string
   material_type?: string | null
   supply_type?: string | null
+  supplier?: string | null
   unit_price?: number | null
   item_category: number | string
   created_at: string
@@ -118,7 +119,7 @@ export function mapItemRowToMaterial(row: {
     mpn: (row.mpn || '').trim(),
     alternateMpns: [],
     alternateMpnRows: [],
-    supplier: '',
+    supplier: (row.supplier || '').trim(),
     supplyType: normalizedSupplyType,
     moq: 0,
     unitPrice: Number(row.unit_price) || 0,
@@ -135,6 +136,7 @@ export function toItemMaterialInsertRow(payload: CreateMaterialPayload) {
     mpn: payload.mpn.trim(),
     material_type: payload.type,
     supply_type: payload.supplyType,
+    supplier: payload.supplier.trim(),
     unit_price: payload.unitPrice,
     item_category: 1 as const,
   }
@@ -147,6 +149,7 @@ export function toItemMaterialUpdateRow(payload: MaterialPayload) {
     mpn: payload.mpn.trim(),
     material_type: payload.type,
     supply_type: payload.supplyType,
+    supplier: payload.supplier.trim(),
     unit_price: payload.unitPrice,
   }
 }

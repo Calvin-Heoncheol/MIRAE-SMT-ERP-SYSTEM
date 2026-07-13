@@ -49,7 +49,7 @@ export function ProductionInputWorkspace({ result, config }: ProductionInputWork
   }
 
   return (
-    <div className="grid min-h-[560px] w-full grid-cols-1 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md lg:min-h-[calc(100vh-220px)] lg:grid-cols-[minmax(320px,480px)_minmax(0,1fr)]">
+    <div className="grid h-[calc(100vh-200px)] min-h-[480px] w-full grid-cols-1 overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md lg:grid-cols-[minmax(300px,420px)_minmax(0,1fr)]">
       <ProductionOrderSidebar
         orders={filtered}
         counts={counts}
@@ -60,7 +60,7 @@ export function ProductionInputWorkspace({ result, config }: ProductionInputWork
         onSelect={handleSelect}
         onPageChange={setPage}
       />
-      <div className="flex min-h-0 min-w-0 flex-col lg:min-h-[560px]">
+      <div className="flex min-h-0 min-w-0 flex-col overflow-hidden">
         <ProductionInputPanel
           order={selectedOrder}
           counts={counts}

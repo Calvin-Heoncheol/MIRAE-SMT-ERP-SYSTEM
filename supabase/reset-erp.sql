@@ -10,6 +10,8 @@ drop view if exists public.bom_detail cascade;
 
 drop table if exists public.material_inbound_lines cascade;
 drop table if exists public.material_inbound_records cascade;
+drop table if exists public.material_outbound_lines cascade;
+drop table if exists public.material_outbound_records cascade;
 drop table if exists public.material_purchase_order_lines cascade;
 drop table if exists public.material_purchase_orders cascade;
 drop table if exists public.smt_production_records cascade;
@@ -28,6 +30,7 @@ drop table if exists public.material_mpns cascade;
 drop table if exists public.materials cascade;
 
 drop function if exists public.generate_material_inbound_code() cascade;
+drop function if exists public.generate_material_outbound_code() cascade;
 drop function if exists public.generate_material_purchase_order_code() cascade;
 drop function if exists public.generate_product_code() cascade;
 drop function if exists public.generate_material_code() cascade;
@@ -40,6 +43,8 @@ drop function if exists public.generate_approval_doc_prefix(text) cascade;
 drop function if exists public.generate_approval_code() cascade;
 drop function if exists public.generate_quote_code() cascade;
 drop function if exists public.generate_order_code() cascade;
+drop function if exists public.generate_order_code(text) cascade;
+drop function if exists public.order_code_prefix_from_customer(text) cascade;
 drop function if exists public.generate_order_number() cascade;
 drop function if exists public.generate_quote_number(text) cascade;
 drop function if exists public.generate_delivery_number(date) cascade;

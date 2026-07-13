@@ -1,5 +1,17 @@
 import { createSupabaseClient } from '@/lib/supabase'
+import { aggregateOnHandByMaterialId } from '@/lib/materials/inbound/utils'
+import { isMissingMaterialInboundTable } from '@/lib/materials/inbound/repository'
+import {
+  fetchBomEdges,
+  isMissingMaterialOutboundTable,
+} from '@/lib/materials/outbound/repository'
+import { aggregateOutboundByMaterialId } from '@/lib/materials/outbound/utils'
+import { fetchMaterials } from '@/lib/materials/repository'
+import type { Material } from '@/lib/materials/types'
+import { fetchOrders } from '@/lib/orders/repository'
+import { buildPurchaseNeedCards } from './need-utils'
 import type {
+  MaterialPurchaseNeedCard,
   MaterialPurchaseOrderListGroup,
   MaterialPurchaseOrderRecord,
   MaterialPurchaseOrderRowPayload,
@@ -10,9 +22,27 @@ export type FetchMaterialPurchaseOrdersResult =
   | { ok: true; orders: MaterialPurchaseOrderListGroup[] }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
+/** @deprecated 등록/이력 분리 조회 사용 */
+export type FetchMaterialPurchaseOrderPageResult =
+  | {
+      ok: true
+      orders: MaterialPurchaseOrderListGroup[]
+      needCards: MaterialPurchaseNeedCard[]
+      materials: Material[]
+    }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export type FetchMaterialPurchaseRegisterResult =
+  | { ok: true; needCards: MaterialPurchaseNeedCard[] }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export type FetchMaterialPurchaseHistoryResult =
+  | { ok: true; orders: MaterialPurchaseOrderListGroup[] }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
 export type SaveMaterialPurchaseOrderResult =
   | { ok: true; orderId: string; orderNumber: string }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
 
 export type DeleteMaterialPurchaseOrderResult =
   | { ok: true }
@@ -98,6 +128,92 @@ export async function fetchMaterialPurchaseOrders(): Promise<FetchMaterialPurcha
       reason: 'query',
       detail: error instanceof Error ? error.message : String(error),
     }
+  }
+}
+
+export async function fetchMaterialPurchaseOrderRegisterData(): Promise<FetchMaterialPurchaseRegisterResult> {
+  const [materialsResult, ordersResult] = await Promise.all([
+    fetchMaterials(),
+    fetchOrders({ includeDerivedLines: true }),
+  ])
+
+  if (!materialsResult.ok) return materialsResult
+  if (!ordersResult.ok) return ordersResult
+
+  try {
+    const supabase = createSupabaseClient()
+    const [bomEdges, inboundLinesResult, outboundLinesResult] = await Promise.all([
+      fetchBomEdges(),
+      supabase.from('material_inbound_lines').select('material_id, quantity'),
+      supabase.from('material_outbound_lines').select('material_id, quantity'),
+    ])
+
+    if (inboundLinesResult.error && !isMissingMaterialInboundTable(inboundLinesResult.error.message)) {
+      return { ok: false, reason: 'query', detail: inboundLinesResult.error.message }
+    }
+    if (
+      outboundLinesResult.error &&
+      !isMissingMaterialOutboundTable(outboundLinesResult.error.message)
+    ) {
+      return { ok: false, reason: 'query', detail: outboundLinesResult.error.message }
+    }
+
+    const inboundByMaterialId = inboundLinesResult.error
+      ? new Map<string, number>()
+      : aggregateOnHandByMaterialId(
+          (inboundLinesResult.data || []) as { material_id: string; quantity: number }[],
+        )
+    const outboundByMaterialId = outboundLinesResult.error
+      ? new Map<string, number>()
+      : aggregateOutboundByMaterialId(
+          (outboundLinesResult.data || []) as { material_id: string; quantity: number }[],
+        )
+
+    const onHandByMaterialId = new Map<string, number>()
+    for (const materialId of new Set([...inboundByMaterialId.keys(), ...outboundByMaterialId.keys()])) {
+      onHandByMaterialId.set(
+        materialId,
+        (inboundByMaterialId.get(materialId) ?? 0) - (outboundByMaterialId.get(materialId) ?? 0),
+      )
+    }
+
+    return {
+      ok: true,
+      needCards: buildPurchaseNeedCards({
+        orders: ordersResult.orders,
+        bomEdges,
+        materials: materialsResult.materials,
+        onHandByMaterialId,
+      }),
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function fetchMaterialPurchaseOrderHistoryData(): Promise<FetchMaterialPurchaseHistoryResult> {
+  return fetchMaterialPurchaseOrders()
+}
+
+/** @deprecated 등록/이력 분리 함수 사용 */
+export async function fetchMaterialPurchaseOrderPageData(): Promise<FetchMaterialPurchaseOrderPageResult> {
+  const [purchaseOrdersResult, registerResult] = await Promise.all([
+    fetchMaterialPurchaseOrders(),
+    fetchMaterialPurchaseOrderRegisterData(),
+  ])
+
+  if (!purchaseOrdersResult.ok) return purchaseOrdersResult
+  if (!registerResult.ok) return registerResult
+
+  return {
+    ok: true,
+    orders: purchaseOrdersResult.orders,
+    needCards: registerResult.needCards,
+    materials: [],
   }
 }
 

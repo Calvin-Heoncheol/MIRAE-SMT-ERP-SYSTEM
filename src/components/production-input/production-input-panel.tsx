@@ -37,9 +37,9 @@ function StatCard({
         : 'text-emerald-700'
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center shadow-sm">
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm">
       <span className="block text-xs font-semibold text-slate-500">{label}</span>
-      <span className={`mt-1 block text-2xl font-bold leading-none tabular-nums ${valueClass}`}>
+      <span className={`mt-1 block text-xl font-bold leading-none tabular-nums ${valueClass}`}>
         {value}
       </span>
     </div>
@@ -147,8 +147,8 @@ export function ProductionInputPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-slate-50 px-5 py-5 shadow-[inset_3px_0_0_#0284c7]">
-      <div className="flex min-h-0 flex-1 flex-col gap-5">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-50 px-5 py-5 shadow-[inset_3px_0_0_#0284c7]">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden">
         {order ? (
           <>
             <div className="shrink-0">
@@ -157,7 +157,7 @@ export function ProductionInputPanel({
                 <span className="text-slate-300"> · </span>
                 <span>{order.orderNumber}</span>
               </p>
-              <h2 className="mt-1 text-xl font-bold leading-snug text-slate-900 break-keep">
+              <h2 className="mt-1 text-lg font-bold leading-snug text-slate-900 break-keep">
                 {formatProductionProductName(order)}
               </h2>
               <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -179,7 +179,7 @@ export function ProductionInputPanel({
             </div>
 
             {isDual ? (
-              <div className="grid shrink-0 grid-cols-2 gap-2">
+              <div className="grid shrink-0 grid-cols-2 gap-3">
                 {(['TOP', 'BOT'] as const).map((side) => {
                   const sideCumulative = resolveProductionSideCount(order, counts, side)
                   const sideRemaining = Math.max(0, target - sideCumulative)
@@ -190,14 +190,14 @@ export function ProductionInputPanel({
                       type="button"
                       onClick={() => setActiveSide(side)}
                       className={[
-                        'rounded-xl border px-3 py-3 text-left transition',
+                        'rounded-xl border px-3 py-2.5 text-left transition',
                         selected
                           ? 'border-sky-400 bg-white shadow-sm ring-2 ring-sky-100'
                           : 'border-slate-200 bg-white/80 hover:border-slate-300',
                       ].join(' ')}
                     >
                       <span className="block text-xs font-bold text-slate-500">{side} 면</span>
-                      <span className="mt-1 block text-lg font-bold tabular-nums text-slate-900">
+                      <span className="mt-1 block text-base font-bold tabular-nums text-slate-900">
                         {sideCumulative.toLocaleString('ko-KR')}
                         <span className="text-sm font-medium text-slate-400">
                           {' '}
@@ -248,7 +248,7 @@ export function ProductionInputPanel({
             ) : null}
           </>
         ) : (
-          <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
+          <div className="flex shrink-0 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
             <div>
               <p className="text-base font-semibold text-slate-600">주문을 선택하세요</p>
               <p className="mt-1 text-sm text-slate-400">왼쪽 목록에서 작업할 주문을 선택합니다.</p>
@@ -257,13 +257,42 @@ export function ProductionInputPanel({
         )}
 
         <div
-          className={`mt-auto shrink-0 rounded-2xl border-2 bg-white p-5 shadow-sm ${
+          className={`mt-8 shrink-0 rounded-2xl border-2 bg-white p-5 shadow-sm ${
             order ? 'border-emerald-200' : 'border-slate-200'
           }`}
         >
           <label htmlFor={config.qtyInputId} className="mb-3 block text-sm font-bold text-slate-700">
             {isDual ? `${pcbSide} 면 등록 수량` : '이번 등록 수량'}
           </label>
+          <div className="mb-3 grid grid-cols-5 gap-2.5">
+            {([1, 10, 50, 100] as const).map((step) => (
+              <button
+                key={step}
+                type="button"
+                disabled={!canRegister || saving || remaining < 1}
+                onClick={() => {
+                  const current = Math.max(0, Math.floor(Number(qty) || 0))
+                  const next = Math.min(remaining, current + step)
+                  setQty(String(next))
+                  setMessage(null)
+                }}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-3.5 text-sm font-bold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                +{step}
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={!canRegister || saving || remaining < 1}
+              onClick={() => {
+                setQty(String(remaining))
+                setMessage(null)
+              }}
+              className="rounded-xl border border-sky-200 bg-sky-50 px-2 py-3.5 text-sm font-bold text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              전부
+            </button>
+          </div>
           <div className="flex gap-3">
             <input
               id={config.qtyInputId}
@@ -276,7 +305,7 @@ export function ProductionInputPanel({
               onKeyDown={(event) => {
                 if (event.key === 'Enter') handleSubmit()
               }}
-              placeholder="0"
+              placeholder="직접 입력"
               className="min-w-0 flex-1 rounded-xl border-2 border-slate-200 bg-white px-4 py-4 text-2xl font-bold text-slate-900 tabular-nums outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 disabled:bg-slate-50 disabled:text-slate-400"
             />
             <button
@@ -303,7 +332,7 @@ export function ProductionInputPanel({
 
         {message ? (
           <p
-            className={`text-center text-sm font-medium ${message.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}
+            className={`shrink-0 text-center text-sm font-medium ${message.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}
           >
             {message.text}
           </p>

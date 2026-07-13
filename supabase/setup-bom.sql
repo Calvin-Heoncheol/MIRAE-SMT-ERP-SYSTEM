@@ -98,11 +98,9 @@ drop view if exists public.bom_detail;
 create view public.bom_detail as
 select
   bom.parent_product_id,
-  parent.id as parent_product_code,
   parent.name as parent_product_name,
   parent.item_category as parent_item_category,
   bom.child_product_id,
-  child.id as child_product_code,
   child.name as child_product_name,
   child.item_category as child_item_category,
   child.mpn as child_mpn,
@@ -124,7 +122,6 @@ select
   grp.order_id,
   ord.id as order_number,
   grp.parent_product_id,
-  parent.id as parent_product_code,
   parent.name as parent_product_name,
   grp.target_quantity,
   grp.group_seq,
@@ -132,7 +129,6 @@ select
   line.order_line_id,
   ol.line_seq as order_line_seq,
   line.child_product_id,
-  child.id as child_product_code,
   child.name as child_product_name,
   ol.quantity as order_line_quantity,
   line.quantity_per

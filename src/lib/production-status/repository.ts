@@ -1,7 +1,4 @@
-import {
-  ensureAssemblyGroupsForOrders,
-  fetchAssemblyGroups,
-} from '@/lib/assembly/repository'
+import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { buildProductionOrderLines } from '@/lib/production-input/utils'
@@ -16,55 +13,44 @@ export type FetchProductionStatusResult =
   | { ok: true; data: ProductionStatusPageData }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
+/**
+ * 조립그룹 동기화(ensureAssemblyGroupsForOrders)는 페이지 로드에서 제외.
+ * 주문 저장·출하 입력 시 동기화되며, 여기서 await 하면 TTFB가 급증함.
+ */
 export async function fetchProductionStatusPageData(): Promise<FetchProductionStatusResult> {
-  const ordersResult = await fetchOrders()
-  if (!ordersResult.ok) {
-    return ordersResult
-  }
+  const [
+    ordersResult,
+    productsResult,
+    smtCountsResult,
+    todaySmtResult,
+    postCountsResult,
+    todayPostResult,
+    deliveryCountsResult,
+    todayDeliveryResult,
+    smtOrdersResult,
+  ] = await Promise.all([
+    fetchOrders(),
+    fetchProducts(),
+    fetchSmtCumulativeCounts(),
+    fetchSmtTodayProduction(),
+    fetchPostProcessCumulativeCounts(),
+    fetchPostProcessTodayProduction(),
+    fetchDeliveryCumulativeCounts(),
+    fetchDeliveryTodayRecords(),
+    fetchOrders({ includeDerivedLines: true }),
+  ])
 
-  const productsResult = await fetchProducts()
-  if (!productsResult.ok) {
-    return productsResult
-  }
+  if (!ordersResult.ok) return ordersResult
+  if (!productsResult.ok) return productsResult
+  if (!smtCountsResult.ok) return smtCountsResult
+  if (!todaySmtResult.ok) return todaySmtResult
+  if (!postCountsResult.ok) return postCountsResult
+  if (!todayPostResult.ok) return todayPostResult
+  if (!deliveryCountsResult.ok) return deliveryCountsResult
+  if (!todayDeliveryResult.ok) return todayDeliveryResult
+  if (!smtOrdersResult.ok) return smtOrdersResult
 
   const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
-  const orderIds = ordersResult.orders.map((order) => order.orderId)
-
-  await ensureAssemblyGroupsForOrders(orderIds)
-
-  const [smtCountsResult, todaySmtResult, postCountsResult, todayPostResult, deliveryCountsResult, todayDeliveryResult, smtOrdersResult] =
-    await Promise.all([
-      fetchSmtCumulativeCounts(),
-      fetchSmtTodayProduction(),
-      fetchPostProcessCumulativeCounts(),
-      fetchPostProcessTodayProduction(),
-      fetchDeliveryCumulativeCounts(),
-      fetchDeliveryTodayRecords(),
-      fetchOrders({ includeDerivedLines: true }),
-    ])
-
-  if (!smtCountsResult.ok) {
-    return smtCountsResult
-  }
-  if (!todaySmtResult.ok) {
-    return todaySmtResult
-  }
-  if (!postCountsResult.ok) {
-    return postCountsResult
-  }
-  if (!todayPostResult.ok) {
-    return todayPostResult
-  }
-  if (!deliveryCountsResult.ok) {
-    return deliveryCountsResult
-  }
-  if (!todayDeliveryResult.ok) {
-    return todayDeliveryResult
-  }
-  if (!smtOrdersResult.ok) {
-    return smtOrdersResult
-  }
-
   const smtLines = buildProductionOrderLines(smtOrdersResult.orders, 'SMT', productById, 'smt')
 
   const assemblyResult = await fetchAssemblyGroups(productById)
@@ -72,25 +58,19 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     return assemblyResult
   }
 
-  const smtCounts = smtCountsResult.counts
-  const postCounts = postCountsResult.counts
-  const shipCounts = deliveryCountsResult.counts
-  const todaySmtRecords = todaySmtResult.rows
-  const todayPostRecords = todayPostResult.rows
-
   return {
     ok: true,
     data: {
       todayDate: todayYmdSeoul(),
-      todayStages: buildTodayProductionStages(todaySmtRecords, todayPostRecords),
-      todaySmtRecords,
+      todayStages: buildTodayProductionStages(todaySmtResult.rows, todayPostResult.rows),
+      todaySmtRecords: todaySmtResult.rows,
       lines: buildProductionStatusLines(
         ordersResult.orders,
         smtLines,
         assemblyResult.groups,
-        smtCounts,
-        postCounts,
-        shipCounts,
+        smtCountsResult.counts,
+        postCountsResult.counts,
+        deliveryCountsResult.counts,
       ),
     },
   }

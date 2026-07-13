@@ -12,6 +12,7 @@ type MaterialPurchaseOrderItemsFormProps = {
   supplier: string
   materials: Material[]
   onChange: Dispatch<SetStateAction<MaterialPurchaseOrderItemForm[]>>
+  onSupplierChange?: (supplier: string) => void
   onSupplierSuggest?: (supplier: string) => void
 }
 
@@ -48,6 +49,7 @@ export function MaterialPurchaseOrderItemsForm({
   supplier,
   materials,
   onChange,
+  onSupplierChange,
   onSupplierSuggest,
 }: MaterialPurchaseOrderItemsFormProps) {
   function patchItem(index: number, patch: Partial<MaterialPurchaseOrderItemForm>) {
@@ -111,6 +113,7 @@ export function MaterialPurchaseOrderItemsForm({
               <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">MPN</th>
               <th className="min-w-[180px] px-3 py-2 text-left text-sm font-semibold text-slate-600">자재명</th>
               <th className="min-w-[140px] px-3 py-2 text-left text-sm font-semibold text-slate-600">규격</th>
+              <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">공급사</th>
               <th className="min-w-[72px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
                 수량
               </th>
@@ -148,6 +151,19 @@ export function MaterialPurchaseOrderItemsForm({
                   </td>
                   <td className="px-3 py-2 align-top">
                     <input value={item.specification} readOnly className={readOnlyClassName} placeholder="자동 입력" />
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    {index === 0 ? (
+                      <input
+                        value={supplier}
+                        onChange={(event) => onSupplierChange?.(event.target.value)}
+                        placeholder="공급사명"
+                        className={`${inputClassName} min-w-[120px]`}
+                        aria-label="공급사"
+                      />
+                    ) : (
+                      <input value={supplier} readOnly className={readOnlyClassName} />
+                    )}
                   </td>
                   <td className="px-3 py-2 align-top">
                     <QuoteNumericInput

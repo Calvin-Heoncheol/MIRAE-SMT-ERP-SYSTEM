@@ -48,6 +48,7 @@ export function mapItemRecord(row: {
   mpn: string
   material_type?: string | null
   supply_type?: string | null
+  supplier?: string | null
   pcb_side_mode?: string | null
   unit_price?: number | null
   item_category: number | string
@@ -64,6 +65,7 @@ export function mapItemRecord(row: {
     mpn: row.mpn || '',
     materialType: normalizeItemMaterialType(row.material_type),
     supplyType: normalizeItemSupplyType(row.supply_type),
+    supplier: (row.supplier || '').trim(),
     pcbSideMode: normalizeItemPcbSideMode(row.pcb_side_mode),
     unitPrice: Number(row.unit_price) || 0,
     itemCategory,
@@ -81,6 +83,7 @@ export function toItemInsertRow(payload: ItemPayload) {
     mpn: payload.mpn.trim(),
     material_type: payload.materialType,
     supply_type: payload.supplyType,
+    supplier: payload.supplier.trim(),
     pcb_side_mode: payload.pcbSideMode,
     unit_price: payload.unitPrice,
     item_category: payload.itemCategory,
@@ -94,6 +97,7 @@ export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
     mpn: payload.mpn.trim(),
     material_type: payload.materialType,
     supply_type: payload.supplyType,
+    supplier: payload.supplier.trim(),
     pcb_side_mode: payload.pcbSideMode,
     unit_price: payload.unitPrice,
     item_category: payload.itemCategory,
@@ -116,6 +120,7 @@ export function itemSearchHaystack(item: Item) {
     item.mpn,
     item.materialType,
     item.supplyType,
+    item.supplier,
     item.pcbSideMode,
   ]
     .join(' ')

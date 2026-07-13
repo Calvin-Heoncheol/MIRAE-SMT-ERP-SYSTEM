@@ -79,7 +79,7 @@ export const MATERIAL_COLUMN_LABELS = {
   type: '구분',
   mpn: 'MPN',
   alternateMpns: '대체 MPN',
-  supplier: '공급업체',
+  supplier: '공급사',
   supplyType: '도급/사급',
   moq: 'MOQ',
   unitPrice: '단가',

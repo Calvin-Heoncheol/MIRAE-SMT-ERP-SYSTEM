@@ -95,6 +95,38 @@ export async function fetchSalesBusinessPartners(): Promise<FetchBusinessPartner
   }
 }
 
+/** 공급사·발주 등 매입 거래처 선택용 — trade_role 이 purchase 또는 both 인 거래처만 */
+export async function fetchPurchaseBusinessPartners(): Promise<FetchBusinessPartnersResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('business_partners')
+      .select('*')
+      .eq('is_active', true)
+      .in('trade_role', ['purchase', 'both'])
+      .order('name', { ascending: true })
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return {
+      ok: true,
+      partners: (data || []).map((row) => mapBusinessPartnerRecord(row)),
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 export async function createBusinessPartner(
   payload: BusinessPartnerPayload,
 ): Promise<SaveBusinessPartnerResult> {

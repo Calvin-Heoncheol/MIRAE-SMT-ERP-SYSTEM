@@ -1,13 +1,14 @@
 import {
   isMissingMaterialPurchaseOrdersTable,
-  type FetchMaterialPurchaseOrdersResult,
+  type FetchMaterialPurchaseHistoryResult,
+  type FetchMaterialPurchaseRegisterResult,
 } from '@/lib/materials/purchase-orders/repository'
 
-export function MaterialPurchaseOrderFetchError({
-  result,
-}: {
-  result: Extract<FetchMaterialPurchaseOrdersResult, { ok: false }>
-}) {
+type FetchErrorResult =
+  | Extract<FetchMaterialPurchaseRegisterResult, { ok: false }>
+  | Extract<FetchMaterialPurchaseHistoryResult, { ok: false }>
+
+export function MaterialPurchaseOrderFetchError({ result }: { result: FetchErrorResult }) {
   const missingTable = isMissingMaterialPurchaseOrdersTable(result.detail)
 
   return (

@@ -23,12 +23,17 @@ type MaterialPurchaseOrderModalProps = {
   open: boolean
   mode: 'create' | 'edit'
   order?: MaterialPurchaseOrderListGroup | null
+  initialItems?: MaterialPurchaseOrderItemForm[] | null
+  initialSupplier?: string
   onClose: () => void
   onSaved?: () => void
   onDeleted?: () => void
 }
 
-function createInitialForm(order?: MaterialPurchaseOrderListGroup | null): MaterialPurchaseOrderFormState {
+function createInitialForm(
+  order?: MaterialPurchaseOrderListGroup | null,
+  initialSupplier?: string,
+): MaterialPurchaseOrderFormState {
   const today = todayYmdSeoul()
   if (order) {
     return {
@@ -40,21 +45,27 @@ function createInitialForm(order?: MaterialPurchaseOrderListGroup | null): Mater
   return {
     orderDate: today,
     deliveryDate: addDaysYmd(today, 14),
-    supplier: '',
+    supplier: initialSupplier || '',
   }
 }
 
 function MaterialPurchaseOrderModalContent({
   mode,
   order,
+  initialItems,
+  initialSupplier,
   onClose,
   onSaved,
   onDeleted,
 }: Omit<MaterialPurchaseOrderModalProps, 'open'>) {
-  const [form, setForm] = useState<MaterialPurchaseOrderFormState>(() => createInitialForm(order))
-  const [items, setItems] = useState<MaterialPurchaseOrderItemForm[]>(() =>
-    order ? materialPurchaseOrderItemsFromDetail(order.items) : [defaultMaterialPurchaseOrderItemForm()],
+  const [form, setForm] = useState<MaterialPurchaseOrderFormState>(() =>
+    createInitialForm(order, initialSupplier),
   )
+  const [items, setItems] = useState<MaterialPurchaseOrderItemForm[]>(() => {
+    if (order) return materialPurchaseOrderItemsFromDetail(order.items)
+    if (initialItems?.length) return initialItems
+    return [defaultMaterialPurchaseOrderItemForm()]
+  })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -103,7 +114,7 @@ function MaterialPurchaseOrderModalContent({
     if (readOnly) return
 
     if (!form.supplier.trim()) {
-      setSaveError('공급업체를 입력해 주세요.')
+      setSaveError('공급사를 입력해 주세요.')
       return
     }
 
@@ -228,16 +239,6 @@ function MaterialPurchaseOrderModalContent({
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
               />
             </label>
-            <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block font-medium text-slate-600">공급업체</span>
-              <input
-                value={form.supplier}
-                onChange={(event) => updateForm('supplier', event.target.value)}
-                placeholder="공급업체명"
-                readOnly={readOnly}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
-              />
-            </label>
           </div>
 
           <div className="mt-6">
@@ -251,6 +252,7 @@ function MaterialPurchaseOrderModalContent({
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">MPN</th>
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">자재명</th>
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">규격</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">공급사</th>
                       <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
                       <th className="px-3 py-2 text-right font-semibold text-slate-600">단가</th>
                       <th className="px-3 py-2 text-right font-semibold text-slate-600">금액</th>
@@ -263,6 +265,7 @@ function MaterialPurchaseOrderModalContent({
                         <td className="px-3 py-2">{item.mpn || '-'}</td>
                         <td className="px-3 py-2">{item.materialName}</td>
                         <td className="px-3 py-2">{item.specification || '-'}</td>
+                        <td className="px-3 py-2">{order?.supplier || '-'}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{item.quantity.toLocaleString('ko-KR')}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{item.unitPrice.toLocaleString('ko-KR')}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{item.orderAmount.toLocaleString('ko-KR')}</td>
@@ -277,6 +280,7 @@ function MaterialPurchaseOrderModalContent({
                 supplier={form.supplier}
                 materials={materials}
                 onChange={setItems}
+                onSupplierChange={(supplier) => updateForm('supplier', supplier)}
                 onSupplierSuggest={suggestSupplier}
               />
             )}

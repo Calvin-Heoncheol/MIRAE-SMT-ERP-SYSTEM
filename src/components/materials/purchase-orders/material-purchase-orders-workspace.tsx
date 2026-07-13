@@ -2,22 +2,61 @@
 
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
+import { MaterialPurchaseNeedCards } from '@/components/materials/purchase-orders/material-purchase-need-cards'
+import { MaterialPurchaseNeedDetailModal } from '@/components/materials/purchase-orders/material-purchase-need-detail-modal'
 import { MaterialPurchaseOrderFetchError } from '@/components/materials/purchase-orders/material-purchase-order-fetch-error'
 import { MaterialPurchaseOrderListTable } from '@/components/materials/purchase-orders/material-purchase-order-list-table'
 import { MaterialPurchaseOrderModal } from '@/components/materials/purchase-orders/material-purchase-order-modal'
-import type { FetchMaterialPurchaseOrdersResult } from '@/lib/materials/purchase-orders/repository'
-import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
+import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
+import type {
+  FetchMaterialPurchaseHistoryResult,
+  FetchMaterialPurchaseRegisterResult,
+} from '@/lib/materials/purchase-orders/repository'
+import type {
+  MaterialPurchaseNeedCard,
+  MaterialPurchaseOrderListGroup,
+} from '@/lib/materials/purchase-orders/types'
 
-type MaterialPurchaseOrdersWorkspaceProps = {
-  result: FetchMaterialPurchaseOrdersResult
+type MaterialPurchaseOrdersWorkspaceProps =
+  | { view: 'register'; result: FetchMaterialPurchaseRegisterResult }
+  | { view: 'history'; result: FetchMaterialPurchaseHistoryResult }
+
+type CreateModalState =
+  | { open: false }
+  | {
+      open: true
+      initialItems?: MaterialPurchaseOrderItemForm[] | null
+      initialSupplier?: string
+    }
+
+type EditModalState =
+  | { open: false }
+  | { open: true; order: MaterialPurchaseOrderListGroup }
+
+type DetailModalState =
+  | { open: false }
+  | { open: true; card: MaterialPurchaseNeedCard }
+
+function matchesNeedCard(card: MaterialPurchaseNeedCard, query: string) {
+  if (!query) return true
+  const haystack = [
+    card.orderNumber,
+    card.customer,
+    card.productLabel,
+    ...card.lines.flatMap((line) => [
+      line.materialCode,
+      line.materialName,
+      line.mpn,
+      line.specification,
+      line.supplier,
+    ]),
+  ]
+    .join(' ')
+    .toLowerCase()
+  return haystack.includes(query)
 }
 
-type ModalState =
-  | { open: false }
-  | { open: true; mode: 'create' }
-  | { open: true; mode: 'edit'; order: MaterialPurchaseOrderListGroup }
-
-function matchesQuery(order: MaterialPurchaseOrderListGroup, query: string) {
+function matchesPurchaseOrder(order: MaterialPurchaseOrderListGroup, query: string) {
   if (!query) return true
   const haystack = [
     order.orderNumber,
@@ -29,108 +68,195 @@ function matchesQuery(order: MaterialPurchaseOrderListGroup, query: string) {
   return haystack.includes(query)
 }
 
-export function MaterialPurchaseOrdersWorkspace({ result }: MaterialPurchaseOrdersWorkspaceProps) {
+function shortageLinesToFormItems(card: MaterialPurchaseNeedCard): MaterialPurchaseOrderItemForm[] {
+  return card.lines
+    .filter((line) => line.status === '부족' && line.shortageQuantity > 0)
+    .map((line) => ({
+      materialId: line.materialId,
+      materialCode: line.materialCode,
+      materialName: line.materialName,
+      specification: line.specification,
+      mpn: line.mpn,
+      quantity: String(line.shortageQuantity),
+      unitPrice: String(line.unitPrice || 0),
+    }))
+}
+
+function pickSupplierFromCard(card: MaterialPurchaseNeedCard) {
+  const suppliers = [
+    ...new Set(
+      card.lines
+        .filter((line) => line.status === '부족')
+        .map((line) => line.supplier.trim())
+        .filter(Boolean),
+    ),
+  ]
+  return suppliers.length === 1 ? suppliers[0] : ''
+}
+
+export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWorkspaceProps) {
   const router = useRouter()
-  const [modal, setModal] = useState<ModalState>({ open: false })
+  const [createModal, setCreateModal] = useState<CreateModalState>({ open: false })
+  const [editModal, setEditModal] = useState<EditModalState>({ open: false })
+  const [detailModal, setDetailModal] = useState<DetailModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
   const [search, setSearch] = useState('')
 
-  const orders = result.ok ? result.orders : []
+  const needCards = props.view === 'register' && props.result.ok ? props.result.needCards : []
+  const purchaseOrders = props.view === 'history' && props.result.ok ? props.result.orders : []
   const query = search.trim().toLowerCase()
 
-  const filtered = useMemo(
-    () => orders.filter((order) => matchesQuery(order, query)),
-    [orders, query],
+  const filteredCards = useMemo(
+    () => needCards.filter((card) => matchesNeedCard(card, query)),
+    [needCards, query],
   )
 
-  function openCreate() {
+  const filteredPurchaseOrders = useMemo(
+    () => purchaseOrders.filter((order) => matchesPurchaseOrder(order, query)),
+    [purchaseOrders, query],
+  )
+
+  const shortageCardCount = needCards.filter((card) => card.shortageCount > 0).length
+
+  function openCreate(seed?: { items?: MaterialPurchaseOrderItemForm[]; supplier?: string }) {
     setModalSession((value) => value + 1)
-    setModal({ open: true, mode: 'create' })
+    setCreateModal({
+      open: true,
+      initialItems: seed?.items || null,
+      initialSupplier: seed?.supplier || '',
+    })
   }
 
   function openEdit(order: MaterialPurchaseOrderListGroup) {
     setModalSession((value) => value + 1)
-    setModal({ open: true, mode: 'edit', order })
+    setEditModal({ open: true, order })
   }
 
-  function closeModal() {
-    setModal({ open: false })
+  function openDetail(card: MaterialPurchaseNeedCard) {
+    setDetailModal({ open: true, card })
+  }
+
+  function closeDetail() {
+    setDetailModal({ open: false })
+  }
+
+  function handleCreateShortageOrder(card: MaterialPurchaseNeedCard) {
+    const items = shortageLinesToFormItems(card)
+    if (!items.length) return
+    closeDetail()
+    openCreate({
+      items,
+      supplier: pickSupplierFromCard(card),
+    })
   }
 
   function handleSaved() {
-    closeModal()
+    setCreateModal({ open: false })
+    setEditModal({ open: false })
     router.refresh()
   }
 
   function handleDeleted() {
-    closeModal()
+    setEditModal({ open: false })
     router.refresh()
   }
 
-  return (
-    <>
-      <div className="flex min-h-[calc(100vh-60px)] w-full flex-col gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">자재 발주</h1>
-            <p className="mt-1 text-sm text-slate-500">자재 발주를 등록하고 공급업체별 발주 내역을 관리합니다.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {result.ok ? (
-              <p className="text-sm font-medium text-slate-600">
-                총{' '}
-                <span className="tabular-nums text-violet-700">
-                  {filtered.length.toLocaleString('ko-KR')}
-                </span>
-                건
-                {query ? (
-                  <span className="text-slate-400"> / {orders.length.toLocaleString('ko-KR')}건</span>
-                ) : null}
-              </p>
-            ) : null}
-            <button
-              type="button"
-              onClick={openCreate}
-              disabled={!result.ok}
-              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-violet-500 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              + 신규 발주
-            </button>
-          </div>
-        </div>
+  if (!props.result.ok) {
+    return <MaterialPurchaseOrderFetchError result={props.result} />
+  }
 
-        {result.ok ? (
+  if (props.view === 'register') {
+    return (
+      <>
+        <div className="flex w-full flex-col gap-4">
+          <p className="text-sm font-medium text-slate-600">
+            주문{' '}
+            <span className="tabular-nums text-violet-700">
+              {filteredCards.length.toLocaleString('ko-KR')}
+            </span>
+            건
+            <span className="text-slate-400"> · </span>
+            부족{' '}
+            <span className="tabular-nums text-rose-600">
+              {shortageCardCount.toLocaleString('ko-KR')}
+            </span>
+            건
+          </p>
+
           <input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="발주번호, 공급업체, 자재명, CPN, MPN 검색…"
+            placeholder="주문번호, 고객사, 품목, 자재명 검색…"
             className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-violet-100 placeholder:text-slate-400 focus:border-violet-300 focus:ring-2"
+          />
+
+          <MaterialPurchaseNeedCards cards={filteredCards} onSelectCard={openDetail} />
+        </div>
+
+        {detailModal.open ? (
+          <MaterialPurchaseNeedDetailModal
+            open
+            card={detailModal.card}
+            onClose={closeDetail}
+            onCreateShortageOrder={handleCreateShortageOrder}
           />
         ) : null}
 
-        {!result.ok ? (
-          <MaterialPurchaseOrderFetchError result={result} />
-        ) : (
-          <MaterialPurchaseOrderListTable
-            orders={filtered}
-            emptyMessage={query ? '검색 결과가 없습니다' : '등록된 자재 발주가 없습니다'}
-            onSelectOrder={openEdit}
+        {createModal.open ? (
+          <MaterialPurchaseOrderModal
+            key={`create-${modalSession}`}
+            open
+            mode="create"
+            initialItems={createModal.initialItems}
+            initialSupplier={createModal.initialSupplier}
+            onClose={() => setCreateModal({ open: false })}
+            onSaved={handleSaved}
           />
-        )}
+        ) : null}
+      </>
+    )
+  }
+
+  return (
+    <>
+      <div className="flex w-full flex-col gap-4">
+        <p className="text-sm font-medium text-slate-600">
+          총{' '}
+          <span className="tabular-nums text-violet-700">
+            {filteredPurchaseOrders.length.toLocaleString('ko-KR')}
+          </span>
+          건
+          {query ? (
+            <span className="text-slate-400">
+              {' '}
+              / {purchaseOrders.length.toLocaleString('ko-KR')}건
+            </span>
+          ) : null}
+        </p>
+
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="발주번호, 공급사, 자재명, MPN 검색…"
+          className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-violet-100 placeholder:text-slate-400 focus:border-violet-300 focus:ring-2"
+        />
+
+        <MaterialPurchaseOrderListTable
+          orders={filteredPurchaseOrders}
+          emptyMessage={query ? '검색 결과가 없습니다' : '등록된 자재 발주가 없습니다'}
+          onSelectOrder={openEdit}
+        />
       </div>
 
-      {modal.open ? (
+      {editModal.open ? (
         <MaterialPurchaseOrderModal
-          key={
-            modal.mode === 'edit'
-              ? `edit-${modal.order.orderNumber}-${modalSession}`
-              : `create-${modalSession}`
-          }
+          key={`edit-${editModal.order.orderNumber}-${modalSession}`}
           open
-          mode={modal.mode}
-          order={modal.mode === 'edit' ? modal.order : null}
-          onClose={closeModal}
+          mode="edit"
+          order={editModal.order}
+          onClose={() => setEditModal({ open: false })}
           onSaved={handleSaved}
           onDeleted={handleDeleted}
         />

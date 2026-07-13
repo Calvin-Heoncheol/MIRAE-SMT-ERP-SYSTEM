@@ -2,6 +2,9 @@ export type ItemMaterialType = '' | 'SMD' | 'DIP'
 
 export const ITEM_MATERIAL_TYPES: ItemMaterialType[] = ['', 'SMD', 'DIP']
 
+/** 입력용 — 빈 값(선택 안 함) 제외 */
+export const ITEM_MATERIAL_TYPE_OPTIONS: Exclude<ItemMaterialType, ''>[] = ['SMD', 'DIP']
+
 export const ITEM_MATERIAL_TYPE_LABELS: Record<ItemMaterialType, string> = {
   '': '선택 안 함',
   SMD: 'SMD',
@@ -11,6 +14,9 @@ export const ITEM_MATERIAL_TYPE_LABELS: Record<ItemMaterialType, string> = {
 export type ItemSupplyType = '' | '도급' | '사급'
 
 export const ITEM_SUPPLY_TYPES: ItemSupplyType[] = ['', '도급', '사급']
+
+/** 입력용 — 빈 값(선택 안 함) 제외 */
+export const ITEM_SUPPLY_TYPE_OPTIONS: Exclude<ItemSupplyType, ''>[] = ['도급', '사급']
 
 export const ITEM_SUPPLY_TYPE_LABELS: Record<ItemSupplyType, string> = {
   '': '선택 안 함',
@@ -34,12 +40,24 @@ export function isMaterialItemCategory(category: ItemCategory) {
   return category === 1 || category === 2
 }
 
+export function isRawMaterialItemCategory(category: ItemCategory) {
+  return category === 1
+}
+
+export function isSubMaterialItemCategory(category: ItemCategory) {
+  return category === 2
+}
+
 export function isProductItemCategory(category: ItemCategory) {
   return category === 3 || category === 4
 }
 
 export function isSemiFinishedItemCategory(category: ItemCategory) {
   return category === 3
+}
+
+export function isFinishedItemCategory(category: ItemCategory) {
+  return category === 4
 }
 
 /** 반제품 PCB 면 — single=단면, dual=양면 */
@@ -73,6 +91,7 @@ export type Item = {
   mpn: string
   materialType: ItemMaterialType
   supplyType: ItemSupplyType
+  supplier: string
   pcbSideMode: ItemPcbSideMode
   unitPrice: number
   itemCategory: ItemCategory
@@ -88,6 +107,7 @@ export type ItemPayload = {
   mpn: string
   materialType: ItemMaterialType
   supplyType: ItemSupplyType
+  supplier: string
   pcbSideMode: ItemPcbSideMode
   unitPrice: number
   itemCategory: ItemCategory
@@ -102,6 +122,7 @@ export const ITEM_COLUMN_LABELS = {
   mpn: 'MPN',
   materialType: '구분',
   supplyType: '도급/사급',
+  supplier: '공급사',
   pcbSideMode: '단면/양면',
   unitPrice: '단가',
   itemCategory: '품목구분',

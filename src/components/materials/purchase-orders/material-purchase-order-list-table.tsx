@@ -22,7 +22,9 @@ export function MaterialPurchaseOrderListTable({
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
         <p className="text-base font-semibold text-slate-700">{emptyMessage}</p>
-        <p className="mt-2 text-sm text-slate-500">신규 발주 버튼으로 자재 발주를 등록하세요.</p>
+        <p className="mt-2 text-sm text-slate-500">
+          발주등록에서 주문 카드를 열고 부족분 발주로 등록하세요.
+        </p>
       </div>
     )
   }
@@ -43,7 +45,7 @@ export function MaterialPurchaseOrderListTable({
                 발주번호
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
-                공급업체
+                공급사
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
                 자재

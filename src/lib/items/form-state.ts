@@ -1,5 +1,5 @@
 import type { Item, ItemPayload, ItemCategory, ItemMaterialType, ItemPcbSideMode, ItemSupplyType, UpdateItemPayload } from './types'
-import { isMaterialItemCategory, isSemiFinishedItemCategory } from './types'
+import { isFinishedItemCategory, isMaterialItemCategory, isRawMaterialItemCategory, isSemiFinishedItemCategory } from './types'
 import { normalizeItemCategory } from './utils'
 
 export type ItemFormState = {
@@ -10,6 +10,7 @@ export type ItemFormState = {
   mpn: string
   materialType: ItemMaterialType
   supplyType: ItemSupplyType
+  supplier: string
   pcbSideMode: ItemPcbSideMode
   unitPrice: string
 }
@@ -23,6 +24,7 @@ export function emptyItemForm(): ItemFormState {
     mpn: '',
     materialType: '',
     supplyType: '',
+    supplier: '',
     pcbSideMode: '',
     unitPrice: '',
   }
@@ -37,6 +39,7 @@ export function itemToForm(item: Item): ItemFormState {
     mpn: item.mpn,
     materialType: item.materialType,
     supplyType: item.supplyType,
+    supplier: item.supplier,
     pcbSideMode: item.pcbSideMode,
     unitPrice: item.unitPrice > 0 ? String(item.unitPrice) : '',
   }
@@ -53,6 +56,14 @@ export function validateItemForm(form: ItemFormState, options?: { isCreate?: boo
   if (!form.name.trim()) return '품목명을 입력해 주세요.'
   if (!category) return '품목구분을 선택해 주세요.'
   if (category === 1 && !form.id.trim()) return '품목코드를 입력해 주세요.'
+  if (category === 1) {
+    if (form.materialType !== 'SMD' && form.materialType !== 'DIP') {
+      return '구분을 선택해 주세요.'
+    }
+    if (form.supplyType !== '도급' && form.supplyType !== '사급') {
+      return '도급/사급을 선택해 주세요.'
+    }
+  }
   if (category === 3 && form.pcbSideMode !== 'single' && form.pcbSideMode !== 'dual') {
     return '반제품은 단면/양면을 선택해 주세요.'
   }
@@ -67,17 +78,20 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
   }
 
   const isMaterial = isMaterialItemCategory(itemCategory)
+  const isRawMaterial = isRawMaterialItemCategory(itemCategory)
   const isSemiFinished = isSemiFinishedItemCategory(itemCategory)
+  const isFinished = isFinishedItemCategory(itemCategory)
 
   return {
     id: form.id.trim(),
     name: form.name.trim(),
     specification: isMaterial ? form.specification.trim() : '',
-    mpn: isMaterial ? form.mpn.trim() : '',
-    materialType: isMaterial ? form.materialType : '',
-    supplyType: isMaterial ? form.supplyType : '',
+    mpn: isRawMaterial ? form.mpn.trim() : '',
+    materialType: isRawMaterial ? form.materialType : '',
+    supplyType: isRawMaterial ? form.supplyType : '',
+    supplier: isMaterial ? form.supplier.trim() : '',
     pcbSideMode: isSemiFinished ? form.pcbSideMode : '',
-    unitPrice: parseUnitPrice(form.unitPrice),
+    unitPrice: isFinished ? 0 : parseUnitPrice(form.unitPrice),
     itemCategory,
   }
 }

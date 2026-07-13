@@ -11,7 +11,7 @@ import type {
   ProductionOrderState,
 } from './types'
 
-export const PRODUCTION_ORDER_PAGE_SIZE = 8
+export const PRODUCTION_ORDER_PAGE_SIZE = 5
 
 function resolveProductPcbSideMode(
   productId: string | null | undefined,

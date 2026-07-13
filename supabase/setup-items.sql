@@ -12,6 +12,7 @@ create table if not exists public.items (
   mpn text not null default '',
   material_type text not null default '' check (material_type in ('', 'SMD', 'DIP')),
   supply_type text not null default '' check (supply_type in ('', '도급', '사급')),
+  supplier text not null default '',
   unit_price numeric not null default 0 check (unit_price >= 0),
   pcb_side_mode text not null default '' check (pcb_side_mode in ('', 'single', 'dual')),
   item_category smallint not null check (item_category in (1, 2, 3, 4)),
@@ -30,6 +31,8 @@ alter table public.items
   add column if not exists material_type text not null default '';
 alter table public.items
   add column if not exists supply_type text not null default '';
+alter table public.items
+  add column if not exists supplier text not null default '';
 alter table public.items
   add column if not exists unit_price numeric not null default 0;
 alter table public.items
@@ -50,6 +53,7 @@ comment on column public.items.specification is '규격';
 comment on column public.items.mpn is 'MPN';
 comment on column public.items.material_type is 'SMD / DIP (선택)';
 comment on column public.items.supply_type is '도급/사급 (선택)';
+comment on column public.items.supplier is '공급사 — 원자재·부자재';
 comment on column public.items.unit_price is '단가';
 comment on column public.items.pcb_side_mode is '단면(single)/양면(dual) — 반제품(3)만 사용';
 comment on column public.items.item_category is '1=원자재, 2=부자재, 3=반제품, 4=완제품 (필수)';
@@ -58,6 +62,7 @@ comment on column public.items.is_active is '사용 여부';
 create index if not exists items_name_idx on public.items (name);
 create index if not exists items_mpn_idx on public.items (mpn);
 create index if not exists items_material_type_idx on public.items (material_type);
+create index if not exists items_supplier_idx on public.items (supplier);
 create index if not exists items_item_category_idx on public.items (item_category);
 create index if not exists items_is_active_idx on public.items (is_active);
 

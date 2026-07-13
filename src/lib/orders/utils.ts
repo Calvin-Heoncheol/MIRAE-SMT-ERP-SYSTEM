@@ -3,11 +3,14 @@ import { ORDER_CATEGORIES } from './types'
 
 export const ORDER_CODE_MAX_LENGTH = 100
 
-/** MRO 자동 발급 코드 판별용 */
+/** 레거시 MRO 자동 발급 코드 판별용 */
 export const MRO_ORDER_CODE_PATTERN = /^MRO-[0-9]+$/
 
+/** 고객사 접두사 자동 발급 코드 (SC-0001 등) */
+export const AUTO_ORDER_CODE_PATTERN = /^[A-Z0-9]+-[0-9]+$/
+
 export function normalizeOrderCodeInput(value: string) {
-  return value.trim()
+  return value.trim().toUpperCase()
 }
 
 export function validateOrderCodeInput(

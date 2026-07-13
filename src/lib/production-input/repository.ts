@@ -1,7 +1,4 @@
-import {
-  ensureAssemblyGroupsForOrders,
-  fetchAssemblyGroups,
-} from '@/lib/assembly/repository'
+import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
@@ -18,28 +15,15 @@ export type FetchProductionInputPageResult =
 export async function fetchProductionInputPageData(
   config: Pick<ProductionInputConfig, 'productKindLabel' | 'productionModule'>,
 ): Promise<FetchProductionInputPageResult> {
-  const ordersResult = await fetchOrders()
-  if (!ordersResult.ok) {
-    return ordersResult
-  }
-
-  const productsResult = await fetchProducts()
-  if (!productsResult.ok) {
-    return productsResult
-  }
-
-  const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
-  const orderIds = ordersResult.orders.map((order) => order.orderId)
-
-  // Vercel 서버리스 타임아웃 방지: 조립 그룹 동기화가 길면 목록 조회를 막지 않음
-  await Promise.race([
-    ensureAssemblyGroupsForOrders(orderIds),
-    new Promise<void>((resolve) => setTimeout(resolve, 6000)),
-  ])
-
-  let counts: ProductionCounts = {}
-
+  // 조립 그룹 동기화는 주문 저장/수정 시 수행. 탭 로드는 조회만 해서 Vercel 응답을 빠르게 유지.
   if (config.productionModule === 'smt') {
+    const productsResult = await fetchProducts()
+    if (!productsResult.ok) {
+      return productsResult
+    }
+
+    const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
+
     const [countsResult, smtOrdersResult, assemblyResult, deliveryCountsResult] = await Promise.all([
       fetchSmtCumulativeCounts(),
       fetchOrders({ includeDerivedLines: true }),
@@ -60,8 +44,6 @@ export async function fetchProductionInputPageData(
       return deliveryCountsResult
     }
 
-    counts = countsResult.counts
-
     const orders = excludeDeliveryCompleteProductionOrders(
       buildProductionOrderLines(
         smtOrdersResult.orders,
@@ -77,12 +59,23 @@ export async function fetchProductionInputPageData(
       ok: true,
       data: {
         orders,
-        counts,
+        counts: countsResult.counts,
       },
     }
   }
 
   if (config.productionModule === 'post_process') {
+    const [ordersResult, productsResult] = await Promise.all([fetchOrders(), fetchProducts()])
+
+    if (!ordersResult.ok) {
+      return ordersResult
+    }
+    if (!productsResult.ok) {
+      return productsResult
+    }
+
+    const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
+
     const [assemblyResult, countsResult, deliveryCountsResult] = await Promise.all([
       fetchAssemblyGroups(productById),
       fetchPostProcessCumulativeCounts(),
@@ -100,11 +93,7 @@ export async function fetchProductionInputPageData(
     }
 
     const orders = excludeDeliveryCompleteProductionOrders(
-      buildPostProcessAssemblyLines(
-        assemblyResult.groups,
-        ordersResult.orders,
-        productById,
-      ),
+      buildPostProcessAssemblyLines(assemblyResult.groups, ordersResult.orders, productById),
       assemblyResult.groups,
       deliveryCountsResult.counts,
     )
@@ -117,6 +106,18 @@ export async function fetchProductionInputPageData(
       },
     }
   }
+
+  const [ordersResult, productsResult] = await Promise.all([fetchOrders(), fetchProducts()])
+
+  if (!ordersResult.ok) {
+    return ordersResult
+  }
+  if (!productsResult.ok) {
+    return productsResult
+  }
+
+  const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
+  const counts: ProductionCounts = {}
 
   return {
     ok: true,

@@ -1,5 +1,7 @@
-import { redirect } from 'next/navigation'
+import { InboundWorkspace } from '@/components/materials/inbound/inbound-workspace'
+import { fetchMaterialInboundPageData } from '@/lib/materials/inbound/repository'
 
-export default function MaterialInboundRedirectPage() {
-  redirect('/materials/inventory/inbound')
+export default async function MaterialInboundRegisterPage() {
+  const result = await fetchMaterialInboundPageData()
+  return <InboundWorkspace result={result} view="register" />
 }

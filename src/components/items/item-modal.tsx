@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { createItem, deleteItem, updateItem } from '@/lib/items/repository'
 import {
   emptyItemForm,
@@ -13,14 +14,16 @@ import {
 import {
   ITEM_CATEGORIES,
   ITEM_CATEGORY_LABELS,
-  ITEM_MATERIAL_TYPES,
   ITEM_MATERIAL_TYPE_LABELS,
+  ITEM_MATERIAL_TYPE_OPTIONS,
   ITEM_PCB_SIDE_MODES,
   ITEM_PCB_SIDE_MODE_LABELS,
-  ITEM_SUPPLY_TYPES,
   ITEM_SUPPLY_TYPE_LABELS,
+  ITEM_SUPPLY_TYPE_OPTIONS,
   isManualItemCodeCategory,
+  isFinishedItemCategory,
   isMaterialItemCategory,
+  isRawMaterialItemCategory,
   isSemiFinishedItemCategory,
   type Item,
   type ItemCategory,
@@ -29,12 +32,15 @@ import {
   type ItemSupplyType,
 } from '@/lib/items/types'
 import { nextItemCodeForCategory } from '@/lib/items/utils'
+import { fetchPurchaseBusinessPartners } from '@/lib/partners/repository'
+import type { BusinessPartner } from '@/lib/partners/types'
 
 type ItemModalProps = {
   open: boolean
   mode: 'create' | 'edit'
   item?: Item | null
   existingItems?: Item[]
+  initialCategory?: ItemCategory | null
   onClose: () => void
   onSaved?: () => void
   onDeleted?: () => void
@@ -48,19 +54,55 @@ function resolvePreviewItemCode(
   return nextItemCodeForCategory(existingItems, category) ?? ''
 }
 
+function createFormWithCategory(
+  category: ItemCategory | null | undefined,
+  existingItems: Item[],
+): ItemFormState {
+  const form = emptyItemForm()
+  if (!category) return form
+
+  form.itemCategory = category
+  if (!isMaterialItemCategory(category)) {
+    form.specification = ''
+    form.mpn = ''
+    form.materialType = ''
+    form.supplyType = ''
+    form.supplier = ''
+  } else if (!isRawMaterialItemCategory(category)) {
+    form.mpn = ''
+    form.materialType = ''
+    form.supplyType = ''
+  }
+  if (category === 3) {
+    form.pcbSideMode = 'single'
+  } else {
+    form.pcbSideMode = ''
+  }
+  if (isFinishedItemCategory(category)) {
+    form.unitPrice = ''
+  }
+  form.id = resolvePreviewItemCode(category, existingItems)
+  return form
+}
+
 function ItemModalContent({
   mode,
   item,
   existingItems = [],
+  initialCategory = null,
   onClose,
   onSaved,
   onDeleted,
 }: Omit<ItemModalProps, 'open'>) {
   const isCreate = mode === 'create'
-  const [form, setForm] = useState<ItemFormState>(() => (item ? itemToForm(item) : emptyItemForm()))
+  const [form, setForm] = useState<ItemFormState>(() =>
+    item ? itemToForm(item) : createFormWithCategory(initialCategory, existingItems),
+  )
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [purchasePartners, setPurchasePartners] = useState<BusinessPartner[]>([])
+  const [partnersLoading, setPartnersLoading] = useState(true)
 
   const isManualCode =
     form.itemCategory !== '' && isManualItemCodeCategory(form.itemCategory)
@@ -70,9 +112,27 @@ function ItemModalContent({
   )
 
   useEffect(() => {
-    setForm(item ? itemToForm(item) : emptyItemForm())
+    setForm(
+      item ? itemToForm(item) : createFormWithCategory(initialCategory, existingItems),
+    )
     setSaveError(null)
-  }, [item, mode])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 모달 오픈 시 초기값만 세팅
+  }, [item, mode, initialCategory])
+
+  useEffect(() => {
+    let cancelled = false
+    setPartnersLoading(true)
+    fetchPurchaseBusinessPartners().then((result) => {
+      if (cancelled) return
+      setPartnersLoading(false)
+      if (result.ok) {
+        setPurchasePartners(result.partners)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!isCreate) return
@@ -108,11 +168,19 @@ function ItemModalContent({
         next.mpn = ''
         next.materialType = ''
         next.supplyType = ''
+        next.supplier = ''
+      } else if (value && !isRawMaterialItemCategory(value)) {
+        next.mpn = ''
+        next.materialType = ''
+        next.supplyType = ''
       }
       if (value === 3) {
         if (!next.pcbSideMode) next.pcbSideMode = 'single'
       } else {
         next.pcbSideMode = ''
+      }
+      if (value && isFinishedItemCategory(value)) {
+        next.unitPrice = ''
       }
       if (isCreate) {
         next.id = value ? resolvePreviewItemCode(value, existingItems) : ''
@@ -123,8 +191,12 @@ function ItemModalContent({
 
   const showMaterialFields =
     form.itemCategory !== '' && isMaterialItemCategory(form.itemCategory)
+  const showRawMaterialFields =
+    form.itemCategory !== '' && isRawMaterialItemCategory(form.itemCategory)
   const showPcbSideModeField =
     form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
+  const showUnitPriceField =
+    form.itemCategory !== '' && !isFinishedItemCategory(form.itemCategory)
 
   async function handleSave() {
     const validationError = validateItemForm(form, { isCreate })
@@ -197,16 +269,6 @@ function ItemModalContent({
           <div className="grid grid-cols-1 gap-4">
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-600">
-                품목명 <span className="text-red-500">*</span>
-              </span>
-              <input
-                value={form.name}
-                onChange={(event) => updateForm('name', event.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">
                 품목구분 <span className="text-red-500">*</span>
               </span>
               <select
@@ -249,16 +311,28 @@ function ItemModalContent({
                 <p className="mt-1 text-xs text-slate-500">저장 시 {previewItemCode} 로 자동 생성됩니다.</p>
               ) : null}
             </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-600">
+                품목명 <span className="text-red-500">*</span>
+              </span>
+              <input
+                value={form.name}
+                onChange={(event) => updateForm('name', event.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              />
+            </label>
             {showMaterialFields ? (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-600">규격</span>
+                <input
+                  value={form.specification}
+                  onChange={(event) => updateForm('specification', event.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                />
+              </label>
+            ) : null}
+            {showRawMaterialFields ? (
               <>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-600">규격</span>
-                  <input
-                    value={form.specification}
-                    onChange={(event) => updateForm('specification', event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                  />
-                </label>
                 <label className="block text-sm">
                   <span className="mb-1 block font-medium text-slate-600">MPN</span>
                   <input
@@ -268,7 +342,9 @@ function ItemModalContent({
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-600">구분 (SMD/DIP)</span>
+                  <span className="mb-1 block font-medium text-slate-600">
+                    구분 <span className="text-red-500">*</span>
+                  </span>
                   <select
                     value={form.materialType}
                     onChange={(event) =>
@@ -276,22 +352,26 @@ function ItemModalContent({
                     }
                     className="w-full rounded-lg border border-slate-200 px-3 py-2"
                   >
-                    {ITEM_MATERIAL_TYPES.map((type) => (
-                      <option key={type || 'none'} value={type}>
+                    <option value="">선택</option>
+                    {ITEM_MATERIAL_TYPE_OPTIONS.map((type) => (
+                      <option key={type} value={type}>
                         {ITEM_MATERIAL_TYPE_LABELS[type]}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-600">도급/사급</span>
+                  <span className="mb-1 block font-medium text-slate-600">
+                    도급/사급 <span className="text-red-500">*</span>
+                  </span>
                   <select
                     value={form.supplyType}
                     onChange={(event) => updateForm('supplyType', event.target.value as ItemSupplyType)}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2"
                   >
-                    {ITEM_SUPPLY_TYPES.map((type) => (
-                      <option key={type || 'none'} value={type}>
+                    <option value="">선택</option>
+                    {ITEM_SUPPLY_TYPE_OPTIONS.map((type) => (
+                      <option key={type} value={type}>
                         {ITEM_SUPPLY_TYPE_LABELS[type]}
                       </option>
                     ))}
@@ -320,24 +400,42 @@ function ItemModalContent({
                 </select>
               </label>
             ) : null}
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">단가</span>
-              <input
-                type="number"
-                min={0}
-                step="any"
-                value={form.unitPrice}
-                onChange={(event) => updateForm('unitPrice', event.target.value)}
-                placeholder="0"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
-              />
-            </label>
+            {showMaterialFields ? (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-600">공급사</span>
+                <CustomerCombobox
+                  value={form.supplier}
+                  partners={purchasePartners}
+                  placeholder="거래처명 검색"
+                  ariaLabel="공급사"
+                  inputClassName="w-full rounded-lg border border-slate-200 px-3 py-2"
+                  onValueChange={(value) => updateForm('supplier', value)}
+                  onPartnerSelect={(partner) => updateForm('supplier', partner.name)}
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  {partnersLoading
+                    ? '매입 거래처 목록을 불러오는 중...'
+                    : purchasePartners.length === 0
+                      ? '등록된 매입 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
+                      : '거래처등록의 매입·매입/매출 거래처만 선택할 수 있습니다.'}
+                </p>
+              </label>
+            ) : null}
+            {showUnitPriceField ? (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-600">단가</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={form.unitPrice}
+                  onChange={(event) => updateForm('unitPrice', event.target.value)}
+                  placeholder="0"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
+                />
+              </label>
+            ) : null}
           </div>
-          <p className="mt-4 text-xs text-slate-500">
-            * 품목명·품목구분 필수 · 원자재만 품목코드 직접 입력 (부자재 SUB-, 반제품 SFG-, 완제품 FG- 자동)
-            {showMaterialFields ? ' · 규격·MPN·구분·도급/사급은 원자재·부자재에만 해당' : null}
-            {showPcbSideModeField ? ' · 단면/양면은 반제품에만 해당' : null}
-          </p>
         </div>
 
         <div className="border-t border-slate-200 px-5 py-4">

@@ -1,3 +1,34 @@
+export type MaterialPurchaseMaterialStatus = '충분' | '부족'
+
+export type MaterialPurchaseNeedLine = {
+  materialId: string
+  materialCode: string
+  materialName: string
+  specification: string
+  mpn: string
+  supplier: string
+  unitPrice: number
+  requiredQuantity: number
+  onHandQuantity: number
+  shortageQuantity: number
+  status: MaterialPurchaseMaterialStatus
+}
+
+export type MaterialPurchaseNeedCard = {
+  key: string
+  orderId: string
+  orderNumber: string
+  customer: string
+  deliveryDate: string
+  orderDate: string
+  productLabel: string
+  productQuantity: number
+  materialCount: number
+  shortageCount: number
+  sufficientCount: number
+  lines: MaterialPurchaseNeedLine[]
+}
+
 export const MATERIAL_PURCHASE_ORDER_STATUSES = ['발주'] as const
 export type MaterialPurchaseOrderStatus = (typeof MATERIAL_PURCHASE_ORDER_STATUSES)[number]
 

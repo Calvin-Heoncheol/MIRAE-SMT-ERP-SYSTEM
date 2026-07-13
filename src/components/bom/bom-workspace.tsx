@@ -23,8 +23,8 @@ type ModalState =
 
 const PARENT_FILTER_OPTIONS: { value: BomParentFilter; label: string }[] = [
   { value: 'all', label: '전체' },
-  { value: 4, label: '완제품' },
   { value: 3, label: '반제품' },
+  { value: 4, label: '완제품' },
 ]
 
 export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
