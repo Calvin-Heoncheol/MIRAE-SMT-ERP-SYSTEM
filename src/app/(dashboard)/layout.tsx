@@ -1,5 +1,8 @@
 import { TopNav } from '@/components/dashboard/top-nav'
 
+/** Supabase 데이터가 빌드 시점 HTML에 고정되지 않도록 매 요청마다 조회합니다. */
+export const dynamic = 'force-dynamic'
+
 export default function DashboardLayout({
   children,
 }: Readonly<{
