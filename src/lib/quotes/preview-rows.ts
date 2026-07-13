@@ -229,11 +229,11 @@ export function filterPdfBoardDetailsMaterialSummaryRows(
 }
 
 function quotePerUnitTotal(total: number, qty: number) {
-  return Math.round(total / (qty || 1))
+  return total / (qty || 1)
 }
 
 function smtSetupPerUnit(setupAmount: number, qty: number) {
-  return Math.round(setupAmount / (qty || 1))
+  return setupAmount / (qty || 1)
 }
 
 function smtBoardLaborPerUnit(board: SmtBoardDetail) {
@@ -241,7 +241,7 @@ function smtBoardLaborPerUnit(board: SmtBoardDetail) {
 }
 
 function setupComponentPerUnit(minutes: number, rate: number, qty: number) {
-  return smtSetupPerUnit(Math.round(minutes * rate), qty)
+  return smtSetupPerUnit(minutes * rate, qty)
 }
 
 function smtBoardInspectionPerUnit(board: SmtBoardDetail) {
@@ -251,8 +251,8 @@ function smtBoardInspectionPerUnit(board: SmtBoardDetail) {
 /** SMT 대당 합계 = 실장비(대당) + SET-UP(총액 안분) + 검사(대당) */
 function previewSmtSectionPerUnit(result: EstimateResult) {
   const qty = result.qty || 1
-  const laborTotal = Math.floor(result.common.smtLaborPerUnit * qty)
-  const inspectionTotal = Math.floor(result.common.smtInspectionPerUnit * qty)
+  const laborTotal = result.common.smtLaborPerUnit * qty
+  const inspectionTotal = result.common.smtInspectionPerUnit * qty
   return quotePerUnitTotal(laborTotal + result.common.smtSetup + inspectionTotal, qty)
 }
 
@@ -345,17 +345,30 @@ function inspectionDetailRowsForBoard(board: SmtBoardDetail, quoteType: QuoteTyp
 
   const labels = getPreviewLabels(quoteType)
   const sideLabel = board.smtSide === 'double' ? labels.sideDouble : labels.sideSingle
+  const rows: PreviewRow[] = []
 
-  return [
-    {
-      label: labels.inspectionCombined,
+  if (board.aoiInspectionUnit > 0) {
+    rows.push({
+      label: labels.aoi,
       description: sideLabel,
-      unit: board.inspectionUnit,
+      unit: board.aoiInspectionUnit,
       count: labels.onePcb,
-      amount: board.inspectionUnit,
+      amount: board.aoiInspectionUnit,
       indent: 2,
-    },
-  ]
+    })
+  }
+
+  if (quoteType === 'domestic' && board.pcbWashUnit > 0) {
+    rows.push({
+      label: labels.pcbWash,
+      unit: board.pcbWashUnit,
+      count: labels.onePcb,
+      amount: board.pcbWashUnit,
+      indent: 2,
+    })
+  }
+
+  return rows
 }
 
 function smtSetupDetailRowsForBoard(
@@ -993,7 +1006,7 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
     },
     materialRows,
     materialTotalPerUnit: materialPerUnit + materialMgmtPerUnit,
-    grandPerUnit: Math.floor(result.values.grandTotal / qty),
+    grandPerUnit: result.values.grandTotal / qty,
   }
 }
 

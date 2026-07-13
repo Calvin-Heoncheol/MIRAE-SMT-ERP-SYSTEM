@@ -359,7 +359,7 @@ function buildQuoteSummaryTableHtml(
     quote.quoteType === 'export'
       ? exportPage1SummaryAmounts(estimate.values.grandTotal, qty)
       : null
-  const perUnitGrand = page1Amounts ? page1Amounts.unitUsd : Math.floor(estimate.values.grandTotal / qty)
+  const perUnitGrand = page1Amounts ? page1Amounts.unitUsd : estimate.values.grandTotal / qty
   const unitPriceText = page1Amounts
     ? formatExportSummaryUsd(page1Amounts.unitUsd)
     : formatQuoteMoneyTotal(perUnitGrand, quote.quoteType)

@@ -37,7 +37,12 @@ export function formatExportUnitPrice(usd: number) {
 }
 
 export function formatQuoteKrw(krw: number) {
-  return `₩${Math.round(krw).toLocaleString('ko-KR')}`
+  const value = Number(krw) || 0
+  const isWhole = Math.abs(value - Math.round(value)) < 1e-9
+  return `₩${value.toLocaleString('ko-KR', {
+    minimumFractionDigits: isWhole ? 0 : 2,
+    maximumFractionDigits: isWhole ? 0 : 2,
+  })}`
 }
 
 export function roundUsd(usd: number) {
@@ -104,7 +109,7 @@ export function formatQuotePreviewSummary(
 
   const safeQty = qty || 1
   return {
-    unitFormatted: formatQuoteKrw(Math.floor(grandTotalKrw / safeQty)),
+    unitFormatted: formatQuoteKrw(grandTotalKrw / safeQty),
     totalFormatted: formatQuoteKrw(grandTotalKrw),
   }
 }

@@ -18,7 +18,7 @@ export function defaultSmtPcbBoard(index = 0): SmtPcbBoard {
     smtOdd: 0,
     smtSpecial: 0,
     smtSide: 'single',
-    aoiEnabled: true,
+    aoiEnabled: false,
     pcbWashEnabled: false,
     smtTopCount: 0,
     smtBotCount: 0,

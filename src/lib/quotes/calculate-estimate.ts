@@ -1,7 +1,8 @@
 import {
   DIP_UNIT,
   POST_RATE,
-  getBoardInspectionUnit,
+  getAoiUnit,
+  PCB_WASH_UNIT,
   SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
   SMT_SETUP_MINUTES_PER_PART,
   SMT_PLACEMENT_MIN_SCORE,
@@ -51,32 +52,18 @@ function computeSmtOtherLabor(input: SmtComponentFields) {
   )
 }
 
-function computeBoardInspection(board: SmtPcbBoard) {
-  const comp = readSmtBoardComponentFields(board)
+function computeBoardInspection(board: SmtPcbBoard, quoteType: QuoteType = 'export') {
   const smtSide = board.smtSide === 'double' ? 'double' : 'single'
-  const chipOddLabor = computeSmtChipOddLabor(comp)
-  const otherLabor = computeSmtOtherLabor(comp)
-  const smtLaborRaw = chipOddLabor + otherLabor
-  const hasPlacementInputs = hasSmtComponentInputs(comp)
-  const hasSmtLabor = smtLaborRaw > 0 || hasPlacementInputs
-  const applyMinFee = hasPlacementInputs && shouldApplyMinPlacementFee(comp)
-  const shouldCharge = applyMinFee || hasSmtLabor
+  const aoiInspectionUnit = board.aoiEnabled ? getAoiUnit(smtSide) : 0
+  const pcbWashUnit =
+    quoteType === 'domestic' && board.pcbWashEnabled ? PCB_WASH_UNIT : 0
 
-  if (!shouldCharge) {
-    return {
-      aoiInspectionUnit: 0,
-      xrayInspectionUnit: 0,
-      visualInspectionUnit: 0,
-      inspectionUnit: 0,
-    }
-  }
-
-  const inspectionUnit = getBoardInspectionUnit(smtSide)
   return {
-    aoiInspectionUnit: 0,
+    aoiInspectionUnit,
     xrayInspectionUnit: 0,
     visualInspectionUnit: 0,
-    inspectionUnit,
+    pcbWashUnit,
+    inspectionUnit: aoiInspectionUnit + pcbWashUnit,
   }
 }
 
@@ -159,7 +146,7 @@ function computeSmtSetup(partCount: number, quoteType: QuoteType, smtSide: 'sing
   const setupRate = getSmtSetupRate(quoteType)
   return {
     setupMinutes,
-    setupAmount: Math.round(setupMinutes * setupRate),
+    setupAmount: setupMinutes * setupRate,
     setupMinApplied: true,
     setupRate,
   }
@@ -190,7 +177,6 @@ function computeSmtLaborPerUnit(board: SmtPcbBoard, quoteType: QuoteType) {
   const hasSmtLabor = smtLaborRaw > 0 || hasPlacementInputs
   const applyMinFee = hasPlacementInputs && shouldApplyMinPlacementFee(comp)
   const minPlacementFee = getSmtPlacementMinFee(quoteType)
-  const pcbWashUnit = 0
 
   const smtLaborUnit = applyMinFee
     ? minPlacementFee
@@ -204,7 +190,6 @@ function computeSmtLaborPerUnit(board: SmtPcbBoard, quoteType: QuoteType) {
     smtLaborMinApplied: applyMinFee,
     smtLaborMinAdjustment: applyMinFee ? minPlacementFee : 0,
     chipTotal,
-    pcbWashUnit,
   }
 }
 
@@ -216,7 +201,7 @@ export function normalizeSmtPcbBoards(data: EstimateInput): SmtPcbBoard[] {
       return {
         pcbName: String(board.pcbName || `PCB ${index + 1}`).trim() || `PCB ${index + 1}`,
         smtSide: board.smtSide === 'double' ? 'double' : 'single',
-        aoiEnabled: true,
+        aoiEnabled: board.aoiEnabled === true,
         pcbWashEnabled: board.pcbWashEnabled === true,
         smtTopCount: Number(board.smtTopCount) || 0,
         smtBotCount: Number(board.smtBotCount) || 0,
@@ -229,7 +214,7 @@ export function normalizeSmtPcbBoards(data: EstimateInput): SmtPcbBoard[] {
     {
       pcbName: 'PCB 1',
       smtSide: data.smtSide === 'double' ? 'double' : 'single',
-      aoiEnabled: true,
+      aoiEnabled: data.aoiEnabled === true,
       pcbWashEnabled: data.pcbWashEnabled === true,
       smtTopCount: Number(data.smtTopCount) || 0,
       smtBotCount: Number(data.smtBotCount) || 0,
@@ -288,7 +273,7 @@ export function aggregateSmtFromPcbBoards(pcbBoards: SmtPcbBoard[], quoteType: Q
 
   for (const board of pcbBoards) {
     const lab = computeSmtLaborPerUnit(board, quoteType)
-    const inspection = computeBoardInspection(board)
+    const inspection = computeBoardInspection(board, quoteType)
     laborUnit += lab.smtLaborUnit
     laborRaw += lab.smtLaborRaw
     laborMinAdj += lab.smtLaborMinAdjustment
@@ -307,6 +292,7 @@ export function aggregateSmtFromPcbBoards(pcbBoards: SmtPcbBoard[], quoteType: Q
 
     boardDetails.push({
       ...board,
+      pcbWashEnabled: quoteType === 'domestic' && board.pcbWashEnabled === true,
       setupPartCount: partCount,
       setupMinutes,
       setupMinApplied,
@@ -321,7 +307,7 @@ export function aggregateSmtFromPcbBoards(pcbBoards: SmtPcbBoard[], quoteType: Q
       xrayInspectionUnit: inspection.xrayInspectionUnit,
       visualInspectionUnit: inspection.visualInspectionUnit,
       inspectionUnit: inspection.inspectionUnit,
-      pcbWashUnit: lab.pcbWashUnit,
+      pcbWashUnit: inspection.pcbWashUnit,
     })
   }
 
@@ -391,17 +377,18 @@ export function calculateEstimate(
   const matUnit = Number(data.materialCost) || 0
 
   const matTotalRaw = matUnit * qty
-  const smtTotal = Math.floor(smtUnit * qty) + smtSetupAmount + Math.floor(smtInspectionPerUnit * qty)
-  const dipTotal = Math.floor(dipUnit * qty)
-  const postProcessTotal = Math.floor(postProcessUnit * qty)
+  const smtTotal = smtUnit * qty + smtSetupAmount + smtInspectionPerUnit * qty
+  const dipTotal = dipUnit * qty
+  const postProcessTotal = postProcessUnit * qty
   const laborFinal = smtTotal + dipTotal + postProcessTotal
   const materialManagementTotal =
-    matTotalRaw > 0 ? Math.round(matTotalRaw * RAW_MATERIAL_MANAGEMENT_RATE) : 0
+    matTotalRaw > 0 ? matTotalRaw * RAW_MATERIAL_MANAGEMENT_RATE : 0
 
   const subtotalBeforeDiscount = laborFinal + matTotalRaw + materialManagementTotal
-  let specialDiscount = Math.max(0, Math.round(Number(data.specialDiscount) || 0))
+  let specialDiscount = Math.max(0, Number(data.specialDiscount) || 0)
   if (specialDiscount > subtotalBeforeDiscount) specialDiscount = subtotalBeforeDiscount
   const grandTotal = subtotalBeforeDiscount - specialDiscount
+  const unitTotal = grandTotal / (qty || 1)
 
   return {
     estNo: quoteNumber,
@@ -415,7 +402,7 @@ export function calculateEstimate(
       laborMarkup: 0,
       specialDiscount,
       subtotalBeforeDiscount,
-      grandTotal: Math.floor(grandTotal),
+      grandTotal,
     },
     common: {
       smtSetup: smtSetupAmount,
@@ -432,8 +419,16 @@ export function calculateEstimate(
       materialManagement: materialManagementTotal,
       specialDiscount,
       subtotalBeforeDiscount,
-      unitTotal: Math.floor(grandTotal / (qty || 1)).toLocaleString('ko-KR'),
-      grandTotal: Math.floor(grandTotal).toLocaleString('ko-KR'),
+      unitTotal: formatEstimateNumber(unitTotal),
+      grandTotal: formatEstimateNumber(grandTotal),
     },
   }
+}
+
+function formatEstimateNumber(value: number) {
+  const isWhole = Math.abs(value - Math.round(value)) < 1e-9
+  return value.toLocaleString('ko-KR', {
+    minimumFractionDigits: isWhole ? 0 : 2,
+    maximumFractionDigits: isWhole ? 0 : 2,
+  })
 }

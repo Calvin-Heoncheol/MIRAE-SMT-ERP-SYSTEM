@@ -34,7 +34,11 @@ export function buildQuoteDetailInfo(
   result: EstimateResult,
   quoteType: QuoteType,
 ): QuoteDetailInfo {
-  const b0 = pcbBoards[0]
+  const sanitizedPcbBoards =
+    quoteType === 'export'
+      ? pcbBoards.map((board) => ({ ...board, pcbWashEnabled: false }))
+      : pcbBoards
+  const b0 = sanitizedPcbBoards[0]
   const d0 = dipBoards[0]
   const qty = result.qty || 0
   const materialCostPerUnit = Number(form.materialCost) || 0
@@ -53,7 +57,7 @@ export function buildQuoteDetailInfo(
     },
     inputs: {
       smt: {
-        pcbBoards,
+        pcbBoards: sanitizedPcbBoards,
         ...(b0
           ? {
               aoiEnabled: b0.aoiEnabled,

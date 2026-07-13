@@ -3,8 +3,10 @@
 import type { ReactNode } from 'react'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import {
+  getAoiUnit,
   getSmtSetupBaseMinutes,
   getSmtSetupRate,
+  PCB_WASH_UNIT,
   SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
   SMT_SETUP_MINUTES_PER_PART,
   SMT_UNIT_BGA_BALL,
@@ -184,6 +186,43 @@ export function SmtPcbBoardForm({
         </div>
       </div>
 
+      <div className="mt-3">
+        <p className="mb-2 text-xs font-medium text-slate-600">
+          {quoteType === 'domestic' ? '검사 / 세척' : 'Inspection'}
+        </p>
+        <div className="flex flex-wrap gap-4 text-sm text-slate-700">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={board.aoiEnabled}
+              onChange={(event) => patch({ aoiEnabled: event.target.checked })}
+            />
+            <span>
+              AOI
+              <span className="ml-1 text-[11px] text-slate-400">
+                ({formatQuoteMoneyByDisplay(getAoiUnit(isDouble ? 'double' : 'single'), quoteType, displayCurrency)}
+                {isDouble ? (quoteType === 'domestic' ? ' · 양면 2배' : ' · double ×2') : ''}/PCB)
+              </span>
+            </span>
+          </label>
+          {quoteType === 'domestic' ? (
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={board.pcbWashEnabled}
+                onChange={(event) => patch({ pcbWashEnabled: event.target.checked })}
+              />
+              <span>
+                세척
+                <span className="ml-1 text-[11px] text-slate-400">
+                  ({formatQuoteMoneyByDisplay(PCB_WASH_UNIT, quoteType, displayCurrency)}/PCB)
+                </span>
+              </span>
+            </label>
+          ) : null}
+        </div>
+      </div>
+
       <div className="mt-4 border-t border-dashed border-slate-200 pt-4">
         <p className="mb-1 text-xs font-semibold text-slate-600">SET-UP (부품 종수)</p>
         <p className="mb-3 text-[11px] leading-relaxed text-slate-400">
@@ -226,7 +265,7 @@ export function SmtPcbBoardForm({
           {partCount > 0 ? (
             <p>
               합계 종수 {partCount}종 · 세팅 총 소요시간 {formatQuoteSetupMinutes(setupMinutes, quoteType)} · 예상 SET-UP{' '}
-              {formatQuoteMoneyByDisplay(Math.round(setupMinutes * setupRate), quoteType, displayCurrency)}
+              {formatQuoteMoneyByDisplay(setupMinutes * setupRate, quoteType, displayCurrency)}
             </p>
           ) : null}
         </div>

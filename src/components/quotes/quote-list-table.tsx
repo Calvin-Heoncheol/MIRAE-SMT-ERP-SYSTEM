@@ -15,7 +15,7 @@ function quoteUnitPriceDisplay(quote: QuoteListItem) {
   if (quote.quoteType === 'export') {
     return exportSummaryFromKrw(quote.totalAmount, qty).unitFormatted
   }
-  return formatQuoteMoneyUnit(Math.floor(quote.totalAmount / qty), quote.quoteType)
+  return formatQuoteMoneyUnit(quote.totalAmount / qty, quote.quoteType)
 }
 
 export function QuoteListTable({ quotes, emptyMessage, onSelectQuote }: QuoteListTableProps) {

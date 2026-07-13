@@ -7,12 +7,9 @@ import { QuoteCurrencyToggle } from '@/components/quotes/quote-currency-toggle'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import {
-  INSPECTION_UNIT_DOUBLE,
-  INSPECTION_UNIT_SINGLE,
   POST_RATE,
   SMT_PLACEMENT_MIN_SCORE,
   getSmtPlacementMinFee,
-  getSmtSetupRate,
 } from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
@@ -446,10 +443,7 @@ function QuoteModalContent({
               <p className="mb-3 text-xs text-slate-500">
                 PCB 보드 수만큼 PCB별 실장·SET-UP 입력 · 일반 부품은 <strong>부품 개수</strong>, IC/BGA는{' '}
                 <strong>핀·볼 수</strong> · {SMT_PLACEMENT_MIN_SCORE}점 이하 PCB는 최소 실장비{' '}
-                {formatAmount(getSmtPlacementMinFee(quoteType))} · 검사(AOI/X-RAY/외관 포함, 단면{' '}
-                {formatAmount(INSPECTION_UNIT_SINGLE)} · 양면{' '}
-                {formatAmount(INSPECTION_UNIT_DOUBLE)}) · SET-UP 장비 임율{' '}
-                {formatAmount(getSmtSetupRate(quoteType))}/분
+                {formatAmount(getSmtPlacementMinFee(quoteType))}
               </p>
               <div className="space-y-3">
                 {smtForms.map((board, index) => (

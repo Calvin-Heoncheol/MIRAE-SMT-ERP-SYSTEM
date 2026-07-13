@@ -22,6 +22,8 @@ export type PreviewLabels = {
   oddParts: string
   specialParts: string
   inspectionCombined: string
+  aoi: string
+  pcbWash: string
   inspection: string
   soldering: string
   postProcess: string
@@ -78,6 +80,8 @@ const DOMESTIC_LABELS: PreviewLabels = {
   oddParts: '이형',
   specialParts: '특수/모듈',
   inspectionCombined: 'AOI, X-RAY 및 외관검사',
+  aoi: 'AOI',
+  pcbWash: '세척',
   inspection: '검사',
   soldering: '납땜',
   postProcess: '후공정',
@@ -134,6 +138,8 @@ const EXPORT_LABELS: PreviewLabels = {
   oddParts: 'Odd-Form',
   specialParts: 'Special/Module',
   inspectionCombined: 'AOI, X-Ray & Visual Inspection',
+  aoi: 'AOI',
+  pcbWash: 'PCB Wash',
   inspection: 'Inspection',
   soldering: 'Soldering',
   postProcess: 'Post-Process',
