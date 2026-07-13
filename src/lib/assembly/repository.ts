@@ -358,8 +358,28 @@ export async function ensureAssemblyGroupsForOrders(orderIds: string[]) {
   }
 
   try {
-    for (const orderId of uniqueOrderIds) {
-      await syncAssemblyGroupsForOrder(orderId)
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('order_assembly_groups')
+      .select('order_id')
+      .in('order_id', uniqueOrderIds)
+
+    if (error) {
+      if (isMissingAssemblyTable(error.message)) return
+      return
+    }
+
+    const existingOrderIds = new Set(
+      (data || []).map((row) => String(row.order_id || '').trim()).filter(Boolean),
+    )
+    const missingOrderIds = uniqueOrderIds.filter((orderId) => !existingOrderIds.has(orderId))
+    if (!missingOrderIds.length) return
+
+    // Vercel 서버리스 타임아웃 방지: 없는 주문만, 소량 병렬로 동기화
+    const batchSize = 3
+    for (let index = 0; index < missingOrderIds.length; index += batchSize) {
+      const batch = missingOrderIds.slice(index, index + batchSize)
+      await Promise.all(batch.map((orderId) => syncAssemblyGroupsForOrder(orderId)))
     }
   } catch {
     // 조립 그룹·BOM 펼침 동기화 실패는 목록 조회를 막지 않음
