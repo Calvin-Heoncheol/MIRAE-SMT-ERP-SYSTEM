@@ -31,12 +31,16 @@ const BULK_COLUMNS: Record<ItemCategory, ItemBulkColumn[]> = {
     { key: 'unitPrice', label: '단가' },
   ],
   3: [
+    { key: 'id', label: '품목코드' },
     { key: 'name', label: '품목명', required: true },
     { key: 'pcbSideMode', label: '단면/양면', required: true },
     { key: 'processType', label: '공정', required: true },
     { key: 'unitPrice', label: '단가' },
   ],
-  4: [{ key: 'name', label: '품목명', required: true }],
+  4: [
+    { key: 'id', label: '품목코드' },
+    { key: 'name', label: '품목명', required: true },
+  ],
 }
 
 export function itemBulkColumns(category: ItemCategory): ItemBulkColumn[] {
@@ -47,8 +51,8 @@ export function itemBulkPasteSampleValues(category: ItemCategory): string[] {
   const sampleByCategory: Record<ItemCategory, string[]> = {
     1: ['MR-001', '저항 10K', '0603', 'RC0603', 'SMD', '도급', '서창전자', '12'],
     2: ['나사 M3', 'SUS', '서창전자', '50'],
-    3: ['메인보드', '단면', 'SMD', '1500'],
-    4: ['완제품 A'],
+    3: ['SFG-CUSTOM', '메인보드', '단면', 'SMD', '1500'],
+    4: ['FG-CUSTOM', '완제품 A'],
   }
   return sampleByCategory[category]
 }

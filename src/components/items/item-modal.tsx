@@ -23,6 +23,8 @@ import {
   ITEM_SUPPLY_TYPE_LABELS,
   ITEM_SUPPLY_TYPE_OPTIONS,
   isManualItemCodeCategory,
+  isOptionalItemCodeCategory,
+  canEditItemCodeOnCreate,
   isFinishedItemCategory,
   isMaterialItemCategory,
   isRawMaterialItemCategory,
@@ -53,7 +55,9 @@ function resolvePreviewItemCode(
   category: ItemCategory | '',
   existingItems: Item[],
 ): string {
-  if (!category || isManualItemCodeCategory(category)) return ''
+  if (!category || isManualItemCodeCategory(category) || isOptionalItemCodeCategory(category)) {
+    return ''
+  }
   return nextItemCodeForCategory(existingItems, category) ?? ''
 }
 
@@ -86,7 +90,8 @@ function createFormWithCategory(
   if (isFinishedItemCategory(category)) {
     form.unitPrice = ''
   }
-  form.id = resolvePreviewItemCode(category, existingItems)
+  // 부자재만 자동코드 미리보기 채움. 반·완제품은 비워 두고 저장 시 자동/수동 결정
+  form.id = isOptionalItemCodeCategory(category) ? '' : resolvePreviewItemCode(category, existingItems)
   return form
 }
 
@@ -109,12 +114,17 @@ function ItemModalContent({
   const [purchasePartners, setPurchasePartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(true)
 
-  const isManualCode =
+  const isRequiredManualCode =
     form.itemCategory !== '' && isManualItemCodeCategory(form.itemCategory)
-  const previewItemCode = useMemo(
-    () => resolvePreviewItemCode(form.itemCategory, existingItems),
-    [form.itemCategory, existingItems],
-  )
+  const isOptionalCode =
+    form.itemCategory !== '' && isOptionalItemCodeCategory(form.itemCategory)
+  const canEditCode =
+    isCreate && form.itemCategory !== '' && canEditItemCodeOnCreate(form.itemCategory)
+  const autoPreviewCode = useMemo(() => {
+    if (form.itemCategory === '' || isManualItemCodeCategory(form.itemCategory)) return ''
+    return nextItemCodeForCategory(existingItems, form.itemCategory) ?? ''
+  }, [form.itemCategory, existingItems])
+  const previewItemCode = autoPreviewCode
 
   useEffect(() => {
     setForm(
@@ -141,7 +151,13 @@ function ItemModalContent({
 
   useEffect(() => {
     if (!isCreate) return
-    if (form.itemCategory === '' || isManualItemCodeCategory(form.itemCategory)) return
+    if (
+      form.itemCategory === '' ||
+      isManualItemCodeCategory(form.itemCategory) ||
+      isOptionalItemCodeCategory(form.itemCategory)
+    ) {
+      return
+    }
     setForm((current) => {
       const nextCode = resolvePreviewItemCode(current.itemCategory, existingItems)
       if (current.id === nextCode) return current
@@ -190,7 +206,13 @@ function ItemModalContent({
         next.unitPrice = ''
       }
       if (isCreate) {
-        next.id = value ? resolvePreviewItemCode(value, existingItems) : ''
+        if (!value) {
+          next.id = ''
+        } else if (isOptionalItemCodeCategory(value) || isManualItemCodeCategory(value)) {
+          next.id = ''
+        } else {
+          next.id = resolvePreviewItemCode(value, existingItems)
+        }
       }
       return next
     })
@@ -298,24 +320,37 @@ function ItemModalContent({
             </label>
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-600">
-                품목코드 {isManualCode ? <span className="text-red-500">*</span> : null}
+                품목코드 {isRequiredManualCode ? <span className="text-red-500">*</span> : null}
               </span>
               <input
-                value={isCreate && !isManualCode && form.itemCategory !== '' ? previewItemCode : form.id}
+                value={
+                  isCreate && !canEditCode && form.itemCategory !== ''
+                    ? previewItemCode
+                    : form.id
+                }
                 onChange={(event) => updateForm('id', event.target.value)}
                 placeholder={
                   form.itemCategory === ''
                     ? '품목구분 선택 후 표시'
-                    : isManualCode
+                    : isRequiredManualCode
                       ? '직접 입력'
-                      : '자동 생성'
+                      : isOptionalCode
+                        ? autoPreviewCode
+                          ? `비우면 ${autoPreviewCode} 자동`
+                          : '비우면 자동 생성'
+                        : '자동 생성'
                 }
-                readOnly={!isCreate || !isManualCode}
+                readOnly={!canEditCode}
                 className={`w-full rounded-lg border border-slate-200 px-3 py-2 font-mono ${
-                  !isCreate || !isManualCode ? 'bg-slate-50 text-slate-600' : ''
+                  !canEditCode ? 'bg-slate-50 text-slate-600' : ''
                 }`}
               />
-              {isCreate && form.itemCategory !== '' && !isManualCode ? (
+              {isCreate && form.itemCategory !== '' && isOptionalCode ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  비워 두면 {autoPreviewCode || '자동 코드'} 로 생성되고, 입력하면 그 값이 품목코드가 됩니다.
+                </p>
+              ) : null}
+              {isCreate && form.itemCategory !== '' && !canEditCode ? (
                 <p className="mt-1 text-xs text-slate-500">저장 시 {previewItemCode} 로 자동 생성됩니다.</p>
               ) : null}
             </label>

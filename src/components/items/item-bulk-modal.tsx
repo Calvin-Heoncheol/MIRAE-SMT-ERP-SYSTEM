@@ -21,6 +21,7 @@ import {
   ITEM_PROCESS_TYPE_LABELS,
   ITEM_SUPPLY_TYPE_OPTIONS,
   isManualItemCodeCategory,
+  isOptionalItemCodeCategory,
   type ItemCategory,
   type ItemMaterialType,
   type ItemPcbSideMode,
@@ -219,8 +220,13 @@ function ItemBulkModalContent({
             <p className="mt-1 text-xs text-blue-800">
               Excel에서 아래 열 순서대로 복사한 뒤, 이 칸에 붙여넣으세요.
             </p>
-            {!isManualItemCodeCategory(category) ? (
+            {!isManualItemCodeCategory(category) && !isOptionalItemCodeCategory(category) ? (
               <p className="mt-1 text-xs text-blue-700">품목코드는 저장 시 자동 생성됩니다.</p>
+            ) : null}
+            {isOptionalItemCodeCategory(category) ? (
+              <p className="mt-1 text-xs text-blue-700">
+                품목코드 열은 선택입니다. 비우면 자동 생성되고, 입력하면 그 값이 코드가 됩니다.
+              </p>
             ) : null}
 
             <div className="mt-2 overflow-x-auto rounded border border-emerald-700/30 bg-white shadow-sm">

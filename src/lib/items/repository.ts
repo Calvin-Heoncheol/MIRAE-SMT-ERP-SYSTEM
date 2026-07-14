@@ -1,6 +1,6 @@
 import { createSupabaseClient } from '@/lib/supabase'
 import type { Item, ItemPayload, UpdateItemPayload } from './types'
-import { isManualItemCodeCategory, ITEM_CATEGORY_CODE_PREFIX } from './types'
+import { isManualItemCodeCategory, isOptionalItemCodeCategory, ITEM_CATEGORY_CODE_PREFIX } from './types'
 import {
   findMaxItemCodeSequence,
   formatItemCode,
@@ -69,6 +69,11 @@ async function resolveCreateItemId(
       return { ok: false, detail: '품목코드를 입력해 주세요.' }
     }
     return { ok: true, id }
+  }
+
+  const optionalId = payload.id.trim()
+  if (isOptionalItemCodeCategory(category) && optionalId) {
+    return { ok: true, id: optionalId }
   }
 
   const prefix = ITEM_CATEGORY_CODE_PREFIX[category]

@@ -85,9 +85,19 @@ export const ITEM_PROCESS_TYPE_LABELS: Record<ItemProcessTypeValue, string> = {
   smt_post: 'SMD+후공정',
 }
 
-/** 원자재(1)만 직접 입력, 나머지는 접두사+일련번호 자동 생성 */
+/** 원자재(1)만 품목코드 필수 직접 입력 */
 export function isManualItemCodeCategory(category: ItemCategory) {
   return category === 1
+}
+
+/** 반제품(3)·완제품(4): 비우면 자동 생성, 입력하면 그 값을 코드로 사용 */
+export function isOptionalItemCodeCategory(category: ItemCategory) {
+  return category === 3 || category === 4
+}
+
+/** 생성 시 품목코드 입력란 편집 가능 (원자재 필수 / 반·완제품 선택) */
+export function canEditItemCodeOnCreate(category: ItemCategory) {
+  return isManualItemCodeCategory(category) || isOptionalItemCodeCategory(category)
 }
 
 export const ITEM_CATEGORY_CODE_PREFIX: Record<ItemCategory, string | null> = {
