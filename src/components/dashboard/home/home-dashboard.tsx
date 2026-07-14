@@ -57,10 +57,9 @@ export function HomeDashboard() {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-50/70 via-white to-slate-50" />
         <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-blue-400/10 blur-3xl" />
         <div className="relative flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-bold tracking-[0.2em] text-blue-600 uppercase">Operations</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">
-              {APP_SHORT_NAME} 대시보드
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">
+              {APP_SHORT_NAME}
             </h1>
             <p className="mt-1 text-sm text-slate-500">{formatTodayLabel(today)}</p>
           </div>

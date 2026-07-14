@@ -1,8 +1,10 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useRef, useState } from 'react'
+import { APP_SHORT_NAME } from '@/lib/app-config'
 import {
   isNavChildActive,
   isNavItemActive,
@@ -100,9 +102,24 @@ export function TopNav() {
 
   return (
     <header className="sticky top-0 z-50 overflow-visible border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-[60px] max-w-[1760px] items-center justify-center overflow-visible px-5 lg:px-8">
+      <div className="mx-auto flex h-[60px] max-w-[1760px] items-center gap-3 overflow-visible px-5 lg:gap-5 lg:px-8">
+        <Link
+          href="/"
+          className="relative h-9 w-[5.25rem] shrink-0 sm:h-10 sm:w-24"
+          aria-label={`${APP_SHORT_NAME} 홈`}
+        >
+          <Image
+            src="/branding/logo.png"
+            alt={`${APP_SHORT_NAME} 로고`}
+            fill
+            priority
+            sizes="96px"
+            className="object-contain object-left"
+          />
+        </Link>
+
         <nav
-          className="flex min-w-0 items-center justify-center gap-1 overflow-visible"
+          className="flex min-w-0 flex-1 items-center justify-center gap-1 overflow-visible"
           aria-label="주 메뉴"
         >
           {NAV_ITEMS.map((item) => {

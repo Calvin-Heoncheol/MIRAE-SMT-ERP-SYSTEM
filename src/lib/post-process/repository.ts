@@ -1,11 +1,16 @@
 import { createSupabaseClient } from '@/lib/supabase'
 import { todayYmdSeoul } from '@/lib/orders/utils'
+import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import type {
   CreatePostProcessProductionRecordInput,
   PostProcessProductionHistoryRow,
   PostProcessProductionRecord,
   PostProcessProductionSource,
 } from './types'
+
+export type FetchPostProcessDayPlanProgressResult =
+  | { ok: true; progress: Record<string, number> }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type FetchPostProcessCumulativeCountsResult =
   | { ok: true; counts: Record<string, number> }
@@ -83,6 +88,81 @@ export async function fetchPostProcessCumulativeCounts(): Promise<FetchPostProce
     }
 
     return { ok: true, counts }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function fetchPostProcessDayPlanProgress(
+  recordDate: string = todayYmdSeoul(),
+): Promise<FetchPostProcessDayPlanProgressResult> {
+  return fetchPostProcessPlanProgressRange(recordDate, recordDate)
+}
+
+/** 기간 내 생산실적을 일자·조립그룹·팀별로 합산 */
+export async function fetchPostProcessPlanProgressRange(
+  startDate: string,
+  endDate: string,
+): Promise<FetchPostProcessDayPlanProgressResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const start = startDate.trim()
+  const end = endDate.trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+    return { ok: false, reason: 'query', detail: '날짜 형식이 올바르지 않습니다.' }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('post_process_production_records')
+      .select('record_date, assembly_group_id, team, quantity')
+      .gte('record_date', start)
+      .lte('record_date', end)
+
+    if (error) {
+      if (isMissingPostProcessProductionTable(error.message)) {
+        return { ok: true, progress: {} }
+      }
+      if (error.message.includes('team')) {
+        const legacy = await supabase
+          .from('post_process_production_records')
+          .select('record_date, assembly_group_id, quantity')
+          .gte('record_date', start)
+          .lte('record_date', end)
+        if (legacy.error) {
+          return { ok: false, reason: 'query', detail: legacy.error.message }
+        }
+        const progress: Record<string, number> = {}
+        for (const row of legacy.data || []) {
+          const recordDate = String(row.record_date || '').slice(0, 10)
+          const assemblyGroupId = String(row.assembly_group_id || '').trim()
+          if (!recordDate || !assemblyGroupId) continue
+          const key = buildPostProcessPlanProgressKey(assemblyGroupId, recordDate, '생산2팀')
+          progress[key] = (progress[key] ?? 0) + Math.max(0, Math.floor(Number(row.quantity) || 0))
+        }
+        return { ok: true, progress }
+      }
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    const progress: Record<string, number> = {}
+    for (const row of data || []) {
+      const recordDate = String(row.record_date || '').slice(0, 10)
+      const assemblyGroupId = String(row.assembly_group_id || '').trim()
+      if (!recordDate || !assemblyGroupId) continue
+      const team = String(row.team || '').trim() || '생산2팀'
+      const key = buildPostProcessPlanProgressKey(assemblyGroupId, recordDate, team)
+      progress[key] = (progress[key] ?? 0) + Math.max(0, Math.floor(Number(row.quantity) || 0))
+    }
+
+    return { ok: true, progress }
   } catch (error) {
     return {
       ok: false,

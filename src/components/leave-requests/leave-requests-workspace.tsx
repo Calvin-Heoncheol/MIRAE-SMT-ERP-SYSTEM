@@ -49,12 +49,11 @@ export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) 
 
   return (
     <>
-      <div className="flex min-h-[calc(100vh-60px)] w-full flex-col gap-4">
+      <div className="flex min-h-[calc(100dvh-60px)] w-full flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">결재서 · 휴가원</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">휴가원 관리</h1>
-            <p className="mt-1 text-sm text-slate-500">휴가·조퇴 신청서를 작성하고 결재·목록을 관리합니다.</p>
           </div>
           <button
             type="button"

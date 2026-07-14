@@ -1,26 +1,37 @@
 'use client'
 
 import { formatInternalCodeLabel, todayYmdSeoul } from '@/lib/orders/utils'
-import type { SmtPlanBlock, SmtPlanOrderCandidate } from '@/lib/smt/plan/types'
+import type { SmtPlanBlock } from '@/lib/smt/plan/types'
 import {
   daysUntilYmd,
   formatDeliveryCountdown,
   getDeliveryUrgencyTone,
+  resolveSmtPlanExecutionStatus,
+  type SmtPlanExecutionStatus,
 } from '@/lib/smt/plan/utils'
 
 type SmtPlanBlockProps = {
   plan: SmtPlanBlock
+  producedQuantity?: number
   draggable?: boolean
   onClick?: () => void
   onDragStart?: (event: React.DragEvent) => void
   onDragEnd?: () => void
 }
 
-function urgencyClass(daysUntilDelivery: number | null) {
+function executionClass(status: SmtPlanExecutionStatus, daysUntilDelivery: number | null) {
+  if (status === 'done') return 'border-emerald-300 bg-emerald-50'
+  if (status === 'progress') return 'border-amber-300 bg-amber-50'
   const tone = getDeliveryUrgencyTone(daysUntilDelivery)
   if (tone === 'overdue') return 'border-rose-300 bg-rose-50'
   if (tone === 'urgent') return 'border-amber-300 bg-amber-50'
   return 'border-sky-200 bg-sky-50'
+}
+
+function executionBadgeClass(status: SmtPlanExecutionStatus) {
+  if (status === 'done') return 'bg-emerald-100 text-emerald-800'
+  if (status === 'progress') return 'bg-amber-100 text-amber-800'
+  return 'bg-sky-100 text-sky-800'
 }
 
 function urgencyBadgeClass(daysUntilDelivery: number | null) {
@@ -32,6 +43,7 @@ function urgencyBadgeClass(daysUntilDelivery: number | null) {
 
 export function SmtPlanBlockCard({
   plan,
+  producedQuantity = 0,
   draggable = true,
   onClick,
   onDragStart,
@@ -41,6 +53,9 @@ export function SmtPlanBlockCard({
     ? daysUntilYmd(todayYmdSeoul(), plan.deliveryDate)
     : null
   const dueLabel = formatDeliveryCountdown(daysUntilDelivery)
+  const status = resolveSmtPlanExecutionStatus(plan.plannedQuantity, producedQuantity)
+  const produced = Math.max(0, Math.floor(producedQuantity))
+  const planned = Math.max(0, Math.floor(plan.plannedQuantity))
 
   return (
     <button
@@ -52,58 +67,34 @@ export function SmtPlanBlockCard({
         onDragStart?.(event)
       }}
       onDragEnd={onDragEnd}
-      className={`w-full rounded-lg border px-2 py-1.5 text-left shadow-sm transition hover:shadow ${urgencyClass(daysUntilDelivery)} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      className={`w-full rounded-lg border px-2 py-1.5 text-left shadow-sm transition hover:shadow ${executionClass(status, daysUntilDelivery)} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
       <div className="flex items-start justify-between gap-1">
-        <p className="truncate font-mono text-[10px] font-bold text-slate-800" title={plan.orderNumber}>
-          {formatInternalCodeLabel(plan.orderNumber)}
+        <p className="min-w-0 truncate text-[10px] text-slate-500">
+          {plan.customer || '—'} · {formatInternalCodeLabel(plan.orderNumber)}
         </p>
-        {dueLabel ? (
-          <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold ${urgencyBadgeClass(daysUntilDelivery)}`}>
-            {dueLabel}
+        <div className="flex shrink-0 items-center gap-1">
+          <span className={`rounded px-1 py-0.5 text-[9px] font-bold ${executionBadgeClass(status)}`}>
+            {status === 'done' ? '완료' : status === 'progress' ? '진행' : '예정'}
+          </span>
+          {dueLabel ? (
+            <span className={`rounded px-1 py-0.5 text-[9px] font-bold ${urgencyBadgeClass(daysUntilDelivery)}`}>
+              {dueLabel}
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-0.5 flex min-w-0 items-center gap-1">
+        <p className="min-w-0 truncate text-[11px] font-bold text-slate-900">{plan.productSummary}</p>
+        {plan.pcbSide === 'TOP' || plan.pcbSide === 'BOT' ? (
+          <span className="shrink-0 rounded bg-white/80 px-1 py-0.5 text-[9px] font-bold text-slate-700">
+            {plan.pcbSide}
           </span>
         ) : null}
       </div>
-      <p className="mt-0.5 truncate text-[10px] text-slate-600">{plan.customer || '—'}</p>
-      <p className="truncate text-[10px] font-medium text-slate-700">{plan.productSummary}</p>
       <p className="mt-1 text-[10px] font-semibold tabular-nums text-sky-800">
-        {plan.plannedQuantity.toLocaleString('ko-KR')}대
+        {produced.toLocaleString('ko-KR')}/{planned.toLocaleString('ko-KR')}대
       </p>
     </button>
-  )
-}
-
-type SmtPlanOrderCardProps = {
-  order: SmtPlanOrderCandidate
-}
-
-export function SmtPlanOrderCard({ order }: SmtPlanOrderCardProps) {
-  const dueLabel = formatDeliveryCountdown(order.daysUntilDelivery)
-
-  return (
-    <div
-      className={`rounded-xl border bg-white px-3 py-2.5 shadow-sm transition hover:shadow-md ${getDeliveryUrgencyTone(order.daysUntilDelivery) === 'urgent' || getDeliveryUrgencyTone(order.daysUntilDelivery) === 'overdue' ? 'border-amber-300' : 'border-slate-200'}`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-mono text-xs font-bold text-slate-900" title={order.orderNumber}>
-          {formatInternalCodeLabel(order.orderNumber)}
-        </p>
-        {dueLabel ? (
-          <span
-            className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${urgencyBadgeClass(order.daysUntilDelivery)}`}
-          >
-            {dueLabel}
-          </span>
-        ) : null}
-      </div>
-      <p className="mt-1 text-xs text-slate-600">{order.customer || '—'}</p>
-      <p className="mt-0.5 truncate text-xs font-medium text-slate-800">{order.productSummary}</p>
-      <div className="mt-2 flex flex-wrap gap-2 text-[11px] tabular-nums text-slate-500">
-        <span>잔여 {order.unplannedRemaining.toLocaleString('ko-KR')}대</span>
-        <span>
-          SMT {order.smtProduced.toLocaleString('ko-KR')}/{order.smtTarget.toLocaleString('ko-KR')}
-        </span>
-      </div>
-    </div>
   )
 }

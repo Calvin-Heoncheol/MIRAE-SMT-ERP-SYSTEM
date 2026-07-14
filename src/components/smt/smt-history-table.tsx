@@ -4,6 +4,7 @@ import { formatSmtHistoryDateTime, formatSmtPcbSideLabel } from '@/lib/smt/histo
 type SmtHistoryTableProps = {
   rows: SmtProductionHistoryRow[]
   emptyMessage: string
+  onRowClick?: (row: SmtProductionHistoryRow) => void
 }
 
 function cell(value: string) {
@@ -11,7 +12,7 @@ function cell(value: string) {
   return trimmed || '-'
 }
 
-export function SmtHistoryTable({ rows, emptyMessage }: SmtHistoryTableProps) {
+export function SmtHistoryTable({ rows, emptyMessage, onRowClick }: SmtHistoryTableProps) {
   if (!rows.length) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
@@ -60,7 +61,16 @@ export function SmtHistoryTable({ rows, emptyMessage }: SmtHistoryTableProps) {
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100 hover:bg-sky-50/40">
+              <tr
+                key={row.id}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                className={[
+                  'border-t border-slate-100',
+                  onRowClick
+                    ? 'cursor-pointer hover:bg-sky-50/70'
+                    : 'hover:bg-sky-50/40',
+                ].join(' ')}
+              >
                 <td className="whitespace-nowrap px-4 py-2.5 text-sm text-slate-700">{cell(row.recordDate)}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-slate-600">
                   {formatSmtHistoryDateTime(row.createdAt)}

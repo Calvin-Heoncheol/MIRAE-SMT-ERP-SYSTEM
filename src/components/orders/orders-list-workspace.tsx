@@ -62,7 +62,6 @@ export function OrdersListWorkspace({ result }: OrdersListWorkspaceProps) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">주문서</h1>
-            <p className="mt-1 text-sm text-slate-500">주문서 목록을 확인하고 신규 주문을 등록합니다.</p>
           </div>
           <p className="text-sm font-medium text-slate-600">
             총 <span className="tabular-nums text-slate-900">{filtered.length.toLocaleString('ko-KR')}</span>건

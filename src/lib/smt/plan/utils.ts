@@ -1,7 +1,12 @@
 import type { OrderListGroup } from '@/lib/orders/types'
-import { addDaysYmd, formatProductSummary, todayYmdSeoul } from '@/lib/orders/utils'
+import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
 import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-input/types'
-import { resolveProductionCount } from '@/lib/production-input/utils'
+import {
+  formatProductionProductName,
+  resolveProductionCount,
+  resolveProductionSideCount,
+} from '@/lib/production-input/utils'
+import type { SmtPcbSide } from '@/lib/smt/types'
 import type { SmtPlanBlock, SmtPlanOrderCandidate, SmtProductionPlan } from './types'
 
 export function parseYmdToLocalDate(ymd: string) {
@@ -70,14 +75,57 @@ export function daysUntilYmd(fromYmd: string, toYmd: string) {
   return Math.round((to.getTime() - from.getTime()) / msPerDay)
 }
 
-function sumPlannedQuantityByOrderId(plans: SmtProductionPlan[]) {
+export function normalizeSmtPlanPcbSide(value: string | null | undefined): SmtPcbSide {
+  const raw = String(value || 'SINGLE').toUpperCase()
+  if (raw === 'TOP' || raw === 'BOT') return raw
+  return 'SINGLE'
+}
+
+export function plannedSideKey(orderLineId: string, pcbSide: SmtPcbSide) {
+  return `${orderLineId}:${pcbSide}`
+}
+
+function sumPlannedQuantityByLineSide(plans: SmtProductionPlan[]) {
   const map = new Map<string, number>()
   for (const plan of plans) {
-    map.set(plan.orderId, (map.get(plan.orderId) ?? 0) + plan.plannedQuantity)
+    if (!plan.orderLineId) continue
+    const side = normalizeSmtPlanPcbSide(plan.pcbSide)
+    const key = plannedSideKey(plan.orderLineId, side)
+    map.set(key, (map.get(key) ?? 0) + plan.plannedQuantity)
   }
   return map
 }
 
+export function getUnplannedRemainingForSide(
+  candidate: Pick<SmtPlanOrderCandidate, 'splitPcbSides' | 'unplannedBySide' | 'unplannedRemaining'>,
+  pcbSide: SmtPcbSide,
+) {
+  if (candidate.splitPcbSides) {
+    const side = pcbSide === 'BOT' ? 'BOT' : 'TOP'
+    return Math.max(0, candidate.unplannedBySide[side] ?? 0)
+  }
+  return Math.max(0, candidate.unplannedBySide.SINGLE ?? candidate.unplannedRemaining)
+}
+
+export function defaultPcbSideForCandidate(
+  candidate: Pick<SmtPlanOrderCandidate, 'splitPcbSides' | 'unplannedBySide'>,
+): SmtPcbSide {
+  if (!candidate.splitPcbSides) return 'SINGLE'
+  const top = candidate.unplannedBySide.TOP ?? 0
+  const bot = candidate.unplannedBySide.BOT ?? 0
+  if (top > 0) return 'TOP'
+  if (bot > 0) return 'BOT'
+  return 'TOP'
+}
+
+export function computeLineSmtMetrics(line: ProductionOrderLine, smtCounts: ProductionCounts) {
+  const smtTarget = Math.max(0, Math.floor(line.quantity))
+  const smtProduced = resolveProductionCount(line, smtCounts)
+  const smtRemaining = Math.max(0, smtTarget - smtProduced)
+  return { smtTarget, smtProduced, smtRemaining }
+}
+
+/** @deprecated 주문 합산 — 라인 단위 `computeLineSmtMetrics` 사용 */
 export function computeOrderSmtMetrics(
   order: OrderListGroup,
   smtLines: ProductionOrderLine[],
@@ -88,9 +136,9 @@ export function computeOrderSmtMetrics(
   let smtProduced = 0
 
   for (const smtLine of orderSmtLines) {
-    const lineTarget = Math.max(0, Math.floor(smtLine.quantity))
-    smtTarget += lineTarget
-    smtProduced += resolveProductionCount(smtLine, smtCounts)
+    const metrics = computeLineSmtMetrics(smtLine, smtCounts)
+    smtTarget += metrics.smtTarget
+    smtProduced += metrics.smtProduced
   }
 
   const smtRemaining = Math.max(0, smtTarget - smtProduced)
@@ -102,57 +150,100 @@ export function buildSmtPlanOrderCandidates(
   smtLines: ProductionOrderLine[],
   smtCounts: ProductionCounts,
   allPlans: SmtProductionPlan[],
+  options?: { onlyUnplanned?: boolean },
 ): SmtPlanOrderCandidate[] {
-  const plannedByOrderId = sumPlannedQuantityByOrderId(allPlans)
+  const plannedBySide = sumPlannedQuantityByLineSide(allPlans)
+  const orderById = Object.fromEntries(orders.map((order) => [order.orderId, order]))
   const today = todayYmdSeoul()
+  const onlyUnplanned = options?.onlyUnplanned !== false
 
-  return orders
-    .map((order) => {
-      const { smtTarget, smtProduced, smtRemaining } = computeOrderSmtMetrics(order, smtLines, smtCounts)
-      const plannedTotal = plannedByOrderId.get(order.orderId) ?? 0
-      const unplannedRemaining = Math.max(0, smtRemaining - plannedTotal)
-      const deliveryDate = order.deliveryDate || ''
+  const candidates = smtLines
+    .map((line) => {
+      const order = orderById[line.orderId]
+      const smtTarget = Math.max(0, Math.floor(line.quantity))
+      const deliveryDate = order?.deliveryDate || ''
+
+      let smtProduced = 0
+      let smtRemaining = 0
+      let plannedTotal = 0
+      let unplannedRemaining = 0
+      const unplannedBySide: Partial<Record<SmtPcbSide, number>> = {}
+
+      if (line.splitPcbSides) {
+        const topProduced = resolveProductionSideCount(line, smtCounts, 'TOP')
+        const botProduced = resolveProductionSideCount(line, smtCounts, 'BOT')
+        const plannedTop = plannedBySide.get(plannedSideKey(line.orderLineId, 'TOP')) ?? 0
+        const plannedBot = plannedBySide.get(plannedSideKey(line.orderLineId, 'BOT')) ?? 0
+        const unplannedTop = Math.max(0, smtTarget - topProduced - plannedTop)
+        const unplannedBot = Math.max(0, smtTarget - botProduced - plannedBot)
+
+        smtProduced = Math.min(topProduced, botProduced)
+        smtRemaining = Math.max(0, smtTarget - smtProduced)
+        plannedTotal = plannedTop + plannedBot
+        unplannedRemaining = Math.max(unplannedTop, unplannedBot)
+        unplannedBySide.TOP = unplannedTop
+        unplannedBySide.BOT = unplannedBot
+      } else {
+        smtProduced = resolveProductionSideCount(line, smtCounts, 'SINGLE')
+        smtRemaining = Math.max(0, smtTarget - smtProduced)
+        plannedTotal = plannedBySide.get(plannedSideKey(line.orderLineId, 'SINGLE')) ?? 0
+        unplannedRemaining = Math.max(0, smtRemaining - plannedTotal)
+        unplannedBySide.SINGLE = unplannedRemaining
+      }
 
       return {
-        orderId: order.orderId,
-        orderNumber: order.orderNumber,
-        customer: order.customer,
-        productSummary: formatProductSummary(order),
+        orderId: line.orderId,
+        orderLineId: line.orderLineId,
+        orderNumber: line.orderNumber,
+        customer: line.customer,
+        productSummary: formatProductionProductName(line),
         deliveryDate,
+        splitPcbSides: line.splitPcbSides,
         smtTarget,
         smtProduced,
         smtRemaining,
         plannedTotal,
         unplannedRemaining,
+        unplannedBySide,
         daysUntilDelivery: deliveryDate ? daysUntilYmd(today, deliveryDate) : null,
       }
     })
-    .filter((order) => order.unplannedRemaining > 0)
+    .filter((line) => (onlyUnplanned ? line.unplannedRemaining > 0 : line.smtTarget > 0))
     .sort((a, b) => {
       const aDue = a.daysUntilDelivery ?? 9999
       const bDue = b.daysUntilDelivery ?? 9999
       if (aDue !== bDue) return aDue - bDue
-      return b.orderNumber.localeCompare(a.orderNumber)
+      if (a.orderNumber !== b.orderNumber) return b.orderNumber.localeCompare(a.orderNumber)
+      return a.productSummary.localeCompare(b.productSummary)
     })
+
+  return candidates
 }
 
 export function buildSmtPlanBlocks(
   weekPlans: SmtProductionPlan[],
   orders: OrderListGroup[],
+  smtLines: ProductionOrderLine[] = [],
 ): SmtPlanBlock[] {
   const orderById = Object.fromEntries(orders.map((order) => [order.orderId, order]))
+  const lineById = Object.fromEntries(smtLines.map((line) => [line.orderLineId, line]))
 
   return weekPlans
     .map((plan) => {
       const order = orderById[plan.orderId]
       if (!order) return null
 
+      const line = plan.orderLineId ? lineById[plan.orderLineId] : undefined
+
       return {
         ...plan,
         orderNumber: order.orderNumber,
         customer: order.customer,
-        productSummary: formatProductSummary(order),
+        productSummary: line
+          ? formatProductionProductName(line)
+          : order.items?.[0]?.productName || order.orderNumber,
         deliveryDate: order.deliveryDate || '',
+        splitPcbSides: Boolean(line?.splitPcbSides),
       }
     })
     .filter((plan): plan is SmtPlanBlock => plan !== null)
@@ -171,3 +262,27 @@ export function formatDeliveryCountdown(daysUntilDelivery: number | null) {
   if (daysUntilDelivery === 0) return 'D-Day'
   return `D-${daysUntilDelivery}`
 }
+
+/** 계획 대비 생산 진행 상태 */
+export type SmtPlanExecutionStatus = 'ready' | 'progress' | 'done'
+
+export function resolveSmtPlanExecutionStatus(
+  plannedQuantity: number,
+  producedQuantity: number,
+): SmtPlanExecutionStatus {
+  const planned = Math.max(0, Math.floor(plannedQuantity))
+  const produced = Math.max(0, Math.floor(producedQuantity))
+  if (planned > 0 && produced >= planned) return 'done'
+  if (produced > 0) return 'progress'
+  return 'ready'
+}
+
+export function resolveSmtLinePlanExecutionStatus(
+  statuses: SmtPlanExecutionStatus[],
+): 'idle' | SmtPlanExecutionStatus {
+  if (!statuses.length) return 'idle'
+  if (statuses.every((status) => status === 'done')) return 'done'
+  if (statuses.every((status) => status === 'ready')) return 'ready'
+  return 'progress'
+}
+

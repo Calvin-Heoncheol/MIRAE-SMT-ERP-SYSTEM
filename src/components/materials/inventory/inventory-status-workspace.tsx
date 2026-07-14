@@ -39,10 +39,9 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
   const summary = useMemo(() => summarizeInventoryRows(rows), [rows])
 
   return (
-    <div className="flex min-h-[calc(100vh-60px)] w-full flex-col gap-4">
+    <div className="flex min-h-[calc(100dvh-60px)] w-full flex-col gap-4">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">재고현황</h1>
-        <p className="mt-1 text-sm text-slate-500">자재 현재고와 입고예정 수량을 조회합니다.</p>
       </div>
 
       {result.ok ? (

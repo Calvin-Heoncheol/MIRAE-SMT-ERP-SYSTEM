@@ -6,16 +6,23 @@ import { SMT_PLAN_DRAG_MIME } from '@/lib/smt/plan/config'
 import type { SmtPlanBlock } from '@/lib/smt/plan/types'
 import { formatCalendarDayLabel, formatWeekdayLabel } from '@/lib/smt/plan/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
+import { buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
 
 type SmtPlanCalendarProps = {
   weekDates: string[]
   lineNos: number[]
   plans: SmtPlanBlock[]
+  planProgress?: Record<string, number>
   activeDropCell: string | null
-  onDrop: (payload: { kind: 'order'; orderId: string } | { kind: 'plan'; planId: string }, target: {
-    plannedDate: string
-    lineNo: number
-  }) => void
+  onDrop: (
+    payload:
+      | { kind: 'order'; orderId: string; orderLineId: string }
+      | { kind: 'plan'; planId: string },
+    target: {
+      plannedDate: string
+      lineNo: number
+    },
+  ) => void
   onPlanClick: (plan: SmtPlanBlock) => void
   onDragPlan: (planId: string) => void
 }
@@ -28,6 +35,7 @@ export function SmtPlanCalendar({
   weekDates,
   lineNos,
   plans,
+  planProgress = {},
   activeDropCell,
   onDrop,
   onPlanClick,
@@ -65,8 +73,16 @@ export function SmtPlanCalendar({
     if (!raw) return
 
     try {
-      const payload = JSON.parse(raw) as { kind: 'order'; orderId: string } | { kind: 'plan'; planId: string }
-      onDrop(payload, { plannedDate, lineNo })
+      const payload = JSON.parse(raw) as
+        | { kind: 'order'; orderId: string; orderLineId?: string }
+        | { kind: 'plan'; planId: string }
+      if (payload.kind === 'order' && !payload.orderLineId) return
+      onDrop(
+        payload.kind === 'order'
+          ? { kind: 'order', orderId: payload.orderId, orderLineId: payload.orderLineId! }
+          : payload,
+        { plannedDate, lineNo },
+      )
     } catch {
       // ignore invalid payload
     }
@@ -121,6 +137,16 @@ export function SmtPlanCalendar({
                         <SmtPlanBlockCard
                           key={plan.id}
                           plan={plan}
+                          producedQuantity={
+                            planProgress[
+                              buildSmtPlanProgressKey(
+                                plan.orderLineId,
+                                plan.pcbSide,
+                                plan.lineNo,
+                                plan.plannedDate,
+                              )
+                            ] ?? 0
+                          }
                           onClick={() => onPlanClick(plan)}
                           onDragStart={(event) => {
                             event.dataTransfer.setData(

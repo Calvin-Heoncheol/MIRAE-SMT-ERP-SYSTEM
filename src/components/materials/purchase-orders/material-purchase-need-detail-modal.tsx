@@ -62,7 +62,7 @@ export function MaterialPurchaseNeedDetailModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="purchase-need-detail-title"
-        className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="flex max-h-[94dvh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">

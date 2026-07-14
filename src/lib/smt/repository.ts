@@ -1,11 +1,15 @@
 import { createSupabaseClient } from '@/lib/supabase'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { normalizeProductPcbSideMode } from '@/lib/products/utils'
-import { buildSmtCountKey, smtPcbSidesForMode } from '@/lib/smt/count-keys'
+import { buildSmtCountKey, buildSmtPlanProgressKey, smtPcbSidesForMode } from '@/lib/smt/count-keys'
 import type { CreateSmtProductionRecordInput, SmtPcbSide, SmtProductionHistoryRow, SmtProductionRecord } from './types'
 
 export type FetchSmtCumulativeCountsResult =
   | { ok: true; counts: Record<string, number> }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export type FetchSmtDayPlanProgressResult =
+  | { ok: true; progress: Record<string, number> }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type CreateSmtProductionRecordResult =
@@ -91,6 +95,67 @@ export async function fetchSmtCumulativeCounts(): Promise<FetchSmtCumulativeCoun
     }
 
     return { ok: true, counts }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+/** 특정일 생산실적을 주문라인·면·SMT라인별로 합산 (계획 대비 등록용) */
+export async function fetchSmtDayPlanProgress(
+  recordDate: string = todayYmdSeoul(),
+): Promise<FetchSmtDayPlanProgressResult> {
+  return fetchSmtPlanProgressRange(recordDate, recordDate)
+}
+
+/** 기간 내 생산실적을 일자·주문라인·면·SMT라인별로 합산 */
+export async function fetchSmtPlanProgressRange(
+  startDate: string,
+  endDate: string,
+): Promise<FetchSmtDayPlanProgressResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const start = startDate.trim()
+  const end = endDate.trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+    return { ok: false, reason: 'query', detail: '날짜 형식이 올바르지 않습니다.' }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('smt_production_records')
+      .select('record_date, order_line_id, line_no, pcb_side, quantity')
+      .gte('record_date', start)
+      .lte('record_date', end)
+      .not('line_no', 'is', null)
+
+    if (error) {
+      if (isMissingSmtProductionTable(error.message)) {
+        return { ok: true, progress: {} }
+      }
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    const progress: Record<string, number> = {}
+    for (const row of data || []) {
+      const recordDate = String(row.record_date || '').slice(0, 10)
+      const orderLineId = String(row.order_line_id || '').trim()
+      const lineNo = Math.floor(Number(row.line_no) || 0)
+      if (!recordDate || !orderLineId || lineNo < 1 || lineNo > 7) continue
+      const pcbSideRaw = String(row.pcb_side || 'SINGLE').toUpperCase()
+      const pcbSide: SmtPcbSide =
+        pcbSideRaw === 'TOP' || pcbSideRaw === 'BOT' ? pcbSideRaw : 'SINGLE'
+      const key = buildSmtPlanProgressKey(orderLineId, pcbSide, lineNo, recordDate)
+      progress[key] = (progress[key] ?? 0) + Math.max(0, Math.floor(Number(row.quantity) || 0))
+    }
+
+    return { ok: true, progress }
   } catch (error) {
     return {
       ok: false,
@@ -372,6 +437,47 @@ async function fetchSmtProductionRecords(options?: {
     }
 
     return { ok: true, rows }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export type DeleteSmtProductionRecordResult =
+  | { ok: true }
+  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+
+export async function deleteSmtProductionRecord(
+  recordId: string,
+): Promise<DeleteSmtProductionRecordResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const id = String(recordId || '').trim()
+  if (!id) {
+    return { ok: false, reason: 'validation', detail: '삭제할 이력을 찾을 수 없습니다.' }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { error } = await supabase.from('smt_production_records').delete().eq('id', id)
+
+    if (error) {
+      if (isMissingSmtProductionTable(error.message)) {
+        return {
+          ok: false,
+          reason: 'query',
+          detail: 'smt_production_records 테이블이 없습니다.',
+        }
+      }
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return { ok: true }
   } catch (error) {
     return {
       ok: false,

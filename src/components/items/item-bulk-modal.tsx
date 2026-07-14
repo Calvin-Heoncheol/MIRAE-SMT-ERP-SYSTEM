@@ -174,7 +174,7 @@ function ItemBulkModalContent({
       <div
         role="dialog"
         aria-modal="true"
-        className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>

@@ -10,6 +10,7 @@ import {
   PRODUCTION_ORDER_PAGE_SIZE,
   resolveProductionCount,
 } from '@/lib/production-input/utils'
+import { SMT_PLAN_DRAG_MIME } from '@/lib/smt/plan/config'
 
 type ProductionOrderSidebarProps = {
   orders: ProductionOrderLine[]
@@ -20,6 +21,10 @@ type ProductionOrderSidebarProps = {
   onSearchChange: (value: string) => void
   onSelect: (uiKey: string) => void
   onPageChange: (page: number) => void
+  /** SMT 생산계획 — 캘린더로 드래그 */
+  enableDrag?: boolean
+  onDragOrder?: (orderId: string) => void
+  footerHint?: string
 }
 
 function stateAccentClass(state: ProductionOrderState) {
@@ -43,6 +48,9 @@ export function ProductionOrderSidebar({
   onSearchChange,
   onSelect,
   onPageChange,
+  enableDrag = false,
+  onDragOrder,
+  footerHint,
 }: ProductionOrderSidebarProps) {
   const totalPages = Math.max(1, Math.ceil(orders.length / PRODUCTION_ORDER_PAGE_SIZE))
   const currentPage = Math.min(Math.max(page, 1), totalPages)
@@ -51,7 +59,7 @@ export function ProductionOrderSidebar({
   const showPager = orders.length > PRODUCTION_ORDER_PAGE_SIZE
 
   return (
-    <aside className="flex min-h-0 min-w-0 flex-col border-b border-slate-200 bg-slate-100 lg:border-b-0 lg:border-r">
+    <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-slate-200 bg-slate-100 lg:border-b-0 lg:border-r">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5">
         <h4 className="text-sm font-bold text-slate-900">주문 선택</h4>
         <span className="text-xs font-medium text-slate-400 tabular-nums">{orders.length}건</span>
@@ -79,7 +87,7 @@ export function ProductionOrderSidebar({
         />
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden px-2.5 py-2.5">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-2.5 py-2.5">
         {!pageItems.length ? (
           <p className="py-8 text-center text-sm text-slate-400">
             {search.trim() ? '검색 결과 없음' : '표시할 주문이 없습니다'}
@@ -97,10 +105,23 @@ export function ProductionOrderSidebar({
               <button
                 key={order.uiKey}
                 type="button"
+                draggable={enableDrag && Boolean(order.orderId)}
+                onDragStart={(event) => {
+                  if (!enableDrag || !order.orderId || !order.orderLineId) return
+                  const payload = JSON.stringify({
+                    kind: 'order',
+                    orderId: order.orderId,
+                    orderLineId: order.orderLineId,
+                  })
+                  event.dataTransfer.setData(SMT_PLAN_DRAG_MIME, payload)
+                  event.dataTransfer.effectAllowed = 'move'
+                  onDragOrder?.(order.orderId)
+                }}
                 onClick={() => onSelect(order.uiKey)}
                 aria-pressed={selected}
                 className={[
                   'shrink-0 rounded-xl bg-white px-3 py-2 text-left transition',
+                  enableDrag ? 'cursor-grab active:cursor-grabbing' : '',
                   selected
                     ? 'border-2 border-sky-500 bg-sky-50 shadow-md ring-2 ring-sky-200'
                     : [
@@ -171,6 +192,12 @@ export function ProductionOrderSidebar({
             다음
           </button>
         </div>
+      ) : null}
+
+      {footerHint ? (
+        <p className="shrink-0 border-t border-slate-200 bg-white px-3 py-2 text-[11px] leading-relaxed text-slate-500">
+          {footerHint}
+        </p>
       ) : null}
     </aside>
   )

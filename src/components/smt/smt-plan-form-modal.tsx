@@ -4,12 +4,16 @@ import { useState } from 'react'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
 import type { SmtPlanBlock, SmtPlanOrderCandidate } from '@/lib/smt/plan/types'
+import { getUnplannedRemainingForSide } from '@/lib/smt/plan/utils'
+import type { SmtPcbSide } from '@/lib/smt/types'
 
 export type SmtPlanFormValues = {
   id?: string
   orderId: string
+  orderLineId: string
   plannedDate: string
   lineNo: number
+  pcbSide: SmtPcbSide
   plannedQuantity: number
   note: string
 }
@@ -28,6 +32,7 @@ type SmtPlanFormModalProps = {
 }
 
 type SmtPlanFormBodyProps = {
+  order: SmtPlanOrderCandidate | SmtPlanBlock
   initialValues: SmtPlanFormValues
   maxQuantity?: number
   saving: boolean
@@ -37,7 +42,31 @@ type SmtPlanFormBodyProps = {
   onDelete?: () => void
 }
 
+function resolveSplitPcbSides(order: SmtPlanOrderCandidate | SmtPlanBlock) {
+  if ('splitPcbSides' in order) return Boolean(order.splitPcbSides)
+  return false
+}
+
+function resolveMaxForSide(
+  order: SmtPlanOrderCandidate | SmtPlanBlock,
+  pcbSide: SmtPcbSide,
+  fallbackMax: number | undefined,
+  editingPlanId?: string,
+  editingQuantity?: number,
+) {
+  if ('unplannedBySide' in order) {
+    let remaining = getUnplannedRemainingForSide(order, pcbSide)
+    if (editingPlanId && editingQuantity != null) {
+      // 수정 시 현재 계획 수량을 다시 허용
+      remaining += editingQuantity
+    }
+    return remaining
+  }
+  return fallbackMax
+}
+
 function SmtPlanFormBody({
+  order,
   initialValues,
   maxQuantity,
   saving,
@@ -46,14 +75,48 @@ function SmtPlanFormBody({
   onSubmit,
   onDelete,
 }: SmtPlanFormBodyProps) {
+  const splitPcbSides = resolveSplitPcbSides(order)
   const [values, setValues] = useState(initialValues)
+  const sideMax = resolveMaxForSide(
+    order,
+    values.pcbSide,
+    maxQuantity,
+    initialValues.id,
+    initialValues.id && values.pcbSide === initialValues.pcbSide
+      ? initialValues.plannedQuantity
+      : undefined,
+  )
+
+  function setPcbSide(nextSide: SmtPcbSide) {
+    const nextMax = resolveMaxForSide(
+      order,
+      nextSide,
+      maxQuantity,
+      initialValues.id,
+      initialValues.id && initialValues.pcbSide === nextSide
+        ? initialValues.plannedQuantity
+        : undefined,
+    )
+    setValues((current) => ({
+      ...current,
+      pcbSide: nextSide,
+      plannedQuantity: Math.max(1, nextMax || 1),
+    }))
+  }
 
   return (
     <form
       className="space-y-4 px-5 py-4"
       onSubmit={(event) => {
         event.preventDefault()
-        onSubmit(values)
+        onSubmit({
+          ...values,
+          pcbSide: splitPcbSides
+            ? values.pcbSide === 'BOT'
+              ? 'BOT'
+              : 'TOP'
+            : 'SINGLE',
+        })
       }}
     >
       <label className="block text-sm">
@@ -82,12 +145,38 @@ function SmtPlanFormBody({
         </select>
       </label>
 
+      {splitPcbSides ? (
+        <fieldset className="block text-sm">
+          <legend className="mb-1 block font-medium text-slate-600">면구분</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {(['TOP', 'BOT'] as const).map((side) => {
+              const active = values.pcbSide === side
+              return (
+                <button
+                  key={side}
+                  type="button"
+                  onClick={() => setPcbSide(side)}
+                  className={[
+                    'rounded-lg border px-3 py-2 text-sm font-semibold transition',
+                    active
+                      ? 'border-sky-500 bg-sky-50 text-sky-800 ring-2 ring-sky-200'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                  ].join(' ')}
+                >
+                  {side}
+                </button>
+              )
+            })}
+          </div>
+        </fieldset>
+      ) : null}
+
       <label className="block text-sm">
         <span className="mb-1 block font-medium text-slate-600">계획 수량</span>
         <input
           type="number"
           min={1}
-          max={maxQuantity}
+          max={sideMax}
           value={values.plannedQuantity}
           onChange={(event) =>
             setValues((current) => ({
@@ -98,8 +187,11 @@ function SmtPlanFormBody({
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
           required
         />
-        {maxQuantity != null ? (
-          <span className="mt-1 block text-xs text-slate-400">최대 {maxQuantity.toLocaleString('ko-KR')}대</span>
+        {sideMax != null ? (
+          <span className="mt-1 block text-xs text-slate-400">
+            {splitPcbSides ? `${values.pcbSide === 'BOT' ? 'BOT' : 'TOP'} 면 ` : ''}
+            최대 {sideMax.toLocaleString('ko-KR')}대
+          </span>
         ) : null}
       </label>
 
@@ -138,7 +230,7 @@ function SmtPlanFormBody({
           </button>
           <button
             type="submit"
-            disabled={saving || deleting}
+            disabled={saving || deleting || (sideMax != null && sideMax < 1)}
             className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
           >
             {saving ? '저장 중…' : '저장'}
@@ -165,7 +257,8 @@ export function SmtPlanFormModal({
 
   const formKey = [
     initialValues.id ?? 'new',
-    initialValues.orderId,
+    initialValues.orderLineId || initialValues.orderId,
+    initialValues.pcbSide,
     initialValues.plannedDate,
     initialValues.lineNo,
     initialValues.plannedQuantity,
@@ -185,11 +278,15 @@ export function SmtPlanFormModal({
           </h3>
           <p className="mt-1 font-mono text-xs text-slate-500">{formatInternalCodeLabel(order.orderNumber)}</p>
           <p className="text-sm text-slate-600">{order.customer || '—'}</p>
-          <p className="text-sm font-medium text-slate-800">{order.productSummary}</p>
+          <p className="text-sm font-medium text-slate-800">
+            {order.productSummary}
+            {resolveSplitPcbSides(order) ? ' · 양면' : ''}
+          </p>
         </div>
 
         <SmtPlanFormBody
           key={formKey}
+          order={order}
           initialValues={initialValues}
           maxQuantity={maxQuantity}
           saving={saving}

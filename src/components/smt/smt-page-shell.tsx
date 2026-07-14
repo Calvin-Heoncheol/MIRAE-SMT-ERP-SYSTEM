@@ -7,12 +7,7 @@ type SmtPageShellProps = {
 
 export function SmtPageShell({ children }: SmtPageShellProps) {
   return (
-    <ModuleTabShell
-      title="SMT"
-      description="SMT 생산 계획·입력·이력을 관리합니다."
-      tabs={SMT_TABS}
-      ariaLabel="SMT 탭"
-    >
+    <ModuleTabShell title="SMT" tabs={SMT_TABS} ariaLabel="SMT 탭">
       {children}
     </ModuleTabShell>
   )

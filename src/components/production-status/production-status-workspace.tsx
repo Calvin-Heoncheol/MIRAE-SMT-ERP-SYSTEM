@@ -34,12 +34,9 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-60px)] w-full flex-col gap-5">
+    <div className="flex min-h-[calc(100dvh-60px)] w-full flex-col gap-5">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">생산현황</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          오늘 생산 실적과 주문서별 SMT · 후공정 · 출하 진행을 확인합니다.
-        </p>
       </div>
 
       <TodayProductionOverview

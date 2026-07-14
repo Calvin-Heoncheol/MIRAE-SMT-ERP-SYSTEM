@@ -10,7 +10,6 @@ export type ModuleTabItem = {
 
 type ModuleTabShellProps = {
   title: string
-  description: string
   tabs: ModuleTabItem[]
   ariaLabel: string
   children: React.ReactNode
@@ -18,7 +17,6 @@ type ModuleTabShellProps = {
 
 export function ModuleTabShell({
   title,
-  description,
   tabs,
   ariaLabel,
   children,
@@ -26,10 +24,9 @@ export function ModuleTabShell({
   const pathname = usePathname()
 
   return (
-    <div className="flex min-h-[calc(100vh-60px)] w-full flex-col gap-4">
+    <div className="flex min-h-[calc(100dvh-60px)] w-full flex-col gap-4">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
 
         <nav
           className="mt-4 inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm"

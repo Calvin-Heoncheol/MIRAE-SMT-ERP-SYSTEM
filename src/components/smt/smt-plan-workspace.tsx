@@ -1,6 +1,13 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { SmtPlanCalendar } from '@/components/smt/smt-plan-calendar'
+import { SmtPlanFetchError } from '@/components/smt/smt-plan-fetch-error'
+import { SmtPlanFormModal, type SmtPlanFormValues } from '@/components/smt/smt-plan-form-modal'
+import {
+  filterSmtPlanOrderCandidates,
+  SmtPlanOrderSidebar,
+} from '@/components/smt/smt-plan-order-sidebar'
 import { addDaysYmd } from '@/lib/orders/utils'
 import {
   deleteSmtProductionPlan,
@@ -9,11 +16,12 @@ import {
   type FetchSmtPlanPageResult,
 } from '@/lib/smt/plan/repository'
 import type { SmtPlanBlock, SmtPlanOrderCandidate, SmtPlanPageData } from '@/lib/smt/plan/types'
-import { formatWeekRangeLabel, getWeekStartMondayYmd } from '@/lib/smt/plan/utils'
-import { SmtPlanCalendar } from '@/components/smt/smt-plan-calendar'
-import { SmtPlanFetchError } from '@/components/smt/smt-plan-fetch-error'
-import { SmtPlanFormModal, type SmtPlanFormValues } from '@/components/smt/smt-plan-form-modal'
-import { SmtPlanUnassignedSidebar } from '@/components/smt/smt-plan-unassigned-sidebar'
+import {
+  defaultPcbSideForCandidate,
+  formatWeekRangeLabel,
+  getUnplannedRemainingForSide,
+  getWeekStartMondayYmd,
+} from '@/lib/smt/plan/utils'
 
 type ModalState =
   | { open: false }
@@ -39,31 +47,43 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
   const [deleting, setDeleting] = useState(false)
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [statusMessage, setStatusMessage] = useState('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [selectedKey, setSelectedKey] = useState('')
 
-  const orderById = useMemo(() => {
+  const candidateByLineId = useMemo(() => {
     const map = new Map<string, SmtPlanOrderCandidate>()
-    for (const order of data?.unassignedOrders ?? []) {
-      map.set(order.orderId, order)
+    for (const candidate of data?.planCandidates ?? []) {
+      map.set(candidate.orderLineId, candidate)
     }
     for (const plan of data?.plans ?? []) {
-      if (!map.has(plan.orderId)) {
-        map.set(plan.orderId, {
-          orderId: plan.orderId,
-          orderNumber: plan.orderNumber,
-          customer: plan.customer,
-          productSummary: plan.productSummary,
-          deliveryDate: plan.deliveryDate,
-          smtTarget: 0,
-          smtProduced: 0,
-          smtRemaining: 0,
-          plannedTotal: 0,
-          unplannedRemaining: 0,
-          daysUntilDelivery: null,
-        })
-      }
+      if (!plan.orderLineId || map.has(plan.orderLineId)) continue
+      map.set(plan.orderLineId, {
+        orderId: plan.orderId,
+        orderLineId: plan.orderLineId,
+        orderNumber: plan.orderNumber,
+        customer: plan.customer,
+        productSummary: plan.productSummary,
+        deliveryDate: plan.deliveryDate,
+        splitPcbSides: plan.splitPcbSides,
+        smtTarget: 0,
+        smtProduced: 0,
+        smtRemaining: 0,
+        plannedTotal: 0,
+        unplannedRemaining: 0,
+        unplannedBySide: {},
+        daysUntilDelivery: null,
+      })
     }
     return map
   }, [data])
+
+  const filteredCandidates = useMemo(() => {
+    const unplanned = (data?.planCandidates ?? []).filter(
+      (candidate) => candidate.unplannedRemaining > 0,
+    )
+    return filterSmtPlanOrderCandidates(unplanned, search)
+  }, [data?.planCandidates, search])
 
   const reload = useCallback(async (nextWeekStart: string) => {
     setLoading(true)
@@ -83,33 +103,46 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
   }
 
   function openCreateModal(order: SmtPlanOrderCandidate, plannedDate: string, lineNo: number) {
+    if (order.unplannedRemaining <= 0) {
+      setStatusMessage('이 주문 라인은 미배정 잔량이 없어 계획에 추가할 수 없습니다.')
+      return
+    }
+    const pcbSide = defaultPcbSideForCandidate(order)
+    const maxQuantity = getUnplannedRemainingForSide(order, pcbSide)
     setModal({
       open: true,
       mode: 'create',
       order,
-      maxQuantity: order.unplannedRemaining,
+      maxQuantity,
       initialValues: {
         orderId: order.orderId,
+        orderLineId: order.orderLineId,
         plannedDate,
         lineNo,
-        plannedQuantity: Math.max(1, order.unplannedRemaining),
+        pcbSide,
+        plannedQuantity: Math.max(1, maxQuantity),
         note: '',
       },
     })
   }
 
   function openEditModal(plan: SmtPlanBlock) {
-    const candidate = orderById.get(plan.orderId)
+    const candidate = candidateByLineId.get(plan.orderLineId)
+    const maxQuantity = candidate
+      ? getUnplannedRemainingForSide(candidate, plan.pcbSide) + plan.plannedQuantity
+      : undefined
     setModal({
       open: true,
       mode: 'edit',
-      order: plan,
-      maxQuantity: candidate ? candidate.unplannedRemaining + plan.plannedQuantity : undefined,
+      order: candidate ?? plan,
+      maxQuantity,
       initialValues: {
         id: plan.id,
         orderId: plan.orderId,
+        orderLineId: plan.orderLineId,
         plannedDate: plan.plannedDate,
         lineNo: plan.lineNo,
+        pcbSide: plan.pcbSide,
         plannedQuantity: plan.plannedQuantity,
         note: plan.note,
       },
@@ -117,15 +150,18 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
   }
 
   function openMoveModal(plan: SmtPlanBlock, plannedDate: string, lineNo: number) {
+    const candidate = candidateByLineId.get(plan.orderLineId)
     setModal({
       open: true,
       mode: 'move',
-      order: plan,
+      order: candidate ?? plan,
       initialValues: {
         id: plan.id,
         orderId: plan.orderId,
+        orderLineId: plan.orderLineId,
         plannedDate,
         lineNo,
+        pcbSide: plan.pcbSide,
         plannedQuantity: plan.plannedQuantity,
         note: plan.note,
       },
@@ -133,12 +169,17 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
   }
 
   async function handleDrop(
-    payload: { kind: 'order'; orderId: string } | { kind: 'plan'; planId: string },
+    payload:
+      | { kind: 'order'; orderId: string; orderLineId: string }
+      | { kind: 'plan'; planId: string },
     target: { plannedDate: string; lineNo: number },
   ) {
     if (payload.kind === 'order') {
-      const order = orderById.get(payload.orderId) ?? data?.unassignedOrders.find((item) => item.orderId === payload.orderId)
-      if (!order) return
+      const order = candidateByLineId.get(payload.orderLineId)
+      if (!order) {
+        setStatusMessage('주문 라인 정보를 찾을 수 없습니다.')
+        return
+      }
       openCreateModal(order, target.plannedDate, target.lineNo)
       return
     }
@@ -153,12 +194,13 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
     const occupied = data?.plans.some(
       (item) =>
         item.id !== plan.id &&
-        item.orderId === plan.orderId &&
+        item.orderLineId === plan.orderLineId &&
+        item.pcbSide === plan.pcbSide &&
         item.plannedDate === target.plannedDate &&
         item.lineNo === target.lineNo,
     )
     if (occupied) {
-      setStatusMessage('해당 일·라인에 이미 같은 주문서 계획이 있습니다.')
+      setStatusMessage('해당 일·라인·면에 이미 같은 주문 라인 계획이 있습니다.')
       return
     }
 
@@ -195,18 +237,34 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
     await reload(weekStart)
   }
 
+  function handleSelectOrder(orderLineId: string) {
+    setSelectedKey(orderLineId)
+  }
+
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    setPage(1)
+  }
+
   if (!initialResult.ok && !data) {
     return <SmtPlanFetchError result={initialResult} />
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-200px)] flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <div className="flex h-[calc(100dvh-12.5rem)] min-h-[520px] flex-col gap-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div>
           <p className="text-sm font-bold text-slate-900">{formatWeekRangeLabel(weekStart)}</p>
           <p className="text-xs text-slate-500">주간 SMT 생산계획 — 라인 1~7</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="mr-1 flex flex-wrap gap-1 text-[10px] font-semibold text-slate-500">
+            <span className="rounded bg-sky-50 px-1.5 py-0.5 text-sky-700 ring-1 ring-sky-100">예정</span>
+            <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-800 ring-1 ring-amber-100">진행</span>
+            <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-800 ring-1 ring-emerald-100">
+              완료 · 재배정
+            </span>
+          </div>
           <button
             type="button"
             onClick={() => changeWeek(addDaysYmd(weekStart, -7))}
@@ -236,17 +294,23 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
 
       {error ? <SmtPlanFetchError result={{ ok: false, reason: 'query', detail: error }} /> : null}
       {statusMessage ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {statusMessage}
         </div>
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md lg:flex-row">
-        <SmtPlanUnassignedSidebar
-          orders={data?.unassignedOrders ?? []}
-          onDragOrder={() => setStatusMessage('')}
+        <SmtPlanOrderSidebar
+          candidates={filteredCandidates}
+          selectedOrderLineId={selectedKey}
+          search={search}
+          page={page}
+          onSearchChange={handleSearchChange}
+          onSelect={handleSelectOrder}
+          onPageChange={setPage}
+          onDragCandidate={() => setStatusMessage('')}
         />
-        <div className="min-h-[480px] min-w-0 flex-1 p-3">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
           {loading ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-500">불러오는 중…</div>
           ) : (
@@ -254,6 +318,7 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
               weekDates={data?.weekDates ?? []}
               lineNos={data?.lineNos ?? []}
               plans={data?.plans ?? []}
+              planProgress={data?.planProgress ?? {}}
               activeDropCell={null}
               onDrop={handleDrop}
               onPlanClick={openEditModal}
@@ -262,10 +327,6 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
           )}
         </div>
       </div>
-
-      <p className="text-xs text-slate-400">
-        미배정 주문을 캘린더로 드래그해 배치하세요. 블록을 클릭하면 수량·일정을 수정할 수 있습니다.
-      </p>
 
       <SmtPlanFormModal
         open={modal.open}
@@ -282,7 +343,15 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
         initialValues={
           modal.open
             ? modal.initialValues
-            : { orderId: '', plannedDate: '', lineNo: 1, plannedQuantity: 1, note: '' }
+            : {
+                orderId: '',
+                orderLineId: '',
+                plannedDate: '',
+                lineNo: 1,
+                pcbSide: 'SINGLE',
+                plannedQuantity: 1,
+                note: '',
+              }
         }
         maxQuantity={modal.open ? modal.maxQuantity : undefined}
         saving={saving}

@@ -1,7 +1,10 @@
+import { fetchAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
+import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
 import { fetchProducts } from '@/lib/products/repository'
 import { buildProductionOrderLines } from '@/lib/production-input/utils'
-import { fetchSmtCumulativeCounts } from '@/lib/smt/repository'
+import { fetchSmtCumulativeCounts, fetchSmtPlanProgressRange } from '@/lib/smt/repository'
 import { createSupabaseClient } from '@/lib/supabase'
 import { SMT_PLAN_LINE_NOS } from './config'
 import type {
@@ -14,6 +17,7 @@ import {
   buildSmtPlanOrderCandidates,
   getWeekDates,
   getWeekEndYmd,
+  normalizeSmtPlanPcbSide,
 } from './utils'
 
 export type FetchSmtPlanPageResult =
@@ -40,11 +44,43 @@ export function isMissingSmtPlanTable(detail: string) {
   return detail.includes('smt_production_plans') || detail.includes('schema cache')
 }
 
+export function isMissingSmtPlanOrderLineColumn(detail: string) {
+  return (
+    detail.includes('order_line_id') &&
+    (detail.includes('column') || detail.includes('schema cache') || detail.includes('Could not find'))
+  )
+}
+
+export function isMissingSmtPlanPcbSideColumn(detail: string) {
+  return (
+    detail.includes('pcb_side') &&
+    (detail.includes('column') || detail.includes('schema cache') || detail.includes('Could not find'))
+  )
+}
+
+function planSchemaErrorDetail(message: string): string | null {
+  if (isMissingSmtPlanTable(message)) {
+    return 'smt_production_plans 테이블이 없습니다. setup-smt-production-plans.sql 을 실행하세요.'
+  }
+  if (isMissingSmtPlanOrderLineColumn(message)) {
+    return 'smt_production_plans.order_line_id 컬럼이 없습니다. migrate-smt-production-plans-order-line.sql 을 실행하세요.'
+  }
+  if (isMissingSmtPlanPcbSideColumn(message)) {
+    return 'smt_production_plans.pcb_side 컬럼이 없습니다. migrate-smt-production-plans-pcb-side.sql 을 실행하세요.'
+  }
+  return null
+}
+
+const SMT_PLAN_SELECT =
+  'id, order_id, order_line_id, planned_date, line_no, pcb_side, planned_quantity, note, created_at'
+
 function mapSmtProductionPlan(row: {
   id: string
   order_id: string
+  order_line_id?: string | null
   planned_date: string
   line_no: number
+  pcb_side?: string | null
   planned_quantity: number
   note: string
   created_at: string
@@ -52,15 +88,58 @@ function mapSmtProductionPlan(row: {
   return {
     id: row.id,
     orderId: row.order_id,
+    orderLineId: String(row.order_line_id || '').trim(),
     plannedDate: String(row.planned_date || '').slice(0, 10),
     lineNo: Math.max(1, Math.min(7, Math.floor(Number(row.line_no) || 1))),
+    pcbSide: normalizeSmtPlanPcbSide(row.pcb_side),
     plannedQuantity: Math.max(1, Math.floor(Number(row.planned_quantity) || 1)),
     note: row.note || '',
     createdAt: row.created_at,
   }
 }
 
-async function fetchAllSmtProductionPlans(): Promise<
+export async function fetchSmtProductionPlansForDate(
+  plannedDate: string,
+): Promise<{ ok: true; plans: SmtProductionPlan[] } | { ok: false; reason: 'env' | 'query'; detail: string }> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const date = plannedDate.trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return { ok: false, reason: 'query', detail: '계획일 형식이 올바르지 않습니다.' }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('smt_production_plans')
+      .select(SMT_PLAN_SELECT)
+      .eq('planned_date', date)
+      .order('line_no', { ascending: true })
+
+    if (error) {
+      if (isMissingSmtPlanTable(error.message)) {
+        return { ok: true, plans: [] }
+      }
+      const schemaDetail = planSchemaErrorDetail(error.message)
+      if (schemaDetail) {
+        return { ok: false, reason: 'query', detail: schemaDetail }
+      }
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return { ok: true, plans: (data || []).map(mapSmtProductionPlan) }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function fetchAllSmtProductionPlans(): Promise<
   { ok: true; plans: SmtProductionPlan[] } | { ok: false; reason: 'env' | 'query'; detail: string }
 > {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -71,13 +150,17 @@ async function fetchAllSmtProductionPlans(): Promise<
     const supabase = createSupabaseClient()
     const { data, error } = await supabase
       .from('smt_production_plans')
-      .select('id, order_id, planned_date, line_no, planned_quantity, note, created_at')
+      .select(SMT_PLAN_SELECT)
       .order('planned_date', { ascending: true })
       .order('line_no', { ascending: true })
 
     if (error) {
       if (isMissingSmtPlanTable(error.message)) {
         return { ok: true, plans: [] }
+      }
+      const schemaDetail = planSchemaErrorDetail(error.message)
+      if (schemaDetail) {
+        return { ok: false, reason: 'query', detail: schemaDetail }
       }
       return { ok: false, reason: 'query', detail: error.message }
     }
@@ -103,11 +186,16 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
     return productsResult
   }
 
-  const [smtCountsResult, smtOrdersResult, allPlansResult] = await Promise.all([
-    fetchSmtCumulativeCounts(),
-    fetchOrders({ includeDerivedLines: true }),
-    fetchAllSmtProductionPlans(),
-  ])
+  const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
+
+  const [smtCountsResult, smtOrdersResult, allPlansResult, assemblyResult, deliveryCountsResult] =
+    await Promise.all([
+      fetchSmtCumulativeCounts(),
+      fetchOrders({ includeDerivedLines: true }),
+      fetchAllSmtProductionPlans(),
+      fetchAssemblyGroups(productById),
+      fetchDeliveryCumulativeCounts(),
+    ])
 
   if (!smtCountsResult.ok) {
     return smtCountsResult
@@ -118,17 +206,32 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
   if (!allPlansResult.ok) {
     return allPlansResult
   }
+  if (!assemblyResult.ok) {
+    return assemblyResult
+  }
+  if (!deliveryCountsResult.ok) {
+    return deliveryCountsResult
+  }
 
-  const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
+  const weekDates = getWeekDates(weekStart)
+  const weekEnd = getWeekEndYmd(weekStart)
+  const progressResult = await fetchSmtPlanProgressRange(weekStart, weekEnd)
+  if (!progressResult.ok) {
+    return progressResult
+  }
+
   const smtLines = buildProductionOrderLines(
     smtOrdersResult.orders,
     'SMT',
     productById,
     'smt',
   )
+  const productionOrders = excludeDeliveryCompleteProductionOrders(
+    smtLines,
+    assemblyResult.groups,
+    deliveryCountsResult.counts,
+  )
 
-  const weekDates = getWeekDates(weekStart)
-  const weekEnd = getWeekEndYmd(weekStart)
   const weekPlans = allPlansResult.plans.filter(
     (plan) => plan.plannedDate >= weekStart && plan.plannedDate <= weekEnd,
   )
@@ -139,13 +242,17 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
       weekStart,
       weekDates,
       lineNos: [...SMT_PLAN_LINE_NOS],
-      plans: buildSmtPlanBlocks(weekPlans, ordersResult.orders),
-      unassignedOrders: buildSmtPlanOrderCandidates(
+      plans: buildSmtPlanBlocks(weekPlans, ordersResult.orders, smtLines),
+      productionOrders,
+      counts: smtCountsResult.counts,
+      planCandidates: buildSmtPlanOrderCandidates(
         ordersResult.orders,
         smtLines,
         smtCountsResult.counts,
         allPlansResult.plans,
+        { onlyUnplanned: false },
       ),
+      planProgress: progressResult.progress,
     },
   }
 }
@@ -158,12 +265,17 @@ export async function upsertSmtProductionPlan(
   }
 
   const orderId = String(input.orderId || '').trim()
+  const orderLineId = String(input.orderLineId || '').trim()
   const plannedDate = String(input.plannedDate || '').trim()
   const lineNo = Math.floor(Number(input.lineNo) || 0)
+  const pcbSide = normalizeSmtPlanPcbSide(input.pcbSide)
   const plannedQuantity = Math.floor(Number(input.plannedQuantity) || 0)
 
   if (!orderId) {
     return { ok: false, reason: 'validation', detail: '주문서를 선택하세요.' }
+  }
+  if (!orderLineId) {
+    return { ok: false, reason: 'validation', detail: '주문 라인을 선택하세요.' }
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(plannedDate)) {
     return { ok: false, reason: 'validation', detail: '계획일 형식이 올바르지 않습니다.' }
@@ -179,8 +291,10 @@ export async function upsertSmtProductionPlan(
     const supabase = createSupabaseClient()
     const payload = {
       order_id: orderId,
+      order_line_id: orderLineId,
       planned_date: plannedDate,
       line_no: lineNo,
+      pcb_side: pcbSide,
       planned_quantity: plannedQuantity,
       note: input.note?.trim() || '',
       updated_at: new Date().toISOString(),
@@ -191,16 +305,13 @@ export async function upsertSmtProductionPlan(
         .from('smt_production_plans')
         .update(payload)
         .eq('id', input.id)
-        .select('id, order_id, planned_date, line_no, planned_quantity, note, created_at')
+        .select(SMT_PLAN_SELECT)
         .single()
 
       if (error || !data) {
-        if (isMissingSmtPlanTable(error?.message || '')) {
-          return {
-            ok: false,
-            reason: 'query',
-            detail: 'smt_production_plans 테이블이 없습니다. setup-smt-production-plans.sql 을 실행하세요.',
-          }
+        const schemaDetail = planSchemaErrorDetail(error?.message || '')
+        if (schemaDetail) {
+          return { ok: false, reason: 'query', detail: schemaDetail }
         }
         return { ok: false, reason: 'query', detail: error?.message || '생산계획 수정에 실패했습니다.' }
       }
@@ -210,17 +321,14 @@ export async function upsertSmtProductionPlan(
 
     const { data, error } = await supabase
       .from('smt_production_plans')
-      .upsert(payload, { onConflict: 'order_id,planned_date,line_no' })
-      .select('id, order_id, planned_date, line_no, planned_quantity, note, created_at')
+      .upsert(payload, { onConflict: 'order_line_id,planned_date,line_no,pcb_side' })
+      .select(SMT_PLAN_SELECT)
       .single()
 
     if (error || !data) {
-      if (isMissingSmtPlanTable(error?.message || '')) {
-        return {
-          ok: false,
-          reason: 'query',
-          detail: 'smt_production_plans 테이블이 없습니다. setup-smt-production-plans.sql 을 실행하세요.',
-        }
+      const schemaDetail = planSchemaErrorDetail(error?.message || '')
+      if (schemaDetail) {
+        return { ok: false, reason: 'query', detail: schemaDetail }
       }
       return { ok: false, reason: 'query', detail: error?.message || '생산계획 저장에 실패했습니다.' }
     }

@@ -92,9 +92,6 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">BOM등록</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              완제품(FG) → 반제품(SFG), 반제품(SFG) → 원자재·부자재 구성을 관리합니다.
-            </p>
           </div>
           <p className="text-sm font-medium text-slate-600">
             총 <span className="tabular-nums text-slate-900">{filtered.length.toLocaleString('ko-KR')}</span>
