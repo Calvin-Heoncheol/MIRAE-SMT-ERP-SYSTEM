@@ -60,8 +60,40 @@ export function isMissingMaterialPurchaseOrdersTable(detail: string) {
   return (
     detail.includes('material_purchase_orders') ||
     detail.includes('material_purchase_order_lines') ||
+    detail.includes('material_purchase_need_deleted_orders') ||
     detail.includes('schema cache')
   )
+}
+
+function isMissingNeedDeletedOrdersTable(detail: string) {
+  return (
+    detail.includes('material_purchase_need_deleted_orders') ||
+    detail.includes('schema cache')
+  )
+}
+
+async function fetchDeletedNeedOrderIds(): Promise<
+  { ok: true; orderIds: string[] } | { ok: false; detail: string }
+> {
+  const supabase = createSupabaseClient()
+  const { data, error } = await supabase
+    .from('material_purchase_need_deleted_orders')
+    .select('order_id')
+
+  if (error) {
+    // 마이그레이션 전이면 빈 목록으로 동작
+    if (isMissingNeedDeletedOrdersTable(error.message)) {
+      return { ok: true, orderIds: [] }
+    }
+    return { ok: false, detail: error.message }
+  }
+
+  return {
+    ok: true,
+    orderIds: (data || [])
+      .map((row) => String(row.order_id || '').trim())
+      .filter(Boolean),
+  }
 }
 
 async function insertMaterialPurchaseOrderLines(
@@ -142,12 +174,17 @@ export async function fetchMaterialPurchaseOrderRegisterData(): Promise<FetchMat
 
   try {
     const supabase = createSupabaseClient()
-    const [bomEdges, inboundLinesResult, outboundLinesResult] = await Promise.all([
-      fetchBomEdges(),
-      supabase.from('material_inbound_lines').select('material_id, quantity'),
-      supabase.from('material_outbound_lines').select('material_id, quantity'),
-    ])
+    const [bomEdges, inboundLinesResult, outboundLinesResult, deletedNeedIdsResult] =
+      await Promise.all([
+        fetchBomEdges(),
+        supabase.from('material_inbound_lines').select('material_id, quantity'),
+        supabase.from('material_outbound_lines').select('material_id, quantity'),
+        fetchDeletedNeedOrderIds(),
+      ])
 
+    if (!deletedNeedIdsResult.ok) {
+      return { ok: false, reason: 'query', detail: deletedNeedIdsResult.detail }
+    }
     if (inboundLinesResult.error && !isMissingMaterialInboundTable(inboundLinesResult.error.message)) {
       return { ok: false, reason: 'query', detail: inboundLinesResult.error.message }
     }
@@ -177,14 +214,17 @@ export async function fetchMaterialPurchaseOrderRegisterData(): Promise<FetchMat
       )
     }
 
+    const deletedNeedOrderIds = new Set(deletedNeedIdsResult.orderIds)
+    const needCards = buildPurchaseNeedCards({
+      orders: ordersResult.orders,
+      bomEdges,
+      materials: materialsResult.materials,
+      onHandByMaterialId,
+    }).filter((card) => !deletedNeedOrderIds.has(card.orderId))
+
     return {
       ok: true,
-      needCards: buildPurchaseNeedCards({
-        orders: ordersResult.orders,
-        bomEdges,
-        materials: materialsResult.materials,
-        onHandByMaterialId,
-      }),
+      needCards,
     }
   } catch (error) {
     return {
@@ -336,6 +376,56 @@ export async function deleteMaterialPurchaseOrder(
     const { error } = await supabase.from('material_purchase_orders').delete().eq('id', orderId)
 
     if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export type DeleteMaterialPurchaseNeedCardResult =
+  | { ok: true }
+  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+
+/** 자재 발주 화면의 주문서 카드만 삭제 (고객 주문은 유지) */
+export async function deleteMaterialPurchaseNeedCard(
+  orderId: string,
+): Promise<DeleteMaterialPurchaseNeedCardResult> {
+  const key = orderId.trim()
+  if (!key) {
+    return { ok: false, reason: 'validation', detail: '주문번호를 찾을 수 없습니다.' }
+  }
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { error } = await supabase.from('material_purchase_need_deleted_orders').upsert(
+      { order_id: key },
+      { onConflict: 'order_id' },
+    )
+
+    if (error) {
+      if (isMissingNeedDeletedOrdersTable(error.message)) {
+        return {
+          ok: false,
+          reason: 'query',
+          detail:
+            '주문서 카드 삭제용 테이블이 없습니다. supabase/migrate-material-purchase-need-deleted-orders.sql 을 실행해 주세요.',
+        }
+      }
       return { ok: false, reason: 'query', detail: error.message }
     }
 

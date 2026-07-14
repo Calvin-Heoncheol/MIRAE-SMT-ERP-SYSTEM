@@ -8,9 +8,10 @@ import { MaterialPurchaseOrderFetchError } from '@/components/materials/purchase
 import { MaterialPurchaseOrderListTable } from '@/components/materials/purchase-orders/material-purchase-order-list-table'
 import { MaterialPurchaseOrderModal } from '@/components/materials/purchase-orders/material-purchase-order-modal'
 import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
-import type {
-  FetchMaterialPurchaseHistoryResult,
-  FetchMaterialPurchaseRegisterResult,
+import {
+  deleteMaterialPurchaseNeedCard,
+  type FetchMaterialPurchaseHistoryResult,
+  type FetchMaterialPurchaseRegisterResult,
 } from '@/lib/materials/purchase-orders/repository'
 import type {
   MaterialPurchaseNeedCard,
@@ -101,6 +102,8 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
   const [detailModal, setDetailModal] = useState<DetailModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
   const [search, setSearch] = useState('')
+  const [deletingNeedCard, setDeletingNeedCard] = useState(false)
+  const [deleteNeedError, setDeleteNeedError] = useState<string | null>(null)
 
   const needCards = props.view === 'register' && props.result.ok ? props.result.needCards : []
   const purchaseOrders = props.view === 'history' && props.result.ok ? props.result.orders : []
@@ -133,11 +136,14 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
   }
 
   function openDetail(card: MaterialPurchaseNeedCard) {
+    setDeleteNeedError(null)
     setDetailModal({ open: true, card })
   }
 
   function closeDetail() {
+    if (deletingNeedCard) return
     setDetailModal({ open: false })
+    setDeleteNeedError(null)
   }
 
   function handleCreateShortageOrder(card: MaterialPurchaseNeedCard) {
@@ -148,6 +154,23 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
       items,
       supplier: pickSupplierFromCard(card),
     })
+  }
+
+  async function handleDeleteNeedCard(card: MaterialPurchaseNeedCard) {
+    setDeletingNeedCard(true)
+    setDeleteNeedError(null)
+
+    const result = await deleteMaterialPurchaseNeedCard(card.orderId)
+    setDeletingNeedCard(false)
+
+    if (!result.ok) {
+      setDeleteNeedError(result.detail)
+      return
+    }
+
+    setDetailModal({ open: false })
+    setDeleteNeedError(null)
+    router.refresh()
   }
 
   function handleSaved() {
@@ -200,6 +223,9 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
             card={detailModal.card}
             onClose={closeDetail}
             onCreateShortageOrder={handleCreateShortageOrder}
+            onDelete={handleDeleteNeedCard}
+            deleting={deletingNeedCard}
+            deleteError={deleteNeedError}
           />
         ) : null}
 

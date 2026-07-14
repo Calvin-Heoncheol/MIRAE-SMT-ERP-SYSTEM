@@ -166,6 +166,33 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
   }
 }
 
+export type CreateItemsResult =
+  | { ok: true; ids: string[] }
+  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string; savedCount: number }
+
+/** 일괄 등록 — 행 단위로 순차 저장 (중간 실패 시 이미 저장된 건수 포함) */
+export async function createItems(payloads: ItemPayload[]): Promise<CreateItemsResult> {
+  if (!payloads.length) {
+    return { ok: false, reason: 'validation', detail: '등록할 품목이 없습니다.', savedCount: 0 }
+  }
+
+  const ids: string[] = []
+  for (let index = 0; index < payloads.length; index += 1) {
+    const result = await createItem(payloads[index])
+    if (!result.ok) {
+      return {
+        ok: false,
+        reason: result.reason,
+        detail: `${index + 1}행: ${result.detail}`,
+        savedCount: ids.length,
+      }
+    }
+    ids.push(result.id)
+  }
+
+  return { ok: true, ids }
+}
+
 export async function updateItem(id: string, payload: UpdateItemPayload): Promise<SaveItemResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()

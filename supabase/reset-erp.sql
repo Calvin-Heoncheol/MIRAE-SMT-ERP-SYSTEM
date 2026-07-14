@@ -12,6 +12,7 @@ drop table if exists public.material_inbound_lines cascade;
 drop table if exists public.material_inbound_records cascade;
 drop table if exists public.material_outbound_lines cascade;
 drop table if exists public.material_outbound_records cascade;
+drop table if exists public.material_purchase_need_deleted_orders cascade;
 drop table if exists public.material_purchase_order_lines cascade;
 drop table if exists public.material_purchase_orders cascade;
 drop table if exists public.smt_production_records cascade;

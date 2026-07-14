@@ -8,6 +8,9 @@ type MaterialPurchaseNeedDetailModalProps = {
   card: MaterialPurchaseNeedCard
   onClose: () => void
   onCreateShortageOrder?: (card: MaterialPurchaseNeedCard) => void
+  onDelete?: (card: MaterialPurchaseNeedCard) => void | Promise<void>
+  deleting?: boolean
+  deleteError?: string | null
 }
 
 export function MaterialPurchaseNeedDetailModal({
@@ -15,13 +18,16 @@ export function MaterialPurchaseNeedDetailModal({
   card,
   onClose,
   onCreateShortageOrder,
+  onDelete,
+  deleting = false,
+  deleteError = null,
 }: MaterialPurchaseNeedDetailModalProps) {
   const [filter, setFilter] = useState<'all' | '부족' | '충분'>('all')
 
   useEffect(() => {
     if (!open) return
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape' && !deleting) onClose()
     }
     document.addEventListener('keydown', handleKeyDown)
     document.body.style.overflow = 'hidden'
@@ -29,12 +35,24 @@ export function MaterialPurchaseNeedDetailModal({
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = ''
     }
-  }, [open, onClose])
+  }, [open, onClose, deleting])
 
   const filteredLines = useMemo(() => {
     if (filter === 'all') return card.lines
     return card.lines.filter((line) => line.status === filter)
   }, [card.lines, filter])
+
+  function handleDelete() {
+    if (!onDelete || deleting) return
+    if (
+      !window.confirm(
+        `${card.orderNumber} 주문서 카드를 삭제할까요?\n\n자재 발주 화면에서만 삭제되며, 고객 주문·재고·기존 발주 데이터는 그대로 유지됩니다.`,
+      )
+    ) {
+      return
+    }
+    void onDelete(card)
+  }
 
   if (!open) return null
 
@@ -57,15 +75,34 @@ export function MaterialPurchaseNeedDetailModal({
               {card.productQuantity.toLocaleString('ko-KR')}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-2 py-1 text-2xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            aria-label="닫기"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-2">
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deleting ? '삭제 중…' : '삭제'}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={deleting}
+              className="rounded-lg px-2 py-1 text-2xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+              aria-label="닫기"
+            >
+              ×
+            </button>
+          </div>
         </div>
+
+        {deleteError ? (
+          <div className="border-b border-red-100 bg-red-50 px-5 py-2.5 text-sm text-red-700">
+            {deleteError}
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-3">
           {(

@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { ItemBulkModal } from '@/components/items/item-bulk-modal'
 import { ItemFetchError } from '@/components/items/item-fetch-error'
 import { ItemListTable } from '@/components/items/item-list-table'
 import { ItemModal } from '@/components/items/item-modal'
+import { ItemNewMenu } from '@/components/items/item-new-menu'
 import type { FetchItemsResult } from '@/lib/items/repository'
 import { filterItemsForSearch } from '@/lib/items/utils'
 import {
@@ -32,6 +34,7 @@ type ModalState =
   | { open: false }
   | { open: true; mode: 'create'; initialCategory: ItemCategory | null }
   | { open: true; mode: 'edit'; item: Item }
+  | { open: true; mode: 'bulk'; initialCategory: ItemCategory | null }
 
 export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
   const router = useRouter()
@@ -43,6 +46,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
   const items = result.ok ? result.items : []
   const query = search.trim()
   const hasActiveFilter = Boolean(query) || categoryFilter !== 'all'
+  const filterCategory = categoryFilter === 'all' ? null : categoryFilter
 
   const filtered = useMemo(() => {
     const searched = filterItemsForSearch(items, query)
@@ -55,7 +59,16 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     setModal({
       open: true,
       mode: 'create',
-      initialCategory: categoryFilter === 'all' ? null : categoryFilter,
+      initialCategory: filterCategory,
+    })
+  }
+
+  function openBulk() {
+    setModalSession((value) => value + 1)
+    setModal({
+      open: true,
+      mode: 'bulk',
+      initialCategory: filterCategory,
     })
   }
 
@@ -126,13 +139,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
             })}
           </div>
           <div className="ml-auto shrink-0">
-            <button
-              type="button"
-              onClick={openCreate}
-              className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
-            >
-              품목 등록
-            </button>
+            <ItemNewMenu onOpenCreate={openCreate} onOpenBulk={openBulk} />
           </div>
         </div>
 
@@ -144,7 +151,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
         />
       </div>
 
-      {modal.open ? (
+      {modal.open && modal.mode !== 'bulk' ? (
         <ItemModal
           key={`${modal.mode}-${modal.mode === 'edit' ? modal.item.id : 'create'}-${modalSession}`}
           open
@@ -155,6 +162,16 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
           onClose={closeModal}
           onSaved={handleSaved}
           onDeleted={handleDeleted}
+        />
+      ) : null}
+
+      {modal.open && modal.mode === 'bulk' ? (
+        <ItemBulkModal
+          key={`bulk-${modalSession}`}
+          open
+          initialCategory={modal.initialCategory}
+          onClose={closeModal}
+          onSaved={handleSaved}
         />
       ) : null}
     </>
