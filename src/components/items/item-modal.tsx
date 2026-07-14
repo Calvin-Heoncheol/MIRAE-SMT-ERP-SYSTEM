@@ -18,6 +18,8 @@ import {
   ITEM_MATERIAL_TYPE_OPTIONS,
   ITEM_PCB_SIDE_MODES,
   ITEM_PCB_SIDE_MODE_LABELS,
+  ITEM_PROCESS_TYPES,
+  ITEM_PROCESS_TYPE_LABELS,
   ITEM_SUPPLY_TYPE_LABELS,
   ITEM_SUPPLY_TYPE_OPTIONS,
   isManualItemCodeCategory,
@@ -29,6 +31,7 @@ import {
   type ItemCategory,
   type ItemMaterialType,
   type ItemPcbSideMode,
+  type ItemProcessType,
   type ItemSupplyType,
 } from '@/lib/items/types'
 import { nextItemCodeForCategory } from '@/lib/items/utils'
@@ -75,8 +78,10 @@ function createFormWithCategory(
   }
   if (category === 3) {
     form.pcbSideMode = 'single'
+    form.processType = 'smt'
   } else {
     form.pcbSideMode = ''
+    form.processType = ''
   }
   if (isFinishedItemCategory(category)) {
     form.unitPrice = ''
@@ -176,8 +181,10 @@ function ItemModalContent({
       }
       if (value === 3) {
         if (!next.pcbSideMode) next.pcbSideMode = 'single'
+        if (!next.processType) next.processType = 'smt'
       } else {
         next.pcbSideMode = ''
+        next.processType = ''
       }
       if (value && isFinishedItemCategory(value)) {
         next.unitPrice = ''
@@ -195,6 +202,7 @@ function ItemModalContent({
     form.itemCategory !== '' && isRawMaterialItemCategory(form.itemCategory)
   const showPcbSideModeField =
     form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
+  const showProcessTypeField = showPcbSideModeField
   const showUnitPriceField =
     form.itemCategory !== '' && !isFinishedItemCategory(form.itemCategory)
 
@@ -395,6 +403,27 @@ function ItemModalContent({
                   {ITEM_PCB_SIDE_MODES.map((mode) => (
                     <option key={mode} value={mode}>
                       {ITEM_PCB_SIDE_MODE_LABELS[mode]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {showProcessTypeField ? (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-600">
+                  공정 <span className="text-red-500">*</span>
+                </span>
+                <select
+                  value={form.processType}
+                  onChange={(event) =>
+                    updateForm('processType', event.target.value as ItemProcessType)
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                >
+                  <option value="">선택</option>
+                  {ITEM_PROCESS_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {ITEM_PROCESS_TYPE_LABELS[type]}
                     </option>
                   ))}
                 </select>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { LegacyQuoteModal } from '@/components/quotes/legacy-quote-modal'
 import { QuoteListTable } from '@/components/quotes/quote-list-table'
 import { QuoteModal } from '@/components/quotes/quote-modal'
 import { QuoteNewMenu } from '@/components/quotes/quote-toolbar'
@@ -57,6 +58,8 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
     return <QuoteFetchError result={result} />
   }
 
+  const isLegacyModal = modal.open && modal.quoteType === 'legacy'
+
   return (
     <>
       <div className="flex w-full flex-col gap-4">
@@ -92,7 +95,23 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
         />
       </div>
 
-      {modal.open ? (
+      {modal.open && isLegacyModal ? (
+        <LegacyQuoteModal
+          key={
+            modal.mode === 'edit'
+              ? `legacy-edit-${modal.quote.quoteNumber}-${modalSession}`
+              : `legacy-create-${modalSession}`
+          }
+          open
+          mode={modal.mode}
+          quote={modal.mode === 'edit' ? modal.quote : null}
+          onClose={closeModal}
+          onSaved={handleSaved}
+          onDeleted={handleDeleted}
+        />
+      ) : null}
+
+      {modal.open && !isLegacyModal ? (
         <QuoteModal
           key={
             modal.mode === 'edit'

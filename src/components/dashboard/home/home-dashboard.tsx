@@ -1,6 +1,4 @@
 import { HomeKpiCard } from '@/components/dashboard/home/home-kpi-card'
-import { APP_SHORT_NAME } from '@/lib/app-config'
-import { todayYmdSeoul } from '@/lib/orders/utils'
 
 const HOME_KPIS = [
   { value: '–', label: '납기 임박·지연', hint: '3일 이내', tone: 'warn' as const },
@@ -21,16 +19,6 @@ const POST_TEAMS = [
   { name: '검사', statusLabel: '대기', active: '현재 작업 없음', todayQty: 0, accent: 'from-violet-500 to-purple-600' },
 ]
 
-function formatTodayLabel(ymd: string) {
-  const [y, m, d] = ymd.split('-')
-  if (!y || !m || !d) return ymd
-  const weekday = new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    weekday: 'long',
-  }).format(new Date(Number(y), Number(m) - 1, Number(d)))
-  return `${y}년 ${Number(m)}월 ${Number(d)}일 ${weekday}`
-}
-
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h2 className="flex items-center gap-2 text-[13px] font-bold text-slate-800">
@@ -49,27 +37,8 @@ function Panel({ children, className = '' }: { children: React.ReactNode; classN
 }
 
 export function HomeDashboard() {
-  const today = todayYmdSeoul()
-
   return (
     <div className="flex w-full flex-col gap-5 pb-6">
-      <header className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-6 py-5 shadow-sm">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-50/70 via-white to-slate-50" />
-        <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-blue-400/10 blur-3xl" />
-        <div className="relative flex flex-wrap items-center justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-[26px]">
-              {APP_SHORT_NAME}
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">{formatTodayLabel(today)}</p>
-          </div>
-          <div className="flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50 px-3.5 py-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]" />
-            <span className="text-xs font-bold text-emerald-800">시스템 정상</span>
-          </div>
-        </div>
-      </header>
-
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         {HOME_KPIS.map((kpi) => (
           <HomeKpiCard key={kpi.label} {...kpi} />

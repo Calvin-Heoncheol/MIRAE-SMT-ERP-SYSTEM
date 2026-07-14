@@ -1,4 +1,12 @@
-import type { Item, ItemCategory, ItemMaterialType, ItemPayload, ItemPcbSideMode, ItemSupplyType } from './types'
+import type {
+  Item,
+  ItemCategory,
+  ItemMaterialType,
+  ItemPayload,
+  ItemPcbSideMode,
+  ItemProcessType,
+  ItemSupplyType,
+} from './types'
 import { ITEM_CATEGORY_CODE_PREFIX } from './types'
 
 const LEGACY_CATEGORY_MAP: Record<string, ItemCategory> = {
@@ -41,6 +49,23 @@ function normalizeItemPcbSideMode(value: string | null | undefined): ItemPcbSide
   return ''
 }
 
+function normalizeItemProcessType(value: string | null | undefined): ItemProcessType {
+  const raw = String(value || '').trim().toLowerCase().replace(/\s+/g, '')
+  if (raw === 'smt' || raw === 'smd') return 'smt'
+  if (raw === 'post' || raw === '후공정') return 'post'
+  if (
+    raw === 'smt_post' ||
+    raw === 'smd_post' ||
+    raw === 'smt+post' ||
+    raw === 'smd+post' ||
+    raw === 'smd+후공정' ||
+    raw === 'smt+후공정'
+  ) {
+    return 'smt_post'
+  }
+  return ''
+}
+
 export function mapItemRecord(row: {
   id: string
   name: string
@@ -50,6 +75,7 @@ export function mapItemRecord(row: {
   supply_type?: string | null
   supplier?: string | null
   pcb_side_mode?: string | null
+  process_type?: string | null
   unit_price?: number | null
   item_category: number | string
   is_active: boolean
@@ -67,6 +93,7 @@ export function mapItemRecord(row: {
     supplyType: normalizeItemSupplyType(row.supply_type),
     supplier: (row.supplier || '').trim(),
     pcbSideMode: normalizeItemPcbSideMode(row.pcb_side_mode),
+    processType: normalizeItemProcessType(row.process_type),
     unitPrice: Number(row.unit_price) || 0,
     itemCategory,
     isActive: row.is_active !== false,
@@ -85,6 +112,7 @@ export function toItemInsertRow(payload: ItemPayload) {
     supply_type: payload.supplyType,
     supplier: payload.supplier.trim(),
     pcb_side_mode: payload.pcbSideMode,
+    process_type: payload.processType,
     unit_price: payload.unitPrice,
     item_category: payload.itemCategory,
   }
@@ -99,6 +127,7 @@ export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
     supply_type: payload.supplyType,
     supplier: payload.supplier.trim(),
     pcb_side_mode: payload.pcbSideMode,
+    process_type: payload.processType,
     unit_price: payload.unitPrice,
     item_category: payload.itemCategory,
   }
@@ -122,6 +151,7 @@ export function itemSearchHaystack(item: Item) {
     item.supplyType,
     item.supplier,
     item.pcbSideMode,
+    item.processType,
   ]
     .join(' ')
     .toLowerCase()

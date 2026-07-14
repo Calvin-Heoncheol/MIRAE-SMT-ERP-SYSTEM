@@ -1,9 +1,11 @@
 import {
   APP_SHORT_NAME,
-  COMPANY_ADDRESS,
+  COMPANY_ADDRESS_DOMESTIC,
+  COMPANY_ADDRESS_EXPORT,
   COMPANY_NAME_EN,
   COMPANY_QUOTE_CONTACT_EXPORT,
-  COMPANY_QUOTE_EMAIL,
+  COMPANY_QUOTE_EMAIL_DOMESTIC,
+  COMPANY_QUOTE_EMAIL_EXPORT,
 } from '@/lib/app-config'
 import { formatQuoteMoneyByDisplay, formatQuotePreviewSummary, formatQuoteValidityText } from '@/lib/quotes/format'
 import { getPreviewLabels } from '@/lib/quotes/preview-i18n'
@@ -238,11 +240,15 @@ export function QuoteBreakdownPreview({
             </div>
             <div className="grid grid-cols-[72px_1fr] gap-2">
               <dt className="text-slate-500">{isDomestic ? '주소' : 'Address'}</dt>
-              <dd className="font-semibold leading-snug text-slate-900">{COMPANY_ADDRESS}</dd>
+              <dd className="font-semibold leading-snug text-slate-900">
+                {isDomestic ? COMPANY_ADDRESS_DOMESTIC : COMPANY_ADDRESS_EXPORT}
+              </dd>
             </div>
             <div className="grid grid-cols-[72px_1fr] gap-2">
               <dt className="text-slate-500">E-mail</dt>
-              <dd className="font-semibold text-blue-700">{COMPANY_QUOTE_EMAIL}</dd>
+              <dd className="font-semibold text-blue-700">
+                {isDomestic ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT}
+              </dd>
             </div>
             <div className="grid grid-cols-[72px_1fr] gap-2">
               <dt className="text-slate-500">{previewLabels.contact}</dt>

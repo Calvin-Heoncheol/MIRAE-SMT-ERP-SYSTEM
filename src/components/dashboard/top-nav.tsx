@@ -102,20 +102,25 @@ export function TopNav() {
 
   return (
     <header className="sticky top-0 z-50 overflow-visible border-b border-slate-200/90 bg-white/95 shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-[60px] max-w-[1760px] items-center gap-3 overflow-visible px-5 lg:gap-5 lg:px-8">
+      <div className="flex h-[60px] w-full items-center gap-3 overflow-visible pl-4 pr-4 sm:pl-5 lg:gap-5 lg:pr-6">
         <Link
           href="/"
-          className="relative h-9 w-[5.25rem] shrink-0 sm:h-10 sm:w-24"
+          className="flex shrink-0 items-center gap-2"
           aria-label={`${APP_SHORT_NAME} 홈`}
         >
-          <Image
-            src="/branding/logo.png"
-            alt={`${APP_SHORT_NAME} 로고`}
-            fill
-            priority
-            sizes="96px"
-            className="object-contain object-left"
-          />
+          <span className="relative h-9 w-[4.75rem] sm:h-10 sm:w-[5.5rem]">
+            <Image
+              src="/branding/logo.png"
+              alt=""
+              fill
+              priority
+              sizes="88px"
+              className="object-contain object-left"
+            />
+          </span>
+          <span className="text-[15px] font-bold tracking-tight text-slate-900 sm:text-base">
+            {APP_SHORT_NAME}
+          </span>
         </Link>
 
         <nav

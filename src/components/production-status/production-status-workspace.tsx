@@ -59,7 +59,7 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
       <ProductionStatusTable lines={filteredLines} />
 
       <p className="text-xs text-slate-400">
-        SMT는 주문서 내 반제품 라인 합계 기준입니다. 후공정·출하는 해당 주문서의 완제품 조립 합계 기준입니다.
+        SMT는 주문서 내 반제품 라인 합계 기준입니다. 후공정은 해당 주문서의 완제품 조립 합계 기준입니다.
       </p>
     </div>
   )

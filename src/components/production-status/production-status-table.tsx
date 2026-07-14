@@ -5,9 +5,8 @@ type ProductionStatusTableProps = {
   lines: ProductionStatusLine[]
 }
 
-function MiniProgress({ percent, tone }: { percent: number; tone: 'sky' | 'emerald' | 'violet' }) {
-  const barClass =
-    tone === 'sky' ? 'bg-sky-500' : tone === 'emerald' ? 'bg-emerald-500' : 'bg-violet-500'
+function MiniProgress({ percent, tone }: { percent: number; tone: 'sky' | 'emerald' }) {
+  const barClass = tone === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'
 
   return (
     <div className="min-w-[88px]">
@@ -34,7 +33,7 @@ export function ProductionStatusTable({ lines }: ProductionStatusTableProps) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-[960px] w-full border-collapse">
+        <table className="min-w-[800px] w-full border-collapse">
           <thead className="bg-slate-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -54,9 +53,6 @@ export function ProductionStatusTable({ lines }: ProductionStatusTableProps) {
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                 후공정
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                출하
               </th>
             </tr>
           </thead>
@@ -82,14 +78,6 @@ export function ProductionStatusTable({ lines }: ProductionStatusTableProps) {
                   <p className="mt-1 text-[11px] tabular-nums text-slate-400">
                     {line.postTarget > 0
                       ? `${line.postProduced.toLocaleString('ko-KR')} / ${line.postTarget.toLocaleString('ko-KR')}`
-                      : '—'}
-                  </p>
-                </td>
-                <td className="px-4 py-3">
-                  <MiniProgress percent={line.shipPercent} tone="violet" />
-                  <p className="mt-1 text-[11px] tabular-nums text-slate-400">
-                    {line.shipTarget > 0
-                      ? `${line.shipProduced.toLocaleString('ko-KR')} / ${line.shipTarget.toLocaleString('ko-KR')}`
                       : '—'}
                   </p>
                 </td>

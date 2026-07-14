@@ -1,4 +1,4 @@
-import type { Product, ProductKind, ProductPcbSideMode } from './types'
+import type { Product, ProductKind, ProductPcbSideMode, ProductProcessType } from './types'
 
 export function normalizeProductKind(value: string | null | undefined): ProductKind {
   return String(value || '').trim().toLowerCase() === 'assembly' ? 'assembly' : 'pcb'
@@ -7,6 +7,23 @@ export function normalizeProductKind(value: string | null | undefined): ProductK
 export function normalizeProductPcbSideMode(value: string | null | undefined): ProductPcbSideMode {
   const mode = String(value || '').trim().toLowerCase()
   return mode === 'dual' ? 'dual' : 'single'
+}
+
+export function normalizeProductProcessType(value: string | null | undefined): ProductProcessType {
+  const raw = String(value || '').trim().toLowerCase().replace(/\s+/g, '')
+  if (raw === 'smt' || raw === 'smd') return 'smt'
+  if (raw === 'post' || raw === '후공정') return 'post'
+  if (
+    raw === 'smt_post' ||
+    raw === 'smd_post' ||
+    raw === 'smt+post' ||
+    raw === 'smd+post' ||
+    raw === 'smd+후공정' ||
+    raw === 'smt+후공정'
+  ) {
+    return 'smt_post'
+  }
+  return ''
 }
 
 export function formatProductPcbSideModeLabel(mode: ProductPcbSideMode) {
@@ -19,6 +36,7 @@ export function mapProductRecord(row: {
   product_name: string
   default_unit_price: number | null
   pcb_side_mode?: string | null
+  process_type?: string | null
   product_kind?: string | null
   is_active: boolean | null
 }): Product {
@@ -29,6 +47,7 @@ export function mapProductRecord(row: {
     productName: row.product_name || '',
     defaultUnitPrice: Number(row.default_unit_price) || 0,
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
+    processType: normalizeProductProcessType(row.process_type),
     productKind: normalizeProductKind(row.product_kind),
     isActive: row.is_active !== false,
   }
@@ -40,6 +59,7 @@ export function mapItemRowToProduct(row: {
   specification?: string | null
   mpn?: string | null
   pcb_side_mode?: string | null
+  process_type?: string | null
   unit_price?: number | null
   item_category: number | string
   is_active: boolean | null
@@ -52,6 +72,7 @@ export function mapItemRowToProduct(row: {
     productName: row.name || '',
     defaultUnitPrice: Number(row.unit_price) || 0,
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
+    processType: itemCategory === 3 ? normalizeProductProcessType(row.process_type) : '',
     productKind: itemCategory === 4 ? 'assembly' : 'pcb',
     isActive: row.is_active !== false,
   }

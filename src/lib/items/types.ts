@@ -72,6 +72,19 @@ export const ITEM_PCB_SIDE_MODE_LABELS: Record<ItemPcbSideModeValue, string> = {
   dual: '양면',
 }
 
+/** 반제품 공정 — smt=SMD, post=후공정, smt_post=SMD+후공정 */
+export type ItemProcessType = '' | 'smt' | 'post' | 'smt_post'
+
+export const ITEM_PROCESS_TYPES = ['smt', 'post', 'smt_post'] as const
+
+export type ItemProcessTypeValue = (typeof ITEM_PROCESS_TYPES)[number]
+
+export const ITEM_PROCESS_TYPE_LABELS: Record<ItemProcessTypeValue, string> = {
+  smt: 'SMD',
+  post: '후공정',
+  smt_post: 'SMD+후공정',
+}
+
 /** 원자재(1)만 직접 입력, 나머지는 접두사+일련번호 자동 생성 */
 export function isManualItemCodeCategory(category: ItemCategory) {
   return category === 1
@@ -93,6 +106,7 @@ export type Item = {
   supplyType: ItemSupplyType
   supplier: string
   pcbSideMode: ItemPcbSideMode
+  processType: ItemProcessType
   unitPrice: number
   itemCategory: ItemCategory
   isActive: boolean
@@ -109,6 +123,7 @@ export type ItemPayload = {
   supplyType: ItemSupplyType
   supplier: string
   pcbSideMode: ItemPcbSideMode
+  processType: ItemProcessType
   unitPrice: number
   itemCategory: ItemCategory
 }
@@ -124,6 +139,7 @@ export const ITEM_COLUMN_LABELS = {
   supplyType: '도급/사급',
   supplier: '공급사',
   pcbSideMode: '단면/양면',
+  processType: '공정',
   unitPrice: '단가',
   itemCategory: '품목구분',
 } as const

@@ -3,6 +3,7 @@ import {
   type ItemCategory,
   type ItemMaterialType,
   type ItemPcbSideMode,
+  type ItemProcessType,
   type ItemSupplyType,
 } from './types'
 
@@ -32,6 +33,7 @@ const BULK_COLUMNS: Record<ItemCategory, ItemBulkColumn[]> = {
   3: [
     { key: 'name', label: '품목명', required: true },
     { key: 'pcbSideMode', label: '단면/양면', required: true },
+    { key: 'processType', label: '공정', required: true },
     { key: 'unitPrice', label: '단가' },
   ],
   4: [{ key: 'name', label: '품목명', required: true }],
@@ -45,7 +47,7 @@ export function itemBulkPasteSampleValues(category: ItemCategory): string[] {
   const sampleByCategory: Record<ItemCategory, string[]> = {
     1: ['MR-001', '저항 10K', '0603', 'RC0603', 'SMD', '도급', '서창전자', '12'],
     2: ['나사 M3', 'SUS', '서창전자', '50'],
-    3: ['메인보드', '단면', '1500'],
+    3: ['메인보드', '단면', 'SMD', '1500'],
     4: ['완제품 A'],
   }
   return sampleByCategory[category]
@@ -63,6 +65,7 @@ export function defaultItemBulkRow(category: ItemCategory): ItemFormState {
   form.itemCategory = category
   if (category === 3) {
     form.pcbSideMode = 'single'
+    form.processType = 'smt'
   }
   return form
 }
@@ -99,6 +102,23 @@ function normalizePastePcbSideMode(value: string): ItemPcbSideMode {
   return ''
 }
 
+function normalizePasteProcessType(value: string): ItemProcessType {
+  const trimmed = value.trim().toLowerCase().replace(/\s+/g, '')
+  if (trimmed === 'smt' || trimmed === 'smd') return 'smt'
+  if (trimmed === 'post' || trimmed === '후공정') return 'post'
+  if (
+    trimmed === 'smt_post' ||
+    trimmed === 'smd_post' ||
+    trimmed === 'smt+post' ||
+    trimmed === 'smd+후공정' ||
+    trimmed === 'smt+후공정' ||
+    trimmed === 'smd+post'
+  ) {
+    return 'smt_post'
+  }
+  return ''
+}
+
 function normalizePasteUnitPrice(value: string) {
   return value.trim().replace(/[^\d.]/g, '')
 }
@@ -116,6 +136,8 @@ function applyPasteValue(
       return { ...form, supplyType: normalizePasteSupplyType(value) }
     case 'pcbSideMode':
       return { ...form, pcbSideMode: normalizePastePcbSideMode(value) }
+    case 'processType':
+      return { ...form, processType: normalizePasteProcessType(value) }
     case 'unitPrice':
       return { ...form, unitPrice: normalizePasteUnitPrice(value) }
     case 'itemCategory':

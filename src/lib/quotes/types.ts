@@ -1,4 +1,4 @@
-export type QuoteType = 'export' | 'domestic'
+export type QuoteType = 'export' | 'domestic' | 'legacy'
 
 /** 해외용 견적서 미리보기·입력 화면 표시 통화 */
 export type QuoteDisplayCurrency = 'usd' | 'krw'
@@ -39,10 +39,22 @@ export type QuoteDetailAmounts = {
   subMaterialCost: number
 }
 
+export type LegacyBoardSide = 'single' | 'double'
+
+export type LegacyBoardInput = {
+  name: string
+  smtSide: LegacyBoardSide
+}
+
 export type QuoteDetailInfo = {
   amounts?: QuoteDetailAmounts
   inputs?: {
-    smt?: { pcbBoards?: SmtPcbBoard[] }
+    smt?: {
+      pcbBoards?: SmtPcbBoard[]
+      smtSide?: 'single' | 'double'
+      /** (구) 견적 보드별 단면/양면 */
+      legacyBoards?: LegacyBoardInput[]
+    }
     dip?: { dipBoards?: DipPcbBoard[] }
     postProcess?: {
       postAssembly?: number
@@ -56,6 +68,16 @@ export type QuoteDetailInfo = {
     specialDiscount?: number
     quoteType?: QuoteType
     smtIncludesSetup?: boolean
+    /** (구) 견적 품목 반영으로 연결된 반제품 */
+    linkedSemiItemId?: string
+    /** (구) 견적 품목 반영 — 보드별 반제품 (우선) */
+    linkedSemiItemIds?: string[]
+    /** (구) 견적 품목 반영으로 연결된 완제품 */
+    linkedFinishedItemId?: string
+    /** (구) 견적 공정 카테고리 — smt | post | smt_post */
+    processType?: 'smt' | 'post' | 'smt_post'
+    /** (구) 견적 통합 단가 */
+    unitPrice?: number
   }
 }
 

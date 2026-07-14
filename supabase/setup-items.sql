@@ -15,6 +15,7 @@ create table if not exists public.items (
   supplier text not null default '',
   unit_price numeric not null default 0 check (unit_price >= 0),
   pcb_side_mode text not null default '' check (pcb_side_mode in ('', 'single', 'dual')),
+  process_type text not null default '' check (process_type in ('', 'smt', 'post', 'smt_post')),
   item_category smallint not null check (item_category in (1, 2, 3, 4)),
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -38,6 +39,8 @@ alter table public.items
 alter table public.items
   add column if not exists pcb_side_mode text not null default '';
 alter table public.items
+  add column if not exists process_type text not null default '';
+alter table public.items
   add column if not exists item_category smallint;
 alter table public.items
   add column if not exists is_active boolean not null default true;
@@ -56,6 +59,7 @@ comment on column public.items.supply_type is '도급/사급 (선택)';
 comment on column public.items.supplier is '공급사 — 원자재·부자재';
 comment on column public.items.unit_price is '단가';
 comment on column public.items.pcb_side_mode is '단면(single)/양면(dual) — 반제품(3)만 사용';
+comment on column public.items.process_type is '공정 — 반제품(3)만: smt=SMD, post=후공정, smt_post=SMD+후공정';
 comment on column public.items.item_category is '1=원자재, 2=부자재, 3=반제품, 4=완제품 (필수)';
 comment on column public.items.is_active is '사용 여부';
 
@@ -63,6 +67,7 @@ create index if not exists items_name_idx on public.items (name);
 create index if not exists items_mpn_idx on public.items (mpn);
 create index if not exists items_material_type_idx on public.items (material_type);
 create index if not exists items_supplier_idx on public.items (supplier);
+create index if not exists items_process_type_idx on public.items (process_type) where process_type <> '';
 create index if not exists items_item_category_idx on public.items (item_category);
 create index if not exists items_is_active_idx on public.items (is_active);
 
@@ -137,6 +142,14 @@ begin
   end if;
   if new.item_category <> 3 then
     new.pcb_side_mode := '';
+  end if;
+
+  new.process_type := lower(coalesce(trim(new.process_type), ''));
+  if new.process_type not in ('', 'smt', 'post', 'smt_post') then
+    new.process_type := '';
+  end if;
+  if new.item_category <> 3 then
+    new.process_type := '';
   end if;
 
   return new;

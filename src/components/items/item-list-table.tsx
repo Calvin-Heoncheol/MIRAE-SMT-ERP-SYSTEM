@@ -4,6 +4,7 @@ import {
   ITEM_CATEGORY_LABELS,
   ITEM_MATERIAL_TYPE_LABELS,
   ITEM_PCB_SIDE_MODE_LABELS,
+  ITEM_PROCESS_TYPE_LABELS,
   ITEM_SUPPLY_TYPE_LABELS,
   isMaterialItemCategory,
   isRawMaterialItemCategory,
@@ -30,7 +31,8 @@ function cell(value: string) {
 function getVisibleColumns(filter: ItemCategoryFilter) {
   const showMaterialFields = filter === 'all' || isMaterialItemCategory(filter as ItemCategory)
   const showRawMaterialFields = filter === 'all' || isRawMaterialItemCategory(filter as ItemCategory)
-  const showPcbSideMode = filter === 'all' || isSemiFinishedItemCategory(filter as ItemCategory)
+  const showSemiFinishedFields =
+    filter === 'all' || isSemiFinishedItemCategory(filter as ItemCategory)
   const showCategory = filter === 'all'
 
   return {
@@ -39,7 +41,8 @@ function getVisibleColumns(filter: ItemCategoryFilter) {
     materialType: showRawMaterialFields,
     supplyType: showRawMaterialFields,
     supplier: showMaterialFields,
-    pcbSideMode: showPcbSideMode,
+    pcbSideMode: showSemiFinishedFields,
+    processType: showSemiFinishedFields,
     itemCategory: showCategory,
   }
 }
@@ -63,10 +66,12 @@ export function ItemListTable({
 
   const minWidth =
     categoryFilter === 'all'
-      ? 'min-w-[1100px]'
+      ? 'min-w-[1180px]'
       : isMaterialItemCategory(categoryFilter)
         ? 'min-w-[900px]'
-        : 'min-w-[640px]'
+        : isSemiFinishedItemCategory(categoryFilter)
+          ? 'min-w-[720px]'
+          : 'min-w-[640px]'
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
@@ -81,6 +86,7 @@ export function ItemListTable({
             {columns.supplyType ? <col className="w-[88px]" /> : null}
             {columns.supplier ? <col className="w-[110px]" /> : null}
             {columns.pcbSideMode ? <col className="w-[88px]" /> : null}
+            {columns.processType ? <col className="w-[110px]" /> : null}
             <col className="w-[96px]" />
             {columns.itemCategory ? <col className="w-[88px]" /> : null}
           </colgroup>
@@ -120,6 +126,11 @@ export function ItemListTable({
               {columns.pcbSideMode ? (
                 <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-700 uppercase">
                   단면/양면
+                </th>
+              ) : null}
+              {columns.processType ? (
+                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-700 uppercase">
+                  공정
                 </th>
               ) : null}
               <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-700 uppercase">
@@ -180,6 +191,16 @@ export function ItemListTable({
                     {isSemiFinishedItemCategory(item.itemCategory) &&
                     (item.pcbSideMode === 'single' || item.pcbSideMode === 'dual')
                       ? ITEM_PCB_SIDE_MODE_LABELS[item.pcbSideMode]
+                      : '-'}
+                  </td>
+                ) : null}
+                {columns.processType ? (
+                  <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm text-slate-700">
+                    {isSemiFinishedItemCategory(item.itemCategory) &&
+                    (item.processType === 'smt' ||
+                      item.processType === 'post' ||
+                      item.processType === 'smt_post')
+                      ? ITEM_PROCESS_TYPE_LABELS[item.processType]
                       : '-'}
                   </td>
                 ) : null}

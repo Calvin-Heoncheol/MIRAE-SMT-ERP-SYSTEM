@@ -11,9 +11,6 @@ export type ProductionStatusLine = {
   postTarget: number
   postProduced: number
   postPercent: number
-  shipTarget: number
-  shipProduced: number
-  shipPercent: number
 }
 
 export type TodayProductionStageKey =

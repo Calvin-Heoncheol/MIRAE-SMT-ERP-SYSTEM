@@ -1,9 +1,11 @@
 import {
   APP_SHORT_NAME,
-  COMPANY_ADDRESS,
+  COMPANY_ADDRESS_DOMESTIC,
+  COMPANY_ADDRESS_EXPORT,
   COMPANY_NAME_EN,
   COMPANY_QUOTE_CONTACT_EXPORT,
-  COMPANY_QUOTE_EMAIL,
+  COMPANY_QUOTE_EMAIL_DOMESTIC,
+  COMPANY_QUOTE_EMAIL_EXPORT,
 } from '@/lib/app-config'
 import { exportPage1SummaryAmounts, formatExportSummaryUsd, formatQuoteMoneyTotal, formatQuoteValidityText } from './format'
 import { getPreviewLabels } from './preview-i18n'
@@ -331,11 +333,11 @@ function buildQuoteSummaryMetaHtml(
         </div>
         <div class="summary-party-row summary-party-row-wide">
           <dt>${addressLabel}</dt>
-          <dd>${escapeHtml(COMPANY_ADDRESS)}</dd>
+          <dd>${escapeHtml(isDomestic ? COMPANY_ADDRESS_DOMESTIC : COMPANY_ADDRESS_EXPORT)}</dd>
         </div>
         <div class="summary-party-row">
           <dt>${emailLabel}</dt>
-          <dd><a class="summary-email" href="mailto:${escapeHtml(COMPANY_QUOTE_EMAIL)}">${escapeHtml(COMPANY_QUOTE_EMAIL)}</a></dd>
+          <dd><a class="summary-email" href="mailto:${escapeHtml(isDomestic ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT)}">${escapeHtml(isDomestic ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT)}</a></dd>
         </div>
         <div class="summary-party-row">
           <dt>${contactLabel}</dt>

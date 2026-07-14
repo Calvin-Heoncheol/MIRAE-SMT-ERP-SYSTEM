@@ -1,9 +1,9 @@
-import type { OrderAssemblyGroup } from '@/lib/assembly/types'
-import type { Product, ProductPcbSideMode } from '@/lib/products/types'
+import type { Product, ProductPcbSideMode, ProductProcessType } from '@/lib/products/types'
 import { normalizeProductPcbSideMode } from '@/lib/products/utils'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import type { SmtPcbSide } from '@/lib/smt/types'
 import type { OrderListGroup } from '@/lib/orders/types'
+import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import type {
   ProductionCounts,
   ProductionInputConfig,
@@ -12,6 +12,54 @@ import type {
 } from './types'
 
 export const PRODUCTION_ORDER_PAGE_SIZE = 5
+
+/** 미설정('')은 기존 데이터 호환 — SMT·후공정 모두 노출 */
+export function processTypeIncludesSmt(processType: ProductProcessType | null | undefined) {
+  const value = processType || ''
+  return value === '' || value === 'smt' || value === 'smt_post'
+}
+
+export function processTypeIncludesPostProcess(processType: ProductProcessType | null | undefined) {
+  const value = processType || ''
+  return value === '' || value === 'post' || value === 'smt_post'
+}
+
+/** 완제품 구성 판정용 — 명시적으로 후공정이 있는 경우만 */
+function processTypeRequiresPostProcess(processType: ProductProcessType | null | undefined) {
+  return processType === 'post' || processType === 'smt_post'
+}
+
+function resolveProductProcessType(
+  productId: string | null | undefined,
+  productById: Record<string, Product>,
+): ProductProcessType {
+  const id = productId?.trim() || ''
+  if (!id) return ''
+  return productById[id]?.processType ?? ''
+}
+
+/**
+ * 후공정 후보 여부.
+ * 완제품(조립 그룹): 구성 반제품 중 공정이 후공정 / SMD+후공정인 것이 하나라도 있을 때만 노출.
+ * (SMD만인 반제품으로만 구성된 완제품은 후공정에 안 보임. 미설정 반제품은 후공정 필요로 보지 않음.)
+ */
+function assemblyGroupIncludesPostProcess(
+  group: OrderAssemblyGroup,
+  productById: Record<string, Product>,
+): boolean {
+  if (group.lines.length > 0) {
+    return group.lines.some((line) =>
+      processTypeRequiresPostProcess(resolveProductProcessType(line.childProductId, productById)),
+    )
+  }
+
+  const parent = productById[group.parentProductId]
+  if (parent?.productKind === 'assembly') {
+    return false
+  }
+
+  return processTypeIncludesPostProcess(resolveProductProcessType(group.parentProductId, productById))
+}
 
 function resolveProductPcbSideMode(
   productId: string | null | undefined,
@@ -57,6 +105,10 @@ export function buildProductionOrderLines(
         product?.productKind === 'assembly' &&
         !isDerivedLine
       ) {
+        return
+      }
+
+      if (productionModule === 'smt' && !processTypeIncludesSmt(product?.processType)) {
         return
       }
 
@@ -110,6 +162,7 @@ export function buildPostProcessAssemblyLines(
   for (const group of assemblyGroups) {
     const order = orderById[group.orderId]
     if (!order) continue
+    if (!assemblyGroupIncludesPostProcess(group, productById)) continue
 
     const productName = group.parentProductName.trim()
     const productCode = group.parentProductCode.trim()

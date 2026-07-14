@@ -3,7 +3,6 @@ import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { buildProductionOrderLines } from '@/lib/production-input/utils'
 import { fetchProducts } from '@/lib/products/repository'
-import { fetchDeliveryCumulativeCounts, fetchDeliveryTodayRecords } from '@/lib/delivery/repository'
 import { fetchPostProcessCumulativeCounts, fetchPostProcessTodayProduction } from '@/lib/post-process/repository'
 import { fetchSmtCumulativeCounts, fetchSmtTodayProduction } from '@/lib/smt/repository'
 import { buildProductionStatusLines, buildTodayProductionStages } from './utils'
@@ -25,8 +24,6 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     todaySmtResult,
     postCountsResult,
     todayPostResult,
-    deliveryCountsResult,
-    todayDeliveryResult,
     smtOrdersResult,
   ] = await Promise.all([
     fetchOrders(),
@@ -35,8 +32,6 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     fetchSmtTodayProduction(),
     fetchPostProcessCumulativeCounts(),
     fetchPostProcessTodayProduction(),
-    fetchDeliveryCumulativeCounts(),
-    fetchDeliveryTodayRecords(),
     fetchOrders({ includeDerivedLines: true }),
   ])
 
@@ -46,8 +41,6 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
   if (!todaySmtResult.ok) return todaySmtResult
   if (!postCountsResult.ok) return postCountsResult
   if (!todayPostResult.ok) return todayPostResult
-  if (!deliveryCountsResult.ok) return deliveryCountsResult
-  if (!todayDeliveryResult.ok) return todayDeliveryResult
   if (!smtOrdersResult.ok) return smtOrdersResult
 
   const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
@@ -70,7 +63,6 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
         assemblyResult.groups,
         smtCountsResult.counts,
         postCountsResult.counts,
-        deliveryCountsResult.counts,
       ),
     },
   }

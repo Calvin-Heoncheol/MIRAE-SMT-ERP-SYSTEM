@@ -86,7 +86,6 @@ export function buildProductionStatusLines(
   assemblyGroups: OrderAssemblyGroup[],
   smtCounts: ProductionCounts,
   postCounts: ProductionCounts,
-  shipCounts: ProductionCounts,
 ): ProductionStatusLine[] {
   const smtLinesByOrderNumber = groupSmtLinesByOrderNumber(smtLines)
   const assembliesByOrderId = groupAssemblyGroupsByOrderId(assemblyGroups)
@@ -105,13 +104,11 @@ export function buildProductionStatusLines(
     const orderAssemblies = assembliesByOrderId.get(order.orderId) ?? []
     let postTarget = 0
     let postProduced = 0
-    let shipProduced = 0
 
     for (const assembly of orderAssemblies) {
       const assemblyTarget = Math.max(0, Math.floor(assembly.targetQuantity))
       postTarget += assemblyTarget
       postProduced += Math.max(0, Math.floor(Number(postCounts[assembly.id]) || 0))
-      shipProduced += Math.max(0, Math.floor(Number(shipCounts[assembly.id]) || 0))
     }
 
     return {
@@ -125,9 +122,6 @@ export function buildProductionStatusLines(
       postTarget,
       postProduced,
       postPercent: getProgressPercent(postProduced, postTarget),
-      shipTarget: postTarget,
-      shipProduced,
-      shipPercent: getProgressPercent(shipProduced, postTarget),
     }
   })
 }
