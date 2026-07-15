@@ -109,11 +109,13 @@ function normalizePastePcbSideMode(value: string): ItemPcbSideMode {
 function normalizePasteProcessType(value: string): ItemProcessType {
   const trimmed = value.trim().toLowerCase().replace(/\s+/g, '')
   if (trimmed === 'smt' || trimmed === 'smd') return 'smt'
-  if (trimmed === 'post' || trimmed === '후공정') return 'post'
+  if (trimmed === 'post' || trimmed === 'dip' || trimmed === '후공정') return 'post'
   if (
     trimmed === 'smt_post' ||
     trimmed === 'smd_post' ||
     trimmed === 'smt+post' ||
+    trimmed === 'smd+dip' ||
+    trimmed === 'smt+dip' ||
     trimmed === 'smd+후공정' ||
     trimmed === 'smt+후공정' ||
     trimmed === 'smd+post'

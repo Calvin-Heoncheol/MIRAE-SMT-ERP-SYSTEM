@@ -2,18 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { DipPcbBoardForm } from '@/components/quotes/dip-pcb-board-form'
+import { PostProcessLinesEditor } from '@/components/quotes/post-process-lines-editor'
 import { QuoteBreakdownPreview } from '@/components/quotes/quote-breakdown-preview'
 import { QuoteCurrencyToggle } from '@/components/quotes/quote-currency-toggle'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import {
-  POST_RATE,
   SMT_PLACEMENT_MIN_SCORE,
+  getPostRate,
   getSmtPlacementMinFee,
 } from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
-import { formatQuoteMoneyByDisplay } from '@/lib/quotes/format'
+import { formatQuoteMoneyByDisplay, formatQuotePreviewSummary } from '@/lib/quotes/format'
 import {
   defaultDipBoardForm,
   defaultSmtBoardForm,
@@ -25,6 +26,12 @@ import {
   type DipBoardForm,
   type SmtBoardForm,
 } from '@/lib/quotes/form-state'
+import {
+  emptyPostProcessLineForm,
+  resolvePostProcessLineForms,
+  sumPostProcessLineMinutes,
+  type PostProcessLineForm,
+} from '@/lib/quotes/post-process-lines'
 import { createQuote, deleteQuotes, updateQuote } from '@/lib/quotes/repository'
 import { exportQuotesToPdf } from '@/lib/quotes/export-quote-pdf'
 import type { EstimateResult, QuoteDisplayCurrency, QuoteListItem, QuoteType } from '@/lib/quotes/types'
@@ -46,11 +53,13 @@ type FormState = {
   productName: string
   boardQty: string
   pcbBoardCount: string
-  postAssembly: string
-  postTest: string
-  postPacking: string
+  assemblyLines: PostProcessLineForm[]
+  testLines: PostProcessLineForm[]
+  packingLines: PostProcessLineForm[]
   materialCost: string
   specialDiscount: string
+  includeSmd: boolean
+  includeDip: boolean
 }
 
 const INITIAL_FORM: FormState = {
@@ -58,11 +67,57 @@ const INITIAL_FORM: FormState = {
   productName: '',
   boardQty: '1000',
   pcbBoardCount: '1',
-  postAssembly: '0',
-  postTest: '0',
-  postPacking: '0',
+  assemblyLines: [emptyPostProcessLineForm()],
+  testLines: [emptyPostProcessLineForm()],
+  packingLines: [emptyPostProcessLineForm()],
   materialCost: '0',
   specialDiscount: '0',
+  includeSmd: false,
+  includeDip: false,
+}
+
+function inferIncludeFlags(quote: QuoteListItem): { includeSmd: boolean; includeDip: boolean } {
+  const settings = quote.detailInfo.settings || {}
+  if (typeof settings.includeSmd === 'boolean' || typeof settings.includeDip === 'boolean') {
+    return {
+      includeSmd: Boolean(settings.includeSmd),
+      includeDip: Boolean(settings.includeDip),
+    }
+  }
+
+  const amounts = quote.detailInfo.amounts
+  const post = quote.detailInfo.inputs?.postProcess || {}
+  const hasSmd =
+    (amounts?.smt || 0) > 0 ||
+    Boolean(quote.detailInfo.inputs?.smt?.pcbBoards?.some((board) => board.chip || board.icPin || board.bga))
+  const hasPostLines =
+    Boolean(post.assemblyLines?.length) ||
+    Boolean(post.testLines?.length) ||
+    Boolean(post.packingLines?.length)
+  const hasDip =
+    (amounts?.dip || 0) > 0 ||
+    (amounts?.assembly || 0) > 0 ||
+    (post.postAssembly || 0) > 0 ||
+    (post.postTest || 0) > 0 ||
+    (post.postPacking || 0) > 0 ||
+    hasPostLines ||
+    Boolean(
+      quote.detailInfo.inputs?.dip?.dipBoards?.some(
+        (board) =>
+          board.dipGeneral ||
+          board.dipConnector ||
+          board.dipWire ||
+          board.waveGeneral ||
+          board.waveConnector ||
+          board.waveWire,
+      ),
+    )
+
+  // 기존 견적(플래그 없음)은 섹션을 열어 두어 편집 가능
+  return {
+    includeSmd: hasSmd || !hasDip,
+    includeDip: hasDip || !hasSmd,
+  }
 }
 
 function clampPcbCount(value: string) {
@@ -80,6 +135,7 @@ function syncDipNamesFromSmt(smtForms: SmtBoardForm[], dipForms: DipBoardForm[])
 function createInitialState(mode: 'create' | 'edit', quote?: QuoteListItem | null) {
   if (mode === 'edit' && quote) {
     const input = toEstimateInputFromDetail(quote)
+    const flags = inferIncludeFlags(quote)
     const pcbBoardCount = String(input.pcbBoardCount || input.pcbBoards?.length || 1)
     const smtForms = input.pcbBoards?.length
       ? input.pcbBoards.map(smtBoardToForm)
@@ -88,6 +144,7 @@ function createInitialState(mode: 'create' | 'edit', quote?: QuoteListItem | nul
       smtForms,
       input.dipBoards?.length ? input.dipBoards.map(dipBoardToForm) : [defaultDipBoardForm(0)],
     )
+    const post = quote.detailInfo.inputs?.postProcess || {}
 
     return {
       form: {
@@ -95,11 +152,13 @@ function createInitialState(mode: 'create' | 'edit', quote?: QuoteListItem | nul
         productName: quote.productName,
         boardQty: String(quote.boardQty || 1000),
         pcbBoardCount,
-        postAssembly: String(input.postAssembly || 0),
-        postTest: String(input.postTest || 0),
-        postPacking: String(input.postPacking || 0),
+        assemblyLines: resolvePostProcessLineForms(post.assemblyLines, post.postAssembly, '조립'),
+        testLines: resolvePostProcessLineForms(post.testLines, post.postTest, '테스트'),
+        packingLines: resolvePostProcessLineForms(post.packingLines, post.postPacking, '포장'),
         materialCost: String(input.materialCost || 0),
         specialDiscount: String(input.specialDiscount || 0),
+        includeSmd: flags.includeSmd,
+        includeDip: flags.includeDip,
       },
       smtForms,
       dipForms,
@@ -129,21 +188,34 @@ function computeEstimate(
   },
 ): EstimateResult {
   const pcbCount = Number(clampPcbCount(form.pcbBoardCount))
-  const pcbBoards = smtForms.map(smtBoardFormToModel)
-  const dipBoards = dipForms.map((dip, index) =>
-    dipBoardFormToModel({
-      ...dip,
-      pcbName: smtForms[index]?.pcbName.trim() || dip.pcbName,
-    }),
-  )
+  const pcbBoards = form.includeSmd
+    ? smtForms.map(smtBoardFormToModel)
+    : Array.from({ length: pcbCount }, (_, index) => smtBoardFormToModel(defaultSmtBoardForm(index)))
+  const dipBoards = form.includeDip
+    ? dipForms.map((dip, index) =>
+        dipBoardFormToModel({
+          ...dip,
+          pcbName: smtForms[index]?.pcbName.trim() || dip.pcbName,
+        }),
+      )
+    : Array.from({ length: pcbCount }, (_, index) =>
+        dipBoardFormToModel({
+          ...defaultDipBoardForm(index),
+          pcbName: smtForms[index]?.pcbName.trim() || `PCB ${index + 1}`,
+        }),
+      )
+
+  const postAssembly = form.includeDip ? sumPostProcessLineMinutes(form.assemblyLines) : 0
+  const postTest = form.includeDip ? sumPostProcessLineMinutes(form.testLines) : 0
+  const postPacking = form.includeDip ? sumPostProcessLineMinutes(form.packingLines) : 0
 
   return calculateEstimate(
     {
       boardQty: form.boardQty,
       materialCost: form.materialCost,
-      postAssembly: form.postAssembly,
-      postTest: form.postTest,
-      postPacking: form.postPacking,
+      postAssembly,
+      postTest,
+      postPacking,
       specialDiscount: form.specialDiscount,
       pcbBoardCount: pcbCount,
       pcbBoards,
@@ -169,21 +241,28 @@ function QuoteModalContent({
   const [smtForms, setSmtForms] = useState(initial.smtForms)
   const [dipForms, setDipForms] = useState(initial.dipForms)
   const [result, setResult] = useState<EstimateResult | null>(() =>
-    mode === 'edit' && quote
-      ? computeEstimate(initial.form, initial.smtForms, initial.dipForms, quoteType, {
-          mode,
-          quote,
-          existingQuoteNumbers,
-        })
-      : null,
+    computeEstimate(initial.form, initial.smtForms, initial.dipForms, quoteType, {
+      mode,
+      quote,
+      existingQuoteNumbers,
+    }),
   )
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [displayCurrency, setDisplayCurrency] = useState<QuoteDisplayCurrency>('usd')
+  const [dipTab, setDipTab] = useState<'solder' | 'post'>('solder')
+  const [openSections, setOpenSections] = useState({
+    smt: true,
+    dip: true,
+    material: true,
+  })
 
   const isDomestic = quoteType === 'domestic'
-  const typeBadge = isDomestic ? '국내용 견적서' : '해외용 견적서'
+  const title =
+    mode === 'edit'
+      ? `${isDomestic ? '국내용' : '해외용'} 견적서 수정`
+      : `${isDomestic ? '국내용' : '해외용'} 견적서 작성`
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -197,9 +276,8 @@ function QuoteModalContent({
     }
   }, [onClose])
 
+  // 생성·수정 공통: 입력 변경 시 미리보기 자동 갱신
   useEffect(() => {
-    if (mode !== 'edit' || !quote) return
-
     const timer = window.setTimeout(() => {
       setResult(
         computeEstimate(form, smtForms, dipForms, quoteType, {
@@ -208,10 +286,10 @@ function QuoteModalContent({
           existingQuoteNumbers,
         }),
       )
-    }, 300)
+    }, 250)
 
     return () => window.clearTimeout(timer)
-  }, [mode, quote?.quoteNumber, form, smtForms, dipForms, quoteType])
+  }, [mode, quote?.quoteNumber, form, smtForms, dipForms, quoteType, existingQuoteNumbers, quote])
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -254,19 +332,8 @@ function QuoteModalContent({
     return { pcbBoards, dipBoards }
   }
 
-  function runCalculate() {
-    const estimate = computeEstimate(form, smtForms, dipForms, quoteType, {
-      mode,
-      quote,
-      existingQuoteNumbers,
-    })
-    setResult(estimate)
-    return estimate
-  }
-
-  function handleCalculate() {
-    setSaveError(null)
-    runCalculate()
+  function toggleSection(key: keyof typeof openSections) {
+    setOpenSections((current) => ({ ...current, [key]: !current[key] }))
   }
 
   async function handleSave() {
@@ -275,11 +342,13 @@ function QuoteModalContent({
       return
     }
 
-    const estimate = result ?? runCalculate()
-    if (!estimate) {
-      setSaveError('견적서를 먼저 생성해 주세요.')
-      return
-    }
+    const estimate =
+      result ??
+      computeEstimate(form, smtForms, dipForms, quoteType, {
+        mode,
+        quote,
+        existingQuoteNumbers,
+      })
 
     const { pcbBoards, dipBoards } = collectBoardModels()
     const payload = buildQuoteRowPayload(form, pcbBoards, dipBoards, estimate, quoteType)
@@ -332,217 +401,351 @@ function QuoteModalContent({
     mode === 'edit' && quote?.quoteDate ? quote.quoteDate : result?.date || ''
   const previewProduct = form.productName.trim() || '-'
   const previewForm = {
-    postAssembly: form.postAssembly,
-    postTest: form.postTest,
-    postPacking: form.postPacking,
+    postAssembly: form.includeDip ? String(sumPostProcessLineMinutes(form.assemblyLines)) : '0',
+    postTest: form.includeDip ? String(sumPostProcessLineMinutes(form.testLines)) : '0',
+    postPacking: form.includeDip ? String(sumPostProcessLineMinutes(form.packingLines)) : '0',
     materialCost: form.materialCost,
+    assemblyLines: form.includeDip ? form.assemblyLines : [],
+    testLines: form.includeDip ? form.testLines : [],
+    packingLines: form.includeDip ? form.packingLines : [],
   }
+  const smtSectionNo = form.includeSmd ? 1 : 0
+  const dipSectionNo = form.includeDip ? (form.includeSmd ? 2 : 1) : 0
+  const materialSectionNo = 1 + Number(form.includeSmd) + Number(form.includeDip)
+  const postMinutesTotal = form.includeDip
+    ? sumPostProcessLineMinutes(form.assemblyLines) +
+      sumPostProcessLineMinutes(form.testLines) +
+      sumPostProcessLineMinutes(form.packingLines)
+    : 0
+
+  const liveSummary = result
+    ? formatQuotePreviewSummary(
+        result.values.grandTotal,
+        result.qty || 1,
+        quoteType,
+        displayCurrency,
+      )
+    : null
 
   function formatAmount(krw: number) {
     return formatQuoteMoneyByDisplay(krw, quoteType, displayCurrency)
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-      <div className="relative flex max-h-[92dvh] w-full max-w-[min(1600px,98vw)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        {mode === 'edit' ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
-            <h2 className="text-lg font-bold text-slate-900">
-              {isDomestic ? '국내용 ' : '해외용 '}견적서 수정
-            </h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                className="inline-flex items-center rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105"
-              >
-                PDF
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {deleting ? '삭제 중...' : '삭제'}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={deleting}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
-                aria-label="닫기"
-              >
-                ×
-              </button>
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 sm:p-4">
+      <div className="relative flex max-h-[94dvh] w-full max-w-[min(1680px,98vw)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              입력값이 바뀌면 오른쪽 미리보기가 자동으로 갱신됩니다
+            </p>
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-lg text-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-            aria-label="닫기"
-          >
-            ×
-          </button>
-        )}
-
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-          <div className="overflow-y-auto border-slate-200 p-4 lg:border-r">
-            <div className="mb-3 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-              {typeBadge}
-            </div>
-
-            <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
-              <h3 className="mb-3 text-sm font-bold text-slate-900">기본 정보</h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-600">고객사</span>
-                  <input
-                    value={form.customer}
-                    onChange={(event) => updateForm('customer', event.target.value)}
-                    placeholder="고객사명을 입력하세요"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                  />
-                </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-600">제품명</span>
-                  <input
-                    value={form.productName}
-                    onChange={(event) => updateForm('productName', event.target.value)}
-                    placeholder="제품명을 입력하세요 (버전 포함 가능)"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                  />
-                </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-600">생산 수량(QTY)</span>
-                  <QuoteNumericInput
-                    min={1}
-                    value={form.boardQty}
-                    onChange={(boardQty) => updateForm('boardQty', boardQty)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                  />
-                </label>
-                <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-600">PCB 보드</span>
-                  <QuoteNumericInput
-                    min={1}
-                    max={20}
-                    value={form.pcbBoardCount}
-                    onChange={(pcbBoardCount) => updateForm('pcbBoardCount', pcbBoardCount)}
-                    onBlur={handlePcbCountBlur}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                  />
-                </label>
-              </div>
-            </section>
-
-            <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
-              <h3 className="mb-1 text-sm font-bold text-slate-900">1. SMT</h3>
-              <p className="mb-3 text-xs text-slate-500">
-                PCB 보드 수만큼 PCB별 실장·SET-UP 입력 · 일반 부품은 <strong>부품 개수</strong>, IC/BGA는{' '}
-                <strong>핀·볼 수</strong> · {SMT_PLACEMENT_MIN_SCORE}점 이하 PCB는 최소 실장비{' '}
-                {formatAmount(getSmtPlacementMinFee(quoteType))}
-              </p>
-              <div className="space-y-3">
-                {smtForms.map((board, index) => (
-                  <SmtPcbBoardForm
-                    key={index}
-                    board={board}
-                    quoteType={quoteType}
-                    displayCurrency={displayCurrency}
-                    onChange={(next) => updateSmtBoard(index, next)}
-                  />
-                ))}
-              </div>
-            </section>
-
-            <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
-              <h3 className="mb-1 text-sm font-bold text-slate-900">2. 납땜 (개수)</h3>
-              <p className="mb-3 text-xs text-slate-500">
-                PCB 보드 수만큼 PCB별 수납땜·WAVE 개수 입력 (PCB 명칭은 SMT와 동기화)
-              </p>
-              <div className="space-y-3">
-                {dipForms.map((board, index) => (
-                  <DipPcbBoardForm
-                    key={index}
-                    board={board}
-                    quoteType={quoteType}
-                    displayCurrency={displayCurrency}
-                    onChange={(next) => updateDipBoard(index, next)}
-                  />
-                ))}
-              </div>
-            </section>
-
-            <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
-              <h3 className="mb-3 text-sm font-bold text-slate-900">3. 후공정 (분)</h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {[
-                  ['postAssembly', '조립', POST_RATE],
-                  ['postTest', '테스트', POST_RATE],
-                  ['postPacking', '포장', POST_RATE],
-                ].map(([key, label, unit]) => (
-                  <label key={key} className="text-xs font-medium text-slate-600">
-                    {label}
-                    <QuoteNumericInput
-                      min={0}
-                      value={form[key as keyof FormState]}
-                      onChange={(value) => updateForm(key as keyof FormState, value)}
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
-                    />
-                    <span className="mt-1 block text-[11px] text-slate-400">
-                      {formatAmount(unit as number)}/분
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </section>
-
-            <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
-              <h3 className="mb-3 text-sm font-bold text-slate-900">4. 자재</h3>
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-slate-600">원자재 원가(대당)</span>
-                <QuoteNumericInput
-                  min={0}
-                  value={form.materialCost}
-                  onChange={(materialCost) => updateForm('materialCost', materialCost)}
-                  placeholder="원자재 원가를 입력하세요"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                />
-              </label>
-            </section>
-
-            <div className="flex flex-col gap-2">
-              <div className={mode === 'edit' ? 'flex gap-2' : 'flex gap-3'}>
-                {mode === 'create' ? (
-                  <button
-                    type="button"
-                    onClick={handleCalculate}
-                    disabled={saving}
-                    className="flex-1 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    견적서 생성
-                  </button>
-                ) : null}
-                {!isDomestic ? (
-                  <QuoteCurrencyToggle value={displayCurrency} onChange={setDisplayCurrency} />
-                ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            {!isDomestic ? (
+              <QuoteCurrencyToggle value={displayCurrency} onChange={setDisplayCurrency} />
+            ) : null}
+            {mode === 'edit' ? (
+              <>
                 <button
                   type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="flex-1 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  onClick={handleDownloadPdf}
+                  className="inline-flex items-center rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105"
                 >
-                  {saving ? '저장 중...' : mode === 'edit' ? '견적서 수정 저장' : '견적서 저장'}
+                  PDF
                 </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deleting ? '삭제 중...' : '삭제'}
+                </button>
+              </>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={deleting}
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
+              aria-label="닫기"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+          <div className="flex min-h-0 flex-col border-slate-200 lg:border-r">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
+                <h3 className="mb-3 text-sm font-bold text-slate-900">기본 정보</h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-slate-600">고객사</span>
+                    <input
+                      value={form.customer}
+                      onChange={(event) => updateForm('customer', event.target.value)}
+                      placeholder="고객사명을 입력하세요"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-slate-600">제품명</span>
+                    <input
+                      value={form.productName}
+                      onChange={(event) => updateForm('productName', event.target.value)}
+                      placeholder="제품명을 입력하세요 (버전 포함 가능)"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-slate-600">생산 수량(QTY)</span>
+                    <QuoteNumericInput
+                      min={1}
+                      value={form.boardQty}
+                      onChange={(boardQty) => updateForm('boardQty', boardQty)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-slate-600">PCB 보드</span>
+                    <QuoteNumericInput
+                      min={1}
+                      max={20}
+                      value={form.pcbBoardCount}
+                      onChange={(pcbBoardCount) => updateForm('pcbBoardCount', pcbBoardCount)}
+                      onBlur={handlePcbCountBlur}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-3">
+                  <span className="mb-1.5 block text-sm font-medium text-slate-600">공정 카테고리</span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !form.includeSmd
+                        updateForm('includeSmd', next)
+                        if (next) setOpenSections((current) => ({ ...current, smt: true }))
+                      }}
+                      className={
+                        form.includeSmd
+                          ? 'rounded-lg bg-slate-800 px-3.5 py-2 text-sm font-semibold text-white'
+                          : 'rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50'
+                      }
+                    >
+                      SMD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !form.includeDip
+                        updateForm('includeDip', next)
+                        if (next) setOpenSections((current) => ({ ...current, dip: true }))
+                      }}
+                      className={
+                        form.includeDip
+                          ? 'rounded-lg bg-slate-800 px-3.5 py-2 text-sm font-semibold text-white'
+                          : 'rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50'
+                      }
+                    >
+                      DIP
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              {form.includeSmd ? (
+                <section className="mb-3 overflow-hidden rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('smt')}
+                    className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
+                  >
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">{smtSectionNo}. SMT</h3>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        PCB {smtForms.length}개 · 최소 실장비{' '}
+                        {formatAmount(getSmtPlacementMinFee(quoteType))}
+                      </p>
+                    </div>
+                    <span className="text-slate-400">{openSections.smt ? '▴' : '▾'}</span>
+                  </button>
+                  {openSections.smt ? (
+                    <div className="border-t border-slate-100 px-3.5 py-3">
+                      <p className="mb-3 text-xs text-slate-500">
+                        일반 부품은 <strong>부품 개수</strong>, IC/BGA는 <strong>핀·볼 수</strong> ·{' '}
+                        {SMT_PLACEMENT_MIN_SCORE}점 이하 PCB는 최소 실장비 적용
+                      </p>
+                      <div className="space-y-3">
+                        {smtForms.map((board, index) => (
+                          <SmtPcbBoardForm
+                            key={index}
+                            board={board}
+                            quoteType={quoteType}
+                            displayCurrency={displayCurrency}
+                            onChange={(next) => updateSmtBoard(index, next)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+
+              {form.includeDip ? (
+                <section className="mb-3 overflow-hidden rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection('dip')}
+                    className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
+                  >
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">{dipSectionNo}. DIP</h3>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        납땜 {dipForms.length}보드 · 조립·테스트·포장 합계 {postMinutesTotal}분
+                      </p>
+                    </div>
+                    <span className="text-slate-400">{openSections.dip ? '▴' : '▾'}</span>
+                  </button>
+                  {openSections.dip ? (
+                    <div className="border-t border-slate-100 px-3.5 py-3">
+                      <div className="mb-3 flex gap-1 rounded-lg bg-slate-100 p-1">
+                        <button
+                          type="button"
+                          onClick={() => setDipTab('solder')}
+                          className={
+                            dipTab === 'solder'
+                              ? 'flex-1 rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-sm'
+                              : 'flex-1 rounded-md px-3 py-1.5 text-xs font-medium text-slate-600'
+                          }
+                        >
+                          납땜
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDipTab('post')}
+                          className={
+                            dipTab === 'post'
+                              ? 'flex-1 rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-sm'
+                              : 'flex-1 rounded-md px-3 py-1.5 text-xs font-medium text-slate-600'
+                          }
+                        >
+                          조립 · 테스트 · 포장
+                        </button>
+                      </div>
+
+                      {dipTab === 'solder' ? (
+                        <div className="space-y-3">
+                          <p className="text-xs text-slate-500">
+                            PCB 명칭은 SMT와 동기화됩니다
+                          </p>
+                          {dipForms.map((board, index) => (
+                            <DipPcbBoardForm
+                              key={index}
+                              board={board}
+                              quoteType={quoteType}
+                              displayCurrency={displayCurrency}
+                              onChange={(next) => updateDipBoard(index, next)}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                          <PostProcessLinesEditor
+                            title="조립"
+                            ratePerMinute={getPostRate(quoteType)}
+                            lines={form.assemblyLines}
+                            quoteType={quoteType}
+                            displayCurrency={displayCurrency}
+                            onChange={(assemblyLines) => updateForm('assemblyLines', assemblyLines)}
+                          />
+                          <PostProcessLinesEditor
+                            title="테스트"
+                            ratePerMinute={getPostRate(quoteType)}
+                            lines={form.testLines}
+                            quoteType={quoteType}
+                            displayCurrency={displayCurrency}
+                            onChange={(testLines) => updateForm('testLines', testLines)}
+                          />
+                          <PostProcessLinesEditor
+                            title="포장"
+                            ratePerMinute={getPostRate(quoteType)}
+                            lines={form.packingLines}
+                            quoteType={quoteType}
+                            displayCurrency={displayCurrency}
+                            onChange={(packingLines) => updateForm('packingLines', packingLines)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+
+              <section className="mb-1 overflow-hidden rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => toggleSection('material')}
+                  className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
+                >
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">{materialSectionNo}. 자재</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      원자재 원가 {formatAmount(Number(form.materialCost) || 0)} /대
+                    </p>
+                  </div>
+                  <span className="text-slate-400">{openSections.material ? '▴' : '▾'}</span>
+                </button>
+                {openSections.material ? (
+                  <div className="border-t border-slate-100 px-3.5 py-3">
+                    <label className="block text-sm">
+                      <span className="mb-1 block font-medium text-slate-600">원자재 원가(대당)</span>
+                      <QuoteNumericInput
+                        min={0}
+                        value={form.materialCost}
+                        onChange={(materialCost) => updateForm('materialCost', materialCost)}
+                        placeholder="원자재 원가를 입력하세요"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                      />
+                    </label>
+                  </div>
+                ) : null}
+              </section>
+            </div>
+
+            <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+              <div className="mb-2 flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-slate-500">대당 단가</p>
+                  <p className="truncate text-sm font-semibold text-slate-900">
+                    {liveSummary?.unitFormatted ?? '-'}
+                  </p>
+                </div>
+                <div className="min-w-0 text-right">
+                  <p className="text-[11px] font-medium text-slate-500">최종 합계</p>
+                  <p className="truncate text-base font-bold text-blue-700">
+                    {liveSummary?.totalFormatted ?? '-'}
+                  </p>
+                </div>
               </div>
-              {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || deleting}
+                className="w-full rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {saving ? '저장 중...' : mode === 'edit' ? '견적서 수정 저장' : '견적서 저장'}
+              </button>
+              {saveError ? <p className="mt-2 text-sm text-red-600">{saveError}</p> : null}
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-col overflow-y-auto bg-slate-50/70 p-3 lg:p-4">
+          <div className="flex min-h-0 flex-col overflow-hidden bg-slate-50/70 p-3 lg:p-4">
             <QuoteBreakdownPreview
               quoteType={quoteType}
               result={result}
@@ -551,7 +754,7 @@ function QuoteModalContent({
               customer={previewCustomer}
               productName={previewProduct}
               issueDate={previewIssueDate}
-              loading={mode === 'edit' && !result}
+              loading={!result}
             />
           </div>
         </div>

@@ -1,13 +1,9 @@
 import {
   DIP_UNIT,
-  POST_RATE,
   SMT_PLACEMENT_MIN_SCORE,
+  getPostRate,
   getSmtPlacementMinFee,
-  SMT_UNIT_BGA_BALL,
-  SMT_UNIT_CHIP,
-  SMT_UNIT_IC_PIN,
-  SMT_UNIT_ODD,
-  SMT_UNIT_SPECIAL,
+  getSmtUnitRates,
 } from './constants'
 import {
   calculateEstimate,
@@ -19,6 +15,7 @@ import { getPreviewLabels } from './preview-i18n'
 import type {
   DipBoardDetail,
   EstimateResult,
+  PostProcessLine,
   QuoteDisplayCurrency,
   QuoteListItem,
   QuoteType,
@@ -45,11 +42,19 @@ export type PreviewRow = {
   sectionFooter?: PreviewSection
 }
 
+export type PreviewPostProcessLine = {
+  name: string
+  minutes?: number | string
+}
+
 export type PreviewFormFields = {
   postAssembly: string | number
   postTest: string | number
   postPacking: string | number
   materialCost: string | number
+  assemblyLines?: PreviewPostProcessLine[]
+  testLines?: PreviewPostProcessLine[]
+  packingLines?: PreviewPostProcessLine[]
 }
 
 export const SECTION_TOTAL_ROW_CLASS = 'bg-slate-300 border-t-2 border-slate-500'
@@ -258,11 +263,15 @@ function previewSmtSectionPerUnit(result: EstimateResult) {
 
 export function previewFormFromQuote(quote: QuoteListItem): PreviewFormFields {
   const input = toEstimateInputFromDetail(quote)
+  const post = quote.detailInfo.inputs?.postProcess || {}
   return {
     postAssembly: input.postAssembly ?? 0,
     postTest: input.postTest ?? 0,
     postPacking: input.postPacking ?? 0,
     materialCost: input.materialCost ?? 0,
+    assemblyLines: post.assemblyLines,
+    testLines: post.testLines,
+    packingLines: post.packingLines,
   }
 }
 
@@ -276,6 +285,7 @@ function smtDetailRowsForBoard(
   quoteType: QuoteType,
 ): PreviewRow[] {
   const labels = getPreviewLabels(quoteType)
+  const rates = getSmtUnitRates(quoteType)
   const rows: PreviewRow[] = []
   const useMinPlacementFee = board.laborMinApplied && board.laborMinAdjustment > 0
   const placementScore = computeSmtPlacementScore(board)
@@ -293,45 +303,45 @@ function smtDetailRowsForBoard(
     if (board.chip > 0) {
       rows.push({
         label: 'CHIP',
-        unit: SMT_UNIT_CHIP,
+        unit: rates.chip,
         count: labels.partsCount(board.chip),
-        amount: board.chip * SMT_UNIT_CHIP,
+        amount: board.chip * rates.chip,
         indent: 2,
       })
     }
     if (board.smtOdd > 0) {
       rows.push({
         label: labels.oddParts,
-        unit: SMT_UNIT_ODD,
+        unit: rates.odd,
         count: labels.partsCount(board.smtOdd),
-        amount: board.smtOdd * SMT_UNIT_ODD,
+        amount: board.smtOdd * rates.odd,
         indent: 2,
       })
     }
     if (board.smtSpecial > 0) {
       rows.push({
         label: labels.specialParts,
-        unit: SMT_UNIT_SPECIAL,
+        unit: rates.special,
         count: labels.partsCount(board.smtSpecial),
-        amount: board.smtSpecial * SMT_UNIT_SPECIAL,
+        amount: board.smtSpecial * rates.special,
         indent: 2,
       })
     }
     if (board.icPin > 0) {
       rows.push({
         label: 'IC PIN',
-        unit: SMT_UNIT_IC_PIN,
+        unit: rates.icPin,
         count: `${board.icPin} PIN`,
-        amount: board.icPin * SMT_UNIT_IC_PIN,
+        amount: board.icPin * rates.icPin,
         indent: 2,
       })
     }
     if (board.bga > 0) {
       rows.push({
         label: 'BGA BALL',
-        unit: SMT_UNIT_BGA_BALL,
+        unit: rates.bgaBall,
         count: `${board.bga} BALL`,
-        amount: board.bga * SMT_UNIT_BGA_BALL,
+        amount: board.bga * rates.bgaBall,
         indent: 2,
       })
     }
@@ -381,7 +391,7 @@ function smtSetupDetailRowsForBoard(
   const labels = getPreviewLabels(quoteType)
   const qty = result.qty || 1
   const smtSide = board.smtSide === 'double' ? 'double' : 'single'
-  const breakdown = computeSmtSetupBillingBreakdown(board.setupPartCount, smtSide)
+  const breakdown = computeSmtSetupBillingBreakdown(board.setupPartCount, smtSide, quoteType)
 
   function setupDetailRow(
     label: string,
@@ -480,36 +490,47 @@ function dipDetailRowsForBoard(board: DipBoardDetail, quoteType: QuoteType): Pre
   return rows
 }
 
+function postProcessDetailDescription(
+  lines: PreviewPostProcessLine[] | PostProcessLine[] | undefined,
+  fallback: string,
+) {
+  const names = (lines ?? [])
+    .map((line) => (line.name || '').trim())
+    .filter(Boolean)
+  return names.length > 0 ? names.join(' · ') : fallback
+}
+
 function postDetailRows(form: PreviewFormFields, indent: number, quoteType: QuoteType): PreviewRow[] {
   const labels = getPreviewLabels(quoteType)
+  const postRate = getPostRate(quoteType)
   const rows: PreviewRow[] = []
   if (Number(form.postAssembly) > 0) {
     rows.push({
       label: labels.assembly,
-      description: labels.assemblyDesc,
-      unit: POST_RATE,
+      description: postProcessDetailDescription(form.assemblyLines, labels.assemblyDesc),
+      unit: postRate,
       count: labels.minutesCount(form.postAssembly),
-      amount: Number(form.postAssembly) * POST_RATE,
+      amount: Number(form.postAssembly) * postRate,
       indent,
     })
   }
   if (Number(form.postTest) > 0) {
     rows.push({
       label: labels.test,
-      description: labels.testDesc,
-      unit: POST_RATE,
+      description: postProcessDetailDescription(form.testLines, labels.testDesc),
+      unit: postRate,
       count: labels.minutesCount(form.postTest),
-      amount: Number(form.postTest) * POST_RATE,
+      amount: Number(form.postTest) * postRate,
       indent,
     })
   }
   if (Number(form.postPacking) > 0) {
     rows.push({
       label: labels.packing,
-      description: labels.packingDesc,
-      unit: POST_RATE,
+      description: postProcessDetailDescription(form.packingLines, labels.packingDesc),
+      unit: postRate,
       count: labels.minutesCount(form.postPacking),
-      amount: Number(form.postPacking) * POST_RATE,
+      amount: Number(form.postPacking) * postRate,
       indent,
     })
   }

@@ -6,26 +6,58 @@ export const QUOTE_KRW_PER_USD = 1350
 export const SMT_SETUP_RATE_DOMESTIC = 3_500
 /** 장비 임율: 해외 ₩3,500/분 (표시·계산 모두 원화) */
 export const SMT_SETUP_RATE_EXPORT = 3_500
-/** 단면 기본시간 */
-export const SMT_SETUP_BASE_MINUTES_SINGLE = 80
-/** 양면 기본시간 */
-export const SMT_SETUP_BASE_MINUTES_DOUBLE = 120
+/** 단면 기본시간: 국내 60분 */
+export const SMT_SETUP_BASE_MINUTES_SINGLE_DOMESTIC = 60
+/** 단면 기본시간: 해외 80분 */
+export const SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT = 80
+/** 양면 기본시간: 국내 90분 */
+export const SMT_SETUP_BASE_MINUTES_DOUBLE_DOMESTIC = 90
+/** 양면 기본시간: 해외 120분 */
+export const SMT_SETUP_BASE_MINUTES_DOUBLE_EXPORT = 120
+/** @deprecated getSmtSetupBaseMinutes 사용 */
+export const SMT_SETUP_BASE_MINUTES_SINGLE = SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT
+/** @deprecated getSmtSetupBaseMinutes 사용 */
+export const SMT_SETUP_BASE_MINUTES_DOUBLE = SMT_SETUP_BASE_MINUTES_DOUBLE_EXPORT
 /** 초품검사: 종(부품 종수)당 20초 */
 export const SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART = 20
-/** SETTING: 종(부품 종수)당 3분 */
-export const SMT_SETUP_MINUTES_PER_PART = 3
+/** SETTING: 국내 종(부품 종수)당 2분 */
+export const SMT_SETUP_MINUTES_PER_PART_DOMESTIC = 2
+/** SETTING: 해외 종(부품 종수)당 3분 */
+export const SMT_SETUP_MINUTES_PER_PART_EXPORT = 3
+/** @deprecated getSmtSetupMinutesPerPart 사용 */
+export const SMT_SETUP_MINUTES_PER_PART = SMT_SETUP_MINUTES_PER_PART_EXPORT
 /** 150점 이하일 때 PCB당 적용되는 최소 실장비 (IC/BGA 등 단가 무효, 이 금액만 청구) */
 export const SMT_PLACEMENT_MIN_FEE_DOMESTIC = 6_000
 export const SMT_PLACEMENT_MIN_FEE_EXPORT = 6_000
 /** CHIP·이형·특수/모듈·IC PIN·BGA BALL 합산 점수(개수 1:1)가 이 값 이하이면 최소 실장비 적용 */
 export const SMT_PLACEMENT_MIN_SCORE = 150
-export const POST_RATE = 550
+/** 후공정(조립·테스트·포장) 임율: 국내 ₩420/분 */
+export const POST_RATE_DOMESTIC = 420
+/** 후공정(조립·테스트·포장) 임율: 해외 ₩550/분 */
+export const POST_RATE_EXPORT = 550
+/** @deprecated getPostRate 사용 */
+export const POST_RATE = POST_RATE_EXPORT
 
-export const SMT_UNIT_CHIP = 5.25
+/** CHIP 단가: 국내 ₩6/개 */
+export const SMT_UNIT_CHIP_DOMESTIC = 6
+/** CHIP 단가: 해외 ₩5.25/개 */
+export const SMT_UNIT_CHIP_EXPORT = 5.25
 export const SMT_UNIT_ODD = 20
 export const SMT_UNIT_SPECIAL = 100
-export const SMT_UNIT_IC_PIN = 1.58
-export const SMT_UNIT_BGA_BALL = 2.0
+/** IC PIN 단가: 국내 ₩2/PIN */
+export const SMT_UNIT_IC_PIN_DOMESTIC = 2
+/** IC PIN 단가: 해외 ₩1.58/PIN */
+export const SMT_UNIT_IC_PIN_EXPORT = 1.58
+/** BGA BALL 단가: 국내 ₩2.5/BALL */
+export const SMT_UNIT_BGA_BALL_DOMESTIC = 2.5
+/** BGA BALL 단가: 해외 ₩2/BALL */
+export const SMT_UNIT_BGA_BALL_EXPORT = 2.0
+/** @deprecated getSmtUnitRates 사용 */
+export const SMT_UNIT_CHIP = SMT_UNIT_CHIP_EXPORT
+/** @deprecated getSmtUnitRates 사용 */
+export const SMT_UNIT_IC_PIN = SMT_UNIT_IC_PIN_EXPORT
+/** @deprecated getSmtUnitRates 사용 */
+export const SMT_UNIT_BGA_BALL = SMT_UNIT_BGA_BALL_EXPORT
 
 /** AOI 검사 PCB당 (양면은 2배) */
 export const AOI_UNIT = 100
@@ -62,8 +94,47 @@ export function getSmtSetupRate(quoteType: QuoteType) {
   return quoteType === 'domestic' ? SMT_SETUP_RATE_DOMESTIC : SMT_SETUP_RATE_EXPORT
 }
 
-export function getSmtSetupBaseMinutes(smtSide: 'single' | 'double') {
-  return smtSide === 'double' ? SMT_SETUP_BASE_MINUTES_DOUBLE : SMT_SETUP_BASE_MINUTES_SINGLE
+export function getSmtSetupMinutesPerPart(quoteType: QuoteType) {
+  return quoteType === 'domestic'
+    ? SMT_SETUP_MINUTES_PER_PART_DOMESTIC
+    : SMT_SETUP_MINUTES_PER_PART_EXPORT
+}
+
+export function getPostRate(quoteType: QuoteType) {
+  return quoteType === 'domestic' ? POST_RATE_DOMESTIC : POST_RATE_EXPORT
+}
+
+export function getSmtUnitRates(quoteType: QuoteType) {
+  if (quoteType === 'domestic') {
+    return {
+      chip: SMT_UNIT_CHIP_DOMESTIC,
+      odd: SMT_UNIT_ODD,
+      special: SMT_UNIT_SPECIAL,
+      icPin: SMT_UNIT_IC_PIN_DOMESTIC,
+      bgaBall: SMT_UNIT_BGA_BALL_DOMESTIC,
+    }
+  }
+  return {
+    chip: SMT_UNIT_CHIP_EXPORT,
+    odd: SMT_UNIT_ODD,
+    special: SMT_UNIT_SPECIAL,
+    icPin: SMT_UNIT_IC_PIN_EXPORT,
+    bgaBall: SMT_UNIT_BGA_BALL_EXPORT,
+  }
+}
+
+export function getSmtSetupBaseMinutes(
+  smtSide: 'single' | 'double',
+  quoteType: QuoteType = 'export',
+) {
+  if (quoteType === 'domestic') {
+    return smtSide === 'double'
+      ? SMT_SETUP_BASE_MINUTES_DOUBLE_DOMESTIC
+      : SMT_SETUP_BASE_MINUTES_SINGLE_DOMESTIC
+  }
+  return smtSide === 'double'
+    ? SMT_SETUP_BASE_MINUTES_DOUBLE_EXPORT
+    : SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT
 }
 
 export function getAoiUnit(smtSide: 'single' | 'double') {

@@ -52,12 +52,14 @@ function normalizeItemPcbSideMode(value: string | null | undefined): ItemPcbSide
 function normalizeItemProcessType(value: string | null | undefined): ItemProcessType {
   const raw = String(value || '').trim().toLowerCase().replace(/\s+/g, '')
   if (raw === 'smt' || raw === 'smd') return 'smt'
-  if (raw === 'post' || raw === '후공정') return 'post'
+  if (raw === 'post' || raw === 'dip' || raw === '후공정') return 'post'
   if (
     raw === 'smt_post' ||
     raw === 'smd_post' ||
     raw === 'smt+post' ||
     raw === 'smd+post' ||
+    raw === 'smd+dip' ||
+    raw === 'smt+dip' ||
     raw === 'smd+후공정' ||
     raw === 'smt+후공정'
   ) {

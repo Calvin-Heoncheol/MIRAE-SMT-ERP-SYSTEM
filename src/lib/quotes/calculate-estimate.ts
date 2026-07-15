@@ -1,19 +1,15 @@
 import {
   DIP_UNIT,
-  POST_RATE,
   getAoiUnit,
+  getPostRate,
   PCB_WASH_UNIT,
   SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
-  SMT_SETUP_MINUTES_PER_PART,
   SMT_PLACEMENT_MIN_SCORE,
   getSmtSetupBaseMinutes,
+  getSmtSetupMinutesPerPart,
   getSmtSetupRate,
   getSmtPlacementMinFee,
-  SMT_UNIT_BGA_BALL,
-  SMT_UNIT_CHIP,
-  SMT_UNIT_IC_PIN,
-  SMT_UNIT_ODD,
-  SMT_UNIT_SPECIAL,
+  getSmtUnitRates,
   RAW_MATERIAL_MANAGEMENT_RATE,
 } from './constants'
 import type {
@@ -38,17 +34,23 @@ function readSmtBoardComponentFields(board: Partial<SmtPcbBoard>): SmtComponentF
   }
 }
 
-function computeSmtChipOddLabor(input: SmtComponentFields) {
-  return (
-    (Number(input.chip) || 0) * SMT_UNIT_CHIP + (Number(input.smtOdd) || 0) * SMT_UNIT_ODD
-  )
+function computeSmtChipOddLabor(
+  input: SmtComponentFields,
+  quoteType: QuoteType = 'export',
+) {
+  const rates = getSmtUnitRates(quoteType)
+  return (Number(input.chip) || 0) * rates.chip + (Number(input.smtOdd) || 0) * rates.odd
 }
 
-function computeSmtOtherLabor(input: SmtComponentFields) {
+function computeSmtOtherLabor(
+  input: SmtComponentFields,
+  quoteType: QuoteType = 'export',
+) {
+  const rates = getSmtUnitRates(quoteType)
   return (
-    (Number(input.smtSpecial) || 0) * SMT_UNIT_SPECIAL +
-    (Number(input.icPin) || 0) * SMT_UNIT_IC_PIN +
-    (Number(input.bga) || 0) * SMT_UNIT_BGA_BALL
+    (Number(input.smtSpecial) || 0) * rates.special +
+    (Number(input.icPin) || 0) * rates.icPin +
+    (Number(input.bga) || 0) * rates.bgaBall
   )
 }
 
@@ -67,17 +69,21 @@ function computeBoardInspection(board: SmtPcbBoard, quoteType: QuoteType = 'expo
   }
 }
 
-function computeSmtChipTotal(input: SmtComponentFields) {
+function computeSmtChipTotal(
+  input: SmtComponentFields,
+  quoteType: QuoteType = 'export',
+) {
+  const rates = getSmtUnitRates(quoteType)
   const chip = Number(input.chip) || 0
   const smtOdd = Number(input.smtOdd) || 0
   const smtSpecial = Number(input.smtSpecial) || 0
 
   return (
-    chip * SMT_UNIT_CHIP +
-    smtOdd * SMT_UNIT_ODD +
-    smtSpecial * SMT_UNIT_SPECIAL +
-    (Number(input.icPin) || 0) * SMT_UNIT_IC_PIN +
-    (Number(input.bga) || 0) * SMT_UNIT_BGA_BALL
+    chip * rates.chip +
+    smtOdd * rates.odd +
+    smtSpecial * rates.special +
+    (Number(input.icPin) || 0) * rates.icPin +
+    (Number(input.bga) || 0) * rates.bgaBall
   )
 }
 
@@ -107,19 +113,20 @@ export type SmtSetupBillingBreakdown = {
   totalMinutes: number
 }
 
-/** SET-UP 청구 분 = 기본시간 + 초품검사(종당 20초) + SETTING(종당 3분) */
+/** SET-UP 청구 분 = 기본시간 + 초품검사(종당 20초) + SETTING(국내 종당 2분 / 해외 종당 3분) */
 export function computeSmtSetupBillingBreakdown(
   partCount: number,
   smtSide: 'single' | 'double',
+  quoteType: QuoteType = 'export',
 ): SmtSetupBillingBreakdown {
   const count = Math.max(0, Math.floor(Number(partCount) || 0))
   if (count <= 0) {
     return { partCount: 0, baseMinutes: 0, firstArticleMinutes: 0, settingMinutes: 0, totalMinutes: 0 }
   }
 
-  const baseMinutes = getSmtSetupBaseMinutes(smtSide)
+  const baseMinutes = getSmtSetupBaseMinutes(smtSide, quoteType)
   const firstArticleMinutes = (count * SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART) / 60
-  const settingMinutes = count * SMT_SETUP_MINUTES_PER_PART
+  const settingMinutes = count * getSmtSetupMinutesPerPart(quoteType)
   return {
     partCount: count,
     baseMinutes,
@@ -132,8 +139,9 @@ export function computeSmtSetupBillingBreakdown(
 export function computeSmtSetupBillingMinutes(
   partCount: number,
   smtSide: 'single' | 'double',
+  quoteType: QuoteType = 'export',
 ): number {
-  return computeSmtSetupBillingBreakdown(partCount, smtSide).totalMinutes
+  return computeSmtSetupBillingBreakdown(partCount, smtSide, quoteType).totalMinutes
 }
 
 function computeSmtSetup(partCount: number, quoteType: QuoteType, smtSide: 'single' | 'double') {
@@ -142,7 +150,7 @@ function computeSmtSetup(partCount: number, quoteType: QuoteType, smtSide: 'sing
     return { setupMinutes: 0, setupAmount: 0, setupMinApplied: false, setupRate: 0 }
   }
 
-  const setupMinutes = computeSmtSetupBillingMinutes(count, smtSide)
+  const setupMinutes = computeSmtSetupBillingMinutes(count, smtSide, quoteType)
   const setupRate = getSmtSetupRate(quoteType)
   return {
     setupMinutes,
@@ -169,9 +177,9 @@ function shouldApplyMinPlacementFee(input: SmtComponentFields) {
 
 function computeSmtLaborPerUnit(board: SmtPcbBoard, quoteType: QuoteType) {
   const comp = readSmtBoardComponentFields(board)
-  const chipTotal = computeSmtChipTotal(comp)
-  const chipOddLabor = computeSmtChipOddLabor(comp)
-  const otherLabor = computeSmtOtherLabor(comp)
+  const chipTotal = computeSmtChipTotal(comp, quoteType)
+  const chipOddLabor = computeSmtChipOddLabor(comp, quoteType)
+  const otherLabor = computeSmtOtherLabor(comp, quoteType)
   const smtLaborRaw = chipOddLabor + otherLabor
   const hasPlacementInputs = hasSmtComponentInputs(comp)
   const hasSmtLabor = smtLaborRaw > 0 || hasPlacementInputs
@@ -373,7 +381,7 @@ export function calculateEstimate(
   const postAssembly = Number(data.postAssembly) || 0
   const postTest = Number(data.postTest) || 0
   const postPacking = Number(data.postPacking) || 0
-  const postProcessUnit = (postAssembly + postTest + postPacking) * POST_RATE
+  const postProcessUnit = (postAssembly + postTest + postPacking) * getPostRate(quoteType)
   const matUnit = Number(data.materialCost) || 0
 
   const matTotalRaw = matUnit * qty

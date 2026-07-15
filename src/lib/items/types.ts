@@ -72,7 +72,7 @@ export const ITEM_PCB_SIDE_MODE_LABELS: Record<ItemPcbSideModeValue, string> = {
   dual: '양면',
 }
 
-/** 반제품 공정 — smt=SMD, post=후공정, smt_post=SMD+후공정 */
+/** 반제품 공정 — smt=SMD, post=DIP, smt_post=SMD+DIP */
 export type ItemProcessType = '' | 'smt' | 'post' | 'smt_post'
 
 export const ITEM_PROCESS_TYPES = ['smt', 'post', 'smt_post'] as const
@@ -81,8 +81,8 @@ export type ItemProcessTypeValue = (typeof ITEM_PROCESS_TYPES)[number]
 
 export const ITEM_PROCESS_TYPE_LABELS: Record<ItemProcessTypeValue, string> = {
   smt: 'SMD',
-  post: '후공정',
-  smt_post: 'SMD+후공정',
+  post: 'DIP',
+  smt_post: 'SMD+DIP',
 }
 
 /** 원자재(1)만 품목코드 필수 직접 입력 */

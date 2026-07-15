@@ -227,7 +227,7 @@ export async function applyMetalMaskUsage(input: {
       return {
         ok: false,
         reason: 'validation',
-        detail: '등록되지 않은 마스크 바코드입니다. SMT → 메탈마스크에서 먼저 등록해 주세요.',
+        detail: '등록되지 않은 마스크 바코드입니다. SMT → 마스크·스퀴즈에서 먼저 등록해 주세요.',
       }
     }
 

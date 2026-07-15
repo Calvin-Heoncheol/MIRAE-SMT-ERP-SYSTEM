@@ -1,3 +1,4 @@
+import { sumPostProcessLineMinutes } from './post-process-lines'
 import type {
   DipPcbBoard,
   EstimateInput,
@@ -114,12 +115,25 @@ export function toEstimateInputFromDetail(
   const dipBoards = inputs.dip?.dipBoards || [defaultDipPcbBoard(0)]
   const post = inputs.postProcess || {}
 
+  const postAssembly =
+    post.assemblyLines && post.assemblyLines.length > 0
+      ? sumPostProcessLineMinutes(post.assemblyLines)
+      : (post.postAssembly ?? 0)
+  const postTest =
+    post.testLines && post.testLines.length > 0
+      ? sumPostProcessLineMinutes(post.testLines)
+      : (post.postTest ?? 0)
+  const postPacking =
+    post.packingLines && post.packingLines.length > 0
+      ? sumPostProcessLineMinutes(post.packingLines)
+      : (post.postPacking ?? 0)
+
   return {
     boardQty: quote.boardQty,
     materialCost: settings.materialCostPerUnit ?? 0,
-    postAssembly: post.postAssembly ?? 0,
-    postTest: post.postTest ?? 0,
-    postPacking: post.postPacking ?? 0,
+    postAssembly,
+    postTest,
+    postPacking,
     specialDiscount: settings.specialDiscount ?? 0,
     pcbBoardCount: settings.pcbBoardCount ?? smtBoards.length,
     pcbBoards: smtBoards,

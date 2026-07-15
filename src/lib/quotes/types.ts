@@ -46,6 +46,12 @@ export type LegacyBoardInput = {
   smtSide: LegacyBoardSide
 }
 
+/** DIP 조립·테스트·포장 세부 공정 행 */
+export type PostProcessLine = {
+  name: string
+  minutes: number
+}
+
 export type QuoteDetailInfo = {
   amounts?: QuoteDetailAmounts
   inputs?: {
@@ -57,9 +63,14 @@ export type QuoteDetailInfo = {
     }
     dip?: { dipBoards?: DipPcbBoard[] }
     postProcess?: {
+      /** 합계 분 (하위호환·계산용) */
       postAssembly?: number
       postTest?: number
       postPacking?: number
+      /** 세부 행 */
+      assemblyLines?: PostProcessLine[]
+      testLines?: PostProcessLine[]
+      packingLines?: PostProcessLine[]
     }
   }
   settings?: {
@@ -76,6 +87,10 @@ export type QuoteDetailInfo = {
     linkedFinishedItemId?: string
     /** (구) 견적 공정 카테고리 — smt | post | smt_post */
     processType?: 'smt' | 'post' | 'smt_post'
+    /** 국내용/해외용 — SMD(SMT) 입력 섹션 사용 */
+    includeSmd?: boolean
+    /** 국내용/해외용 — DIP(납땜·조립·테스트·포장) 입력 섹션 사용 */
+    includeDip?: boolean
     /** (구) 견적 통합 단가 */
     unitPrice?: number
   }

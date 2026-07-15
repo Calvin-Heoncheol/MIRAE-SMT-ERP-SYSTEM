@@ -1,10 +1,13 @@
 import type {
   DipPcbBoard,
   EstimateResult,
+  PostProcessLine,
   QuoteDetailInfo,
   QuoteType,
   SmtPcbBoard,
 } from './types'
+import { postProcessLinesToModels, sumPostProcessLineMinutes } from './post-process-lines'
+import type { PostProcessLineForm } from './post-process-lines'
 
 export type QuoteFormSnapshot = {
   customer: string
@@ -12,10 +15,16 @@ export type QuoteFormSnapshot = {
   boardQty: string
   pcbBoardCount: string
   materialCost: string
-  postAssembly: string
-  postTest: string
-  postPacking: string
+  /** @deprecated 합계는 assemblyLines 등에서 산출. 하위호환용 */
+  postAssembly?: string
+  postTest?: string
+  postPacking?: string
   specialDiscount: string
+  includeSmd?: boolean
+  includeDip?: boolean
+  assemblyLines?: PostProcessLineForm[]
+  testLines?: PostProcessLineForm[]
+  packingLines?: PostProcessLineForm[]
 }
 
 export type QuoteRowPayload = {
@@ -42,6 +51,28 @@ export function buildQuoteDetailInfo(
   const d0 = dipBoards[0]
   const qty = result.qty || 0
   const materialCostPerUnit = Number(form.materialCost) || 0
+  const includeDip = form.includeDip !== false
+  const assemblyLines: PostProcessLine[] =
+    includeDip && form.assemblyLines ? postProcessLinesToModels(form.assemblyLines) : []
+  const testLines: PostProcessLine[] =
+    includeDip && form.testLines ? postProcessLinesToModels(form.testLines) : []
+  const packingLines: PostProcessLine[] =
+    includeDip && form.packingLines ? postProcessLinesToModels(form.packingLines) : []
+  const postAssembly = includeDip
+    ? form.assemblyLines
+      ? sumPostProcessLineMinutes(assemblyLines)
+      : Number(form.postAssembly) || 0
+    : 0
+  const postTest = includeDip
+    ? form.testLines
+      ? sumPostProcessLineMinutes(testLines)
+      : Number(form.postTest) || 0
+    : 0
+  const postPacking = includeDip
+    ? form.packingLines
+      ? sumPostProcessLineMinutes(packingLines)
+      : Number(form.postPacking) || 0
+    : 0
 
   return {
     amounts: {
@@ -87,9 +118,12 @@ export function buildQuoteDetailInfo(
           : {}),
       },
       postProcess: {
-        postAssembly: Number(form.postAssembly) || 0,
-        postTest: Number(form.postTest) || 0,
-        postPacking: Number(form.postPacking) || 0,
+        postAssembly,
+        postTest,
+        postPacking,
+        assemblyLines,
+        testLines,
+        packingLines,
       },
     },
     settings: {
@@ -98,6 +132,8 @@ export function buildQuoteDetailInfo(
       pcbBoardCount: Number(form.pcbBoardCount) || pcbBoards.length,
       specialDiscount: Number(form.specialDiscount) || 0,
       quoteType,
+      includeSmd: Boolean(form.includeSmd),
+      includeDip: Boolean(form.includeDip),
     },
   }
 }

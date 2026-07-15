@@ -2,17 +2,12 @@
 
 import { useMemo, useState } from 'react'
 import { DeliveryInputShipModal } from '@/components/delivery/delivery-input-ship-modal'
-import { DeliveryInputSummary } from '@/components/delivery/delivery-input-summary'
 import { DeliveryInputTable } from '@/components/delivery/delivery-input-table'
 import { ProductionFetchError } from '@/components/production-input/production-fetch-error'
 import type { FetchDeliveryInputPageResult } from '@/lib/delivery/repository'
 import { DELIVERY_INPUT_CONFIG } from '@/lib/delivery/config'
 import type { DeliveryAvailability, DeliveryInputFilter } from '@/lib/delivery/utils'
-import {
-  filterDeliveryOrders,
-  filterDeliveryOrdersByStatus,
-  summarizeDeliveryInputOrders,
-} from '@/lib/delivery/utils'
+import { filterDeliveryOrders, filterDeliveryOrdersByStatus } from '@/lib/delivery/utils'
 
 type DeliveryInputWorkspaceProps = {
   result: FetchDeliveryInputPageResult
@@ -41,10 +36,6 @@ export function DeliveryInputWorkspace({ result }: DeliveryInputWorkspaceProps) 
   const filtered = useMemo(
     () => filterDeliveryOrdersByStatus(searched, availabilityByGroupId, filter),
     [searched, availabilityByGroupId, filter],
-  )
-  const summary = useMemo(
-    () => summarizeDeliveryInputOrders(searched, availabilityByGroupId),
-    [searched, availabilityByGroupId],
   )
 
   const modalOrder = useMemo(
@@ -77,8 +68,6 @@ export function DeliveryInputWorkspace({ result }: DeliveryInputWorkspaceProps) 
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <DeliveryInputSummary summary={summary} />
-
       <div className="flex flex-wrap items-center gap-3">
         <input
           type="search"

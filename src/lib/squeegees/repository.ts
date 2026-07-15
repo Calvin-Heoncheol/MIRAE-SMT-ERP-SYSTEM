@@ -221,7 +221,7 @@ export async function applySqueegeeUsage(input: {
       return {
         ok: false,
         reason: 'validation',
-        detail: '등록되지 않은 스퀴즈 바코드입니다. SMT → 스퀴즈에서 먼저 등록해 주세요.',
+        detail: '등록되지 않은 스퀴즈 바코드입니다. SMT → 마스크·스퀴즈에서 먼저 등록해 주세요.',
       }
     }
 
