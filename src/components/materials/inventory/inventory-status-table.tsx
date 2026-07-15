@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { formatInventoryQuantity } from '@/lib/materials/inventory/utils'
 import type { MaterialInventoryRow } from '@/lib/materials/inventory/types'
@@ -61,37 +61,37 @@ export function InventoryStatusTable({ rows, emptyMessage }: InventoryStatusTabl
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[820px] table-fixed border-collapse">
-          <thead className="bg-blue-50/80">
+          <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목코드
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목명
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 규격
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 MPN
               </th>
-              <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 구분
               </th>
-              <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 도급/사급
               </th>
-              <th className="px-3 py-3 text-right text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 입고예정
               </th>
-              <th className="px-3 py-3 text-right text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 현재고
               </th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100 hover:bg-blue-50/40">
+              <tr key={row.id} className="border-t border-slate-100 hover:sticky top-0 z-[1] bg-slate-50/40">
                 <td className={`px-3 py-2.5 font-medium text-blue-800 ${codeCellClass}`}>{row.id}</td>
                 <td className="px-3 py-2.5">
                   <TruncatedText

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { SemiFinishedItemCombobox } from '@/components/items/semi-finished-item-combobox'
+import type { Item } from '@/lib/items/types'
 import {
   applyMetalMaskUsage,
   createMetalMaskAsset,
@@ -20,19 +22,23 @@ import { isMetalMaskNearLimit, metalMaskRemaining } from '@/lib/metal-masks/util
 
 type MetalMasksWorkspaceProps = {
   result: FetchMetalMasksResult
+  semiFinishedItems: Item[]
 }
 
 function MetalMaskCreateModal({
   open,
   onClose,
   onSaved,
+  semiFinishedItems,
 }: {
   open: boolean
   onClose: () => void
   onSaved: () => void
+  semiFinishedItems: Item[]
 }) {
   const [barcode, setBarcode] = useState('')
   const [name, setName] = useState('')
+  const [itemId, setItemId] = useState<string | null>(null)
   const [pcbSide, setPcbSide] = useState<MetalMaskPcbSide>('SINGLE')
   const [useLimit, setUseLimit] = useState(String(DEFAULT_METAL_MASK_USE_LIMIT))
   const [note, setNote] = useState('')
@@ -43,6 +49,7 @@ function MetalMaskCreateModal({
     if (!open) return
     setBarcode('')
     setName('')
+    setItemId(null)
     setPcbSide('SINGLE')
     setUseLimit(String(DEFAULT_METAL_MASK_USE_LIMIT))
     setNote('')
@@ -70,9 +77,24 @@ function MetalMaskCreateModal({
     setSaving(true)
     setError(null)
 
+    const productName = name.trim()
+    if (!itemId || !productName) {
+      setSaving(false)
+      setError('기초등록 반제품 목록에서 품명을 선택해 주세요.')
+      return
+    }
+
+    const matched = semiFinishedItems.find((item) => item.isActive && item.id === itemId)
+    if (!matched || matched.name !== productName) {
+      setSaving(false)
+      setError('기초등록 반제품 목록에서 품명을 다시 선택해 주세요.')
+      return
+    }
+
     const created = await createMetalMaskAsset({
       barcode,
-      name,
+      name: productName,
+      itemId,
       pcbSide,
       useLimit: Math.floor(Number(useLimit) || DEFAULT_METAL_MASK_USE_LIMIT),
       note,
@@ -161,14 +183,25 @@ function MetalMaskCreateModal({
           </div>
 
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-600">표시명</span>
-            <input
-              type="text"
+            <span className="mb-1 block font-medium text-slate-600">품명</span>
+            <SemiFinishedItemCombobox
               value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="선택"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              items={semiFinishedItems}
+              placeholder="반제품 품명 검색"
+              ariaLabel="품명"
+              onValueChange={(next) => {
+                setName(next)
+                setItemId(null)
+              }}
+              onItemSelect={(item) => {
+                setName(item.name)
+                setItemId(item.id)
+              }}
+              inputClassName="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
             />
+            <span className="mt-1 block text-[11px] text-slate-400">
+              기초등록 · 반제품 목록에서 선택합니다
+            </span>
           </label>
 
           <label className="block text-sm">
@@ -207,7 +240,7 @@ function MetalMaskCreateModal({
   )
 }
 
-export function MetalMasksWorkspace({ result }: MetalMasksWorkspaceProps) {
+export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [showRetired, setShowRetired] = useState(false)
@@ -436,7 +469,7 @@ export function MetalMasksWorkspace({ result }: MetalMasksWorkspaceProps) {
           <button
             type="submit"
             disabled={usageSaving || !usageBarcode.trim() || Math.floor(Number(usageQty) || 0) < 1}
-            className="w-full rounded-lg bg-sky-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             {usageSaving ? '등록 중…' : '횟수 등록'}
           </button>
@@ -504,11 +537,11 @@ export function MetalMasksWorkspace({ result }: MetalMasksWorkspaceProps) {
 
         <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
           <table className="min-w-full border-collapse text-left text-sm">
-            <thead className="sticky top-0 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-2.5">바코드</th>
                 <th className="px-3 py-2.5">면</th>
-                <th className="px-3 py-2.5">이름</th>
+                <th className="px-3 py-2.5">품명</th>
                 <th className="px-3 py-2.5 text-right">사용/한도</th>
                 <th className="px-3 py-2.5 text-right">잔여</th>
                 <th className="px-3 py-2.5">상태</th>
@@ -591,6 +624,7 @@ export function MetalMasksWorkspace({ result }: MetalMasksWorkspaceProps) {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSaved={() => router.refresh()}
+        semiFinishedItems={semiFinishedItems}
       />
     </div>
   )

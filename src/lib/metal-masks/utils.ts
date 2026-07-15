@@ -15,6 +15,7 @@ export function mapMetalMaskAssetRow(row: {
   id: string
   barcode: string
   name: string | null
+  item_id?: string | null
   pcb_side: string
   use_limit: number | null
   use_count: number | null
@@ -28,6 +29,7 @@ export function mapMetalMaskAssetRow(row: {
     id: row.id,
     barcode: String(row.barcode || '').trim(),
     name: String(row.name || '').trim(),
+    itemId: row.item_id ? String(row.item_id).trim() : null,
     pcbSide: normalizeMetalMaskPcbSide(row.pcb_side),
     useLimit: Math.max(1, Math.floor(Number(row.use_limit) || DEFAULT_METAL_MASK_USE_LIMIT)),
     useCount: Math.max(0, Math.floor(Number(row.use_count) || 0)),

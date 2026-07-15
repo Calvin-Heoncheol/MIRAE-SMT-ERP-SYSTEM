@@ -258,6 +258,49 @@ export async function createSmtProductionRecord(
     const pcbSide = requestedPcbSide
     const recordDate = input.recordDate?.trim() || todayYmdSeoul()
 
+    if (lineNo != null) {
+      const { data: plan, error: planError } = await supabase
+        .from('smt_production_plans')
+        .select('id, planned_quantity')
+        .eq('order_line_id', orderLineId)
+        .eq('planned_date', recordDate)
+        .eq('line_no', lineNo)
+        .eq('pcb_side', pcbSide)
+        .maybeSingle()
+
+      if (planError) {
+        return { ok: false, reason: 'query', detail: planError.message }
+      }
+
+      if (plan?.id) {
+        const plannedQuantity = Math.max(0, Math.floor(Number(plan.planned_quantity) || 0))
+        const { data: planRecords, error: planRecordsError } = await supabase
+          .from('smt_production_records')
+          .select('quantity')
+          .eq('order_line_id', orderLineId)
+          .eq('record_date', recordDate)
+          .eq('line_no', lineNo)
+          .eq('pcb_side', pcbSide)
+
+        if (planRecordsError) {
+          return { ok: false, reason: 'query', detail: planRecordsError.message }
+        }
+
+        const planProduced = (planRecords || []).reduce(
+          (sum, row) => sum + Math.max(0, Math.floor(Number(row.quantity) || 0)),
+          0,
+        )
+        const planRemaining = Math.max(0, plannedQuantity - planProduced)
+        if (quantity > planRemaining) {
+          return {
+            ok: false,
+            reason: 'validation',
+            detail: `계획 남은 수량(${planRemaining.toLocaleString('ko-KR')}/${plannedQuantity.toLocaleString('ko-KR')}대)을 초과할 수 없습니다.`,
+          }
+        }
+      }
+    }
+
     const { data: inserted, error: insertError } = await supabase
       .from('smt_production_records')
       .insert({

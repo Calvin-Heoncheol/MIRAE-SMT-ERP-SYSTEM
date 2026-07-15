@@ -1,4 +1,4 @@
-import type { DeliveryHistoryRow } from '@/lib/delivery/types'
+﻿import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 
 type DeliveryHistoryTableProps = {
   rows: DeliveryHistoryRow[]
@@ -25,30 +25,30 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
         <table className="min-w-[960px] w-full border-collapse">
-          <thead className="bg-violet-50/80">
+          <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 출하번호
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 기록일
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 주문서번호
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 고객사
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 완제품명
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 목표
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 출하수량
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
               </th>
             </tr>

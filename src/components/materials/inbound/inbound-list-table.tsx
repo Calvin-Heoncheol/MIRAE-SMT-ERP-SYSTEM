@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { getInboundTypeLabel } from '@/lib/materials/inbound/utils'
 import type { MaterialInboundListGroup } from '@/lib/materials/inbound/types'
@@ -24,27 +24,27 @@ export function InboundListTable({ inbounds, emptyMessage, onSelectInbound }: In
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[920px] table-fixed border-collapse">
-          <thead className="bg-blue-50/80">
+          <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 입고번호
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 입고일
               </th>
-              <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 유형
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 발주번호
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목
               </th>
-              <th className="px-3 py-3 text-right text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 총 수량
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-blue-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
               </th>
             </tr>
@@ -53,7 +53,7 @@ export function InboundListTable({ inbounds, emptyMessage, onSelectInbound }: In
             {inbounds.map((inbound) => (
               <tr
                 key={inbound.inboundId}
-                className="cursor-pointer border-t border-slate-100 hover:bg-blue-50/40"
+                className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
                 onClick={() => onSelectInbound?.(inbound)}
               >
                 <td className="px-3 py-2.5 font-mono text-sm font-medium text-blue-800">{inbound.inboundNumber}</td>

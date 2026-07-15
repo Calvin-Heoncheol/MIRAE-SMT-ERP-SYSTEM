@@ -29,17 +29,22 @@ create table if not exists public.squeegee_usage_logs (
   asset_id uuid not null references public.squeegee_assets(id) on delete cascade,
   delta_qty integer not null check (delta_qty > 0),
   record_date date not null default (timezone('Asia/Seoul', now()))::date,
+  smt_production_record_id uuid references public.smt_production_records(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
 comment on table public.squeegee_usage_logs is '스퀴즈 사용 이력 — SMT 탭 별도 입력';
 comment on column public.squeegee_usage_logs.delta_qty is '이번에 가산한 사용 횟수';
+comment on column public.squeegee_usage_logs.smt_production_record_id is '연동된 SMT 생산 실적';
 
 create index if not exists squeegee_usage_logs_asset_id_idx
   on public.squeegee_usage_logs (asset_id);
 
 create index if not exists squeegee_usage_logs_record_date_idx
   on public.squeegee_usage_logs (record_date desc);
+
+create index if not exists squeegee_usage_logs_smt_record_idx
+  on public.squeegee_usage_logs (smt_production_record_id);
 
 alter table public.squeegee_assets enable row level security;
 alter table public.squeegee_usage_logs enable row level security;

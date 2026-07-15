@@ -6,9 +6,14 @@ import { OutboundFetchError } from '@/components/materials/outbound/outbound-fet
 import { OutboundListTable } from '@/components/materials/outbound/outbound-list-table'
 import { OutboundModal } from '@/components/materials/outbound/outbound-modal'
 import { OutboundNeedsTable } from '@/components/materials/outbound/outbound-needs-table'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchMaterialOutboundPageResult } from '@/lib/materials/outbound/repository'
-import type { MaterialOutboundListGroup } from '@/lib/materials/outbound/types'
+import type {
+  MaterialOutboundListGroup,
+  MaterialOutboundNeedCard,
+} from '@/lib/materials/outbound/types'
 import { getOutboundTypeLabel } from '@/lib/materials/outbound/utils'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type OutboundWorkspaceProps = {
   result: FetchMaterialOutboundPageResult
@@ -34,6 +39,12 @@ function matchesQuery(outbound: MaterialOutboundListGroup, query: string) {
   return haystack.includes(query)
 }
 
+function matchesNeedCardQuery(card: MaterialOutboundNeedCard, query: string) {
+  if (!query) return true
+  const haystack = [card.orderNumber, card.customer, card.productName].join(' ').toLowerCase()
+  return haystack.includes(query)
+}
+
 export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -50,6 +61,11 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
   const filtered = useMemo(
     () => outbounds.filter((outbound) => matchesQuery(outbound, query)),
     [outbounds, query],
+  )
+
+  const filteredNeedCards = useMemo(
+    () => needCards.filter((card) => matchesNeedCardQuery(card, query)),
+    [needCards, query],
   )
 
   function openEdit(outbound: MaterialOutboundListGroup) {
@@ -78,16 +94,19 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
   if (view === 'register') {
     return (
       <div className="flex w-full flex-col gap-4">
-        <p className="text-sm text-slate-500">
-          미불출{' '}
-          <span className="font-semibold tabular-nums text-orange-700">
-            {needCards.length.toLocaleString('ko-KR')}
-          </span>
-          건
-        </p>
+        <WorkspaceHeader
+          subtitle="주문·BOM 기준 미불출 필요 수량입니다"
+          totalCount={needCards.length}
+          filteredCount={filteredNeedCards.length}
+          hasQuery={Boolean(query)}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="주문번호, 고객사, 품목 검색…"
+          accent="orange"
+        />
 
         <OutboundNeedsTable
-          cards={needCards}
+          cards={filteredNeedCards}
           bomEdges={bomEdges}
           onIssued={() => router.refresh()}
         />
@@ -98,27 +117,23 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
   return (
     <>
       <div className="flex w-full flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-medium text-slate-600">
-            총 <span className="tabular-nums text-orange-700">{filtered.length.toLocaleString('ko-KR')}</span>
-            건
-            {query ? (
-              <span className="text-slate-400"> / {outbounds.length.toLocaleString('ko-KR')}건</span>
-            ) : null}
-          </p>
-        </div>
-
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="출고번호, 주문번호, 자재명, 자재코드 검색…"
-          className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-orange-100 placeholder:text-slate-400 focus:border-orange-300 focus:ring-2"
+        <WorkspaceHeader
+          totalCount={outbounds.length}
+          filteredCount={filtered.length}
+          hasQuery={Boolean(query)}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="불출번호, 주문번호, 자재명, 자재코드 검색…"
+          accent="orange"
         />
 
         <OutboundListTable
           outbounds={filtered}
-          emptyMessage={query ? '검색 결과가 없습니다' : '등록된 출고 내역이 없습니다'}
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: Boolean(query),
+            emptyLabel: '등록된 불출 내역이 없습니다',
+            actionHint: '불출등록 탭에서 등록하세요',
+          })}
           onSelectOutbound={openEdit}
         />
       </div>

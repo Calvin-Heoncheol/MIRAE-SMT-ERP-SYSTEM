@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -58,7 +58,7 @@ export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps
           <button
             type="button"
             onClick={openCreate}
-            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+            className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
           >
             새 지출결의서
           </button>

@@ -6,6 +6,7 @@ export type MetalMaskAsset = {
   id: string
   barcode: string
   name: string
+  itemId: string | null
   pcbSide: MetalMaskPcbSide
   useLimit: number
   useCount: number
@@ -18,6 +19,7 @@ export type MetalMaskAsset = {
 export type MetalMaskAssetPayload = {
   barcode: string
   name?: string
+  itemId?: string | null
   pcbSide: MetalMaskPcbSide
   useLimit?: number
   note?: string

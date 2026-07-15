@@ -11,7 +11,7 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen flex-col text-slate-900">
       <TopNav />
-      <main className="w-full flex-1 px-5 py-5 lg:px-8">{children}</main>
+      <main className="flex min-h-0 w-full flex-1 flex-col px-5 py-5 lg:px-8">{children}</main>
     </div>
   )
 }

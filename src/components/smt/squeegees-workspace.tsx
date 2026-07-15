@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -399,7 +399,7 @@ export function SqueegeesWorkspace({ result }: SqueegeesWorkspaceProps) {
           <button
             type="submit"
             disabled={usageSaving || !usageBarcode.trim() || Math.floor(Number(usageQty) || 0) < 1}
-            className="w-full rounded-lg bg-sky-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             {usageSaving ? '등록 중…' : '횟수 등록'}
           </button>

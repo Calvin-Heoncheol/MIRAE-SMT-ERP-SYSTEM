@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import type { ExpenseReportListItem } from '@/lib/expense-reports/types'
 import { formatExpenseReportMoney, getSignoffStatusLabel } from '@/lib/expense-reports/utils'
@@ -24,7 +24,7 @@ export function ExpenseReportListTable({ reports, emptyMessage, onSelectReport }
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
         <table className="min-w-[960px] w-full border-collapse">
-          <thead className="bg-blue-50/80">
+          <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
                 발의일

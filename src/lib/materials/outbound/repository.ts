@@ -13,13 +13,11 @@ import type {
 } from './types'
 import {
   aggregateIssuedByOrderMaterial,
-  aggregateOutboundByMaterialId,
   buildOutboundNeedCards,
   buildOutboundNeedRows,
   groupOutboundsFromRecords,
 } from './utils'
-import { aggregateOnHandByMaterialId } from '@/lib/materials/inbound/utils'
-import { isMissingMaterialInboundTable } from '@/lib/materials/inbound/repository'
+import { fetchOnHandByMaterialId, availableOnHandForOutboundEdit } from '@/lib/materials/inventory/stock'
 
 export type FetchMaterialOutboundsResult =
   | { ok: true; outbounds: MaterialOutboundListGroup[] }
@@ -123,6 +121,35 @@ function validateOutboundPayload(payload: MaterialOutboundRowPayload): string | 
 
   for (const item of items) {
     if (!item.material_id?.trim()) return '자재를 선택해 주세요.'
+  }
+
+  return null
+}
+
+async function validateOutboundStock(
+  items: { material_id: string; quantity: number }[],
+  previousLines: { material_id: string; quantity: number }[] = [],
+): Promise<string | null> {
+  const onHandResult = await fetchOnHandByMaterialId()
+  if (!onHandResult.ok) return onHandResult.detail
+
+  const requestedByMaterial = new Map<string, number>()
+  for (const item of items) {
+    requestedByMaterial.set(
+      item.material_id,
+      (requestedByMaterial.get(item.material_id) ?? 0) + item.quantity,
+    )
+  }
+
+  for (const [materialId, qty] of requestedByMaterial) {
+    const available = availableOnHandForOutboundEdit(
+      onHandResult.onHandByMaterialId,
+      previousLines,
+      materialId,
+    )
+    if (qty > available) {
+      return `${materialId} 현재고(${available.toLocaleString('ko-KR')})를 초과할 수 없습니다. (요청 ${qty.toLocaleString('ko-KR')})`
+    }
   }
 
   return null
@@ -280,21 +307,14 @@ export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutb
 
   try {
     const supabase = createSupabaseClient()
-    const [bomEdges, issuedRows, inboundLinesResult, outboundLinesResult] = await Promise.all([
+    const [bomEdges, issuedRows, onHandResult] = await Promise.all([
       fetchBomEdges(),
       fetchIssuedOrderMaterialRows(),
-      supabase.from('material_inbound_lines').select('material_id, quantity'),
-      supabase.from('material_outbound_lines').select('material_id, quantity'),
+      fetchOnHandByMaterialId(),
     ])
 
-    if (inboundLinesResult.error && !isMissingMaterialInboundTable(inboundLinesResult.error.message)) {
-      return { ok: false, reason: 'query', detail: inboundLinesResult.error.message }
-    }
-    if (
-      outboundLinesResult.error &&
-      !isMissingMaterialOutboundTable(outboundLinesResult.error.message)
-    ) {
-      return { ok: false, reason: 'query', detail: outboundLinesResult.error.message }
+    if (!onHandResult.ok) {
+      return { ok: false, reason: 'query', detail: onHandResult.detail }
     }
 
     const edgesByParent = new Map<string, BomEdge[]>()
@@ -305,24 +325,7 @@ export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutb
       edgesByParent.set(edge.parentProductId, list)
     }
 
-    const inboundByMaterialId = inboundLinesResult.error
-      ? new Map<string, number>()
-      : aggregateOnHandByMaterialId(
-          (inboundLinesResult.data || []) as { material_id: string; quantity: number }[],
-        )
-    const outboundByMaterialId = outboundLinesResult.error
-      ? new Map<string, number>()
-      : aggregateOutboundByMaterialId(
-          (outboundLinesResult.data || []) as { material_id: string; quantity: number }[],
-        )
-
-    const onHandByMaterialId = new Map<string, number>()
-    for (const materialId of new Set([...inboundByMaterialId.keys(), ...outboundByMaterialId.keys()])) {
-      onHandByMaterialId.set(
-        materialId,
-        (inboundByMaterialId.get(materialId) ?? 0) - (outboundByMaterialId.get(materialId) ?? 0),
-      )
-    }
+    const onHandByMaterialId = onHandResult.onHandByMaterialId
 
     const itemNameById = new Map(materialsResult.materials.map((material) => [material.id, material.materialName]))
     const issuedByOrderMaterial = aggregateIssuedByOrderMaterial(issuedRows)
@@ -398,6 +401,11 @@ export async function createMaterialOutbound(
       quantity: Number(item.quantity),
     }))
 
+  const stockError = await validateOutboundStock(items)
+  if (stockError) {
+    return { ok: false, reason: 'validation', detail: stockError }
+  }
+
   try {
     const supabase = createSupabaseClient()
     const { data: inserted, error } = await supabase
@@ -467,6 +475,15 @@ export async function updateMaterialOutbound(
 
     if (existing.outbound_type !== payload.outbound_type) {
       return { ok: false, reason: 'validation', detail: '불출 유형은 수정할 수 없습니다.' }
+    }
+
+    const previousLines = (existing.material_outbound_lines || []).map((line) => ({
+      material_id: line.material_id,
+      quantity: Number(line.quantity) || 0,
+    }))
+    const stockError = await validateOutboundStock(items, previousLines)
+    if (stockError) {
+      return { ok: false, reason: 'validation', detail: stockError }
     }
 
     const supabase = createSupabaseClient()

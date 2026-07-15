@@ -5,10 +5,13 @@ import { useRouter } from 'next/navigation'
 import { PartnerFetchError } from '@/components/partners/partner-fetch-error'
 import { PartnerListTable } from '@/components/partners/partner-list-table'
 import { PartnerModal } from '@/components/partners/partner-modal'
+import { ErpButton } from '@/components/ui/erp-button'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchBusinessPartnersResult } from '@/lib/partners/repository'
 import { PARTNER_TRADE_ROLE_LABELS } from '@/lib/partners/types'
 import { formatBusinessRegNo } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type PartnersWorkspaceProps = {
   result: FetchBusinessPartnersResult
@@ -80,40 +83,25 @@ export function PartnersWorkspace({ result }: PartnersWorkspaceProps) {
   return (
     <>
       <div className="flex w-full flex-col gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">거래처등록</h1>
-          </div>
-          <p className="text-sm font-medium text-slate-600">
-            총 <span className="tabular-nums text-slate-900">{filtered.length.toLocaleString('ko-KR')}</span>건
-            {query ? (
-              <span className="text-slate-400"> / {partners.length.toLocaleString('ko-KR')}건</span>
-            ) : null}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="사업자번호, 거래처명, 대표자명, 업태, 전화 검색…"
-            className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-slate-100 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2"
-          />
-          <div className="ml-auto shrink-0">
-            <button
-              type="button"
-              onClick={openCreate}
-              className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
-            >
-              거래처 등록
-            </button>
-          </div>
-        </div>
+        <WorkspaceHeader
+          title="거래처등록"
+          totalCount={partners.length}
+          filteredCount={filtered.length}
+          hasQuery={Boolean(query)}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="사업자번호, 거래처명, 대표자명, 업태, 전화 검색…"
+          accent="slate"
+          actions={<ErpButton onClick={openCreate}>거래처 등록</ErpButton>}
+        />
 
         <PartnerListTable
           partners={filtered}
-          emptyMessage={query ? '검색 결과가 없습니다' : '등록된 거래처가 없습니다'}
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: Boolean(query),
+            emptyLabel: '등록된 거래처가 없습니다',
+            actionHint: '오른쪽 상단에서 등록하세요',
+          })}
           onSelectPartner={openEdit}
         />
       </div>

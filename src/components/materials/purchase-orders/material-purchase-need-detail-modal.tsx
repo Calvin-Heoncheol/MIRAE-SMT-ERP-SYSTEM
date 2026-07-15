@@ -125,7 +125,7 @@ export function MaterialPurchaseNeedDetailModal({
                       ? 'bg-rose-600 text-white'
                       : item.key === '충분'
                         ? 'bg-emerald-600 text-white'
-                        : 'bg-violet-600 text-white'
+                        : 'bg-slate-800 text-white'
                     : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
                 ].join(' ')}
               >
@@ -252,7 +252,7 @@ export function MaterialPurchaseNeedDetailModal({
               <button
                 type="button"
                 onClick={() => onCreateShortageOrder(card)}
-                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
+                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900"
               >
                 부족분 발주
               </button>

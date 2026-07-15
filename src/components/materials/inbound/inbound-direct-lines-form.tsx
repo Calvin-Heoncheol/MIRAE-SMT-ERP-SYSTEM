@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type SetStateAction } from 'react'
 import { MaterialBarcodeRegisterPanel } from '@/components/materials/material-barcode-register-panel'
@@ -267,7 +267,7 @@ export function InboundDirectLinesForm({
         <button
           type="button"
           onClick={handleScanSubmit}
-          className="h-10 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700"
+          className="h-10 rounded-lg bg-slate-800 px-4 text-sm font-semibold text-white hover:bg-slate-900"
         >
           등록
         </button>

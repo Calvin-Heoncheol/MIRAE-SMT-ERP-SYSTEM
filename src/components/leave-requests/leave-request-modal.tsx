@@ -1,8 +1,10 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { LeaveRequestFormDocument } from '@/components/leave-requests/leave-request-form-document'
 import { DocumentPrintActions } from '@/components/documents/document-print-actions'
+import { ErpButton } from '@/components/ui/erp-button'
+import { ErpModal } from '@/components/ui/erp-modal'
 import { isApprovalDepartment, normalizeApprovalDepartment } from '@/lib/approvals/departments'
 import { toggleSignoff, type ApprovalSignoffRole } from '@/lib/approvals/signoffs'
 import {
@@ -159,74 +161,63 @@ export function LeaveRequestModal({
     onSignoffComplete?.()
   }
 
+  const busy = saving || signing
+
   return (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 sm:p-6">
-      <div className="my-4 w-full max-w-4xl rounded-2xl bg-slate-100 shadow-2xl">
-        <div className="no-print flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">
-              {mode === 'edit' ? '휴가원 수정' : '새 휴가원'}
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">
-              {mode === 'create'
-                ? '문서번호는 저장 시 MRL-0001부터 생성 순서대로 자동 발급됩니다.'
-                : request?.docNumber || request?.id}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <DocumentPrintActions
-              title={`휴가/조퇴원 ${form.docNumber || request?.docNumber || request?.id || ''}`}
-              disabled={mode === 'create'}
-            />
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100"
-            >
-              닫기
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-4 p-5">
-          <LeaveRequestFormDocument
-            form={form}
-            onChange={setForm}
-            canSign={mode === 'edit' && Boolean(request)}
-            signing={signing}
-            onSign={handleSign}
-            isDocNumberDraft={mode === 'create'}
-          />
-
-          <div className="no-print flex flex-col gap-2">
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {saving ? '저장 중...' : mode === 'edit' ? '휴가원 수정 저장' : '휴가원 저장'}
-              </button>
-              {mode === 'edit' ? (
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={saving}
-                  className="rounded-lg border border-red-200 bg-white px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60"
-                >
-                  삭제
-                </button>
-              ) : null}
+    <ErpModal
+      open
+      size="lg"
+      title={mode === 'edit' ? '휴가원 수정' : '새 휴가원'}
+      description={
+        mode === 'create'
+          ? '문서번호는 저장 시 MRL-0001부터 생성 순서대로 자동 발급됩니다.'
+          : request?.docNumber || request?.id
+      }
+      onClose={onClose}
+      closeOnEscape={!busy}
+      zIndexClassName="z-[80]"
+      contentClassName="min-h-0 flex-1 overflow-y-auto bg-slate-100 px-5 py-4"
+      headerActions={
+        <DocumentPrintActions
+          title={`휴가/조퇴원 ${form.docNumber || request?.docNumber || request?.id || ''}`}
+          disabled={mode === 'create'}
+        />
+      }
+      footer={
+        <div className="no-print flex w-full flex-col gap-2">
+          {saveError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {saveError}
             </div>
-            {saveError ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {saveError}
-              </div>
-            ) : null}
+          ) : null}
+          <div className="flex w-full flex-wrap items-center justify-between gap-2">
+            {mode === 'edit' ? (
+              <ErpButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>
+                삭제
+              </ErpButton>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <ErpButton variant="secondary" onClick={onClose} disabled={busy}>
+                취소
+              </ErpButton>
+              <ErpButton onClick={() => void handleSave()} disabled={busy}>
+                {saving ? '저장 중…' : mode === 'edit' ? '휴가원 수정 저장' : '휴가원 저장'}
+              </ErpButton>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
+      }
+    >
+      <LeaveRequestFormDocument
+        form={form}
+        onChange={setForm}
+        canSign={mode === 'edit' && Boolean(request)}
+        signing={signing}
+        onSign={handleSign}
+        isDocNumberDraft={mode === 'create'}
+      />
+    </ErpModal>
   )
 }

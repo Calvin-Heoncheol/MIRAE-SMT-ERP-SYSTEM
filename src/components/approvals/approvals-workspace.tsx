@@ -67,7 +67,7 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
           <button
             type="button"
             onClick={openCreate}
-            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+            className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
           >
             새 품의서
           </button>
@@ -82,9 +82,9 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
                 href={item.href}
                 className={[
                   'rounded-full px-4 py-2 text-sm font-semibold transition-colors',
-                  active
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+                    active
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
                 ].join(' ')}
               >
                 {item.shortLabel}

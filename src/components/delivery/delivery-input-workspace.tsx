@@ -87,7 +87,7 @@ export function DeliveryInputWorkspace({ result }: DeliveryInputWorkspaceProps) 
                 className={[
                   'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
                   active
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-slate-800 text-white'
                     : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
                 ].join(' ')}
               >

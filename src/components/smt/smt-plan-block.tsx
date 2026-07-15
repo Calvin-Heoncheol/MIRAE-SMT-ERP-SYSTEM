@@ -41,6 +41,12 @@ function urgencyBadgeClass(daysUntilDelivery: number | null) {
   return 'bg-slate-100 text-slate-600'
 }
 
+function progressBarClass(status: SmtPlanExecutionStatus) {
+  if (status === 'done') return 'bg-emerald-500'
+  if (status === 'progress') return 'bg-amber-500'
+  return 'bg-sky-500'
+}
+
 export function SmtPlanBlockCard({
   plan,
   producedQuantity = 0,
@@ -56,6 +62,8 @@ export function SmtPlanBlockCard({
   const status = resolveSmtPlanExecutionStatus(plan.plannedQuantity, producedQuantity)
   const produced = Math.max(0, Math.floor(producedQuantity))
   const planned = Math.max(0, Math.floor(plan.plannedQuantity))
+  const progressPct =
+    planned > 0 ? Math.min(100, Math.round((produced / planned) * 100)) : produced > 0 ? 100 : 0
 
   return (
     <button
@@ -92,9 +100,17 @@ export function SmtPlanBlockCard({
           </span>
         ) : null}
       </div>
-      <p className="mt-1 text-[10px] font-semibold tabular-nums text-sky-800">
-        {produced.toLocaleString('ko-KR')}/{planned.toLocaleString('ko-KR')}대
-      </p>
+      <div className="mt-1.5 space-y-1">
+        <div className="h-1.5 overflow-hidden rounded-full bg-white/70 ring-1 ring-black/5">
+          <div
+            className={`h-full rounded-full transition-[width] ${progressBarClass(status)}`}
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+        <p className="text-[10px] font-semibold tabular-nums text-sky-800">
+          {produced.toLocaleString('ko-KR')}/{planned.toLocaleString('ko-KR')}대
+        </p>
+      </div>
     </button>
   )
 }

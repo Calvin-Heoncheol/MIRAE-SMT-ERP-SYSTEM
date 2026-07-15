@@ -6,9 +6,11 @@ import { LegacyQuoteModal } from '@/components/quotes/legacy-quote-modal'
 import { QuoteListTable } from '@/components/quotes/quote-list-table'
 import { QuoteModal } from '@/components/quotes/quote-modal'
 import { QuoteNewMenu } from '@/components/quotes/quote-toolbar'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchQuotesResult } from '@/lib/quotes/repository'
 import type { QuoteListItem, QuoteType } from '@/lib/quotes/types'
 import { filterQuotesForSearch } from '@/lib/quotes/utils'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type QuotationsWorkspaceProps = {
   result: FetchQuotesResult
@@ -63,34 +65,25 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
   return (
     <>
       <div className="flex w-full flex-col gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">견적서</h1>
-          </div>
-          <p className="text-sm font-medium text-slate-600">
-            총 <span className="tabular-nums text-slate-900">{filtered.length.toLocaleString('ko-KR')}</span>건
-            {query ? (
-              <span className="text-slate-400"> / {quotes.length.toLocaleString('ko-KR')}건</span>
-            ) : null}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="견적번호, 고객사, 제품명, 견적일 검색…"
-            className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-slate-100 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2"
-          />
-          <div className="ml-auto shrink-0">
-            <QuoteNewMenu onOpenNew={openCreate} />
-          </div>
-        </div>
+        <WorkspaceHeader
+          title="견적서"
+          totalCount={quotes.length}
+          filteredCount={filtered.length}
+          hasQuery={Boolean(query)}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="견적번호, 고객사, 제품명, 견적일 검색…"
+          accent="slate"
+          actions={<QuoteNewMenu onOpenNew={openCreate} />}
+        />
 
         <QuoteListTable
           quotes={filtered}
-          emptyMessage={query ? '검색 결과가 없습니다' : '등록된 견적서가 없습니다'}
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: Boolean(query),
+            emptyLabel: '등록된 견적서가 없습니다',
+            actionHint: '오른쪽 상단에서 등록하세요',
+          })}
           onSelectQuote={openEdit}
         />
       </div>

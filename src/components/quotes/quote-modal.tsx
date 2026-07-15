@@ -7,6 +7,7 @@ import { QuoteBreakdownPreview } from '@/components/quotes/quote-breakdown-previ
 import { QuoteCurrencyToggle } from '@/components/quotes/quote-currency-toggle'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
+import { ErpButton } from '@/components/ui/erp-button'
 import {
   SMT_PLACEMENT_MIN_SCORE,
   getPostRate,
@@ -432,8 +433,12 @@ function QuoteModalContent({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-3 sm:p-4">
-      <div className="relative flex max-h-[94dvh] w-full max-w-[min(1680px,98vw)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-3 sm:p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative flex max-h-[94dvh] w-full max-w-[min(1680px,98vw)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
           <div className="min-w-0">
             <h2 className="text-lg font-bold text-slate-900">{title}</h2>
@@ -718,7 +723,7 @@ function QuoteModalContent({
               </section>
             </div>
 
-            <div className="sticky bottom-0 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+            <div className="shrink-0 border-t border-slate-200 bg-slate-50/80 px-4 py-3">
               <div className="mb-2 flex items-end justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[11px] font-medium text-slate-500">대당 단가</p>
@@ -728,19 +733,18 @@ function QuoteModalContent({
                 </div>
                 <div className="min-w-0 text-right">
                   <p className="text-[11px] font-medium text-slate-500">최종 합계</p>
-                  <p className="truncate text-base font-bold text-blue-700">
+                  <p className="truncate text-base font-bold text-slate-900">
                     {liveSummary?.totalFormatted ?? '-'}
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
+              <ErpButton
+                className="w-full"
                 onClick={handleSave}
                 disabled={saving || deleting}
-                className="w-full rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
               >
                 {saving ? '저장 중...' : mode === 'edit' ? '견적서 수정 저장' : '견적서 저장'}
-              </button>
+              </ErpButton>
               {saveError ? <p className="mt-2 text-sm text-red-600">{saveError}</p> : null}
             </div>
           </div>

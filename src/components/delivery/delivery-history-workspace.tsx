@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { DeliveryHistoryFetchError } from '@/components/delivery/delivery-history-fetch-error'
 import { DeliveryHistoryModal } from '@/components/delivery/delivery-history-modal'
 import { DeliveryHistoryTable } from '@/components/delivery/delivery-history-table'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchDeliveryHistoryResult } from '@/lib/delivery/repository'
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 import {
@@ -12,6 +13,7 @@ import {
   filterDeliveryHistory,
   sumDeliveryHistoryQuantity,
 } from '@/lib/delivery/history-utils'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type DeliveryHistoryWorkspaceProps = {
   result: FetchDeliveryHistoryResult
@@ -69,42 +71,32 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-sm text-slate-500">
-              출하입력에서 등록된 납품 실적을 최신순으로 보여줍니다. 행을 클릭하면 수정·거래명세서 출력이
-              가능합니다.
-            </p>
-          </div>
-          <div className="text-right text-sm font-medium text-slate-600">
-            <p>
-              총 <span className="tabular-nums text-violet-700">{filtered.length.toLocaleString('ko-KR')}</span>건
-              {search.trim() ? (
-                <span className="text-slate-400"> / {rows.length.toLocaleString('ko-KR')}건</span>
-              ) : null}
-            </p>
+        <WorkspaceHeader
+          subtitle="출하입력에서 등록된 납품 실적을 최신순으로 보여줍니다. 행을 클릭하면 수정·거래명세서 출력이 가능합니다."
+          totalCount={rows.length}
+          filteredCount={filtered.length}
+          hasQuery={Boolean(search.trim())}
+          search={search}
+          onSearchChange={handleSearchChange}
+          searchPlaceholder="출하번호, 주문서번호, 고객사, 완제품명, 기록일 검색…"
+          accent="sky"
+          meta={
             <p className="mt-0.5 text-slate-500">
               수량 합계{' '}
-              <span className="tabular-nums font-semibold text-violet-800">
+              <span className="tabular-nums font-semibold text-sky-800">
                 {totalQuantity.toLocaleString('ko-KR')}
               </span>
             </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => handleSearchChange(event.target.value)}
-            placeholder="출하번호, 주문서번호, 고객사, 완제품명, 기록일 검색…"
-            className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-violet-100 placeholder:text-slate-400 focus:border-violet-300 focus:ring-2"
-          />
-        </div>
+          }
+        />
 
         <DeliveryHistoryTable
           rows={pageRows}
-          emptyMessage={search.trim() ? '검색 결과가 없습니다' : '등록된 출하 이력이 없습니다'}
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: Boolean(search.trim()),
+            emptyLabel: '등록된 출하 이력이 없습니다',
+            actionHint: '출하입력에서 등록하세요',
+          })}
           onRowClick={openEdit}
         />
 

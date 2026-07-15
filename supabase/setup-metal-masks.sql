@@ -11,6 +11,7 @@ create table if not exists public.metal_mask_assets (
   use_count integer not null default 0 check (use_count >= 0),
   status text not null default 'active' check (status in ('active', 'retired')),
   note text not null default '',
+  item_id text references public.items(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint metal_mask_assets_barcode_unique unique (barcode)
@@ -18,6 +19,7 @@ create table if not exists public.metal_mask_assets (
 
 comment on table public.metal_mask_assets is '메탈마스크 개체 — 바코드별 사용횟수 추적';
 comment on column public.metal_mask_assets.barcode is '마스크 바코드 (고유)';
+comment on column public.metal_mask_assets.item_id is '기초등록 반제품 items.id';
 comment on column public.metal_mask_assets.pcb_side is '사용 면: SINGLE / TOP / BOT';
 comment on column public.metal_mask_assets.use_limit is '교체 한도 (기본 50000)';
 comment on column public.metal_mask_assets.use_count is '누적 사용 횟수 (shot)';
@@ -28,6 +30,9 @@ create index if not exists metal_mask_assets_status_idx
 
 create index if not exists metal_mask_assets_pcb_side_idx
   on public.metal_mask_assets (pcb_side);
+
+create index if not exists metal_mask_assets_item_id_idx
+  on public.metal_mask_assets (item_id);
 
 create table if not exists public.metal_mask_usage_logs (
   id uuid primary key default gen_random_uuid(),

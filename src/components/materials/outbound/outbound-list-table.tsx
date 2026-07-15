@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { getOutboundTypeLabel, formatOutboundMaterialSummary } from '@/lib/materials/outbound/utils'
 import type { MaterialOutboundListGroup } from '@/lib/materials/outbound/types'
@@ -27,27 +27,27 @@ export function OutboundListTable({
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[920px] table-fixed border-collapse">
-          <thead className="bg-orange-50/80">
+          <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-orange-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 불출번호
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-orange-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 불출일
               </th>
-              <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-orange-900 uppercase">
+              <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 유형
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-orange-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 주문번호
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-orange-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목
               </th>
-              <th className="px-3 py-3 text-right text-xs font-semibold tracking-wide text-orange-900 uppercase">
+              <th className="px-3 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 총 수량
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-orange-900 uppercase">
+              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
               </th>
             </tr>
@@ -56,7 +56,7 @@ export function OutboundListTable({
             {outbounds.map((outbound) => (
               <tr
                 key={outbound.outboundId}
-                className="cursor-pointer border-t border-slate-100 hover:bg-orange-50/40"
+                className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
                 onClick={() => onSelectOutbound?.(outbound)}
               >
                 <td className="px-3 py-2.5 font-mono text-sm font-medium text-orange-800">

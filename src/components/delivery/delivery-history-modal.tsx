@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import {
@@ -279,7 +279,7 @@ export function DeliveryHistoryModal({
               type="button"
               onClick={() => void handleSave()}
               disabled={saving || deleting}
-              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-50"
             >
               {saving ? '저장 중…' : '저장'}
             </button>

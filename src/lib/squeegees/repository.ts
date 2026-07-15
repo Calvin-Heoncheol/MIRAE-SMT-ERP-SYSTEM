@@ -193,6 +193,7 @@ export async function retireSqueegeeAsset(assetId: string): Promise<SaveSqueegee
 export async function applySqueegeeUsage(input: {
   barcode: string
   deltaQty: number
+  smtProductionRecordId?: string | null
   recordDate?: string
 }): Promise<ApplySqueegeeUsageResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -254,6 +255,7 @@ export async function applySqueegeeUsage(input: {
       asset_id: asset.id,
       delta_qty: deltaQty,
       record_date: input.recordDate?.trim() || todayYmdSeoul(),
+      smt_production_record_id: input.smtProductionRecordId?.trim() || null,
     })
 
     if (logError) {

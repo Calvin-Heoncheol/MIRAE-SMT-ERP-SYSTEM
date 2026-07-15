@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useMemo, useState } from 'react'
 import { createMaterialOutbound } from '@/lib/materials/outbound/repository'
@@ -137,7 +137,7 @@ function OutboundNeedCardItem({
           type="button"
           disabled={saving || maxQty < 1}
           onClick={() => void handleIssue()}
-          className="shrink-0 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="shrink-0 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           {saving ? '처리 중…' : '불출'}
         </button>

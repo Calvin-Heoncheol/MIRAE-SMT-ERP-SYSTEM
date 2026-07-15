@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import {
   formatInternalCodeLabel,
@@ -33,30 +33,30 @@ export function MaterialPurchaseOrderListTable({
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
         <table className="min-w-[1040px] w-full border-collapse">
-          <thead className="bg-violet-50/80">
+          <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 발주일
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 납기일
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 발주번호
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 공급사
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 자재
               </th>
-              <th className="min-w-[72px] whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="min-w-[72px] whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 수량합계
               </th>
-              <th className="min-w-[96px] whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="min-w-[96px] whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 발주금액
               </th>
-              <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-violet-900 uppercase">
+              <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 상태
               </th>
             </tr>
@@ -65,7 +65,7 @@ export function MaterialPurchaseOrderListTable({
             {orders.map((order) => (
               <tr
                 key={order.orderNumber}
-                className="cursor-pointer border-t border-slate-100 hover:bg-violet-50/50"
+                className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
                 onClick={() => onSelectOrder?.(order)}
               >
                 <td className="px-4 py-3 text-sm text-slate-700">{order.orderDate || '-'}</td>

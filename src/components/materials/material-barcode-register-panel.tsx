@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useState } from 'react'
 import { MaterialCombobox } from '@/components/materials/purchase-orders/material-combobox'
@@ -127,7 +127,7 @@ export function MaterialBarcodeRegisterPanel({
           type="button"
           onClick={() => void handleRegister()}
           disabled={busy}
-          className="h-[38px] shrink-0 rounded-lg bg-violet-600 px-5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50 lg:self-end"
+          className="h-[38px] shrink-0 rounded-lg bg-slate-800 px-5 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-50 lg:self-end"
         >
           {busy ? '등록 중…' : '등록'}
         </button>

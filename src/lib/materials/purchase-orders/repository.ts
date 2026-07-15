@@ -1,14 +1,9 @@
 import { createSupabaseClient } from '@/lib/supabase'
-import { aggregateOnHandByMaterialId } from '@/lib/materials/inbound/utils'
-import { isMissingMaterialInboundTable } from '@/lib/materials/inbound/repository'
-import {
-  fetchBomEdges,
-  isMissingMaterialOutboundTable,
-} from '@/lib/materials/outbound/repository'
-import { aggregateOutboundByMaterialId } from '@/lib/materials/outbound/utils'
+import { fetchBomEdges } from '@/lib/materials/outbound/repository'
 import { fetchMaterials } from '@/lib/materials/repository'
 import type { Material } from '@/lib/materials/types'
 import { fetchOrders } from '@/lib/orders/repository'
+import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
 import { buildPurchaseNeedCards } from './need-utils'
 import type {
   MaterialPurchaseNeedCard,
@@ -173,45 +168,17 @@ export async function fetchMaterialPurchaseOrderRegisterData(): Promise<FetchMat
   if (!ordersResult.ok) return ordersResult
 
   try {
-    const supabase = createSupabaseClient()
-    const [bomEdges, inboundLinesResult, outboundLinesResult, deletedNeedIdsResult] =
-      await Promise.all([
-        fetchBomEdges(),
-        supabase.from('material_inbound_lines').select('material_id, quantity'),
-        supabase.from('material_outbound_lines').select('material_id, quantity'),
-        fetchDeletedNeedOrderIds(),
-      ])
+    const [bomEdges, onHandResult, deletedNeedIdsResult] = await Promise.all([
+      fetchBomEdges(),
+      fetchOnHandByMaterialId(),
+      fetchDeletedNeedOrderIds(),
+    ])
 
     if (!deletedNeedIdsResult.ok) {
       return { ok: false, reason: 'query', detail: deletedNeedIdsResult.detail }
     }
-    if (inboundLinesResult.error && !isMissingMaterialInboundTable(inboundLinesResult.error.message)) {
-      return { ok: false, reason: 'query', detail: inboundLinesResult.error.message }
-    }
-    if (
-      outboundLinesResult.error &&
-      !isMissingMaterialOutboundTable(outboundLinesResult.error.message)
-    ) {
-      return { ok: false, reason: 'query', detail: outboundLinesResult.error.message }
-    }
-
-    const inboundByMaterialId = inboundLinesResult.error
-      ? new Map<string, number>()
-      : aggregateOnHandByMaterialId(
-          (inboundLinesResult.data || []) as { material_id: string; quantity: number }[],
-        )
-    const outboundByMaterialId = outboundLinesResult.error
-      ? new Map<string, number>()
-      : aggregateOutboundByMaterialId(
-          (outboundLinesResult.data || []) as { material_id: string; quantity: number }[],
-        )
-
-    const onHandByMaterialId = new Map<string, number>()
-    for (const materialId of new Set([...inboundByMaterialId.keys(), ...outboundByMaterialId.keys()])) {
-      onHandByMaterialId.set(
-        materialId,
-        (inboundByMaterialId.get(materialId) ?? 0) - (outboundByMaterialId.get(materialId) ?? 0),
-      )
+    if (!onHandResult.ok) {
+      return { ok: false, reason: 'query', detail: onHandResult.detail }
     }
 
     const deletedNeedOrderIds = new Set(deletedNeedIdsResult.orderIds)
@@ -219,7 +186,7 @@ export async function fetchMaterialPurchaseOrderRegisterData(): Promise<FetchMat
       orders: ordersResult.orders,
       bomEdges,
       materials: materialsResult.materials,
-      onHandByMaterialId,
+      onHandByMaterialId: onHandResult.onHandByMaterialId,
     }).filter((card) => !deletedNeedOrderIds.has(card.orderId))
 
     return {

@@ -1,4 +1,4 @@
-import type { PostProcessProductionHistoryRow } from '@/lib/post-process/types'
+﻿import type { PostProcessProductionHistoryRow } from '@/lib/post-process/types'
 import { formatPostProcessHistoryDateTime } from '@/lib/post-process/history-utils'
 
 type PostProcessHistoryTableProps = {
@@ -27,30 +27,30 @@ export function PostProcessHistoryTable({ rows, emptyMessage }: PostProcessHisto
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
         <table className="min-w-[880px] w-full border-collapse">
-          <thead className="bg-emerald-50/80">
+          <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 기록일
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 등록시각
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 주문서번호
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 고객사
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 완제품명
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-emerald-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 목표
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-emerald-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 등록수량
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-emerald-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
               </th>
             </tr>

@@ -6,9 +6,11 @@ import { InboundFetchError } from '@/components/materials/inbound/inbound-fetch-
 import { InboundForm } from '@/components/materials/inbound/inbound-form'
 import { InboundListTable } from '@/components/materials/inbound/inbound-list-table'
 import { InboundModal } from '@/components/materials/inbound/inbound-modal'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchMaterialInboundPageResult } from '@/lib/materials/inbound/repository'
 import type { MaterialInboundListGroup } from '@/lib/materials/inbound/types'
 import { getInboundTypeLabel } from '@/lib/materials/inbound/utils'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type InboundWorkspaceProps = {
   result: FetchMaterialInboundPageResult
@@ -89,26 +91,23 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
   return (
     <>
       <div className="flex w-full flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-medium text-slate-600">
-            총 <span className="tabular-nums text-blue-700">{filtered.length.toLocaleString('ko-KR')}</span>건
-            {query ? (
-              <span className="text-slate-400"> / {inbounds.length.toLocaleString('ko-KR')}건</span>
-            ) : null}
-          </p>
-        </div>
-
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="입고번호, 발주번호, 자재명, 자재코드 검색…"
-          className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-blue-100 placeholder:text-slate-400 focus:border-blue-300 focus:ring-2"
+        <WorkspaceHeader
+          totalCount={inbounds.length}
+          filteredCount={filtered.length}
+          hasQuery={Boolean(query)}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="입고번호, 발주번호, 자재명, 자재코드 검색…"
+          accent="blue"
         />
 
         <InboundListTable
           inbounds={filtered}
-          emptyMessage={query ? '검색 결과가 없습니다' : '등록된 입고 내역이 없습니다'}
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: Boolean(query),
+            emptyLabel: '등록된 입고 내역이 없습니다',
+            actionHint: '입고등록 탭에서 등록하세요',
+          })}
           onSelectInbound={openEdit}
         />
       </div>

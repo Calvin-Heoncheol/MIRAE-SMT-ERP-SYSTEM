@@ -3,12 +3,14 @@
 import { useMemo, useState } from 'react'
 import { PostProcessHistoryFetchError } from '@/components/post-process/post-process-history-fetch-error'
 import { PostProcessHistoryTable } from '@/components/post-process/post-process-history-table'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchPostProcessProductionHistoryResult } from '@/lib/post-process/repository'
 import {
   filterPostProcessProductionHistory,
   POST_PROCESS_HISTORY_PAGE_SIZE,
   sumPostProcessHistoryQuantity,
 } from '@/lib/post-process/history-utils'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type PostProcessHistoryWorkspaceProps = {
   result: FetchPostProcessProductionHistoryResult
@@ -39,41 +41,32 @@ export function PostProcessHistoryWorkspace({ result }: PostProcessHistoryWorksp
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-sm text-slate-500">
-            후공정 생산입력에서 등록된 완제품 세트 실적을 최신순으로 보여줍니다.
-          </p>
-        </div>
-        <div className="text-right text-sm font-medium text-slate-600">
-          <p>
-            총 <span className="tabular-nums text-emerald-700">{filtered.length.toLocaleString('ko-KR')}</span>건
-            {search.trim() ? (
-              <span className="text-slate-400"> / {rows.length.toLocaleString('ko-KR')}건</span>
-            ) : null}
-          </p>
+      <WorkspaceHeader
+        subtitle="후공정 생산입력에서 등록된 완제품 세트 실적을 최신순으로 보여줍니다."
+        totalCount={rows.length}
+        filteredCount={filtered.length}
+        hasQuery={Boolean(search.trim())}
+        search={search}
+        onSearchChange={handleSearchChange}
+        searchPlaceholder="주문서번호, 고객사, 완제품명, 기록일 검색…"
+        accent="emerald"
+        meta={
           <p className="mt-0.5 text-slate-500">
             수량 합계{' '}
             <span className="tabular-nums font-semibold text-emerald-800">
               {totalQuantity.toLocaleString('ko-KR')}
             </span>
           </p>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => handleSearchChange(event.target.value)}
-          placeholder="주문서번호, 고객사, 완제품명, 기록일 검색…"
-          className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-emerald-100 placeholder:text-slate-400 focus:border-emerald-300 focus:ring-2"
-        />
-      </div>
+        }
+      />
 
       <PostProcessHistoryTable
         rows={pageRows}
-        emptyMessage={search.trim() ? '검색 결과가 없습니다' : '등록된 후공정 생산 이력이 없습니다'}
+        emptyMessage={formatEmptyListMessage({
+          hasQuery: Boolean(search.trim()),
+          emptyLabel: '등록된 후공정 생산 이력이 없습니다',
+          actionHint: '생산입력에서 등록하세요',
+        })}
       />
 
       {showPager ? (

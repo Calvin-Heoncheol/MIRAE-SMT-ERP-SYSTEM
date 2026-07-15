@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { OrderItemsForm } from '@/components/orders/order-items-form'
+import { ErpButton } from '@/components/ui/erp-button'
+import { ErpModal } from '@/components/ui/erp-modal'
 import { validateOrderItems } from '@/lib/orders/build-order-payload'
 import {
   defaultOrderItemForm,
@@ -20,6 +22,7 @@ import type { Product } from '@/lib/products/types'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
+import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type OrderModalProps = {
   open: boolean
@@ -95,18 +98,6 @@ function OrderModalContent({
     }
   }, [])
 
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !deleting) onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = ''
-    }
-  }, [onClose, deleting])
-
   function updateForm<K extends keyof OrderFormState>(key: K, value: OrderFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
   }
@@ -180,149 +171,127 @@ function OrderModalContent({
     onDeleted?.()
   }
 
+  const busy = saving || deleting
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-      <div className="relative flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
-          <h2 className="text-lg font-bold text-slate-900">
-            {mode === 'edit' ? `주문서 수정 (${items.length}개 제품)` : '신규 주문서'}
-          </h2>
-          <div className="flex items-center gap-2">
+    <ErpModal
+      open
+      size="xl"
+      title={mode === 'edit' ? `주문서 수정 (${items.length}개 제품)` : '신규 주문서'}
+      onClose={onClose}
+      closeOnEscape={!busy}
+      footer={
+        <div className="flex w-full flex-col gap-2">
+          {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+          <div className="flex w-full flex-wrap items-center justify-between gap-2">
             {mode === 'edit' ? (
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting || saving}
-                className="inline-flex items-center rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {deleting ? '삭제 중...' : '삭제'}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={deleting}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
-              aria-label="닫기"
-            >
-              ×
-            </button>
+              <ErpButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>
+                {deleting ? '삭제 중…' : '삭제'}
+              </ErpButton>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <ErpButton variant="secondary" onClick={onClose} disabled={busy}>
+                취소
+              </ErpButton>
+              <ErpButton onClick={() => void handleSave()} disabled={busy}>
+                {saving ? '저장 중…' : '저장'}
+              </ErpButton>
+            </div>
           </div>
         </div>
-
-        <div className="overflow-x-auto overflow-y-auto p-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block font-medium text-slate-600">고객사 PO/NO</span>
-              {mode === 'edit' && order ? (
-                <input
-                  value={order.orderNumber}
-                  readOnly
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600"
-                />
-              ) : (
-                <>
-                  <input
-                    value={form.orderCode}
-                    onChange={(event) => updateForm('orderCode', event.target.value.toUpperCase())}
-                    placeholder="고객사 PO/NO"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm uppercase text-slate-900 placeholder:text-slate-400 placeholder:normal-case"
-                    autoCapitalize="characters"
-                    spellCheck={false}
-                  />
-                  <p className="mt-1 text-xs text-slate-500">
-                    {form.customer.trim()
-                      ? `비우면 ${formatAutoOrderCodeExample(form.customer)} 형식으로 자동 발급됩니다.`
-                      : '비우면 고객사명 접두사로 자동 발급됩니다. (예: 서창 → SC-0001)'}
-                  </p>
-                </>
-              )}
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">구분</span>
-              <select
-                value={form.category}
-                onChange={(event) => updateForm('category', event.target.value as OrderFormState['category'])}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-              >
-                {ORDER_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">주문일</span>
+      }
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label className="block text-sm sm:col-span-2">
+          <span className={ERP_FIELD_LABEL_CLASS}>고객사 PO/NO</span>
+          {mode === 'edit' && order ? (
+            <input
+              value={order.orderNumber}
+              readOnly
+              className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-mono text-xs text-slate-600`}
+            />
+          ) : (
+            <>
               <input
-                type="date"
-                value={form.orderDate}
-                onChange={(event) => updateForm('orderDate', event.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">납기일</span>
-              <input
-                type="date"
-                value={form.deliveryDate}
-                onChange={(event) => updateForm('deliveryDate', event.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-              />
-            </label>
-            <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block font-medium text-slate-600">고객사</span>
-              <CustomerCombobox
-                value={form.customer}
-                partners={salesPartners}
-                placeholder="거래처명 검색 (예: 센서)"
-                inputClassName="w-full rounded-lg border border-slate-200 px-3 py-2"
-                onValueChange={(value) => updateForm('customer', value)}
-                onPartnerSelect={(partner) => updateForm('customer', partner.name)}
+                value={form.orderCode}
+                onChange={(event) => updateForm('orderCode', event.target.value.toUpperCase())}
+                placeholder="고객사 PO/NO"
+                className={`${ERP_FIELD_INPUT_CLASS} font-mono uppercase placeholder:normal-case placeholder:text-slate-400`}
+                autoCapitalize="characters"
+                spellCheck={false}
               />
               <p className="mt-1 text-xs text-slate-500">
-                {partnersLoading
-                  ? '매출 거래처 목록을 불러오는 중...'
-                  : salesPartners.length === 0
-                    ? '등록된 매출 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
-                    : '거래처등록의 매출·매입/매출 거래처만 선택할 수 있습니다.'}
+                {form.customer.trim()
+                  ? `비우면 ${formatAutoOrderCodeExample(form.customer)} 형식으로 자동 발급됩니다.`
+                  : '비우면 고객사명 접두사로 자동 발급됩니다. (예: 서창 → SC-0001)'}
               </p>
-            </label>
-          </div>
-
-          <div className="mt-6">
-            <h3 className="mb-3 text-sm font-bold text-slate-900">제품</h3>
-            <OrderItemsForm
-              items={items}
-              customer={resolvePartnerFromInput(salesPartners, form.customer)?.name ?? form.customer}
-              products={products}
-              onChange={setItems}
-            />
-          </div>
-
-          {saveError ? <p className="mt-4 text-sm text-red-600">{saveError}</p> : null}
-        </div>
-
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving || deleting}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            </>
+          )}
+        </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>구분</span>
+          <select
+            value={form.category}
+            onChange={(event) => updateForm('category', event.target.value as OrderFormState['category'])}
+            className={ERP_FIELD_INPUT_CLASS}
           >
-            취소
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || deleting}
-            className="rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving ? '저장 중...' : '저장'}
-          </button>
-        </div>
+            {ORDER_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>주문일</span>
+          <input
+            type="date"
+            value={form.orderDate}
+            onChange={(event) => updateForm('orderDate', event.target.value)}
+            className={ERP_FIELD_INPUT_CLASS}
+          />
+        </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>납기일</span>
+          <input
+            type="date"
+            value={form.deliveryDate}
+            onChange={(event) => updateForm('deliveryDate', event.target.value)}
+            className={ERP_FIELD_INPUT_CLASS}
+          />
+        </label>
+        <label className="block text-sm sm:col-span-2">
+          <span className={ERP_FIELD_LABEL_CLASS}>고객사</span>
+          <CustomerCombobox
+            value={form.customer}
+            partners={salesPartners}
+            placeholder="거래처명 검색 (예: 센서)"
+            inputClassName={ERP_FIELD_INPUT_CLASS}
+            onValueChange={(value) => updateForm('customer', value)}
+            onPartnerSelect={(partner) => updateForm('customer', partner.name)}
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            {partnersLoading
+              ? '매출 거래처 목록을 불러오는 중...'
+              : salesPartners.length === 0
+                ? '등록된 매출 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
+                : '거래처등록의 매출·매입/매출 거래처만 선택할 수 있습니다.'}
+          </p>
+        </label>
       </div>
-    </div>
+
+      <div className="mt-6">
+        <h3 className="mb-3 text-sm font-bold text-slate-900">제품</h3>
+        <OrderItemsForm
+          items={items}
+          customer={resolvePartnerFromInput(salesPartners, form.customer)?.name ?? form.customer}
+          products={products}
+          onChange={setItems}
+        />
+      </div>
+    </ErpModal>
   )
 }
 

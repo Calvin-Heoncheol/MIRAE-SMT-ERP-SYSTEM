@@ -29,24 +29,24 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[920px] border-collapse">
-          <thead className="bg-slate-100">
+          <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-700 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 사업자번호
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-700 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 거래처명
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-700 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 대표자명
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-700 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 업태
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-700 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 전화
               </th>
-              <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-700 uppercase">
+              <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 매입/매출
               </th>
             </tr>

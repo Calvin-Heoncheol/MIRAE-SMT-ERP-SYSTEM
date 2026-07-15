@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
@@ -287,7 +287,7 @@ export function ProductionInputWorkspace({
       : 0
 
     return (
-      <div className="flex h-[calc(100dvh-12.5rem)] min-h-[520px] w-full flex-col gap-4 overflow-hidden">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <div className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
           <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -373,7 +373,7 @@ export function ProductionInputWorkspace({
               </p>
               <Link
                 href="/post-process/plan"
-                className="mt-1 rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700"
+                className="mt-1 rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
               >
                 생산계획 열기
               </Link>
@@ -404,7 +404,7 @@ export function ProductionInputWorkspace({
       : 0
 
     return (
-      <div className="flex h-[calc(100dvh-12.5rem)] min-h-[520px] w-full flex-col gap-4 overflow-hidden">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <div className="shrink-0 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
           <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -446,7 +446,7 @@ export function ProductionInputWorkspace({
               </p>
               <Link
                 href="/smt/plan"
-                className="mt-1 rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700"
+                className="mt-1 rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
               >
                 생산계획 열기
               </Link>
@@ -503,7 +503,7 @@ export function ProductionInputWorkspace({
   }
 
   return (
-    <div className="grid h-[calc(100dvh-12.5rem)] min-h-[480px] w-full grid-cols-1 grid-rows-[minmax(220px,42%)_minmax(0,1fr)] overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)] lg:grid-rows-none">
+    <div className="grid min-h-0 h-full w-full flex-1 grid-cols-1 grid-rows-[minmax(220px,42%)_minmax(0,1fr)] overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md lg:grid-cols-[minmax(280px,380px)_minmax(0,1fr)] lg:grid-rows-none">
       <ProductionOrderSidebar
         orders={filtered}
         counts={counts}

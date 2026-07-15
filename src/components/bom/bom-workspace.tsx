@@ -5,11 +5,17 @@ import { useRouter } from 'next/navigation'
 import { BomFetchError } from '@/components/bom/bom-fetch-error'
 import { BomListTable } from '@/components/bom/bom-list-table'
 import { BomModal } from '@/components/bom/bom-modal'
+import { ErpButton } from '@/components/ui/erp-button'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchBomResult } from '@/lib/bom/repository'
 import type { BomGroup, BomParentFilter } from '@/lib/bom/types'
 import { filterBomGroups, groupBomLines } from '@/lib/bom/utils'
 import type { FetchItemsResult } from '@/lib/items/repository'
-import type { Item } from '@/lib/items/types'
+import {
+  ERP_FILTER_CHIP_ACTIVE_CLASS,
+  ERP_FILTER_CHIP_IDLE_CLASS,
+  formatEmptyListMessage,
+} from '@/lib/ui/tokens'
 
 type BomWorkspaceProps = {
   bomResult: FetchBomResult
@@ -89,61 +95,45 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
   return (
     <>
       <div className="flex w-full flex-col gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">BOM등록</h1>
-          </div>
-          <p className="text-sm font-medium text-slate-600">
-            총 <span className="tabular-nums text-slate-900">{filtered.length.toLocaleString('ko-KR')}</span>
-            건
-            {hasActiveFilter ? (
-              <span className="text-slate-400"> / {groups.length.toLocaleString('ko-KR')}건</span>
-            ) : null}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="부모/구성 품목코드, 품목명 검색…"
-            className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-slate-100 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2"
-          />
-          <div className="flex flex-wrap gap-2">
-            {PARENT_FILTER_OPTIONS.map((option) => {
-              const active = parentFilter === option.value
-              return (
-                <button
-                  key={String(option.value)}
-                  type="button"
-                  onClick={() => setParentFilter(option.value)}
-                  className={[
-                    'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
-                    active
-                      ? 'bg-blue-600 text-white'
-                      : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-                  ].join(' ')}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>
-          <div className="ml-auto shrink-0">
-            <button
-              type="button"
-              onClick={openCreate}
-              className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
-            >
-              BOM 등록
-            </button>
-          </div>
-        </div>
+        <WorkspaceHeader
+          title="BOM등록"
+          totalCount={groups.length}
+          filteredCount={filtered.length}
+          hasQuery={hasActiveFilter}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="부모/구성 품목코드, 품목명 검색…"
+          accent="slate"
+          filters={
+            <div className="flex flex-wrap gap-2">
+              {PARENT_FILTER_OPTIONS.map((option) => {
+                const active = parentFilter === option.value
+                return (
+                  <button
+                    key={String(option.value)}
+                    type="button"
+                    onClick={() => setParentFilter(option.value)}
+                    className={[
+                      'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                      active ? ERP_FILTER_CHIP_ACTIVE_CLASS : ERP_FILTER_CHIP_IDLE_CLASS,
+                    ].join(' ')}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+          }
+          actions={<ErpButton onClick={openCreate}>BOM 등록</ErpButton>}
+        />
 
         <BomListTable
           groups={filtered}
-          emptyMessage={hasActiveFilter ? '검색 결과가 없습니다' : '등록된 BOM이 없습니다'}
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: hasActiveFilter,
+            emptyLabel: '등록된 BOM이 없습니다',
+            actionHint: '오른쪽 상단에서 등록하세요',
+          })}
           onSelectGroup={openEdit}
         />
       </div>

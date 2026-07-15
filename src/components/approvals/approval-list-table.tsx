@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { getApprovalCategoryLabel, getApprovalCategoryShortLabel } from '@/lib/approvals/categories'
 import type { ApprovalListItem } from '@/lib/approvals/types'
@@ -24,7 +24,7 @@ export function ApprovalListTable({ approvals, emptyMessage, onSelectApproval }:
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
         <table className="min-w-[1040px] w-full border-collapse">
-          <thead className="bg-blue-50/80">
+          <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
                 작성일

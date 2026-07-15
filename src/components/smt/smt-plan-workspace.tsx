@@ -251,7 +251,7 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
   }
 
   return (
-    <div className="flex h-[calc(100dvh-12.5rem)] min-h-[520px] flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div>
           <p className="text-sm font-bold text-slate-900">{formatWeekRangeLabel(weekStart)}</p>

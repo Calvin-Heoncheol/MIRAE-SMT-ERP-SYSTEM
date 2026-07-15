@@ -90,54 +90,54 @@ export function ItemListTable({
             <col className="w-[96px]" />
             {columns.itemCategory ? <col className="w-[88px]" /> : null}
           </colgroup>
-          <thead className="bg-slate-100">
+          <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-700 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목코드
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-700 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목명
               </th>
               {columns.specification ? (
-                <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-700 uppercase">
+                <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   규격
                 </th>
               ) : null}
               {columns.mpn ? (
-                <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-700 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   MPN
                 </th>
               ) : null}
               {columns.materialType ? (
-                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-700 uppercase">
+                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   구분
                 </th>
               ) : null}
               {columns.supplyType ? (
-                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-700 uppercase">
+                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   도급/사급
                 </th>
               ) : null}
               {columns.supplier ? (
-                <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-700 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   공급사
                 </th>
               ) : null}
               {columns.pcbSideMode ? (
-                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-700 uppercase">
+                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   단면/양면
                 </th>
               ) : null}
               {columns.processType ? (
-                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-700 uppercase">
+                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   공정
                 </th>
               ) : null}
-              <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-700 uppercase">
+              <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 단가
               </th>
               {columns.itemCategory ? (
-                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-700 uppercase">
+                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   품목구분
                 </th>
               ) : null}

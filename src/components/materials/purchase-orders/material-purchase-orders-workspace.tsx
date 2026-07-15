@@ -7,6 +7,8 @@ import { MaterialPurchaseNeedDetailModal } from '@/components/materials/purchase
 import { MaterialPurchaseOrderFetchError } from '@/components/materials/purchase-orders/material-purchase-order-fetch-error'
 import { MaterialPurchaseOrderListTable } from '@/components/materials/purchase-orders/material-purchase-order-list-table'
 import { MaterialPurchaseOrderModal } from '@/components/materials/purchase-orders/material-purchase-order-modal'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
 import {
   deleteMaterialPurchaseNeedCard,
@@ -192,26 +194,23 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
     return (
       <>
         <div className="flex w-full flex-col gap-4">
-          <p className="text-sm font-medium text-slate-600">
-            주문{' '}
-            <span className="tabular-nums text-violet-700">
-              {filteredCards.length.toLocaleString('ko-KR')}
-            </span>
-            건
-            <span className="text-slate-400"> · </span>
-            부족{' '}
-            <span className="tabular-nums text-rose-600">
-              {shortageCardCount.toLocaleString('ko-KR')}
-            </span>
-            건
-          </p>
-
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="주문번호, 고객사, 품목, 자재명 검색…"
-            className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-violet-100 placeholder:text-slate-400 focus:border-violet-300 focus:ring-2"
+          <WorkspaceHeader
+            totalCount={needCards.length}
+            filteredCount={filteredCards.length}
+            hasQuery={Boolean(query)}
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="주문번호, 고객사, 품목, 자재명 검색…"
+            accent="violet"
+            meta={
+              <p className="mt-0.5 text-slate-500">
+                부족{' '}
+                <span className="tabular-nums font-semibold text-rose-600">
+                  {shortageCardCount.toLocaleString('ko-KR')}
+                </span>
+                건
+              </p>
+            }
           />
 
           <MaterialPurchaseNeedCards cards={filteredCards} onSelectCard={openDetail} />
@@ -247,31 +246,23 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
   return (
     <>
       <div className="flex w-full flex-col gap-4">
-        <p className="text-sm font-medium text-slate-600">
-          총{' '}
-          <span className="tabular-nums text-violet-700">
-            {filteredPurchaseOrders.length.toLocaleString('ko-KR')}
-          </span>
-          건
-          {query ? (
-            <span className="text-slate-400">
-              {' '}
-              / {purchaseOrders.length.toLocaleString('ko-KR')}건
-            </span>
-          ) : null}
-        </p>
-
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="발주번호, 공급사, 자재명, MPN 검색…"
-          className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-violet-100 placeholder:text-slate-400 focus:border-violet-300 focus:ring-2"
+        <WorkspaceHeader
+          totalCount={purchaseOrders.length}
+          filteredCount={filteredPurchaseOrders.length}
+          hasQuery={Boolean(query)}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="발주번호, 공급사, 자재명, MPN 검색…"
+          accent="violet"
         />
 
         <MaterialPurchaseOrderListTable
           orders={filteredPurchaseOrders}
-          emptyMessage={query ? '검색 결과가 없습니다' : '등록된 자재 발주가 없습니다'}
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: Boolean(query),
+            emptyLabel: '등록된 자재 발주가 없습니다',
+            actionHint: '발주등록 탭에서 등록하세요',
+          })}
           onSelectOrder={openEdit}
         />
       </div>

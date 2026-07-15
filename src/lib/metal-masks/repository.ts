@@ -118,6 +118,11 @@ export async function createMetalMaskAsset(payload: MetalMaskAssetPayload): Prom
   const useLimit = Math.max(1, Math.floor(Number(payload.useLimit) || DEFAULT_METAL_MASK_USE_LIMIT))
   const name = String(payload.name || '').trim()
   const note = String(payload.note || '').trim()
+  const itemId = String(payload.itemId || '').trim() || null
+
+  if (!itemId) {
+    return { ok: false, reason: 'validation', detail: '기초등록 반제품 목록에서 품명을 선택해 주세요.' }
+  }
 
   try {
     const supabase = createSupabaseClient()
@@ -126,6 +131,7 @@ export async function createMetalMaskAsset(payload: MetalMaskAssetPayload): Prom
       .insert({
         barcode,
         name,
+        item_id: itemId,
         pcb_side: pcbSide,
         use_limit: useLimit,
         use_count: 0,

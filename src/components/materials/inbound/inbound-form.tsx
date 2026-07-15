@@ -232,7 +232,7 @@ export function InboundForm({
 
   const body = (
     <>
-      <div className={isPage ? 'space-y-4' : 'flex-1 overflow-y-auto px-5 py-4'}>
+      <div className={isPage ? 'space-y-4' : 'min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4'}>
         {isEdit && inbound ? (
           <p className="font-mono text-xs text-blue-700">
             입고번호 {inbound.inboundNumber} <span className="text-slate-400">(수정 불가)</span>
@@ -341,8 +341,8 @@ export function InboundForm({
 
       <div
         className={[
-          'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
-          isPage ? 'border-t border-slate-200 pt-4' : 'border-t border-slate-200 px-5 py-4',
+          'flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
+          isPage ? 'border-t border-slate-200 pt-4' : 'border-t border-slate-200 bg-slate-50/80 px-5 py-3',
         ].join(' ')}
       >
         <p className="text-sm text-slate-500">
@@ -383,7 +383,7 @@ export function InboundForm({
             type="button"
             onClick={() => void handleSave()}
             disabled={saving || deleting || !hasInboundType}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-900 disabled:opacity-50"
           >
             {saving ? '저장 중…' : isEdit ? '저장' : '등록'}
           </button>
@@ -396,5 +396,5 @@ export function InboundForm({
     return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">{body}</div>
   }
 
-  return body
+  return <div className="flex h-full min-h-0 flex-col">{body}</div>
 }

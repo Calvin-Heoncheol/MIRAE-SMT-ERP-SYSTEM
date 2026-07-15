@@ -7,6 +7,7 @@ import { ItemFetchError } from '@/components/items/item-fetch-error'
 import { ItemListTable } from '@/components/items/item-list-table'
 import { ItemModal } from '@/components/items/item-modal'
 import { ItemNewMenu } from '@/components/items/item-new-menu'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchItemsResult } from '@/lib/items/repository'
 import { filterItemsForSearch } from '@/lib/items/utils'
 import {
@@ -15,6 +16,11 @@ import {
   type Item,
   type ItemCategory,
 } from '@/lib/items/types'
+import {
+  ERP_FILTER_CHIP_ACTIVE_CLASS,
+  ERP_FILTER_CHIP_IDLE_CLASS,
+  formatEmptyListMessage,
+} from '@/lib/ui/tokens'
 
 type ItemsWorkspaceProps = {
   result: FetchItemsResult
@@ -98,55 +104,46 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
   return (
     <>
       <div className="flex w-full flex-col gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">품목등록</h1>
-          </div>
-          <p className="text-sm font-medium text-slate-600">
-            총 <span className="tabular-nums text-slate-900">{filtered.length.toLocaleString('ko-KR')}</span>건
-            {hasActiveFilter ? (
-              <span className="text-slate-400"> / {items.length.toLocaleString('ko-KR')}건</span>
-            ) : null}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="품목코드, 품목명, 규격, MPN 검색…"
-            className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-slate-100 placeholder:text-slate-400 focus:border-slate-400 focus:ring-2"
-          />
-          <div className="flex flex-wrap gap-2">
-            {CATEGORY_FILTER_OPTIONS.map((option) => {
-              const active = categoryFilter === option.value
-              return (
-                <button
-                  key={String(option.value)}
-                  type="button"
-                  onClick={() => setCategoryFilter(option.value)}
-                  className={[
-                    'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
-                    active
-                      ? 'bg-blue-600 text-white'
-                      : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-                  ].join(' ')}
-                >
-                  {option.label}
-                </button>
-              )
-            })}
-          </div>
-          <div className="ml-auto shrink-0">
-            <ItemNewMenu onOpenCreate={openCreate} onOpenBulk={openBulk} />
-          </div>
-        </div>
+        <WorkspaceHeader
+          title="품목등록"
+          totalCount={items.length}
+          filteredCount={filtered.length}
+          hasQuery={hasActiveFilter}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="품목코드, 품목명, 규격, MPN 검색…"
+          accent="slate"
+          filters={
+            <div className="flex flex-wrap gap-2">
+              {CATEGORY_FILTER_OPTIONS.map((option) => {
+                const active = categoryFilter === option.value
+                return (
+                  <button
+                    key={String(option.value)}
+                    type="button"
+                    onClick={() => setCategoryFilter(option.value)}
+                    className={[
+                      'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                      active ? ERP_FILTER_CHIP_ACTIVE_CLASS : ERP_FILTER_CHIP_IDLE_CLASS,
+                    ].join(' ')}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+          }
+          actions={<ItemNewMenu onOpenCreate={openCreate} onOpenBulk={openBulk} />}
+        />
 
         <ItemListTable
           items={filtered}
           categoryFilter={categoryFilter}
-          emptyMessage={hasActiveFilter ? '검색 결과가 없습니다' : '등록된 품목이 없습니다'}
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: hasActiveFilter,
+            emptyLabel: '등록된 품목이 없습니다',
+            actionHint: '오른쪽 상단에서 등록하세요',
+          })}
           onSelectItem={openEdit}
         />
       </div>

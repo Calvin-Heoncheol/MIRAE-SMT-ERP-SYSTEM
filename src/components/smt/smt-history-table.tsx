@@ -1,4 +1,4 @@
-import type { SmtProductionHistoryRow } from '@/lib/smt/types'
+﻿import type { SmtProductionHistoryRow } from '@/lib/smt/types'
 import { formatSmtHistoryDateTime, formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
 
 type SmtHistoryTableProps = {
@@ -28,33 +28,33 @@ export function SmtHistoryTable({ rows, emptyMessage, onRowClick }: SmtHistoryTa
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
         <table className="min-w-[980px] w-full border-collapse">
-          <thead className="bg-sky-50/80">
+          <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-sky-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 기록일
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-sky-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 등록시각
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-sky-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 주문서번호
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-sky-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 고객사
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-sky-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 제품명
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold tracking-wide text-sky-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 라인
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold tracking-wide text-sky-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 면구분
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-sky-900 uppercase">
+              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 수량
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-sky-900 uppercase">
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
               </th>
             </tr>

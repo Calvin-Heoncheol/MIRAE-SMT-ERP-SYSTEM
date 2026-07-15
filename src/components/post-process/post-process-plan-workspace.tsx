@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useCallback, useMemo, useState } from 'react'
 import { PostProcessPlanCalendar } from '@/components/post-process/post-process-plan-calendar'
@@ -267,7 +267,7 @@ export function PostProcessPlanWorkspace({
   }
 
   return (
-    <div className="flex h-[calc(100dvh-12.5rem)] min-h-[520px] flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div>
           <p className="text-sm font-bold text-slate-900">{formatWeekRangeLabel(weekStart)}</p>
@@ -297,7 +297,7 @@ export function PostProcessPlanWorkspace({
             type="button"
             onClick={() => changeWeek(getWeekStartMondayYmd())}
             disabled={loading}
-            className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-800 hover:bg-sky-100 disabled:opacity-50"
+            className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
           >
             이번 주
           </button>

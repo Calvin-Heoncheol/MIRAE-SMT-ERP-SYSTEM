@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { InventoryFetchError } from '@/components/materials/inventory/inventory-fetch-error'
 import { InventoryStatusTable } from '@/components/materials/inventory/inventory-status-table'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchMaterialInventoryResult } from '@/lib/materials/inventory/repository'
 import type { InventoryFilterMode } from '@/lib/materials/inventory/types'
 import {
@@ -10,6 +11,11 @@ import {
   matchesInventoryQuery,
   summarizeInventoryRows,
 } from '@/lib/materials/inventory/utils'
+import {
+  ERP_FILTER_CHIP_ACTIVE_CLASS,
+  ERP_FILTER_CHIP_IDLE_CLASS,
+  formatEmptyListMessage,
+} from '@/lib/ui/tokens'
 
 type InventoryStatusWorkspaceProps = {
   result: FetchMaterialInventoryResult
@@ -39,11 +45,7 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
   const summary = useMemo(() => summarizeInventoryRows(rows), [rows])
 
   return (
-    <div className="flex min-h-[calc(100dvh-60px)] w-full flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">재고현황</h1>
-      </div>
-
+    <div className="flex w-full flex-col gap-4">
       {result.ok ? (
         <>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -67,42 +69,34 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {FILTER_OPTIONS.map((option) => {
-                const active = filterMode === option.value
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setFilterMode(option.value)}
-                    className={[
-                      'rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors',
-                      active
-                        ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
-                        : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900',
-                    ].join(' ')}
-                  >
-                    {option.label}
-                  </button>
-                )
-              })}
-            </div>
-            <p className="text-sm font-medium text-slate-600">
-              표시{' '}
-              <span className="tabular-nums text-blue-700">{filtered.length.toLocaleString('ko-KR')}</span>건
-              {query || filterMode !== 'all' ? (
-                <span className="text-slate-400"> / {rows.length.toLocaleString('ko-KR')}건</span>
-              ) : null}
-            </p>
-          </div>
-
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="품목코드, 품목명, MPN, 규격 검색…"
-            className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ring-blue-100 placeholder:text-slate-400 focus:border-blue-300 focus:ring-2"
+          <WorkspaceHeader
+            totalCount={rows.length}
+            filteredCount={filtered.length}
+            hasQuery={Boolean(query) || filterMode !== 'all'}
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="품목코드, 품목명, MPN, 규격 검색…"
+            accent="blue"
+            filters={
+              <div className="flex flex-wrap gap-2">
+                {FILTER_OPTIONS.map((option) => {
+                  const active = filterMode === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setFilterMode(option.value)}
+                      className={[
+                        'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                        active ? ERP_FILTER_CHIP_ACTIVE_CLASS : ERP_FILTER_CHIP_IDLE_CLASS,
+                      ].join(' ')}
+                    >
+                      {option.label}
+                    </button>
+                  )
+                })}
+              </div>
+            }
           />
         </>
       ) : null}
@@ -112,9 +106,11 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
       ) : (
         <InventoryStatusTable
           rows={filtered}
-          emptyMessage={
-            query || filterMode !== 'all' ? '조건에 맞는 재고 항목이 없습니다' : '등록된 품목이 없습니다'
-          }
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: Boolean(query) || filterMode !== 'all',
+            emptyLabel: '등록된 품목이 없습니다',
+            actionHint: '품목등록에서 자재를 등록하세요',
+          })}
         />
       )}
     </div>

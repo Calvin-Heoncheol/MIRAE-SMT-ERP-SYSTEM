@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { ErpButton } from '@/components/ui/erp-button'
+import { ErpModal } from '@/components/ui/erp-modal'
 import { deleteBomForParent, saveBomForParent } from '@/lib/bom/repository'
 import {
   bomGroupToForm,
@@ -19,6 +21,7 @@ import {
 import type { BomGroup } from '@/lib/bom/types'
 import type { Item } from '@/lib/items/types'
 import { ITEM_CATEGORY_LABELS } from '@/lib/items/types'
+import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type BomModalProps = {
   open: boolean
@@ -65,18 +68,6 @@ function BomModalContent({
     setForm(group ? bomGroupToForm(group) : emptyBomForm())
     setSaveError(null)
   }, [group, mode])
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !deleting) onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = ''
-    }
-  }, [onClose, deleting])
 
   function updateLine(key: string, patch: Partial<BomFormState['lines'][number]>) {
     setForm((current) => ({
@@ -137,164 +128,136 @@ function BomModalContent({
     onDeleted?.()
   }
 
+  const busy = saving || deleting
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 py-10">
-      <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-xl">
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">{isCreate ? 'BOM 등록' : 'BOM 수정'}</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              완제품 → 반제품, 반제품 → 원자재·부자재 구성을 등록합니다.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving || deleting}
-            className="rounded-lg px-2 py-1 text-sm font-semibold text-slate-500 hover:bg-slate-100"
-          >
-            닫기
-          </button>
-        </div>
-
-        <div className="space-y-4 px-5 py-4">
-          <label className="block text-sm">
-            <span className="mb-1.5 block font-semibold text-slate-700">부모 품목</span>
-            <select
-              value={form.parentProductId}
-              disabled={!isCreate}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  parentProductId: event.target.value,
-                  lines: [createBomFormLine()],
-                }))
-              }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
-            >
-              <option value="">부모 품목 선택</option>
-              {availableParents.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {formatItemOptionLabel(item)}
-                </option>
-              ))}
-            </select>
-            {selectedParent ? (
-              <p className="mt-1.5 text-xs text-slate-500">{describeBomRule(selectedParent.itemCategory)}</p>
-            ) : null}
-          </label>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-slate-700">구성 품목</p>
-              <button
-                type="button"
-                onClick={addLine}
-                disabled={!selectedParent}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                구성 추가
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {form.lines.map((line, index) => (
-                <div
-                  key={line.key}
-                  className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 md:grid-cols-[minmax(0,1fr)_110px_auto]"
-                >
-                  <label className="block text-sm">
-                    <span className="mb-1 block text-xs font-medium text-slate-500">
-                      구성 {index + 1}
-                    </span>
-                    <select
-                      value={line.childProductId}
-                      disabled={!selectedParent}
-                      onChange={(event) => updateLine(line.key, { childProductId: event.target.value })}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 disabled:bg-slate-100"
-                    >
-                      <option value="">구성 품목 선택</option>
-                      {childOptions.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {formatItemOptionLabel(item)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="block text-sm">
-                    <span className="mb-1 block text-xs font-medium text-slate-500">소요량</span>
-                    <input
-                      type="number"
-                      min="0.0001"
-                      step="any"
-                      value={line.quantityPer}
-                      onChange={(event) => updateLine(line.key, { quantityPer: event.target.value })}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 tabular-nums"
-                    />
-                  </label>
-
-                  <div className="flex items-end">
-                    <button
-                      type="button"
-                      onClick={() => removeLine(line.key)}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                    >
-                      삭제
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {selectedParent ? (
-              <p className="mt-2 text-xs text-slate-500">
-                선택 가능 구성:{' '}
-                {selectedParent.itemCategory === 4
-                  ? ITEM_CATEGORY_LABELS[3]
-                  : `${ITEM_CATEGORY_LABELS[1]}, ${ITEM_CATEGORY_LABELS[2]}`}
-              </p>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="border-t border-slate-200 px-5 py-4">
-          {saveError ? <p className="mb-3 text-sm text-red-600">{saveError}</p> : null}
-          <div className="flex justify-between gap-2">
+    <ErpModal
+      open
+      size="md"
+      title={isCreate ? 'BOM 등록' : 'BOM 수정'}
+      description="완제품 → 반제품, 반제품 → 원자재·부자재 구성을 등록합니다."
+      onClose={onClose}
+      closeOnEscape={!busy}
+      footer={
+        <div className="flex w-full flex-col gap-2">
+          {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+          <div className="flex w-full flex-wrap items-center justify-between gap-2">
             {!isCreate ? (
-              <button
-                type="button"
-                onClick={() => void handleDelete()}
-                disabled={deleting || saving}
-                className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-              >
+              <ErpButton variant="danger" disabled={busy} onClick={() => void handleDelete()}>
                 {deleting ? '삭제 중…' : 'BOM 삭제'}
-              </button>
+              </ErpButton>
             ) : (
               <span />
             )}
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={saving || deleting}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-              >
+              <ErpButton variant="secondary" onClick={onClose} disabled={busy}>
                 취소
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSave()}
-                disabled={saving || deleting}
-                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:opacity-50"
-              >
+              </ErpButton>
+              <ErpButton disabled={busy} onClick={() => void handleSave()}>
                 {saving ? '저장 중…' : '저장'}
-              </button>
+              </ErpButton>
             </div>
           </div>
         </div>
+      }
+    >
+      <div className="space-y-4">
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>부모 품목</span>
+          <select
+            value={form.parentProductId}
+            disabled={!isCreate}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                parentProductId: event.target.value,
+                lines: [createBomFormLine()],
+              }))
+            }
+            className={ERP_FIELD_INPUT_CLASS}
+          >
+            <option value="">부모 품목 선택</option>
+            {availableParents.map((item) => (
+              <option key={item.id} value={item.id}>
+                {formatItemOptionLabel(item)}
+              </option>
+            ))}
+          </select>
+          {selectedParent ? (
+            <p className="mt-1.5 text-xs text-slate-500">{describeBomRule(selectedParent.itemCategory)}</p>
+          ) : null}
+        </label>
+
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-sm font-medium text-slate-600">구성 품목</p>
+            <button
+              type="button"
+              onClick={addLine}
+              disabled={!selectedParent}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              구성 추가
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {form.lines.map((line, index) => (
+              <div
+                key={line.key}
+                className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 md:grid-cols-[minmax(0,1fr)_110px_auto]"
+              >
+                <label className="block text-sm">
+                  <span className="mb-1 block text-xs font-medium text-slate-500">구성 {index + 1}</span>
+                  <select
+                    value={line.childProductId}
+                    disabled={!selectedParent}
+                    onChange={(event) => updateLine(line.key, { childProductId: event.target.value })}
+                    className={ERP_FIELD_INPUT_CLASS}
+                  >
+                    <option value="">품목 선택</option>
+                    {childOptions.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {formatItemOptionLabel(item)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block text-xs font-medium text-slate-500">수량</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={line.quantityPer}
+                    onChange={(event) => updateLine(line.key, { quantityPer: event.target.value })}
+                    className={ERP_FIELD_INPUT_CLASS}
+                  />
+                </label>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => removeLine(line.key)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    삭제
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {selectedParent ? (
+            <p className="mt-2 text-xs text-slate-500">
+              선택 가능 구성:{' '}
+              {selectedParent.itemCategory === 4
+                ? ITEM_CATEGORY_LABELS[3]
+                : `${ITEM_CATEGORY_LABELS[1]}, ${ITEM_CATEGORY_LABELS[2]}`}
+            </p>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </ErpModal>
   )
 }
 
