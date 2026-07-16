@@ -7,7 +7,7 @@ import type {
   ItemProcessType,
   ItemSupplyType,
 } from './types'
-import { ITEM_CATEGORY_CODE_PREFIX } from './types'
+import { deriveItemProcessType, ITEM_CATEGORY_CODE_PREFIX } from './types'
 
 const LEGACY_CATEGORY_MAP: Record<string, ItemCategory> = {
   raw_material: 1,
@@ -79,12 +79,35 @@ export function mapItemRecord(row: {
   pcb_side_mode?: string | null
   process_type?: string | null
   unit_price?: number | null
+  smd_unit_price?: number | null
+  dip_unit_price?: number | null
+  material_unit_price?: number | null
   item_category: number | string
   is_active: boolean
   created_at: string
   updated_at: string
 }): Item {
   const itemCategory = normalizeItemCategory(row.item_category) ?? 1
+  const unitPrice = Number(row.unit_price) || 0
+  const smdUnitPrice = Number(row.smd_unit_price) || 0
+  const dipUnitPrice = Number(row.dip_unit_price) || 0
+  const materialUnitPrice = Number(row.material_unit_price) || 0
+  const isSemi = itemCategory === 3
+  const hasBreakdown = smdUnitPrice > 0 || dipUnitPrice > 0 || materialUnitPrice > 0
+  // 마이그레이션 전 데이터: 세부 단가가 없으면 합계를 SMD(또는 DIP 공정이면 DIP)로 간주
+  const resolvedSmd =
+    isSemi && !hasBreakdown && unitPrice > 0
+      ? row.process_type === 'post'
+        ? 0
+        : unitPrice
+      : smdUnitPrice
+  const resolvedDip =
+    isSemi && !hasBreakdown && unitPrice > 0
+      ? row.process_type === 'post'
+        ? unitPrice
+        : 0
+      : dipUnitPrice
+  const resolvedMaterial = isSemi ? materialUnitPrice : 0
 
   return {
     id: row.id || '',
@@ -95,8 +118,13 @@ export function mapItemRecord(row: {
     supplyType: normalizeItemSupplyType(row.supply_type),
     supplier: (row.supplier || '').trim(),
     pcbSideMode: normalizeItemPcbSideMode(row.pcb_side_mode),
-    processType: normalizeItemProcessType(row.process_type),
-    unitPrice: Number(row.unit_price) || 0,
+    processType: isSemi
+      ? deriveItemProcessType(resolvedSmd, resolvedDip)
+      : normalizeItemProcessType(row.process_type),
+    unitPrice: isSemi ? resolvedSmd + resolvedDip + resolvedMaterial : unitPrice,
+    smdUnitPrice: isSemi ? resolvedSmd : 0,
+    dipUnitPrice: isSemi ? resolvedDip : 0,
+    materialUnitPrice: isSemi ? resolvedMaterial : 0,
     itemCategory,
     isActive: row.is_active !== false,
     createdAt: row.created_at,
@@ -116,6 +144,9 @@ export function toItemInsertRow(payload: ItemPayload) {
     pcb_side_mode: payload.pcbSideMode,
     process_type: payload.processType,
     unit_price: payload.unitPrice,
+    smd_unit_price: payload.smdUnitPrice,
+    dip_unit_price: payload.dipUnitPrice,
+    material_unit_price: payload.materialUnitPrice,
     item_category: payload.itemCategory,
   }
 }
@@ -131,6 +162,9 @@ export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
     pcb_side_mode: payload.pcbSideMode,
     process_type: payload.processType,
     unit_price: payload.unitPrice,
+    smd_unit_price: payload.smdUnitPrice,
+    dip_unit_price: payload.dipUnitPrice,
+    material_unit_price: payload.materialUnitPrice,
     item_category: payload.itemCategory,
   }
 }

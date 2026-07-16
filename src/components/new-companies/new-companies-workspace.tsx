@@ -91,7 +91,7 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
           hasQuery={Boolean(query)}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="회사명, 담당자, 상태, 이메일, 연락처, 제품, 비고 검색…"
+          searchPlaceholder="회사명, 담당자, 상태, 이메일, 연락처, 제품, 진행사항 검색…"
           accent="slate"
           actions={<ErpButton onClick={openCreate}>신규업체 등록</ErpButton>}
         />

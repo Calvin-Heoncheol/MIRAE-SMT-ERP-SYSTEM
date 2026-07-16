@@ -8,10 +8,11 @@ import type { MaterialInboundListGroup, MaterialInboundRecord, MaterialInboundTy
 import { MATERIAL_INBOUND_TYPE_LABELS } from './types'
 
 export function normalizeInboundType(value: string | null | undefined): MaterialInboundType {
-  if (value === 'opening' || value === 'purchase' || value === 'supplied' || value === 'return') {
+  if (value === 'purchase' || value === 'supplied' || value === 'return') {
     return value
   }
-  if (value === 'other') return 'supplied'
+  // 레거시 opening(기초) → 사급으로 표시
+  if (value === 'opening' || value === 'other') return 'supplied'
   return 'supplied'
 }
 

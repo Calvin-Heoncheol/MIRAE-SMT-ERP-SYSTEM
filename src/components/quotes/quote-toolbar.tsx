@@ -55,14 +55,6 @@ export function QuoteNewMenu({ onOpenNew }: QuoteNewMenuProps) {
             국내용 견적서
             <span className="mt-0.5 block text-xs font-normal text-slate-500">원화 · 국문 미리보기/PDF</span>
           </button>
-          <button
-            type="button"
-            onClick={() => selectType('legacy')}
-            className="block w-full border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-800 hover:bg-slate-50"
-          >
-            (구) 견적서
-            <span className="mt-0.5 block text-xs font-normal text-slate-500">고객사 · 제품 · 비용 간단 등록</span>
-          </button>
         </div>
       ) : null}
     </div>

@@ -14,6 +14,9 @@ create table if not exists public.items (
   supply_type text not null default '' check (supply_type in ('', '도급', '사급')),
   supplier text not null default '',
   unit_price numeric not null default 0 check (unit_price >= 0),
+  smd_unit_price numeric not null default 0 check (smd_unit_price >= 0),
+  dip_unit_price numeric not null default 0 check (dip_unit_price >= 0),
+  material_unit_price numeric not null default 0 check (material_unit_price >= 0),
   pcb_side_mode text not null default '' check (pcb_side_mode in ('', 'single', 'dual')),
   process_type text not null default '' check (process_type in ('', 'smt', 'post', 'smt_post')),
   item_category smallint not null check (item_category in (1, 2, 3, 4)),
@@ -37,6 +40,12 @@ alter table public.items
 alter table public.items
   add column if not exists unit_price numeric not null default 0;
 alter table public.items
+  add column if not exists smd_unit_price numeric not null default 0;
+alter table public.items
+  add column if not exists dip_unit_price numeric not null default 0;
+alter table public.items
+  add column if not exists material_unit_price numeric not null default 0;
+alter table public.items
   add column if not exists pcb_side_mode text not null default '';
 alter table public.items
   add column if not exists process_type text not null default '';
@@ -57,7 +66,10 @@ comment on column public.items.mpn is 'MPN';
 comment on column public.items.material_type is 'SMD / DIP (선택)';
 comment on column public.items.supply_type is '도급/사급 (선택)';
 comment on column public.items.supplier is '공급사 — 원자재·부자재';
-comment on column public.items.unit_price is '단가';
+comment on column public.items.unit_price is '단가 (반제품은 SMD+DIP+자재 합계)';
+comment on column public.items.smd_unit_price is 'SMD 단가 — 반제품(3)';
+comment on column public.items.dip_unit_price is 'DIP 단가 — 반제품(3)';
+comment on column public.items.material_unit_price is '자재 단가 — 반제품(3)';
 comment on column public.items.pcb_side_mode is '단면(single)/양면(dual) — 반제품(3)만 사용';
 comment on column public.items.process_type is '공정 — 반제품(3)만: smt=SMD, post=후공정, smt_post=SMD+후공정';
 comment on column public.items.item_category is '1=원자재, 2=부자재, 3=반제품, 4=완제품 (필수)';
@@ -127,6 +139,21 @@ begin
     new.supply_type := '';
   end if;
 
+  new.smd_unit_price := coalesce(new.smd_unit_price, 0);
+  if new.smd_unit_price < 0 then
+    new.smd_unit_price := 0;
+  end if;
+
+  new.dip_unit_price := coalesce(new.dip_unit_price, 0);
+  if new.dip_unit_price < 0 then
+    new.dip_unit_price := 0;
+  end if;
+
+  new.material_unit_price := coalesce(new.material_unit_price, 0);
+  if new.material_unit_price < 0 then
+    new.material_unit_price := 0;
+  end if;
+
   new.unit_price := coalesce(new.unit_price, 0);
   if new.unit_price < 0 then
     new.unit_price := 0;
@@ -150,6 +177,21 @@ begin
   end if;
   if new.item_category <> 3 then
     new.process_type := '';
+    new.smd_unit_price := 0;
+    new.dip_unit_price := 0;
+    new.material_unit_price := 0;
+  else
+    new.unit_price := new.smd_unit_price + new.dip_unit_price + new.material_unit_price;
+    -- 공정은 SMD/DIP 단가 > 0 여부로 자동 판별
+    if new.smd_unit_price > 0 and new.dip_unit_price > 0 then
+      new.process_type := 'smt_post';
+    elsif new.smd_unit_price > 0 then
+      new.process_type := 'smt';
+    elsif new.dip_unit_price > 0 then
+      new.process_type := 'post';
+    else
+      new.process_type := '';
+    end if;
   end if;
 
   return new;

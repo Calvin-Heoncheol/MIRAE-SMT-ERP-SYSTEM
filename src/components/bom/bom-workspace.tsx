@@ -5,11 +5,10 @@ import { useRouter } from 'next/navigation'
 import { BomFetchError } from '@/components/bom/bom-fetch-error'
 import { BomListTable } from '@/components/bom/bom-list-table'
 import { BomModal } from '@/components/bom/bom-modal'
-import { ErpButton } from '@/components/ui/erp-button'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchBomResult } from '@/lib/bom/repository'
-import type { BomGroup, BomParentFilter } from '@/lib/bom/types'
-import { filterBomGroups, groupBomLines } from '@/lib/bom/utils'
+import type { BomGroup, BomListRow, BomParentFilter } from '@/lib/bom/types'
+import { buildBomListRows, filterBomListRows, groupBomLines } from '@/lib/bom/utils'
 import type { FetchItemsResult } from '@/lib/items/repository'
 import {
   ERP_FILTER_CHIP_ACTIVE_CLASS,
@@ -24,7 +23,7 @@ type BomWorkspaceProps = {
 
 type ModalState =
   | { open: false }
-  | { open: true; mode: 'create' }
+  | { open: true; mode: 'create'; parentProductId?: string }
   | { open: true; mode: 'edit'; group: BomGroup }
 
 const PARENT_FILTER_OPTIONS: { value: BomParentFilter; label: string }[] = [
@@ -45,21 +44,33 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
   const query = search.trim()
   const hasActiveFilter = Boolean(query) || parentFilter !== 'all'
 
-  const groups = useMemo(() => groupBomLines(lines), [lines])
+  const bomGroups = useMemo(() => groupBomLines(lines), [lines])
+  const listRows = useMemo(() => buildBomListRows(items, bomGroups), [items, bomGroups])
   const filtered = useMemo(
-    () => filterBomGroups(groups, query, parentFilter),
-    [groups, query, parentFilter],
+    () => filterBomListRows(listRows, query, parentFilter),
+    [listRows, query, parentFilter],
   )
-  const existingParentIds = useMemo(() => groups.map((group) => group.parentProductId), [groups])
+  const existingParentIds = useMemo(
+    () => bomGroups.map((group) => group.parentProductId),
+    [bomGroups],
+  )
 
-  function openCreate() {
+  function openCreate(parentProductId?: string) {
     setModalSession((value) => value + 1)
-    setModal({ open: true, mode: 'create' })
+    setModal({ open: true, mode: 'create', parentProductId })
   }
 
   function openEdit(group: BomGroup) {
     setModalSession((value) => value + 1)
     setModal({ open: true, mode: 'edit', group })
+  }
+
+  function openRow(row: BomListRow) {
+    if (row.bomRegistered) {
+      openEdit(row)
+      return
+    }
+    openCreate(row.parentProductId)
   }
 
   function closeModal() {
@@ -73,6 +84,12 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
 
   function handleDeleted() {
     closeModal()
+    router.refresh()
+  }
+
+  function handleVersioned(newGroup: BomGroup) {
+    setModalSession((value) => value + 1)
+    setModal({ open: true, mode: 'edit', group: newGroup })
     router.refresh()
   }
 
@@ -97,12 +114,12 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
       <div className="flex w-full flex-col gap-4">
         <WorkspaceHeader
           title="BOM등록"
-          totalCount={groups.length}
+          totalCount={listRows.length}
           filteredCount={filtered.length}
           hasQuery={hasActiveFilter}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="부모/구성 품목코드, 품목명 검색…"
+          searchPlaceholder="품목코드, 품목명, 미등록/등록완료 검색…"
           accent="slate"
           filters={
             <div className="flex flex-wrap gap-2">
@@ -124,31 +141,32 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
               })}
             </div>
           }
-          actions={<ErpButton onClick={openCreate}>BOM 등록</ErpButton>}
         />
 
         <BomListTable
-          groups={filtered}
+          rows={filtered}
           emptyMessage={formatEmptyListMessage({
             hasQuery: hasActiveFilter,
-            emptyLabel: '등록된 BOM이 없습니다',
-            actionHint: '오른쪽 상단에서 등록하세요',
+            emptyLabel: '표시할 반제품·완제품이 없습니다',
+            actionHint: '미등록 행을 클릭해 BOM을 등록하세요',
           })}
-          onSelectGroup={openEdit}
+          onSelectRow={openRow}
         />
       </div>
 
       {modal.open ? (
         <BomModal
-          key={`${modal.mode}-${modal.mode === 'edit' ? modal.group.parentProductId : 'create'}-${modalSession}`}
+          key={`${modal.mode}-${modal.mode === 'edit' ? modal.group.parentProductId : modal.parentProductId || 'create'}-${modalSession}`}
           open
           mode={modal.mode}
           group={modal.mode === 'edit' ? modal.group : null}
+          initialParentProductId={modal.mode === 'create' ? modal.parentProductId : undefined}
           items={items}
           existingParentIds={existingParentIds}
           onClose={closeModal}
           onSaved={handleSaved}
           onDeleted={handleDeleted}
+          onVersioned={handleVersioned}
         />
       ) : null}
     </>

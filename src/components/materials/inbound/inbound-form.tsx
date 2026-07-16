@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { InboundDirectLinesForm } from '@/components/materials/inbound/inbound-direct-lines-form'
-import { InboundOpeningLinesForm } from '@/components/materials/inbound/inbound-opening-lines-form'
 import { InboundPurchaseLinesForm } from '@/components/materials/inbound/inbound-purchase-lines-form'
 import { buildMaterialInboundPayload } from '@/lib/materials/inbound/build-payload'
 import {
@@ -19,12 +18,6 @@ import {
   type MaterialInboundFormState,
   type PurchaseInboundItemForm,
 } from '@/lib/materials/inbound/form-state'
-import {
-  defaultOpeningInboundItemForm,
-  openingInboundItemsFromDetail,
-  openingToDirectInboundItems,
-  type OpeningInboundItemForm,
-} from '@/lib/materials/inbound/opening-form-state'
 import { MATERIAL_INBOUND_TYPE_LABELS, type MaterialInboundType } from '@/lib/materials/inbound/types'
 import type { MaterialInboundListGroup } from '@/lib/materials/inbound/types'
 import {
@@ -48,17 +41,10 @@ export type InboundFormProps = {
   onMaterialsChanged?: () => void
 }
 
-const INBOUND_TYPE_OPTIONS: MaterialInboundType[] = ['opening', 'purchase', 'supplied', 'return']
-
-function createInitialOpeningItems(inbound?: MaterialInboundListGroup | null): OpeningInboundItemForm[] {
-  if (inbound && inbound.inboundType === 'opening') {
-    return openingInboundItemsFromDetail(inbound.items)
-  }
-  return [defaultOpeningInboundItemForm()]
-}
+const INBOUND_TYPE_OPTIONS: MaterialInboundType[] = ['purchase', 'supplied', 'return']
 
 function createInitialDirectItems(inbound?: MaterialInboundListGroup | null): DirectInboundItemForm[] {
-  if (inbound && inbound.inboundType !== 'purchase' && inbound.inboundType !== 'opening') {
+  if (inbound && inbound.inboundType !== 'purchase') {
     return directInboundItemsFromDetail(inbound.items)
   }
   return [defaultDirectInboundItemForm()]
@@ -84,9 +70,6 @@ export function InboundForm({
   )
   const [formKey, setFormKey] = useState(0)
   const [directItems, setDirectItems] = useState<DirectInboundItemForm[]>(() => createInitialDirectItems(inbound))
-  const [openingItems, setOpeningItems] = useState<OpeningInboundItemForm[]>(() =>
-    createInitialOpeningItems(inbound),
-  )
   const [purchaseItems, setPurchaseItems] = useState<PurchaseInboundItemForm[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -108,13 +91,9 @@ export function InboundForm({
     ? []
     : form.inboundType === 'purchase'
       ? purchaseItems
-      : form.inboundType === 'opening'
-        ? openingItems
-        : directItems
+      : directItems
   const activeLineCount = activeItems.filter((item) => Number(item.quantity) > 0).length
   const totalInboundQty = activeItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
-  const directPayloadItems =
-    form.inboundType === 'opening' ? openingToDirectInboundItems(openingItems) : directItems
 
   useEffect(() => {
     if (isEdit) return
@@ -139,7 +118,6 @@ export function InboundForm({
   function resetCreateForm() {
     setForm(defaultMaterialInboundFormState(todayYmdSeoul()))
     setDirectItems([defaultDirectInboundItemForm()])
-    setOpeningItems([defaultOpeningInboundItemForm()])
     setPurchaseItems([])
     setSaveError(null)
     setFormKey((value) => value + 1)
@@ -171,7 +149,7 @@ export function InboundForm({
       inboundType: form.inboundType,
       purchaseOrderId: form.purchaseOrderId,
       note: form.note,
-      directItems: directPayloadItems,
+      directItems,
       purchaseItems,
       materials,
     })
@@ -315,8 +293,6 @@ export function InboundForm({
           </div>
         ) : form.inboundType === 'purchase' ? (
           <InboundPurchaseLinesForm key={`purchase-${formKey}`} items={purchaseItems} onChange={setPurchaseItems} />
-        ) : form.inboundType === 'opening' ? (
-          <InboundOpeningLinesForm key={`opening-${formKey}`} items={openingItems} onChange={setOpeningItems} />
         ) : (
           <InboundDirectLinesForm
             key={`direct-${formKey}`}

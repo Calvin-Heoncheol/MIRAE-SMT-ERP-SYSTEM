@@ -20,8 +20,6 @@ import {
   ITEM_MATERIAL_TYPE_OPTIONS,
   ITEM_PCB_SIDE_MODES,
   ITEM_PCB_SIDE_MODE_LABELS,
-  ITEM_PROCESS_TYPES,
-  ITEM_PROCESS_TYPE_LABELS,
   ITEM_SUPPLY_TYPE_LABELS,
   ITEM_SUPPLY_TYPE_OPTIONS,
   isManualItemCodeCategory,
@@ -35,7 +33,6 @@ import {
   type ItemCategory,
   type ItemMaterialType,
   type ItemPcbSideMode,
-  type ItemProcessType,
   type ItemSupplyType,
 } from '@/lib/items/types'
 import { nextItemCodeForCategory } from '@/lib/items/utils'
@@ -85,13 +82,14 @@ function createFormWithCategory(
   }
   if (category === 3) {
     form.pcbSideMode = 'single'
-    form.processType = 'smt'
   } else {
     form.pcbSideMode = ''
-    form.processType = ''
   }
   if (isFinishedItemCategory(category)) {
     form.unitPrice = ''
+    form.smdUnitPrice = ''
+    form.dipUnitPrice = ''
+    form.materialUnitPrice = ''
   }
   // 부자재만 자동코드 미리보기 채움. 반·완제품은 비워 두고 저장 시 자동/수동 결정
   form.id = isOptionalItemCodeCategory(category) ? '' : resolvePreviewItemCode(category, existingItems)
@@ -188,12 +186,20 @@ function ItemModalContent({
       }
       if (value === 3) {
         if (!next.pcbSideMode) next.pcbSideMode = 'single'
-        if (!next.processType) next.processType = 'smt'
       } else {
         next.pcbSideMode = ''
-        next.processType = ''
       }
       if (value && isFinishedItemCategory(value)) {
+        next.unitPrice = ''
+        next.smdUnitPrice = ''
+        next.dipUnitPrice = ''
+        next.materialUnitPrice = ''
+      }
+      if (value !== 3) {
+        next.smdUnitPrice = ''
+        next.dipUnitPrice = ''
+        next.materialUnitPrice = ''
+      } else {
         next.unitPrice = ''
       }
       if (isCreate) {
@@ -215,9 +221,12 @@ function ItemModalContent({
     form.itemCategory !== '' && isRawMaterialItemCategory(form.itemCategory)
   const showPcbSideModeField =
     form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
-  const showProcessTypeField = showPcbSideModeField
   const showUnitPriceField =
-    form.itemCategory !== '' && !isFinishedItemCategory(form.itemCategory)
+    form.itemCategory !== '' &&
+    !isFinishedItemCategory(form.itemCategory) &&
+    !isSemiFinishedItemCategory(form.itemCategory)
+  const showSemiUnitPriceFields =
+    form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
 
   async function handleSave() {
     const validationError = validateItemForm(form, { isCreate })
@@ -441,27 +450,6 @@ function ItemModalContent({
             </select>
           </label>
         ) : null}
-        {showProcessTypeField ? (
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>
-              공정 <span className="text-red-500">*</span>
-            </span>
-            <select
-              value={form.processType}
-              onChange={(event) =>
-                updateForm('processType', event.target.value as ItemProcessType)
-              }
-              className={ERP_FIELD_INPUT_CLASS}
-            >
-              <option value="">선택</option>
-              {ITEM_PROCESS_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {ITEM_PROCESS_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
         {showMaterialFields ? (
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>공급사</span>
@@ -496,6 +484,46 @@ function ItemModalContent({
               className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
             />
           </label>
+        ) : null}
+        {showSemiUnitPriceFields ? (
+          <div className="grid grid-cols-3 gap-3">
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>SMD 단가</span>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={form.smdUnitPrice}
+                onChange={(event) => updateForm('smdUnitPrice', event.target.value)}
+                placeholder="0"
+                className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>DIP 단가</span>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={form.dipUnitPrice}
+                onChange={(event) => updateForm('dipUnitPrice', event.target.value)}
+                placeholder="0"
+                className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>자재 단가</span>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                value={form.materialUnitPrice}
+                onChange={(event) => updateForm('materialUnitPrice', event.target.value)}
+                placeholder="0"
+                className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
+              />
+            </label>
+          </div>
         ) : null}
       </div>
     </ErpModal>

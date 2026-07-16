@@ -1,4 +1,4 @@
-export type QuoteType = 'export' | 'domestic' | 'legacy'
+export type QuoteType = 'export' | 'domestic'
 
 /** 해외용 견적서 미리보기·입력 화면 표시 통화 */
 export type QuoteDisplayCurrency = 'usd' | 'krw'
@@ -39,13 +39,6 @@ export type QuoteDetailAmounts = {
   subMaterialCost: number
 }
 
-export type LegacyBoardSide = 'single' | 'double'
-
-export type LegacyBoardInput = {
-  name: string
-  smtSide: LegacyBoardSide
-}
-
 /** DIP 조립·테스트·포장 세부 공정 행 */
 export type PostProcessLine = {
   name: string
@@ -58,8 +51,6 @@ export type QuoteDetailInfo = {
     smt?: {
       pcbBoards?: SmtPcbBoard[]
       smtSide?: 'single' | 'double'
-      /** (구) 견적 보드별 단면/양면 */
-      legacyBoards?: LegacyBoardInput[]
     }
     dip?: { dipBoards?: DipPcbBoard[] }
     postProcess?: {
@@ -77,22 +68,12 @@ export type QuoteDetailInfo = {
     materialCostPerUnit?: number
     pcbBoardCount?: number
     specialDiscount?: number
-    quoteType?: QuoteType
+    quoteType?: QuoteType | 'legacy'
     smtIncludesSetup?: boolean
-    /** (구) 견적 품목 반영으로 연결된 반제품 */
-    linkedSemiItemId?: string
-    /** (구) 견적 품목 반영 — 보드별 반제품 (우선) */
-    linkedSemiItemIds?: string[]
-    /** (구) 견적 품목 반영으로 연결된 완제품 */
-    linkedFinishedItemId?: string
-    /** (구) 견적 공정 카테고리 — smt | post | smt_post */
-    processType?: 'smt' | 'post' | 'smt_post'
     /** 국내용/해외용 — SMD(SMT) 입력 섹션 사용 */
     includeSmd?: boolean
     /** 국내용/해외용 — DIP(납땜·조립·테스트·포장) 입력 섹션 사용 */
     includeDip?: boolean
-    /** (구) 견적 통합 단가 */
-    unitPrice?: number
   }
 }
 

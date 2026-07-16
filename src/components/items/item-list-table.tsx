@@ -204,7 +204,15 @@ export function ItemListTable({
                       : '-'}
                   </td>
                 ) : null}
-                <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm tabular-nums text-slate-700">
+                <td
+                  className="whitespace-nowrap px-4 py-2.5 text-right text-sm tabular-nums text-slate-700"
+                  title={
+                    isSemiFinishedItemCategory(item.itemCategory) &&
+                    (item.smdUnitPrice > 0 || item.dipUnitPrice > 0 || item.materialUnitPrice > 0)
+                      ? `SMD ${formatItemUnitPrice(item.smdUnitPrice)} + DIP ${formatItemUnitPrice(item.dipUnitPrice)} + 자재 ${formatItemUnitPrice(item.materialUnitPrice)}`
+                      : undefined
+                  }
+                >
                   {item.unitPrice > 0 ? formatItemUnitPrice(item.unitPrice) : '-'}
                 </td>
                 {columns.itemCategory ? (

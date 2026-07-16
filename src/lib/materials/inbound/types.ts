@@ -1,8 +1,7 @@
-export const MATERIAL_INBOUND_TYPES = ['opening', 'purchase', 'supplied', 'return'] as const
+export const MATERIAL_INBOUND_TYPES = ['purchase', 'supplied', 'return'] as const
 export type MaterialInboundType = (typeof MATERIAL_INBOUND_TYPES)[number]
 
 export const MATERIAL_INBOUND_TYPE_LABELS: Record<MaterialInboundType, string> = {
-  opening: '기초',
   purchase: '발주',
   supplied: '사급',
   return: '반품',

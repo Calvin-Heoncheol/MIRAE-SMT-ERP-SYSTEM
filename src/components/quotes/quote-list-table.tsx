@@ -24,7 +24,7 @@ export function QuoteListTable({ quotes, emptyMessage, onSelectQuote }: QuoteLis
       <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
         <p className="text-base font-semibold text-slate-700">{emptyMessage}</p>
         <p className="mt-2 text-sm text-slate-500">
-          새 견적서 버튼에서 해외용, 국내용 또는 (구) 견적서를 선택해 등록하세요.
+          새 견적서 버튼에서 해외용 또는 국내용 견적서를 선택해 등록하세요.
         </p>
       </div>
     )

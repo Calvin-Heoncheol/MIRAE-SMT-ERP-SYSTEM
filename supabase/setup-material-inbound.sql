@@ -6,7 +6,7 @@ create table if not exists public.material_inbound_records (
   id text primary key,
   inbound_date date not null default (timezone('Asia/Seoul', now()))::date,
   inbound_type text not null default 'supplied'
-    check (inbound_type in ('opening', 'purchase', 'supplied', 'return')),
+    check (inbound_type in ('purchase', 'supplied', 'return')),
   purchase_order_id text references public.material_purchase_orders(id) on delete restrict,
   note text not null default '',
   created_at timestamptz not null default now(),
@@ -21,7 +21,7 @@ create table if not exists public.material_inbound_records (
 
 comment on table public.material_inbound_records is '자재 입고 전표 — MRIB-0001';
 comment on column public.material_inbound_records.id is '입고번호 MRIB-0001 (INSERT 시 자동 발급, 수정 불가)';
-comment on column public.material_inbound_records.inbound_type is 'opening=기초, purchase=발주, supplied=사급, return=반품';
+comment on column public.material_inbound_records.inbound_type is 'purchase=발주, supplied=사급, return=반품';
 comment on column public.material_inbound_records.purchase_order_id is '발주연동 입고 시 발주 FK';
 
 create table if not exists public.material_inbound_lines (

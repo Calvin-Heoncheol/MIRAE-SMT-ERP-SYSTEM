@@ -24,7 +24,7 @@ comment on column public.new_company_inquiries.email is '이메일';
 comment on column public.new_company_inquiries.phone is '연락처';
 comment on column public.new_company_inquiries.product is '제품';
 comment on column public.new_company_inquiries.quantity is '예상수량';
-comment on column public.new_company_inquiries.note is '비고';
+comment on column public.new_company_inquiries.note is '진행사항 (한 줄씩 기록)';
 comment on column public.new_company_inquiries.status is '접수/상담중/견적중/거래전환/보류/종료';
 
 create index if not exists new_company_inquiries_created_at_idx

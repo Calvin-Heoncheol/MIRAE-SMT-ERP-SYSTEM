@@ -1,7 +1,7 @@
 import { createSupabaseClient } from '@/lib/supabase'
 import type { QuoteRowPayload } from './build-quote-payload'
 import type { QuoteRecord, QuoteType } from './types'
-import { mapQuoteRecord, sortQuotesNewestFirst } from './utils'
+import { mapQuoteRecord, isLegacyQuoteDetail, sortQuotesNewestFirst } from './utils'
 
 export type FetchQuotesResult =
   | { ok: true; quotes: ReturnType<typeof mapQuoteRecord>[] }
@@ -48,7 +48,11 @@ export async function fetchQuotes(): Promise<FetchQuotesResult> {
       }
     }
 
-    const quotes = sortQuotesNewestFirst((data as QuoteRecord[]).map(mapQuoteRecord))
+    const quotes = sortQuotesNewestFirst(
+      (data as QuoteRecord[])
+        .map(mapQuoteRecord)
+        .filter((quote) => !isLegacyQuoteDetail(quote.detailInfo)),
+    )
     return { ok: true, quotes }
   } catch (error) {
     return {

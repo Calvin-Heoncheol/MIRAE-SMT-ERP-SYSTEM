@@ -1,5 +1,44 @@
 import type { NewCompanyInquiry, NewCompanyInquiryPayload, NewCompanyStatus } from './types'
 
+const LEADING_INDEX_RE = /^\d+\.\s*/
+
+/** DB note(줄바꿈 구분) → 편집용 진행사항 행 */
+export function parseProgressLines(note: string): string[] {
+  const lines = note
+    .split(/\r?\n/)
+    .map((line) => line.replace(LEADING_INDEX_RE, '').trim())
+    .filter(Boolean)
+  return lines.length ? lines : ['']
+}
+
+/** 편집 행 → DB note (번호 없이 한 줄씩 저장) */
+export function serializeProgressLines(lines: string[]): string {
+  return lines
+    .map((line) => line.replace(LEADING_INDEX_RE, '').trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
+/** 목록/툴팁용 표시 (1. … / 2. …) */
+export function formatProgressLinesDisplay(note: string, separator = ' · '): string {
+  const lines = note
+    .split(/\r?\n/)
+    .map((line) => line.replace(LEADING_INDEX_RE, '').trim())
+    .filter(Boolean)
+  if (!lines.length) return ''
+  return lines.map((line, index) => `${index + 1}. ${line}`).join(separator)
+}
+
+/** 목록 행용 — 가장 최근(마지막) 진행사항만 (번호 없이) */
+export function formatLatestProgressLineDisplay(note: string): string {
+  const lines = note
+    .split(/\r?\n/)
+    .map((line) => line.replace(LEADING_INDEX_RE, '').trim())
+    .filter(Boolean)
+  if (!lines.length) return ''
+  return lines[lines.length - 1]
+}
+
 export type NewCompanyInquiryFormState = {
   contactName: string
   companyName: string
@@ -7,7 +46,7 @@ export type NewCompanyInquiryFormState = {
   phone: string
   product: string
   quantity: string
-  note: string
+  progressLines: string[]
   status: NewCompanyStatus
 }
 
@@ -19,7 +58,7 @@ export function emptyNewCompanyInquiryForm(): NewCompanyInquiryFormState {
     phone: '',
     product: '',
     quantity: '',
-    note: '',
+    progressLines: [''],
     status: 'received',
   }
 }
@@ -32,7 +71,7 @@ export function inquiryToForm(inquiry: NewCompanyInquiry): NewCompanyInquiryForm
     phone: inquiry.phone,
     product: inquiry.product,
     quantity: inquiry.quantity == null ? '' : String(inquiry.quantity),
-    note: inquiry.note,
+    progressLines: parseProgressLines(inquiry.note),
     status: inquiry.status,
   }
 }
@@ -52,7 +91,7 @@ export function formToInquiryPayload(form: NewCompanyInquiryFormState): NewCompa
     phone: form.phone.trim(),
     product: form.product.trim(),
     quantity,
-    note: form.note.trim(),
+    note: serializeProgressLines(form.progressLines),
     status: form.status,
   }
 }

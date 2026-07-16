@@ -85,6 +85,16 @@ export const ITEM_PROCESS_TYPE_LABELS: Record<ItemProcessTypeValue, string> = {
   smt_post: 'SMD+DIP',
 }
 
+/** SMD/DIP 단가 > 0 여부로 공정 판별 */
+export function deriveItemProcessType(smdUnitPrice: number, dipUnitPrice: number): ItemProcessType {
+  const hasSmd = smdUnitPrice > 0
+  const hasDip = dipUnitPrice > 0
+  if (hasSmd && hasDip) return 'smt_post'
+  if (hasSmd) return 'smt'
+  if (hasDip) return 'post'
+  return ''
+}
+
 /** 원자재(1)만 품목코드 필수 직접 입력 */
 export function isManualItemCodeCategory(category: ItemCategory) {
   return category === 1
@@ -118,6 +128,9 @@ export type Item = {
   pcbSideMode: ItemPcbSideMode
   processType: ItemProcessType
   unitPrice: number
+  smdUnitPrice: number
+  dipUnitPrice: number
+  materialUnitPrice: number
   itemCategory: ItemCategory
   isActive: boolean
   createdAt: string
@@ -135,6 +148,9 @@ export type ItemPayload = {
   pcbSideMode: ItemPcbSideMode
   processType: ItemProcessType
   unitPrice: number
+  smdUnitPrice: number
+  dipUnitPrice: number
+  materialUnitPrice: number
   itemCategory: ItemCategory
 }
 
@@ -151,5 +167,8 @@ export const ITEM_COLUMN_LABELS = {
   pcbSideMode: '단면/양면',
   processType: '공정',
   unitPrice: '단가',
+  smdUnitPrice: 'SMD 단가',
+  dipUnitPrice: 'DIP 단가',
+  materialUnitPrice: '자재 단가',
   itemCategory: '품목구분',
 } as const

@@ -19,6 +19,11 @@ export type BomGroup = {
   lines: BomLine[]
 }
 
+/** 목록 행 — BOM 미등록 품목도 포함 */
+export type BomListRow = BomGroup & {
+  bomRegistered: boolean
+}
+
 export type BomLinePayload = {
   childProductId: string
   quantityPer: number

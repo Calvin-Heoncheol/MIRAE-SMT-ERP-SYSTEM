@@ -1,6 +1,6 @@
 import type { Item, ItemCategory } from '@/lib/items/types'
 import { ITEM_CATEGORY_LABELS, isProductItemCategory } from '@/lib/items/types'
-import type { BomGroup, BomLine, BomParentFilter } from './types'
+import type { BomGroup, BomLine, BomListRow, BomParentFilter } from './types'
 
 export function allowedChildCategories(parentCategory: ItemCategory): ItemCategory[] {
   if (parentCategory === 4) return [3]
@@ -42,18 +42,39 @@ export function groupBomLines(lines: BomLine[]): BomGroup[] {
   })
 }
 
-export function filterBomGroups(groups: BomGroup[], query: string, parentFilter: BomParentFilter) {
+/** 품목등록된 반제품·완제품 + BOM 유무 */
+export function buildBomListRows(items: Item[], bomGroups: BomGroup[]): BomListRow[] {
+  const bomByParent = new Map(bomGroups.map((group) => [group.parentProductId, group]))
+
+  return parentItemsForBom(items).map((item) => {
+    const existing = bomByParent.get(item.id)
+    if (existing) {
+      return { ...existing, bomRegistered: true }
+    }
+    return {
+      parentProductId: item.id,
+      parentProductName: item.name,
+      parentItemCategory: item.itemCategory,
+      lines: [],
+      bomRegistered: false,
+    }
+  })
+}
+
+export function filterBomListRows(rows: BomListRow[], query: string, parentFilter: BomParentFilter) {
   const q = query.trim().toLowerCase()
 
-  return groups.filter((group) => {
-    if (parentFilter !== 'all' && group.parentItemCategory !== parentFilter) return false
+  return rows.filter((row) => {
+    if (parentFilter !== 'all' && row.parentItemCategory !== parentFilter) return false
     if (!q) return true
 
+    const statusLabel = row.bomRegistered ? '등록완료' : '미등록'
     const haystack = [
-      group.parentProductId,
-      group.parentProductName,
-      ITEM_CATEGORY_LABELS[group.parentItemCategory],
-      ...group.lines.flatMap((line) => [
+      row.parentProductId,
+      row.parentProductName,
+      ITEM_CATEGORY_LABELS[row.parentItemCategory],
+      statusLabel,
+      ...row.lines.flatMap((line) => [
         line.childProductId,
         line.childProductName,
         line.childMpn,
@@ -65,6 +86,14 @@ export function filterBomGroups(groups: BomGroup[], query: string, parentFilter:
 
     return haystack.includes(q)
   })
+}
+
+export function filterBomGroups(groups: BomGroup[], query: string, parentFilter: BomParentFilter) {
+  return filterBomListRows(
+    groups.map((group) => ({ ...group, bomRegistered: group.lines.length > 0 })),
+    query,
+    parentFilter,
+  )
 }
 
 export function parentItemsForBom(items: Item[]) {

@@ -1,5 +1,6 @@
 'use client'
 
+import { formatLatestProgressLineDisplay, formatProgressLinesDisplay } from '@/lib/new-companies/form-state'
 import type { NewCompanyInquiry } from '@/lib/new-companies/types'
 import {
   NEW_COMPANY_STATUS_BADGE_CLASS,
@@ -53,45 +54,52 @@ export function NewCompanyListTable({
               <th className="px-3 py-2.5">연락처</th>
               <th className="px-3 py-2.5">제품</th>
               <th className="px-3 py-2.5 text-right">예상수량</th>
-              <th className="px-3 py-2.5">비고</th>
+              <th className="px-3 py-2.5">진행사항</th>
             </tr>
           </thead>
           <tbody>
-            {inquiries.map((inquiry) => (
-              <tr
-                key={inquiry.id}
-                className={[
-                  'border-t border-slate-100',
-                  onSelectInquiry ? 'cursor-pointer hover:bg-slate-50' : '',
-                ].join(' ')}
-                onClick={onSelectInquiry ? () => onSelectInquiry(inquiry) : undefined}
-              >
-                <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-600">
-                  {inquiry.createdAt.slice(0, 10)}
-                </td>
-                <td className="px-3 py-2.5">
-                  <span
-                    className={[
-                      'inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1',
-                      NEW_COMPANY_STATUS_BADGE_CLASS[inquiry.status],
-                    ].join(' ')}
+            {inquiries.map((inquiry) => {
+              const progressDisplay = formatLatestProgressLineDisplay(inquiry.note)
+              const progressTitle = formatProgressLinesDisplay(inquiry.note, '\n')
+              return (
+                <tr
+                  key={inquiry.id}
+                  className={[
+                    'border-t border-slate-100',
+                    onSelectInquiry ? 'cursor-pointer hover:bg-slate-50' : '',
+                  ].join(' ')}
+                  onClick={onSelectInquiry ? () => onSelectInquiry(inquiry) : undefined}
+                >
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-600">
+                    {inquiry.createdAt.slice(0, 10)}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span
+                      className={[
+                        'inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1',
+                        NEW_COMPANY_STATUS_BADGE_CLASS[inquiry.status],
+                      ].join(' ')}
+                    >
+                      {NEW_COMPANY_STATUS_LABELS[inquiry.status]}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 font-medium text-slate-900">{cell(inquiry.companyName)}</td>
+                  <td className="px-3 py-2.5 text-slate-800">{cell(inquiry.contactName)}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{cell(inquiry.email)}</td>
+                  <td className="px-3 py-2.5 tabular-nums text-slate-600">{cell(inquiry.phone)}</td>
+                  <td className="px-3 py-2.5 text-slate-700">{cell(inquiry.product)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
+                    {formatInquiryQuantity(inquiry.quantity)}
+                  </td>
+                  <td
+                    className="max-w-[240px] px-3 py-2.5 text-slate-600"
+                    title={progressTitle || undefined}
                   >
-                    {NEW_COMPANY_STATUS_LABELS[inquiry.status]}
-                  </span>
-                </td>
-                <td className="px-3 py-2.5 font-medium text-slate-900">{cell(inquiry.companyName)}</td>
-                <td className="px-3 py-2.5 text-slate-800">{cell(inquiry.contactName)}</td>
-                <td className="px-3 py-2.5 text-slate-600">{cell(inquiry.email)}</td>
-                <td className="px-3 py-2.5 tabular-nums text-slate-600">{cell(inquiry.phone)}</td>
-                <td className="px-3 py-2.5 text-slate-700">{cell(inquiry.product)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
-                  {formatInquiryQuantity(inquiry.quantity)}
-                </td>
-                <td className="max-w-[240px] px-3 py-2.5 text-slate-600" title={inquiry.note}>
-                  {truncate(inquiry.note)}
-                </td>
-              </tr>
-            ))}
+                    {truncate(progressDisplay)}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

@@ -232,6 +232,34 @@ export async function updateItem(id: string, payload: UpdateItemPayload): Promis
   }
 }
 
+export async function setItemActive(id: string, isActive: boolean): Promise<SaveItemResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const key = id.trim()
+  if (!key) {
+    return { ok: false, reason: 'validation', detail: '품목코드를 찾을 수 없습니다.' }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { error } = await supabase.from('items').update({ is_active: isActive }).eq('id', key)
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return { ok: true, id: key }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 export async function deleteItem(id: string): Promise<DeleteItemResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()

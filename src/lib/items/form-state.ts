@@ -4,11 +4,11 @@ import type {
   ItemCategory,
   ItemMaterialType,
   ItemPcbSideMode,
-  ItemProcessType,
   ItemSupplyType,
   UpdateItemPayload,
 } from './types'
 import {
+  deriveItemProcessType,
   isFinishedItemCategory,
   isMaterialItemCategory,
   isRawMaterialItemCategory,
@@ -26,8 +26,10 @@ export type ItemFormState = {
   supplyType: ItemSupplyType
   supplier: string
   pcbSideMode: ItemPcbSideMode
-  processType: ItemProcessType
   unitPrice: string
+  smdUnitPrice: string
+  dipUnitPrice: string
+  materialUnitPrice: string
 }
 
 export function emptyItemForm(): ItemFormState {
@@ -41,9 +43,15 @@ export function emptyItemForm(): ItemFormState {
     supplyType: '',
     supplier: '',
     pcbSideMode: '',
-    processType: '',
     unitPrice: '',
+    smdUnitPrice: '',
+    dipUnitPrice: '',
+    materialUnitPrice: '',
   }
+}
+
+function priceToFormValue(value: number) {
+  return value > 0 ? String(value) : ''
 }
 
 export function itemToForm(item: Item): ItemFormState {
@@ -57,8 +65,10 @@ export function itemToForm(item: Item): ItemFormState {
     supplyType: item.supplyType,
     supplier: item.supplier,
     pcbSideMode: item.pcbSideMode,
-    processType: item.processType,
-    unitPrice: item.unitPrice > 0 ? String(item.unitPrice) : '',
+    unitPrice: priceToFormValue(item.unitPrice),
+    smdUnitPrice: priceToFormValue(item.smdUnitPrice),
+    dipUnitPrice: priceToFormValue(item.dipUnitPrice),
+    materialUnitPrice: priceToFormValue(item.materialUnitPrice),
   }
 }
 
@@ -84,9 +94,6 @@ export function validateItemForm(form: ItemFormState, options?: { isCreate?: boo
   if (category === 3 && form.pcbSideMode !== 'single' && form.pcbSideMode !== 'dual') {
     return '반제품은 단면/양면을 선택해 주세요.'
   }
-  if (category === 3 && form.processType !== 'smt' && form.processType !== 'post' && form.processType !== 'smt_post') {
-    return '반제품은 공정을 선택해 주세요.'
-  }
   if (!options?.isCreate && !form.id.trim()) return '품목코드를 찾을 수 없습니다.'
   return null
 }
@@ -102,6 +109,15 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
   const isSemiFinished = isSemiFinishedItemCategory(itemCategory)
   const isFinished = isFinishedItemCategory(itemCategory)
 
+  const smdUnitPrice = isSemiFinished ? parseUnitPrice(form.smdUnitPrice) : 0
+  const dipUnitPrice = isSemiFinished ? parseUnitPrice(form.dipUnitPrice) : 0
+  const materialUnitPrice = isSemiFinished ? parseUnitPrice(form.materialUnitPrice) : 0
+  const unitPrice = isFinished
+    ? 0
+    : isSemiFinished
+      ? smdUnitPrice + dipUnitPrice + materialUnitPrice
+      : parseUnitPrice(form.unitPrice)
+
   return {
     id: form.id.trim(),
     name: form.name.trim(),
@@ -111,8 +127,11 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     supplyType: isRawMaterial ? form.supplyType : '',
     supplier: isMaterial ? form.supplier.trim() : '',
     pcbSideMode: isSemiFinished ? form.pcbSideMode : '',
-    processType: isSemiFinished ? form.processType : '',
-    unitPrice: isFinished ? 0 : parseUnitPrice(form.unitPrice),
+    processType: isSemiFinished ? deriveItemProcessType(smdUnitPrice, dipUnitPrice) : '',
+    unitPrice,
+    smdUnitPrice,
+    dipUnitPrice,
+    materialUnitPrice,
     itemCategory,
   }
 }

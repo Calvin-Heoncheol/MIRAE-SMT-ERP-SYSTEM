@@ -38,12 +38,15 @@ export function defaultDipPcbBoard(index = 0): DipPcbBoard {
   }
 }
 
+export function isLegacyQuoteDetail(detailInfo?: QuoteDetailInfo): boolean {
+  return detailInfo?.settings?.quoteType === 'legacy'
+}
+
 export function inferQuoteType(source: {
   quoteType?: QuoteType
   detailInfo?: QuoteDetailInfo
 }): QuoteType {
   const settingsType = source.detailInfo?.settings?.quoteType
-  if (settingsType === 'legacy' || source.quoteType === 'legacy') return 'legacy'
   if (settingsType === 'domestic' || source.quoteType === 'domestic') return 'domestic'
   if (settingsType === 'export' || source.quoteType === 'export') return 'export'
   return 'export'
@@ -97,7 +100,7 @@ export function filterQuotesForSearch(quotes: QuoteListItem[], query: string) {
       quote.customer,
       quote.productName,
       quote.quoteDate,
-      quote.quoteType === 'domestic' ? '국내' : quote.quoteType === 'legacy' ? '(구)' : '해외',
+      quote.quoteType === 'domestic' ? '국내' : '해외',
     ]
       .join(' ')
       .toLowerCase()

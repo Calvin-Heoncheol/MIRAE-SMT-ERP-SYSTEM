@@ -4,7 +4,6 @@ export type BomFormLine = {
   key: string
   childProductId: string
   quantityPer: string
-  note: string
 }
 
 export type BomFormState = {
@@ -22,13 +21,12 @@ export function createBomFormLine(
     key: partial?.key || `bom-line-${lineKeySeq}`,
     childProductId: partial?.childProductId || '',
     quantityPer: partial?.quantityPer ?? '1',
-    note: partial?.note || '',
   }
 }
 
-export function emptyBomForm(): BomFormState {
+export function emptyBomForm(parentProductId = ''): BomFormState {
   return {
-    parentProductId: '',
+    parentProductId,
     lines: [createBomFormLine()],
   }
 }
@@ -41,7 +39,6 @@ export function bomGroupToForm(group: BomGroup): BomFormState {
           createBomFormLine({
             childProductId: line.childProductId,
             quantityPer: String(line.quantityPer),
-            note: line.note,
           }),
         )
       : [createBomFormLine()],
@@ -53,7 +50,7 @@ export function formToBomLinePayloads(form: BomFormState): BomLinePayload[] {
     .map((line) => ({
       childProductId: line.childProductId.trim(),
       quantityPer: Number(line.quantityPer),
-      note: line.note.trim(),
+      note: '',
     }))
     .filter((line) => line.childProductId)
 }

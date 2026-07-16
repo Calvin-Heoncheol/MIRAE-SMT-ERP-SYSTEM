@@ -17,15 +17,12 @@ import {
   ITEM_MATERIAL_TYPE_OPTIONS,
   ITEM_PCB_SIDE_MODES,
   ITEM_PCB_SIDE_MODE_LABELS,
-  ITEM_PROCESS_TYPES,
-  ITEM_PROCESS_TYPE_LABELS,
   ITEM_SUPPLY_TYPE_OPTIONS,
   isManualItemCodeCategory,
   isOptionalItemCodeCategory,
   type ItemCategory,
   type ItemMaterialType,
   type ItemPcbSideMode,
-  type ItemProcessType,
   type ItemSupplyType,
 } from '@/lib/items/types'
 
@@ -358,23 +355,6 @@ function ItemBulkModalContent({
                               </option>
                             ))}
                           </select>
-                        ) : column.key === 'processType' ? (
-                          <select
-                            value={row.processType}
-                            onChange={(event) =>
-                              patchRow(index, {
-                                processType: event.target.value as ItemProcessType,
-                              })
-                            }
-                            className={inputClassName}
-                          >
-                            <option value="">선택</option>
-                            {ITEM_PROCESS_TYPES.map((value) => (
-                              <option key={value} value={value}>
-                                {ITEM_PROCESS_TYPE_LABELS[value]}
-                              </option>
-                            ))}
-                          </select>
                         ) : (
                           <input
                             value={String(row[column.key] ?? '')}
@@ -382,7 +362,12 @@ function ItemBulkModalContent({
                               patchRow(index, { [column.key]: event.target.value } as Partial<ItemFormState>)
                             }
                             className={`${inputClassName}${column.key === 'id' ? ' font-mono' : ''}${
-                              column.key === 'unitPrice' ? ' text-right' : ''
+                              column.key === 'unitPrice' ||
+                              column.key === 'smdUnitPrice' ||
+                              column.key === 'dipUnitPrice' ||
+                              column.key === 'materialUnitPrice'
+                                ? ' text-right'
+                                : ''
                             }`}
                           />
                         )}

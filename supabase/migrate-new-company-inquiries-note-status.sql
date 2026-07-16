@@ -31,7 +31,7 @@ alter table public.new_company_inquiries
   add constraint new_company_inquiries_status_check
   check (status in ('received', 'consulting', 'quoting', 'converted', 'on_hold', 'closed'));
 
-comment on column public.new_company_inquiries.note is '비고';
+comment on column public.new_company_inquiries.note is '진행사항 (한 줄씩 기록)';
 comment on column public.new_company_inquiries.status is '접수/상담중/견적중/거래전환/보류/종료';
 comment on column public.new_company_inquiries.quantity is '예상수량';
 comment on column public.new_company_inquiries.contact_name is '담당자';

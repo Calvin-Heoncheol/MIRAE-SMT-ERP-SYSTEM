@@ -4,7 +4,7 @@ import { fetchMaterialPurchaseOrders } from '@/lib/materials/purchase-orders/rep
 import type { Material } from '@/lib/materials/types'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
 import type { MaterialInboundListGroup, MaterialInboundRecord, MaterialInboundRowPayload } from './types'
-import { groupInboundsFromRecords } from './utils'
+import { groupInboundsFromRecords, normalizeInboundType } from './utils'
 
 export type FetchMaterialInboundsResult =
   | { ok: true; inbounds: MaterialInboundListGroup[] }
@@ -209,7 +209,7 @@ function validateInboundPayload(payload: MaterialInboundRowPayload): string | nu
     return null
   }
 
-  if (payload.purchase_order_id) return '기초·사급·반품 입고는 발주를 연결할 수 없습니다.'
+  if (payload.purchase_order_id) return '사급·반품 입고는 발주를 연결할 수 없습니다.'
   for (const item of items) {
     if (!item.material_id?.trim()) return '자재를 선택해 주세요.'
     if (item.purchase_order_line_id) return '발주 입고가 아닌 경우 발주 라인을 연결할 수 없습니다.'
@@ -309,7 +309,7 @@ export async function updateMaterialInbound(
       return { ok: false, reason: 'query', detail: '입고 전표를 찾을 수 없습니다.' }
     }
 
-    if (existing.inbound_type !== payload.inbound_type) {
+    if (normalizeInboundType(existing.inbound_type) !== payload.inbound_type) {
       return { ok: false, reason: 'validation', detail: '입고 유형은 수정할 수 없습니다.' }
     }
 

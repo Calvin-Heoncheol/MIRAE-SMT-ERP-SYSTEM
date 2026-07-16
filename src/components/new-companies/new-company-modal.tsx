@@ -60,6 +60,32 @@ function NewCompanyModalContent({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function updateProgressLine(index: number, value: string) {
+    setForm((current) => ({
+      ...current,
+      progressLines: current.progressLines.map((line, i) => (i === index ? value : line)),
+    }))
+  }
+
+  function addProgressLine() {
+    setForm((current) => ({
+      ...current,
+      progressLines: [...current.progressLines, ''],
+    }))
+  }
+
+  function removeProgressLine(index: number) {
+    setForm((current) => {
+      if (current.progressLines.length <= 1) {
+        return { ...current, progressLines: [''] }
+      }
+      return {
+        ...current,
+        progressLines: current.progressLines.filter((_, i) => i !== index),
+      }
+    })
+  }
+
   async function handleSave() {
     const validationError = validateNewCompanyInquiryForm(form)
     if (validationError) {
@@ -217,15 +243,46 @@ function NewCompanyModalContent({
               className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
             />
           </label>
-          <label className="block text-sm sm:col-span-2">
-            <span className={ERP_FIELD_LABEL_CLASS}>비고</span>
-            <textarea
-              value={form.note}
-              onChange={(event) => updateForm('note', event.target.value)}
-              rows={5}
-              className={ERP_FIELD_INPUT_CLASS}
-            />
-          </label>
+          <div className="sm:col-span-2">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <span className={ERP_FIELD_LABEL_CLASS}>진행사항</span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={addProgressLine}
+                className="text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
+              >
+                + 추가
+              </button>
+            </div>
+            <div className="space-y-2">
+              {form.progressLines.map((line, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <span className="w-6 shrink-0 text-right text-sm tabular-nums text-slate-500">
+                    {index + 1}.
+                  </span>
+                  <input
+                    value={line}
+                    disabled={busy}
+                    onChange={(event) => updateProgressLine(index, event.target.value)}
+                    placeholder={
+                      index === 0 ? '예: 담당자 공장심사' : index === 1 ? '예: 임원진방문' : '진행사항 입력'
+                    }
+                    className={`${ERP_FIELD_INPUT_CLASS} min-w-0 flex-1`}
+                  />
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => removeProgressLine(index)}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-50"
+                    aria-label={`${index + 1}번 진행사항 삭제`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </ErpModal>
