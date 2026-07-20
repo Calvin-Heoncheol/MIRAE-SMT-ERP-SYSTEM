@@ -49,8 +49,8 @@ function StageCell({
       <button
         type="button"
         onClick={onClick}
-        title={`${label} 바로 입력`}
-        className="w-full rounded-lg px-2 py-1.5 text-left transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+        title={`${label} 총관리자 직접 입력`}
+        className="w-full rounded-lg px-2 py-1.5 text-left transition hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
       >
         <MiniProgress percent={percent} tone={tone} />
         <p className="mt-1 text-[11px] tabular-nums text-slate-400">{detail}</p>

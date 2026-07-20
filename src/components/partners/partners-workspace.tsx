@@ -6,11 +6,13 @@ import { PartnerFetchError } from '@/components/partners/partner-fetch-error'
 import { PartnerListTable } from '@/components/partners/partner-list-table'
 import { PartnerModal } from '@/components/partners/partner-modal'
 import { ErpButton } from '@/components/ui/erp-button'
+import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchBusinessPartnersResult } from '@/lib/partners/repository'
 import { PARTNER_TRADE_ROLE_LABELS } from '@/lib/partners/types'
 import { formatBusinessRegNo } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type PartnersWorkspaceProps = {
@@ -52,6 +54,8 @@ export function PartnersWorkspace({ result }: PartnersWorkspaceProps) {
     [partners, query],
   )
 
+  const pagination = useClientPagination(filtered)
+
   function openCreate() {
     setModalSession((value) => value + 1)
     setModal({ open: true, mode: 'create' })
@@ -82,7 +86,7 @@ export function PartnersWorkspace({ result }: PartnersWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-1 flex-col gap-4">
         <WorkspaceHeader
           title="거래처등록"
           totalCount={partners.length}
@@ -96,13 +100,22 @@ export function PartnersWorkspace({ result }: PartnersWorkspaceProps) {
         />
 
         <PartnerListTable
-          partners={filtered}
+          partners={pagination.pageItems}
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query),
             emptyLabel: '등록된 거래처가 없습니다',
             actionHint: '오른쪽 상단에서 등록하세요',
           })}
           onSelectPartner={openEdit}
+        />
+
+        <ListPagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.setPage}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          totalCount={pagination.totalCount}
         />
       </div>
 

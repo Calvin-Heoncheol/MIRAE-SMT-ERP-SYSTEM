@@ -70,6 +70,7 @@ export function SmtHistoryTable({ rows, emptyMessage, onRowClick }: SmtHistoryTa
                     ? 'cursor-pointer hover:bg-sky-50/70'
                     : 'hover:bg-sky-50/40',
                 ].join(' ')}
+                title={onRowClick ? '클릭하여 상세·삭제' : undefined}
               >
                 <td className="whitespace-nowrap px-4 py-2.5 text-sm text-slate-700">{cell(row.recordDate)}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-slate-600">

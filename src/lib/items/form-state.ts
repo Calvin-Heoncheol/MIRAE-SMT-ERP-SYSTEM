@@ -90,8 +90,13 @@ export function validateItemForm(form: ItemFormState, options?: { isCreate?: boo
       return '도급/사급을 선택해 주세요.'
     }
   }
-  if (category === 3 && form.pcbSideMode !== 'single' && form.pcbSideMode !== 'dual') {
-    return '반제품은 단면/양면을 선택해 주세요.'
+  if (
+    category === 3 &&
+    form.pcbSideMode !== 'single' &&
+    form.pcbSideMode !== 'duo' &&
+    form.pcbSideMode !== 'double'
+  ) {
+    return '반제품은 면 구분(단면/듀얼/양면)을 선택해 주세요.'
   }
   if (!options?.isCreate && !form.id.trim()) return '품목코드를 찾을 수 없습니다.'
   return null

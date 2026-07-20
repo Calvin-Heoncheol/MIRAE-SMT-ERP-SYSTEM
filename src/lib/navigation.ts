@@ -10,7 +10,7 @@ export type NavItem = {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: '홈', href: '/' },
+  { label: '대시보드', href: '/' },
   {
     label: '영업관리',
     href: '/quotations',

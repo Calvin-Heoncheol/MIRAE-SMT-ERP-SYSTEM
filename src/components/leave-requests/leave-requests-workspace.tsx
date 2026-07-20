@@ -5,8 +5,10 @@ import { useState } from 'react'
 import { LeaveRequestFetchError } from '@/components/leave-requests/leave-request-fetch-error'
 import { LeaveRequestListTable } from '@/components/leave-requests/leave-request-list-table'
 import { LeaveRequestModal } from '@/components/leave-requests/leave-request-modal'
+import { ListPagination } from '@/components/ui/list-pagination'
 import type { FetchLeaveRequestsResult } from '@/lib/leave-requests/repository'
 import type { LeaveRequestListItem } from '@/lib/leave-requests/types'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 
 type LeaveRequestsWorkspaceProps = {
   result: FetchLeaveRequestsResult
@@ -23,6 +25,7 @@ export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) 
   const [modalSession, setModalSession] = useState(0)
 
   const requests = result.ok ? result.requests : []
+  const pagination = useClientPagination(requests)
 
   function openCreate() {
     setModalSession((value) => value + 1)
@@ -49,12 +52,8 @@ export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) 
 
   return (
     <>
-      <div className="flex min-h-[calc(100dvh-60px)] w-full flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">결재서 · 휴가원</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">휴가원 관리</h1>
-          </div>
+      <div className="flex w-full flex-1 flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <button
             type="button"
             onClick={openCreate}
@@ -67,11 +66,22 @@ export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) 
         {!result.ok ? (
           <LeaveRequestFetchError result={result} />
         ) : (
-          <LeaveRequestListTable
-            requests={requests}
-            emptyMessage="등록된 휴가원이 없습니다"
-            onSelectRequest={openEdit}
-          />
+          <>
+            <LeaveRequestListTable
+              requests={pagination.pageItems}
+              emptyMessage="등록된 휴가원이 없습니다"
+              onSelectRequest={openEdit}
+            />
+
+            <ListPagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={pagination.setPage}
+              rangeStart={pagination.rangeStart}
+              rangeEnd={pagination.rangeEnd}
+              totalCount={pagination.totalCount}
+            />
+          </>
         )}
       </div>
 

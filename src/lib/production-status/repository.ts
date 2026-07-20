@@ -5,15 +5,14 @@ import {
   buildDeliveryInputOrders,
 } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
-import { todayYmdSeoul } from '@/lib/orders/utils'
 import {
   buildPostProcessAssemblyLines,
   buildProductionOrderLines,
 } from '@/lib/production-input/utils'
 import { fetchProducts } from '@/lib/products/repository'
-import { fetchPostProcessCumulativeCounts, fetchPostProcessTodayProduction } from '@/lib/post-process/repository'
-import { fetchSmtCumulativeCounts, fetchSmtTodayProduction } from '@/lib/smt/repository'
-import { buildProductionStatusLines, buildTodayProductionStages } from './utils'
+import { fetchPostProcessCumulativeCounts } from '@/lib/post-process/repository'
+import { fetchSmtCumulativeCounts } from '@/lib/smt/repository'
+import { buildProductionStatusLines } from './utils'
 import type { ProductionStatusPageData } from './types'
 
 export type FetchProductionStatusResult =
@@ -29,18 +28,14 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     ordersResult,
     productsResult,
     smtCountsResult,
-    todaySmtResult,
     postCountsResult,
-    todayPostResult,
     deliveryCountsResult,
     smtOrdersResult,
   ] = await Promise.all([
     fetchOrders(),
     fetchProducts(),
     fetchSmtCumulativeCounts(),
-    fetchSmtTodayProduction(),
     fetchPostProcessCumulativeCounts(),
-    fetchPostProcessTodayProduction(),
     fetchDeliveryCumulativeCounts(),
     fetchOrders({ includeDerivedLines: true }),
   ])
@@ -48,9 +43,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
   if (!ordersResult.ok) return ordersResult
   if (!productsResult.ok) return productsResult
   if (!smtCountsResult.ok) return smtCountsResult
-  if (!todaySmtResult.ok) return todaySmtResult
   if (!postCountsResult.ok) return postCountsResult
-  if (!todayPostResult.ok) return todayPostResult
   if (!deliveryCountsResult.ok) return deliveryCountsResult
   if (!smtOrdersResult.ok) return smtOrdersResult
 
@@ -83,9 +76,6 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
   return {
     ok: true,
     data: {
-      todayDate: todayYmdSeoul(),
-      todayStages: buildTodayProductionStages(todaySmtResult.rows, todayPostResult.rows),
-      todaySmtRecords: todaySmtResult.rows,
       lines: buildProductionStatusLines(
         ordersResult.orders,
         smtOrders,

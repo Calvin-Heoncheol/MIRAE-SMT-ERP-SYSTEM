@@ -1,5 +1,5 @@
 import { HomeDashboard } from '@/components/dashboard/home/home-dashboard'
 
-export default function HomePage() {
+export default function DashboardPage() {
   return <HomeDashboard />
 }

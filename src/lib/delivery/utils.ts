@@ -1,5 +1,6 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import type { Product, ProductPcbSideMode } from '@/lib/products/types'
+import { isSplitProductPcbSideMode } from '@/lib/products/utils'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { buildPostProcessAssemblyLines } from '@/lib/production-input/utils'
@@ -24,7 +25,7 @@ export function resolveSmtProducedForLine(
   pcbSideMode: ProductPcbSideMode,
   smtCounts: Record<string, number>,
 ) {
-  if (pcbSideMode === 'dual') {
+  if (isSplitProductPcbSideMode(pcbSideMode)) {
     const top = Math.max(0, Math.floor(Number(smtCounts[buildSmtCountKey(orderLineId, 'TOP')]) || 0))
     const bot = Math.max(0, Math.floor(Number(smtCounts[buildSmtCountKey(orderLineId, 'BOT')]) || 0))
     return Math.min(top, bot)

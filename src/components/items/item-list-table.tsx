@@ -125,7 +125,7 @@ export function ItemListTable({
               ) : null}
               {columns.pcbSideMode ? (
                 <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                  단면/양면
+                  면 구분
                 </th>
               ) : null}
               {columns.processType ? (
@@ -189,7 +189,9 @@ export function ItemListTable({
                 {columns.pcbSideMode ? (
                   <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm text-slate-700">
                     {isSemiFinishedItemCategory(item.itemCategory) &&
-                    (item.pcbSideMode === 'single' || item.pcbSideMode === 'dual')
+                    (item.pcbSideMode === 'single' ||
+                      item.pcbSideMode === 'duo' ||
+                      item.pcbSideMode === 'double')
                       ? ITEM_PCB_SIDE_MODE_LABELS[item.pcbSideMode]
                       : '-'}
                   </td>

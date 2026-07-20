@@ -442,3 +442,44 @@ async function fetchPostProcessProductionRecords(options?: {
     }
   }
 }
+
+export type DeletePostProcessProductionRecordResult =
+  | { ok: true }
+  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+
+export async function deletePostProcessProductionRecord(
+  recordId: string,
+): Promise<DeletePostProcessProductionRecordResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const id = String(recordId || '').trim()
+  if (!id) {
+    return { ok: false, reason: 'validation', detail: '삭제할 이력을 찾을 수 없습니다.' }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { error } = await supabase.from('post_process_production_records').delete().eq('id', id)
+
+    if (error) {
+      if (isMissingPostProcessProductionTable(error.message)) {
+        return {
+          ok: false,
+          reason: 'query',
+          detail: 'post_process_production_records 테이블이 없습니다.',
+        }
+      }
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}

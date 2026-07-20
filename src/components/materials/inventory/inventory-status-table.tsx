@@ -6,6 +6,7 @@ import type { MaterialInventoryRow } from '@/lib/materials/inventory/types'
 type InventoryStatusTableProps = {
   rows: MaterialInventoryRow[]
   emptyMessage: string
+  onSelectRow?: (row: MaterialInventoryRow) => void
 }
 
 function cell(value: string) {
@@ -47,7 +48,7 @@ function quantityClass(value: number, variant: 'onHand' | 'expected') {
   return 'font-medium text-slate-900'
 }
 
-export function InventoryStatusTable({ rows, emptyMessage }: InventoryStatusTableProps) {
+export function InventoryStatusTable({ rows, emptyMessage, onSelectRow }: InventoryStatusTableProps) {
   if (!rows.length) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
@@ -91,7 +92,28 @@ export function InventoryStatusTable({ rows, emptyMessage }: InventoryStatusTabl
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100 hover:sticky top-0 z-[1] bg-slate-50/40">
+              <tr
+                key={row.id}
+                className={[
+                  'border-t border-slate-100',
+                  onSelectRow
+                    ? 'cursor-pointer hover:bg-blue-50/70'
+                    : 'hover:bg-slate-50/60',
+                ].join(' ')}
+                onClick={onSelectRow ? () => onSelectRow(row) : undefined}
+                onKeyDown={
+                  onSelectRow
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          onSelectRow(row)
+                        }
+                      }
+                    : undefined
+                }
+                tabIndex={onSelectRow ? 0 : undefined}
+                title={onSelectRow ? '클릭하여 현재고 설정' : undefined}
+              >
                 <td className={`px-3 py-2.5 font-medium text-blue-800 ${codeCellClass}`}>{row.id}</td>
                 <td className="px-3 py-2.5">
                   <TruncatedText

@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 import { QuoteListTable } from '@/components/quotes/quote-list-table'
 import { QuoteModal } from '@/components/quotes/quote-modal'
 import { QuoteNewMenu } from '@/components/quotes/quote-toolbar'
+import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchQuotesResult } from '@/lib/quotes/repository'
 import type { QuoteListItem, QuoteType } from '@/lib/quotes/types'
 import { filterQuotesForSearch } from '@/lib/quotes/utils'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type QuotationsWorkspaceProps = {
@@ -29,6 +31,7 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
   const quotes = result.ok ? result.quotes : []
   const query = search.trim()
   const filtered = useMemo(() => filterQuotesForSearch(quotes, query), [quotes, query])
+  const pagination = useClientPagination(filtered)
   const existingQuoteNumbers = quotes.map((quote) => quote.quoteNumber)
 
   function openCreate(quoteType: QuoteType) {
@@ -61,7 +64,7 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-1 flex-col gap-4">
         <WorkspaceHeader
           title="견적서"
           totalCount={quotes.length}
@@ -75,13 +78,22 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
         />
 
         <QuoteListTable
-          quotes={filtered}
+          quotes={pagination.pageItems}
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query),
             emptyLabel: '등록된 견적서가 없습니다',
             actionHint: '오른쪽 상단에서 등록하세요',
           })}
           onSelectQuote={openEdit}
+        />
+
+        <ListPagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.setPage}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          totalCount={pagination.totalCount}
         />
       </div>
 

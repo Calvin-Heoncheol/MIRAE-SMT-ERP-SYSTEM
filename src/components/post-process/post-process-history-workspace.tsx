@@ -1,38 +1,48 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { PostProcessHistoryFetchError } from '@/components/post-process/post-process-history-fetch-error'
+import { PostProcessHistoryModal } from '@/components/post-process/post-process-history-modal'
 import { PostProcessHistoryTable } from '@/components/post-process/post-process-history-table'
+import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchPostProcessProductionHistoryResult } from '@/lib/post-process/repository'
+import type { PostProcessProductionHistoryRow } from '@/lib/post-process/types'
 import {
   filterPostProcessProductionHistory,
-  POST_PROCESS_HISTORY_PAGE_SIZE,
   sumPostProcessHistoryQuantity,
 } from '@/lib/post-process/history-utils'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type PostProcessHistoryWorkspaceProps = {
   result: FetchPostProcessProductionHistoryResult
 }
 
+type ModalState = { open: false } | { open: true; row: PostProcessProductionHistoryRow }
+
 export function PostProcessHistoryWorkspace({ result }: PostProcessHistoryWorkspaceProps) {
+  const router = useRouter()
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const [modal, setModal] = useState<ModalState>({ open: false })
 
   const rows = result.ok ? result.rows : []
   const filtered = useMemo(() => filterPostProcessProductionHistory(rows, search), [rows, search])
   const totalQuantity = useMemo(() => sumPostProcessHistoryQuantity(filtered), [filtered])
+  const pagination = useClientPagination(filtered)
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / POST_PROCESS_HISTORY_PAGE_SIZE))
-  const currentPage = Math.min(Math.max(page, 1), totalPages)
-  const startIdx = (currentPage - 1) * POST_PROCESS_HISTORY_PAGE_SIZE
-  const pageRows = filtered.slice(startIdx, startIdx + POST_PROCESS_HISTORY_PAGE_SIZE)
-  const showPager = filtered.length > POST_PROCESS_HISTORY_PAGE_SIZE
+  function openDetail(row: PostProcessProductionHistoryRow) {
+    setModal({ open: true, row })
+  }
 
-  function handleSearchChange(value: string) {
-    setSearch(value)
-    setPage(1)
+  function closeModal() {
+    setModal({ open: false })
+  }
+
+  function handleDeleted() {
+    closeModal()
+    router.refresh()
   }
 
   if (!result.ok) {
@@ -40,58 +50,53 @@ export function PostProcessHistoryWorkspace({ result }: PostProcessHistoryWorksp
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <WorkspaceHeader
-        subtitle="후공정 생산입력에서 등록된 완제품 세트 실적을 최신순으로 보여줍니다."
-        totalCount={rows.length}
-        filteredCount={filtered.length}
-        hasQuery={Boolean(search.trim())}
-        search={search}
-        onSearchChange={handleSearchChange}
-        searchPlaceholder="주문서번호, 고객사, 완제품명, 기록일 검색…"
-        accent="emerald"
-        meta={
-          <p className="mt-0.5 text-slate-500">
-            수량 합계{' '}
-            <span className="tabular-nums font-semibold text-emerald-800">
-              {totalQuantity.toLocaleString('ko-KR')}
-            </span>
-          </p>
-        }
-      />
+    <>
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <WorkspaceHeader
+          subtitle="후공정 생산입력에서 등록된 완제품 세트 실적을 최신순으로 보여줍니다. 행을 클릭하면 삭제할 수 있습니다."
+          totalCount={rows.length}
+          filteredCount={filtered.length}
+          hasQuery={Boolean(search.trim())}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="주문서번호, 고객사, 완제품명, 기록일 검색…"
+          accent="emerald"
+          meta={
+            <p className="mt-0.5 text-slate-500">
+              수량 합계{' '}
+              <span className="tabular-nums font-semibold text-emerald-800">
+                {totalQuantity.toLocaleString('ko-KR')}
+              </span>
+            </p>
+          }
+        />
 
-      <PostProcessHistoryTable
-        rows={pageRows}
-        emptyMessage={formatEmptyListMessage({
-          hasQuery: Boolean(search.trim()),
-          emptyLabel: '등록된 후공정 생산 이력이 없습니다',
-          actionHint: '생산입력에서 등록하세요',
-        })}
-      />
+        <PostProcessHistoryTable
+          rows={pagination.pageItems}
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: Boolean(search.trim()),
+            emptyLabel: '등록된 후공정 생산 이력이 없습니다',
+            actionHint: '생산입력에서 등록하세요',
+          })}
+          onRowClick={openDetail}
+        />
 
-      {showPager ? (
-        <div className="flex items-center justify-center gap-3 pt-1">
-          <button
-            type="button"
-            disabled={currentPage <= 1}
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            이전
-          </button>
-          <span className="text-sm tabular-nums text-slate-600">
-            {currentPage} / {totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            다음
-          </button>
-        </div>
-      ) : null}
-    </div>
+        <ListPagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.setPage}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          totalCount={pagination.totalCount}
+        />
+      </div>
+
+      <PostProcessHistoryModal
+        open={modal.open}
+        row={modal.open ? modal.row : null}
+        onClose={closeModal}
+        onDeleted={handleDeleted}
+      />
+    </>
   )
 }

@@ -5,14 +5,15 @@ import { useRouter } from 'next/navigation'
 import { SmtHistoryFetchError } from '@/components/smt/smt-history-fetch-error'
 import { SmtHistoryModal } from '@/components/smt/smt-history-modal'
 import { SmtHistoryTable } from '@/components/smt/smt-history-table'
+import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchSmtProductionHistoryResult } from '@/lib/smt/repository'
 import type { SmtProductionHistoryRow } from '@/lib/smt/types'
 import {
   filterSmtProductionHistory,
-  SMT_HISTORY_PAGE_SIZE,
   sumSmtHistoryQuantity,
 } from '@/lib/smt/history-utils'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type SmtHistoryWorkspaceProps = {
@@ -24,23 +25,12 @@ type ModalState = { open: false } | { open: true; row: SmtProductionHistoryRow }
 export function SmtHistoryWorkspace({ result }: SmtHistoryWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
   const [modal, setModal] = useState<ModalState>({ open: false })
 
   const rows = result.ok ? result.rows : []
   const filtered = useMemo(() => filterSmtProductionHistory(rows, search), [rows, search])
   const totalQuantity = useMemo(() => sumSmtHistoryQuantity(filtered), [filtered])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / SMT_HISTORY_PAGE_SIZE))
-  const currentPage = Math.min(Math.max(page, 1), totalPages)
-  const startIdx = (currentPage - 1) * SMT_HISTORY_PAGE_SIZE
-  const pageRows = filtered.slice(startIdx, startIdx + SMT_HISTORY_PAGE_SIZE)
-  const showPager = filtered.length > SMT_HISTORY_PAGE_SIZE
-
-  function handleSearchChange(value: string) {
-    setSearch(value)
-    setPage(1)
-  }
+  const pagination = useClientPagination(filtered)
 
   function openDetail(row: SmtProductionHistoryRow) {
     setModal({ open: true, row })
@@ -67,7 +57,7 @@ export function SmtHistoryWorkspace({ result }: SmtHistoryWorkspaceProps) {
           filteredCount={filtered.length}
           hasQuery={Boolean(search.trim())}
           search={search}
-          onSearchChange={handleSearchChange}
+          onSearchChange={setSearch}
           searchPlaceholder="주문서번호, 고객사, 제품명, 기록일 검색…"
           accent="sky"
           meta={
@@ -81,7 +71,7 @@ export function SmtHistoryWorkspace({ result }: SmtHistoryWorkspaceProps) {
         />
 
         <SmtHistoryTable
-          rows={pageRows}
+          rows={pagination.pageItems}
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(search.trim()),
             emptyLabel: '등록된 SMT 생산 이력이 없습니다',
@@ -90,29 +80,14 @@ export function SmtHistoryWorkspace({ result }: SmtHistoryWorkspaceProps) {
           onRowClick={openDetail}
         />
 
-        {showPager ? (
-          <div className="flex items-center justify-center gap-3 pt-1">
-            <button
-              type="button"
-              disabled={currentPage <= 1}
-              onClick={() => setPage((value) => Math.max(1, value - 1))}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              이전
-            </button>
-            <span className="text-sm tabular-nums text-slate-600">
-              {currentPage} / {totalPages}
-            </span>
-            <button
-              type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              다음
-            </button>
-          </div>
-        ) : null}
+        <ListPagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.setPage}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          totalCount={pagination.totalCount}
+        />
       </div>
 
       <SmtHistoryModal

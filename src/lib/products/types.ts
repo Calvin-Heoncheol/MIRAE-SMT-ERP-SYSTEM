@@ -1,4 +1,4 @@
-export type ProductPcbSideMode = 'single' | 'dual'
+export type ProductPcbSideMode = 'single' | 'duo' | 'double'
 
 export type ProductKind = 'pcb' | 'assembly'
 

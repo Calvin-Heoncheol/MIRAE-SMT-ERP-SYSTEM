@@ -2,7 +2,7 @@ export type ProductionOrderState = 'none' | 'progress' | 'full'
 
 export type ProductionProductKind = 'semi' | 'finished'
 
-export type ProductionPcbSideMode = 'single' | 'dual'
+export type ProductionPcbSideMode = 'single' | 'duo' | 'double'
 
 export type ProductionOrderLine = {
   uiKey: string

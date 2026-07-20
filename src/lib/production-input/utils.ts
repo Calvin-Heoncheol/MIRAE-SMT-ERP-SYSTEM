@@ -1,5 +1,5 @@
 import type { Product, ProductPcbSideMode, ProductProcessType } from '@/lib/products/types'
-import { normalizeProductPcbSideMode } from '@/lib/products/utils'
+import { isSplitProductPcbSideMode, normalizeProductPcbSideMode } from '@/lib/products/utils'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import type { SmtPcbSide } from '@/lib/smt/types'
 import type { OrderListGroup } from '@/lib/orders/types'
@@ -113,7 +113,7 @@ export function buildProductionOrderLines(
       }
 
       const pcbSideMode = resolveProductPcbSideMode(productId, productById)
-      const splitPcbSides = productionModule === 'smt' && pcbSideMode === 'dual'
+      const splitPcbSides = productionModule === 'smt' && isSplitProductPcbSideMode(pcbSideMode)
 
       const labelParts: string[] = []
       if (productName) labelParts.push(productName)

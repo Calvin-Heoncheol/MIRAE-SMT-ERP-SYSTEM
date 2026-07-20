@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import { BomFetchError } from '@/components/bom/bom-fetch-error'
 import { BomListTable } from '@/components/bom/bom-list-table'
 import { BomModal } from '@/components/bom/bom-modal'
+import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchBomResult } from '@/lib/bom/repository'
 import type { BomGroup, BomListRow, BomParentFilter } from '@/lib/bom/types'
 import { buildBomListRows, filterBomListRows, groupBomLines } from '@/lib/bom/utils'
 import type { FetchItemsResult } from '@/lib/items/repository'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import {
   ERP_FILTER_CHIP_ACTIVE_CLASS,
   ERP_FILTER_CHIP_IDLE_CLASS,
@@ -50,6 +52,7 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
     () => filterBomListRows(listRows, query, parentFilter),
     [listRows, query, parentFilter],
   )
+  const pagination = useClientPagination(filtered)
   const existingParentIds = useMemo(
     () => bomGroups.map((group) => group.parentProductId),
     [bomGroups],
@@ -111,7 +114,7 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-1 flex-col gap-4">
         <WorkspaceHeader
           title="BOM등록"
           totalCount={listRows.length}
@@ -144,13 +147,22 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
         />
 
         <BomListTable
-          rows={filtered}
+          rows={pagination.pageItems}
           emptyMessage={formatEmptyListMessage({
             hasQuery: hasActiveFilter,
             emptyLabel: '표시할 반제품·완제품이 없습니다',
             actionHint: '미등록 행을 클릭해 BOM을 등록하세요',
           })}
           onSelectRow={openRow}
+        />
+
+        <ListPagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.setPage}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          totalCount={pagination.totalCount}
         />
       </div>
 

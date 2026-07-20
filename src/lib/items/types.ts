@@ -60,16 +60,22 @@ export function isFinishedItemCategory(category: ItemCategory) {
   return category === 4
 }
 
-/** 반제품 PCB 면 — single=단면, dual=양면 */
-export type ItemPcbSideMode = '' | 'single' | 'dual'
+/** 반제품 PCB 면 — single=단면, duo=듀얼(단면과 동일), double=양면(TOP/BOT) */
+export type ItemPcbSideMode = '' | 'single' | 'duo' | 'double'
 
-export const ITEM_PCB_SIDE_MODES = ['single', 'dual'] as const
+export const ITEM_PCB_SIDE_MODES = ['single', 'duo', 'double'] as const
 
 export type ItemPcbSideModeValue = (typeof ITEM_PCB_SIDE_MODES)[number]
 
 export const ITEM_PCB_SIDE_MODE_LABELS: Record<ItemPcbSideModeValue, string> = {
   single: '단면',
-  dual: '양면',
+  duo: '듀얼',
+  double: '양면',
+}
+
+/** 양면만 TOP/BOT 분리 */
+export function isSplitItemPcbSideMode(mode: string | null | undefined) {
+  return mode === 'double'
 }
 
 /** 반제품 공정 — smt=SMD, post=DIP, smt_post=SMD+DIP */
@@ -164,7 +170,7 @@ export const ITEM_COLUMN_LABELS = {
   materialType: '구분',
   supplyType: '도급/사급',
   supplier: '공급사',
-  pcbSideMode: '단면/양면',
+  pcbSideMode: '면 구분',
   processType: '공정',
   unitPrice: '단가',
   smdUnitPrice: 'SMD 단가',

@@ -4,9 +4,11 @@ import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
 import { ProductionStatusQuickInputModal } from '@/components/production-status/production-status-quick-input-modal'
 import { ProductionStatusTable } from '@/components/production-status/production-status-table'
-import { TodayProductionOverview } from '@/components/production-status/today-production-overview'
+import { ListPagination } from '@/components/ui/list-pagination'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchProductionStatusResult } from '@/lib/production-status/repository'
 import type { ProductionStatusLine, ProductionStatusStage } from '@/lib/production-status/types'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 
 type ProductionStatusWorkspaceProps = {
   result: FetchProductionStatusResult
@@ -24,14 +26,16 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
   const [, startTransition] = useTransition()
 
   const data = result.ok ? result.data : null
+  const lines = data?.lines ?? []
+  const query = search.trim()
   const filteredLines = useMemo(() => {
-    const lines = data?.lines ?? []
-    const q = search.trim().toLowerCase()
+    const q = query.toLowerCase()
     if (!q) return lines
     return lines.filter((line) =>
       [line.orderNumber, line.customer, line.productName].join(' ').toLowerCase().includes(q),
     )
-  }, [data?.lines, search])
+  }, [lines, query])
+  const pagination = useClientPagination(filteredLines)
 
   function handleStageClick(line: ProductionStatusLine, stage: ProductionStatusStage) {
     setQuickInput({ stage, line })
@@ -55,33 +59,32 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
   }
 
   return (
-    <div className="flex min-h-[calc(100dvh-60px)] w-full flex-col gap-5">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">생산현황</h1>
-      </div>
-
-      <TodayProductionOverview
-        todayDate={data!.todayDate}
-        stages={data!.todayStages}
-        todaySmtRecords={data!.todaySmtRecords}
+    <div className="flex w-full flex-1 flex-col gap-4">
+      <WorkspaceHeader
+        totalCount={lines.length}
+        filteredCount={filteredLines.length}
+        hasQuery={Boolean(query)}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="주문서번호, 고객사, 제품명 검색…"
+        accent="slate"
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-slate-800">주문서별 진행</h2>
-        <input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="주문서번호, 고객사, 제품명 검색…"
-          className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none ring-sky-100 placeholder:text-slate-400 focus:border-sky-300 focus:ring-2"
-        />
-      </div>
+      <ProductionStatusTable lines={pagination.pageItems} onStageClick={handleStageClick} />
 
-      <ProductionStatusTable lines={filteredLines} onStageClick={handleStageClick} />
+      <ListPagination
+        page={pagination.page}
+        totalPages={pagination.totalPages}
+        onPageChange={pagination.setPage}
+        rangeStart={pagination.rangeStart}
+        rangeEnd={pagination.rangeEnd}
+        totalCount={pagination.totalCount}
+      />
 
       <p className="text-xs text-slate-400">
-        SMT·후공정·출하 그래프를 누르면 생산계획 없이 바로 입력할 수 있습니다. SMT는 반제품 라인
-        합계, 후공정·출하는 완제품 조립 합계 기준입니다.
+        SMT·후공정·출하 칸은 총관리자 직접 입력용입니다. 생산입력 화면과 별도이며, 등록 시 이력 비고에
+        「직접생산(관리자)」/「직접출하(관리자)」가 남습니다. (로그인 연동 전 · 현재는 화면에서 모두
+        가능)
       </p>
 
       <ProductionStatusQuickInputModal

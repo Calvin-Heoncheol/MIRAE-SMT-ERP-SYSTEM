@@ -6,7 +6,10 @@ export function normalizeProductKind(value: string | null | undefined): ProductK
 
 export function normalizeProductPcbSideMode(value: string | null | undefined): ProductPcbSideMode {
   const mode = String(value || '').trim().toLowerCase()
-  return mode === 'dual' ? 'dual' : 'single'
+  if (mode === 'duo') return 'duo'
+  // 레거시 dual = 양면 → double
+  if (mode === 'double' || mode === 'dual') return 'double'
+  return 'single'
 }
 
 export function normalizeProductProcessType(value: string | null | undefined): ProductProcessType {
@@ -27,7 +30,13 @@ export function normalizeProductProcessType(value: string | null | undefined): P
 }
 
 export function formatProductPcbSideModeLabel(mode: ProductPcbSideMode) {
-  return mode === 'dual' ? '양면' : '단면'
+  if (mode === 'double') return '양면'
+  if (mode === 'duo') return '듀얼'
+  return '단면'
+}
+
+export function isSplitProductPcbSideMode(mode: ProductPcbSideMode | string | null | undefined) {
+  return mode === 'double'
 }
 
 export function mapProductRecord(row: {

@@ -32,7 +32,7 @@ const BULK_COLUMNS: Record<ItemCategory, ItemBulkColumn[]> = {
   3: [
     { key: 'id', label: '품목코드' },
     { key: 'name', label: '품목명', required: true },
-    { key: 'pcbSideMode', label: '단면/양면', required: true },
+    { key: 'pcbSideMode', label: '면 구분', required: true },
     { key: 'smdUnitPrice', label: 'SMD 단가' },
     { key: 'dipUnitPrice', label: 'DIP 단가' },
     { key: 'materialUnitPrice', label: '자재 단가' },
@@ -100,7 +100,8 @@ function normalizePasteSupplyType(value: string): ItemSupplyType {
 
 function normalizePastePcbSideMode(value: string): ItemPcbSideMode {
   const trimmed = value.trim().toLowerCase()
-  if (trimmed === 'dual' || trimmed === '양면') return 'dual'
+  if (trimmed === 'double' || trimmed === 'dual' || trimmed === '양면') return 'double'
+  if (trimmed === 'duo' || trimmed === '듀얼') return 'duo'
   if (trimmed === 'single' || trimmed === '단면') return 'single'
   return ''
 }

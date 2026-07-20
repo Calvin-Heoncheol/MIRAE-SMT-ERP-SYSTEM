@@ -5,8 +5,10 @@ import { useState } from 'react'
 import { ExpenseReportFetchError } from '@/components/expense-reports/expense-report-fetch-error'
 import { ExpenseReportListTable } from '@/components/expense-reports/expense-report-list-table'
 import { ExpenseReportModal } from '@/components/expense-reports/expense-report-modal'
+import { ListPagination } from '@/components/ui/list-pagination'
 import type { FetchExpenseReportsResult } from '@/lib/expense-reports/repository'
 import type { ExpenseReportListItem } from '@/lib/expense-reports/types'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 
 type ExpenseReportsWorkspaceProps = {
   result: FetchExpenseReportsResult
@@ -23,6 +25,7 @@ export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps
   const [modalSession, setModalSession] = useState(0)
 
   const reports = result.ok ? result.reports : []
+  const pagination = useClientPagination(reports)
 
   function openCreate() {
     setModalSession((value) => value + 1)
@@ -49,12 +52,8 @@ export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps
 
   return (
     <>
-      <div className="flex min-h-[calc(100dvh-60px)] w-full flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">결재서 · 지출결의서</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">지출결의서 관리</h1>
-          </div>
+      <div className="flex w-full flex-1 flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <button
             type="button"
             onClick={openCreate}
@@ -67,11 +66,22 @@ export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps
         {!result.ok ? (
           <ExpenseReportFetchError result={result} />
         ) : (
-          <ExpenseReportListTable
-            reports={reports}
-            emptyMessage="등록된 지출결의서가 없습니다"
-            onSelectReport={openEdit}
-          />
+          <>
+            <ExpenseReportListTable
+              reports={pagination.pageItems}
+              emptyMessage="등록된 지출결의서가 없습니다"
+              onSelectReport={openEdit}
+            />
+
+            <ListPagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={pagination.setPage}
+              rangeStart={pagination.rangeStart}
+              rangeEnd={pagination.rangeEnd}
+              totalCount={pagination.totalCount}
+            />
+          </>
         )}
       </div>
 

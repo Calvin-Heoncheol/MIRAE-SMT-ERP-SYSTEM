@@ -5,14 +5,15 @@ import { useRouter } from 'next/navigation'
 import { DeliveryHistoryFetchError } from '@/components/delivery/delivery-history-fetch-error'
 import { DeliveryHistoryModal } from '@/components/delivery/delivery-history-modal'
 import { DeliveryHistoryTable } from '@/components/delivery/delivery-history-table'
+import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchDeliveryHistoryResult } from '@/lib/delivery/repository'
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 import {
-  DELIVERY_HISTORY_PAGE_SIZE,
   filterDeliveryHistory,
   sumDeliveryHistoryQuantity,
 } from '@/lib/delivery/history-utils'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type DeliveryHistoryWorkspaceProps = {
@@ -26,24 +27,13 @@ type ModalState =
 export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
   const rows = result.ok ? result.rows : []
   const filtered = useMemo(() => filterDeliveryHistory(rows, search), [rows, search])
   const totalQuantity = useMemo(() => sumDeliveryHistoryQuantity(filtered), [filtered])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / DELIVERY_HISTORY_PAGE_SIZE))
-  const currentPage = Math.min(Math.max(page, 1), totalPages)
-  const startIdx = (currentPage - 1) * DELIVERY_HISTORY_PAGE_SIZE
-  const pageRows = filtered.slice(startIdx, startIdx + DELIVERY_HISTORY_PAGE_SIZE)
-  const showPager = filtered.length > DELIVERY_HISTORY_PAGE_SIZE
-
-  function handleSearchChange(value: string) {
-    setSearch(value)
-    setPage(1)
-  }
+  const pagination = useClientPagination(filtered)
 
   function openEdit(row: DeliveryHistoryRow) {
     setModalSession((value) => value + 1)
@@ -77,7 +67,7 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
           filteredCount={filtered.length}
           hasQuery={Boolean(search.trim())}
           search={search}
-          onSearchChange={handleSearchChange}
+          onSearchChange={setSearch}
           searchPlaceholder="출하번호, 주문서번호, 고객사, 완제품명, 기록일 검색…"
           accent="sky"
           meta={
@@ -91,7 +81,7 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
         />
 
         <DeliveryHistoryTable
-          rows={pageRows}
+          rows={pagination.pageItems}
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(search.trim()),
             emptyLabel: '등록된 출하 이력이 없습니다',
@@ -100,29 +90,14 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
           onRowClick={openEdit}
         />
 
-        {showPager ? (
-          <div className="flex items-center justify-center gap-3 pt-1">
-            <button
-              type="button"
-              disabled={currentPage <= 1}
-              onClick={() => setPage((value) => Math.max(1, value - 1))}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              이전
-            </button>
-            <span className="text-sm tabular-nums text-slate-600">
-              {currentPage} / {totalPages}
-            </span>
-            <button
-              type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              다음
-            </button>
-          </div>
-        ) : null}
+        <ListPagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.setPage}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          totalCount={pagination.totalCount}
+        />
       </div>
 
       {modal.open ? (

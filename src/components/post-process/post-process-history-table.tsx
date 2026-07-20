@@ -4,6 +4,7 @@ import { formatPostProcessHistoryDateTime } from '@/lib/post-process/history-uti
 type PostProcessHistoryTableProps = {
   rows: PostProcessProductionHistoryRow[]
   emptyMessage: string
+  onRowClick?: (row: PostProcessProductionHistoryRow) => void
 }
 
 function cell(value: string) {
@@ -11,7 +12,7 @@ function cell(value: string) {
   return trimmed || '-'
 }
 
-export function PostProcessHistoryTable({ rows, emptyMessage }: PostProcessHistoryTableProps) {
+export function PostProcessHistoryTable({ rows, emptyMessage, onRowClick }: PostProcessHistoryTableProps) {
   if (!rows.length) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
@@ -57,7 +58,17 @@ export function PostProcessHistoryTable({ rows, emptyMessage }: PostProcessHisto
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-t border-slate-100 hover:bg-emerald-50/40">
+              <tr
+                key={row.id}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                className={[
+                  'border-t border-slate-100',
+                  onRowClick
+                    ? 'cursor-pointer hover:bg-emerald-50/70'
+                    : 'hover:bg-emerald-50/40',
+                ].join(' ')}
+                title={onRowClick ? '클릭하여 상세·삭제' : undefined}
+              >
                 <td className="whitespace-nowrap px-4 py-2.5 text-sm text-slate-700">{cell(row.recordDate)}</td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-sm tabular-nums text-slate-600">
                   {formatPostProcessHistoryDateTime(row.createdAt)}

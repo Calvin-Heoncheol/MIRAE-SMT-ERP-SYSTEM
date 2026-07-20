@@ -211,10 +211,12 @@ body {
   }
 
   body.document-printing #document-print-root .document-print-subtitle {
-    font-size: 1rem !important;
+    font-size: 13px !important;
     line-height: 1.5 !important;
     margin-top: 4px !important;
-    color: #475569 !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.06em !important;
+    color: #64748b !important;
   }
 
   body.document-printing #document-print-root .document-print-label {
@@ -232,8 +234,11 @@ body {
 
   body.document-printing #document-print-root .document-print-section-title {
     line-height: 1.35 !important;
-    font-weight: 600 !important;
-    color: #0f172a !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+    color: #475569 !important;
   }
 
   body.document-printing #document-print-root .document-print-option {
@@ -327,10 +332,11 @@ body {
   }
 
   body.document-printing #document-print-root .approval-document-section {
-    border: 1px solid #94a3b8 !important;
-    border-radius: 6px !important;
-    padding: 14px 20px !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 12px 4px !important;
     margin-top: 10px !important;
+    background: transparent !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -338,6 +344,12 @@ body {
   body.document-printing #document-print-root .approval-document-section--breakable {
     break-inside: auto;
     page-break-inside: auto;
+  }
+
+  body.document-printing #document-print-root .approval-document-header {
+    margin-bottom: 12px !important;
+    padding: 4px 4px 14px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
   }
 
   body.document-printing #document-print-root .document-form-header > div {
@@ -356,8 +368,16 @@ body {
 
   body.document-printing #document-print-root .approval-meta-grid {
     display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    gap: 4px 12px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    column-gap: 28px !important;
+    row-gap: 8px !important;
+    margin-bottom: 4px !important;
+    padding: 14px 16px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 4px !important;
+    background: #f8fafc !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   body.document-printing #document-print-root .approval-meta-grid .approval-meta-field,
@@ -366,16 +386,20 @@ body {
     flex-direction: row !important;
     align-items: center !important;
     gap: 8px !important;
-    line-height: 1.35 !important;
+    line-height: 1.5 !important;
   }
 
   body.document-printing #document-print-root .approval-meta-grid .approval-meta-field > span:first-child,
   body.document-printing #document-print-root .approval-meta-grid .approval-meta-field > label > span:first-child,
   body.document-printing #document-print-root .approval-meta-grid .approval-meta-field .document-print-label {
     margin-bottom: 0 !important;
-    width: 3.8rem !important;
+    width: 4.2rem !important;
     flex-shrink: 0 !important;
     white-space: nowrap !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    letter-spacing: 0.04em !important;
   }
 
   body.document-printing #document-print-root .approval-meta-grid .approval-meta-field input,
@@ -386,7 +410,8 @@ body {
     min-width: 0 !important;
     min-height: 0 !important;
     padding: 0 !important;
-    line-height: 1.25 !important;
+    line-height: 1.45 !important;
+    font-weight: 600 !important;
   }
 
   body.document-printing #document-print-root .document-meta-grid:not(.approval-meta-grid) {
@@ -396,7 +421,7 @@ body {
   }
 
   body.document-printing #document-print-root .document-form-header {
-    padding: 6mm 4mm !important;
+    padding: 2mm 2mm !important;
   }
 
   body.document-printing #document-print-root .document-form-header__title {
@@ -436,12 +461,21 @@ body {
     min-width: 0 !important;
     width: 100% !important;
     table-layout: fixed !important;
+    border-collapse: collapse !important;
+    border: 1px solid #cbd5e1 !important;
     line-height: 1.35 !important;
+  }
+
+  body.document-printing #document-print-root .approval-detail-thead,
+  body.document-printing #document-print-root .approval-detail-table thead {
+    background: #1e293b !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   body.document-printing #document-print-root .approval-detail-table th,
   body.document-printing #document-print-root .approval-detail-table td {
-    padding: 5px 7px !important;
+    padding: 9px 8px !important;
     vertical-align: middle !important;
     word-break: keep-all !important;
     overflow-wrap: normal !important;
@@ -449,8 +483,33 @@ body {
 
   body.document-printing #document-print-root .approval-detail-table th {
     white-space: nowrap !important;
+    font-size: 11px !important;
     font-weight: 600 !important;
-    color: #475569 !important;
+    color: #e2e8f0 !important;
+    text-align: center !important;
+    border: none !important;
+    background: #1e293b !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.document-printing #document-print-root .approval-detail-table td {
+    border-top: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+
+  body.document-printing #document-print-root .approval-grand-total {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 12px !important;
+    margin-top: 12px !important;
+    padding: 14px 18px !important;
+    border: 2px solid #1d4ed8 !important;
+    border-radius: 6px !important;
+    background: linear-gradient(to right, #eff6ff, #fff) !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   body.document-printing #document-print-root .approval-detail-table .approval-detail-cell-value {

@@ -67,7 +67,7 @@ export function DeliveryInputWorkspace({ result }: DeliveryInputWorkspaceProps) 
   }
 
   return (
-    <div className="flex w-full flex-col gap-4">
+    <div className="flex w-full flex-1 flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <input
           type="search"

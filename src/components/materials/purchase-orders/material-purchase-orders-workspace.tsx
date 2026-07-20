@@ -8,7 +8,9 @@ import { MaterialPurchaseOrderFetchError } from '@/components/materials/purchase
 import { MaterialPurchaseOrderListTable } from '@/components/materials/purchase-orders/material-purchase-order-list-table'
 import { MaterialPurchaseOrderModal } from '@/components/materials/purchase-orders/material-purchase-order-modal'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
+import { ListPagination } from '@/components/ui/list-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
 import {
   deleteMaterialPurchaseNeedCard,
@@ -120,6 +122,8 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
     () => purchaseOrders.filter((order) => matchesPurchaseOrder(order, query)),
     [purchaseOrders, query],
   )
+  const cardsPagination = useClientPagination(filteredCards)
+  const ordersPagination = useClientPagination(filteredPurchaseOrders)
 
   const shortageCardCount = needCards.filter((card) => card.shortageCount > 0).length
 
@@ -193,7 +197,7 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
   if (props.view === 'register') {
     return (
       <>
-        <div className="flex w-full flex-col gap-4">
+        <div className="flex w-full flex-1 flex-col gap-4">
           <WorkspaceHeader
             totalCount={needCards.length}
             filteredCount={filteredCards.length}
@@ -213,7 +217,16 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
             }
           />
 
-          <MaterialPurchaseNeedCards cards={filteredCards} onSelectCard={openDetail} />
+          <MaterialPurchaseNeedCards cards={cardsPagination.pageItems} onSelectCard={openDetail} />
+
+          <ListPagination
+            page={cardsPagination.page}
+            totalPages={cardsPagination.totalPages}
+            onPageChange={cardsPagination.setPage}
+            rangeStart={cardsPagination.rangeStart}
+            rangeEnd={cardsPagination.rangeEnd}
+            totalCount={cardsPagination.totalCount}
+          />
         </div>
 
         {detailModal.open ? (
@@ -245,7 +258,7 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
 
   return (
     <>
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-1 flex-col gap-4">
         <WorkspaceHeader
           totalCount={purchaseOrders.length}
           filteredCount={filteredPurchaseOrders.length}
@@ -257,13 +270,22 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
         />
 
         <MaterialPurchaseOrderListTable
-          orders={filteredPurchaseOrders}
+          orders={ordersPagination.pageItems}
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query),
             emptyLabel: '등록된 자재 발주가 없습니다',
             actionHint: '발주등록 탭에서 등록하세요',
           })}
           onSelectOrder={openEdit}
+        />
+
+        <ListPagination
+          page={ordersPagination.page}
+          totalPages={ordersPagination.totalPages}
+          onPageChange={ordersPagination.setPage}
+          rangeStart={ordersPagination.rangeStart}
+          rangeEnd={ordersPagination.rangeEnd}
+          totalCount={ordersPagination.totalCount}
         />
       </div>
 

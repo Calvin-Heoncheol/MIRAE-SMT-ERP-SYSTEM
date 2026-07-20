@@ -17,7 +17,7 @@ create table if not exists public.items (
   smd_unit_price numeric not null default 0 check (smd_unit_price >= 0),
   dip_unit_price numeric not null default 0 check (dip_unit_price >= 0),
   material_unit_price numeric not null default 0 check (material_unit_price >= 0),
-  pcb_side_mode text not null default '' check (pcb_side_mode in ('', 'single', 'dual')),
+  pcb_side_mode text not null default '' check (pcb_side_mode in ('', 'single', 'duo', 'double')),
   process_type text not null default '' check (process_type in ('', 'smt', 'post', 'smt_post')),
   item_category smallint not null check (item_category in (1, 2, 3, 4)),
   is_active boolean not null default true,
@@ -70,7 +70,7 @@ comment on column public.items.unit_price is '단가 (반제품은 SMD+DIP+자�
 comment on column public.items.smd_unit_price is 'SMD 단가 — 반제품(3)';
 comment on column public.items.dip_unit_price is 'DIP 단가 — 반제품(3)';
 comment on column public.items.material_unit_price is '자재 단가 — 반제품(3)';
-comment on column public.items.pcb_side_mode is '단면(single)/양면(dual) — 반제품(3)만 사용';
+comment on column public.items.pcb_side_mode is '면 구분 — 단면(single)/듀얼(duo)/양면(double) — 반제품(3)만 사용';
 comment on column public.items.process_type is '공정 — 반제품(3)만: smt=SMD, post=후공정, smt_post=SMD+후공정';
 comment on column public.items.item_category is '1=원자재, 2=부자재, 3=반제품, 4=완제품 (필수)';
 comment on column public.items.is_active is '사용 여부';
@@ -164,7 +164,11 @@ begin
   end if;
 
   new.pcb_side_mode := lower(coalesce(trim(new.pcb_side_mode), ''));
-  if new.pcb_side_mode not in ('', 'single', 'dual') then
+  -- 레거시 dual(양면) → double
+  if new.pcb_side_mode = 'dual' then
+    new.pcb_side_mode := 'double';
+  end if;
+  if new.pcb_side_mode not in ('', 'single', 'duo', 'double') then
     new.pcb_side_mode := '';
   end if;
   if new.item_category <> 3 then

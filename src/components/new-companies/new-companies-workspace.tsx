@@ -6,10 +6,12 @@ import { NewCompanyFetchError } from '@/components/new-companies/new-company-fet
 import { NewCompanyListTable } from '@/components/new-companies/new-company-list-table'
 import { NewCompanyModal } from '@/components/new-companies/new-company-modal'
 import { ErpButton } from '@/components/ui/erp-button'
+import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchNewCompanyInquiriesResult } from '@/lib/new-companies/repository'
 import type { NewCompanyInquiry } from '@/lib/new-companies/types'
 import { NEW_COMPANY_STATUS_LABELS } from '@/lib/new-companies/types'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type NewCompaniesWorkspaceProps = {
@@ -51,6 +53,7 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
     () => inquiries.filter((inquiry) => matchesQuery(inquiry, query)),
     [inquiries, query],
   )
+  const pagination = useClientPagination(filtered)
 
   function openCreate() {
     setModalSession((value) => value + 1)
@@ -82,7 +85,7 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-1 flex-col gap-4">
         <WorkspaceHeader
           title="신규업체"
           subtitle="상담·견적 중인 신규 업체를 등록합니다"
@@ -97,13 +100,22 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
         />
 
         <NewCompanyListTable
-          inquiries={filtered}
+          inquiries={pagination.pageItems}
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query),
             emptyLabel: '등록된 신규업체가 없습니다',
             actionHint: '오른쪽 상단에서 등록하세요',
           })}
           onSelectInquiry={openEdit}
+        />
+
+        <ListPagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.setPage}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          totalCount={pagination.totalCount}
         />
       </div>
 

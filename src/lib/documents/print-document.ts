@@ -21,15 +21,22 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
   print-color-adjust: exact;
 }
 #document-print-root .approval-document-section {
-  border: 1px solid #94a3b8 !important;
-  border-radius: 8px !important;
-  padding: 14px 20px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 12px 4px !important;
+  margin-top: 10px !important;
   break-inside: avoid;
   page-break-inside: avoid;
+  background: transparent !important;
 }
 #document-print-root .approval-document-section--breakable {
   break-inside: auto;
   page-break-inside: auto;
+}
+#document-print-root .approval-document-header {
+  margin-bottom: 12px !important;
+  padding: 4px 4px 14px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
 }
 #document-print-root .document-form-header > div {
   display: flex !important;
@@ -43,25 +50,41 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
   max-width: 42% !important;
   flex-shrink: 0 !important;
 }
+#document-print-root .document-print-subtitle {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+  color: #64748b !important;
+}
 #document-print-root .approval-meta-grid {
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  gap: 2px 10px !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  column-gap: 28px !important;
+  row-gap: 8px !important;
+  margin-bottom: 4px !important;
+  padding: 14px 16px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 4px !important;
+  background: #f8fafc !important;
 }
 #document-print-root .approval-meta-grid .approval-meta-field,
 #document-print-root .approval-meta-grid .approval-meta-field > label {
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
-  gap: 6px !important;
-  line-height: 1.25 !important;
+  gap: 8px !important;
+  line-height: 1.5 !important;
 }
 #document-print-root .approval-meta-grid .approval-meta-field > span:first-child,
 #document-print-root .approval-meta-grid .approval-meta-field > label > span:first-child {
   margin-bottom: 0 !important;
-  width: 3.6rem !important;
+  width: 4.2rem !important;
   flex-shrink: 0 !important;
   white-space: nowrap !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+  letter-spacing: 0.04em !important;
 }
 #document-print-root .approval-meta-grid .approval-meta-field input,
 #document-print-root .approval-meta-grid .approval-meta-field select,
@@ -71,17 +94,33 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
   min-width: 0 !important;
   min-height: 0 !important;
   padding: 0 !important;
-  line-height: 1.25 !important;
+  line-height: 1.45 !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  border: none !important;
+  background: transparent !important;
 }
 #document-print-root .document-meta-grid:not(.approval-meta-grid) {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 1rem !important;
 }
-#document-print-root .document-form-header { padding: 5mm 4mm !important; }
+#document-print-root .document-form-header { padding: 2mm 2mm !important; }
 #document-print-root .document-form-header__title {
   padding-top: 2mm !important;
   padding-bottom: 2mm !important;
+}
+#document-print-root .document-print-section-title {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase !important;
+  color: #475569 !important;
+}
+#document-print-root .document-print-divider {
+  margin: 14px 0 !important;
+  letter-spacing: 0.35em !important;
+  color: #94a3b8 !important;
 }
 #document-print-root .document-brand-footer {
   margin-top: 10mm !important;
@@ -105,23 +144,69 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
   min-width: 0 !important;
   width: 100% !important;
   table-layout: fixed !important;
+  border-collapse: collapse !important;
+  border: 1px solid #cbd5e1 !important;
 }
-#document-print-root .approval-detail-table th,
+#document-print-root .approval-detail-thead,
+#document-print-root .approval-detail-table thead {
+  background: #1e293b !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+#document-print-root .approval-detail-table th {
+  padding: 9px 8px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #e2e8f0 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  border: none !important;
+  background: #1e293b !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
 #document-print-root .approval-detail-table td {
-  padding: 3px 4px !important;
+  padding: 10px 8px !important;
   vertical-align: middle !important;
+  border-top: 1px solid #cbd5e1 !important;
   word-break: keep-all !important;
   overflow-wrap: normal !important;
+  color: #0f172a !important;
 }
-#document-print-root .approval-detail-table th { white-space: nowrap !important; }
 #document-print-root .approval-detail-table .approval-detail-cell-value {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.3 !important;
+  line-height: 1.35 !important;
   padding: 0 !important;
   background: transparent !important;
+}
+#document-print-root .approval-grand-total {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-top: 12px !important;
+  padding: 14px 18px !important;
+  border: 2px solid #1d4ed8 !important;
+  border-radius: 6px !important;
+  background: linear-gradient(to right, #eff6ff, #fff) !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+#document-print-root .approval-totals-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: baseline !important;
+  justify-content: flex-end !important;
+  gap: 4px 16px !important;
+  color: #475569 !important;
+}
+#document-print-root .approval-inline-field {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
 }
 #document-print-root .approval-inline-field input,
 #document-print-root .approval-inline-field .rounded-lg {
@@ -129,6 +214,7 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
   background: transparent !important;
   min-height: 0 !important;
   padding: 0 !important;
+  font-weight: 600 !important;
 }
 #document-print-root table {
   width: 100% !important;
@@ -155,7 +241,7 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
   display: flex !important;
   overflow: hidden !important;
   border: 1px solid #cbd5e1 !important;
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   background: #fff !important;
 }
 #document-print-root .approval-signoff-panel > div:first-child {
@@ -242,18 +328,6 @@ html, body { margin: 0; padding: 0; background: #fff; color: #0f172a; }
   line-height: 1.35 !important;
   padding: 0 !important;
   color: #0f172a !important;
-}
-#document-print-root .approval-totals-row {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  align-items: baseline !important;
-  justify-content: flex-end !important;
-  gap: 4px 16px !important;
-}
-#document-print-root .approval-inline-field {
-  display: flex !important;
-  align-items: center !important;
-  gap: 12px !important;
 }
 #document-print-root .document-print-text-value {
   border: none !important;

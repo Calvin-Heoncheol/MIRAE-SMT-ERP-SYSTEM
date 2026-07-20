@@ -44,8 +44,10 @@ function normalizeItemSupplyType(value: string | null | undefined): ItemSupplyTy
 
 function normalizeItemPcbSideMode(value: string | null | undefined): ItemPcbSideMode {
   const mode = String(value || '').trim().toLowerCase()
-  if (mode === 'dual') return 'dual'
   if (mode === 'single') return 'single'
+  if (mode === 'duo') return 'duo'
+  // 레거시 dual = 양면 → double
+  if (mode === 'double' || mode === 'dual') return 'double'
   return ''
 }
 

@@ -2,6 +2,7 @@
 -- ERP 관련 테이블·뷰 전체 삭제 (데이터 초기화)
 -- 실행 후 setup-*.sql 을 순서대로 다시 실행합니다.
 
+drop view if exists public.material_on_hand cascade;
 drop view if exists public.smt_production_totals cascade;
 drop view if exists public.post_process_production_totals cascade;
 drop view if exists public.delivery_totals cascade;

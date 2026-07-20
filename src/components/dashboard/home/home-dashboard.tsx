@@ -1,120 +1,169 @@
+import Link from 'next/link'
 import { HomeKpiCard } from '@/components/dashboard/home/home-kpi-card'
+import { PageShell } from '@/components/ui/page-shell'
+import { APP_SHORT_NAME } from '@/lib/app-config'
 
 const HOME_KPIS = [
-  { value: '–', label: '납기 임박·지연', hint: '3일 이내', tone: 'warn' as const },
-  { value: '–', label: '출하 미완료', tone: 'warn' as const },
-  { value: '–', label: '미입고 발주', tone: 'warn' as const },
-  { value: '–', label: '재고 마이너스', tone: 'danger' as const },
+  { value: '–', label: '납기 임박', hint: '3일 이내', tone: 'warn' as const, href: '/orders' },
+  { value: '–', label: '출하 미완료', tone: 'warn' as const, href: '/delivery' },
+  { value: '–', label: '미입고 발주', tone: 'warn' as const, href: '/materials/purchase-orders' },
+  { value: '–', label: '재고 마이너스', tone: 'danger' as const, href: '/materials/inventory' },
 ]
 
 const SMT_LINES = Array.from({ length: 7 }, (_, index) => ({
   lineNo: index + 1,
   statusLabel: '대기',
-  job: '오늘 계획 없음',
+  job: '계획 없음',
 }))
 
 const POST_TEAMS = [
-  { name: '수삽', statusLabel: '대기', active: '현재 작업 없음', todayQty: 0, accent: 'from-emerald-500 to-teal-600' },
-  { name: '포장', statusLabel: '대기', active: '현재 작업 없음', todayQty: 0, accent: 'from-blue-500 to-indigo-600' },
-  { name: '검사', statusLabel: '대기', active: '현재 작업 없음', todayQty: 0, accent: 'from-violet-500 to-purple-600' },
+  { name: '수삽', statusLabel: '대기', todayQty: 0, tint: 'from-emerald-50 to-white' },
+  { name: '포장', statusLabel: '대기', todayQty: 0, tint: 'from-sky-50 to-white' },
+  { name: '검사', statusLabel: '대기', todayQty: 0, tint: 'from-slate-50 to-white' },
 ]
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="flex items-center gap-2 text-[13px] font-bold text-slate-800">
-      <span className="h-4 w-1 rounded-full bg-gradient-to-b from-blue-500 to-blue-700" aria-hidden="true" />
-      {children}
-    </h2>
-  )
+function todayLabel() {
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  }).format(new Date())
 }
 
-function Panel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function SectionHeader({
+  title,
+  href,
+  linkLabel,
+}: {
+  title: string
+  href: string
+  linkLabel: string
+}) {
   return (
-    <section className={`rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm ${className}`}>
-      {children}
-    </section>
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <h2 className="text-[15px] font-bold tracking-tight text-slate-900">{title}</h2>
+      <Link
+        href={href}
+        className="rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+      >
+        {linkLabel} →
+      </Link>
+    </div>
   )
 }
 
 export function HomeDashboard() {
   return (
-    <div className="flex w-full flex-col gap-5 pb-6">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        {HOME_KPIS.map((kpi) => (
-          <HomeKpiCard key={kpi.label} {...kpi} />
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_300px]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <Panel>
-            <SectionTitle>SMT 라인 · 오늘 계획</SectionTitle>
-            <p className="mt-1 mb-4 text-xs text-slate-400">생산 스케줄 연동 후 자동 반영</p>
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7">
-              {SMT_LINES.map((line) => (
-                <div
-                  key={line.lineNo}
-                  className="group relative overflow-hidden rounded-xl border border-slate-200/80 bg-slate-50/50 px-2.5 py-3 transition hover:border-cyan-200 hover:bg-cyan-50/30"
-                >
-                  <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-cyan-400 to-blue-500 opacity-40 group-hover:opacity-100" />
-                  <div className="mb-2 flex items-center justify-between gap-1">
-                    <span className="text-xs font-extrabold text-slate-900">L{line.lineNo}</span>
-                    <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold text-slate-500 ring-1 ring-slate-200/80">
-                      {line.statusLabel}
-                    </span>
-                  </div>
-                  <p className="line-clamp-2 min-h-[2.4em] text-[10px] leading-snug font-medium text-slate-600">
-                    {line.job}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </Panel>
-
-          <Panel>
-            <SectionTitle>후공정</SectionTitle>
-            <p className="mt-1 mb-4 text-xs text-slate-400">팀별 오늘 실적 · placeholder</p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {POST_TEAMS.map((team) => (
-                <div
-                  key={team.name}
-                  className="relative overflow-hidden rounded-xl border border-slate-100 bg-slate-50/60 p-4"
-                >
-                  <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${team.accent}`} />
-                  <div className="flex items-start justify-between gap-2 pl-2">
-                    <h3 className="text-sm font-bold text-slate-900">{team.name}</h3>
-                    <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
-                      {team.statusLabel}
-                    </span>
-                  </div>
-                  <p className="mt-2 pl-2 text-xs text-slate-600">{team.active}</p>
-                  <div className="mt-3 flex items-end justify-between border-t border-slate-200/60 pt-3 pl-2">
-                    <span className="text-[11px] font-semibold text-slate-400">오늘</span>
-                    <span className="text-lg font-bold tabular-nums text-slate-900">
-                      {team.todayQty}
-                      <span className="ml-1 text-xs font-semibold text-blue-600">EA</span>
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Panel>
+    <PageShell className="gap-5">
+      <header className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 px-5 py-5 text-white shadow-sm sm:px-6 sm:py-6">
+        <div
+          className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-sky-400/20 blur-2xl"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute -bottom-16 left-1/3 h-44 w-44 rounded-full bg-blue-500/10 blur-3xl"
+          aria-hidden
+        />
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.18em] text-slate-300 uppercase">
+              {APP_SHORT_NAME}
+            </p>
+            <h1 className="mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl">오늘의 생산 현황</h1>
+            <p className="mt-2 text-sm text-slate-300">{todayLabel()}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/production/status"
+              className="rounded-xl bg-white/10 px-3.5 py-2 text-sm font-semibold text-white ring-1 ring-white/20 backdrop-blur transition hover:bg-white/15"
+            >
+              생산현황
+            </Link>
+            <Link
+              href="/smt/plan"
+              className="rounded-xl bg-sky-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-400"
+            >
+              SMT 계획
+            </Link>
+          </div>
         </div>
+      </header>
 
-        <aside className="xl:sticky xl:top-[76px] xl:self-start">
-          <Panel>
-            <SectionTitle>주의 · 알림</SectionTitle>
-            <p className="mt-1 mb-4 text-xs text-slate-400">납기 · 재고 · 발주</p>
-            <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-gradient-to-b from-slate-50 to-white px-4 py-10 text-center">
-              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-lg text-emerald-700">
-                ✓
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        {HOME_KPIS.map((kpi) => (
+          <Link key={kpi.label} href={kpi.href} className="block">
+            <HomeKpiCard value={kpi.value} label={kpi.label} hint={kpi.hint} tone={kpi.tone} />
+          </Link>
+        ))}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <SectionHeader title="SMT 라인" href="/smt/plan" linkLabel="계획 보기" />
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7">
+          {SMT_LINES.map((line) => (
+            <div
+              key={line.lineNo}
+              className="rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white px-3 py-3 transition hover:border-sky-200 hover:shadow-sm"
+            >
+              <div className="mb-2 flex items-center justify-between gap-1">
+                <span className="text-sm font-extrabold text-slate-900">L{line.lineNo}</span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                  {line.statusLabel}
+                </span>
               </div>
-              <p className="text-sm font-semibold text-slate-700">주의할 항목 없음</p>
-              <p className="mt-1.5 text-xs leading-relaxed text-slate-400">연동 후 알림이 표시됩니다</p>
+              <div className="mb-2 h-1 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full w-0 rounded-full bg-sky-400" />
+              </div>
+              <p className="truncate text-[11px] font-medium text-slate-500">{line.job}</p>
             </div>
-          </Panel>
+          ))}
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(16rem,1fr)]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <SectionHeader title="후공정" href="/post-process/plan" linkLabel="계획 보기" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {POST_TEAMS.map((team) => (
+              <div
+                key={team.name}
+                className={`rounded-xl border border-slate-200 bg-gradient-to-br ${team.tint} px-4 py-4`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">{team.name}</h3>
+                  <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                    {team.statusLabel}
+                  </span>
+                </div>
+                <p className="mt-4 text-[11px] font-semibold tracking-wide text-slate-400 uppercase">
+                  오늘 실적
+                </p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
+                  {team.todayQty}
+                  <span className="ml-1 text-sm font-semibold text-slate-500">EA</span>
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <h2 className="text-[15px] font-bold tracking-tight text-slate-900">알림</h2>
+          <div className="mt-4 flex min-h-[11rem] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
+              OK
+            </div>
+            <p className="text-sm font-semibold text-slate-800">표시할 알림 없음</p>
+            <p className="mt-1.5 text-xs leading-relaxed text-slate-400">
+              납기 · 재고 · 발주 연동 후
+              <br />
+              주의 항목이 여기에 표시됩니다
+            </p>
+          </div>
         </aside>
       </div>
-    </div>
+    </PageShell>
   )
 }

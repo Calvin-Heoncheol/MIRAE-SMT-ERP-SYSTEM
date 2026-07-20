@@ -7,9 +7,11 @@ import { InboundForm } from '@/components/materials/inbound/inbound-form'
 import { InboundListTable } from '@/components/materials/inbound/inbound-list-table'
 import { InboundModal } from '@/components/materials/inbound/inbound-modal'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
+import { ListPagination } from '@/components/ui/list-pagination'
 import type { FetchMaterialInboundPageResult } from '@/lib/materials/inbound/repository'
 import type { MaterialInboundListGroup } from '@/lib/materials/inbound/types'
 import { getInboundTypeLabel } from '@/lib/materials/inbound/utils'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type InboundWorkspaceProps = {
@@ -50,6 +52,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
     () => inbounds.filter((inbound) => matchesQuery(inbound, query)),
     [inbounds, query],
   )
+  const pagination = useClientPagination(filtered)
 
   function openEdit(inbound: MaterialInboundListGroup) {
     setModalSession((value) => value + 1)
@@ -76,7 +79,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
 
   if (view === 'register') {
     return (
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-1 flex-col gap-4">
         <InboundForm
           mode="create"
           variant="page"
@@ -90,7 +93,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-1 flex-col gap-4">
         <WorkspaceHeader
           totalCount={inbounds.length}
           filteredCount={filtered.length}
@@ -102,13 +105,22 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
         />
 
         <InboundListTable
-          inbounds={filtered}
+          inbounds={pagination.pageItems}
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query),
             emptyLabel: '등록된 입고 내역이 없습니다',
             actionHint: '입고등록 탭에서 등록하세요',
           })}
           onSelectInbound={openEdit}
+        />
+
+        <ListPagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.setPage}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          totalCount={pagination.totalCount}
         />
       </div>
 

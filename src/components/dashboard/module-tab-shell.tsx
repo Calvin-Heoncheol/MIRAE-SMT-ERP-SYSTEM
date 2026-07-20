@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useId, useRef, useState } from 'react'
+import { PageShell } from '@/components/ui/page-shell'
 
 export type ModuleTabMenuItem = {
   label: string
@@ -19,7 +20,8 @@ export type ModuleTabItem = {
 }
 
 type ModuleTabShellProps = {
-  title: string
+  /** @deprecated 사이드바 도입 후 미표시 — 호출부 호환용 */
+  title?: string
   tabs: ModuleTabItem[]
   ariaLabel: string
   children: React.ReactNode
@@ -174,7 +176,6 @@ function TabNav({
 }
 
 export function ModuleTabShell({
-  title,
   tabs,
   ariaLabel,
   children,
@@ -183,15 +184,14 @@ export function ModuleTabShell({
   const startTabs = tabs.filter((tab) => tab.align !== 'end')
   const endTabs = tabs.filter((tab) => tab.align === 'end')
   const hasSplit = endTabs.length > 0
+  const hasTabs = startTabs.length > 0 || endTabs.length > 0
 
   return (
-    <div className="flex min-h-[calc(100dvh-60px)] w-full flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
-
+    <PageShell>
+      {hasTabs ? (
         <div
           className={[
-            'mt-4 flex flex-wrap items-center gap-3',
+            'flex flex-wrap items-center gap-3',
             hasSplit ? 'justify-between' : '',
           ].join(' ')}
         >
@@ -204,9 +204,9 @@ export function ModuleTabShell({
             />
           ) : null}
         </div>
-      </div>
+      ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-    </div>
+    </PageShell>
   )
 }

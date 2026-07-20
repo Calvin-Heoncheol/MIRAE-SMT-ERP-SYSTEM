@@ -7,12 +7,14 @@ import { OutboundListTable } from '@/components/materials/outbound/outbound-list
 import { OutboundModal } from '@/components/materials/outbound/outbound-modal'
 import { OutboundNeedsTable } from '@/components/materials/outbound/outbound-needs-table'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
+import { ListPagination } from '@/components/ui/list-pagination'
 import type { FetchMaterialOutboundPageResult } from '@/lib/materials/outbound/repository'
 import type {
   MaterialOutboundListGroup,
   MaterialOutboundNeedCard,
 } from '@/lib/materials/outbound/types'
 import { getOutboundTypeLabel } from '@/lib/materials/outbound/utils'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type OutboundWorkspaceProps = {
@@ -67,6 +69,8 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
     () => needCards.filter((card) => matchesNeedCardQuery(card, query)),
     [needCards, query],
   )
+  const needsPagination = useClientPagination(filteredNeedCards)
+  const historyPagination = useClientPagination(filtered)
 
   function openEdit(outbound: MaterialOutboundListGroup) {
     setModalSession((value) => value + 1)
@@ -93,7 +97,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
 
   if (view === 'register') {
     return (
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-1 flex-col gap-4">
         <WorkspaceHeader
           subtitle="주문·BOM 기준 미불출 필요 수량입니다"
           totalCount={needCards.length}
@@ -106,9 +110,18 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
         />
 
         <OutboundNeedsTable
-          cards={filteredNeedCards}
+          cards={needsPagination.pageItems}
           bomEdges={bomEdges}
           onIssued={() => router.refresh()}
+        />
+
+        <ListPagination
+          page={needsPagination.page}
+          totalPages={needsPagination.totalPages}
+          onPageChange={needsPagination.setPage}
+          rangeStart={needsPagination.rangeStart}
+          rangeEnd={needsPagination.rangeEnd}
+          totalCount={needsPagination.totalCount}
         />
       </div>
     )
@@ -116,7 +129,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-1 flex-col gap-4">
         <WorkspaceHeader
           totalCount={outbounds.length}
           filteredCount={filtered.length}
@@ -128,13 +141,22 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
         />
 
         <OutboundListTable
-          outbounds={filtered}
+          outbounds={historyPagination.pageItems}
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query),
             emptyLabel: '등록된 불출 내역이 없습니다',
             actionHint: '불출등록 탭에서 등록하세요',
           })}
           onSelectOutbound={openEdit}
+        />
+
+        <ListPagination
+          page={historyPagination.page}
+          totalPages={historyPagination.totalPages}
+          onPageChange={historyPagination.setPage}
+          rangeStart={historyPagination.rangeStart}
+          rangeEnd={historyPagination.rangeEnd}
+          totalCount={historyPagination.totalCount}
         />
       </div>
 

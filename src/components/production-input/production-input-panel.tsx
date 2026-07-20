@@ -267,7 +267,7 @@ export function ProductionInputPanel({
               <PostProcessTeamSwitcher
                 value={postProcessTeam}
                 onChange={onPostProcessTeamChange}
-                variant="inline"
+                variant="select"
               />
             ) : null}
             {showLineSelector ? (
@@ -336,27 +336,23 @@ export function ProductionInputPanel({
 
       {order ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col gap-5 p-4 sm:p-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,480px)] lg:items-stretch lg:gap-6 lg:p-8 xl:gap-8 xl:p-10">
-            <section className="flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:p-8">
+          <div className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-stretch lg:gap-4">
+            <section className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <p className="text-sm text-slate-500 sm:text-base">
                 <span className="font-medium text-slate-700">{order.customer || '—'}</span>
                 <span className="mx-2 text-slate-300">·</span>
                 <span className="font-mono text-slate-600">{order.orderNumber}</span>
               </p>
-              <div className="mt-3 flex flex-wrap items-start gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2.5 sm:gap-3">
                 <h2 className="text-2xl font-bold leading-snug text-slate-900 break-keep sm:text-3xl lg:text-4xl">
                   {formatProductionProductName(order)}
                 </h2>
                 {lockToPlan && sideLabel ? (
-                  <span className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-bold tracking-wide text-white">
+                  <span className="inline-flex shrink-0 items-center rounded-xl bg-slate-900 px-3 py-1 text-2xl font-bold leading-none tracking-wide text-white sm:px-3.5 sm:py-1.5 sm:text-3xl lg:text-4xl">
                     {sideLabel}
                   </span>
-                ) : lockToPlan && postProcessPlan ? (
-                  <span className="rounded-lg bg-emerald-700 px-2.5 py-1 text-xs font-bold tracking-wide text-white">
-                    {postProcessPlan.team}
-                  </span>
                 ) : !isPostProcess && !order.splitPcbSides ? (
-                  <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                  <span className="inline-flex shrink-0 items-center rounded-xl bg-slate-100 px-3 py-1 text-2xl font-bold leading-none text-slate-600 sm:px-3.5 sm:py-1.5 sm:text-3xl lg:text-4xl">
                     단면
                   </span>
                 ) : null}
@@ -446,11 +442,11 @@ export function ProductionInputPanel({
               </div>
             </section>
 
-            <section className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:min-h-[520px]">
+            <section className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:min-h-0">
               <p className="text-sm font-bold text-slate-800">수량 입력</p>
               <p className="mt-1 text-xs text-slate-500">프리셋을 누르거나 숫자를 입력한 뒤 등록하세요.</p>
 
-              <div className="mt-5 grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-5 grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
                 {([1, 10, 100, 1000] as const).map((step) => (
                   <button
                     key={step}

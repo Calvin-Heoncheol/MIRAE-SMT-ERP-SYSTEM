@@ -222,9 +222,9 @@ export async function createSmtProductionRecord(
         ok: false,
         reason: 'validation',
         detail:
-          pcbSideMode === 'dual'
+          pcbSideMode === 'double'
             ? '양면 제품은 TOP 또는 BOT 면으로 등록해 주세요.'
-            : '단면 제품은 SINGLE로만 등록할 수 있습니다.',
+            : '단면·듀얼 제품은 SINGLE로만 등록할 수 있습니다.',
       }
     }
 

@@ -66,7 +66,10 @@ begin
   end if;
 
   new.pcb_side_mode := lower(coalesce(trim(new.pcb_side_mode), ''));
-  if new.pcb_side_mode not in ('', 'single', 'dual') then
+  if new.pcb_side_mode = 'dual' then
+    new.pcb_side_mode := 'double';
+  end if;
+  if new.pcb_side_mode not in ('', 'single', 'duo', 'double') then
     new.pcb_side_mode := '';
   end if;
   if new.item_category <> 3 then

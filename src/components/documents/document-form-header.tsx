@@ -9,6 +9,8 @@ type DocumentFormHeaderProps = {
   title: string
   titleTracking?: string
   subtitle?: string
+  /** 제목·부제(문서번호)를 영역 가운데 정렬 */
+  centerTitle?: boolean
   signoffs: ApprovalSignoff[]
   canSign?: boolean
   signing?: boolean
@@ -20,6 +22,7 @@ export function DocumentFormHeader({
   title,
   titleTracking = '0.35em',
   subtitle,
+  centerTitle = false,
   signoffs,
   canSign = false,
   signing = false,
@@ -29,7 +32,12 @@ export function DocumentFormHeader({
   return (
     <div className={`document-form-header px-3 py-6 sm:px-4 ${className}`}>
       <div className="flex items-center justify-between gap-6 sm:gap-10 print:flex-row print:items-center print:justify-between">
-        <div className="document-form-header__title flex min-w-0 flex-1 flex-col justify-center">
+        <div
+          className={[
+            'document-form-header__title flex min-w-0 flex-1 flex-col justify-center',
+            centerTitle ? 'items-center text-center' : '',
+          ].join(' ')}
+        >
           <h2
             className={`${PRINT_TITLE} text-[2.25rem] font-bold leading-tight text-slate-900 sm:text-[2.5rem]`}
             style={{ letterSpacing: titleTracking }}

@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { ApprovalFetchError } from '@/components/approvals/approval-fetch-error'
 import { ApprovalListTable } from '@/components/approvals/approval-list-table'
 import { ApprovalModal } from '@/components/approvals/approval-modal'
+import { ListPagination } from '@/components/ui/list-pagination'
 import {
   APPROVAL_CATEGORIES,
   getApprovalCategoryLabel,
@@ -14,6 +15,7 @@ import {
 import type { FetchApprovalsResult } from '@/lib/approvals/repository'
 import type { ApprovalListItem } from '@/lib/approvals/types'
 import { filterApprovalsByCategory } from '@/lib/approvals/utils'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 
 type ApprovalsWorkspaceProps = {
   category: ApprovalCategory
@@ -32,6 +34,7 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
   const [modalSession, setModalSession] = useState(0)
 
   const approvals = result.ok ? filterApprovalsByCategory(result.approvals, category) : []
+  const pagination = useClientPagination(approvals)
 
   function openCreate() {
     setModalSession((value) => value + 1)
@@ -58,12 +61,8 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
 
   return (
     <>
-      <div className="flex min-h-[calc(100dvh-60px)] w-full flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">결재서 · 품의서</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">품의서 관리</h1>
-          </div>
+      <div className="flex w-full flex-1 flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <button
             type="button"
             onClick={openCreate}
@@ -96,11 +95,22 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
         {!result.ok ? (
           <ApprovalFetchError result={result} />
         ) : (
-          <ApprovalListTable
-            approvals={approvals}
-            emptyMessage={`등록된 ${getApprovalCategoryLabel(category)} 품의서가 없습니다`}
-            onSelectApproval={openEdit}
-          />
+          <>
+            <ApprovalListTable
+              approvals={pagination.pageItems}
+              emptyMessage={`등록된 ${getApprovalCategoryLabel(category)} 품의서가 없습니다`}
+              onSelectApproval={openEdit}
+            />
+
+            <ListPagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={pagination.setPage}
+              rangeStart={pagination.rangeStart}
+              rangeEnd={pagination.rangeEnd}
+              totalCount={pagination.totalCount}
+            />
+          </>
         )}
       </div>
 

@@ -7,6 +7,7 @@ import { ItemFetchError } from '@/components/items/item-fetch-error'
 import { ItemListTable } from '@/components/items/item-list-table'
 import { ItemModal } from '@/components/items/item-modal'
 import { ItemNewMenu } from '@/components/items/item-new-menu'
+import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchItemsResult } from '@/lib/items/repository'
 import { filterItemsForSearch } from '@/lib/items/utils'
@@ -16,6 +17,7 @@ import {
   type Item,
   type ItemCategory,
 } from '@/lib/items/types'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import {
   ERP_FILTER_CHIP_ACTIVE_CLASS,
   ERP_FILTER_CHIP_IDLE_CLASS,
@@ -60,6 +62,8 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     return searched.filter((item) => item.itemCategory === categoryFilter)
   }, [items, query, categoryFilter])
 
+  const pagination = useClientPagination(filtered)
+
   function openCreate() {
     setModalSession((value) => value + 1)
     setModal({
@@ -103,7 +107,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-col gap-4">
+      <div className="flex w-full flex-1 flex-col gap-4">
         <WorkspaceHeader
           title="품목등록"
           totalCount={items.length}
@@ -137,7 +141,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
         />
 
         <ItemListTable
-          items={filtered}
+          items={pagination.pageItems}
           categoryFilter={categoryFilter}
           emptyMessage={formatEmptyListMessage({
             hasQuery: hasActiveFilter,
@@ -145,6 +149,15 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
             actionHint: '오른쪽 상단에서 등록하세요',
           })}
           onSelectItem={openEdit}
+        />
+
+        <ListPagination
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.setPage}
+          rangeStart={pagination.rangeStart}
+          rangeEnd={pagination.rangeEnd}
+          totalCount={pagination.totalCount}
         />
       </div>
 

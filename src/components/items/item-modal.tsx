@@ -491,7 +491,7 @@ function ItemModalContent({
         {showPcbSideModeField ? (
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>
-              단면/양면 <span className="text-red-500">*</span>
+              면 구분 <span className="text-red-500">*</span>
             </span>
             <select
               value={form.pcbSideMode}

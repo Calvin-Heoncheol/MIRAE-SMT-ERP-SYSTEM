@@ -1,16 +1,14 @@
 ﻿'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ApprovalFormDocument } from '@/components/approvals/approval-form-document'
 import { DocumentPrintActions } from '@/components/documents/document-print-actions'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import type { ApprovalCategory } from '@/lib/approvals/categories'
-import { getApprovalCategoryLabel } from '@/lib/approvals/categories'
 import {
   deleteApprovalAttachmentFiles,
   formatApprovalSaveError,
-  uploadApprovalFiles,
 } from '@/lib/approvals/attachments'
 import { isApprovalDepartment, normalizeApprovalDepartment } from '@/lib/approvals/departments'
 import {
@@ -67,10 +65,8 @@ export function ApprovalModal({
   onDeleted,
   onSignoffComplete,
 }: ApprovalModalProps) {
+  const [selectedCategory, setSelectedCategory] = useState<ApprovalCategory>(category)
   const [form, setForm] = useState<ApprovalFormState>(createDefaultApprovalForm())
-  const [pendingFiles, setPendingFiles] = useState<File[]>([])
-  const [removedFilePaths, setRemovedFilePaths] = useState<string[]>([])
-  const initialAttachmentPathsRef = useRef<string[]>([])
   const [saving, setSaving] = useState(false)
   const [signing, setSigning] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -78,45 +74,16 @@ export function ApprovalModal({
   useEffect(() => {
     if (!open) return
     if (mode === 'edit' && approval) {
-      const nextForm = approvalToForm(approval)
-      setForm(nextForm)
-      initialAttachmentPathsRef.current = nextForm.attachmentFiles.map((file) => file.path)
+      setSelectedCategory(approval.category)
+      setForm(approvalToForm(approval))
     } else {
+      setSelectedCategory(category)
       setForm(createDefaultApprovalForm(category))
-      initialAttachmentPathsRef.current = []
     }
-    setPendingFiles([])
-    setRemovedFilePaths([])
     setSaveError('')
   }, [open, mode, approval, category])
 
   if (!open) return null
-
-  async function persistAttachments(
-    approvalId: string,
-    currentForm: ApprovalFormState,
-  ): Promise<
-    | { ok: true; attachmentFiles: ApprovalFormState['attachmentFiles'] }
-    | { ok: false; detail: string }
-  > {
-    const pathsToDelete = removedFilePaths.filter((path) => initialAttachmentPathsRef.current.includes(path))
-    if (pathsToDelete.length) {
-      const deleteResult = await deleteApprovalAttachmentFiles(pathsToDelete)
-      if (!deleteResult.ok) return deleteResult
-    }
-
-    if (!pendingFiles.length) {
-      return { ok: true as const, attachmentFiles: currentForm.attachmentFiles }
-    }
-
-    const uploadResult = await uploadApprovalFiles(approvalId, pendingFiles)
-    if (!uploadResult.ok) return uploadResult
-
-    return {
-      ok: true as const,
-      attachmentFiles: [...currentForm.attachmentFiles, ...uploadResult.files],
-    }
-  }
 
   async function handleSave() {
     if (!form.subject.trim()) {
@@ -136,52 +103,20 @@ export function ApprovalModal({
     setSaveError('')
 
     const baseForm = { ...form, docNumber: mode === 'create' ? '' : form.docNumber }
-    const payload = buildPayload(category, baseForm, mode)
+    const payload = buildPayload(selectedCategory, baseForm, mode)
 
     const result =
       mode === 'edit' && approval
         ? await updateApproval(approval.id, payload)
         : await createApproval(payload)
 
+    setSaving(false)
+
     if (!result.ok) {
-      setSaving(false)
       setSaveError(formatApprovalSaveError(result.detail))
       return
     }
 
-    const approvalId = result.id
-    const attachmentResult = await persistAttachments(approvalId, baseForm)
-
-    if (!attachmentResult.ok) {
-      setSaving(false)
-      setSaveError(formatApprovalSaveError(attachmentResult.detail))
-      return
-    }
-
-    const needsAttachmentUpdate =
-      pendingFiles.length > 0 ||
-      removedFilePaths.length > 0 ||
-      attachmentResult.attachmentFiles.length !== baseForm.attachmentFiles.length
-
-    if (needsAttachmentUpdate) {
-      const attachmentPayload = buildPayload(
-        category,
-        {
-          ...baseForm,
-          docNumber: result.docNumber || result.id,
-          attachmentFiles: attachmentResult.attachmentFiles,
-        },
-        'edit',
-      )
-      const attachmentUpdate = await updateApproval(approvalId, attachmentPayload)
-      if (!attachmentUpdate.ok) {
-        setSaving(false)
-        setSaveError(formatApprovalSaveError(attachmentUpdate.detail))
-        return
-      }
-    }
-
-    setSaving(false)
     onSaved?.()
   }
 
@@ -209,7 +144,7 @@ export function ApprovalModal({
 
     const nextSignoffs = toggleSignoff(form.signoffs, role)
     const nextForm = { ...form, signoffs: nextSignoffs }
-    const payload = buildPayload(category, nextForm, 'edit')
+    const payload = buildPayload(selectedCategory, nextForm, 'edit')
     const result = await updateApproval(approval.id, payload)
 
     setSigning(false)
@@ -229,7 +164,7 @@ export function ApprovalModal({
     <ErpModal
       open
       size="lg"
-      title={`${mode === 'edit' ? '품의서 수정' : '새 품의서'} · ${getApprovalCategoryLabel(category)}`}
+      title={mode === 'edit' ? '품의서 수정' : '새 품의서'}
       description={
         mode === 'create'
           ? '문서번호는 저장 시 MRA-0001부터 생성 순서대로 자동 발급됩니다.'
@@ -273,21 +208,14 @@ export function ApprovalModal({
       }
     >
       <ApprovalFormDocument
-        category={category}
+        category={selectedCategory}
         form={form}
-        onChange={(next) => {
-          setForm(next)
-          const removed = initialAttachmentPathsRef.current.filter(
-            (path) => !next.attachmentFiles.some((file) => file.path === path),
-          )
-          setRemovedFilePaths(removed)
-        }}
+        onChange={setForm}
+        onCategoryChange={setSelectedCategory}
         canSign={mode === 'edit' && Boolean(approval)}
         signing={signing}
         onSign={handleSign}
         isDocNumberDraft={mode === 'create'}
-        pendingAttachmentFiles={pendingFiles}
-        onPendingAttachmentFilesChange={setPendingFiles}
       />
     </ErpModal>
   )

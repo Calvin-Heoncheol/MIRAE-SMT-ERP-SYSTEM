@@ -1,37 +1,44 @@
--- 반제품 단가: SMD / DIP / 자재 세부 + 합계(unit_price)
+-- 면 구분: dual(구 양면) → double, duo(듀얼) 추가
+-- Supabase SQL Editor에서 실행하세요
 
-alter table public.items
-  add column if not exists smd_unit_price numeric not null default 0;
+-- 1) check 제약 먼저 제거 (dual만 허용이면 double로 update 불가)
+do $$
+declare
+  constraint_name text;
+begin
+  select con.conname
+  into constraint_name
+  from pg_constraint con
+  join pg_class rel on rel.oid = con.conrelid
+  join pg_namespace nsp on nsp.oid = rel.relnamespace
+  where nsp.nspname = 'public'
+    and rel.relname = 'items'
+    and con.contype = 'c'
+    and pg_get_constraintdef(con.oid) ilike '%pcb_side_mode%'
+  limit 1;
 
-alter table public.items
-  add column if not exists dip_unit_price numeric not null default 0;
+  if constraint_name is not null then
+    execute format('alter table public.items drop constraint %I', constraint_name);
+  end if;
+end $$;
 
-alter table public.items
-  add column if not exists material_unit_price numeric not null default 0;
-
-comment on column public.items.smd_unit_price is 'SMD 단가 — 반제품(3)';
-comment on column public.items.dip_unit_price is 'DIP 단가 — 반제품(3)';
-comment on column public.items.material_unit_price is '자재 단가 — 반제품(3)';
-comment on column public.items.unit_price is '단가 (반제품은 SMD+DIP+자재 합계)';
-
--- 기존 반제품 단가 → 공정에 맞춰 배분 (세부 단가가 아직 비어 있는 경우만)
+-- 2) 기존 양면 데이터 이전 (dual → double)
 update public.items
-set
-  smd_unit_price = case
-    when process_type = 'post' then 0
-    else coalesce(unit_price, 0)
-  end,
-  dip_unit_price = case
-    when process_type = 'post' then coalesce(unit_price, 0)
-    else 0
-  end,
-  material_unit_price = 0
-where item_category = 3
-  and coalesce(smd_unit_price, 0) = 0
-  and coalesce(dip_unit_price, 0) = 0
-  and coalesce(material_unit_price, 0) = 0
-  and coalesce(unit_price, 0) > 0;
+set pcb_side_mode = 'double'
+where lower(trim(pcb_side_mode)) = 'dual';
 
+-- 3) 새 check 제약
+alter table public.items
+  drop constraint if exists items_pcb_side_mode_check;
+
+alter table public.items
+  add constraint items_pcb_side_mode_check
+  check (pcb_side_mode in ('', 'single', 'duo', 'double'));
+
+comment on column public.items.pcb_side_mode is
+  '면 구분 — 단면(single)/듀얼(duo)/양면(double) — 반제품(3)만 사용';
+
+-- 3) normalize 트리거 함수 갱신
 create or replace function public.normalize_items_row()
 returns trigger
 language plpgsql
@@ -89,6 +96,7 @@ begin
   end if;
 
   new.pcb_side_mode := lower(coalesce(trim(new.pcb_side_mode), ''));
+  -- 레거시 dual(양면) → double
   if new.pcb_side_mode = 'dual' then
     new.pcb_side_mode := 'double';
   end if;

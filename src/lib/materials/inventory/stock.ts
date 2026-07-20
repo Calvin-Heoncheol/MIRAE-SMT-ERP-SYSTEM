@@ -1,8 +1,4 @@
 import { createSupabaseClient } from '@/lib/supabase'
-import { aggregateOnHandByMaterialId } from '@/lib/materials/inbound/utils'
-import { isMissingMaterialInboundTable } from '@/lib/materials/inbound/repository'
-import { aggregateOutboundByMaterialId } from '@/lib/materials/outbound/utils'
-import { isMissingMaterialOutboundTable } from '@/lib/materials/outbound/repository'
 
 /** inbound − outbound → 현재고 */
 export function computeOnHandByMaterialId(
@@ -24,40 +20,55 @@ export type FetchOnHandByMaterialIdResult =
   | { ok: true; onHandByMaterialId: Map<string, number> }
   | { ok: false; detail: string }
 
-/** 입고·불출 라인을 조회해 현재고 맵을 만듭니다. */
+const ON_HAND_PAGE_SIZE = 1000
+
+function isMissingOnHandView(detail: string) {
+  const lower = detail.toLowerCase()
+  return (
+    lower.includes('material_on_hand') ||
+    lower.includes('schema cache') ||
+    (lower.includes('could not find') && lower.includes('material_on_hand'))
+  )
+}
+
+/** DB 집계 뷰 material_on_hand 를 페이지 단위로 읽어 현재고 맵을 만듭니다. */
 export async function fetchOnHandByMaterialId(): Promise<FetchOnHandByMaterialIdResult> {
   try {
     const supabase = createSupabaseClient()
-    const [inboundLinesResult, outboundLinesResult] = await Promise.all([
-      supabase.from('material_inbound_lines').select('material_id, quantity'),
-      supabase.from('material_outbound_lines').select('material_id, quantity'),
-    ])
+    const onHandByMaterialId = new Map<string, number>()
+    let from = 0
 
-    if (inboundLinesResult.error && !isMissingMaterialInboundTable(inboundLinesResult.error.message)) {
-      return { ok: false, detail: inboundLinesResult.error.message }
-    }
-    if (
-      outboundLinesResult.error &&
-      !isMissingMaterialOutboundTable(outboundLinesResult.error.message)
-    ) {
-      return { ok: false, detail: outboundLinesResult.error.message }
+    for (;;) {
+      const to = from + ON_HAND_PAGE_SIZE - 1
+      const { data, error } = await supabase
+        .from('material_on_hand')
+        .select('material_id, on_hand')
+        .order('material_id', { ascending: true })
+        .range(from, to)
+
+      if (error) {
+        if (isMissingOnHandView(error.message)) {
+          return {
+            ok: false,
+            detail:
+              '현재고 집계 뷰(material_on_hand)가 없습니다. Supabase SQL Editor에서 supabase/migrate-material-on-hand-view.sql 을 실행해 주세요.',
+          }
+        }
+        return { ok: false, detail: error.message }
+      }
+
+      const rows = (data || []) as { material_id: string; on_hand: number | string }[]
+      for (const row of rows) {
+        const materialId = String(row.material_id || '').trim()
+        if (!materialId) continue
+        onHandByMaterialId.set(materialId, Number(row.on_hand) || 0)
+      }
+
+      if (rows.length < ON_HAND_PAGE_SIZE) break
+      from += ON_HAND_PAGE_SIZE
     }
 
-    const inboundByMaterialId = inboundLinesResult.error
-      ? new Map<string, number>()
-      : aggregateOnHandByMaterialId(
-          (inboundLinesResult.data || []) as { material_id: string; quantity: number }[],
-        )
-    const outboundByMaterialId = outboundLinesResult.error
-      ? new Map<string, number>()
-      : aggregateOutboundByMaterialId(
-          (outboundLinesResult.data || []) as { material_id: string; quantity: number }[],
-        )
-
-    return {
-      ok: true,
-      onHandByMaterialId: computeOnHandByMaterialId(inboundByMaterialId, outboundByMaterialId),
-    }
+    return { ok: true, onHandByMaterialId }
   } catch (error) {
     return {
       ok: false,
