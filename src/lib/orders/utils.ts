@@ -114,6 +114,7 @@ export function mapOrderRecord(
     deliveryDate: formatOrderDate(record.delivery_date),
     customer: record.customer || '',
     category: normalizeOrderCategory(record.category),
+    note: record.note || '',
     source: record.source || 'manual',
     sourceQuoteId: record.source_quote_id,
     createdAt: record.created_at,

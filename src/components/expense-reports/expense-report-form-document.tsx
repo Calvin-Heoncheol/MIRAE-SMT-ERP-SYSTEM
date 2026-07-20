@@ -2,6 +2,7 @@
 
 import { DocumentBrandFooter } from '@/components/documents/document-brand-footer'
 import { DocumentFormHeader } from '@/components/documents/document-form-header'
+import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { APPROVAL_DEPARTMENTS } from '@/lib/approvals/departments'
 import type { ApprovalSignoffRole } from '@/lib/approvals/signoffs'
 import {
@@ -272,17 +273,11 @@ export function ExpenseReportFormDocument({
           <p className={`${PRINT_SECTION_TITLE} text-sm font-semibold text-slate-800`}>내역</p>
           {!readOnly ? (
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={addLineRow}
-                className="no-print rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                행 추가
-              </button>
+              <ErpRowAddButton onClick={addLineRow} title="내역 행 추가" className="no-print" />
               <button
                 type="button"
                 onClick={resetLineRows}
-                className="no-print rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                className="no-print inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
               >
                 7행 초기화
               </button>
@@ -370,9 +365,10 @@ export function ExpenseReportFormDocument({
                       <button
                         type="button"
                         onClick={() => removeLineRow(index)}
-                        className="text-xs font-semibold text-red-500 hover:text-red-700"
+                        className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                        aria-label={`${index + 1}행 삭제`}
                       >
-                        삭제
+                        ×
                       </button>
                     </td>
                   ) : null}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
+import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import {
   emptyNewCompanyInquiryForm,
   formToInquiryPayload,
@@ -246,14 +247,11 @@ function NewCompanyModalContent({
           <div className="sm:col-span-2">
             <div className="mb-1.5 flex items-center justify-between gap-2">
               <span className={ERP_FIELD_LABEL_CLASS}>진행사항</span>
-              <button
-                type="button"
-                disabled={busy}
+              <ErpRowAddButton
                 onClick={addProgressLine}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
-              >
-                + 추가
-              </button>
+                disabled={busy}
+                title="진행사항 추가"
+              />
             </div>
             <div className="space-y-2">
               {form.progressLines.map((line, index) => (

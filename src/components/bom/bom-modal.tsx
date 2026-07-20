@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { BomChildItemCombobox } from '@/components/bom/bom-child-item-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
+import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import {
   BOM_PASTE_COLUMNS,
   bomPastePlaceholder,
@@ -400,14 +401,11 @@ function BomModalContent({
                 </span>
               ) : null}
             </p>
-            <button
-              type="button"
+            <ErpRowAddButton
               onClick={addLine}
               disabled={!selectedParent || busy}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              구성 추가
-            </button>
+              title="구성 품목 추가"
+            />
           </div>
 
           {useCompactLines ? (
@@ -419,11 +417,11 @@ function BomModalContent({
                       구성 품목
                     </th>
                     <th className="w-28 px-3 py-2 text-right font-semibold">수량</th>
-                    <th className="w-16 px-3 py-2 text-center font-semibold" />
+                    <th className="w-10 px-2 py-2 text-center font-semibold" />
                   </tr>
                 </thead>
                 <tbody>
-                  {form.lines.map((line) => (
+                  {form.lines.map((line, index) => (
                     <tr key={line.key} className="border-t border-slate-100">
                       <td className="px-3 py-1.5" colSpan={2}>
                         <BomChildItemCombobox
@@ -453,9 +451,10 @@ function BomModalContent({
                           type="button"
                           onClick={() => removeLine(line.key)}
                           disabled={busy}
-                          className="text-xs font-semibold text-slate-500 hover:text-red-600"
+                          className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-50"
+                          aria-label={`구성 ${index + 1} 삭제`}
                         >
-                          삭제
+                          ×
                         </button>
                       </td>
                     </tr>
@@ -502,9 +501,10 @@ function BomModalContent({
                       type="button"
                       onClick={() => removeLine(line.key)}
                       disabled={busy}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-50"
+                      aria-label={`구성 ${index + 1} 삭제`}
                     >
-                      삭제
+                      ×
                     </button>
                   </div>
                 </div>
@@ -516,7 +516,7 @@ function BomModalContent({
             <p className="mt-2 text-xs text-slate-500">
               선택 가능 구성:{' '}
               {selectedParent.itemCategory === 4
-                ? ITEM_CATEGORY_LABELS[3]
+                ? `${ITEM_CATEGORY_LABELS[3]} (여러 완제품에서 공용 가능)`
                 : `${ITEM_CATEGORY_LABELS[1]}, ${ITEM_CATEGORY_LABELS[2]}`}
             </p>
           ) : null}

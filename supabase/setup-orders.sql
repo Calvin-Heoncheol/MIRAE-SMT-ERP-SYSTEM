@@ -11,6 +11,7 @@ create table if not exists public.orders (
   category text not null default '양산' check (category in ('양산', '샘플', '자재')),
   source text not null default 'manual',
   source_quote_id text references public.quotations(id) on delete set null,
+  note text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint orders_id_not_blank_check check (length(trim(id)) > 0),
@@ -20,6 +21,7 @@ create table if not exists public.orders (
 comment on table public.orders is '주문 마스터 — 주문코드=id(고객사 PO/NO 또는 고객사접두사-0001)';
 comment on column public.orders.id is '주문코드 — 고객사 PO/NO 또는 고객사접두사-0001 (INSERT 시 비어 있으면 자동 발급, 수정 불가)';
 comment on column public.orders.source_quote_id is '원본 견적 FK (quotations.id = MRQ-0001)';
+comment on column public.orders.note is '주문서 비고';
 
 create table if not exists public.order_lines (
   id uuid primary key default gen_random_uuid(),

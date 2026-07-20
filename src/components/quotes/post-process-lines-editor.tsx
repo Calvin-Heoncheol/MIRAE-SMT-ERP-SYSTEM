@@ -1,6 +1,7 @@
 'use client'
 
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
+import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import {
   emptyPostProcessLineForm,
   sumPostProcessLineMinutes,
@@ -83,13 +84,7 @@ export function PostProcessLinesEditor({
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={addLine}
-        className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-700"
-      >
-        + 행 추가
-      </button>
+      <ErpRowAddButton onClick={addLine} title={`${title} 행 추가`} className="mt-2" />
     </div>
   )
 }

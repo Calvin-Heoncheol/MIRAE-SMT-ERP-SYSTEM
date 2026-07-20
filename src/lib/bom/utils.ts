@@ -107,6 +107,7 @@ export function parentItemsForBom(items: Item[]) {
 }
 
 export function childItemsForParent(items: Item[], parentCategory: ItemCategory) {
+  // 반제품은 여러 완제품 BOM에서 공용 가능 — 이미 다른 부모에 쓰인 구성품도 그대로 노출
   const allowed = new Set(allowedChildCategories(parentCategory))
   return items
     .filter((item) => allowed.has(item.itemCategory))

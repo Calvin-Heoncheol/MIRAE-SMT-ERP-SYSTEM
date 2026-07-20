@@ -15,7 +15,7 @@ import {
 import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
 import { ORDER_CATEGORIES } from '@/lib/orders/types'
 import type { OrderListGroup } from '@/lib/orders/types'
-import { addDaysYmd, todayYmdSeoul, validateOrderCodeInput } from '@/lib/orders/utils'
+import { todayYmdSeoul, validateOrderCodeInput } from '@/lib/orders/utils'
 import { formatAutoOrderCodeExample } from '@/lib/orders/order-code-prefix'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
@@ -42,14 +42,16 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
       deliveryDate: order.deliveryDate || '',
       customer: order.customer || '',
       category: order.category,
+      note: order.note || '',
     }
   }
   return {
     orderCode: '',
     orderDate: today,
-    deliveryDate: addDaysYmd(today, 30),
+    deliveryDate: '',
     customer: '',
     category: '양산',
+    note: '',
   }
 }
 
@@ -127,6 +129,7 @@ function OrderModalContent({
       delivery_date: form.deliveryDate || '',
       customer: customerName,
       category: form.category,
+      note: form.note,
       source: order?.source || 'manual',
       source_quote_id: order?.sourceQuoteId || null,
       items: validation.items,
@@ -204,8 +207,26 @@ function OrderModalContent({
       }
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="block text-sm sm:col-span-2">
-          <span className={ERP_FIELD_LABEL_CLASS}>고객사 PO/NO</span>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>고객사</span>
+          <CustomerCombobox
+            value={form.customer}
+            partners={salesPartners}
+            placeholder="거래처명 검색 (예: 센서)"
+            inputClassName={ERP_FIELD_INPUT_CLASS}
+            onValueChange={(value) => updateForm('customer', value)}
+            onPartnerSelect={(partner) => updateForm('customer', partner.name)}
+          />
+          <p className="mt-1 text-xs text-slate-500">
+            {partnersLoading
+              ? '매출 거래처 목록을 불러오는 중...'
+              : salesPartners.length === 0
+                ? '등록된 매출 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
+                : '거래처등록의 매출·매입/매출 거래처만 선택할 수 있습니다.'}
+          </p>
+        </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>주문서번호</span>
           {mode === 'edit' && order ? (
             <input
               value={order.orderNumber}
@@ -217,7 +238,7 @@ function OrderModalContent({
               <input
                 value={form.orderCode}
                 onChange={(event) => updateForm('orderCode', event.target.value.toUpperCase())}
-                placeholder="고객사 PO/NO"
+                placeholder="주문서번호"
                 className={`${ERP_FIELD_INPUT_CLASS} font-mono uppercase placeholder:normal-case placeholder:text-slate-400`}
                 autoCapitalize="characters"
                 spellCheck={false}
@@ -230,6 +251,9 @@ function OrderModalContent({
             </>
           )}
         </label>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>구분</span>
           <select
@@ -262,28 +286,9 @@ function OrderModalContent({
             className={ERP_FIELD_INPUT_CLASS}
           />
         </label>
-        <label className="block text-sm sm:col-span-2">
-          <span className={ERP_FIELD_LABEL_CLASS}>고객사</span>
-          <CustomerCombobox
-            value={form.customer}
-            partners={salesPartners}
-            placeholder="거래처명 검색 (예: 센서)"
-            inputClassName={ERP_FIELD_INPUT_CLASS}
-            onValueChange={(value) => updateForm('customer', value)}
-            onPartnerSelect={(partner) => updateForm('customer', partner.name)}
-          />
-          <p className="mt-1 text-xs text-slate-500">
-            {partnersLoading
-              ? '매출 거래처 목록을 불러오는 중...'
-              : salesPartners.length === 0
-                ? '등록된 매출 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
-                : '거래처등록의 매출·매입/매출 거래처만 선택할 수 있습니다.'}
-          </p>
-        </label>
       </div>
 
       <div className="mt-6">
-        <h3 className="mb-3 text-sm font-bold text-slate-900">제품</h3>
         <OrderItemsForm
           items={items}
           customer={resolvePartnerFromInput(salesPartners, form.customer)?.name ?? form.customer}
@@ -291,6 +296,17 @@ function OrderModalContent({
           onChange={setItems}
         />
       </div>
+
+      <label className="mt-6 block text-sm">
+        <span className={ERP_FIELD_LABEL_CLASS}>비고</span>
+        <textarea
+          value={form.note}
+          onChange={(event) => updateForm('note', event.target.value)}
+          rows={2}
+          placeholder="주문서 비고"
+          className={ERP_FIELD_INPUT_CLASS}
+        />
+      </label>
     </ErpModal>
   )
 }

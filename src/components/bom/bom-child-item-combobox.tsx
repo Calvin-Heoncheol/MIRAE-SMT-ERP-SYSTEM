@@ -25,7 +25,8 @@ type MenuPosition = {
   placement: 'above' | 'below'
 }
 
-const MAX_OPTIONS = 12
+const MAX_OPTIONS_EMPTY = 80
+const MAX_OPTIONS_SEARCH = 120
 
 function resolveItemFromInput(items: Item[], raw: string) {
   const want = raw.trim().toLowerCase()
@@ -72,10 +73,15 @@ export function BomChildItemCombobox({
 
   const inputValue = open ? draft : selected ? formatItemOptionLabel(selected) : value
 
-  const options = useMemo(
-    () => filterItemsForSearch(items, open ? draft : '').slice(0, MAX_OPTIONS),
+  const filtered = useMemo(
+    () => filterItemsForSearch(items, open ? draft : ''),
     [items, open, draft],
   )
+  const options = useMemo(() => {
+    const limit = draft.trim() ? MAX_OPTIONS_SEARCH : MAX_OPTIONS_EMPTY
+    return filtered.slice(0, limit)
+  }, [draft, filtered])
+  const hiddenCount = Math.max(0, filtered.length - options.length)
 
   useEffect(() => {
     setMounted(true)
@@ -141,10 +147,8 @@ export function BomChildItemCombobox({
   }
 
   function tryResolveOnBlur() {
-    if (!draft.trim()) {
-      if (value) onItemSelect(null)
-      return
-    }
+    // 포커스 시 draft를 비우므로, 빈 채로 blur 하면 기존 선택 유지
+    if (!draft.trim()) return
 
     const resolved = resolveItemFromInput(items, draft)
     if (resolved) {
@@ -185,12 +189,9 @@ export function BomChildItemCombobox({
   }
 
   const dropdown =
-    open && options.length > 0 && menuPosition && mounted ? (
-      <ul
-        ref={listRef}
-        id={listId}
-        role="listbox"
-        className="fixed z-[200] overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-xl"
+    open && mounted && menuPosition ? (
+      <div
+        className="fixed z-[200] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl"
         style={{
           top: menuPosition.top,
           left: menuPosition.left,
@@ -199,28 +200,47 @@ export function BomChildItemCombobox({
           transform: menuPosition.placement === 'above' ? 'translateY(-100%)' : undefined,
         }}
       >
-        {options.map((item, index) => (
-          <li key={item.id} role="option" aria-selected={index === activeIndex}>
-            <button
-              type="button"
-              tabIndex={-1}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => selectItem(item)}
-              className={[
-                'block w-full px-3 py-2.5 text-left text-sm',
-                index === activeIndex ? 'bg-sky-50 text-sky-900' : 'text-slate-700 hover:bg-slate-50',
-              ].join(' ')}
-            >
-              <span className="block font-semibold">{formatItemOptionLabel(item)}</span>
-              <span className="mt-0.5 block text-xs text-slate-400">
-                {[ITEM_CATEGORY_LABELS[item.itemCategory], item.mpn, item.specification]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+        {options.length > 0 ? (
+          <ul
+            ref={listRef}
+            id={listId}
+            role="listbox"
+            className="overflow-auto py-1"
+            style={{ maxHeight: Math.max(menuPosition.maxHeight - (hiddenCount > 0 ? 36 : 0), 96) }}
+          >
+            {options.map((item, index) => (
+              <li key={item.id} role="option" aria-selected={index === activeIndex}>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => selectItem(item)}
+                  className={[
+                    'block w-full px-3 py-2.5 text-left text-sm',
+                    index === activeIndex
+                      ? 'bg-sky-50 text-sky-900'
+                      : 'text-slate-700 hover:bg-slate-50',
+                  ].join(' ')}
+                >
+                  <span className="block font-semibold">{formatItemOptionLabel(item)}</span>
+                  <span className="mt-0.5 block text-xs text-slate-400">
+                    {[ITEM_CATEGORY_LABELS[item.itemCategory], item.mpn, item.specification]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-3 py-3 text-sm text-slate-500">검색 결과가 없습니다.</p>
+        )}
+        {hiddenCount > 0 ? (
+          <p className="border-t border-slate-100 px-3 py-2 text-[11px] text-slate-500">
+            외 {hiddenCount.toLocaleString('ko-KR')}건 · 품목코드나 이름으로 검색하세요
+          </p>
+        ) : null}
+      </div>
     ) : null
 
   return (
@@ -239,9 +259,9 @@ export function BomChildItemCombobox({
         }}
         onFocus={() => {
           if (disabled) return
-          setDraft(selected ? formatItemOptionLabel(selected) : '')
+          // 검색용으로 비우고 시작 — 라벨 전체를 draft에 넣으면 필터에 안 걸려 목록이 비게 됨
+          setDraft('')
           setOpen(true)
-          window.requestAnimationFrame(() => inputRef.current?.select())
         }}
         onBlur={() => {
           window.setTimeout(() => {

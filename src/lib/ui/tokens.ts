@@ -86,6 +86,10 @@ export const ERP_FIELD_LABEL_CLASS = 'mb-1 block font-medium text-slate-600'
 export const ERP_FIELD_INPUT_CLASS =
   'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none ring-slate-100 focus:border-slate-400 focus:ring-2 disabled:bg-slate-50'
 
+/** 테이블·목록 행 추가 버튼 (섹션 헤더 우측) */
+export const ERP_ROW_ADD_BUTTON_CLASS =
+  'inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50'
+
 /** 빈 목록 메시지: 없음 + 다음 액션 */
 export function formatEmptyListMessage(options: {
   hasQuery: boolean

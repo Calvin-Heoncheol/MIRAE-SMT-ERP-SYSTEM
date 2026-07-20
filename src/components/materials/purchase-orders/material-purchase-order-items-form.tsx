@@ -2,6 +2,7 @@
 
 import { type Dispatch, type SetStateAction } from 'react'
 import { MaterialCombobox } from '@/components/materials/purchase-orders/material-combobox'
+import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
 import { computeMaterialPurchaseOrderLineAmount } from '@/lib/materials/purchase-orders/utils'
@@ -105,6 +106,11 @@ export function MaterialPurchaseOrderItemsForm({
 
   return (
     <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-bold text-slate-900">자재</h3>
+        <ErpRowAddButton onClick={addRow} title="자재 추가" />
+      </div>
+
       <div className="overflow-x-auto rounded-lg border border-slate-200">
         <table className="min-w-[920px] w-full border-collapse text-sm">
           <thead className="bg-slate-50">
@@ -123,7 +129,7 @@ export function MaterialPurchaseOrderItemsForm({
               <th className="min-w-[104px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
                 금액
               </th>
-              <th className="w-16 px-3 py-2" />
+              <th className="w-10 px-2 py-2" />
             </tr>
           </thead>
           <tbody>
@@ -184,14 +190,15 @@ export function MaterialPurchaseOrderItemsForm({
                   <td className="px-3 py-2 text-right text-sm font-medium tabular-nums text-slate-800 align-top">
                     {amount.toLocaleString('ko-KR')}
                   </td>
-                  <td className="px-3 py-2 text-center align-top">
+                  <td className="w-10 px-2 py-2 text-center align-top">
                     <button
                       type="button"
                       onClick={() => removeRow(index)}
                       disabled={items.length <= 1}
-                      className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label={`${index + 1}행 삭제`}
                     >
-                      삭제
+                      ×
                     </button>
                   </td>
                 </tr>
@@ -203,13 +210,6 @@ export function MaterialPurchaseOrderItemsForm({
       <p className="text-xs text-slate-500">
         자재코드로 자재를 선택하세요. 선택 시 MPN·자재명·규격·단가가 자동으로 채워집니다.
       </p>
-      <button
-        type="button"
-        onClick={addRow}
-        className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-violet-300 hover:bg-violet-50/50 hover:text-violet-800"
-      >
-        + 자재 추가
-      </button>
     </div>
   )
 }

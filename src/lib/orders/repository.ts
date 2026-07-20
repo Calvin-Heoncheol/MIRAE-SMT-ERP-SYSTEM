@@ -141,6 +141,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       category: string
       source: string
       source_quote_id: string | null
+      note: string
     } = {
       order_date: payload.order_date,
       delivery_date: payload.delivery_date || null,
@@ -148,6 +149,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       category: payload.category,
       source: payload.source || 'manual',
       source_quote_id: payload.source_quote_id || null,
+      note: payload.note?.trim() || '',
     }
 
     if (orderCode) {
@@ -197,6 +199,7 @@ export async function updateOrder(orderId: string, payload: OrderRowPayload): Pr
         delivery_date: payload.delivery_date || null,
         customer: payload.customer,
         category: payload.category,
+        note: payload.note?.trim() || '',
         updated_at: new Date().toISOString(),
       })
       .eq('id', existing.id)

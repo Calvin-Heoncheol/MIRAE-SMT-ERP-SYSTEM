@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { MaterialCombobox } from '@/components/materials/purchase-orders/material-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
+import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { buildMaterialOutboundPayload } from '@/lib/materials/outbound/build-payload'
 import {
   createMaterialOutbound,
@@ -219,13 +220,10 @@ function OutboundModalContent({
         <div>
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-medium text-slate-600">불출 품목</p>
-            <button
-              type="button"
+            <ErpRowAddButton
               onClick={() => setLines((current) => [...current, defaultOutboundLineForm()])}
-              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              행 추가
-            </button>
+              title="불출 품목 추가"
+            />
           </div>
           <div className="space-y-2">
             {lines.map((line, index) => (
@@ -260,9 +258,10 @@ function OutboundModalContent({
                 <button
                   type="button"
                   onClick={() => setLines((current) => current.filter((_, i) => i !== index))}
-                  className="rounded-lg px-2 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-red-50 hover:text-red-600"
+                  aria-label={`${index + 1}행 삭제`}
                 >
-                  삭제
+                  ×
                 </button>
               </div>
             ))}

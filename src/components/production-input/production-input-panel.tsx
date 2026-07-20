@@ -220,12 +220,12 @@ export function ProductionInputPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-50">
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5">
-        {order ? (
-          <div className="space-y-5">
+    <div className="flex h-full min-h-0 flex-col bg-slate-50">
+      {order ? (
+        <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-6 py-6 sm:px-8">
+          <div className="w-full space-y-5">
             <div>
-              <p className="text-sm text-slate-500">
+              <p className="text-base text-slate-500">
                 {lineNo != null ? (
                   <>
                     <span className="font-bold text-sky-700">LINE {lineNo}</span>
@@ -237,7 +237,7 @@ export function ProductionInputPanel({
                 <span>{order.orderNumber}</span>
               </p>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <h2 className="text-xl font-bold leading-snug text-slate-900 break-keep">
+                <h2 className="text-2xl font-bold leading-snug text-slate-900 break-keep sm:text-3xl">
                   {formatProductionProductName(order)}
                 </h2>
                 {lockToPlan && sideLabel ? (
@@ -287,131 +287,123 @@ export function ProductionInputPanel({
               </div>
             ) : null}
 
-            <div>
-              <div className="mb-2 flex items-end justify-between gap-3">
-                <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
-                  {lockToPlan ? '계획 진행' : isDual ? `${pcbSide} 진행` : '진행'}
-                </p>
-                <p className="text-2xl font-bold tabular-nums text-slate-900">
-                  {cumulative.toLocaleString('ko-KR')}
-                  <span className="mx-1 text-lg font-semibold text-slate-300">/</span>
-                  <span className="text-lg font-semibold text-slate-500">
-                    {target.toLocaleString('ko-KR')}
-                  </span>
-                </p>
-              </div>
-              {target > 0 ? (
-                <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      cumulative >= target ? 'bg-emerald-500' : 'bg-sky-500'
-                    }`}
-                    style={{ width: `${progress}%` }}
-                  />
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+              <div className="mb-6">
+                <div className="mb-3 flex items-end justify-between gap-3">
+                  <p className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
+                    {lockToPlan ? '계획 진행' : isDual ? `${pcbSide} 진행` : '진행'}
+                  </p>
+                  <p className="text-3xl font-bold tabular-nums text-slate-900 sm:text-4xl">
+                    {cumulative.toLocaleString('ko-KR')}
+                    <span className="mx-1 text-2xl font-semibold text-slate-300">/</span>
+                    <span className="text-2xl font-semibold text-slate-500">
+                      {target.toLocaleString('ko-KR')}
+                    </span>
+                  </p>
                 </div>
+                {target > 0 ? (
+                  <div className="h-4 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        cumulative >= target ? 'bg-emerald-500' : 'bg-sky-500'
+                      }`}
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mb-5 grid grid-cols-4 gap-3">
+                {([1, 10, 100, 1000] as const).map((step) => (
+                  <button
+                    key={step}
+                    type="button"
+                    disabled={!canRegister || saving || remaining < 1}
+                    onClick={() => bumpQty(step)}
+                    className="h-16 rounded-2xl border-2 border-slate-200 bg-slate-50 text-xl font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:h-[4.5rem] sm:text-2xl"
+                  >
+                    +{step}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-stretch gap-3">
+                <button
+                  type="button"
+                  disabled={!canRegister || saving || qtyNumber < 1}
+                  onClick={() => bumpQty(-1)}
+                  className="flex h-20 w-16 shrink-0 items-center justify-center rounded-2xl border-2 border-slate-200 text-4xl font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:h-24 sm:w-20"
+                  aria-label="수량 1 감소"
+                >
+                  −
+                </button>
+                <input
+                  id={config.qtyInputId}
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={qty}
+                  disabled={!canRegister || saving}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    if (raw === '') {
+                      setQty('')
+                      setMessage(null)
+                      return
+                    }
+                    setQtyClamped(Number(raw) || 0)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void handleSubmit()
+                  }}
+                  placeholder="0"
+                  className="h-20 min-w-0 flex-1 rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 text-center text-5xl font-bold text-slate-900 tabular-nums outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100 disabled:text-slate-400 sm:h-24 sm:text-6xl"
+                />
+                <button
+                  type="button"
+                  disabled={!canRegister || saving || qtyNumber >= remaining}
+                  onClick={() => bumpQty(1)}
+                  className="flex h-20 w-16 shrink-0 items-center justify-center rounded-2xl border-2 border-slate-200 text-4xl font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:h-24 sm:w-20"
+                  aria-label="수량 1 증가"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  disabled={!canRegister || saving || qtyNumber < 1}
+                  onClick={() => void handleSubmit()}
+                  className="h-20 shrink-0 rounded-2xl bg-slate-800 px-8 text-xl font-bold text-white transition hover:bg-slate-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 sm:h-24 sm:px-10 sm:text-2xl"
+                >
+                  {saving ? '등록 중…' : '등록'}
+                </button>
+              </div>
+
+              {message ? (
+                <p
+                  className={`mt-5 text-base font-medium ${
+                    message.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'
+                  }`}
+                >
+                  {message.text}
+                </p>
               ) : null}
             </div>
           </div>
-        ) : (
-          <div className="flex h-full min-h-[12rem] items-center justify-center text-center">
-            <div>
-              <p className="text-base font-semibold text-slate-600">주문을 선택하세요</p>
-              <p className="mt-1 text-sm text-slate-400">
-                {config.productionModule === 'smt'
-                  ? '위 라인 카드에서 작업 라인을 선택하세요.'
-                  : config.productionModule === 'post_process'
-                    ? '위 계획 카드에서 작업을 선택하세요.'
-                    : '왼쪽 목록에서 작업할 주문을 선택합니다.'}
-              </p>
-            </div>
+        </div>
+      ) : (
+        <div className="flex flex-1 items-center justify-center px-6 py-10 text-center">
+          <div>
+            <p className="text-base font-semibold text-slate-600">주문을 선택하세요</p>
+            <p className="mt-1 text-sm text-slate-400">
+              {config.productionModule === 'smt'
+                ? '위 라인 카드에서 작업 라인을 선택하세요.'
+                : config.productionModule === 'post_process'
+                  ? '위 계획 카드에서 작업을 선택하세요.'
+                  : '왼쪽 목록에서 작업할 주문을 선택합니다.'}
+            </p>
           </div>
-        )}
-      </div>
-
-      <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            disabled={!canRegister || saving || qtyNumber < 1}
-            onClick={() => bumpQty(-1)}
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-2xl font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="수량 1 감소"
-          >
-            −
-          </button>
-          <input
-            id={config.qtyInputId}
-            type="number"
-            min={0}
-            step={1}
-            value={qty}
-            disabled={!canRegister || saving}
-            onChange={(event) => {
-              const raw = event.target.value
-              if (raw === '') {
-                setQty('')
-                setMessage(null)
-                return
-              }
-              setQtyClamped(Number(raw) || 0)
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') void handleSubmit()
-            }}
-            placeholder="0"
-            className="h-14 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-center text-3xl font-bold text-slate-900 tabular-nums outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100 disabled:text-slate-400"
-          />
-          <button
-            type="button"
-            disabled={!canRegister || saving || qtyNumber >= remaining}
-            onClick={() => bumpQty(1)}
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-2xl font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="수량 1 증가"
-          >
-            +
-          </button>
-          <button
-            type="button"
-            disabled={!canRegister || saving || qtyNumber < 1}
-            onClick={() => void handleSubmit()}
-            className="h-14 shrink-0 rounded-xl bg-slate-800 px-6 text-base font-bold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            {saving ? '등록 중…' : '등록'}
-          </button>
         </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          {([1, 10, 50, 100] as const).map((step) => (
-            <button
-              key={step}
-              type="button"
-              disabled={!canRegister || saving || remaining < 1}
-              onClick={() => bumpQty(step)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              +{step}
-            </button>
-          ))}
-          <button
-            type="button"
-            disabled={!canRegister || saving || remaining < 1}
-            onClick={() => setQtyClamped(remaining)}
-            className="rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            남은 {remaining.toLocaleString('ko-KR')}
-          </button>
-        </div>
-
-        {message ? (
-          <p
-            className={`mt-3 text-sm font-medium ${
-              message.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'
-            }`}
-          >
-            {message.text}
-          </p>
-        ) : null}
-      </div>
+      )}
     </div>
   )
 }

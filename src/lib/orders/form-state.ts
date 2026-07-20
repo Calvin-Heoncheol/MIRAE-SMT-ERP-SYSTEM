@@ -12,6 +12,7 @@ export type OrderFormState = {
   deliveryDate: string
   customer: string
   category: '양산' | '샘플' | '자재'
+  note: string
 }
 
 export function defaultOrderItemForm(): OrderItemForm {

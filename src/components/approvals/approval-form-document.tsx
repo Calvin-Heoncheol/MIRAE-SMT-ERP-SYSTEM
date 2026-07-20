@@ -2,6 +2,7 @@
 
 import { ApprovalAttachmentsField } from '@/components/approvals/approval-attachments-field'
 import { ApprovalPaymentMethodField } from '@/components/approvals/approval-payment-method-field'
+import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { DocumentBrandFooter } from '@/components/documents/document-brand-footer'
 import { DocumentFormHeader } from '@/components/documents/document-form-header'
 import type { ApprovalCategory, ApprovalDetailColumn } from '@/lib/approvals/categories'
@@ -449,13 +450,7 @@ export function ApprovalFormDocument({
             )}
           </div>
           {!readOnly ? (
-            <button
-              type="button"
-              onClick={addDetailRow}
-              className="no-print rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-            >
-              행 추가
-            </button>
+            <ErpRowAddButton onClick={addDetailRow} title="내역 행 추가" className="no-print" />
           ) : null}
         </div>
 
@@ -502,13 +497,14 @@ export function ApprovalFormDocument({
                     </td>
                   ))}
                   {!readOnly ? (
-                    <td className="no-print px-2 py-2">
+                    <td className="no-print px-2 py-2 text-center">
                       <button
                         type="button"
                         onClick={() => removeDetailRow(index)}
-                        className="text-xs font-semibold text-red-500 hover:text-red-700"
+                        className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                        aria-label={`${index + 1}행 삭제`}
                       >
-                        삭제
+                        ×
                       </button>
                     </td>
                   ) : null}

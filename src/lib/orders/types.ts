@@ -21,6 +21,7 @@ export type OrderListGroup = {
   deliveryDate: string
   customer: string
   category: OrderCategory
+  note: string
   items: OrderLineItem[]
   totalQuantity: number
   totalAmount: number
@@ -50,6 +51,7 @@ export type OrderRecord = {
   category: string
   source: string
   source_quote_id: string | null
+  note?: string
   created_at: string
   updated_at: string
   order_lines: OrderLineRecord[]
@@ -61,6 +63,7 @@ export type OrderRowPayload = {
   delivery_date: string
   customer: string
   category: OrderCategory
+  note?: string
   source?: string
   source_quote_id?: string | null
   items: OrderLineItem[]

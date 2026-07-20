@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent
 import { MaterialBarcodeRegisterPanel } from '@/components/materials/material-barcode-register-panel'
 import { MaterialLabelPrintButton } from '@/components/materials/material-label-print-button'
 import { MaterialCombobox } from '@/components/materials/purchase-orders/material-combobox'
+import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import {
   computeDirectInboundQuantity,
@@ -310,6 +311,11 @@ export function InboundDirectLinesForm({
         </div>
       ) : null}
 
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-bold text-slate-900">입고 품목</h3>
+        <ErpRowAddButton onClick={addRow} title="입고 품목 추가" />
+      </div>
+
       <div className="overflow-x-auto rounded-lg border border-slate-200">
         <table className="min-w-[920px] w-full border-collapse text-sm">
           <thead className="bg-slate-50">
@@ -321,7 +327,7 @@ export function InboundDirectLinesForm({
               <th className="min-w-[96px] px-3 py-2 text-right text-sm font-semibold text-slate-600">수량</th>
               <th className="min-w-[80px] px-3 py-2 text-right text-sm font-semibold text-slate-600">릴 개수</th>
               <th className="min-w-[96px] px-3 py-2 text-right text-sm font-semibold text-slate-600">입고수량</th>
-              <th className="w-16 px-3 py-2" />
+              <th className="w-10 px-2 py-2" />
             </tr>
           </thead>
           <tbody>
@@ -384,14 +390,15 @@ export function InboundDirectLinesForm({
                     className={`${inputClassName} min-w-[96px] text-right font-medium`}
                   />
                 </td>
-                <td className="px-3 py-2 text-center align-top">
+                <td className="w-10 px-2 py-2 text-center align-top">
                   <button
                     type="button"
                     onClick={() => removeRow(index)}
                     disabled={items.length <= 1}
-                    className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label={`${index + 1}행 삭제`}
                   >
-                    삭제
+                    ×
                   </button>
                 </td>
               </tr>
@@ -399,14 +406,6 @@ export function InboundDirectLinesForm({
           </tbody>
         </table>
       </div>
-
-      <button
-        type="button"
-        onClick={addRow}
-        className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-blue-300 hover:bg-slate-50"
-      >
-        + 행 추가
-      </button>
     </div>
   )
 }
