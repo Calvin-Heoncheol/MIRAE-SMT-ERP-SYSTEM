@@ -3,16 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 /** SSR·초기 렌더 기본값 (실측 전) */
-export const ERP_LIST_PAGE_SIZE = 18
+export const ERP_LIST_PAGE_SIZE = 15
 
 /** 테이블 행 대략 높이 (패딩 포함) */
 const ROW_HEIGHT_PX = 40
 /**
  * 검색/필터/페이지네이션/메인 패딩 등 표 밖 영역.
- * 과다 예약하면 아래 여백만 커지므로 타이트하게 잡음.
+ * 하단에 여유 공백이 남도록 약간 넉넉히 예약.
  */
-const RESERVED_CHROME_DESKTOP_PX = 250
-const RESERVED_CHROME_MOBILE_PX = 290
+const RESERVED_CHROME_DESKTOP_PX = 290
+const RESERVED_CHROME_MOBILE_PX = 330
 const MIN_PAGE_SIZE = 10
 const MAX_PAGE_SIZE = 45
 
