@@ -1,16 +1,27 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useMemo, useState, useTransition } from 'react'
+import { ProductionStatusQuickInputModal } from '@/components/production-status/production-status-quick-input-modal'
 import { ProductionStatusTable } from '@/components/production-status/production-status-table'
 import { TodayProductionOverview } from '@/components/production-status/today-production-overview'
 import type { FetchProductionStatusResult } from '@/lib/production-status/repository'
+import type { ProductionStatusLine, ProductionStatusStage } from '@/lib/production-status/types'
 
 type ProductionStatusWorkspaceProps = {
   result: FetchProductionStatusResult
 }
 
+type QuickInputState = {
+  stage: ProductionStatusStage
+  line: ProductionStatusLine
+} | null
+
 export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceProps) {
+  const router = useRouter()
   const [search, setSearch] = useState('')
+  const [quickInput, setQuickInput] = useState<QuickInputState>(null)
+  const [, startTransition] = useTransition()
 
   const data = result.ok ? result.data : null
   const filteredLines = useMemo(() => {
@@ -21,6 +32,16 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
       [line.orderNumber, line.customer, line.productName].join(' ').toLowerCase().includes(q),
     )
   }, [data?.lines, search])
+
+  function handleStageClick(line: ProductionStatusLine, stage: ProductionStatusStage) {
+    setQuickInput({ stage, line })
+  }
+
+  function handleRegistered() {
+    startTransition(() => {
+      router.refresh()
+    })
+  }
 
   if (!result.ok) {
     return (
@@ -56,11 +77,26 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
         />
       </div>
 
-      <ProductionStatusTable lines={filteredLines} />
+      <ProductionStatusTable lines={filteredLines} onStageClick={handleStageClick} />
 
       <p className="text-xs text-slate-400">
-        SMT는 주문서 내 반제품 라인 합계 기준입니다. 후공정은 해당 주문서의 완제품 조립 합계 기준입니다.
+        SMT·후공정·출하 그래프를 누르면 생산계획 없이 바로 입력할 수 있습니다. SMT는 반제품 라인
+        합계, 후공정·출하는 완제품 조립 합계 기준입니다.
       </p>
+
+      <ProductionStatusQuickInputModal
+        open={Boolean(quickInput)}
+        stage={quickInput?.stage ?? 'smt'}
+        line={quickInput?.line ?? null}
+        smtOrders={data!.smtOrders}
+        postOrders={data!.postOrders}
+        deliveryOrders={data!.deliveryOrders}
+        smtCounts={data!.smtCounts}
+        postCounts={data!.postCounts}
+        deliveryAvailabilityByGroupId={data!.deliveryAvailabilityByGroupId}
+        onClose={() => setQuickInput(null)}
+        onRegistered={handleRegistered}
+      />
     </div>
   )
 }

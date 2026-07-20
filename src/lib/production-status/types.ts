@@ -1,4 +1,8 @@
+import type { DeliveryAvailability } from '@/lib/delivery/utils'
+import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-input/types'
 import type { SmtProductionHistoryRow } from '@/lib/smt/types'
+
+export type ProductionStatusStage = 'smt' | 'post_process' | 'delivery'
 
 export type ProductionStatusLine = {
   orderId: string
@@ -11,6 +15,9 @@ export type ProductionStatusLine = {
   postTarget: number
   postProduced: number
   postPercent: number
+  deliveryTarget: number
+  deliveryProduced: number
+  deliveryPercent: number
 }
 
 export type TodayProductionStageKey =
@@ -32,4 +39,12 @@ export type ProductionStatusPageData = {
   todayStages: TodayProductionStage[]
   todaySmtRecords: SmtProductionHistoryRow[]
   lines: ProductionStatusLine[]
+  /** 계획 없이 바로 입력용 */
+  smtOrders: ProductionOrderLine[]
+  postOrders: ProductionOrderLine[]
+  deliveryOrders: ProductionOrderLine[]
+  smtCounts: ProductionCounts
+  postCounts: ProductionCounts
+  deliveryCounts: ProductionCounts
+  deliveryAvailabilityByGroupId: Record<string, DeliveryAvailability>
 }

@@ -2,8 +2,10 @@ import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import { buildProductionOrderLines } from '@/lib/production-input/utils'
+import { buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
 import { fetchSmtCumulativeCounts, fetchSmtPlanProgressRange } from '@/lib/smt/repository'
 import { createSupabaseClient } from '@/lib/supabase'
 import { SMT_PLAN_LINE_NOS } from './config'
@@ -175,7 +177,109 @@ export async function fetchAllSmtProductionPlans(): Promise<
   }
 }
 
+/**
+ * 지난 날짜의 미완료 생산계획 자동 마감.
+ * planned_date < today 이고 실적 < 계획이면 계획수량을 실적으로 맞추고,
+ * 실적이 0이면 계획을 삭제해 잔량을 다시 배정할 수 있게 한다.
+ */
+export async function closeIncompletePastSmtPlans(
+  today: string = todayYmdSeoul(),
+): Promise<
+  | { ok: true; adjusted: number; deleted: number }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const todayYmd = today.trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(todayYmd)) {
+    return { ok: false, reason: 'query', detail: '기준일 형식이 올바르지 않습니다.' }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('smt_production_plans')
+      .select(SMT_PLAN_SELECT)
+      .lt('planned_date', todayYmd)
+
+    if (error) {
+      if (isMissingSmtPlanTable(error.message)) {
+        return { ok: true, adjusted: 0, deleted: 0 }
+      }
+      const schemaDetail = planSchemaErrorDetail(error.message)
+      if (schemaDetail) {
+        return { ok: false, reason: 'query', detail: schemaDetail }
+      }
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    const pastPlans = (data || []).map(mapSmtProductionPlan)
+    if (!pastPlans.length) {
+      return { ok: true, adjusted: 0, deleted: 0 }
+    }
+
+    const minDate = pastPlans.reduce(
+      (min, plan) => (plan.plannedDate < min ? plan.plannedDate : min),
+      pastPlans[0].plannedDate,
+    )
+    const progressResult = await fetchSmtPlanProgressRange(minDate, todayYmd)
+    if (!progressResult.ok) {
+      return progressResult
+    }
+
+    let adjusted = 0
+    let deleted = 0
+
+    for (const plan of pastPlans) {
+      const produced =
+        progressResult.progress[
+          buildSmtPlanProgressKey(plan.orderLineId, plan.pcbSide, plan.lineNo, plan.plannedDate)
+        ] ?? 0
+
+      if (produced >= plan.plannedQuantity) continue
+
+      if (produced < 1) {
+        const { error: deleteError } = await supabase
+          .from('smt_production_plans')
+          .delete()
+          .eq('id', plan.id)
+        if (deleteError) {
+          return { ok: false, reason: 'query', detail: deleteError.message }
+        }
+        deleted += 1
+        continue
+      }
+
+      const { error: updateError } = await supabase
+        .from('smt_production_plans')
+        .update({
+          planned_quantity: produced,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', plan.id)
+
+      if (updateError) {
+        return { ok: false, reason: 'query', detail: updateError.message }
+      }
+      adjusted += 1
+    }
+
+    return { ok: true, adjusted, deleted }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtPlanPageResult> {
+  // 과거 미완료 계획 자동 마감 후 조회 (실패해도 화면은 계속)
+  await closeIncompletePastSmtPlans()
+
   const ordersResult = await fetchOrders()
   if (!ordersResult.ok) {
     return ordersResult

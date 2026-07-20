@@ -1,7 +1,15 @@
 import { fetchAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
+import {
+  buildDeliveryAvailabilityMap,
+  buildDeliveryInputOrders,
+} from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
-import { buildProductionOrderLines } from '@/lib/production-input/utils'
+import {
+  buildPostProcessAssemblyLines,
+  buildProductionOrderLines,
+} from '@/lib/production-input/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import { fetchPostProcessCumulativeCounts, fetchPostProcessTodayProduction } from '@/lib/post-process/repository'
 import { fetchSmtCumulativeCounts, fetchSmtTodayProduction } from '@/lib/smt/repository'
@@ -24,6 +32,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     todaySmtResult,
     postCountsResult,
     todayPostResult,
+    deliveryCountsResult,
     smtOrdersResult,
   ] = await Promise.all([
     fetchOrders(),
@@ -32,6 +41,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     fetchSmtTodayProduction(),
     fetchPostProcessCumulativeCounts(),
     fetchPostProcessTodayProduction(),
+    fetchDeliveryCumulativeCounts(),
     fetchOrders({ includeDerivedLines: true }),
   ])
 
@@ -41,15 +51,34 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
   if (!todaySmtResult.ok) return todaySmtResult
   if (!postCountsResult.ok) return postCountsResult
   if (!todayPostResult.ok) return todayPostResult
+  if (!deliveryCountsResult.ok) return deliveryCountsResult
   if (!smtOrdersResult.ok) return smtOrdersResult
 
   const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
-  const smtLines = buildProductionOrderLines(smtOrdersResult.orders, 'SMT', productById, 'smt')
+  const smtOrders = buildProductionOrderLines(smtOrdersResult.orders, 'SMT', productById, 'smt')
 
   const assemblyResult = await fetchAssemblyGroups(productById)
   if (!assemblyResult.ok) {
     return assemblyResult
   }
+
+  const postOrders = buildPostProcessAssemblyLines(
+    assemblyResult.groups,
+    ordersResult.orders,
+    productById,
+  )
+  const deliveryOrders = buildDeliveryInputOrders(
+    assemblyResult.groups,
+    ordersResult.orders,
+    productById,
+  )
+  const deliveryAvailabilityByGroupId = buildDeliveryAvailabilityMap(
+    assemblyResult.groups,
+    smtCountsResult.counts,
+    postCountsResult.counts,
+    deliveryCountsResult.counts,
+    productById,
+  )
 
   return {
     ok: true,
@@ -59,11 +88,19 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
       todaySmtRecords: todaySmtResult.rows,
       lines: buildProductionStatusLines(
         ordersResult.orders,
-        smtLines,
+        smtOrders,
         assemblyResult.groups,
         smtCountsResult.counts,
         postCountsResult.counts,
+        deliveryCountsResult.counts,
       ),
+      smtOrders,
+      postOrders,
+      deliveryOrders,
+      smtCounts: smtCountsResult.counts,
+      postCounts: postCountsResult.counts,
+      deliveryCounts: deliveryCountsResult.counts,
+      deliveryAvailabilityByGroupId,
     },
   }
 }

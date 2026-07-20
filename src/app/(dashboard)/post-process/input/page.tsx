@@ -3,7 +3,10 @@ import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { fetchProductionInputPageData } from '@/lib/production-input/repository'
 import { POST_PROCESS_PRODUCTION_INPUT_CONFIG } from '@/lib/post-process/config'
-import { fetchPostProcessProductionPlansForDate } from '@/lib/post-process/plan/repository'
+import {
+  closeIncompletePastPostProcessPlans,
+  fetchPostProcessProductionPlansForDate,
+} from '@/lib/post-process/plan/repository'
 import { buildPostProcessPlanBlocks } from '@/lib/post-process/plan/utils'
 import { fetchPostProcessDayPlanProgress } from '@/lib/post-process/repository'
 
@@ -18,6 +21,8 @@ export default async function PostProcessInputPage({ searchParams }: PostProcess
   const raw = params.uiKey
   const initialUiKey = Array.isArray(raw) ? raw[0] || '' : raw || ''
   const today = todayYmdSeoul()
+
+  await closeIncompletePastPostProcessPlans(today)
 
   const [result, plansResult, ordersResult, progressResult] = await Promise.all([
     fetchProductionInputPageData(POST_PROCESS_PRODUCTION_INPUT_CONFIG),

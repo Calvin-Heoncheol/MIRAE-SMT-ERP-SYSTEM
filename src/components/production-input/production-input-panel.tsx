@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { applyMetalMaskUsage } from '@/lib/metal-masks/repository'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import type { PostProcessPlanBlock } from '@/lib/post-process/plan/types'
 import { createPostProcessProductionRecord } from '@/lib/post-process/repository'
-import { applySqueegeeUsage } from '@/lib/squeegees/repository'
 import { buildSmtCountKey, buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
 import { createSmtProductionRecord } from '@/lib/smt/repository'
 import type { SmtPlanBlock } from '@/lib/smt/plan/types'
@@ -47,8 +45,6 @@ export function ProductionInputPanel({
 }: ProductionInputPanelProps) {
   const [activeSide, setActiveSide] = useState<SmtPcbSide>('SINGLE')
   const [qty, setQty] = useState('')
-  const [maskBarcode, setMaskBarcode] = useState('')
-  const [squeegeeBarcode, setSqueegeeBarcode] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null)
 
@@ -101,8 +97,6 @@ export function ProductionInputPanel({
       setActiveSide('SINGLE')
     }
     setQty('')
-    setMaskBarcode('')
-    setSqueegeeBarcode('')
     setMessage(null)
   }, [order?.uiKey, order?.splitPcbSides, lockToPlan, plan?.id, smtPlan?.pcbSide])
 
@@ -196,41 +190,12 @@ export function ProductionInputPanel({
       recordDate: smtPlan?.plannedDate,
     })
 
+    setSaving(false)
+
     if (!result.ok) {
-      setSaving(false)
       setMessage({ text: result.detail, kind: 'err' })
       return
     }
-
-    const toolingNotes: string[] = []
-    const maskCode = maskBarcode.trim()
-    if (maskCode) {
-      const maskResult = await applyMetalMaskUsage({
-        barcode: maskCode,
-        pcbSide,
-        deltaQty: value,
-        smtProductionRecordId: result.record.id,
-        recordDate: smtPlan?.plannedDate,
-      })
-      if (!maskResult.ok) {
-        toolingNotes.push(`마스크: ${maskResult.detail}`)
-      }
-    }
-
-    const squeegeeCode = squeegeeBarcode.trim()
-    if (squeegeeCode) {
-      const squeegeeResult = await applySqueegeeUsage({
-        barcode: squeegeeCode,
-        deltaQty: value,
-        smtProductionRecordId: result.record.id,
-        recordDate: smtPlan?.plannedDate,
-      })
-      if (!squeegeeResult.ok) {
-        toolingNotes.push(`스퀴즈: ${squeegeeResult.detail}`)
-      }
-    }
-
-    setSaving(false)
 
     const countKey = buildSmtCountKey(order.orderLineId, pcbSide)
     onCountUpdated(countKey, result.cumulative)
@@ -246,14 +211,11 @@ export function ProductionInputPanel({
     }
 
     setQty('')
-    setMaskBarcode('')
-    setSqueegeeBarcode('')
-    const baseText = lockToPlan
-      ? `${value.toLocaleString('ko-KR')}개 등록 · ${Math.min(planTarget, planDone + value).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
-      : `${value.toLocaleString('ko-KR')}개 등록 · 누적 ${result.cumulative.toLocaleString('ko-KR')}`
     setMessage({
-      text: toolingNotes.length ? `${baseText} · ${toolingNotes.join(' / ')}` : baseText,
-      kind: toolingNotes.length ? 'err' : 'ok',
+      text: lockToPlan
+        ? `${value.toLocaleString('ko-KR')}개 등록 · ${Math.min(planTarget, planDone + value).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
+        : `${value.toLocaleString('ko-KR')}개 등록 · 누적 ${result.cumulative.toLocaleString('ko-KR')}`,
+      kind: 'ok',
     })
   }
 
@@ -367,34 +329,6 @@ export function ProductionInputPanel({
       </div>
 
       <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-4 shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
-        {!isPostProcess && order ? (
-          <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <label className="block text-xs font-medium text-slate-600">
-              메탈마스크 바코드
-              <input
-                type="text"
-                value={maskBarcode}
-                disabled={!canRegister || saving}
-                onChange={(event) => setMaskBarcode(event.target.value)}
-                placeholder="스캔 (선택)"
-                autoComplete="off"
-                className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100 disabled:opacity-50"
-              />
-            </label>
-            <label className="block text-xs font-medium text-slate-600">
-              스퀴즈 바코드
-              <input
-                type="text"
-                value={squeegeeBarcode}
-                disabled={!canRegister || saving}
-                onChange={(event) => setSqueegeeBarcode(event.target.value)}
-                placeholder="스캔 (선택)"
-                autoComplete="off"
-                className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-900 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100 disabled:opacity-50"
-              />
-            </label>
-          </div>
-        ) : null}
         <div className="flex items-center gap-2.5">
           <button
             type="button"
