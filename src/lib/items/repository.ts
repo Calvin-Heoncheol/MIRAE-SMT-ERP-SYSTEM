@@ -1,4 +1,5 @@
 import { createSupabaseClient } from '@/lib/supabase'
+import { syncFinishedParentsUsingChild } from '@/lib/bom/repository'
 import type { Item, ItemPayload, UpdateItemPayload } from './types'
 import { isManualItemCodeCategory, isOptionalItemCodeCategory, ITEM_CATEGORY_CODE_PREFIX } from './types'
 import {
@@ -220,6 +221,14 @@ export async function updateItem(id: string, payload: UpdateItemPayload): Promis
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    // 반제품 단가 변경 → 이 반제품을 쓰는 완제품 단가(BOM 합산) 재동기화
+    if (normalizeItemCategory(payload.itemCategory) === 3) {
+      const syncResult = await syncFinishedParentsUsingChild(key)
+      if (!syncResult.ok) {
+        return { ok: false, reason: 'query', detail: syncResult.detail }
+      }
     }
 
     return { ok: true, id: key }

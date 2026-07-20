@@ -2,7 +2,7 @@ import { createSupabaseClient } from '@/lib/supabase'
 import type { ItemCategory } from '@/lib/items/types'
 import { normalizeItemCategory } from '@/lib/items/utils'
 import type { BomLine, BomLinePayload } from './types'
-import { isValidBomPair } from './utils'
+import { isValidBomPair, sumBomComponentUnitPrices } from './utils'
 
 export type FetchBomResult =
   | { ok: true; lines: BomLine[] }
@@ -187,6 +187,276 @@ async function loadItemCategories(
   return { ok: true, byId }
 }
 
+export type CalcBomUnitPriceResult =
+  | { ok: true; unitPrice: number; lineCount: number }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+/** 부모 품목 BOM 구성의 (단가 × 소요량) 합산 */
+export async function calcParentUnitPriceFromBom(
+  parentProductId: string,
+): Promise<CalcBomUnitPriceResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const parentId = parentProductId.trim()
+  if (!parentId) {
+    return { ok: true, unitPrice: 0, lineCount: 0 }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data: bomRows, error: bomError } = await supabase
+      .from('bom_items')
+      .select('child_product_id, quantity_per')
+      .eq('parent_product_id', parentId)
+
+    if (bomError) {
+      return { ok: false, reason: 'query', detail: bomError.message }
+    }
+
+    const lines = (bomRows || [])
+      .map((row) => ({
+        childProductId: String(row.child_product_id || '').trim(),
+        quantityPer: Math.max(0, Number(row.quantity_per) || 0) || 1,
+      }))
+      .filter((row) => row.childProductId)
+
+    if (!lines.length) {
+      return { ok: true, unitPrice: 0, lineCount: 0 }
+    }
+
+    const childIds = [...new Set(lines.map((line) => line.childProductId))]
+    const { data: items, error: itemsError } = await supabase
+      .from('items')
+      .select('id, unit_price')
+      .in('id', childIds)
+
+    if (itemsError) {
+      return { ok: false, reason: 'query', detail: itemsError.message }
+    }
+
+    const priceById: Record<string, number> = {}
+    for (const item of items || []) {
+      priceById[String(item.id)] = Math.max(0, Number(item.unit_price) || 0)
+    }
+
+    const unitPrice = sumBomComponentUnitPrices(
+      lines.map((line) => ({
+        quantityPer: line.quantityPer,
+        childUnitPrice: priceById[line.childProductId] ?? 0,
+      })),
+    )
+
+    return { ok: true, unitPrice, lineCount: lines.length }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+/** 완제품 단가를 BOM 합산값으로 items.unit_price 에 반영 */
+export async function syncFinishedParentUnitPriceFromBom(
+  parentProductId: string,
+): Promise<CalcBomUnitPriceResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const parentId = parentProductId.trim()
+  if (!parentId) {
+    return { ok: false, reason: 'query', detail: '부모 품목을 찾을 수 없습니다.' }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const categoriesResult = await loadItemCategories(supabase, [parentId])
+    if (!categoriesResult.ok) {
+      return { ok: false, reason: 'query', detail: categoriesResult.detail }
+    }
+
+    if (categoriesResult.byId[parentId] !== 4) {
+      return { ok: true, unitPrice: 0, lineCount: 0 }
+    }
+
+    const calc = await calcParentUnitPriceFromBom(parentId)
+    if (!calc.ok) return calc
+
+    const { error } = await supabase
+      .from('items')
+      .update({ unit_price: calc.unitPrice })
+      .eq('id', parentId)
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    return calc
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+/** 반제품 단가 변경 시, 해당 반제품을 쓰는 완제품들의 단가 재계산 */
+export async function syncFinishedParentsUsingChild(
+  childProductId: string,
+): Promise<{ ok: true } | { ok: false; reason: 'env' | 'query'; detail: string }> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const childId = childProductId.trim()
+  if (!childId) return { ok: true }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('bom_items')
+      .select('parent_product_id')
+      .eq('child_product_id', childId)
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    const parentIds = [
+      ...new Set(
+        (data || [])
+          .map((row) => String(row.parent_product_id || '').trim())
+          .filter(Boolean),
+      ),
+    ]
+
+    for (const parentId of parentIds) {
+      const synced = await syncFinishedParentUnitPriceFromBom(parentId)
+      if (!synced.ok) return synced
+    }
+
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export type SyncAllFinishedUnitPricesResult =
+  | { ok: true; updated: number; pricesById: Record<string, number> }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+/** 모든 완제품 단가를 BOM 합산으로 일괄 동기화 */
+export async function syncAllFinishedUnitPricesFromBom(): Promise<SyncAllFinishedUnitPricesResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data: finishedRows, error: finishedError } = await supabase
+      .from('items')
+      .select('id, unit_price')
+      .eq('item_category', 4)
+
+    if (finishedError) {
+      return { ok: false, reason: 'query', detail: finishedError.message }
+    }
+
+    const finished = (finishedRows || []).map((row) => ({
+      id: String(row.id || '').trim(),
+      unitPrice: Math.max(0, Number(row.unit_price) || 0),
+    })).filter((row) => row.id)
+
+    if (!finished.length) {
+      return { ok: true, updated: 0, pricesById: {} }
+    }
+
+    const finishedIds = finished.map((row) => row.id)
+    const { data: bomRows, error: bomError } = await supabase
+      .from('bom_items')
+      .select('parent_product_id, child_product_id, quantity_per')
+      .in('parent_product_id', finishedIds)
+
+    if (bomError) {
+      return { ok: false, reason: 'query', detail: bomError.message }
+    }
+
+    const bomByParent = new Map<string, Array<{ childProductId: string; quantityPer: number }>>()
+    const childIds = new Set<string>()
+
+    for (const row of bomRows || []) {
+      const parentId = String(row.parent_product_id || '').trim()
+      const childId = String(row.child_product_id || '').trim()
+      if (!parentId || !childId) continue
+      childIds.add(childId)
+      const list = bomByParent.get(parentId) || []
+      list.push({
+        childProductId: childId,
+        quantityPer: Math.max(0, Number(row.quantity_per) || 0) || 1,
+      })
+      bomByParent.set(parentId, list)
+    }
+
+    const priceByChildId: Record<string, number> = {}
+    if (childIds.size) {
+      const { data: childItems, error: childError } = await supabase
+        .from('items')
+        .select('id, unit_price')
+        .in('id', [...childIds])
+
+      if (childError) {
+        return { ok: false, reason: 'query', detail: childError.message }
+      }
+
+      for (const item of childItems || []) {
+        priceByChildId[String(item.id)] = Math.max(0, Number(item.unit_price) || 0)
+      }
+    }
+
+    const pricesById: Record<string, number> = {}
+    let updated = 0
+
+    for (const item of finished) {
+      const lines = bomByParent.get(item.id) || []
+      const unitPrice = sumBomComponentUnitPrices(
+        lines.map((line) => ({
+          quantityPer: line.quantityPer,
+          childUnitPrice: priceByChildId[line.childProductId] ?? 0,
+        })),
+      )
+      pricesById[item.id] = unitPrice
+
+      if (Math.round(item.unitPrice) === unitPrice) continue
+
+      const { error: updateError } = await supabase
+        .from('items')
+        .update({ unit_price: unitPrice })
+        .eq('id', item.id)
+
+      if (updateError) {
+        return { ok: false, reason: 'query', detail: updateError.message }
+      }
+      updated += 1
+    }
+
+    return { ok: true, updated, pricesById }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 export async function saveBomForParent(
   parentProductId: string,
   lines: BomLinePayload[],
@@ -308,6 +578,13 @@ export async function saveBomForParent(
       return { ok: false, reason: 'query', detail: upsertError.message }
     }
 
+    if (parentCategory === 4) {
+      const syncResult = await syncFinishedParentUnitPriceFromBom(parentId)
+      if (!syncResult.ok) {
+        return { ok: false, reason: 'query', detail: syncResult.detail }
+      }
+    }
+
     return { ok: true, parentProductId: parentId, lineCount: normalized.length }
   } catch (error) {
     return {
@@ -330,10 +607,26 @@ export async function deleteBomForParent(parentProductId: string): Promise<Delet
 
   try {
     const supabase = createSupabaseClient()
+    const categoriesResult = await loadItemCategories(supabase, [parentId])
+    if (!categoriesResult.ok) {
+      return { ok: false, reason: 'query', detail: categoriesResult.detail }
+    }
+
     const { error } = await supabase.from('bom_items').delete().eq('parent_product_id', parentId)
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    if (categoriesResult.byId[parentId] === 4) {
+      const { error: priceError } = await supabase
+        .from('items')
+        .update({ unit_price: 0 })
+        .eq('id', parentId)
+
+      if (priceError) {
+        return { ok: false, reason: 'query', detail: priceError.message }
+      }
     }
 
     return { ok: true }

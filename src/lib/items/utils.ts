@@ -174,7 +174,7 @@ export function normalizeItemSearchText(value: string) {
 }
 
 export function formatItemUnitPrice(value: number) {
-  return new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 2 }).format(value)
+  return new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 }).format(Math.round(value))
 }
 
 export function itemSearchHaystack(item: Item) {

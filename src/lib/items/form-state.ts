@@ -9,7 +9,6 @@ import type {
 } from './types'
 import {
   deriveItemProcessType,
-  isFinishedItemCategory,
   isMaterialItemCategory,
   isRawMaterialItemCategory,
   isSemiFinishedItemCategory,
@@ -75,7 +74,7 @@ export function itemToForm(item: Item): ItemFormState {
 function parseUnitPrice(value: string) {
   const parsed = Number(String(value).replace(/,/g, '').trim())
   if (!Number.isFinite(parsed) || parsed < 0) return 0
-  return parsed
+  return Math.round(parsed)
 }
 
 export function validateItemForm(form: ItemFormState, options?: { isCreate?: boolean }): string | null {
@@ -107,16 +106,13 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
   const isMaterial = isMaterialItemCategory(itemCategory)
   const isRawMaterial = isRawMaterialItemCategory(itemCategory)
   const isSemiFinished = isSemiFinishedItemCategory(itemCategory)
-  const isFinished = isFinishedItemCategory(itemCategory)
 
   const smdUnitPrice = isSemiFinished ? parseUnitPrice(form.smdUnitPrice) : 0
   const dipUnitPrice = isSemiFinished ? parseUnitPrice(form.dipUnitPrice) : 0
   const materialUnitPrice = isSemiFinished ? parseUnitPrice(form.materialUnitPrice) : 0
-  const unitPrice = isFinished
-    ? 0
-    : isSemiFinished
-      ? smdUnitPrice + dipUnitPrice + materialUnitPrice
-      : parseUnitPrice(form.unitPrice)
+  const unitPrice = isSemiFinished
+    ? smdUnitPrice + dipUnitPrice + materialUnitPrice
+    : parseUnitPrice(form.unitPrice)
 
   return {
     id: form.id.trim(),

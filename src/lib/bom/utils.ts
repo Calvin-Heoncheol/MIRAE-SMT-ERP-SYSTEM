@@ -116,3 +116,15 @@ export function childItemsForParent(items: Item[], parentCategory: ItemCategory)
 export function formatItemOptionLabel(item: Pick<Item, 'id' | 'name' | 'itemCategory'>) {
   return `${item.id} · ${item.name || '—'} (${ITEM_CATEGORY_LABELS[item.itemCategory]})`
 }
+
+/** 구성 품목 단가 × 소요량 합산 (원 단위 반올림) */
+export function sumBomComponentUnitPrices(
+  lines: Array<{ quantityPer: number; childUnitPrice: number }>,
+) {
+  const sum = lines.reduce((total, line) => {
+    const quantityPer = Math.max(0, Number(line.quantityPer) || 0)
+    const childUnitPrice = Math.max(0, Number(line.childUnitPrice) || 0)
+    return total + quantityPer * childUnitPrice
+  }, 0)
+  return Math.round(sum)
+}

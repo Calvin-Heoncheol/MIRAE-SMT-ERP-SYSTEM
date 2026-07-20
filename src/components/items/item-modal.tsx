@@ -5,6 +5,7 @@ import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { createItem, deleteItem, updateItem } from '@/lib/items/repository'
+import { calcParentUnitPriceFromBom } from '@/lib/bom/repository'
 import {
   emptyItemForm,
   formToItemPayload,
@@ -114,6 +115,7 @@ function ItemModalContent({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [purchasePartners, setPurchasePartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(true)
+  const [bomPriceLoading, setBomPriceLoading] = useState(false)
 
   const isRequiredManualCode =
     form.itemCategory !== '' && isManualItemCodeCategory(form.itemCategory)
@@ -134,6 +136,46 @@ function ItemModalContent({
     setSaveError(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 모달 오픈 시 초기값만 세팅
   }, [item, mode, initialCategory])
+
+  useEffect(() => {
+    const finishedId =
+      form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)
+        ? (item?.id || form.id).trim()
+        : ''
+
+    if (!finishedId) {
+      if (form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)) {
+        setForm((current) => (current.unitPrice === '' ? current : { ...current, unitPrice: '' }))
+      }
+      setBomPriceLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setBomPriceLoading(true)
+    calcParentUnitPriceFromBom(finishedId).then((result) => {
+      if (cancelled) return
+      setBomPriceLoading(false)
+      if (!result.ok) return
+      const nextValue = result.unitPrice > 0 ? String(result.unitPrice) : ''
+      setForm((current) => {
+        if (
+          current.itemCategory === '' ||
+          !isFinishedItemCategory(current.itemCategory) ||
+          current.unitPrice === nextValue
+        ) {
+          return current
+        }
+        return { ...current, unitPrice: nextValue }
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+    // item/mode 변경으로 폼이 리셋된 뒤 BOM 단가를 다시 읽음
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- finishedId 기준
+  }, [item?.id, mode, form.itemCategory, form.id])
 
   useEffect(() => {
     let cancelled = false
@@ -225,6 +267,8 @@ function ItemModalContent({
     form.itemCategory !== '' &&
     !isFinishedItemCategory(form.itemCategory) &&
     !isSemiFinishedItemCategory(form.itemCategory)
+  const showFinishedUnitPriceField =
+    form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)
   const showSemiUnitPriceFields =
     form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
 
@@ -238,9 +282,24 @@ function ItemModalContent({
     setSaving(true)
     setSaveError(null)
 
+    let saveForm = form
+    if (form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)) {
+      const finishedId = (isCreate ? form.id : item?.id || form.id).trim()
+      if (finishedId) {
+        const calc = await calcParentUnitPriceFromBom(finishedId)
+        if (calc.ok) {
+          saveForm = {
+            ...form,
+            unitPrice: calc.unitPrice > 0 ? String(calc.unitPrice) : '',
+          }
+          setForm(saveForm)
+        }
+      }
+    }
+
     const result = isCreate
-      ? await createItem(formToItemPayload(form))
-      : await updateItem(item!.id, formToItemUpdatePayload(form))
+      ? await createItem(formToItemPayload(saveForm))
+      : await updateItem(item!.id, formToItemUpdatePayload(saveForm))
 
     setSaving(false)
 
@@ -483,6 +542,23 @@ function ItemModalContent({
               placeholder="0"
               className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
             />
+          </label>
+        ) : null}
+        {showFinishedUnitPriceField ? (
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>단가</span>
+            <input
+              type="number"
+              min={0}
+              step="any"
+              value={form.unitPrice}
+              readOnly
+              placeholder={bomPriceLoading ? '계산 중…' : '0'}
+              className={`${ERP_FIELD_INPUT_CLASS} tabular-nums bg-slate-50 text-slate-600`}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              BOM 구성 품목 단가 × 소요량의 합산입니다. BOM등록에서 구성이 바뀌면 자동 반영됩니다.
+            </p>
           </label>
         ) : null}
         {showSemiUnitPriceFields ? (

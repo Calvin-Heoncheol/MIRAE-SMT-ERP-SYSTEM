@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { BomChildItemCombobox } from '@/components/bom/bom-child-item-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import {
@@ -93,14 +94,6 @@ function BomModalContent({
       items.map((item) => item.id),
     )
   }, [group, items])
-
-  const childNameById = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const item of childOptions) {
-      map.set(item.id, item.name)
-    }
-    return map
-  }, [childOptions])
 
   useEffect(() => {
     setForm(group ? bomGroupToForm(group) : emptyBomForm(initialParentProductId))
@@ -422,8 +415,9 @@ function BomModalContent({
               <table className="w-full border-collapse text-sm">
                 <thead className="sticky top-0 bg-slate-50 text-xs text-slate-500">
                   <tr>
-                    <th className="px-3 py-2 text-left font-semibold">품목코드</th>
-                    <th className="px-3 py-2 text-left font-semibold">품목명</th>
+                    <th className="px-3 py-2 text-left font-semibold" colSpan={2}>
+                      구성 품목
+                    </th>
                     <th className="w-28 px-3 py-2 text-right font-semibold">수량</th>
                     <th className="w-16 px-3 py-2 text-center font-semibold" />
                   </tr>
@@ -431,20 +425,17 @@ function BomModalContent({
                 <tbody>
                   {form.lines.map((line) => (
                     <tr key={line.key} className="border-t border-slate-100">
-                      <td className="px-3 py-1.5">
-                        <input
+                      <td className="px-3 py-1.5" colSpan={2}>
+                        <BomChildItemCombobox
                           value={line.childProductId}
+                          items={childOptions}
                           disabled={!selectedParent || busy}
-                          onChange={(event) =>
-                            updateLine(line.key, { childProductId: event.target.value.trim() })
+                          ariaLabel="구성 품목"
+                          inputClassName={`${ERP_FIELD_INPUT_CLASS} text-xs`}
+                          onItemSelect={(item) =>
+                            updateLine(line.key, { childProductId: item?.id || '' })
                           }
-                          list={`bom-child-options-${form.parentProductId}`}
-                          placeholder="품목코드"
-                          className={`${ERP_FIELD_INPUT_CLASS} font-mono text-xs`}
                         />
-                      </td>
-                      <td className="truncate px-3 py-1.5 text-slate-600">
-                        {childNameById.get(line.childProductId) || '—'}
                       </td>
                       <td className="px-3 py-1.5">
                         <input
@@ -471,15 +462,6 @@ function BomModalContent({
                   ))}
                 </tbody>
               </table>
-              {selectedParent ? (
-                <datalist id={`bom-child-options-${form.parentProductId}`}>
-                  {childOptions.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </datalist>
-              ) : null}
             </div>
           ) : (
             <div className="space-y-2">
@@ -492,19 +474,16 @@ function BomModalContent({
                     <span className="mb-1 block text-xs font-medium text-slate-500">
                       구성 {index + 1}
                     </span>
-                    <select
+                    <BomChildItemCombobox
                       value={line.childProductId}
+                      items={childOptions}
                       disabled={!selectedParent || busy}
-                      onChange={(event) => updateLine(line.key, { childProductId: event.target.value })}
-                      className={ERP_FIELD_INPUT_CLASS}
-                    >
-                      <option value="">품목 선택</option>
-                      {childOptions.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {formatItemOptionLabel(item)}
-                        </option>
-                      ))}
-                    </select>
+                      ariaLabel={`구성 ${index + 1}`}
+                      inputClassName={ERP_FIELD_INPUT_CLASS}
+                      onItemSelect={(item) =>
+                        updateLine(line.key, { childProductId: item?.id || '' })
+                      }
+                    />
                   </label>
                   <label className="block text-sm">
                     <span className="mb-1 block text-xs font-medium text-slate-500">수량</span>
