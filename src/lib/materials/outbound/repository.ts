@@ -295,6 +295,75 @@ async function fetchIssuedOrderMaterialRows() {
   return flat
 }
 
+export type OutboundPendingSummary = {
+  /** 미불출 카드 수 (주문×제품×구분 단위) */
+  smd: number
+  dip: number
+  etc: number
+}
+
+/** 대시보드용 미불출(불출 대기) 카드 수 요약. 재고와 무관하게 BOM 잔량 기준 */
+export async function fetchOutboundPendingSummary(): Promise<
+  { ok: true; pending: OutboundPendingSummary } | { ok: false; reason: 'env' | 'query'; detail: string }
+> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingFetchEnvResult()
+  }
+
+  try {
+    const [materialsResult, ordersResult] = await Promise.all([
+      fetchMaterials(),
+      fetchOrders({ includeDerivedLines: true }),
+    ])
+    if (!materialsResult.ok) return materialsResult
+    if (!ordersResult.ok) return ordersResult
+
+    const [bomEdges, issuedRows] = await Promise.all([fetchBomEdges(), fetchIssuedOrderMaterialRows()])
+
+    const edgesByParent = new Map<string, BomEdge[]>()
+    for (const edge of bomEdges) {
+      if (!edge.parentProductId || !edge.childProductId) continue
+      const list = edgesByParent.get(edge.parentProductId) || []
+      list.push(edge)
+      edgesByParent.set(edge.parentProductId, list)
+    }
+
+    const itemNameById = new Map(
+      materialsResult.materials.map((material) => [material.id, material.materialName]),
+    )
+    const bucketByMaterialId = new Map(
+      materialsResult.materials.map((material) => [material.id, resolveMaterialBucket(material.type)]),
+    )
+
+    const needs = buildOutboundNeedRows({
+      orders: ordersResult.orders,
+      edgesByParent,
+      itemNameById,
+      issuedByOrderMaterial: aggregateIssuedByOrderMaterial(issuedRows),
+      bucketByMaterialId,
+    })
+
+    const cardKeys = { smd: new Set<string>(), dip: new Set<string>(), etc: new Set<string>() }
+    for (const row of needs) {
+      const key = `${row.orderId}::${row.productId}`
+      if (row.materialBucket === 'SMD') cardKeys.smd.add(key)
+      else if (row.materialBucket === 'DIP') cardKeys.dip.add(key)
+      else cardKeys.etc.add(key)
+    }
+
+    return {
+      ok: true,
+      pending: { smd: cardKeys.smd.size, dip: cardKeys.dip.size, etc: cardKeys.etc.size },
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutboundPageResult> {
   const [outboundsResult, materialsResult, ordersResult] = await Promise.all([
     fetchMaterialOutbounds(),

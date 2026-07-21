@@ -23,6 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '신규업체', href: '/new-companies' },
       { label: '견적서', href: '/quotations' },
       { label: '주문서', href: '/orders' },
+      { label: '주문별 현황', href: '/production/status' },
       { label: '출하', href: '/delivery' },
     ],
   },
@@ -56,9 +57,8 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: '생산',
-    href: '/production/status',
+    href: '/smt',
     children: [
-      { label: '주문별 현황', href: '/production/status' },
       { label: '생산1: SMT', href: '/smt' },
       { label: '생산2: 후공정', href: '/post-process?team=생산2팀' },
       { label: '생산3: 후공정', href: '/post-process?team=생산3팀' },

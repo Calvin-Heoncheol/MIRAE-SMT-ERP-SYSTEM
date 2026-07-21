@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { HomeKpiCard } from '@/components/dashboard/home/home-kpi-card'
 import { PageShell } from '@/components/ui/page-shell'
-import { APP_SHORT_NAME } from '@/lib/app-config'
 import type { HomeDashboardData, HomeSmtLine } from '@/lib/dashboard/home-data'
 
 const TEAM_TINTS = [
@@ -10,16 +9,6 @@ const TEAM_TINTS = [
   'from-amber-50 to-white',
   'from-violet-50 to-white',
 ]
-
-function todayLabel() {
-  return new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-  }).format(new Date())
-}
 
 function formatCount(value: number | null) {
   return value == null ? '–' : value.toLocaleString('ko-KR')
@@ -92,40 +81,6 @@ export function HomeDashboard({ data }: { data: HomeDashboardData }) {
 
   return (
     <PageShell className="gap-5">
-      <header className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 px-5 py-5 text-white shadow-sm sm:px-6 sm:py-6">
-        <div
-          className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-sky-400/20 blur-2xl"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute -bottom-16 left-1/3 h-44 w-44 rounded-full bg-blue-500/10 blur-3xl"
-          aria-hidden
-        />
-        <div className="relative flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.18em] text-slate-300 uppercase">
-              {APP_SHORT_NAME}
-            </p>
-            <h1 className="mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl">오늘의 생산 현황</h1>
-            <p className="mt-2 text-sm text-slate-300">{todayLabel()}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/production/status"
-              className="rounded-xl bg-white/10 px-3.5 py-2 text-sm font-semibold text-white ring-1 ring-white/20 backdrop-blur transition hover:bg-white/15"
-            >
-              주문별 현황
-            </Link>
-            <Link
-              href="/smt/plan"
-              className="rounded-xl bg-sky-500 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-400"
-            >
-              SMT 계획
-            </Link>
-          </div>
-        </div>
-      </header>
-
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         {kpis.map((kpi) => (
           <Link key={kpi.label} href={kpi.href} className="block">

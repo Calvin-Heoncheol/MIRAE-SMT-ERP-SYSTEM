@@ -1,12 +1,17 @@
 import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
-import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
+import {
+  fetchDeliveryCumulativeCounts,
+  fetchDeliveryTodayRecords,
+} from '@/lib/delivery/repository'
+import { fetchOutboundPendingSummary } from '@/lib/materials/outbound/repository'
 import { fetchMaterialPurchaseOrders } from '@/lib/materials/purchase-orders/repository'
 import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
 import { fetchOrders } from '@/lib/orders/repository'
 import { formatInternalCodeLabel, todayYmdSeoul } from '@/lib/orders/utils'
 import { POST_PROCESS_TEAMS } from '@/lib/post-process/teams'
 import { fetchPostProcessTodayProduction } from '@/lib/post-process/repository'
+import { fetchPostProcessProductionPlansForDate } from '@/lib/post-process/plan/repository'
 import { fetchProducts } from '@/lib/products/repository'
 import { fetchSmtTodayProduction } from '@/lib/smt/repository'
 import { fetchSmtProductionPlansForDate } from '@/lib/smt/plan/repository'
@@ -41,13 +46,23 @@ export type HomeAlert = {
   tone: 'warn' | 'danger'
 }
 
+export type HomeDeptMetric = {
+  key: string
+  label: string
+  value: number | null
+  unit: '건' | 'EA'
+  href: string
+  tone: 'default' | 'warn' | 'danger'
+}
+
+export type HomeDeptSection = {
+  dept: string
+  href: string
+  metrics: HomeDeptMetric[]
+}
+
 export type HomeDashboardData = {
-  kpis: {
-    dueSoonOrders: number | null
-    unshippedOrders: number | null
-    pendingPurchaseOrders: number | null
-    negativeStockMaterials: number | null
-  }
+  departments: HomeDeptSection[]
   smtLines: HomeSmtLine[]
   productionTeams: HomeProductionTeam[]
   alerts: HomeAlert[]
@@ -74,19 +89,25 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     productsResult,
     deliveryCountsResult,
     smtPlansResult,
+    postPlansResult,
     smtTodayResult,
     postTodayResult,
     purchaseOrdersResult,
     onHandResult,
+    outboundPendingResult,
+    deliveryTodayResult,
   ] = await Promise.all([
     fetchOrders(),
     fetchProducts(),
     fetchDeliveryCumulativeCounts(),
     fetchSmtProductionPlansForDate(today),
+    fetchPostProcessProductionPlansForDate(today),
     fetchSmtTodayProduction(),
     fetchPostProcessTodayProduction(),
     fetchMaterialPurchaseOrders(),
     fetchOnHandByMaterialId(),
+    fetchOutboundPendingSummary(),
+    fetchDeliveryTodayRecords(),
   ])
 
   const productById = productsResult.ok
@@ -97,7 +118,12 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
   // ── 출하 미완료 · 납기 임박 ─────────────────────────────────
   let unshippedOrders: number | null = null
   let dueSoonOrders: number | null = null
+  let todayDeliveryDue: number | null = null
   const alerts: HomeAlert[] = []
+
+  const todayNewOrders = ordersResult.ok
+    ? ordersResult.orders.filter((order) => order.orderDate === today).length
+    : null
 
   if (ordersResult.ok && assemblyResult.ok && deliveryCountsResult.ok) {
     const assembliesByOrderId = groupAssembliesByOrderId(assemblyResult.groups)
@@ -129,6 +155,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
       .sort((a, b) => a.daysUntil - b.daysUntil)
 
     dueSoonOrders = dueSoon.length
+    todayDeliveryDue = pendingOrders.filter((order) => order.deliveryDate === today).length
 
     for (const { order, daysUntil } of dueSoon.slice(0, MAX_DELIVERY_ALERTS)) {
       alerts.push({
