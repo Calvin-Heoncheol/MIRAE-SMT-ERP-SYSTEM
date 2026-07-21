@@ -368,9 +368,10 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
       plans: buildSmtPlanBlocks(weekPlans, ordersResult.orders, smtLines),
       productionOrders,
       counts: smtCountsResult.counts,
+      // 출하 완료된 주문은 계획 후보에서 제외
       planCandidates: buildSmtPlanOrderCandidates(
         ordersResult.orders,
-        smtLines,
+        productionOrders,
         smtCountsResult.counts,
         allPlansResult.plans,
         { onlyUnplanned: false },

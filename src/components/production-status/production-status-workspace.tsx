@@ -19,23 +19,44 @@ type QuickInputState = {
   line: ProductionStatusLine
 } | null
 
+type StatusFilter = 'active' | 'done' | 'all'
+
+function isLineDeliveryComplete(line: ProductionStatusLine) {
+  return line.deliveryTarget > 0 && line.deliveryProduced >= line.deliveryTarget
+}
+
 export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [quickInput, setQuickInput] = useState<QuickInputState>(null)
   const [, startTransition] = useTransition()
 
   const data = result.ok ? result.data : null
   const lines = data?.lines ?? []
   const query = search.trim()
+
+  const statusFilteredLines = useMemo(() => {
+    if (statusFilter === 'all') return lines
+    if (statusFilter === 'done') return lines.filter(isLineDeliveryComplete)
+    return lines.filter((line) => !isLineDeliveryComplete(line))
+  }, [lines, statusFilter])
+
   const filteredLines = useMemo(() => {
     const q = query.toLowerCase()
-    if (!q) return lines
-    return lines.filter((line) =>
+    if (!q) return statusFilteredLines
+    return statusFilteredLines.filter((line) =>
       [line.orderNumber, line.customer, line.productName].join(' ').toLowerCase().includes(q),
     )
-  }, [lines, query])
+  }, [statusFilteredLines, query])
   const pagination = useClientPagination(filteredLines)
+
+  const doneCount = useMemo(() => lines.filter(isLineDeliveryComplete).length, [lines])
+  const statusChips: { key: StatusFilter; label: string; count: number }[] = [
+    { key: 'active', label: '진행중', count: lines.length - doneCount },
+    { key: 'done', label: '완료', count: doneCount },
+    { key: 'all', label: '전체', count: lines.length },
+  ]
 
   function handleStageClick(line: ProductionStatusLine, stage: ProductionStatusStage) {
     setQuickInput({ stage, line })
@@ -68,6 +89,28 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
         onSearchChange={setSearch}
         searchPlaceholder="주문서번호, 고객사, 제품명 검색…"
         accent="slate"
+        filters={
+          <div className="flex flex-wrap gap-2">
+            {statusChips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={() => setStatusFilter(chip.key)}
+                className={[
+                  'rounded-full px-4 py-1.5 text-sm font-semibold transition-colors',
+                  statusFilter === chip.key
+                    ? 'bg-slate-800 text-white shadow-sm'
+                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+                ].join(' ')}
+              >
+                {chip.label}{' '}
+                <span className={statusFilter === chip.key ? 'text-slate-300' : 'text-slate-400'}>
+                  {chip.count.toLocaleString('ko-KR')}
+                </span>
+              </button>
+            ))}
+          </div>
+        }
       />
 
       <ProductionStatusTable lines={pagination.pageItems} onStageClick={handleStageClick} />

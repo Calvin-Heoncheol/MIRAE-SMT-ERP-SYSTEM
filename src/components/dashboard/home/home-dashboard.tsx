@@ -1,7 +1,11 @@
 import Link from 'next/link'
-import { HomeKpiCard } from '@/components/dashboard/home/home-kpi-card'
 import { PageShell } from '@/components/ui/page-shell'
-import type { HomeDashboardData, HomeSmtLine } from '@/lib/dashboard/home-data'
+import type {
+  HomeDashboardData,
+  HomeDeptMetric,
+  HomeDeptSection,
+  HomeSmtLine,
+} from '@/lib/dashboard/home-data'
 
 const TEAM_TINTS = [
   'from-sky-50 to-white',
@@ -50,42 +54,65 @@ function SectionHeader({
   )
 }
 
-export function HomeDashboard({ data }: { data: HomeDashboardData }) {
-  const kpis = [
-    {
-      value: formatCount(data.kpis.dueSoonOrders),
-      label: '납기 임박',
-      hint: '3일 이내',
-      tone: 'warn' as const,
-      href: '/production/status',
-    },
-    {
-      value: formatCount(data.kpis.unshippedOrders),
-      label: '출하 미완료',
-      tone: 'warn' as const,
-      href: '/delivery',
-    },
-    {
-      value: formatCount(data.kpis.pendingPurchaseOrders),
-      label: '미입고 발주',
-      tone: 'warn' as const,
-      href: '/materials/purchase-orders',
-    },
-    {
-      value: formatCount(data.kpis.negativeStockMaterials),
-      label: '재고 마이너스',
-      tone: 'danger' as const,
-      href: '/materials/inventory',
-    },
-  ]
+const DEPT_BADGE: Record<string, string> = {
+  영업: 'bg-sky-50 text-sky-700',
+  자재: 'bg-amber-50 text-amber-700',
+  생산: 'bg-emerald-50 text-emerald-700',
+  출하: 'bg-violet-50 text-violet-700',
+}
 
+const METRIC_VALUE_CLASS: Record<HomeDeptMetric['tone'], string> = {
+  default: 'text-slate-900',
+  warn: 'text-amber-600',
+  danger: 'text-rose-600',
+}
+
+function DeptCard({ section }: { section: HomeDeptSection }) {
+  return (
+    <div className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span
+          className={`rounded-lg px-2.5 py-1 text-sm font-bold ${DEPT_BADGE[section.dept] ?? 'bg-slate-100 text-slate-700'}`}
+        >
+          {section.dept}
+        </span>
+        <Link
+          href={section.href}
+          className="rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+        >
+          →
+        </Link>
+      </div>
+      <ul className="flex flex-1 flex-col justify-end gap-1">
+        {section.metrics.map((metric) => (
+          <li key={metric.key}>
+            <Link
+              href={metric.href}
+              className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 transition hover:bg-slate-50"
+            >
+              <span className="text-xs font-medium text-slate-500">{metric.label}</span>
+              <span
+                className={`text-sm font-bold tabular-nums ${METRIC_VALUE_CLASS[metric.tone]}`}
+              >
+                {formatCount(metric.value)}
+                <span className="ml-0.5 text-[11px] font-semibold text-slate-400">
+                  {metric.unit}
+                </span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+export function HomeDashboard({ data }: { data: HomeDashboardData }) {
   return (
     <PageShell className="gap-5">
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        {kpis.map((kpi) => (
-          <Link key={kpi.label} href={kpi.href} className="block">
-            <HomeKpiCard value={kpi.value} label={kpi.label} hint={kpi.hint} tone={kpi.tone} />
-          </Link>
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
+        {data.departments.map((section) => (
+          <DeptCard key={section.dept} section={section} />
         ))}
       </section>
 

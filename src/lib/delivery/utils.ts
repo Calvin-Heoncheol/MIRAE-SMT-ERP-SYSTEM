@@ -282,6 +282,34 @@ export function isAssemblyGroupDeliveryComplete(
   return shipped >= target
 }
 
+/**
+ * 모든 조립 그룹이 목표 수량까지 출하된(= 출하 완료) 주문 ID 집합을 만듭니다.
+ * 조립 그룹이 하나도 없는 주문은 완료로 취급하지 않습니다.
+ */
+export function buildFullyShippedOrderIdSet(
+  groups: OrderAssemblyGroup[],
+  deliveryCounts: Record<string, number>,
+): Set<string> {
+  const groupsByOrderId = new Map<string, OrderAssemblyGroup[]>()
+  for (const group of groups) {
+    if (Math.floor(group.targetQuantity) <= 0) continue
+    const list = groupsByOrderId.get(group.orderId) ?? []
+    list.push(group)
+    groupsByOrderId.set(group.orderId, list)
+  }
+
+  const fullyShipped = new Set<string>()
+  for (const [orderId, orderGroups] of groupsByOrderId) {
+    const complete = orderGroups.every(
+      (group) =>
+        Math.max(0, Math.floor(Number(deliveryCounts[group.id]) || 0)) >=
+        Math.floor(group.targetQuantity),
+    )
+    if (complete) fullyShipped.add(orderId)
+  }
+  return fullyShipped
+}
+
 /** 출하가 목표 수량까지 완료된 조립 그룹에 연결된 생산입력 주문 카드를 제외합니다. */
 export function excludeDeliveryCompleteProductionOrders(
   orders: ProductionOrderLine[],

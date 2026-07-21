@@ -267,50 +267,6 @@ export function PostProcessPlanWorkspace({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <div>
-          <p className="text-sm font-bold text-slate-900">{formatWeekRangeLabel(weekStart)}</p>
-          <p className="text-xs text-slate-500">주간 후공정 생산계획</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="mr-1 flex flex-wrap gap-1 text-[10px] font-semibold text-slate-500">
-            <span className="rounded bg-sky-50 px-1.5 py-0.5 text-sky-700 ring-1 ring-sky-100">
-              예정
-            </span>
-            <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-800 ring-1 ring-amber-100">
-              진행
-            </span>
-            <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-800 ring-1 ring-emerald-100">
-              완료
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => changeWeek(addDaysYmd(weekStart, -7))}
-            disabled={loading}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            이전 주
-          </button>
-          <button
-            type="button"
-            onClick={() => changeWeek(getWeekStartMondayYmd())}
-            disabled={loading}
-            className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
-          >
-            이번 주
-          </button>
-          <button
-            type="button"
-            onClick={() => changeWeek(addDaysYmd(weekStart, 7))}
-            disabled={loading}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            다음 주
-          </button>
-        </div>
-      </div>
-
       {error ? (
         <PostProcessPlanFetchError result={{ ok: false, reason: 'query', detail: error }} />
       ) : null}
@@ -332,8 +288,50 @@ export function PostProcessPlanWorkspace({
           onDragCandidate={() => setStatusMessage('')}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
-          <div className="mb-3 flex shrink-0 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5">
-            <span className="text-sm font-bold text-emerald-800">{selectedTeam}</span>
+          <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5">
+            <div className="flex flex-wrap items-baseline gap-3">
+              <span className="text-sm font-bold text-emerald-800">{selectedTeam}</span>
+              <span className="text-sm font-semibold text-slate-700">
+                {formatWeekRangeLabel(weekStart)}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="mr-1 flex flex-wrap gap-1 text-[10px] font-semibold text-slate-500">
+                <span className="rounded bg-sky-50 px-1.5 py-0.5 text-sky-700 ring-1 ring-sky-100">
+                  예정
+                </span>
+                <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-800 ring-1 ring-amber-100">
+                  진행
+                </span>
+                <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800 ring-1 ring-emerald-200">
+                  완료
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => changeWeek(addDaysYmd(weekStart, -7))}
+                disabled={loading}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                이전 주
+              </button>
+              <button
+                type="button"
+                onClick={() => changeWeek(getWeekStartMondayYmd())}
+                disabled={loading}
+                className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+              >
+                이번 주
+              </button>
+              <button
+                type="button"
+                onClick={() => changeWeek(addDaysYmd(weekStart, 7))}
+                disabled={loading}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                다음 주
+              </button>
+            </div>
           </div>
           {loading ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-500">

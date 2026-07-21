@@ -50,7 +50,7 @@ export type HomeDeptMetric = {
   key: string
   label: string
   value: number | null
-  unit: '건' | 'EA'
+  unit: '건' | 'EA' | '%'
   href: string
   tone: 'default' | 'warn' | 'danger'
 }
@@ -255,13 +255,141 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     }),
   ]
 
-  return {
-    kpis: {
-      dueSoonOrders,
-      unshippedOrders,
-      pendingPurchaseOrders,
-      negativeStockMaterials,
+  // ── 부서별 오늘 요약 ────────────────────────────────────────
+  const todayPlannedQuantity =
+    smtLines.reduce((sum, line) => sum + line.plannedQuantity, 0) +
+    (postPlansResult.ok
+      ? postPlansResult.plans.reduce(
+          (sum, plan) => sum + Math.max(0, Math.floor(plan.plannedQuantity)),
+          0,
+        )
+      : 0)
+  const todayProducedQuantity = productionTeams.reduce((sum, team) => sum + team.todayQuantity, 0)
+  const todayAchievementRate =
+    todayPlannedQuantity > 0
+      ? Math.round((todayProducedQuantity / todayPlannedQuantity) * 100)
+      : null
+
+  const outboundPending = outboundPendingResult.ok
+    ? outboundPendingResult.pending.smd +
+      outboundPendingResult.pending.dip +
+      outboundPendingResult.pending.etc
+    : null
+
+  const todayShipped = deliveryTodayResult.ok ? deliveryTodayResult.rows.length : null
+
+  const warnIfPositive = (value: number | null): 'default' | 'warn' =>
+    value != null && value > 0 ? 'warn' : 'default'
+
+  const departments: HomeDeptSection[] = [
+    {
+      dept: '영업',
+      href: '/orders',
+      metrics: [
+        {
+          key: 'sales:new-orders',
+          label: '오늘 신규 주문',
+          value: todayNewOrders,
+          unit: '건',
+          href: '/orders',
+          tone: 'default',
+        },
+        {
+          key: 'sales:due-soon',
+          label: '납기 임박 (3일)',
+          value: dueSoonOrders,
+          unit: '건',
+          href: '/production/status',
+          tone: warnIfPositive(dueSoonOrders),
+        },
+      ],
     },
+    {
+      dept: '자재',
+      href: '/materials/inventory',
+      metrics: [
+        {
+          key: 'materials:outbound-pending',
+          label: '불출 대기',
+          value: outboundPending,
+          unit: '건',
+          href: '/materials/outbound',
+          tone: warnIfPositive(outboundPending),
+        },
+        {
+          key: 'materials:pending-po',
+          label: '미입고 발주',
+          value: pendingPurchaseOrders,
+          unit: '건',
+          href: '/materials/purchase-orders',
+          tone: warnIfPositive(pendingPurchaseOrders),
+        },
+        {
+          key: 'materials:negative-stock',
+          label: '재고 마이너스',
+          value: negativeStockMaterials,
+          unit: '건',
+          href: '/materials/inventory',
+          tone: negativeStockMaterials != null && negativeStockMaterials > 0 ? 'danger' : 'default',
+        },
+      ],
+    },
+    {
+      dept: '생산',
+      href: '/smt',
+      metrics: [
+        {
+          key: 'production:planned',
+          label: '오늘 계획',
+          value: todayPlannedQuantity,
+          unit: 'EA',
+          href: '/smt/plan',
+          tone: 'default',
+        },
+        {
+          key: 'production:achievement',
+          label: '계획 달성률',
+          value: todayAchievementRate,
+          unit: '%',
+          href: '/production/status',
+          tone: 'default',
+        },
+      ],
+    },
+    {
+      dept: '출하',
+      href: '/delivery',
+      metrics: [
+        {
+          key: 'delivery:today-due',
+          label: '오늘 출하 예정',
+          value: todayDeliveryDue,
+          unit: '건',
+          href: '/delivery',
+          tone: warnIfPositive(todayDeliveryDue),
+        },
+        {
+          key: 'delivery:today-shipped',
+          label: '오늘 출하 완료',
+          value: todayShipped,
+          unit: '건',
+          href: '/delivery',
+          tone: 'default',
+        },
+        {
+          key: 'delivery:unshipped',
+          label: '출하 미완료',
+          value: unshippedOrders,
+          unit: '건',
+          href: '/delivery',
+          tone: 'default',
+        },
+      ],
+    },
+  ]
+
+  return {
+    departments,
     smtLines,
     productionTeams,
     alerts,

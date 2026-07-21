@@ -1,4 +1,7 @@
 import { createSupabaseClient } from '@/lib/supabase'
+import { fetchAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
+import { buildFullyShippedOrderIdSet } from '@/lib/delivery/utils'
 import { fetchMaterials } from '@/lib/materials/repository'
 import { fetchOrders } from '@/lib/orders/repository'
 import type { Material } from '@/lib/materials/types'
@@ -307,7 +310,11 @@ export async function fetchOutboundPendingSummary(): Promise<
   { ok: true; pending: OutboundPendingSummary } | { ok: false; reason: 'env' | 'query'; detail: string }
 > {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return missingFetchEnvResult()
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
   }
 
   try {
@@ -318,7 +325,20 @@ export async function fetchOutboundPendingSummary(): Promise<
     if (!materialsResult.ok) return materialsResult
     if (!ordersResult.ok) return ordersResult
 
-    const [bomEdges, issuedRows] = await Promise.all([fetchBomEdges(), fetchIssuedOrderMaterialRows()])
+    const [bomEdges, issuedRows, assemblyResult, deliveryCountsResult] = await Promise.all([
+      fetchBomEdges(),
+      fetchIssuedOrderMaterialRows(),
+      fetchAssemblyGroups(),
+      fetchDeliveryCumulativeCounts(),
+    ])
+
+    const fullyShippedOrderIds =
+      assemblyResult.ok && deliveryCountsResult.ok
+        ? buildFullyShippedOrderIdSet(assemblyResult.groups, deliveryCountsResult.counts)
+        : new Set<string>()
+    const pendingOrders = ordersResult.orders.filter(
+      (order) => !fullyShippedOrderIds.has(order.orderId),
+    )
 
     const edgesByParent = new Map<string, BomEdge[]>()
     for (const edge of bomEdges) {
@@ -336,7 +356,7 @@ export async function fetchOutboundPendingSummary(): Promise<
     )
 
     const needs = buildOutboundNeedRows({
-      orders: ordersResult.orders,
+      orders: pendingOrders,
       edgesByParent,
       itemNameById,
       issuedByOrderMaterial: aggregateIssuedByOrderMaterial(issuedRows),
@@ -376,16 +396,27 @@ export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutb
   if (!ordersResult.ok) return ordersResult
 
   try {
-    const supabase = createSupabaseClient()
-    const [bomEdges, issuedRows, onHandResult] = await Promise.all([
-      fetchBomEdges(),
-      fetchIssuedOrderMaterialRows(),
-      fetchOnHandByMaterialId(),
-    ])
+    const [bomEdges, issuedRows, onHandResult, assemblyResult, deliveryCountsResult] =
+      await Promise.all([
+        fetchBomEdges(),
+        fetchIssuedOrderMaterialRows(),
+        fetchOnHandByMaterialId(),
+        fetchAssemblyGroups(),
+        fetchDeliveryCumulativeCounts(),
+      ])
 
     if (!onHandResult.ok) {
       return { ok: false, reason: 'query', detail: onHandResult.detail }
     }
+
+    // 출하 완료된 주문은 불출 대기(미불출 소요) 계산에서 제외
+    const fullyShippedOrderIds =
+      assemblyResult.ok && deliveryCountsResult.ok
+        ? buildFullyShippedOrderIdSet(assemblyResult.groups, deliveryCountsResult.counts)
+        : new Set<string>()
+    const pendingOrders = ordersResult.orders.filter(
+      (order) => !fullyShippedOrderIds.has(order.orderId),
+    )
 
     const edgesByParent = new Map<string, BomEdge[]>()
     for (const edge of bomEdges) {
@@ -403,7 +434,7 @@ export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutb
     )
     const issuedByOrderMaterial = aggregateIssuedByOrderMaterial(issuedRows)
     const needs = buildOutboundNeedRows({
-      orders: ordersResult.orders,
+      orders: pendingOrders,
       edgesByParent,
       itemNameById,
       issuedByOrderMaterial,

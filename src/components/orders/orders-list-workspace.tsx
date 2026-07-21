@@ -16,23 +16,47 @@ import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type OrdersListWorkspaceProps = {
   result: FetchOrdersResult
+  /** 모든 제품이 출하 완료된 주문 ID 목록 */
+  completedOrderIds: string[]
 }
+
+type OrderStatusFilter = 'active' | 'done' | 'all'
 
 type ModalState =
   | { open: false }
   | { open: true; mode: 'create' }
   | { open: true; mode: 'edit'; order: OrderListGroup }
 
-export function OrdersListWorkspace({ result }: OrdersListWorkspaceProps) {
+export function OrdersListWorkspace({ result, completedOrderIds }: OrdersListWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>('active')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
   const orders = result.ok ? result.orders : []
+  const completedSet = useMemo(() => new Set(completedOrderIds), [completedOrderIds])
+
+  const statusFiltered = useMemo(() => {
+    if (statusFilter === 'all') return orders
+    if (statusFilter === 'done') return orders.filter((order) => completedSet.has(order.orderId))
+    return orders.filter((order) => !completedSet.has(order.orderId))
+  }, [orders, completedSet, statusFilter])
+
   const query = search.trim()
-  const filtered = useMemo(() => filterOrdersForSearch(orders, query), [orders, query])
+  const filtered = useMemo(() => filterOrdersForSearch(statusFiltered, query), [statusFiltered, query])
   const pagination = useClientPagination(filtered)
+
+  const doneCount = useMemo(
+    () => orders.filter((order) => completedSet.has(order.orderId)).length,
+    [orders, completedSet],
+  )
+
+  const statusChips: { key: OrderStatusFilter; label: string; count: number }[] = [
+    { key: 'active', label: '진행중', count: orders.length - doneCount },
+    { key: 'done', label: '완료', count: doneCount },
+    { key: 'all', label: '전체', count: orders.length },
+  ]
 
   function openCreate() {
     setModalSession((value) => value + 1)
@@ -74,6 +98,30 @@ export function OrdersListWorkspace({ result }: OrdersListWorkspaceProps) {
           onSearchChange={setSearch}
           searchPlaceholder="주문번호, 고객사, 제품명, 주문일 검색…"
           accent="slate"
+          filters={
+            <div className="flex flex-wrap gap-2">
+              {statusChips.map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() => setStatusFilter(chip.key)}
+                  className={[
+                    'rounded-full px-4 py-1.5 text-sm font-semibold transition-colors',
+                    statusFilter === chip.key
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+                  ].join(' ')}
+                >
+                  {chip.label}{' '}
+                  <span
+                    className={statusFilter === chip.key ? 'text-slate-300' : 'text-slate-400'}
+                  >
+                    {chip.count.toLocaleString('ko-KR')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          }
           actions={<ErpButton onClick={openCreate}>주문서 등록</ErpButton>}
         />
 
@@ -81,7 +129,10 @@ export function OrdersListWorkspace({ result }: OrdersListWorkspaceProps) {
           orders={pagination.pageItems}
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query),
-            emptyLabel: '등록된 주문서가 없습니다',
+            emptyLabel:
+              statusFilter === 'done'
+                ? '출하 완료된 주문서가 없습니다'
+                : '등록된 주문서가 없습니다',
             actionHint: '오른쪽 상단에서 등록하세요',
           })}
           onSelectOrder={openEdit}

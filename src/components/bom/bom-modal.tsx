@@ -70,6 +70,7 @@ function BomModalContent({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [pasteText, setPasteText] = useState('')
   const [pasteHint, setPasteHint] = useState<string | null>(null)
+  const [pasteUnresolved, setPasteUnresolved] = useState<string[]>([])
 
   const parents = useMemo(() => parentItemsForBom(items), [items])
   const selectedParent = parents.find((item) => item.id === form.parentProductId) || null
@@ -101,6 +102,7 @@ function BomModalContent({
     setSaveError(null)
     setPasteText('')
     setPasteHint(null)
+    setPasteUnresolved([])
   }, [group, mode, initialParentProductId])
 
   function updateLine(key: string, patch: Partial<BomFormState['lines'][number]>) {
@@ -127,6 +129,7 @@ function BomModalContent({
   function applyPaste() {
     if (!selectedParent) {
       setPasteHint('부모 품목을 먼저 선택해 주세요.')
+      setPasteUnresolved([])
       return
     }
 
@@ -134,6 +137,7 @@ function BomModalContent({
     const resolved = resolveBomPasteRows(parsed, childOptions)
     if (!resolved.ok) {
       setPasteHint(resolved.detail)
+      setPasteUnresolved(resolved.unresolved)
       return
     }
 
@@ -146,10 +150,10 @@ function BomModalContent({
     }
 
     setForm((current) => ({ ...current, lines: resolved.lines }))
-    const skipped = resolved.unresolved.length
+    setPasteUnresolved(resolved.unresolved)
     setPasteHint(
-      skipped
-        ? `${resolved.lines.length}건 적용 · 미매칭 ${skipped}건 제외 (${resolved.unresolved.slice(0, 5).join(', ')}${skipped > 5 ? '…' : ''})`
+      resolved.unresolved.length
+        ? `붙여넣은 ${parsed.length}건 중 ${resolved.lines.length}건 적용됨`
         : `${resolved.lines.length}건 적용되었습니다.`,
     )
   }
@@ -372,6 +376,7 @@ function BomModalContent({
               onChange={(event) => {
                 setPasteText(event.target.value)
                 setPasteHint(null)
+                setPasteUnresolved([])
               }}
               disabled={busy}
               rows={4}
@@ -388,6 +393,26 @@ function BomModalContent({
               </ErpButton>
               {pasteHint ? <p className="text-xs text-slate-600">{pasteHint}</p> : null}
             </div>
+            {pasteUnresolved.length ? (
+              <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5">
+                <p className="text-xs font-bold text-amber-900">
+                  자재 등록이 안 되어 제외된 품목 {pasteUnresolved.length}건
+                </p>
+                <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                  {pasteUnresolved.map((code) => (
+                    <li
+                      key={code}
+                      className="rounded bg-white px-2 py-0.5 font-mono text-xs font-semibold text-amber-800 ring-1 ring-amber-200"
+                    >
+                      {code}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-[11px] text-amber-800">
+                  품목(자재) 등록 후 다시 붙여넣으면 반영됩니다.
+                </p>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
