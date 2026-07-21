@@ -4,7 +4,13 @@ import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { fetchProducts } from '@/lib/products/repository'
-import { buildPostProcessAssemblyLines } from '@/lib/production-input/utils'
+import {
+  buildPostProcessAssemblyLines,
+  buildProductionOrderLines,
+  resolveProductionCount,
+} from '@/lib/production-input/utils'
+import { fetchSmtCumulativeCounts } from '@/lib/smt/repository'
+import { fetchAllSmtProductionPlans } from '@/lib/smt/plan/repository'
 import { insertPlanCloseLogs, type PlanCloseLogInsert } from '@/lib/production-plan-close-logs'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import {
@@ -14,6 +20,7 @@ import {
 import { createSupabaseClient } from '@/lib/supabase'
 import { normalizePostProcessTeam } from '@/lib/post-process/teams'
 import type {
+  CandidateSmtStatus,
   PostProcessPlanPageData,
   PostProcessProductionPlan,
   UpsertPostProcessProductionPlanInput,
@@ -306,11 +313,22 @@ export async function fetchPostProcessPlanPageData(
 
   const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
 
-  const [countsResult, allPlansResult, assemblyResult, deliveryCountsResult] = await Promise.all([
+  const [
+    countsResult,
+    allPlansResult,
+    assemblyResult,
+    deliveryCountsResult,
+    smtPlansResult,
+    smtOrdersResult,
+    smtCountsResult,
+  ] = await Promise.all([
     fetchPostProcessCumulativeCounts(),
     fetchAllPostProcessProductionPlans(),
     fetchAssemblyGroups(productById),
     fetchDeliveryCumulativeCounts(),
+    fetchAllSmtProductionPlans(),
+    fetchOrders({ includeDerivedLines: true }),
+    fetchSmtCumulativeCounts(),
   ])
 
   if (!countsResult.ok) return countsResult
@@ -335,6 +353,70 @@ export async function fetchPostProcessPlanPageData(
     (plan) => plan.plannedDate >= weekStart && plan.plannedDate <= weekEnd,
   )
 
+  // 후보 카드용 SMT(생산1팀) 진행 상태 — 조회 실패 시 표시만 생략
+  const smtStatusByGroupId = new Map<string, CandidateSmtStatus>()
+  if (smtPlansResult.ok && smtOrdersResult.ok && smtCountsResult.ok) {
+    const smtLines = buildProductionOrderLines(smtOrdersResult.orders, 'SMT', productById, 'smt')
+    const smtLineByLineId = new Map(smtLines.map((line) => [line.orderLineId, line]))
+
+    // SMT 계획 합계·마지막 계획일 (주문 라인 단위)
+    const plannedByLineId = new Map<string, { total: number; lastDate: string }>()
+    for (const plan of smtPlansResult.plans) {
+      if (!plan.orderLineId) continue
+      const existing = plannedByLineId.get(plan.orderLineId) ?? { total: 0, lastDate: '' }
+      existing.total += Math.max(0, Math.floor(plan.plannedQuantity))
+      if (plan.plannedDate > existing.lastDate) existing.lastDate = plan.plannedDate
+      plannedByLineId.set(plan.orderLineId, existing)
+    }
+
+    for (const group of assemblyResult.groups) {
+      let target = 0
+      let covered = 0
+      let lastPlannedDate = ''
+      let hasSmtLine = false
+
+      for (const groupLine of group.lines) {
+        const smtLine = smtLineByLineId.get(groupLine.orderLineId)
+        if (!smtLine) continue
+        hasSmtLine = true
+
+        const lineTarget = Math.max(0, Math.floor(smtLine.quantity))
+        const produced = Math.max(0, resolveProductionCount(smtLine, smtCountsResult.counts))
+        const planned = plannedByLineId.get(smtLine.orderLineId)
+
+        target += lineTarget
+        covered += Math.min(lineTarget, produced + (planned?.total ?? 0))
+        if (planned?.lastDate && planned.lastDate > lastPlannedDate) {
+          lastPlannedDate = planned.lastDate
+        }
+      }
+
+      if (!hasSmtLine || target <= 0) continue
+
+      const producedOnly = [...group.lines].reduce((sum, groupLine) => {
+        const smtLine = smtLineByLineId.get(groupLine.orderLineId)
+        if (!smtLine) return sum
+        return sum + Math.max(0, resolveProductionCount(smtLine, smtCountsResult.counts))
+      }, 0)
+
+      const status: CandidateSmtStatus['status'] =
+        producedOnly >= target
+          ? 'done'
+          : covered >= target
+            ? 'planned'
+            : covered > 0
+              ? 'partial'
+              : 'none'
+
+      smtStatusByGroupId.set(group.id, {
+        status,
+        coveredQuantity: covered,
+        targetQuantity: target,
+        lastPlannedDate,
+      })
+    }
+  }
+
   return {
     ok: true,
     data: {
@@ -349,7 +431,10 @@ export async function fetchPostProcessPlanPageData(
         countsResult.counts,
         allPlansResult.plans,
         { onlyUnplanned: false },
-      ),
+      ).map((candidate) => ({
+        ...candidate,
+        smt: smtStatusByGroupId.get(candidate.assemblyGroupId) ?? null,
+      })),
       planProgress: progressResult.progress,
     },
   }

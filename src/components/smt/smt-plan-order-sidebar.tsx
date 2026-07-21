@@ -38,16 +38,10 @@ function formatUnplannedLabel(candidate: SmtPlanOrderCandidate) {
   if (candidate.splitPcbSides) {
     const top = candidate.unplannedBySide.TOP ?? 0
     const bot = candidate.unplannedBySide.BOT ?? 0
-    return `미계획  TOP ${top.toLocaleString('ko-KR')} · BOT ${bot.toLocaleString('ko-KR')}`
+    return `수량  TOP ${top.toLocaleString('ko-KR')} · BOT ${bot.toLocaleString('ko-KR')}`
   }
   const qty = candidate.unplannedBySide.SINGLE ?? candidate.unplannedRemaining
-  return `미계획  ${qty.toLocaleString('ko-KR')}`
-}
-
-function formatDeliveryDateLabel(deliveryDate: string) {
-  const match = deliveryDate.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!match) return deliveryDate
-  return `납기 ${Number(match[1])}-${match[2]}-${match[3]}`
+  return `수량  ${qty.toLocaleString('ko-KR')}`
 }
 
 export function filterSmtPlanOrderCandidates(
@@ -161,15 +155,9 @@ export function SmtPlanOrderSidebar({
                   </span>
                 </div>
 
-                <p className="mt-1.5 text-[11px] font-semibold tabular-nums text-slate-700">
+                <p className="mt-1.5 text-[13px] font-semibold tabular-nums text-slate-700">
                   {formatUnplannedLabel(candidate)}
                 </p>
-
-                {candidate.deliveryDate ? (
-                  <p className="mt-0.5 text-[11px] text-slate-500">
-                    {formatDeliveryDateLabel(candidate.deliveryDate)}
-                  </p>
-                ) : null}
               </button>
             )
           })

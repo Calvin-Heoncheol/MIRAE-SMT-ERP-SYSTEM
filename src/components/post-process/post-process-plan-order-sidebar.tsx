@@ -2,8 +2,12 @@
 
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { POST_PROCESS_PLAN_DRAG_MIME } from '@/lib/post-process/plan/config'
-import type { PostProcessPlanOrderCandidate } from '@/lib/post-process/plan/types'
+import type {
+  CandidateSmtStatus,
+  PostProcessPlanOrderCandidate,
+} from '@/lib/post-process/plan/types'
 import {
+  formatCalendarDayLabel,
   formatDeliveryCountdown,
   getDeliveryUrgencyTone,
 } from '@/lib/post-process/plan/utils'
@@ -34,10 +38,35 @@ function urgencyBorderClass(daysUntilDelivery: number | null) {
   return 'border-l-slate-300'
 }
 
-function formatDeliveryDateLabel(deliveryDate: string) {
-  const match = deliveryDate.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!match) return deliveryDate
-  return `납기 ${Number(match[1])}-${match[2]}-${match[3]}`
+function SmtStatusBadge({ smt }: { smt: CandidateSmtStatus }) {
+  if (smt.status === 'done') {
+    return (
+      <span className="inline-flex items-center rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+        SMT 완료
+      </span>
+    )
+  }
+  if (smt.status === 'planned') {
+    return (
+      <span className="inline-flex items-center rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 ring-1 ring-sky-200">
+        SMT {smt.lastPlannedDate ? `${formatCalendarDayLabel(smt.lastPlannedDate)} ` : ''}완료예정
+      </span>
+    )
+  }
+  if (smt.status === 'partial') {
+    return (
+      <span className="inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-amber-200 tabular-nums">
+        SMT 일부계획 {smt.coveredQuantity.toLocaleString('ko-KR')}/
+        {smt.targetQuantity.toLocaleString('ko-KR')}
+        {smt.lastPlannedDate ? ` · ~${formatCalendarDayLabel(smt.lastPlannedDate)}` : ''}
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200">
+      SMT 미계획
+    </span>
+  )
 }
 
 export function filterPostProcessPlanOrderCandidates(
@@ -143,13 +172,13 @@ export function PostProcessPlanOrderSidebar({
                 <p className="mt-0.5 truncate text-sm font-bold text-slate-900">
                   {candidate.productSummary}
                 </p>
-                <p className="mt-1 text-[11px] font-semibold tabular-nums text-sky-800">
-                  미계획 {candidate.unplannedRemaining.toLocaleString('ko-KR')}
+                <p className="mt-1 text-[13px] font-semibold tabular-nums text-sky-800">
+                  수량 {candidate.unplannedRemaining.toLocaleString('ko-KR')}
                 </p>
-                {candidate.deliveryDate ? (
-                  <p className="mt-0.5 text-[10px] text-slate-400">
-                    {formatDeliveryDateLabel(candidate.deliveryDate)}
-                  </p>
+                {candidate.smt ? (
+                  <div className="mt-1">
+                    <SmtStatusBadge smt={candidate.smt} />
+                  </div>
                 ) : null}
               </button>
             )
