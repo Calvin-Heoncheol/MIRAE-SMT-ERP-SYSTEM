@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
 import { createMaterialOutbound } from '@/lib/materials/outbound/repository'
@@ -158,7 +158,7 @@ function OutboundNeedCardItem({
           </span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-slate-500">생산 납기일</span>
+          <span className="text-slate-500">납기일</span>
           <span className="tabular-nums text-slate-800">{card.deliveryDate || '—'}</span>
         </div>
       </div>

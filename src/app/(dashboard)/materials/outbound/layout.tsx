@@ -1,5 +1,5 @@
 import { ModuleTabShell } from '@/components/dashboard/module-tab-shell'
-import { MATERIAL_OUTBOUND_TABS } from '@/lib/materials/outbound/tabs'
+import { MATERIAL_OUTBOUND_TABS } from '@/lib/materials/flow-tabs'
 
 export default function MaterialOutboundLayout({
   children,

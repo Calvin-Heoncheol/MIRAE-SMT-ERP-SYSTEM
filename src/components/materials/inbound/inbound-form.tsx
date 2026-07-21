@@ -33,6 +33,8 @@ export type InboundFormProps = {
   mode: 'create' | 'edit'
   variant?: 'page' | 'modal'
   inbound?: MaterialInboundListGroup | null
+  /** 발주서 카드에서 열 때 미리 선택할 발주 */
+  seedPurchaseOrderId?: string
   materials: Material[]
   purchaseOrders: MaterialPurchaseOrderListGroup[]
   onCancel?: () => void
@@ -41,7 +43,11 @@ export type InboundFormProps = {
   onMaterialsChanged?: () => void
 }
 
-const INBOUND_TYPE_OPTIONS: MaterialInboundType[] = ['purchase', 'supplied', 'return']
+/**
+ * 발주 입고가 기본이므로 유형 버튼은 사급/반품만 노출.
+ * 사급/반품을 다시 누르면 해제되어 발주 입고로 돌아간다.
+ */
+const INBOUND_TYPE_OPTIONS: MaterialInboundType[] = ['supplied', 'return']
 
 function createInitialDirectItems(inbound?: MaterialInboundListGroup | null): DirectInboundItemForm[] {
   if (inbound && inbound.inboundType !== 'purchase') {
@@ -54,6 +60,7 @@ export function InboundForm({
   mode,
   variant = 'modal',
   inbound,
+  seedPurchaseOrderId = '',
   materials,
   purchaseOrders,
   onCancel,
@@ -66,7 +73,11 @@ export function InboundForm({
   const [form, setForm] = useState<MaterialInboundFormState>(() =>
     inbound
       ? materialInboundFormStateFromDetail(inbound)
-      : defaultMaterialInboundFormState(todayYmdSeoul()),
+      : {
+          ...defaultMaterialInboundFormState(todayYmdSeoul()),
+          inboundType: 'purchase',
+          purchaseOrderId: seedPurchaseOrderId,
+        },
   )
   const [formKey, setFormKey] = useState(0)
   const [directItems, setDirectItems] = useState<DirectInboundItemForm[]>(() => createInitialDirectItems(inbound))
@@ -116,7 +127,7 @@ export function InboundForm({
   }, [isEdit, inbound, selectedOrder])
 
   function resetCreateForm() {
-    setForm(defaultMaterialInboundFormState(todayYmdSeoul()))
+    setForm({ ...defaultMaterialInboundFormState(todayYmdSeoul()), inboundType: 'purchase' })
     setDirectItems([defaultDirectInboundItemForm()])
     setPurchaseItems([])
     setSaveError(null)
@@ -129,11 +140,15 @@ export function InboundForm({
 
   function handleTypeChange(inboundType: MaterialInboundType) {
     if (isEdit) return
-    setForm((current) => ({
-      ...current,
-      inboundType,
-      purchaseOrderId: inboundType === 'purchase' ? current.purchaseOrderId : '',
-    }))
+    setForm((current) => {
+      // 활성 버튼을 다시 누르면 해제 → 기본(발주 입고)으로 복귀
+      const nextType = current.inboundType === inboundType ? 'purchase' : inboundType
+      return {
+        ...current,
+        inboundType: nextType,
+        purchaseOrderId: nextType === 'purchase' ? current.purchaseOrderId : '',
+      }
+    })
     setSaveError(null)
     setSaveOk(null)
   }
@@ -239,7 +254,9 @@ export function InboundForm({
         </div>
 
         <div>
-          <p className="mb-2 text-sm font-medium text-slate-600">입고 유형</p>
+          <p className="mb-2 text-sm font-medium text-slate-600">
+            입고 유형 <span className="font-normal text-slate-400">(기본: 발주 입고 · 필요 시 선택)</span>
+          </p>
           <div className="flex flex-wrap gap-2">
             {INBOUND_TYPE_OPTIONS.map((type) => {
               const active = form.inboundType === type

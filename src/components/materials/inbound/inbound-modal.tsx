@@ -10,6 +10,8 @@ type InboundModalProps = {
   open: boolean
   mode: 'create' | 'edit'
   inbound?: MaterialInboundListGroup | null
+  /** 발주서 카드에서 열 때 미리 선택할 발주 */
+  seedPurchaseOrderId?: string
   materials: Material[]
   purchaseOrders: MaterialPurchaseOrderListGroup[]
   onClose: () => void
@@ -22,6 +24,7 @@ export function InboundModal({
   open,
   mode,
   inbound,
+  seedPurchaseOrderId,
   materials,
   purchaseOrders,
   onClose,
@@ -44,6 +47,7 @@ export function InboundModal({
         mode={mode}
         variant="modal"
         inbound={inbound}
+        seedPurchaseOrderId={seedPurchaseOrderId}
         materials={materials}
         purchaseOrders={purchaseOrders}
         onCancel={onClose}

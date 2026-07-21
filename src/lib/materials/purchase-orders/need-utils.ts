@@ -2,7 +2,10 @@ import type { BomEdge } from '@/lib/materials/outbound/types'
 import { explodeBomToMaterials } from '@/lib/materials/outbound/utils'
 import type { Material } from '@/lib/materials/types'
 import type { OrderListGroup } from '@/lib/orders/types'
-import type { MaterialPurchaseNeedCard, MaterialPurchaseNeedLine } from './types'
+import type {
+  MaterialPurchaseOrderListGroup,
+  MaterialPurchaseSuggestionLine,
+} from './types'
 
 function buildEdgesByParent(bomEdges: BomEdge[]) {
   const map = new Map<string, BomEdge[]>()
@@ -15,45 +18,23 @@ function buildEdgesByParent(bomEdges: BomEdge[]) {
   return map
 }
 
-function formatProductLabel(order: OrderListGroup) {
-  const products = new Map<string, { name: string; quantity: number }>()
-  for (const item of order.items) {
-    if (item.derivedFromLineId) continue
-    const id = (item.productId || item.productCode || '').trim()
-    if (!id) continue
-    const existing = products.get(id)
-    const quantity = Math.max(0, Number(item.quantity) || 0)
-    if (existing) {
-      existing.quantity += quantity
-    } else {
-      products.set(id, {
-        name: item.productName || id,
-        quantity,
-      })
-    }
-  }
-
-  const list = [...products.values()]
-  if (!list.length) return { label: '—', quantity: 0 }
-  const first = list[0]
-  const label = list.length === 1 ? first.name : `${first.name} 외 ${list.length - 1}건`
-  const quantity = list.reduce((sum, item) => sum + item.quantity, 0)
-  return { label, quantity }
-}
-
-export function buildPurchaseNeedCards(input: {
+/**
+ * 자재 기준 발주 제안 (표준 MRP) — 모든 주문의 소요를 자재별로 합산해
+ * 발주필요 = 총소요 − 현재고 − 입고예정(전체 발주 미입고 잔량) 을 계산한다.
+ * 발주필요가 0보다 큰 자재만 반환한다.
+ */
+export function buildPurchaseSuggestionLines(input: {
   orders: OrderListGroup[]
   bomEdges: BomEdge[]
   materials: Material[]
   onHandByMaterialId: Map<string, number>
-}): MaterialPurchaseNeedCard[] {
+  purchaseOrders?: MaterialPurchaseOrderListGroup[]
+}): MaterialPurchaseSuggestionLine[] {
   const edgesByParent = buildEdgesByParent(input.bomEdges)
   const materialById = new Map(input.materials.map((material) => [material.id, material]))
-  const cards: MaterialPurchaseNeedCard[] = []
 
+  const totalRequiredByMaterial = new Map<string, number>()
   for (const order of input.orders) {
-    const requiredByMaterial = new Map<string, number>()
-
     for (const item of order.items) {
       if (item.derivedFromLineId) continue
       const productId = (item.productId || item.productCode || '').trim()
@@ -62,59 +43,53 @@ export function buildPurchaseNeedCards(input: {
 
       const exploded = explodeBomToMaterials(productId, quantity, edgesByParent)
       for (const [materialId, required] of exploded) {
-        requiredByMaterial.set(materialId, (requiredByMaterial.get(materialId) ?? 0) + required)
+        totalRequiredByMaterial.set(
+          materialId,
+          (totalRequiredByMaterial.get(materialId) ?? 0) + required,
+        )
       }
     }
-
-    if (!requiredByMaterial.size) continue
-
-    const lines: MaterialPurchaseNeedLine[] = [...requiredByMaterial.entries()]
-      .map(([materialId, requiredQuantity]) => {
-        const material = materialById.get(materialId)
-        const onHandQuantity = input.onHandByMaterialId.get(materialId) ?? 0
-        const shortageQuantity = Math.max(0, requiredQuantity - onHandQuantity)
-        return {
-          materialId,
-          materialCode: materialId,
-          materialName: material?.materialName || materialId,
-          specification: material?.specification || '',
-          mpn: material?.mpn || '',
-          supplier: material?.supplier || '',
-          unitPrice: material?.unitPrice || 0,
-          requiredQuantity,
-          onHandQuantity,
-          shortageQuantity,
-          status: shortageQuantity > 0 ? ('부족' as const) : ('충분' as const),
-        }
-      })
-      .sort((a, b) => {
-        if (a.status !== b.status) return a.status === '부족' ? -1 : 1
-        return a.materialName.localeCompare(b.materialName, 'ko')
-      })
-
-    const { label, quantity } = formatProductLabel(order)
-    const shortageCount = lines.filter((line) => line.status === '부족').length
-
-    cards.push({
-      key: order.orderId,
-      orderId: order.orderId,
-      orderNumber: order.orderNumber,
-      customer: order.customer,
-      deliveryDate: order.deliveryDate || '',
-      orderDate: order.orderDate || '',
-      productLabel: label,
-      productQuantity: quantity,
-      materialCount: lines.length,
-      shortageCount,
-      sufficientCount: lines.length - shortageCount,
-      lines,
-    })
   }
 
-  return cards.sort((a, b) => {
-    if (a.shortageCount !== b.shortageCount) return b.shortageCount - a.shortageCount
-    const deliveryCompare = (a.deliveryDate || '').localeCompare(b.deliveryDate || '')
-    if (deliveryCompare !== 0) return deliveryCompare
-    return b.orderNumber.localeCompare(a.orderNumber, 'ko')
-  })
+  // 입고예정: 모든 발주서의 미입고 잔량(발주수량 − 입고수량) 합산.
+  // 입고된 수량은 현재고에 반영되므로 여기서 제외해 이중 차감을 막는다.
+  const pendingByMaterial = new Map<string, number>()
+  for (const po of input.purchaseOrders ?? []) {
+    for (const item of po.items) {
+      const materialId = (item.materialId || '').trim()
+      if (!materialId) continue
+      const pending = Math.max(0, (Number(item.quantity) || 0) - (Number(item.inboundQuantity) || 0))
+      if (pending <= 0) continue
+      pendingByMaterial.set(materialId, (pendingByMaterial.get(materialId) ?? 0) + pending)
+    }
+  }
+
+  return [...totalRequiredByMaterial.entries()]
+    .map(([materialId, totalRequiredQuantity]) => {
+      const material = materialById.get(materialId)
+      const onHandQuantity = Math.max(0, input.onHandByMaterialId.get(materialId) ?? 0)
+      const pendingInboundQuantity = pendingByMaterial.get(materialId) ?? 0
+      const suggestedQuantity = Math.max(
+        0,
+        totalRequiredQuantity - onHandQuantity - pendingInboundQuantity,
+      )
+      return {
+        materialId,
+        materialName: material?.materialName || materialId,
+        specification: material?.specification || '',
+        mpn: material?.mpn || '',
+        supplier: material?.supplier || '',
+        unitPrice: material?.unitPrice || 0,
+        totalRequiredQuantity,
+        onHandQuantity,
+        pendingInboundQuantity,
+        suggestedQuantity,
+      }
+    })
+    .filter((line) => line.suggestedQuantity > 0)
+    .sort((a, b) => {
+      const supplierCompare = a.supplier.localeCompare(b.supplier, 'ko')
+      if (supplierCompare !== 0) return supplierCompare
+      return a.materialName.localeCompare(b.materialName, 'ko')
+    })
 }

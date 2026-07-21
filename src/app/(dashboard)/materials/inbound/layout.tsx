@@ -1,5 +1,5 @@
 import { ModuleTabShell } from '@/components/dashboard/module-tab-shell'
-import { MATERIAL_INBOUND_TABS } from '@/lib/materials/inbound/tabs'
+import { MATERIAL_INBOUND_TABS } from '@/lib/materials/flow-tabs'
 
 export default function MaterialInboundLayout({
   children,

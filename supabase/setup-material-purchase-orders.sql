@@ -7,6 +7,7 @@ create table if not exists public.material_purchase_orders (
   order_date date not null default (timezone('Asia/Seoul', now()))::date,
   delivery_date date,
   supplier text not null default '',
+  source_order_id text references public.orders(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint material_purchase_orders_id_not_blank_check check (length(trim(id)) > 0),
@@ -16,6 +17,11 @@ create table if not exists public.material_purchase_orders (
 comment on table public.material_purchase_orders is '자재 발주 마스터 — 발주번호=id(MRP-260707)';
 comment on column public.material_purchase_orders.id is '발주번호 MRP-YYMMDD (INSERT 시 자동 발급, 수정 불가)';
 comment on column public.material_purchase_orders.supplier is '공급업체';
+comment on column public.material_purchase_orders.source_order_id is
+  '연결된 고객 주문서(orders.id) — 주문서 카드에서 발주 시 자동 연결';
+
+create index if not exists material_purchase_orders_source_order_idx
+  on public.material_purchase_orders (source_order_id);
 
 create table if not exists public.material_purchase_order_lines (
   id uuid primary key default gen_random_uuid(),

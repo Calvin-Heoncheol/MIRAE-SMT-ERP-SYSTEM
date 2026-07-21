@@ -1,15 +1,14 @@
 import { createSupabaseClient } from '@/lib/supabase'
 import { fetchBomEdges } from '@/lib/materials/outbound/repository'
 import { fetchMaterials } from '@/lib/materials/repository'
-import type { Material } from '@/lib/materials/types'
 import { fetchOrders } from '@/lib/orders/repository'
 import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
-import { buildPurchaseNeedCards } from './need-utils'
+import { buildPurchaseSuggestionLines } from './need-utils'
 import type {
-  MaterialPurchaseNeedCard,
   MaterialPurchaseOrderListGroup,
   MaterialPurchaseOrderRecord,
   MaterialPurchaseOrderRowPayload,
+  MaterialPurchaseSuggestionLine,
 } from './types'
 import { groupMaterialPurchaseOrdersFromRecords } from './utils'
 
@@ -17,18 +16,12 @@ export type FetchMaterialPurchaseOrdersResult =
   | { ok: true; orders: MaterialPurchaseOrderListGroup[] }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
-/** @deprecated 등록/이력 분리 조회 사용 */
-export type FetchMaterialPurchaseOrderPageResult =
+export type FetchMaterialPurchaseRegisterResult =
   | {
       ok: true
-      orders: MaterialPurchaseOrderListGroup[]
-      needCards: MaterialPurchaseNeedCard[]
-      materials: Material[]
+      /** 자재 기준 발주 제안 (발주필요 > 0 자재만) */
+      suggestionLines: MaterialPurchaseSuggestionLine[]
     }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
-
-export type FetchMaterialPurchaseRegisterResult =
-  | { ok: true; needCards: MaterialPurchaseNeedCard[] }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type FetchMaterialPurchaseHistoryResult =
@@ -159,13 +152,15 @@ export async function fetchMaterialPurchaseOrders(): Promise<FetchMaterialPurcha
 }
 
 export async function fetchMaterialPurchaseOrderRegisterData(): Promise<FetchMaterialPurchaseRegisterResult> {
-  const [materialsResult, ordersResult] = await Promise.all([
+  const [materialsResult, ordersResult, purchaseOrdersResult] = await Promise.all([
     fetchMaterials(),
     fetchOrders({ includeDerivedLines: true }),
+    fetchMaterialPurchaseOrders(),
   ])
 
   if (!materialsResult.ok) return materialsResult
   if (!ordersResult.ok) return ordersResult
+  if (!purchaseOrdersResult.ok) return purchaseOrdersResult
 
   try {
     const [bomEdges, onHandResult, deletedNeedIdsResult] = await Promise.all([
@@ -182,16 +177,22 @@ export async function fetchMaterialPurchaseOrderRegisterData(): Promise<FetchMat
     }
 
     const deletedNeedOrderIds = new Set(deletedNeedIdsResult.orderIds)
-    const needCards = buildPurchaseNeedCards({
-      orders: ordersResult.orders,
+    // 발주 화면에서 제외 처리한 주문서는 소요 집계에서 제외
+    const activeOrders = ordersResult.orders.filter(
+      (order) => !deletedNeedOrderIds.has(order.orderId),
+    )
+
+    const suggestionLines = buildPurchaseSuggestionLines({
+      orders: activeOrders,
       bomEdges,
       materials: materialsResult.materials,
       onHandByMaterialId: onHandResult.onHandByMaterialId,
-    }).filter((card) => !deletedNeedOrderIds.has(card.orderId))
+      purchaseOrders: purchaseOrdersResult.orders,
+    })
 
     return {
       ok: true,
-      needCards,
+      suggestionLines,
     }
   } catch (error) {
     return {
@@ -206,24 +207,6 @@ export async function fetchMaterialPurchaseOrderHistoryData(): Promise<FetchMate
   return fetchMaterialPurchaseOrders()
 }
 
-/** @deprecated 등록/이력 분리 함수 사용 */
-export async function fetchMaterialPurchaseOrderPageData(): Promise<FetchMaterialPurchaseOrderPageResult> {
-  const [purchaseOrdersResult, registerResult] = await Promise.all([
-    fetchMaterialPurchaseOrders(),
-    fetchMaterialPurchaseOrderRegisterData(),
-  ])
-
-  if (!purchaseOrdersResult.ok) return purchaseOrdersResult
-  if (!registerResult.ok) return registerResult
-
-  return {
-    ok: true,
-    orders: purchaseOrdersResult.orders,
-    needCards: registerResult.needCards,
-    materials: [],
-  }
-}
-
 export async function createMaterialPurchaseOrder(
   payload: MaterialPurchaseOrderRowPayload,
 ): Promise<SaveMaterialPurchaseOrderResult> {
@@ -233,15 +216,30 @@ export async function createMaterialPurchaseOrder(
 
   try {
     const supabase = createSupabaseClient()
-    const { data: inserted, error } = await supabase
+    const insertRow: Record<string, unknown> = {
+      order_date: payload.order_date,
+      delivery_date: payload.delivery_date || null,
+      supplier: payload.supplier,
+    }
+    if (payload.source_order_id) {
+      insertRow.source_order_id = payload.source_order_id
+    }
+
+    let { data: inserted, error } = await supabase
       .from('material_purchase_orders')
-      .insert({
-        order_date: payload.order_date,
-        delivery_date: payload.delivery_date || null,
-        supplier: payload.supplier,
-      })
+      .insert(insertRow)
       .select('id')
       .single()
+
+    // 마이그레이션 전(컬럼 없음)이면 연결 없이 저장
+    if (error && payload.source_order_id && error.message.includes('source_order_id')) {
+      delete insertRow.source_order_id
+      ;({ data: inserted, error } = await supabase
+        .from('material_purchase_orders')
+        .insert(insertRow)
+        .select('id')
+        .single())
+    }
 
     if (error || !inserted?.id) {
       return { ok: false, reason: 'query', detail: error?.message || '자재 발주 저장에 실패했습니다.' }
@@ -356,52 +354,3 @@ export async function deleteMaterialPurchaseOrder(
   }
 }
 
-export type DeleteMaterialPurchaseNeedCardResult =
-  | { ok: true }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
-
-/** 자재 발주 화면의 주문서 카드만 삭제 (고객 주문은 유지) */
-export async function deleteMaterialPurchaseNeedCard(
-  orderId: string,
-): Promise<DeleteMaterialPurchaseNeedCardResult> {
-  const key = orderId.trim()
-  if (!key) {
-    return { ok: false, reason: 'validation', detail: '주문번호를 찾을 수 없습니다.' }
-  }
-
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return {
-      ok: false,
-      reason: 'env',
-      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
-    }
-  }
-
-  try {
-    const supabase = createSupabaseClient()
-    const { error } = await supabase.from('material_purchase_need_deleted_orders').upsert(
-      { order_id: key },
-      { onConflict: 'order_id' },
-    )
-
-    if (error) {
-      if (isMissingNeedDeletedOrdersTable(error.message)) {
-        return {
-          ok: false,
-          reason: 'query',
-          detail:
-            '주문서 카드 삭제용 테이블이 없습니다. supabase/migrate-material-purchase-need-deleted-orders.sql 을 실행해 주세요.',
-        }
-      }
-      return { ok: false, reason: 'query', detail: error.message }
-    }
-
-    return { ok: true }
-  } catch (error) {
-    return {
-      ok: false,
-      reason: 'query',
-      detail: error instanceof Error ? error.message : String(error),
-    }
-  }
-}

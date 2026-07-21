@@ -99,6 +99,7 @@ export function mapMaterialPurchaseOrderRecord(record: MaterialPurchaseOrderReco
     orderDate: formatMaterialPurchaseOrderDate(record.order_date),
     deliveryDate: formatMaterialPurchaseOrderDate(record.delivery_date),
     supplier: record.supplier || '',
+    sourceOrderId: record.source_order_id || null,
     createdAt: record.created_at,
     items,
     totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),

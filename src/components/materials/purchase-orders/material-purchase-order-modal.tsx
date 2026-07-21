@@ -25,6 +25,8 @@ type MaterialPurchaseOrderModalProps = {
   order?: MaterialPurchaseOrderListGroup | null
   initialItems?: MaterialPurchaseOrderItemForm[] | null
   initialSupplier?: string
+  /** 주문서 카드에서 발주 시 연결할 고객 주문서 id */
+  sourceOrderId?: string | null
   onClose: () => void
   onSaved?: () => void
   onDeleted?: () => void
@@ -54,6 +56,7 @@ function MaterialPurchaseOrderModalContent({
   order,
   initialItems,
   initialSupplier,
+  sourceOrderId,
   onClose,
   onSaved,
   onDeleted,
@@ -128,6 +131,7 @@ function MaterialPurchaseOrderModalContent({
       order_date: form.orderDate || todayYmdSeoul(),
       delivery_date: form.deliveryDate || '',
       supplier: form.supplier.trim(),
+      source_order_id: mode === 'create' ? sourceOrderId || null : undefined,
       items: validation.items,
     }
 
@@ -219,6 +223,16 @@ function MaterialPurchaseOrderModalContent({
                 />
               </label>
             ) : null}
+            {(mode === 'edit' ? order?.sourceOrderId : sourceOrderId) ? (
+              <label className="block text-sm sm:col-span-2">
+                <span className="mb-1 block font-medium text-slate-600">연결 주문서</span>
+                <input
+                  value={(mode === 'edit' ? order?.sourceOrderId : sourceOrderId) || ''}
+                  readOnly
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600"
+                />
+              </label>
+            ) : null}
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-600">발주일</span>
               <input
@@ -242,7 +256,7 @@ function MaterialPurchaseOrderModalContent({
           </div>
 
           <div className="mt-6">
-            <h3 className="mb-3 text-sm font-bold text-slate-900">자재</h3>
+            {readOnly ? <h3 className="mb-3 text-sm font-bold text-slate-900">자재</h3> : null}
             {readOnly ? (
               <div className="overflow-x-auto rounded-lg border border-slate-200">
                 <table className="min-w-[720px] w-full border-collapse text-sm">
