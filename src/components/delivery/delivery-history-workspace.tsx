@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation'
 import { DeliveryHistoryFetchError } from '@/components/delivery/delivery-history-fetch-error'
 import { DeliveryHistoryModal } from '@/components/delivery/delivery-history-modal'
 import { DeliveryHistoryTable } from '@/components/delivery/delivery-history-table'
+import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
+import { downloadExcel } from '@/lib/excel/export'
 import type { FetchDeliveryHistoryResult } from '@/lib/delivery/repository'
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 import {
   filterDeliveryHistory,
+  formatDeliveryHistoryDateTime,
   sumDeliveryHistoryQuantity,
 } from '@/lib/delivery/history-utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
@@ -54,6 +57,30 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
     router.refresh()
   }
 
+  async function handleExcelDownload() {
+    await downloadExcel({
+      fileName: '출하이력',
+      sheetName: '출하이력',
+      rows: filtered,
+      columns: [
+        { header: '출하번호', value: (row) => row.id, width: 18 },
+        { header: '출하일', value: (row) => row.recordDate, width: 12 },
+        {
+          header: '등록시각',
+          value: (row) => formatDeliveryHistoryDateTime(row.createdAt),
+          width: 16,
+        },
+        { header: '주문서번호', value: (row) => row.orderNumber, width: 22 },
+        { header: '고객사', value: (row) => row.customer, width: 18 },
+        { header: '완제품명', value: (row) => row.productName, width: 26 },
+        { header: '품목코드', value: (row) => row.productCode, width: 16 },
+        { header: '주문수량', value: (row) => row.targetQuantity, width: 10 },
+        { header: '출하수량', value: (row) => row.quantity, width: 10 },
+        { header: '비고', value: (row) => row.note, width: 24 },
+      ],
+    })
+  }
+
   if (!result.ok) {
     return <DeliveryHistoryFetchError result={result} />
   }
@@ -70,6 +97,9 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
           onSearchChange={setSearch}
           searchPlaceholder="출하번호, 주문서번호, 고객사, 완제품명, 기록일 검색…"
           accent="sky"
+          actions={
+            <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!filtered.length} />
+          }
           meta={
             <p className="mt-0.5 text-slate-500">
               수량 합계{' '}

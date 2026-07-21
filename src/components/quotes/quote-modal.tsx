@@ -455,7 +455,7 @@ function QuoteModalContent({
                 <button
                   type="button"
                   onClick={handleDownloadPdf}
-                  className="inline-flex items-center rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105"
+                  className="inline-flex items-center rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105"
                 >
                   PDF
                 </button>

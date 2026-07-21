@@ -67,6 +67,19 @@ export type MaterialOutboundRowPayload = {
   }[]
 }
 
+/**
+ * 불출 자재 구분: SMD(→생산1팀) / DIP(→생산2·3·4팀) / ETC(구분 미지정).
+ * 자재 마스터(items.material_type) 기준
+ */
+export const OUTBOUND_MATERIAL_BUCKETS = ['SMD', 'DIP', 'ETC'] as const
+export type OutboundMaterialBucket = (typeof OUTBOUND_MATERIAL_BUCKETS)[number]
+
+export const OUTBOUND_MATERIAL_BUCKET_LABELS: Record<OutboundMaterialBucket, string> = {
+  SMD: 'SMD 불출',
+  DIP: 'DIP 불출',
+  ETC: '기타 불출',
+}
+
 /** 주문·BOM 기준 미불출 행 */
 export type MaterialOutboundNeedRow = {
   orderId: string
@@ -79,12 +92,13 @@ export type MaterialOutboundNeedRow = {
   materialId: string
   materialCode: string
   materialName: string
+  materialBucket: OutboundMaterialBucket
   requiredQuantity: number
   issuedQuantity: number
   remainingQuantity: number
 }
 
-/** 미불출 주문·품목 카드 */
+/** 미불출 주문·품목·자재구분 카드 */
 export type MaterialOutboundNeedCard = {
   key: string
   orderId: string
@@ -94,6 +108,7 @@ export type MaterialOutboundNeedCard = {
   productId: string
   productName: string
   productQuantity: number
+  materialBucket: OutboundMaterialBucket
   remainingProductQuantity: number
   issuableQuantity: number
   lines: MaterialOutboundNeedRow[]

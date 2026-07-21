@@ -8,7 +8,10 @@ export type ProductionStatusLine = {
   orderNumber: string
   customer: string
   productName: string
+  deliveryDate: string
+  /** 주문서 주문수량 합계 */
   quantity: number
+  smtTarget: number
   smtProduced: number
   smtPercent: number
   postTarget: number

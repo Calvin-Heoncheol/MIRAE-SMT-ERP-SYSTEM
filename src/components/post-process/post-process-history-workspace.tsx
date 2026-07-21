@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation'
 import { PostProcessHistoryFetchError } from '@/components/post-process/post-process-history-fetch-error'
 import { PostProcessHistoryModal } from '@/components/post-process/post-process-history-modal'
 import { PostProcessHistoryTable } from '@/components/post-process/post-process-history-table'
+import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
+import { downloadExcel } from '@/lib/excel/export'
 import type { FetchPostProcessProductionHistoryResult } from '@/lib/post-process/repository'
 import type { PostProcessProductionHistoryRow } from '@/lib/post-process/types'
 import {
   filterPostProcessProductionHistory,
+  formatPostProcessHistoryDateTime,
   sumPostProcessHistoryQuantity,
 } from '@/lib/post-process/history-utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
@@ -45,6 +48,29 @@ export function PostProcessHistoryWorkspace({ result }: PostProcessHistoryWorksp
     router.refresh()
   }
 
+  async function handleExcelDownload() {
+    await downloadExcel({
+      fileName: '후공정생산이력',
+      sheetName: '후공정 생산이력',
+      rows: filtered,
+      columns: [
+        { header: '기록일', value: (row) => row.recordDate, width: 12 },
+        {
+          header: '등록시각',
+          value: (row) => formatPostProcessHistoryDateTime(row.createdAt),
+          width: 16,
+        },
+        { header: '팀', value: (row) => row.team, width: 10 },
+        { header: '주문서번호', value: (row) => row.orderNumber, width: 22 },
+        { header: '고객사', value: (row) => row.customer, width: 18 },
+        { header: '완제품명', value: (row) => row.productName, width: 26 },
+        { header: '품목코드', value: (row) => row.productCode, width: 16 },
+        { header: '수량', value: (row) => row.quantity, width: 10 },
+        { header: '비고', value: (row) => row.note, width: 24 },
+      ],
+    })
+  }
+
   if (!result.ok) {
     return <PostProcessHistoryFetchError result={result} />
   }
@@ -61,6 +87,9 @@ export function PostProcessHistoryWorkspace({ result }: PostProcessHistoryWorksp
           onSearchChange={setSearch}
           searchPlaceholder="주문서번호, 고객사, 완제품명, 기록일 검색…"
           accent="emerald"
+          actions={
+            <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!filtered.length} />
+          }
           meta={
             <p className="mt-0.5 text-slate-500">
               수량 합계{' '}

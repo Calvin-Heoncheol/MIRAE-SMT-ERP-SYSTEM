@@ -311,6 +311,9 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
           onDragCandidate={() => setStatusMessage('')}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
+          <div className="mb-3 flex shrink-0 items-center rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5">
+            <span className="text-sm font-bold text-sky-800">생산1팀</span>
+          </div>
           {loading ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-500">불러오는 중…</div>
           ) : (

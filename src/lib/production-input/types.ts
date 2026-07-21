@@ -14,6 +14,7 @@ export type ProductionOrderLine = {
   assemblyGroupId?: string
   orderNumber: string
   orderDate: string
+  deliveryDate: string
   customer: string
   productCode: string
   productName: string

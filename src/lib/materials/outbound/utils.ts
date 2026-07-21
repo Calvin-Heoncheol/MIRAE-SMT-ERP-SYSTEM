@@ -7,8 +7,28 @@ import type {
   MaterialOutboundNeedRow,
   MaterialOutboundRecord,
   MaterialOutboundType,
+  OutboundMaterialBucket,
 } from './types'
 import { MATERIAL_OUTBOUND_TYPE_LABELS } from './types'
+
+/** 자재 마스터 구분(items.material_type) → 불출 구분 */
+export function resolveMaterialBucket(materialType: string | null | undefined): OutboundMaterialBucket {
+  const value = String(materialType ?? '').trim().toUpperCase()
+  if (value === 'SMD') return 'SMD'
+  if (value === 'DIP') return 'DIP'
+  return 'ETC'
+}
+
+/** 불출 구분 필터: bucket 지정 시 해당 구분 자재만 남긴다 */
+export type OutboundBucketFilter = {
+  bucket: OutboundMaterialBucket
+  bucketByMaterialId: Map<string, OutboundMaterialBucket>
+}
+
+function matchesBucket(materialId: string, filter: OutboundBucketFilter | undefined): boolean {
+  if (!filter) return true
+  return (filter.bucketByMaterialId.get(materialId) ?? 'ETC') === filter.bucket
+}
 
 export function normalizeOutboundType(value: string | null | undefined): MaterialOutboundType {
   if (value === 'production' || value === 'scrap' || value === 'adjustment') return value
@@ -97,12 +117,13 @@ export function aggregateOutboundByMaterialId(
   return totals
 }
 
-/** 부모 품목 수량 기준으로 원자재·부자재 소요량으로 펼칩니다. */
+/** 부모 품목 수량 기준으로 원자재·부자재 소요량으로 펼칩니다. filter 지정 시 해당 구분 자재만. */
 export function explodeBomToMaterials(
   rootProductId: string,
   rootQuantity: number,
   edgesByParent: Map<string, BomEdge[]>,
   depth = 0,
+  filter?: OutboundBucketFilter,
 ): Map<string, number> {
   const result = new Map<string, number>()
   if (!rootProductId.trim() || rootQuantity <= 0 || depth > 8) return result
@@ -113,12 +134,13 @@ export function explodeBomToMaterials(
     if (childQty <= 0) continue
 
     if (edge.childItemCategory === 1 || edge.childItemCategory === 2) {
+      if (!matchesBucket(edge.childProductId, filter)) continue
       result.set(edge.childProductId, (result.get(edge.childProductId) ?? 0) + childQty)
       continue
     }
 
     if (edge.childItemCategory === 3 || edge.childItemCategory === 4) {
-      const nested = explodeBomToMaterials(edge.childProductId, childQty, edgesByParent, depth + 1)
+      const nested = explodeBomToMaterials(edge.childProductId, childQty, edgesByParent, depth + 1, filter)
       for (const [materialId, qty] of nested) {
         result.set(materialId, (result.get(materialId) ?? 0) + qty)
       }
@@ -133,6 +155,7 @@ export function buildOutboundNeedRows(input: {
   edgesByParent: Map<string, BomEdge[]>
   itemNameById: Map<string, string>
   issuedByOrderMaterial: Map<string, number>
+  bucketByMaterialId: Map<string, OutboundMaterialBucket>
 }): MaterialOutboundNeedRow[] {
   const rows: MaterialOutboundNeedRow[] = []
 
@@ -183,6 +206,7 @@ export function buildOutboundNeedRows(input: {
         materialId,
         materialCode: materialId,
         materialName: input.itemNameById.get(materialId) || materialId,
+        materialBucket: input.bucketByMaterialId.get(materialId) ?? 'ETC',
         requiredQuantity: need.required,
         issuedQuantity: issued,
         remainingQuantity: remaining,
@@ -259,14 +283,15 @@ export function groupNeedRowsByOrder(rows: MaterialOutboundNeedRow[]) {
   })
 }
 
-/** 현재고·BOM 기준 제품 1대당 불출 가능 대수 */
+/** 현재고·BOM 기준 제품 1대당 불출 가능 대수 (filter 지정 시 해당 구분 자재만 고려) */
 export function computeIssuableProductQuantity(
   productId: string,
   remainingProductQty: number,
   edgesByParent: Map<string, BomEdge[]>,
   onHandByMaterialId: Map<string, number>,
+  filter?: OutboundBucketFilter,
 ) {
-  const perOne = explodeBomToMaterials(productId, 1, edgesByParent)
+  const perOne = explodeBomToMaterials(productId, 1, edgesByParent, 0, filter)
   if (!perOne.size) return 0
 
   let byStock = Number.POSITIVE_INFINITY
@@ -283,8 +308,9 @@ export function computeRemainingProductQuantity(
   productQuantity: number,
   lines: MaterialOutboundNeedRow[],
   edgesByParent: Map<string, BomEdge[]>,
+  filter?: OutboundBucketFilter,
 ) {
-  const perOne = explodeBomToMaterials(productId, 1, edgesByParent)
+  const perOne = explodeBomToMaterials(productId, 1, edgesByParent, 0, filter)
   if (!perOne.size) return Math.max(0, productQuantity)
 
   let remaining = Number.POSITIVE_INFINITY
@@ -302,11 +328,13 @@ export function buildOutboundNeedCards(input: {
   rows: MaterialOutboundNeedRow[]
   edgesByParent: Map<string, BomEdge[]>
   onHandByMaterialId: Map<string, number>
+  bucketByMaterialId: Map<string, OutboundMaterialBucket>
 }): MaterialOutboundNeedCard[] {
+  // 주문×제품×자재구분(SMD/DIP/기타) 단위로 카드 분리
   const map = new Map<string, MaterialOutboundNeedRow[]>()
 
   for (const row of input.rows) {
-    const key = `${row.orderId}::${row.productId}`
+    const key = `${row.orderId}::${row.productId}::${row.materialBucket}`
     const list = map.get(key) || []
     list.push(row)
     map.set(key, list)
@@ -318,11 +346,17 @@ export function buildOutboundNeedCards(input: {
     const first = lines[0]
     if (!first) continue
 
+    const filter: OutboundBucketFilter = {
+      bucket: first.materialBucket,
+      bucketByMaterialId: input.bucketByMaterialId,
+    }
+
     const remainingProductQuantity = computeRemainingProductQuantity(
       first.productId,
       first.productQuantity,
       lines,
       input.edgesByParent,
+      filter,
     )
     if (remainingProductQuantity <= 0) continue
 
@@ -331,6 +365,7 @@ export function buildOutboundNeedCards(input: {
       remainingProductQuantity,
       input.edgesByParent,
       input.onHandByMaterialId,
+      filter,
     )
 
     cards.push({
@@ -342,16 +377,21 @@ export function buildOutboundNeedCards(input: {
       productId: first.productId,
       productName: first.productName || first.productId,
       productQuantity: first.productQuantity,
+      materialBucket: first.materialBucket,
       remainingProductQuantity,
       issuableQuantity,
       lines,
     })
   }
 
+  const bucketOrder: Record<string, number> = { SMD: 0, DIP: 1, ETC: 2 }
+
   return cards.sort((a, b) => {
     const orderCompare = b.orderNumber.localeCompare(a.orderNumber, 'ko')
     if (orderCompare !== 0) return orderCompare
-    return a.productId.localeCompare(b.productId, 'ko')
+    const productCompare = a.productId.localeCompare(b.productId, 'ko')
+    if (productCompare !== 0) return productCompare
+    return (bucketOrder[a.materialBucket] ?? 9) - (bucketOrder[b.materialBucket] ?? 9)
   })
 }
 
@@ -359,8 +399,9 @@ export function buildOutboundLinesForProductQuantity(
   productId: string,
   quantity: number,
   edgesByParent: Map<string, BomEdge[]>,
+  filter?: OutboundBucketFilter,
 ) {
-  const exploded = explodeBomToMaterials(productId, quantity, edgesByParent)
+  const exploded = explodeBomToMaterials(productId, quantity, edgesByParent, 0, filter)
   return [...exploded.entries()]
     .map(([material_id, qty]) => ({
       material_id,

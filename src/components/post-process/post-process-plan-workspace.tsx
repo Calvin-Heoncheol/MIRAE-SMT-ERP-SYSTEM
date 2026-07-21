@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useMemo, useState } from 'react'
 import { PostProcessPlanCalendar } from '@/components/post-process/post-process-plan-calendar'
@@ -11,7 +11,6 @@ import {
   filterPostProcessPlanOrderCandidates,
   PostProcessPlanOrderSidebar,
 } from '@/components/post-process/post-process-plan-order-sidebar'
-import { PostProcessTeamSwitcher } from '@/components/post-process/post-process-team-switcher'
 import { addDaysYmd } from '@/lib/orders/utils'
 import {
   deletePostProcessProductionPlan,
@@ -40,16 +39,16 @@ type ModalState =
 type PostProcessPlanWorkspaceProps = {
   initialResult: FetchPostProcessPlanPageResult
   initialWeekStart: string
-  initialTeam?: PostProcessTeam
+  /** 내비(생산2/3/4)에서 URL로 결정되는 팀 */
+  team?: PostProcessTeam
 }
 
 export function PostProcessPlanWorkspace({
   initialResult,
   initialWeekStart,
-  initialTeam = DEFAULT_POST_PROCESS_TEAM,
+  team: selectedTeam = DEFAULT_POST_PROCESS_TEAM,
 }: PostProcessPlanWorkspaceProps) {
   const [weekStart, setWeekStart] = useState(initialWeekStart)
-  const [selectedTeam, setSelectedTeam] = useState<PostProcessTeam>(initialTeam)
   const [data, setData] = useState<PostProcessPlanPageData | null>(
     initialResult.ok ? initialResult.data : null,
   )
@@ -333,11 +332,9 @@ export function PostProcessPlanWorkspace({
           onDragCandidate={() => setStatusMessage('')}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
-          <PostProcessTeamSwitcher
-            value={selectedTeam}
-            onChange={setSelectedTeam}
-            className="mb-3 shrink-0"
-          />
+          <div className="mb-3 flex shrink-0 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5">
+            <span className="text-sm font-bold text-emerald-800">{selectedTeam}</span>
+          </div>
           {loading ? (
             <div className="flex h-full items-center justify-center text-sm text-slate-500">
               불러오는 중…

@@ -5,12 +5,16 @@ import { useRouter } from 'next/navigation'
 import { SmtHistoryFetchError } from '@/components/smt/smt-history-fetch-error'
 import { SmtHistoryModal } from '@/components/smt/smt-history-modal'
 import { SmtHistoryTable } from '@/components/smt/smt-history-table'
+import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
+import { downloadExcel } from '@/lib/excel/export'
 import type { FetchSmtProductionHistoryResult } from '@/lib/smt/repository'
 import type { SmtProductionHistoryRow } from '@/lib/smt/types'
 import {
   filterSmtProductionHistory,
+  formatSmtHistoryDateTime,
+  formatSmtPcbSideLabel,
   sumSmtHistoryQuantity,
 } from '@/lib/smt/history-utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
@@ -45,6 +49,26 @@ export function SmtHistoryWorkspace({ result }: SmtHistoryWorkspaceProps) {
     router.refresh()
   }
 
+  async function handleExcelDownload() {
+    await downloadExcel({
+      fileName: 'SMT생산이력',
+      sheetName: 'SMT 생산이력',
+      rows: filtered,
+      columns: [
+        { header: '기록일', value: (row) => row.recordDate, width: 12 },
+        { header: '등록시각', value: (row) => formatSmtHistoryDateTime(row.createdAt), width: 16 },
+        { header: '주문서번호', value: (row) => row.orderNumber, width: 22 },
+        { header: '고객사', value: (row) => row.customer, width: 18 },
+        { header: '제품명', value: (row) => row.productName, width: 26 },
+        { header: '품목코드', value: (row) => row.productCode, width: 16 },
+        { header: '라인', value: (row) => (row.lineNo != null ? row.lineNo : ''), width: 8 },
+        { header: '면구분', value: (row) => formatSmtPcbSideLabel(row.pcbSide), width: 10 },
+        { header: '수량', value: (row) => row.quantity, width: 10 },
+        { header: '비고', value: (row) => row.note, width: 24 },
+      ],
+    })
+  }
+
   if (!result.ok) {
     return <SmtHistoryFetchError result={result} />
   }
@@ -60,6 +84,9 @@ export function SmtHistoryWorkspace({ result }: SmtHistoryWorkspaceProps) {
           onSearchChange={setSearch}
           searchPlaceholder="주문서번호, 고객사, 제품명, 기록일 검색…"
           accent="sky"
+          actions={
+            <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!filtered.length} />
+          }
           meta={
             <p className="mt-0.5 text-slate-500">
               수량 합계{' '}

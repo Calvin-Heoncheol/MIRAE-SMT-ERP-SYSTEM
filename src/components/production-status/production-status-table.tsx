@@ -1,3 +1,4 @@
+import { DeliveryDueBadge } from '@/components/ui/delivery-due-badge'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import type { ProductionStatusLine, ProductionStatusStage } from '@/lib/production-status/types'
 
@@ -27,14 +28,24 @@ function StageCell({
   tone,
   detail,
   label,
+  empty,
   onClick,
 }: {
   percent: number
   tone: 'sky' | 'emerald' | 'violet'
   detail: string
   label: string
+  empty?: boolean
   onClick?: () => void
 }) {
+  if (empty) {
+    return (
+      <td className="px-4 py-3">
+        <span className="text-xs text-slate-400">없음</span>
+      </td>
+    )
+  }
+
   if (!onClick) {
     return (
       <td className="px-4 py-3">
@@ -84,7 +95,10 @@ export function ProductionStatusTable({ lines, onStageClick }: ProductionStatusT
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                 제품
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                납기
+              </th>
+              <th className="px-4 py-3 pr-10 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
                 수량
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -92,9 +106,6 @@ export function ProductionStatusTable({ lines, onStageClick }: ProductionStatusT
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                 후공정
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                출하
               </th>
             </tr>
           </thead>
@@ -106,37 +117,30 @@ export function ProductionStatusTable({ lines, onStageClick }: ProductionStatusT
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-700">{line.customer || '—'}</td>
                 <td className="px-4 py-3 text-sm font-medium text-slate-900">{line.productName || '—'}</td>
-                <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-700">
+                <td className="whitespace-nowrap px-4 py-3">
+                  <DeliveryDueBadge
+                    deliveryDate={line.deliveryDate}
+                    done={line.deliveryTarget > 0 && line.deliveryProduced >= line.deliveryTarget}
+                  />
+                </td>
+                <td className="px-4 py-3 pr-10 text-right text-sm tabular-nums text-slate-700">
                   {line.quantity.toLocaleString('ko-KR')}
                 </td>
                 <StageCell
                   percent={line.smtPercent}
                   tone="sky"
                   label="SMT"
-                  detail={`${line.smtProduced.toLocaleString('ko-KR')} / ${line.quantity.toLocaleString('ko-KR')}`}
+                  empty={line.smtTarget <= 0}
+                  detail={`${line.smtProduced.toLocaleString('ko-KR')} / ${line.smtTarget.toLocaleString('ko-KR')}`}
                   onClick={onStageClick ? () => onStageClick(line, 'smt') : undefined}
                 />
                 <StageCell
                   percent={line.postPercent}
                   tone="emerald"
                   label="후공정"
-                  detail={
-                    line.postTarget > 0
-                      ? `${line.postProduced.toLocaleString('ko-KR')} / ${line.postTarget.toLocaleString('ko-KR')}`
-                      : '—'
-                  }
+                  empty={line.postTarget <= 0}
+                  detail={`${line.postProduced.toLocaleString('ko-KR')} / ${line.postTarget.toLocaleString('ko-KR')}`}
                   onClick={onStageClick ? () => onStageClick(line, 'post_process') : undefined}
-                />
-                <StageCell
-                  percent={line.deliveryPercent}
-                  tone="violet"
-                  label="출하"
-                  detail={
-                    line.deliveryTarget > 0
-                      ? `${line.deliveryProduced.toLocaleString('ko-KR')} / ${line.deliveryTarget.toLocaleString('ko-KR')}`
-                      : '—'
-                  }
-                  onClick={onStageClick ? () => onStageClick(line, 'delivery') : undefined}
                 />
               </tr>
             ))}

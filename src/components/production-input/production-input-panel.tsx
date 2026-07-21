@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { PostProcessTeamSwitcher } from '@/components/post-process/post-process-team-switcher'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import type { PostProcessPlanBlock } from '@/lib/post-process/plan/types'
 import { createPostProcessProductionRecord } from '@/lib/post-process/repository'
@@ -45,7 +44,6 @@ type ProductionInputPanelProps = {
   smtLinePlans?: SmtPlanBlock[]
   showPostProcessPlanSelector?: boolean
   postProcessTeam?: PostProcessTeam
-  onPostProcessTeamChange?: (team: PostProcessTeam) => void
   postProcessPlans?: PostProcessPlanBlock[]
   selectedPlanId?: string | null
   onSelectPlan?: (planId: string) => void
@@ -69,7 +67,6 @@ export function ProductionInputPanel({
   smtLinePlans = [],
   showPostProcessPlanSelector = false,
   postProcessTeam,
-  onPostProcessTeamChange,
   postProcessPlans = [],
   selectedPlanId = null,
   onSelectPlan,
@@ -263,12 +260,10 @@ export function ProductionInputPanel({
       {(showLineSelector || showPostProcessPlanSelector) ? (
         <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            {showPostProcessPlanSelector && postProcessTeam && onPostProcessTeamChange ? (
-              <PostProcessTeamSwitcher
-                value={postProcessTeam}
-                onChange={onPostProcessTeamChange}
-                variant="select"
-              />
+            {showPostProcessPlanSelector && postProcessTeam ? (
+              <span className="rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200">
+                {postProcessTeam}
+              </span>
             ) : null}
             {showLineSelector ? (
               <label className="flex items-center gap-2 text-sm font-medium text-slate-600">

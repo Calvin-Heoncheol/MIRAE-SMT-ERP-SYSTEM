@@ -9,17 +9,20 @@ import {
 } from '@/lib/post-process/plan/repository'
 import { buildPostProcessPlanBlocks } from '@/lib/post-process/plan/utils'
 import { fetchPostProcessDayPlanProgress } from '@/lib/post-process/repository'
+import { normalizePostProcessTeam } from '@/lib/post-process/teams'
 
 export const dynamic = 'force-dynamic'
 
 type PostProcessInputPageProps = {
-  searchParams?: Promise<{ uiKey?: string | string[] }>
+  searchParams?: Promise<{ uiKey?: string | string[]; team?: string | string[] }>
 }
 
 export default async function PostProcessInputPage({ searchParams }: PostProcessInputPageProps) {
   const params = searchParams ? await searchParams : {}
   const raw = params.uiKey
   const initialUiKey = Array.isArray(raw) ? raw[0] || '' : raw || ''
+  const rawTeam = params.team
+  const team = normalizePostProcessTeam(Array.isArray(rawTeam) ? rawTeam[0] : rawTeam)
   const today = todayYmdSeoul()
 
   await closeIncompletePastPostProcessPlans(today)
@@ -45,6 +48,7 @@ export default async function PostProcessInputPage({ searchParams }: PostProcess
       initialUiKey={initialUiKey}
       todayPostProcessPlans={todayPlans}
       initialPlanProgress={progressResult.ok ? progressResult.progress : {}}
+      postProcessTeam={team}
     />
   )
 }

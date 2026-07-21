@@ -2,23 +2,54 @@
 
 import { useMemo, useState } from 'react'
 import { createMaterialOutbound } from '@/lib/materials/outbound/repository'
-import { buildOutboundLinesForProductQuantity } from '@/lib/materials/outbound/utils'
-import type { BomEdge, MaterialOutboundNeedCard } from '@/lib/materials/outbound/types'
+import {
+  buildOutboundLinesForProductQuantity,
+  resolveMaterialBucket,
+  type OutboundBucketFilter,
+} from '@/lib/materials/outbound/utils'
+import type {
+  BomEdge,
+  MaterialOutboundNeedCard,
+  OutboundMaterialBucket,
+} from '@/lib/materials/outbound/types'
+import { OUTBOUND_MATERIAL_BUCKET_LABELS } from '@/lib/materials/outbound/types'
+import type { Material } from '@/lib/materials/types'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 
 type OutboundNeedsTableProps = {
   cards: MaterialOutboundNeedCard[]
   bomEdges: BomEdge[]
+  materials: Material[]
   onIssued: () => void
+}
+
+const BUCKET_BADGE_CLASS: Record<OutboundMaterialBucket, string> = {
+  SMD: 'bg-blue-100 text-blue-700',
+  DIP: 'bg-emerald-100 text-emerald-700',
+  ETC: 'bg-slate-100 text-slate-600',
+}
+
+const BUCKET_CARD_BORDER_CLASS: Record<OutboundMaterialBucket, string> = {
+  SMD: 'border-l-blue-400',
+  DIP: 'border-l-emerald-400',
+  ETC: 'border-l-slate-300',
+}
+
+const BUCKET_TARGET_TEAM: Record<OutboundMaterialBucket, string> = {
+  SMD: '생산1팀',
+  DIP: '생산2·3·4팀',
+  ETC: '구분 미지정',
 }
 
 function OutboundNeedCardItem({
   card,
   edgesByParent,
+  bucketByMaterialId,
   onIssued,
 }: {
   card: MaterialOutboundNeedCard
   edgesByParent: Map<string, BomEdge[]>
+  bucketByMaterialId: Map<string, OutboundMaterialBucket>
   onIssued: () => void
 }) {
   const defaultQty = Math.min(card.issuableQuantity, card.remainingProductQuantity)
@@ -28,6 +59,7 @@ function OutboundNeedCardItem({
   const [okMessage, setOkMessage] = useState('')
 
   const maxQty = Math.min(card.issuableQuantity, card.remainingProductQuantity)
+  const bucketLabel = OUTBOUND_MATERIAL_BUCKET_LABELS[card.materialBucket]
 
   async function handleIssue() {
     const value = Math.floor(Number(qty) || 0)
@@ -47,7 +79,11 @@ function OutboundNeedCardItem({
       return
     }
 
-    const items = buildOutboundLinesForProductQuantity(card.productId, value, edgesByParent)
+    const filter: OutboundBucketFilter = {
+      bucket: card.materialBucket,
+      bucketByMaterialId,
+    }
+    const items = buildOutboundLinesForProductQuantity(card.productId, value, edgesByParent, filter)
     if (!items.length) {
       setError('BOM 구성이 없어 불출할 자재가 없습니다.')
       setOkMessage('')
@@ -62,7 +98,7 @@ function OutboundNeedCardItem({
       outbound_date: todayYmdSeoul(),
       outbound_type: 'production',
       order_id: card.orderId,
-      note: `${card.productName} ${value}대 불출`,
+      note: `${card.productName} ${value}대 ${bucketLabel}`,
       items,
     })
 
@@ -79,10 +115,19 @@ function OutboundNeedCardItem({
   }
 
   return (
-    <article className="flex flex-col rounded-xl border border-slate-200 border-l-4 border-l-orange-400 bg-white p-4 shadow-sm">
-      <div className="min-w-0">
-        <p className="font-mono text-sm font-bold text-slate-900">{card.orderNumber}</p>
-        <p className="mt-1 truncate text-sm text-slate-600">{card.customer || '—'}</p>
+    <article
+      className={`flex flex-col rounded-xl border border-slate-200 border-l-4 bg-white p-4 shadow-sm ${BUCKET_CARD_BORDER_CLASS[card.materialBucket]}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-mono text-sm font-bold text-slate-900">{card.orderNumber}</p>
+          <p className="mt-1 truncate text-sm text-slate-600">{card.customer || '—'}</p>
+        </div>
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${BUCKET_BADGE_CLASS[card.materialBucket]}`}
+        >
+          {bucketLabel}
+        </span>
       </div>
 
       <div className="mt-3 space-y-1.5 text-sm">
@@ -91,6 +136,10 @@ function OutboundNeedCardItem({
           <span className="min-w-0 text-right font-medium text-slate-900" title={card.productName}>
             {card.productName}
           </span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-slate-500">불출 대상</span>
+          <span className="font-medium text-slate-800">{BUCKET_TARGET_TEAM[card.materialBucket]}</span>
         </div>
         <div className="flex items-center justify-between gap-2">
           <span className="text-slate-500">수량</span>
@@ -139,7 +188,7 @@ function OutboundNeedCardItem({
           onClick={() => void handleIssue()}
           className="shrink-0 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          {saving ? '처리 중…' : '불출'}
+          {saving ? '처리 중…' : bucketLabel}
         </button>
       </div>
 
@@ -152,7 +201,7 @@ function OutboundNeedCardItem({
   )
 }
 
-export function OutboundNeedsTable({ cards, bomEdges, onIssued }: OutboundNeedsTableProps) {
+export function OutboundNeedsTable({ cards, bomEdges, materials, onIssued }: OutboundNeedsTableProps) {
   const edgesByParent = useMemo(() => {
     const map = new Map<string, BomEdge[]>()
     for (const edge of bomEdges) {
@@ -163,6 +212,14 @@ export function OutboundNeedsTable({ cards, bomEdges, onIssued }: OutboundNeedsT
     }
     return map
   }, [bomEdges])
+
+  const bucketByMaterialId = useMemo(
+    () =>
+      new Map<string, OutboundMaterialBucket>(
+        materials.map((material) => [material.id, resolveMaterialBucket(material.type)]),
+      ),
+    [materials],
+  )
 
   if (!cards.length) {
     return (
@@ -180,7 +237,8 @@ export function OutboundNeedsTable({ cards, bomEdges, onIssued }: OutboundNeedsT
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-2.5">
         <h3 className="text-sm font-bold text-slate-800">미불출 주문</h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          불출가능은 현재고·BOM 기준입니다. 수량을 입력하고 바로 불출하세요.
+          SMD 자재는 생산1팀, DIP 자재는 생산2·3·4팀 불출입니다. 불출가능은 현재고·BOM 기준이며 수량을
+          입력하고 바로 불출하세요.
         </p>
       </div>
 
@@ -190,6 +248,7 @@ export function OutboundNeedsTable({ cards, bomEdges, onIssued }: OutboundNeedsT
             key={card.key}
             card={card}
             edgesByParent={edgesByParent}
+            bucketByMaterialId={bucketByMaterialId}
             onIssued={onIssued}
           />
         ))}

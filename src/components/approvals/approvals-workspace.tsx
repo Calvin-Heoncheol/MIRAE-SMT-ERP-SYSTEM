@@ -62,34 +62,33 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
   return (
     <>
       <div className="flex w-full flex-1 flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={openCreate}
-            className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
-          >
-            새 품의서
-          </button>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {APPROVAL_CATEGORIES.map((item) => {
-            const active = pathname === item.href
-            return (
-              <Link
-                key={item.slug}
-                href={item.href}
-                className={[
-                  'rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap gap-2">
+            {APPROVAL_CATEGORIES.map((item) => {
+              const active = pathname === item.href
+              return (
+                <Link
+                  key={item.slug}
+                  href={item.href}
+                  className={[
+                    'rounded-full px-4 py-2 text-sm font-semibold transition-colors',
                     active
                       ? 'bg-slate-800 text-white shadow-sm'
                       : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
-                ].join(' ')}
-              >
-                {item.shortLabel}
-              </Link>
-            )
-          })}
+                  ].join(' ')}
+                >
+                  {item.shortLabel}
+                </Link>
+              )
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="ml-auto rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
+          >
+            새 품의서
+          </button>
         </div>
 
         {!result.ok ? (

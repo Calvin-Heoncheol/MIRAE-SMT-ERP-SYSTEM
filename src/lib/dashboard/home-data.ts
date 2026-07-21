@@ -1,0 +1,242 @@
+import { fetchAssemblyGroups } from '@/lib/assembly/repository'
+import type { OrderAssemblyGroup } from '@/lib/assembly/types'
+import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
+import { fetchMaterialPurchaseOrders } from '@/lib/materials/purchase-orders/repository'
+import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
+import { fetchOrders } from '@/lib/orders/repository'
+import { formatInternalCodeLabel, todayYmdSeoul } from '@/lib/orders/utils'
+import { POST_PROCESS_TEAMS } from '@/lib/post-process/teams'
+import { fetchPostProcessTodayProduction } from '@/lib/post-process/repository'
+import { fetchProducts } from '@/lib/products/repository'
+import { fetchSmtTodayProduction } from '@/lib/smt/repository'
+import { fetchSmtProductionPlansForDate } from '@/lib/smt/plan/repository'
+import {
+  buildSmtPlanBlocks,
+  daysUntilYmd,
+  formatDeliveryCountdown,
+} from '@/lib/smt/plan/utils'
+import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
+
+export type HomeSmtLineStatus = 'idle' | 'planned' | 'running' | 'done'
+
+export type HomeSmtLine = {
+  lineNo: number
+  status: HomeSmtLineStatus
+  jobLabel: string
+  plannedQuantity: number
+  producedQuantity: number
+}
+
+export type HomeProductionTeam = {
+  team: string
+  todayQuantity: number
+  href: string
+}
+
+export type HomeAlert = {
+  key: string
+  label: string
+  detail: string
+  href: string
+  tone: 'warn' | 'danger'
+}
+
+export type HomeDashboardData = {
+  kpis: {
+    dueSoonOrders: number | null
+    unshippedOrders: number | null
+    pendingPurchaseOrders: number | null
+    negativeStockMaterials: number | null
+  }
+  smtLines: HomeSmtLine[]
+  productionTeams: HomeProductionTeam[]
+  alerts: HomeAlert[]
+}
+
+const DUE_SOON_DAYS = 3
+const MAX_DELIVERY_ALERTS = 5
+
+function groupAssembliesByOrderId(groups: OrderAssemblyGroup[]) {
+  const map = new Map<string, OrderAssemblyGroup[]>()
+  for (const group of groups) {
+    const list = map.get(group.orderId) ?? []
+    list.push(group)
+    map.set(group.orderId, list)
+  }
+  return map
+}
+
+export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
+  const today = todayYmdSeoul()
+
+  const [
+    ordersResult,
+    productsResult,
+    deliveryCountsResult,
+    smtPlansResult,
+    smtTodayResult,
+    postTodayResult,
+    purchaseOrdersResult,
+    onHandResult,
+  ] = await Promise.all([
+    fetchOrders(),
+    fetchProducts(),
+    fetchDeliveryCumulativeCounts(),
+    fetchSmtProductionPlansForDate(today),
+    fetchSmtTodayProduction(),
+    fetchPostProcessTodayProduction(),
+    fetchMaterialPurchaseOrders(),
+    fetchOnHandByMaterialId(),
+  ])
+
+  const productById = productsResult.ok
+    ? Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
+    : {}
+  const assemblyResult = await fetchAssemblyGroups(productById)
+
+  // ── 출하 미완료 · 납기 임박 ─────────────────────────────────
+  let unshippedOrders: number | null = null
+  let dueSoonOrders: number | null = null
+  const alerts: HomeAlert[] = []
+
+  if (ordersResult.ok && assemblyResult.ok && deliveryCountsResult.ok) {
+    const assembliesByOrderId = groupAssembliesByOrderId(assemblyResult.groups)
+    const deliveryCounts = deliveryCountsResult.counts
+
+    const isFullyShipped = (orderId: string) => {
+      const groups = (assembliesByOrderId.get(orderId) ?? []).filter(
+        (group) => Math.floor(group.targetQuantity) > 0,
+      )
+      if (!groups.length) return false
+      return groups.every(
+        (group) =>
+          Math.max(0, Math.floor(Number(deliveryCounts[group.id]) || 0)) >=
+          Math.floor(group.targetQuantity),
+      )
+    }
+
+    const pendingOrders = ordersResult.orders.filter(
+      (order) => order.items.length > 0 && !isFullyShipped(order.orderId),
+    )
+    unshippedOrders = pendingOrders.length
+
+    const dueSoon = pendingOrders
+      .filter((order) => order.deliveryDate)
+      .flatMap((order) => {
+        const daysUntil = daysUntilYmd(today, order.deliveryDate)
+        return daysUntil != null && daysUntil <= DUE_SOON_DAYS ? [{ order, daysUntil }] : []
+      })
+      .sort((a, b) => a.daysUntil - b.daysUntil)
+
+    dueSoonOrders = dueSoon.length
+
+    for (const { order, daysUntil } of dueSoon.slice(0, MAX_DELIVERY_ALERTS)) {
+      alerts.push({
+        key: `delivery:${order.orderId}`,
+        label: `${formatInternalCodeLabel(order.orderNumber)} · ${order.customer || '—'}`,
+        detail: `납기 ${order.deliveryDate} (${formatDeliveryCountdown(daysUntil)})`,
+        href: '/production/status',
+        tone: daysUntil < 0 ? 'danger' : 'warn',
+      })
+    }
+  }
+
+  // ── 미입고 발주 ─────────────────────────────────────────────
+  const pendingPurchaseOrders = purchaseOrdersResult.ok
+    ? purchaseOrdersResult.orders.filter((order) =>
+        order.items.some((item) => item.inboundQuantity < item.quantity),
+      ).length
+    : null
+
+  // ── 재고 마이너스 ───────────────────────────────────────────
+  let negativeStockMaterials: number | null = null
+  if (onHandResult.ok) {
+    negativeStockMaterials = 0
+    for (const onHand of onHandResult.onHandByMaterialId.values()) {
+      if (onHand < 0) negativeStockMaterials += 1
+    }
+    if (negativeStockMaterials > 0) {
+      alerts.push({
+        key: 'stock:negative',
+        label: `재고 마이너스 자재 ${negativeStockMaterials.toLocaleString('ko-KR')}건`,
+        detail: '재고현황에서 입고·불출 내역을 확인하세요',
+        href: '/materials/inventory',
+        tone: 'danger',
+      })
+    }
+  }
+
+  // ── SMT 라인현황 (오늘 실제 생산 기록 + 계획) ───────────────
+  const planBlocks =
+    smtPlansResult.ok && ordersResult.ok
+      ? buildSmtPlanBlocks(smtPlansResult.plans, ordersResult.orders)
+      : []
+  const todaySmtRows = smtTodayResult.ok
+    ? [...smtTodayResult.rows].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    : []
+
+  const smtLines: HomeSmtLine[] = SMT_PLAN_LINE_NOS.map((lineNo) => {
+    const linePlans = planBlocks.filter((plan) => plan.lineNo === lineNo)
+    const lineRows = todaySmtRows.filter((row) => row.lineNo === lineNo)
+
+    const plannedQuantity = linePlans.reduce(
+      (sum, plan) => sum + Math.max(0, Math.floor(plan.plannedQuantity)),
+      0,
+    )
+    const producedQuantity = lineRows.reduce((sum, row) => sum + Math.max(0, row.quantity), 0)
+
+    // 지금 생산중인 제품 — 오늘 가장 최근 등록 기록 기준, 없으면 계획 제품
+    const latestRow = lineRows[0]
+    const jobLabel = latestRow
+      ? latestRow.productName || latestRow.productCode || '—'
+      : linePlans.length
+        ? linePlans.length > 1
+          ? `${linePlans[0].productSummary} 외 ${linePlans.length - 1}건`
+          : linePlans[0].productSummary
+        : '생산 없음'
+
+    const status: HomeSmtLineStatus =
+      producedQuantity > 0
+        ? plannedQuantity > 0 && producedQuantity >= plannedQuantity
+          ? 'done'
+          : 'running'
+        : linePlans.length
+          ? 'planned'
+          : 'idle'
+
+    return { lineNo, status, jobLabel, plannedQuantity, producedQuantity }
+  })
+
+  // ── 팀별 오늘 생산실적 (생산1 = SMT · 생산2/3/4 = 후공정) ──
+  const smtTeamQuantity = smtTodayResult.ok
+    ? smtTodayResult.rows.reduce((sum, row) => sum + Math.max(0, row.quantity), 0)
+    : 0
+
+  const productionTeams: HomeProductionTeam[] = [
+    { team: '생산1팀', todayQuantity: smtTeamQuantity, href: '/smt' },
+    ...POST_PROCESS_TEAMS.map((team) => {
+      const todayQuantity = postTodayResult.ok
+        ? postTodayResult.rows
+            .filter((row) => row.team === team)
+            .reduce((sum, row) => sum + Math.max(0, row.quantity), 0)
+        : 0
+      return {
+        team: team as string,
+        todayQuantity,
+        href: `/post-process?team=${encodeURIComponent(team)}`,
+      }
+    }),
+  ]
+
+  return {
+    kpis: {
+      dueSoonOrders,
+      unshippedOrders,
+      pendingPurchaseOrders,
+      negativeStockMaterials,
+    },
+    smtLines,
+    productionTeams,
+    alerts,
+  }
+}

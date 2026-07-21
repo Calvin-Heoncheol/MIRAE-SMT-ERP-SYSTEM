@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { useEffect, useId, useRef, useState } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useId, useRef, useState } from 'react'
 import { PageShell } from '@/components/ui/page-shell'
 
 export type ModuleTabMenuItem = {
@@ -24,6 +24,8 @@ type ModuleTabShellProps = {
   title?: string
   tabs: ModuleTabItem[]
   ariaLabel: string
+  /** 탭 이동 시 유지할 URL 쿼리 파라미터 (예: 후공정 team) */
+  preserveQueryParams?: string[]
   children: React.ReactNode
 }
 
@@ -35,9 +37,11 @@ function isTabActive(pathname: string, tab: ModuleTabItem) {
 function TabLink({
   tab,
   pathname,
+  querySuffix = '',
 }: {
   tab: ModuleTabItem
   pathname: string
+  querySuffix?: string
 }) {
   const active = isTabActive(pathname, tab)
   const hasMenu = Boolean(tab.menu?.length)
@@ -78,7 +82,7 @@ function TabLink({
   if (!hasMenu) {
     return (
       <Link
-        href={tab.href}
+        href={`${tab.href}${querySuffix}`}
         className={[
           'rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors',
           active
@@ -131,7 +135,7 @@ function TabLink({
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={`${item.href}${querySuffix}`}
                 role="menuitem"
                 onClick={() => setOpen(false)}
                 className={[
@@ -156,10 +160,12 @@ function TabNav({
   tabs,
   pathname,
   ariaLabel,
+  querySuffix = '',
 }: {
   tabs: ModuleTabItem[]
   pathname: string
   ariaLabel: string
+  querySuffix?: string
 }) {
   if (tabs.length === 0) return null
 
@@ -169,15 +175,52 @@ function TabNav({
       aria-label={ariaLabel}
     >
       {tabs.map((tab) => (
-        <TabLink key={tab.href + tab.label} tab={tab} pathname={pathname} />
+        <TabLink key={tab.href + tab.label} tab={tab} pathname={pathname} querySuffix={querySuffix} />
       ))}
     </nav>
+  )
+}
+
+/** preserveQueryParams에 지정된 현재 쿼리를 탭 링크에 이어붙일 접미사로 생성 */
+function PreservedQueryTabs({
+  tabs,
+  pathname,
+  ariaLabel,
+  preserveQueryParams,
+}: {
+  tabs: { start: ModuleTabItem[]; end: ModuleTabItem[] }
+  pathname: string
+  ariaLabel: string
+  preserveQueryParams: string[]
+}) {
+  const search = useSearchParams()
+  const params = new URLSearchParams()
+  for (const key of preserveQueryParams) {
+    const value = search.get(key)
+    if (value) params.set(key, value)
+  }
+  const queryString = params.toString()
+  const querySuffix = queryString ? `?${queryString}` : ''
+
+  return (
+    <>
+      <TabNav tabs={tabs.start} pathname={pathname} ariaLabel={ariaLabel} querySuffix={querySuffix} />
+      {tabs.end.length ? (
+        <TabNav
+          tabs={tabs.end}
+          pathname={pathname}
+          ariaLabel={`${ariaLabel} · 부가`}
+          querySuffix={querySuffix}
+        />
+      ) : null}
+    </>
   )
 }
 
 export function ModuleTabShell({
   tabs,
   ariaLabel,
+  preserveQueryParams,
   children,
 }: ModuleTabShellProps) {
   const pathname = usePathname()
@@ -185,6 +228,15 @@ export function ModuleTabShell({
   const endTabs = tabs.filter((tab) => tab.align === 'end')
   const hasSplit = endTabs.length > 0
   const hasTabs = startTabs.length > 0 || endTabs.length > 0
+
+  const plainTabs = (
+    <>
+      <TabNav tabs={startTabs} pathname={pathname} ariaLabel={ariaLabel} />
+      {hasSplit ? (
+        <TabNav tabs={endTabs} pathname={pathname} ariaLabel={`${ariaLabel} · 부가`} />
+      ) : null}
+    </>
+  )
 
   return (
     <PageShell>
@@ -195,14 +247,18 @@ export function ModuleTabShell({
             hasSplit ? 'justify-between' : '',
           ].join(' ')}
         >
-          <TabNav tabs={startTabs} pathname={pathname} ariaLabel={ariaLabel} />
-          {hasSplit ? (
-            <TabNav
-              tabs={endTabs}
-              pathname={pathname}
-              ariaLabel={`${ariaLabel} · 부가`}
-            />
-          ) : null}
+          {preserveQueryParams?.length ? (
+            <Suspense fallback={plainTabs}>
+              <PreservedQueryTabs
+                tabs={{ start: startTabs, end: endTabs }}
+                pathname={pathname}
+                ariaLabel={ariaLabel}
+                preserveQueryParams={preserveQueryParams}
+              />
+            </Suspense>
+          ) : (
+            plainTabs
+          )}
         </div>
       ) : null}
 

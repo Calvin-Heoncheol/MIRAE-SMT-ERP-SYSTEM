@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { ProductionFetchError } from '@/components/production-input/production-fetch-error'
@@ -26,6 +26,8 @@ type ProductionInputWorkspaceProps = {
   todayPostProcessPlans?: PostProcessPlanBlock[]
   /** 오늘 계획 대비 이미 등록한 수량 */
   initialPlanProgress?: Record<string, number>
+  /** 후공정 — 내비(생산2/3/4)에서 URL로 결정되는 팀 */
+  postProcessTeam?: PostProcessTeam
 }
 
 function findOrderForSmtPlan(
@@ -69,13 +71,14 @@ export function ProductionInputWorkspace({
   todayPlans = [],
   todayPostProcessPlans = [],
   initialPlanProgress = {},
+  postProcessTeam = DEFAULT_POST_PROCESS_TEAM,
 }: ProductionInputWorkspaceProps) {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [selectedKey, setSelectedKey] = useState(initialUiKey)
   const [selectedLineNo, setSelectedLineNo] = useState<number>(1)
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
-  const [selectedTeam, setSelectedTeam] = useState<PostProcessTeam>(DEFAULT_POST_PROCESS_TEAM)
+  const selectedTeam = postProcessTeam
   const [counts, setCounts] = useState<Record<string, number>>(() =>
     result.ok ? result.data.counts : {},
   )
@@ -222,10 +225,6 @@ export function ProductionInputWorkspace({
           config={config}
           showPostProcessPlanSelector
           postProcessTeam={selectedTeam}
-          onPostProcessTeamChange={(team) => {
-            setSelectedTeam(team)
-            setSelectedPlanId(null)
-          }}
           postProcessPlans={teamTodayPlans}
           selectedPlanId={selectedPostProcessPlan?.id ?? null}
           onSelectPlan={(planId) => {
@@ -236,7 +235,7 @@ export function ProductionInputWorkspace({
           }}
           plan={selectedPostProcessPlan ?? null}
           planProduced={planProduced}
-          planSetupHref="/post-process/plan"
+          planSetupHref={`/post-process/plan?team=${encodeURIComponent(selectedTeam)}`}
           onCountUpdated={(countKey, cumulative) => {
             setCounts((current) => ({ ...current, [countKey]: cumulative }))
           }}

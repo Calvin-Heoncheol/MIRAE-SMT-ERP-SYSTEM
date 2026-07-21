@@ -1,5 +1,6 @@
 'use client'
 
+import { DeliveryDueBadge } from '@/components/ui/delivery-due-badge'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionProductName } from '@/lib/production-input/utils'
 import type { DeliveryAvailability } from '@/lib/delivery/utils'
@@ -55,6 +56,9 @@ export function DeliveryInputTable({
               <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                 완제품
               </th>
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                납기
+              </th>
               <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
                 주문
               </th>
@@ -90,6 +94,9 @@ export function DeliveryInputTable({
                   <td className="px-4 py-3 text-slate-700">{order.customer || '—'}</td>
                   <td className="px-4 py-3 font-medium text-slate-900">
                     {formatProductionProductName(order)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <DeliveryDueBadge deliveryDate={order.deliveryDate} done={tone === 'complete'} />
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums text-slate-700">
                     {availability.targetQuantity.toLocaleString('ko-KR')}

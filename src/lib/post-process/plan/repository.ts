@@ -5,6 +5,7 @@ import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import { buildPostProcessAssemblyLines } from '@/lib/production-input/utils'
+import { insertPlanCloseLogs, type PlanCloseLogInsert } from '@/lib/production-plan-close-logs'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import {
   fetchPostProcessCumulativeCounts,
@@ -222,6 +223,7 @@ export async function closeIncompletePastPostProcessPlans(
 
     let adjusted = 0
     let deleted = 0
+    const closeLogs: PlanCloseLogInsert[] = []
 
     for (const plan of pastPlans) {
       const produced =
@@ -240,6 +242,14 @@ export async function closeIncompletePastPostProcessPlans(
           return { ok: false, reason: 'query', detail: deleteError.message }
         }
         deleted += 1
+        closeLogs.push({
+          module: 'post_process',
+          plannedDate: plan.plannedDate,
+          team: plan.team,
+          orderId: plan.orderId,
+          originalQuantity: plan.plannedQuantity,
+          producedQuantity: 0,
+        })
         continue
       }
 
@@ -255,7 +265,18 @@ export async function closeIncompletePastPostProcessPlans(
         return { ok: false, reason: 'query', detail: updateError.message }
       }
       adjusted += 1
+      closeLogs.push({
+        module: 'post_process',
+        plannedDate: plan.plannedDate,
+        team: plan.team,
+        orderId: plan.orderId,
+        originalQuantity: plan.plannedQuantity,
+        producedQuantity: produced,
+      })
     }
+
+    // 원계획 수량 보존 (달성률 계산용) — 실패해도 마감은 유지
+    await insertPlanCloseLogs(supabase, closeLogs)
 
     return { ok: true, adjusted, deleted }
   } catch (error) {

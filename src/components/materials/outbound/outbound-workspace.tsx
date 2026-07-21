@@ -112,6 +112,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
         <OutboundNeedsTable
           cards={needsPagination.pageItems}
           bomEdges={bomEdges}
+          materials={materials}
           onIssued={() => router.refresh()}
         />
 

@@ -2,8 +2,8 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
 import { APP_SHORT_NAME } from '@/lib/app-config'
 import {
   isNavChildActive,
@@ -11,21 +11,24 @@ import {
   isNavLinkActive,
   NAV_ITEMS,
   type NavItem,
+  type NavSearch,
 } from '@/lib/navigation'
 
 function NavSection({
   item,
   pathname,
+  search,
   onNavigate,
 }: {
   item: NavItem
   pathname: string
+  search: NavSearch | null
   onNavigate?: () => void
 }) {
   const hasChildren = Boolean(item.children?.length)
   const sectionActive = hasChildren
-    ? isNavItemActive(pathname, item)
-    : isNavLinkActive(pathname, item.href)
+    ? isNavItemActive(pathname, item, search)
+    : isNavLinkActive(pathname, item.href, search)
   const [expanded, setExpanded] = useState(sectionActive)
 
   useEffect(() => {
@@ -38,10 +41,10 @@ function NavSection({
         href={item.href}
         onClick={onNavigate}
         className={[
-          'mb-0.5 flex items-center rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors',
+          'mb-0.5 flex items-center rounded-lg px-3 py-2.5 text-sm font-bold transition-colors',
           sectionActive
             ? 'bg-blue-50 text-blue-700'
-            : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900',
+            : 'text-slate-800 hover:bg-slate-50 hover:text-slate-900',
         ].join(' ')}
         aria-current={sectionActive ? 'page' : undefined}
       >
@@ -56,8 +59,8 @@ function NavSection({
         type="button"
         onClick={() => setExpanded((value) => !value)}
         className={[
-          'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[11px] font-bold tracking-wide uppercase transition-colors',
-          sectionActive ? 'text-blue-700' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600',
+          'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-bold transition-colors',
+          sectionActive ? 'text-blue-700' : 'text-slate-800 hover:bg-slate-50 hover:text-slate-900',
         ].join(' ')}
         aria-expanded={expanded}
       >
@@ -65,19 +68,19 @@ function NavSection({
         <span className="text-[10px] opacity-70">{expanded ? '▾' : '▸'}</span>
       </button>
       {expanded ? (
-        <div className="mt-0.5 space-y-0.5 pl-1">
+        <div className="mt-0.5 space-y-0.5 pl-3">
           {item.children!.map((child) => {
-            const childActive = isNavChildActive(pathname, child.href)
+            const childActive = isNavChildActive(pathname, child.href, search)
             return (
               <Link
                 key={child.href}
                 href={child.href}
                 onClick={onNavigate}
                 className={[
-                  'block rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                  'block rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors',
                   childActive
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                    ? 'bg-blue-50 font-semibold text-blue-700'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
                 ].join(' ')}
                 aria-current={childActive ? 'page' : undefined}
               >
@@ -116,6 +119,42 @@ function SidebarBrand({ onNavigate }: { onNavigate?: () => void }) {
   )
 }
 
+function SidebarNavList({
+  pathname,
+  search,
+  onNavigate,
+}: {
+  pathname: string
+  search: NavSearch | null
+  onNavigate?: () => void
+}) {
+  return (
+    <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="주 메뉴">
+      {NAV_ITEMS.map((item) => (
+        <NavSection
+          key={item.href}
+          item={item}
+          pathname={pathname}
+          search={search}
+          onNavigate={onNavigate}
+        />
+      ))}
+    </nav>
+  )
+}
+
+function SidebarNavListWithSearch({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string
+  onNavigate?: () => void
+}) {
+  const search = useSearchParams()
+  return <SidebarNavList pathname={pathname} search={search} onNavigate={onNavigate} />
+}
+
+/** useSearchParams는 프리렌더 시 Suspense 경계가 필요 — 폴백은 쿼리 없이 렌더 */
 function SidebarNavBody({
   pathname,
   onNavigate,
@@ -124,11 +163,9 @@ function SidebarNavBody({
   onNavigate?: () => void
 }) {
   return (
-    <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="주 메뉴">
-      {NAV_ITEMS.map((item) => (
-        <NavSection key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
-      ))}
-    </nav>
+    <Suspense fallback={<SidebarNavList pathname={pathname} search={null} onNavigate={onNavigate} />}>
+      <SidebarNavListWithSearch pathname={pathname} onNavigate={onNavigate} />
+    </Suspense>
   )
 }
 
@@ -206,7 +243,7 @@ export function SideNav() {
       </header>
 
       {/* 데스크톱 사이드바 */}
-      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex xl:w-60">
+      <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex xl:w-56">
         <div className="border-b border-slate-200 px-3 py-4">
           <SidebarBrand />
         </div>

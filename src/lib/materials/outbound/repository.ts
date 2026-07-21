@@ -16,6 +16,7 @@ import {
   buildOutboundNeedCards,
   buildOutboundNeedRows,
   groupOutboundsFromRecords,
+  resolveMaterialBucket,
 } from './utils'
 import { fetchOnHandByMaterialId, availableOnHandForOutboundEdit } from '@/lib/materials/inventory/stock'
 
@@ -328,17 +329,22 @@ export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutb
     const onHandByMaterialId = onHandResult.onHandByMaterialId
 
     const itemNameById = new Map(materialsResult.materials.map((material) => [material.id, material.materialName]))
+    const bucketByMaterialId = new Map(
+      materialsResult.materials.map((material) => [material.id, resolveMaterialBucket(material.type)]),
+    )
     const issuedByOrderMaterial = aggregateIssuedByOrderMaterial(issuedRows)
     const needs = buildOutboundNeedRows({
       orders: ordersResult.orders,
       edgesByParent,
       itemNameById,
       issuedByOrderMaterial,
+      bucketByMaterialId,
     })
     const needCards = buildOutboundNeedCards({
       rows: needs,
       edgesByParent,
       onHandByMaterialId,
+      bucketByMaterialId,
     })
 
     return {
