@@ -42,6 +42,7 @@ function resolveProductProcessType(
  * 후공정 후보 여부.
  * 완제품(조립 그룹): 구성 반제품 중 공정이 후공정 / SMD+후공정인 것이 하나라도 있을 때만 노출.
  * (SMD만인 반제품으로만 구성된 완제품은 후공정에 안 보임. 미설정 반제품은 후공정 필요로 보지 않음.)
+ * 주문에 반제품만 있는 경우 완제품으로 합치지 않고 반제품 단독 그룹으로 노출한다.
  */
 function assemblyGroupIncludesPostProcess(
   group: OrderAssemblyGroup,
@@ -71,13 +72,12 @@ function resolveProductPcbSideMode(
 }
 
 export function buildProductionCountKey(order: ProductionOrderLine, pcbSide: SmtPcbSide = 'SINGLE') {
-  if (order.splitPcbSides) {
-    return buildSmtCountKey(order.orderLineId, pcbSide)
-  }
+  // 후공정·출하: assembly group id 가 카운트 키
   if (order.assemblyGroupId) {
     return order.assemblyGroupId
   }
-  return order.orderLineId
+  // SMT totals always use `${orderLineId}:${pcbSide}` (including SINGLE)
+  return buildSmtCountKey(order.orderLineId, pcbSide)
 }
 
 export function buildProductionOrderLines(
@@ -176,9 +176,6 @@ export function buildPostProcessAssemblyLines(
     const labelParts: string[] = []
     if (productName) labelParts.push(productName)
     if (productCode) labelParts.push(`[${productCode}]`)
-    if (isFinished && group.lines.length) {
-      labelParts.push(`구성 ${group.lines.map((line) => line.childProductId).join('+')}`)
-    }
     labelParts.push(`수량${group.targetQuantity}`)
 
     lines.push({

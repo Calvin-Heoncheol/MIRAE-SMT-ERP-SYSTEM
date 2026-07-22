@@ -1,4 +1,4 @@
-import { fetchAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
@@ -76,20 +76,29 @@ export async function fetchProductionInputPageData(
 
     const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
 
-    const [assemblyResult, countsResult, deliveryCountsResult] = await Promise.all([
+    const [assemblyFetchResult, countsResult, deliveryCountsResult] = await Promise.all([
       fetchAssemblyGroups(productById),
       fetchPostProcessCumulativeCounts(),
       fetchDeliveryCumulativeCounts(),
     ])
 
-    if (!assemblyResult.ok) {
-      return assemblyResult
+    if (!assemblyFetchResult.ok) {
+      return assemblyFetchResult
     }
     if (!countsResult.ok) {
       return countsResult
     }
     if (!deliveryCountsResult.ok) {
       return deliveryCountsResult
+    }
+
+    const assemblyResult = await repairChildrenOnlyAssemblyGroups(
+      assemblyFetchResult.groups,
+      ordersResult.orders,
+      productById,
+    )
+    if (!assemblyResult.ok) {
+      return assemblyResult
     }
 
     const orders = excludeDeliveryCompleteProductionOrders(

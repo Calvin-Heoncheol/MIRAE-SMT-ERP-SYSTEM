@@ -1,4 +1,4 @@
-import { fetchAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import {
   buildDeliveryAvailabilityMap,
@@ -20,8 +20,9 @@ export type FetchProductionStatusResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 /**
- * 조립그룹 동기화(ensureAssemblyGroupsForOrders)는 페이지 로드에서 제외.
+ * 조립그룹 전체 동기화(ensureAssemblyGroupsForOrders)는 페이지 로드에서 제외.
  * 주문 저장·출하 입력 시 동기화되며, 여기서 await 하면 TTFB가 급증함.
+ * 단, 반제품→완제품으로 잘못 합쳐진 그룹만 소량 복구한다.
  */
 export async function fetchProductionStatusPageData(): Promise<FetchProductionStatusResult> {
   const [
@@ -50,7 +51,16 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
   const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
   const smtOrders = buildProductionOrderLines(smtOrdersResult.orders, 'SMT', productById, 'smt')
 
-  const assemblyResult = await fetchAssemblyGroups(productById)
+  let assemblyResult = await fetchAssemblyGroups(productById)
+  if (!assemblyResult.ok) {
+    return assemblyResult
+  }
+
+  assemblyResult = await repairChildrenOnlyAssemblyGroups(
+    assemblyResult.groups,
+    ordersResult.orders,
+    productById,
+  )
   if (!assemblyResult.ok) {
     return assemblyResult
   }

@@ -3,11 +3,34 @@ import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-inp
 
 export type ProductionStatusStage = 'smt' | 'post_process' | 'delivery'
 
+/** 주문 내 제품(라인)별 진행 — 펼친 행 */
+export type ProductionStatusProductLine = {
+  key: string
+  productName: string
+  productCode: string
+  quantity: number
+  smtTarget: number
+  smtProduced: number
+  smtPercent: number
+  postTarget: number
+  postProduced: number
+  postPercent: number
+  deliveryTarget: number
+  deliveryProduced: number
+  deliveryPercent: number
+  /** 모달 SMT 필터 */
+  smtOrderLineIds: string[]
+  /** 모달 후공정·출하 필터 */
+  assemblyGroupIds: string[]
+}
+
 export type ProductionStatusLine = {
   orderId: string
   orderNumber: string
   customer: string
   productName: string
+  /** 펼친 행에 쓰는 제품 수 */
+  productCount: number
   deliveryDate: string
   /** 주문서 주문수량 합계 */
   quantity: number
@@ -20,6 +43,7 @@ export type ProductionStatusLine = {
   deliveryTarget: number
   deliveryProduced: number
   deliveryPercent: number
+  products: ProductionStatusProductLine[]
 }
 
 export type ProductionStatusPageData = {

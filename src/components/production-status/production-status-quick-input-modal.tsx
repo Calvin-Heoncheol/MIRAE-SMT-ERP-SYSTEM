@@ -13,7 +13,11 @@ import {
   resolveProductionCount,
   resolveProductionSideCount,
 } from '@/lib/production-input/utils'
-import type { ProductionStatusLine, ProductionStatusStage } from '@/lib/production-status/types'
+import type {
+  ProductionStatusLine,
+  ProductionStatusProductLine,
+  ProductionStatusStage,
+} from '@/lib/production-status/types'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import { createSmtProductionRecord } from '@/lib/smt/repository'
 import type { SmtPcbSide } from '@/lib/smt/types'
@@ -31,6 +35,7 @@ type ProductionStatusQuickInputModalProps = {
   open: boolean
   stage: ProductionStatusStage
   line: ProductionStatusLine | null
+  product?: ProductionStatusProductLine | null
   smtOrders: ProductionOrderLine[]
   postOrders: ProductionOrderLine[]
   deliveryOrders: ProductionOrderLine[]
@@ -66,6 +71,7 @@ export function ProductionStatusQuickInputModal({
   open,
   stage,
   line,
+  product = null,
   smtOrders,
   postOrders,
   deliveryOrders,
@@ -87,13 +93,27 @@ export function ProductionStatusQuickInputModal({
   const orderTargets = useMemo(() => {
     if (!line) return [] as ProductionOrderLine[]
     if (stage === 'smt') {
-      return smtOrders.filter((order) => order.orderId === line.orderId)
+      return smtOrders.filter((order) => {
+        if (order.orderId !== line.orderId) return false
+        if (!product) return true
+        return product.smtOrderLineIds.includes(order.orderLineId)
+      })
     }
     if (stage === 'post_process') {
-      return postOrders.filter((order) => order.orderId === line.orderId)
+      return postOrders.filter((order) => {
+        if (order.orderId !== line.orderId) return false
+        if (!product) return true
+        const groupId = order.assemblyGroupId || order.orderLineId
+        return product.assemblyGroupIds.includes(groupId)
+      })
     }
-    return deliveryOrders.filter((order) => order.orderId === line.orderId)
-  }, [deliveryOrders, line, postOrders, smtOrders, stage])
+    return deliveryOrders.filter((order) => {
+      if (order.orderId !== line.orderId) return false
+      if (!product) return true
+      const groupId = order.assemblyGroupId || order.orderLineId
+      return product.assemblyGroupIds.includes(groupId)
+    })
+  }, [deliveryOrders, line, postOrders, product, smtOrders, stage])
 
   useEffect(() => {
     if (!open) return
@@ -262,7 +282,7 @@ export function ProductionStatusQuickInputModal({
       title={meta.title}
       description={
         line
-          ? `${line.orderNumber} · ${line.customer || '—'} · ${line.productName || '—'}`
+          ? `${line.orderNumber} · ${line.customer || '—'} · ${product?.productName || line.productName || '—'}`
           : undefined
       }
       onClose={onClose}

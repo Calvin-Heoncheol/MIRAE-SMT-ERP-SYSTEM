@@ -124,8 +124,10 @@ export function buildCoveredQuantityByOrderLine(
 ): Map<string, number> {
   const covered = new Map<string, number>()
   for (const po of purchaseOrders) {
-    const lineId = (po.coveredOrderLineId || '').trim()
+    // UUID 대소문자 차이로 매칭이 깨지지 않게 정규화
+    const lineId = (po.coveredOrderLineId || '').trim().toLowerCase()
     const qty = Math.max(0, Math.floor(Number(po.coveredProductQuantity) || 0))
+    // covered_order_line_id 만 있고 수량이 없으면 "전량 커버"로 추정하지 않음 (잔량 유지)
     if (!lineId || qty <= 0) continue
     covered.set(lineId, (covered.get(lineId) ?? 0) + qty)
   }
@@ -156,7 +158,10 @@ export function buildOrderPurchaseCards(input: {
       if (!orderLineId || !productId || orderQuantity <= 0) continue
 
       const hasBom = (edgesByParent.get(productId)?.length ?? 0) > 0
-      const coveredQuantity = Math.min(orderQuantity, coveredByLine.get(orderLineId) ?? 0)
+      const coveredQuantity = Math.min(
+        orderQuantity,
+        coveredByLine.get(orderLineId.toLowerCase()) ?? 0,
+      )
       const remainingQuantity = Math.max(0, orderQuantity - coveredQuantity)
       products.push({
         orderLineId,
@@ -186,7 +191,8 @@ export function buildOrderPurchaseCards(input: {
   }
 
   return cards.sort((a, b) => {
-    const statusRank = { none: 0, partial: 1, done: 2 } as const
+    // 부분발주(잔량 남음)를 맨 앞에 — 발주 직후 카드가 미발주 무리 뒤로 밀려 "사라진 것처럼" 보이지 않게
+    const statusRank = { partial: 0, none: 1, done: 2 } as const
     const rankDiff = statusRank[a.purchaseStatus] - statusRank[b.purchaseStatus]
     if (rankDiff !== 0) return rankDiff
     const deliveryCompare = (a.deliveryDate || '').localeCompare(b.deliveryDate || '')

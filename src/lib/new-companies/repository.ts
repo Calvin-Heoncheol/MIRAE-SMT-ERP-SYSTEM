@@ -22,6 +22,30 @@ export function isMissingNewCompanyInquiriesTable(detail: string) {
   return detail.includes('new_company_inquiries') || detail.includes('schema cache')
 }
 
+export function isMissingNewCompanySourceChannelColumn(detail: string) {
+  return (
+    detail.includes('source_channel') &&
+    (detail.includes('column') || detail.includes('schema cache') || detail.includes('Could not find'))
+  )
+}
+
+export function isMissingNewCompanyCloseReasonColumn(detail: string) {
+  return (
+    detail.includes('close_reason') &&
+    (detail.includes('column') || detail.includes('schema cache') || detail.includes('Could not find'))
+  )
+}
+
+function schemaErrorDetail(message: string): string | null {
+  if (isMissingNewCompanySourceChannelColumn(message)) {
+    return 'new_company_inquiries.source_channel 컬럼이 없습니다. migrate-new-company-status-source-channel.sql 을 실행하세요.'
+  }
+  if (isMissingNewCompanyCloseReasonColumn(message)) {
+    return 'new_company_inquiries.close_reason 컬럼이 없습니다. migrate-new-company-close-reason.sql 을 실행하세요.'
+  }
+  return null
+}
+
 function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }>(): T {
   return {
     ok: false,
@@ -75,35 +99,20 @@ export async function createNewCompanyInquiry(
 
   try {
     const supabase = createSupabaseClient()
-    let row: Record<string, unknown> = toNewCompanyInquiryRow(payload)
-    let { data, error } = await supabase
+    const row = toNewCompanyInquiryRow(payload)
+    const { data, error } = await supabase
       .from('new_company_inquiries')
       .insert(row)
       .select('id')
       .single()
 
-    if (error && error.message.includes('close_reason')) {
-      const { close_reason: _removed, ...withoutCloseReason } = row
-      row = withoutCloseReason
-      ;({ data, error } = await supabase
-        .from('new_company_inquiries')
-        .insert(row)
-        .select('id')
-        .single())
-    }
-
-    if (error && error.message.includes('source_channel')) {
-      const { source_channel: _removed, ...withoutChannel } = row
-      row = withoutChannel
-      ;({ data, error } = await supabase
-        .from('new_company_inquiries')
-        .insert(row)
-        .select('id')
-        .single())
-    }
-
     if (error || !data?.id) {
-      return { ok: false, reason: 'query', detail: error?.message || '저장에 실패했습니다.' }
+      const message = error?.message || '저장에 실패했습니다.'
+      return {
+        ok: false,
+        reason: 'query',
+        detail: schemaErrorDetail(message) || message,
+      }
     }
 
     return { ok: true, id: data.id as string }
@@ -136,23 +145,15 @@ export async function updateNewCompanyInquiry(
 
   try {
     const supabase = createSupabaseClient()
-    let row: Record<string, unknown> = toNewCompanyInquiryRow(payload)
-    let { error } = await supabase.from('new_company_inquiries').update(row).eq('id', id)
-
-    if (error && error.message.includes('close_reason')) {
-      const { close_reason: _removed, ...withoutCloseReason } = row
-      row = withoutCloseReason
-      ;({ error } = await supabase.from('new_company_inquiries').update(row).eq('id', id))
-    }
-
-    if (error && error.message.includes('source_channel')) {
-      const { source_channel: _removed, ...withoutChannel } = row
-      row = withoutChannel
-      ;({ error } = await supabase.from('new_company_inquiries').update(row).eq('id', id))
-    }
+    const row = toNewCompanyInquiryRow(payload)
+    const { error } = await supabase.from('new_company_inquiries').update(row).eq('id', id)
 
     if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
+      return {
+        ok: false,
+        reason: 'query',
+        detail: schemaErrorDetail(error.message) || error.message,
+      }
     }
 
     return { ok: true, id }

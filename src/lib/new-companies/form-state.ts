@@ -86,12 +86,11 @@ export function formatProgressLinesDisplay(note: string, separator = ' · '): st
     .join(separator)
 }
 
-/** 목록 행용 — 가장 최근(마지막) 진행사항만 (번호 없이) */
+/** 목록 행용 — 가장 최근(마지막) 진행사항의 text만 (날짜·번호 없이) */
 export function formatLatestProgressLineDisplay(note: string): string {
   const lines = parseProgressLines(note).filter((line) => line.text || line.date)
   if (!lines.length) return ''
-  const latest = lines[lines.length - 1]
-  return latest.date ? `${latest.date} ${latest.text}`.trim() : latest.text
+  return lines[lines.length - 1].text.trim()
 }
 
 /** 문의(received)는 숨김, 그 외 상태는 표시 */

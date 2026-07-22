@@ -12,7 +12,7 @@ export default async function PostProcessIndexPage({ searchParams }: PostProcess
 
   redirect(
     isPostProcessTeam(team)
-      ? `/post-process/plan?team=${encodeURIComponent(team)}`
-      : '/post-process/plan',
+      ? `/post-process/input?team=${encodeURIComponent(team)}`
+      : '/post-process/input',
   )
 }

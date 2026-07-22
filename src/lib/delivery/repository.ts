@@ -1,6 +1,7 @@
 import {
   ensureAssemblyGroupsForOrders,
   fetchAssemblyGroups,
+  repairChildrenOnlyAssemblyGroups,
 } from '@/lib/assembly/repository'
 import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
@@ -103,17 +104,24 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
 
   await ensureAssemblyGroupsForOrders(orderIds)
 
-  const [assemblyResult, smtCountsResult, postCountsResult, deliveryCountsResult] = await Promise.all([
+  const [assemblyFetchResult, smtCountsResult, postCountsResult, deliveryCountsResult] = await Promise.all([
     fetchAssemblyGroups(productById),
     fetchSmtCumulativeCounts(),
     fetchPostProcessCumulativeCounts(),
     fetchDeliveryCumulativeCounts(),
   ])
 
-  if (!assemblyResult.ok) return assemblyResult
+  if (!assemblyFetchResult.ok) return assemblyFetchResult
   if (!smtCountsResult.ok) return smtCountsResult
   if (!postCountsResult.ok) return postCountsResult
   if (!deliveryCountsResult.ok) return deliveryCountsResult
+
+  const assemblyResult = await repairChildrenOnlyAssemblyGroups(
+    assemblyFetchResult.groups,
+    ordersResult.orders,
+    productById,
+  )
+  if (!assemblyResult.ok) return assemblyResult
 
   const deliveryCounts = deliveryCountsResult.counts
   const availabilityByGroupId = buildDeliveryAvailabilityMap(

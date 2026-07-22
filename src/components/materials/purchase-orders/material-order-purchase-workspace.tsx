@@ -186,7 +186,8 @@ export function MaterialOrderPurchaseWorkspace({ result }: MaterialOrderPurchase
         />
 
         <p className="text-sm text-slate-500">
-          주문 제품 수량 중 일부만 발주할 수 있습니다. 예: 주문 1,000개 → 이번 발주 500개.
+          주문 제품 수량 중 일부만 발주할 수 있습니다. 예: 주문 4,000개 → 이번 발주 100개면 잔량 3,900개가
+          진행중에 남습니다. 발주 수량은 직접 입력해야 합니다(기본값 없음).
         </p>
 
         <MaterialOrderPurchaseCards

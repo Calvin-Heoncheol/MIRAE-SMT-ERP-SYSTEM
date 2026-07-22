@@ -15,6 +15,8 @@ export type ModuleTabItem = {
   href: string
   /** end면 오른쪽 별도 탭 그룹으로 배치 */
   align?: 'start' | 'end'
+  /** true면 클릭·라우팅 불가 (준비중 등) */
+  disabled?: boolean
   /** 있으면 호버/클릭 시 드롭다운 메뉴 */
   menu?: ModuleTabMenuItem[]
 }
@@ -97,6 +99,18 @@ function TabLink({
   }, [])
 
   useEffect(() => () => clearCloseTimer(), [])
+
+  if (tab.disabled) {
+    return (
+      <span
+        className="cursor-not-allowed rounded-lg px-4 py-2 text-[13px] font-semibold text-slate-400 opacity-60 pointer-events-none select-none"
+        aria-disabled="true"
+        title="준비중"
+      >
+        {tab.label}
+      </span>
+    )
+  }
 
   if (!hasMenu) {
     return (

@@ -46,51 +46,6 @@ function findChildOrderLine(
   )
 }
 
-function tryMatchChildrenOnlyGroup(
-  parentProductId: string,
-  children: BomRow[],
-  orderLines: OrderLineRecord[],
-): ComputedAssemblyGroup | null {
-  const userLines = orderLines.filter(isUserOrderLine)
-  const links: ComputedAssemblyGroup['lines'] = []
-  let minSets = Number.POSITIVE_INFINITY
-
-  for (const child of children) {
-    const line = userLines.find((item) => resolveLineProductId(item) === child.childProductId)
-    if (!line?.id) {
-      return null
-    }
-
-    const quantityPer = Math.max(Number(child.quantityPer) || 1, 1)
-    const sets = Math.floor(Math.max(0, Number(line.quantity) || 0) / quantityPer)
-    if (sets <= 0) {
-      return null
-    }
-
-    minSets = Math.min(minSets, sets)
-    links.push({
-      orderLineId: line.id,
-      childProductId: child.childProductId,
-      quantityPer,
-    })
-  }
-
-  if (!Number.isFinite(minSets) || minSets <= 0 || links.length !== children.length) {
-    return null
-  }
-
-  const parentOnOrder = userLines.some((line) => resolveLineProductId(line) === parentProductId)
-  if (parentOnOrder) {
-    return null
-  }
-
-  return {
-    parentProductId,
-    targetQuantity: minSets,
-    lines: links,
-  }
-}
-
 function tryMatchAssemblyParentGroup(
   parentProductId: string,
   children: BomRow[],
@@ -134,12 +89,7 @@ export function computeAssemblyGroupsForOrder(
   const byParent = groupBomByParent(bomRows)
 
   for (const [parentProductId, children] of byParent) {
-    const childOnlyGroup = tryMatchChildrenOnlyGroup(parentProductId, children, orderLines)
-    if (childOnlyGroup) {
-      groups.push(childOnlyGroup)
-      continue
-    }
-
+    // 주문에 반제품만 있을 때 BOM 완제품으로 합치지 않음 — 라인(반제품) 단위 유지
     const parentGroup = tryMatchAssemblyParentGroup(parentProductId, children, orderLines)
     if (parentGroup) {
       groups.push(parentGroup)
@@ -296,4 +246,16 @@ export function isMissingAssemblyTable(detail: string) {
     detail.includes('bom_detail') ||
     detail.includes('schema cache')
   )
+}
+
+/**
+ * 주문에 없는 완제품을 BOM으로 추정해 반제품 라인을 합친 조립 그룹인지.
+ * (반제품 A·B만 주문했는데 완제품 C 그룹이 생긴 경우)
+ */
+export function isChildrenOnlyAssemblyGroup(
+  group: Pick<OrderAssemblyGroup, 'parentProductId' | 'lines'>,
+  orderProductIds: Set<string>,
+) {
+  if (!group.lines.length) return false
+  return !orderProductIds.has(group.parentProductId)
 }

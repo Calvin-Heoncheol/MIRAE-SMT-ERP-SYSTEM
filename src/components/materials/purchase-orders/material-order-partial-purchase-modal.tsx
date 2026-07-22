@@ -30,11 +30,12 @@ export function MaterialOrderPartialPurchaseModal({
   onClose,
   onConfirm,
 }: MaterialOrderPartialPurchaseModalProps) {
-  const [qtyText, setQtyText] = useState(String(product.remainingQuantity || ''))
+  // 기본값을 잔량 전체로 두면, 수량 미수정 저장 시 전량 커버로 카드가 완료 탭으로 넘어감
+  const [qtyText, setQtyText] = useState('')
 
   useEffect(() => {
     if (!open) return
-    setQtyText(String(product.remainingQuantity || ''))
+    setQtyText('')
   }, [open, product.orderLineId, product.remainingQuantity])
 
   useEffect(() => {
@@ -71,6 +72,13 @@ export function MaterialOrderPartialPurchaseModal({
     if (overRemaining) {
       const ok = window.confirm(
         `잔량(${product.remainingQuantity.toLocaleString('ko-KR')})보다 많은 수량입니다. 그대로 진행할까요?`,
+      )
+      if (!ok) return
+    } else {
+      const nextRemaining = Math.max(0, product.remainingQuantity - purchaseQuantity)
+      const ok = window.confirm(
+        `이번 발주 ${purchaseQuantity.toLocaleString('ko-KR')}개로 진행할까요?\n` +
+          `(주문 ${product.orderQuantity.toLocaleString('ko-KR')} · 기존 발주 ${product.coveredQuantity.toLocaleString('ko-KR')} · 발주 후 잔량 ${nextRemaining.toLocaleString('ko-KR')})`,
       )
       if (!ok) return
     }
@@ -136,7 +144,9 @@ export function MaterialOrderPartialPurchaseModal({
                 step={1}
                 value={qtyText}
                 onChange={(event) => setQtyText(event.target.value)}
-                className="mt-0.5 w-full border-0 bg-transparent p-0 text-base font-bold tabular-nums text-slate-900 outline-none"
+                placeholder={`최대 ${product.remainingQuantity.toLocaleString('ko-KR')}`}
+                autoFocus
+                className="mt-0.5 w-full border-0 bg-transparent p-0 text-base font-bold tabular-nums text-slate-900 outline-none placeholder:font-medium placeholder:text-slate-400"
               />
             </label>
           </div>

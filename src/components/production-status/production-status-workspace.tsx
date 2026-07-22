@@ -7,7 +7,11 @@ import { ProductionStatusTable } from '@/components/production-status/production
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchProductionStatusResult } from '@/lib/production-status/repository'
-import type { ProductionStatusLine, ProductionStatusStage } from '@/lib/production-status/types'
+import type {
+  ProductionStatusLine,
+  ProductionStatusProductLine,
+  ProductionStatusStage,
+} from '@/lib/production-status/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
 
 type ProductionStatusWorkspaceProps = {
@@ -17,6 +21,7 @@ type ProductionStatusWorkspaceProps = {
 type QuickInputState = {
   stage: ProductionStatusStage
   line: ProductionStatusLine
+  product?: ProductionStatusProductLine
 } | null
 
 type StatusFilter = 'active' | 'done' | 'all'
@@ -45,9 +50,14 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
   const filteredLines = useMemo(() => {
     const q = query.toLowerCase()
     if (!q) return statusFilteredLines
-    return statusFilteredLines.filter((line) =>
-      [line.orderNumber, line.customer, line.productName].join(' ').toLowerCase().includes(q),
-    )
+    return statusFilteredLines.filter((line) => {
+      const productNames = line.products.map((product) => product.productName).join(' ')
+      const productCodes = line.products.map((product) => product.productCode).join(' ')
+      return [line.orderNumber, line.customer, line.productName, productNames, productCodes]
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
+    })
   }, [statusFilteredLines, query])
   const pagination = useClientPagination(filteredLines)
 
@@ -58,8 +68,12 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
     { key: 'all', label: '전체', count: lines.length },
   ]
 
-  function handleStageClick(line: ProductionStatusLine, stage: ProductionStatusStage) {
-    setQuickInput({ stage, line })
+  function handleStageClick(
+    line: ProductionStatusLine,
+    stage: ProductionStatusStage,
+    product?: ProductionStatusProductLine,
+  ) {
+    setQuickInput({ stage, line, product })
   }
 
   function handleRegistered() {
@@ -125,14 +139,15 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
       />
 
       <p className="text-xs text-slate-400">
-        SMT·후공정 칸은 총관리자 직접 입력용입니다. 생산입력 화면과 별도이며, 등록 시 이력 비고에
-        「직접생산(관리자)」가 남습니다. (로그인 연동 전 · 현재는 화면에서 모두 가능)
+        SMT·후공정·출하 칸은 총관리자 직접 입력용입니다. 생산입력 화면과 별도이며, 등록 시 이력 비고에
+        「직접생산(관리자)」또는 「직접출하(관리자)」가 남습니다. (로그인 연동 전 · 현재는 화면에서 모두 가능)
       </p>
 
       <ProductionStatusQuickInputModal
         open={Boolean(quickInput)}
         stage={quickInput?.stage ?? 'smt'}
         line={quickInput?.line ?? null}
+        product={quickInput?.product ?? null}
         smtOrders={data!.smtOrders}
         postOrders={data!.postOrders}
         deliveryOrders={data!.deliveryOrders}

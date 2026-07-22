@@ -1,5 +1,5 @@
 import { createSupabaseClient } from '@/lib/supabase'
-import type { OrderLineRecord } from '@/lib/orders/types'
+import type { OrderLineRecord, OrderListGroup } from '@/lib/orders/types'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
 import {
@@ -7,6 +7,7 @@ import {
   computeDerivedOrderLineSpecs,
   computeStandaloneFinishedProductGroups,
   computeStandaloneSemiProductGroups,
+  isChildrenOnlyAssemblyGroup,
   isMissingAssemblyTable,
   mapAssemblyGroupRecord,
   resolveLineProductId,
@@ -449,6 +450,45 @@ export async function fetchAssemblyGroups(
       detail: error instanceof Error ? error.message : String(error),
     }
   }
+}
+
+/**
+ * 반제품만 주문했는데 완제품으로 합쳐진 조립 그룹을 다시 동기화해
+ * 반제품 단독 그룹으로 분리한다. 변경이 있으면 그룹을 다시 조회한다.
+ */
+export async function repairChildrenOnlyAssemblyGroups(
+  groups: OrderAssemblyGroup[],
+  orders: OrderListGroup[],
+  productById: Record<string, Product>,
+): Promise<FetchAssemblyGroupsResult> {
+  const orderById = new Map(orders.map((order) => [order.orderId, order]))
+  const orderIdsToRepair = new Set<string>()
+
+  for (const group of groups) {
+    const order = orderById.get(group.orderId)
+    if (!order) continue
+    const orderProductIds = new Set(
+      order.items
+        .map((item) => (item.productId || item.productCode || '').trim())
+        .filter(Boolean),
+    )
+    if (isChildrenOnlyAssemblyGroup(group, orderProductIds)) {
+      orderIdsToRepair.add(group.orderId)
+    }
+  }
+
+  if (!orderIdsToRepair.size) {
+    return { ok: true, groups }
+  }
+
+  const orderIdList = [...orderIdsToRepair]
+  const batchSize = 3
+  for (let index = 0; index < orderIdList.length; index += batchSize) {
+    const batch = orderIdList.slice(index, index + batchSize)
+    await Promise.all(batch.map((orderId) => syncAssemblyGroupsForOrder(orderId)))
+  }
+
+  return fetchAssemblyGroups(productById)
 }
 
 export { isMissingAssemblyTable }

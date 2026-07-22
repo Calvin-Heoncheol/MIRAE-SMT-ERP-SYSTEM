@@ -328,6 +328,20 @@ export async function createMaterialPurchaseOrder(
       insertRow.covered_product_quantity = Math.floor(Number(payload.covered_product_quantity))
     }
 
+    // 라인만/수량만 한쪽만 오면 커버 집계가 깨지므로 둘 다 있을 때만 허용
+    const hasCoverLine = Boolean(insertRow.covered_order_line_id)
+    const hasCoverQty =
+      insertRow.covered_product_quantity != null &&
+      Number(insertRow.covered_product_quantity) > 0
+    if (hasCoverLine !== hasCoverQty) {
+      return {
+        ok: false,
+        reason: 'validation',
+        detail:
+          '부분 발주 정보가 불완전합니다. 발주 화면에서 제품 수량을 다시 입력한 뒤 저장해 주세요.',
+      }
+    }
+
     let { data: inserted, error } = await supabase
       .from('material_purchase_orders')
       .insert(insertRow)

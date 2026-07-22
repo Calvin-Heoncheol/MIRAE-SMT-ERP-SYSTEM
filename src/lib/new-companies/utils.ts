@@ -1,5 +1,6 @@
 import {
   normalizeNewCompanyStatus,
+  toDbNewCompanyStatus,
   type NewCompanyInquiry,
   type NewCompanyInquiryPayload,
 } from './types'
@@ -55,7 +56,7 @@ export function toNewCompanyInquiryRow(payload: NewCompanyInquiryPayload) {
     product: payload.product.trim(),
     quantity: payload.quantity,
     note: payload.note.trim(),
-    status: payload.status,
+    status: toDbNewCompanyStatus(payload.status),
     source_channel: payload.sourceChannel.trim(),
     close_reason: payload.closeReason.trim(),
   }

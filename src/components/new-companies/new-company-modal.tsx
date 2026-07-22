@@ -19,6 +19,9 @@ import {
   updateNewCompanyInquiry,
 } from '@/lib/new-companies/repository'
 import {
+  isNewCompanySourceChannel,
+  NEW_COMPANY_SOURCE_CHANNEL_LABELS,
+  NEW_COMPANY_SOURCE_CHANNELS,
   NEW_COMPANY_STATUS_BADGE_CLASS,
   NEW_COMPANY_STATUS_LABELS,
   NEW_COMPANY_STATUSES,
@@ -136,6 +139,10 @@ function NewCompanyModalContent({
   const busy = saving || deleting
   const showProgress = shouldShowProgressFields(form.status)
   const showCloseReason = form.status === 'closed'
+  const legacySourceChannel =
+    form.sourceChannel && !isNewCompanySourceChannel(form.sourceChannel)
+      ? form.sourceChannel
+      : null
 
   return (
     <ErpModal
@@ -256,12 +263,24 @@ function NewCompanyModalContent({
           </label>
           <label className="block text-sm sm:col-span-2">
             <span className={ERP_FIELD_LABEL_CLASS}>유입경로</span>
-            <input
+            <select
               value={form.sourceChannel}
+              disabled={busy}
               onChange={(event) => updateForm('sourceChannel', event.target.value)}
-              placeholder="예: 홈페이지, 소개, 박람회"
               className={ERP_FIELD_INPUT_CLASS}
-            />
+            >
+              <option value="">선택</option>
+              {NEW_COMPANY_SOURCE_CHANNELS.map((channel) => (
+                <option key={channel} value={channel}>
+                  {NEW_COMPANY_SOURCE_CHANNEL_LABELS[channel]}
+                </option>
+              ))}
+              {legacySourceChannel ? (
+                <option value={legacySourceChannel}>
+                  {legacySourceChannel} (기존)
+                </option>
+              ) : null}
+            </select>
           </label>
           {showProgress ? (
             <div className="mt-2 sm:col-span-2">

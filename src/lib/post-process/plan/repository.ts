@@ -1,4 +1,4 @@
-import { fetchAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
@@ -316,7 +316,7 @@ export async function fetchPostProcessPlanPageData(
   const [
     countsResult,
     allPlansResult,
-    assemblyResult,
+    assemblyFetchResult,
     deliveryCountsResult,
     smtPlansResult,
     smtOrdersResult,
@@ -333,8 +333,15 @@ export async function fetchPostProcessPlanPageData(
 
   if (!countsResult.ok) return countsResult
   if (!allPlansResult.ok) return allPlansResult
-  if (!assemblyResult.ok) return assemblyResult
+  if (!assemblyFetchResult.ok) return assemblyFetchResult
   if (!deliveryCountsResult.ok) return deliveryCountsResult
+
+  const assemblyResult = await repairChildrenOnlyAssemblyGroups(
+    assemblyFetchResult.groups,
+    ordersResult.orders,
+    productById,
+  )
+  if (!assemblyResult.ok) return assemblyResult
 
   const weekDates = getWeekDates(weekStart)
   const weekEnd = getWeekEndYmd(weekStart)

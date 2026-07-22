@@ -5,8 +5,6 @@ import {
   NEW_COMPANY_STATUS_BADGE_CLASS,
   NEW_COMPANY_STATUS_LABELS,
 } from '@/lib/new-companies/types'
-import { formatLatestProgressLineDisplay } from '@/lib/new-companies/form-state'
-import { formatInquiryQuantity } from '@/lib/new-companies/utils'
 import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type NewCompanyListTableProps = {
@@ -36,24 +34,24 @@ export function NewCompanyListTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[1060px] border-collapse text-left text-sm">
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               <th className="px-3 py-2.5">등록일</th>
               <th className="px-3 py-2.5">유입경로</th>
               <th className="px-3 py-2.5">상태</th>
               <th className="px-3 py-2.5">회사명</th>
-              <th className="px-3 py-2.5">담당자</th>
+              <th className="max-w-[5.5rem] px-3 py-2.5">담당자</th>
               <th className="px-3 py-2.5">이메일</th>
               <th className="px-3 py-2.5">연락처</th>
-              <th className="px-3 py-2.5">제품</th>
-              <th className="min-w-[6.5rem] py-2.5 pl-3 pr-5 text-right">예상수량</th>
-              <th className="min-w-[10rem] py-2.5 pl-5 pr-3">진행사항</th>
+              <th className="max-w-[6.5rem] px-3 py-2.5">제품</th>
             </tr>
           </thead>
           <tbody>
             {inquiries.map((inquiry) => {
-              const latestProgress = formatLatestProgressLineDisplay(inquiry.note)
+              const productLabel = cell(inquiry.product)
+              const contactLabel = cell(inquiry.contactName)
+              const emailLabel = cell(inquiry.email)
               return (
                 <tr
                   key={inquiry.id}
@@ -78,18 +76,24 @@ export function NewCompanyListTable({
                     </span>
                   </td>
                   <td className="px-3 py-2.5 font-medium text-slate-900">{cell(inquiry.companyName)}</td>
-                  <td className="px-3 py-2.5 text-slate-800">{cell(inquiry.contactName)}</td>
-                  <td className="px-3 py-2.5 text-slate-600">{cell(inquiry.email)}</td>
-                  <td className="px-3 py-2.5 tabular-nums text-slate-600">{cell(inquiry.phone)}</td>
-                  <td className="px-3 py-2.5 text-slate-700">{cell(inquiry.product)}</td>
-                  <td className="py-2.5 pl-3 pr-5 text-right tabular-nums text-slate-700">
-                    {formatInquiryQuantity(inquiry.quantity)}
+                  <td
+                    className="max-w-[5.5rem] truncate px-3 py-2.5 text-slate-800"
+                    title={contactLabel !== '-' ? contactLabel : undefined}
+                  >
+                    {contactLabel}
                   </td>
                   <td
-                    className="max-w-[220px] truncate py-2.5 pl-5 pr-3 text-slate-600"
-                    title={latestProgress || undefined}
+                    className="max-w-[12rem] truncate px-3 py-2.5 text-slate-600"
+                    title={emailLabel !== '-' ? emailLabel : undefined}
                   >
-                    {cell(latestProgress)}
+                    {emailLabel}
+                  </td>
+                  <td className="px-3 py-2.5 tabular-nums text-slate-600">{cell(inquiry.phone)}</td>
+                  <td
+                    className="max-w-[6.5rem] truncate px-3 py-2.5 text-slate-700"
+                    title={productLabel !== '-' ? productLabel : undefined}
+                  >
+                    {productLabel}
                   </td>
                 </tr>
               )
