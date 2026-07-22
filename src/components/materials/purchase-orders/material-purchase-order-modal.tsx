@@ -49,7 +49,7 @@ function createInitialForm(
   }
   return {
     orderDate: today,
-    deliveryDate: addDaysYmd(today, 14),
+    deliveryDate: addDaysYmd(today, 42),
     supplier: initialSupplier || '',
   }
 }
@@ -80,6 +80,8 @@ function MaterialPurchaseOrderModalContent({
   const [materials, setMaterials] = useState<Material[]>([])
 
   const readOnly = mode === 'edit' && Boolean(order?.hasInbound)
+  /** 주문서/제안에서 시드된 신규 발주 — 자재코드·공급사·수량·단가 잠금 */
+  const lockSeededFields = mode === 'create' && Boolean(initialItems?.length)
 
   useEffect(() => {
     let cancelled = false
@@ -113,6 +115,7 @@ function MaterialPurchaseOrderModalContent({
   }
 
   function suggestSupplier(supplier: string) {
+    if (lockSeededFields) return
     if (!form.supplier.trim()) {
       updateForm('supplier', supplier)
     }
@@ -222,6 +225,16 @@ function MaterialPurchaseOrderModalContent({
             </div>
           ) : null}
 
+          {mode === 'create' && coveredProductQuantity != null && coveredProductQuantity > 0 ? (
+            <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+              이 발주서가 커버하는 제품 수량:{' '}
+              <span className="font-bold tabular-nums">
+                {coveredProductQuantity.toLocaleString('ko-KR')}
+              </span>
+              개 (주문 카드의 발주 수량에 합산됩니다)
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {mode === 'edit' && order ? (
               <label className="block text-sm sm:col-span-2">
@@ -303,6 +316,7 @@ function MaterialPurchaseOrderModalContent({
                 items={items}
                 supplier={form.supplier}
                 materials={materials}
+                lockSeededFields={lockSeededFields}
                 onChange={setItems}
                 onSupplierChange={(supplier) => updateForm('supplier', supplier)}
                 onSupplierSuggest={suggestSupplier}

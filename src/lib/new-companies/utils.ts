@@ -1,8 +1,7 @@
 import {
-  isNewCompanyStatus,
+  normalizeNewCompanyStatus,
   type NewCompanyInquiry,
   type NewCompanyInquiryPayload,
-  type NewCompanyStatus,
 } from './types'
 
 export type NewCompanyInquiryRow = {
@@ -16,6 +15,8 @@ export type NewCompanyInquiryRow = {
   note?: string | null
   inquiry_content?: string | null
   status?: string | null
+  source_channel?: string | null
+  close_reason?: string | null
   created_at: string
   updated_at: string
 }
@@ -28,9 +29,6 @@ export function mapNewCompanyInquiryRecord(row: NewCompanyInquiryRow): NewCompan
         ? row.quantity
         : Number(row.quantity)
 
-  const statusRaw = (row.status || 'received').toLowerCase()
-  const status: NewCompanyStatus = isNewCompanyStatus(statusRaw) ? statusRaw : 'received'
-
   return {
     id: row.id,
     contactName: row.contact_name ?? '',
@@ -40,7 +38,9 @@ export function mapNewCompanyInquiryRecord(row: NewCompanyInquiryRow): NewCompan
     product: row.product ?? '',
     quantity: Number.isFinite(quantity) ? quantity : null,
     note: row.note ?? row.inquiry_content ?? '',
-    status,
+    status: normalizeNewCompanyStatus(row.status),
+    sourceChannel: row.source_channel ?? '',
+    closeReason: row.close_reason ?? '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -56,6 +56,8 @@ export function toNewCompanyInquiryRow(payload: NewCompanyInquiryPayload) {
     quantity: payload.quantity,
     note: payload.note.trim(),
     status: payload.status,
+    source_channel: payload.sourceChannel.trim(),
+    close_reason: payload.closeReason.trim(),
   }
 }
 

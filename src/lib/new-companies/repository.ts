@@ -75,14 +75,35 @@ export async function createNewCompanyInquiry(
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    let row: Record<string, unknown> = toNewCompanyInquiryRow(payload)
+    let { data, error } = await supabase
       .from('new_company_inquiries')
-      .insert(toNewCompanyInquiryRow(payload))
+      .insert(row)
       .select('id')
       .single()
 
-    if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
+    if (error && error.message.includes('close_reason')) {
+      const { close_reason: _removed, ...withoutCloseReason } = row
+      row = withoutCloseReason
+      ;({ data, error } = await supabase
+        .from('new_company_inquiries')
+        .insert(row)
+        .select('id')
+        .single())
+    }
+
+    if (error && error.message.includes('source_channel')) {
+      const { source_channel: _removed, ...withoutChannel } = row
+      row = withoutChannel
+      ;({ data, error } = await supabase
+        .from('new_company_inquiries')
+        .insert(row)
+        .select('id')
+        .single())
+    }
+
+    if (error || !data?.id) {
+      return { ok: false, reason: 'query', detail: error?.message || '저장에 실패했습니다.' }
     }
 
     return { ok: true, id: data.id as string }
@@ -115,10 +136,20 @@ export async function updateNewCompanyInquiry(
 
   try {
     const supabase = createSupabaseClient()
-    const { error } = await supabase
-      .from('new_company_inquiries')
-      .update(toNewCompanyInquiryRow(payload))
-      .eq('id', id)
+    let row: Record<string, unknown> = toNewCompanyInquiryRow(payload)
+    let { error } = await supabase.from('new_company_inquiries').update(row).eq('id', id)
+
+    if (error && error.message.includes('close_reason')) {
+      const { close_reason: _removed, ...withoutCloseReason } = row
+      row = withoutCloseReason
+      ;({ error } = await supabase.from('new_company_inquiries').update(row).eq('id', id))
+    }
+
+    if (error && error.message.includes('source_channel')) {
+      const { source_channel: _removed, ...withoutChannel } = row
+      row = withoutChannel
+      ;({ error } = await supabase.from('new_company_inquiries').update(row).eq('id', id))
+    }
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }

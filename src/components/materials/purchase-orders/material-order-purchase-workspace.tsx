@@ -50,10 +50,17 @@ function matchesCard(card: OrderPurchaseCard, query: string) {
   return haystack.includes(query)
 }
 
+function cardHasOpenPurchase(card: OrderPurchaseCard) {
+  // 진행중 = BOM 있는 제품 중 아직 발주 잔량이 남은 경우 (부분 발주 포함)
+  return card.products.some((product) => product.hasBom && product.remainingQuantity > 0)
+}
+
 function cardMatchesFilter(card: OrderPurchaseCard, filter: StatusFilter) {
   if (filter === 'all') return true
-  if (filter === 'done') return card.purchaseStatus === 'done'
-  return card.purchaseStatus !== 'done'
+  const open = cardHasOpenPurchase(card)
+  if (filter === 'done') return !open && card.products.some((product) => product.hasBom)
+  // active: 잔량 남음 + BOM 미등록만 있는 카드도 확인용으로 유지
+  return open || card.products.every((product) => !product.hasBom)
 }
 
 export function MaterialOrderPurchaseWorkspace({ result }: MaterialOrderPurchaseWorkspaceProps) {
@@ -74,11 +81,15 @@ export function MaterialOrderPurchaseWorkspace({ result }: MaterialOrderPurchase
   const pagination = useClientPagination(filtered)
 
   const doneCount = useMemo(
-    () => cards.filter((card) => card.purchaseStatus === 'done').length,
+    () => cards.filter((card) => !cardHasOpenPurchase(card) && card.products.some((p) => p.hasBom)).length,
+    [cards],
+  )
+  const activeCount = useMemo(
+    () => cards.filter((card) => cardHasOpenPurchase(card) || card.products.every((p) => !p.hasBom)).length,
     [cards],
   )
   const statusChips: { key: StatusFilter; label: string; count: number }[] = [
-    { key: 'active', label: '진행중', count: cards.length - doneCount },
+    { key: 'active', label: '진행중', count: activeCount },
     { key: 'done', label: '완료', count: doneCount },
     { key: 'all', label: '전체', count: cards.length },
   ]

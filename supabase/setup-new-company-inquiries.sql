@@ -11,8 +11,9 @@ create table if not exists public.new_company_inquiries (
   product text not null default '',
   quantity numeric(18, 3),
   note text not null default '',
+  source_channel text not null default '',
   status text not null default 'received'
-    check (status in ('received', 'consulting', 'quoting', 'converted', 'on_hold', 'closed')),
+    check (status in ('received', 'in_progress', 'converted', 'closed')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -25,7 +26,8 @@ comment on column public.new_company_inquiries.phone is '연락처';
 comment on column public.new_company_inquiries.product is '제품';
 comment on column public.new_company_inquiries.quantity is '예상수량';
 comment on column public.new_company_inquiries.note is '진행사항 (한 줄씩 기록)';
-comment on column public.new_company_inquiries.status is '접수/상담중/견적중/거래전환/보류/종료';
+comment on column public.new_company_inquiries.source_channel is '유입경로 (홈페이지, 소개, 박람회 등)';
+comment on column public.new_company_inquiries.status is '접수/진행중/거래전환/종료';
 
 create index if not exists new_company_inquiries_created_at_idx
   on public.new_company_inquiries (created_at desc);
@@ -73,8 +75,14 @@ begin
   new.phone := coalesce(trim(new.phone), '');
   new.product := coalesce(trim(new.product), '');
   new.note := coalesce(trim(new.note), '');
+  new.source_channel := coalesce(trim(new.source_channel), '');
   new.status := lower(coalesce(trim(new.status), 'received'));
-  if new.status not in ('received', 'consulting', 'quoting', 'converted', 'on_hold', 'closed') then
+  if new.status in ('consulting', 'quoting') then
+    new.status := 'in_progress';
+  elsif new.status = 'on_hold' then
+    new.status := 'closed';
+  end if;
+  if new.status not in ('received', 'in_progress', 'converted', 'closed') then
     new.status := 'received';
   end if;
 

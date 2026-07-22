@@ -1,11 +1,11 @@
 'use client'
 
-import { formatLatestProgressLineDisplay, formatProgressLinesDisplay } from '@/lib/new-companies/form-state'
 import type { NewCompanyInquiry } from '@/lib/new-companies/types'
 import {
   NEW_COMPANY_STATUS_BADGE_CLASS,
   NEW_COMPANY_STATUS_LABELS,
 } from '@/lib/new-companies/types'
+import { formatLatestProgressLineDisplay } from '@/lib/new-companies/form-state'
 import { formatInquiryQuantity } from '@/lib/new-companies/utils'
 import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
@@ -18,13 +18,6 @@ type NewCompanyListTableProps = {
 function cell(value: string) {
   const trimmed = value.trim()
   return trimmed || '-'
-}
-
-function truncate(value: string, max = 40) {
-  const trimmed = value.trim()
-  if (!trimmed) return '-'
-  if (trimmed.length <= max) return trimmed
-  return `${trimmed.slice(0, max)}…`
 }
 
 export function NewCompanyListTable({
@@ -43,24 +36,24 @@ export function NewCompanyListTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1040px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               <th className="px-3 py-2.5">등록일</th>
+              <th className="px-3 py-2.5">유입경로</th>
               <th className="px-3 py-2.5">상태</th>
               <th className="px-3 py-2.5">회사명</th>
               <th className="px-3 py-2.5">담당자</th>
               <th className="px-3 py-2.5">이메일</th>
               <th className="px-3 py-2.5">연락처</th>
               <th className="px-3 py-2.5">제품</th>
-              <th className="px-3 py-2.5 text-right">예상수량</th>
-              <th className="px-3 py-2.5">진행사항</th>
+              <th className="min-w-[6.5rem] py-2.5 pl-3 pr-5 text-right">예상수량</th>
+              <th className="min-w-[10rem] py-2.5 pl-5 pr-3">진행사항</th>
             </tr>
           </thead>
           <tbody>
             {inquiries.map((inquiry) => {
-              const progressDisplay = formatLatestProgressLineDisplay(inquiry.note)
-              const progressTitle = formatProgressLinesDisplay(inquiry.note, '\n')
+              const latestProgress = formatLatestProgressLineDisplay(inquiry.note)
               return (
                 <tr
                   key={inquiry.id}
@@ -73,6 +66,7 @@ export function NewCompanyListTable({
                   <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-600">
                     {inquiry.createdAt.slice(0, 10)}
                   </td>
+                  <td className="px-3 py-2.5 text-slate-600">{cell(inquiry.sourceChannel)}</td>
                   <td className="px-3 py-2.5">
                     <span
                       className={[
@@ -88,14 +82,14 @@ export function NewCompanyListTable({
                   <td className="px-3 py-2.5 text-slate-600">{cell(inquiry.email)}</td>
                   <td className="px-3 py-2.5 tabular-nums text-slate-600">{cell(inquiry.phone)}</td>
                   <td className="px-3 py-2.5 text-slate-700">{cell(inquiry.product)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
+                  <td className="py-2.5 pl-3 pr-5 text-right tabular-nums text-slate-700">
                     {formatInquiryQuantity(inquiry.quantity)}
                   </td>
                   <td
-                    className="max-w-[240px] px-3 py-2.5 text-slate-600"
-                    title={progressTitle || undefined}
+                    className="max-w-[220px] truncate py-2.5 pl-5 pr-3 text-slate-600"
+                    title={latestProgress || undefined}
                   >
-                    {truncate(progressDisplay)}
+                    {cell(latestProgress)}
                   </td>
                 </tr>
               )

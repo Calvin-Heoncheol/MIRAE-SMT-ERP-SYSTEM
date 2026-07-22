@@ -31,10 +31,14 @@ function resolvePurchaseStatus(orderQuantity: number, coveredQuantity: number): 
   return 'partial'
 }
 
+/** BOM 있는 제품만 기준으로 카드 상태 판단 — 잔량 남으면 절대 done 아님 */
 function resolveCardStatus(products: OrderPurchaseProductLine[]): OrderPurchaseStatus {
-  if (!products.length) return 'done'
-  if (products.every((product) => product.purchaseStatus === 'done')) return 'done'
-  if (products.every((product) => product.purchaseStatus === 'none')) return 'none'
+  const actionable = products.filter((product) => product.hasBom)
+  if (!actionable.length) return 'none'
+  const totalCovered = actionable.reduce((sum, product) => sum + product.coveredQuantity, 0)
+  const totalRemaining = actionable.reduce((sum, product) => sum + product.remainingQuantity, 0)
+  if (totalRemaining <= 0) return 'done'
+  if (totalCovered <= 0) return 'none'
   return 'partial'
 }
 
@@ -129,7 +133,7 @@ export function buildCoveredQuantityByOrderLine(
 }
 
 /**
- * 주문서 단위 발주 카드 — 제품 라인별 주문수량/기발주커버/잔량.
+ * 주문서 단위 발주 카드 — 제품 라인별 주문수량/발주커버/잔량.
  * BOM 미등록 제품도 카드에 포함해 안내한다.
  */
 export function buildOrderPurchaseCards(input: {

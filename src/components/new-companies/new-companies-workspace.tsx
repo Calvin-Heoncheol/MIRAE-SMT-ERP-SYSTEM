@@ -9,8 +9,12 @@ import { ErpButton } from '@/components/ui/erp-button'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchNewCompanyInquiriesResult } from '@/lib/new-companies/repository'
-import type { NewCompanyInquiry } from '@/lib/new-companies/types'
-import { NEW_COMPANY_STATUS_LABELS } from '@/lib/new-companies/types'
+import type { NewCompanyInquiry, NewCompanyStatus } from '@/lib/new-companies/types'
+import {
+  NEW_COMPANY_STATUS_BADGE_CLASS,
+  NEW_COMPANY_STATUS_LABELS,
+  NEW_COMPANY_STATUSES,
+} from '@/lib/new-companies/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
@@ -23,6 +27,8 @@ type ModalState =
   | { open: true; mode: 'create' }
   | { open: true; mode: 'edit'; inquiry: NewCompanyInquiry }
 
+type StatusFilter = 'all' | NewCompanyStatus
+
 function matchesQuery(inquiry: NewCompanyInquiry, query: string) {
   if (!query) return true
   const haystack = [
@@ -32,6 +38,7 @@ function matchesQuery(inquiry: NewCompanyInquiry, query: string) {
     inquiry.phone,
     inquiry.product,
     inquiry.note,
+    inquiry.sourceChannel,
     NEW_COMPANY_STATUS_LABELS[inquiry.status],
     inquiry.quantity == null ? '' : String(inquiry.quantity),
   ]
@@ -43,17 +50,32 @@ function matchesQuery(inquiry: NewCompanyInquiry, query: string) {
 export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
   const inquiries = result.ok ? result.inquiries : []
   const query = search.trim().toLowerCase()
 
+  const statusFiltered = useMemo(() => {
+    if (statusFilter === 'all') return inquiries
+    return inquiries.filter((inquiry) => inquiry.status === statusFilter)
+  }, [inquiries, statusFilter])
+
   const filtered = useMemo(
-    () => inquiries.filter((inquiry) => matchesQuery(inquiry, query)),
-    [inquiries, query],
+    () => statusFiltered.filter((inquiry) => matchesQuery(inquiry, query)),
+    [statusFiltered, query],
   )
   const pagination = useClientPagination(filtered)
+
+  const statusChips: { key: StatusFilter; label: string; count: number }[] = [
+    { key: 'all', label: '전체', count: inquiries.length },
+    ...NEW_COMPANY_STATUSES.map((status) => ({
+      key: status as StatusFilter,
+      label: NEW_COMPANY_STATUS_LABELS[status],
+      count: inquiries.filter((inquiry) => inquiry.status === status).length,
+    })),
+  ]
 
   function openCreate() {
     setModalSession((value) => value + 1)
@@ -87,22 +109,59 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
     <>
       <div className="flex w-full flex-1 flex-col gap-4">
         <WorkspaceHeader
-          title="신규업체"
-          subtitle="상담·견적 중인 신규 업체를 등록합니다"
-          totalCount={inquiries.length}
-          filteredCount={filtered.length}
-          hasQuery={Boolean(query)}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="회사명, 담당자, 상태, 이메일, 연락처, 제품, 진행사항 검색…"
+          searchPlaceholder="회사명, 담당자, 유입경로, 상태, 이메일, 연락처, 제품, 진행사항 검색…"
           accent="slate"
+          filters={
+            <div className="flex flex-wrap gap-2">
+              {statusChips.map((chip) => {
+                const active = statusFilter === chip.key
+                const isAll = chip.key === 'all'
+                return (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={() => setStatusFilter(chip.key)}
+                    className={[
+                      'rounded-full px-4 py-1.5 text-sm font-semibold transition-colors',
+                      isAll
+                        ? active
+                          ? 'bg-slate-800 text-white shadow-sm'
+                          : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
+                        : [
+                            'ring-1',
+                            NEW_COMPANY_STATUS_BADGE_CLASS[chip.key],
+                            active
+                              ? 'ring-2 ring-offset-1 ring-slate-400'
+                              : 'opacity-70 hover:opacity-100',
+                          ].join(' '),
+                    ].join(' ')}
+                  >
+                    {chip.label}{' '}
+                    <span
+                      className={
+                        isAll
+                          ? active
+                            ? 'text-slate-300'
+                            : 'text-slate-400'
+                          : 'opacity-80'
+                      }
+                    >
+                      {chip.count.toLocaleString('ko-KR')}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          }
           actions={<ErpButton onClick={openCreate}>신규업체 등록</ErpButton>}
         />
 
         <NewCompanyListTable
           inquiries={pagination.pageItems}
           emptyMessage={formatEmptyListMessage({
-            hasQuery: Boolean(query),
+            hasQuery: Boolean(query) || statusFilter !== 'all',
             emptyLabel: '등록된 신규업체가 없습니다',
             actionHint: '오른쪽 상단에서 등록하세요',
           })}

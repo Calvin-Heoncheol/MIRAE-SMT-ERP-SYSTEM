@@ -334,16 +334,24 @@ export async function createMaterialPurchaseOrder(
       .select('id')
       .single()
 
-    // 마이그레이션 전(컬럼 없음)이면 연결 필드 빼고 재시도
+    // 커버 컬럼이 없으면 발주만 성공시키고 넘어가면 카드의 "발주" 수량이 영원히 0이 된다.
+    // 주문서 발주(커버 수량 포함)인 경우 마이그레이션 안내로 실패 처리한다.
     if (
       error &&
-      (error.message.includes('source_order_id') ||
-        error.message.includes('covered_order_line_id') ||
+      (error.message.includes('covered_order_line_id') ||
         error.message.includes('covered_product_quantity'))
     ) {
+      return {
+        ok: false,
+        reason: 'query',
+        detail:
+          '부분 발주 기록 컬럼이 없습니다. Supabase에서 supabase/migrate-material-purchase-orders-partial-cover.sql 을 실행한 뒤 다시 저장해 주세요.',
+      }
+    }
+
+    // source_order_id 만 없는 구환경이면 연결 없이 재시도
+    if (error && error.message.includes('source_order_id')) {
       delete insertRow.source_order_id
-      delete insertRow.covered_order_line_id
-      delete insertRow.covered_product_quantity
       ;({ data: inserted, error } = await supabase
         .from('material_purchase_orders')
         .insert(insertRow)

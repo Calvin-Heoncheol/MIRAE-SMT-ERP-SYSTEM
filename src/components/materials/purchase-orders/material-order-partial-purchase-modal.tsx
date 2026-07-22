@@ -117,7 +117,7 @@ export function MaterialOrderPartialPurchaseModal({
               </p>
             </div>
             <div className="rounded-lg bg-sky-50 px-3 py-2">
-              <p className="text-[11px] text-sky-700">기발주 커버</p>
+              <p className="text-[11px] text-sky-700">발주</p>
               <p className="mt-0.5 text-base font-bold tabular-nums text-sky-900">
                 {product.coveredQuantity.toLocaleString('ko-KR')}
               </p>

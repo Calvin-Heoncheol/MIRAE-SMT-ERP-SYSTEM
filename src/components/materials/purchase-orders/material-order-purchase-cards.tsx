@@ -114,7 +114,7 @@ export function MaterialOrderPurchaseCards({
                       </p>
                     </div>
                     <div>
-                      <p className="text-slate-400">기발주</p>
+                      <p className="text-slate-400">발주</p>
                       <p className="font-semibold tabular-nums text-sky-800">
                         {product.coveredQuantity.toLocaleString('ko-KR')}
                       </p>

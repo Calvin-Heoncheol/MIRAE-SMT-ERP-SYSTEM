@@ -8,8 +8,10 @@ import {
   emptyNewCompanyInquiryForm,
   formToInquiryPayload,
   inquiryToForm,
+  shouldShowProgressFields,
   validateNewCompanyInquiryForm,
   type NewCompanyInquiryFormState,
+  type ProgressLine,
 } from '@/lib/new-companies/form-state'
 import {
   createNewCompanyInquiry,
@@ -61,24 +63,26 @@ function NewCompanyModalContent({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
-  function updateProgressLine(index: number, value: string) {
+  function updateProgressLine(index: number, patch: Partial<ProgressLine>) {
     setForm((current) => ({
       ...current,
-      progressLines: current.progressLines.map((line, i) => (i === index ? value : line)),
+      progressLines: current.progressLines.map((line, i) =>
+        i === index ? { ...line, ...patch } : line,
+      ),
     }))
   }
 
   function addProgressLine() {
     setForm((current) => ({
       ...current,
-      progressLines: [...current.progressLines, ''],
+      progressLines: [...current.progressLines, { date: '', text: '' }],
     }))
   }
 
   function removeProgressLine(index: number) {
     setForm((current) => {
       if (current.progressLines.length <= 1) {
-        return { ...current, progressLines: [''] }
+        return { ...current, progressLines: [{ date: '', text: '' }] }
       }
       return {
         ...current,
@@ -130,6 +134,8 @@ function NewCompanyModalContent({
   }
 
   const busy = saving || deleting
+  const showProgress = shouldShowProgressFields(form.status)
+  const showCloseReason = form.status === 'closed'
 
   return (
     <ErpModal
@@ -187,17 +193,18 @@ function NewCompanyModalContent({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>
-              회사명 <span className="text-red-500">*</span>
-            </span>
-            <input
-              value={form.companyName}
-              onChange={(event) => updateForm('companyName', event.target.value)}
-              className={ERP_FIELD_INPUT_CLASS}
-            />
-          </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>
+            회사명 <span className="text-red-500">*</span>
+          </span>
+          <input
+            value={form.companyName}
+            onChange={(event) => updateForm('companyName', event.target.value)}
+            className={ERP_FIELD_INPUT_CLASS}
+          />
+        </label>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>
               담당자 <span className="text-red-500">*</span>
@@ -205,6 +212,14 @@ function NewCompanyModalContent({
             <input
               value={form.contactName}
               onChange={(event) => updateForm('contactName', event.target.value)}
+              className={ERP_FIELD_INPUT_CLASS}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>연락처</span>
+            <input
+              value={form.phone}
+              onChange={(event) => updateForm('phone', event.target.value)}
               className={ERP_FIELD_INPUT_CLASS}
             />
           </label>
@@ -217,14 +232,9 @@ function NewCompanyModalContent({
               className={ERP_FIELD_INPUT_CLASS}
             />
           </label>
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>연락처</span>
-            <input
-              value={form.phone}
-              onChange={(event) => updateForm('phone', event.target.value)}
-              className={ERP_FIELD_INPUT_CLASS}
-            />
-          </label>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>제품</span>
             <input
@@ -244,43 +254,88 @@ function NewCompanyModalContent({
               className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
             />
           </label>
-          <div className="sm:col-span-2">
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className={ERP_FIELD_LABEL_CLASS}>진행사항</span>
-              <ErpRowAddButton
-                onClick={addProgressLine}
+          <label className="block text-sm sm:col-span-2">
+            <span className={ERP_FIELD_LABEL_CLASS}>유입경로</span>
+            <input
+              value={form.sourceChannel}
+              onChange={(event) => updateForm('sourceChannel', event.target.value)}
+              placeholder="예: 홈페이지, 소개, 박람회"
+              className={ERP_FIELD_INPUT_CLASS}
+            />
+          </label>
+          {showProgress ? (
+            <div className="mt-2 sm:col-span-2">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <span className={ERP_FIELD_LABEL_CLASS}>진행사항</span>
+                <ErpRowAddButton
+                  onClick={addProgressLine}
+                  disabled={busy}
+                  title="진행사항 추가"
+                />
+              </div>
+              <div className="space-y-2">
+                {form.progressLines.map((line, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <span className="w-5 shrink-0 text-right text-xs tabular-nums text-slate-400">
+                      {index + 1}
+                    </span>
+                    <div className="w-[9.5rem] shrink-0">
+                      <input
+                        type="date"
+                        value={line.date}
+                        disabled={busy}
+                        onChange={(event) =>
+                          updateProgressLine(index, { date: event.target.value })
+                        }
+                        className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
+                        aria-label={`${index + 1}번 진행사항 날짜`}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <input
+                        value={line.text}
+                        disabled={busy}
+                        onChange={(event) =>
+                          updateProgressLine(index, { text: event.target.value })
+                        }
+                        placeholder={
+                          index === 0
+                            ? '예: 담당자 공장심사'
+                            : index === 1
+                              ? '예: 임원진방문'
+                              : '진행사항 입력'
+                        }
+                        className={ERP_FIELD_INPUT_CLASS}
+                        aria-label={`${index + 1}번 진행사항 내용`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => removeProgressLine(index)}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-50"
+                      aria-label={`${index + 1}번 진행사항 삭제`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {showCloseReason ? (
+            <label className="mt-2 block text-sm sm:col-span-2">
+              <span className={ERP_FIELD_LABEL_CLASS}>종료 사유</span>
+              <textarea
+                value={form.closeReason}
                 disabled={busy}
-                title="진행사항 추가"
+                onChange={(event) => updateForm('closeReason', event.target.value)}
+                rows={3}
+                placeholder="종료 사유를 입력하세요"
+                className={ERP_FIELD_INPUT_CLASS}
               />
-            </div>
-            <div className="space-y-2">
-              {form.progressLines.map((line, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <span className="w-6 shrink-0 text-right text-sm tabular-nums text-slate-500">
-                    {index + 1}.
-                  </span>
-                  <input
-                    value={line}
-                    disabled={busy}
-                    onChange={(event) => updateProgressLine(index, event.target.value)}
-                    placeholder={
-                      index === 0 ? '예: 담당자 공장심사' : index === 1 ? '예: 임원진방문' : '진행사항 입력'
-                    }
-                    className={`${ERP_FIELD_INPUT_CLASS} min-w-0 flex-1`}
-                  />
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => removeProgressLine(index)}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-50"
-                    aria-label={`${index + 1}번 진행사항 삭제`}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+            </label>
+          ) : null}
         </div>
       </div>
     </ErpModal>

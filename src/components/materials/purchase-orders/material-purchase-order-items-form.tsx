@@ -12,6 +12,8 @@ type MaterialPurchaseOrderItemsFormProps = {
   items: MaterialPurchaseOrderItemForm[]
   supplier: string
   materials: Material[]
+  /** 주문서/제안에서 시드된 신규 발주 — 자재코드·공급사·수량·단가 잠금 */
+  lockSeededFields?: boolean
   onChange: Dispatch<SetStateAction<MaterialPurchaseOrderItemForm[]>>
   onSupplierChange?: (supplier: string) => void
   onSupplierSuggest?: (supplier: string) => void
@@ -49,6 +51,7 @@ export function MaterialPurchaseOrderItemsForm({
   items,
   supplier,
   materials,
+  lockSeededFields = false,
   onChange,
   onSupplierChange,
   onSupplierSuggest,
@@ -144,7 +147,8 @@ export function MaterialPurchaseOrderItemsForm({
                       supplier={supplier}
                       placeholder="자재코드 입력 또는 검색"
                       ariaLabel={`${index + 1}행 자재코드`}
-                      inputClassName={`${inputClassName} min-w-[120px]`}
+                      disabled={lockSeededFields}
+                      inputClassName={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[120px]`}
                       onValueChange={(materialCode) => handleMaterialCodeChange(index, materialCode)}
                       onMaterialSelect={(material) => selectMaterial(index, material)}
                     />
@@ -159,7 +163,7 @@ export function MaterialPurchaseOrderItemsForm({
                     <input value={item.specification} readOnly className={readOnlyClassName} placeholder="자동 입력" />
                   </td>
                   <td className="px-3 py-2 align-top">
-                    {index === 0 ? (
+                    {index === 0 && !lockSeededFields ? (
                       <input
                         value={supplier}
                         onChange={(event) => onSupplierChange?.(event.target.value)}
@@ -168,7 +172,12 @@ export function MaterialPurchaseOrderItemsForm({
                         aria-label="공급사"
                       />
                     ) : (
-                      <input value={supplier} readOnly className={readOnlyClassName} />
+                      <input
+                        value={supplier}
+                        readOnly
+                        className={`${readOnlyClassName} min-w-[120px]`}
+                        aria-label="공급사"
+                      />
                     )}
                   </td>
                   <td className="px-3 py-2 align-top">
@@ -176,7 +185,8 @@ export function MaterialPurchaseOrderItemsForm({
                       min={0}
                       value={String(item.quantity)}
                       onChange={(quantity) => patchItem(index, { quantity })}
-                      className={`${inputClassName} min-w-[80px] text-right`}
+                      readOnly={lockSeededFields}
+                      className={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[80px] text-right`}
                     />
                   </td>
                   <td className="px-3 py-2 align-top">
@@ -184,7 +194,8 @@ export function MaterialPurchaseOrderItemsForm({
                       min={0}
                       value={String(item.unitPrice)}
                       onChange={(unitPrice) => patchItem(index, { unitPrice })}
-                      className={`${inputClassName} min-w-[100px] text-right`}
+                      readOnly={lockSeededFields}
+                      className={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[100px] text-right`}
                     />
                   </td>
                   <td className="px-3 py-2 text-right text-sm font-medium tabular-nums text-slate-800 align-top">

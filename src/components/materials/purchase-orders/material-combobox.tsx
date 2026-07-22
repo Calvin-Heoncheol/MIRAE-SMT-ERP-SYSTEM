@@ -16,6 +16,7 @@ type MaterialComboboxProps = {
   placeholder?: string
   ariaLabel: string
   inputClassName?: string
+  disabled?: boolean
   onValueChange: (value: string) => void
   onMaterialSelect: (material: Material) => void
 }
@@ -41,6 +42,7 @@ export function MaterialCombobox({
   placeholder,
   ariaLabel,
   inputClassName,
+  disabled = false,
   onValueChange,
   onMaterialSelect,
 }: MaterialComboboxProps) {
@@ -157,7 +159,7 @@ export function MaterialCombobox({
   }
 
   const dropdown =
-    open && options.length > 0 && menuPosition && mounted ? (
+    !disabled && open && options.length > 0 && menuPosition && mounted ? (
       <ul
         ref={listRef}
         id={listId}
@@ -196,24 +198,29 @@ export function MaterialCombobox({
       <input
         ref={inputRef}
         value={value}
+        readOnly={disabled}
         onChange={(event) => {
+          if (disabled) return
           onValueChange(event.target.value)
           setOpen(true)
         }}
         onFocus={() => {
+          if (disabled) return
           if (value.trim()) setOpen(true)
         }}
         onBlur={() => {
+          if (disabled) return
           window.setTimeout(() => {
             tryResolveOnBlur()
             setOpen(false)
           }, 120)
         }}
-        onKeyDown={handleKeyDown}
+        onKeyDown={disabled ? undefined : handleKeyDown}
         placeholder={placeholder}
         aria-label={ariaLabel}
-        aria-expanded={open}
+        aria-expanded={disabled ? false : open}
         aria-controls={listId}
+        aria-disabled={disabled || undefined}
         role="combobox"
         autoComplete="off"
         className={inputClassName}
