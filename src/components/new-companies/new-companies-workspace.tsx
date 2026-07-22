@@ -117,7 +117,10 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
             <div className="flex flex-wrap gap-2">
               {statusChips.map((chip) => {
                 const active = statusFilter === chip.key
-                const isAll = chip.key === 'all'
+                const statusBadgeClass =
+                  chip.key === 'all'
+                    ? null
+                    : NEW_COMPANY_STATUS_BADGE_CLASS[chip.key]
                 return (
                   <button
                     key={chip.key}
@@ -125,13 +128,13 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
                     onClick={() => setStatusFilter(chip.key)}
                     className={[
                       'rounded-full px-4 py-1.5 text-sm font-semibold transition-colors',
-                      isAll
+                      statusBadgeClass == null
                         ? active
                           ? 'bg-slate-800 text-white shadow-sm'
                           : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
                         : [
                             'ring-1',
-                            NEW_COMPANY_STATUS_BADGE_CLASS[chip.key],
+                            statusBadgeClass,
                             active
                               ? 'ring-2 ring-offset-1 ring-slate-400'
                               : 'opacity-70 hover:opacity-100',
@@ -141,7 +144,7 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
                     {chip.label}{' '}
                     <span
                       className={
-                        isAll
+                        statusBadgeClass == null
                           ? active
                             ? 'text-slate-300'
                             : 'text-slate-400'
