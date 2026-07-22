@@ -1,7 +1,6 @@
-import { SmtHistoryWorkspace } from '@/components/smt/smt-history-workspace'
-import { fetchSmtProductionHistory } from '@/lib/smt/repository'
+import { redirect } from 'next/navigation'
 
-export default async function SmtHistoryPage() {
-  const result = await fetchSmtProductionHistory()
-  return <SmtHistoryWorkspace result={result} />
+/** 구 SMT 생산이력 → 통합 생산이력 */
+export default function SmtHistoryRedirectPage() {
+  redirect('/production/history')
 }

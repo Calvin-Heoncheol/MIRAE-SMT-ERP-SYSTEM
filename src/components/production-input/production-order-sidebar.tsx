@@ -5,11 +5,10 @@ import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { ProductionOrderLine, ProductionOrderState } from '@/lib/production-input/types'
 import {
   formatProductionProductName,
-  formatProductionSideProgressLabel,
-  getProductionOrderPrefix,
   getProductionOrderState,
   getProgressPercent,
   resolveProductionCount,
+  resolveProductionSideCount,
 } from '@/lib/production-input/utils'
 import { SMT_PLAN_DRAG_MIME } from '@/lib/smt/plan/config'
 import {
@@ -31,11 +30,23 @@ type ProductionOrderSidebarProps = {
   footerHint?: string
 }
 
-/** 카드 + gap 대략 높이 — 컨테이너에 스크롤 없이 맞추기 위한 보수적 추정 */
-const ORDER_CARD_SLOT_PX = 104
+/** 카드 + gap 대략 높이 — 관리자(모니터·마우스)용 밀도 */
+const ORDER_CARD_SLOT_PX = 112
 const MIN_ORDER_PAGE_SIZE = 3
 const MAX_ORDER_PAGE_SIZE = 10
 const DEFAULT_ORDER_PAGE_SIZE = 6
+
+function stateLabel(state: ProductionOrderState) {
+  if (state === 'full') return '완료'
+  if (state === 'progress') return '진행'
+  return '대기'
+}
+
+function stateBadgeClass(state: ProductionOrderState) {
+  if (state === 'full') return 'bg-emerald-50 text-emerald-700'
+  if (state === 'progress') return 'bg-amber-50 text-amber-800'
+  return 'bg-slate-100 text-slate-600'
+}
 
 function stateAccentClass(state: ProductionOrderState) {
   if (state === 'full') return 'border-l-emerald-500'
@@ -51,8 +62,8 @@ function progressBarClass(state: ProductionOrderState, complete: boolean) {
 
 function urgencyBadgeClass(daysUntilDelivery: number | null) {
   const tone = getDeliveryUrgencyTone(daysUntilDelivery)
-  if (tone === 'overdue') return 'bg-rose-100 text-rose-700'
-  if (tone === 'urgent') return 'bg-amber-100 text-amber-800'
+  if (tone === 'overdue') return 'bg-rose-50 text-rose-700'
+  if (tone === 'urgent') return 'bg-amber-50 text-amber-800'
   return 'bg-slate-100 text-slate-600'
 }
 
@@ -152,18 +163,6 @@ export function ProductionOrderSidebar({
         <span className="text-xs font-medium text-slate-400 tabular-nums">{orders.length}건</span>
       </div>
 
-      <div className="flex shrink-0 flex-wrap gap-1.5 border-b border-slate-100 px-3 py-2">
-        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-          ○ 대기
-        </span>
-        <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-          ◐ 진행중
-        </span>
-        <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-          ● 완료
-        </span>
-      </div>
-
       <div className="shrink-0 border-b border-slate-100 px-3 py-2">
         <input
           type="search"
@@ -176,7 +175,7 @@ export function ProductionOrderSidebar({
 
       <div
         ref={listRef}
-        className="flex min-h-0 flex-1 flex-col gap-1 overflow-hidden px-2 py-2"
+        className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden px-2 py-2"
       >
         {!orders.length ? (
           <p className="py-8 text-center text-sm text-slate-400">
@@ -190,10 +189,17 @@ export function ProductionOrderSidebar({
             const target = Math.max(0, Math.floor(order.quantity))
             const progress = getProgressPercent(cumulative, target)
             const complete = target > 0 && cumulative >= target
+            const remaining = Math.max(0, target - cumulative)
             const daysUntilDelivery = order.deliveryDate
               ? daysUntilYmd(todayYmdSeoul(), order.deliveryDate)
               : null
             const dueLabel = formatDeliveryCountdown(daysUntilDelivery)
+            const topCount = order.splitPcbSides
+              ? resolveProductionSideCount(order, counts, 'TOP')
+              : 0
+            const botCount = order.splitPcbSides
+              ? resolveProductionSideCount(order, counts, 'BOT')
+              : 0
 
             return (
               <button
@@ -221,38 +227,63 @@ export function ProductionOrderSidebar({
                     : ['bg-white hover:bg-slate-50', stateAccentClass(state)].join(' '),
                 ].join(' ')}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 truncate text-[11px] text-slate-500">
-                    {getProductionOrderPrefix(state)} {order.customer || '—'} · {order.orderNumber}
-                  </p>
-                  {dueLabel ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-1.5">
                     <span
-                      className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${urgencyBadgeClass(daysUntilDelivery)}`}
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${stateBadgeClass(state)}`}
                     >
-                      {dueLabel}
+                      {stateLabel(state)}
                     </span>
-                  ) : null}
-                </div>
-
-                <div className="mt-0.5 flex items-start justify-between gap-2">
-                  <p className="min-w-0 truncate text-sm font-bold text-slate-900">
-                    {formatProductionProductName(order)}
-                  </p>
-                  <span className="shrink-0 text-xs font-bold text-slate-400 tabular-nums">
+                    <span
+                      className={[
+                        'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold',
+                        order.splitPcbSides
+                          ? 'bg-sky-50 text-sky-700'
+                          : 'bg-slate-100 text-slate-500',
+                      ].join(' ')}
+                    >
+                      {order.splitPcbSides ? '양면' : '단면'}
+                    </span>
+                    {dueLabel ? (
+                      <span
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${urgencyBadgeClass(daysUntilDelivery)}`}
+                      >
+                        {dueLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="shrink-0 text-[11px] font-bold text-slate-400 tabular-nums">
                     {progress}%
                   </span>
                 </div>
 
+                <p className="mt-1 truncate text-sm font-bold text-slate-900">
+                  {formatProductionProductName(order)}
+                </p>
+                <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                  {order.customer || '—'} · {order.orderNumber}
+                </p>
+
                 <div className="mt-1.5">
-                  <div className="mb-1 flex justify-between text-[11px] font-medium text-slate-500">
+                  <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-medium text-slate-500">
                     <span className="tabular-nums">
-                      {formatProductionSideProgressLabel(order, counts)}
-                      {target > 0 ? ` / ${target.toLocaleString('ko-KR')}` : ''}
+                      {order.splitPcbSides ? (
+                        <>
+                          TOP {topCount.toLocaleString('ko-KR')} · BOT{' '}
+                          {botCount.toLocaleString('ko-KR')}
+                          {target > 0 ? ` / ${target.toLocaleString('ko-KR')}` : ''}
+                        </>
+                      ) : (
+                        <>
+                          {cumulative.toLocaleString('ko-KR')}
+                          {target > 0 ? ` / ${target.toLocaleString('ko-KR')}` : ''}
+                        </>
+                      )}
                     </span>
                     <span>
-                      {order.splitPcbSides ? '병목 남음 ' : '남음 '}
+                      남음{' '}
                       <span className="font-bold text-slate-700 tabular-nums">
-                        {Math.max(0, target - cumulative).toLocaleString('ko-KR')}
+                        {remaining.toLocaleString('ko-KR')}
                       </span>
                     </span>
                   </div>

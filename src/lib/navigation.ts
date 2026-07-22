@@ -1,4 +1,5 @@
 import { normalizePostProcessTeam } from '@/lib/post-process/teams'
+import type { AuthRole } from '@/lib/auth/types'
 
 export type NavChildItem = {
   label: string
@@ -12,6 +13,8 @@ export type NavItem = {
   label: string
   href: string
   children?: NavChildItem[]
+  /** true면 admin만 사이드바에 표시 */
+  adminOnly?: boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -30,10 +33,12 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: '기초등록',
     href: '/master/customers',
+    adminOnly: true,
     children: [
       { label: '거래처등록', href: '/master/customers' },
       { label: '품목등록', href: '/master/products' },
       { label: 'BOM등록', href: '/master/bom' },
+      { label: '사용자등록', href: '/master/users' },
     ],
   },
   {
@@ -63,6 +68,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '생산2: 후공정', href: '/post-process?team=생산2팀' },
       { label: '생산3: 후공정', href: '/post-process?team=생산3팀' },
       { label: '생산4: 후공정', href: '/post-process?team=생산4팀' },
+      { label: '생산이력', href: '/production/history' },
     ],
   },
   {
@@ -120,4 +126,13 @@ export function isNavItemActive(pathname: string, item: NavItem, search?: NavSea
     return item.children.some((child) => isNavChildActive(pathname, child.href, search))
   }
   return isNavLinkActive(pathname, item.href, search)
+}
+
+/** 사이드바용 — adminOnly 메뉴는 관리자(또는 인증 꺼짐)만 */
+export function getVisibleNavItems(options: {
+  role?: AuthRole | null
+  authDisabled?: boolean
+}) {
+  const isAdmin = options.authDisabled || options.role === 'admin'
+  return NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin)
 }

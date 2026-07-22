@@ -28,7 +28,7 @@ import {
 } from '@/lib/ui/tokens'
 
 /** 생산현황(총관리자)에서 등록한 이력 비고 */
-export const ADMIN_DIRECT_PRODUCTION_NOTE = '직접생산(관리자)'
+export const ADMIN_DIRECT_PRODUCTION_NOTE = '생산실사(관리자)'
 export const ADMIN_DIRECT_DELIVERY_NOTE = '직접출하(관리자)'
 
 type ProductionStatusQuickInputModalProps = {
@@ -52,12 +52,12 @@ const STAGE_META: Record<
 > = {
   smt: {
     title: 'SMT 직접 입력 (총관리자)',
-    description: '생산계획·라인 선택 없이 수량만 등록합니다. 이력 비고에 「직접생산(관리자)」가 기록됩니다.',
+    description: '생산계획·라인 선택 없이 수량만 등록합니다. 이력 비고에 「생산실사(관리자)」가 기록됩니다.',
     empty: '이 주문서에 SMT 대상 반제품이 없습니다.',
   },
   post_process: {
     title: '후공정 직접 입력 (총관리자)',
-    description: '생산계획·팀 선택 없이 수량만 등록합니다. 이력 비고에 「직접생산(관리자)」가 기록됩니다.',
+    description: '생산계획·팀 선택 없이 수량만 등록합니다. 이력 비고에 「생산실사(관리자)」가 기록됩니다.',
     empty: '이 주문서에 후공정 대상이 없습니다.',
   },
   delivery: {

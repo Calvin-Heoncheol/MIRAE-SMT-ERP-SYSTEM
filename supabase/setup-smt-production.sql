@@ -12,6 +12,8 @@ create table if not exists public.smt_production_records (
   defect_quantity integer not null default 0 check (defect_quantity >= 0),
   source text not null default 'manual' check (source in ('manual', 'line_sync')),
   note text not null default '',
+  created_by uuid references auth.users (id) on delete set null,
+  created_by_name text not null default '',
   created_at timestamptz not null default now(),
   check (quantity > 0 or defect_quantity > 0)
 );
@@ -24,9 +26,14 @@ comment on column public.smt_production_records.pcb_side is '면구분: SINGLE /
 comment on column public.smt_production_records.quantity is '이번 등록 양품 수량 (불량 전용 등록 시 0)';
 comment on column public.smt_production_records.defect_quantity is '이번 등록 불량 수량 (진행률·잔량 계산에 미포함)';
 comment on column public.smt_production_records.source is 'manual=생산입력 화면, line_sync=라인현황 동기화';
+comment on column public.smt_production_records.created_by is '등록자 auth.users.id';
+comment on column public.smt_production_records.created_by_name is '등록자 표시명 스냅샷';
 
 create index if not exists smt_production_records_order_line_id_idx
   on public.smt_production_records (order_line_id);
+
+create index if not exists smt_production_records_created_by_idx
+  on public.smt_production_records (created_by);
 
 create index if not exists smt_production_records_record_date_idx
   on public.smt_production_records (record_date desc);

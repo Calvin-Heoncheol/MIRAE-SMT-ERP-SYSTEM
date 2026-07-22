@@ -18,7 +18,7 @@ function requireEnv() {
 
 /**
  * 브라우저/서버 각각 싱글톤.
- * (anon key + 세션 미사용 — 요청 간 공유해도 사용자 자격 증명 누수 없음)
+ * 데이터 조회용(anon key). 로그인 세션은 `@/lib/supabase/browser` · `server` 사용.
  * 브라우저에서 매번 createClient 하면 GoTrue 중복 인스턴스 경고가 납니다.
  */
 export function createSupabaseClient() {

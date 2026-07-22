@@ -4,15 +4,22 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
+import { SideNavUserMenu } from '@/components/auth/side-nav-user-menu'
 import { APP_SHORT_NAME } from '@/lib/app-config'
+import type { AuthProfile } from '@/lib/auth/types'
 import {
+  getVisibleNavItems,
   isNavChildActive,
   isNavItemActive,
   isNavLinkActive,
-  NAV_ITEMS,
   type NavItem,
   type NavSearch,
 } from '@/lib/navigation'
+
+type SideNavProps = {
+  profile?: AuthProfile | null
+  authDisabled?: boolean
+}
 
 function NavSection({
   item,
@@ -123,14 +130,16 @@ function SidebarNavList({
   pathname,
   search,
   onNavigate,
+  items,
 }: {
   pathname: string
   search: NavSearch | null
   onNavigate?: () => void
+  items: NavItem[]
 }) {
   return (
     <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="주 메뉴">
-      {NAV_ITEMS.map((item) => (
+      {items.map((item) => (
         <NavSection
           key={item.href}
           item={item}
@@ -146,25 +155,42 @@ function SidebarNavList({
 function SidebarNavListWithSearch({
   pathname,
   onNavigate,
+  items,
 }: {
   pathname: string
   onNavigate?: () => void
+  items: NavItem[]
 }) {
   const search = useSearchParams()
-  return <SidebarNavList pathname={pathname} search={search} onNavigate={onNavigate} />
+  return (
+    <SidebarNavList pathname={pathname} search={search} onNavigate={onNavigate} items={items} />
+  )
 }
 
 /** useSearchParams는 프리렌더 시 Suspense 경계가 필요 — 폴백은 쿼리 없이 렌더 */
 function SidebarNavBody({
   pathname,
   onNavigate,
+  profile,
+  authDisabled,
 }: {
   pathname: string
   onNavigate?: () => void
+  profile?: AuthProfile | null
+  authDisabled?: boolean
 }) {
+  const items = getVisibleNavItems({
+    role: profile?.role,
+    authDisabled,
+  })
+
   return (
-    <Suspense fallback={<SidebarNavList pathname={pathname} search={null} onNavigate={onNavigate} />}>
-      <SidebarNavListWithSearch pathname={pathname} onNavigate={onNavigate} />
+    <Suspense
+      fallback={
+        <SidebarNavList pathname={pathname} search={null} onNavigate={onNavigate} items={items} />
+      }
+    >
+      <SidebarNavListWithSearch pathname={pathname} onNavigate={onNavigate} items={items} />
     </Suspense>
   )
 }
@@ -173,10 +199,14 @@ function MobileDrawer({
   open,
   onClose,
   pathname,
+  profile,
+  authDisabled,
 }: {
   open: boolean
   onClose: () => void
   pathname: string
+  profile?: AuthProfile | null
+  authDisabled?: boolean
 }) {
   useEffect(() => {
     if (!open) return
@@ -208,13 +238,19 @@ function MobileDrawer({
             ×
           </button>
         </div>
-        <SidebarNavBody pathname={pathname} onNavigate={onClose} />
+        <SidebarNavBody
+          pathname={pathname}
+          onNavigate={onClose}
+          profile={profile}
+          authDisabled={authDisabled}
+        />
+        <SideNavUserMenu profile={profile ?? null} authDisabled={authDisabled} />
       </aside>
     </div>
   )
 }
 
-export function SideNav() {
+export function SideNav({ profile = null, authDisabled = false }: SideNavProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -247,10 +283,17 @@ export function SideNav() {
         <div className="border-b border-slate-200 px-3 py-4">
           <SidebarBrand />
         </div>
-        <SidebarNavBody pathname={pathname} />
+        <SidebarNavBody pathname={pathname} profile={profile} authDisabled={authDisabled} />
+        <SideNavUserMenu profile={profile} authDisabled={authDisabled} />
       </aside>
 
-      <MobileDrawer open={mobileOpen} onClose={() => setMobileOpen(false)} pathname={pathname} />
+      <MobileDrawer
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        pathname={pathname}
+        profile={profile}
+        authDisabled={authDisabled}
+      />
     </>
   )
 }

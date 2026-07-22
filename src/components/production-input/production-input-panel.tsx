@@ -408,7 +408,11 @@ export function ProductionInputPanel({
                   <span className="inline-flex shrink-0 items-center rounded-lg bg-slate-900 px-2.5 py-0.5 text-lg font-bold leading-none tracking-wide text-white sm:text-xl">
                     {sideLabel}
                   </span>
-                ) : !isPostProcess && !order.splitPcbSides ? (
+                ) : !isPostProcess && order.splitPcbSides ? (
+                  <span className="inline-flex shrink-0 items-center rounded-lg bg-sky-100 px-2.5 py-0.5 text-lg font-bold leading-none text-sky-800 sm:text-xl">
+                    양면
+                  </span>
+                ) : !isPostProcess ? (
                   <span className="inline-flex shrink-0 items-center rounded-lg bg-slate-100 px-2.5 py-0.5 text-lg font-bold leading-none text-slate-600 sm:text-xl">
                     단면
                   </span>
@@ -422,81 +426,97 @@ export function ProductionInputPanel({
                     const sideRemaining = Math.max(0, orderTarget - sideCumulative)
                     const selected = activeSide === side
                     const sideProgress = getProgressPercent(sideCumulative, orderTarget)
+                    const sideComplete = orderTarget > 0 && sideCumulative >= orderTarget
                     return (
                       <button
                         key={side}
                         type="button"
                         onClick={() => setActiveSide(side)}
                         className={[
-                          'rounded-xl border p-3 text-left transition',
+                          'rounded-xl border p-3.5 text-left transition sm:p-4',
                           selected
                             ? 'border-sky-500 bg-sky-50/50 ring-2 ring-sky-100'
                             : 'border-slate-200 bg-slate-50/50 hover:border-slate-300',
                         ].join(' ')}
                       >
-                        <span className="block text-xs font-bold text-slate-500">{side}</span>
-                        <span className="mt-1.5 block text-xl font-bold tabular-nums text-slate-900 sm:text-2xl">
-                          {sideCumulative.toLocaleString('ko-KR')}
-                          <span className="text-base font-semibold text-slate-400 sm:text-lg">
-                            {' '}
-                            / {orderTarget.toLocaleString('ko-KR')}
-                          </span>
-                        </span>
-                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
-                          <div
-                            className={`h-full rounded-full ${sideCumulative >= orderTarget && orderTarget > 0 ? 'bg-emerald-500' : 'bg-sky-500'}`}
-                            style={{ width: `${sideProgress}%` }}
-                          />
+                        <div className="flex flex-wrap items-end justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-bold tracking-[0.12em] text-slate-400 uppercase">
+                              {side}
+                            </p>
+                            <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">
+                              {sideCumulative.toLocaleString('ko-KR')}
+                              <span className="mx-1 text-xl font-semibold text-slate-300 sm:text-2xl">/</span>
+                              <span className="text-xl font-semibold text-slate-500 sm:text-2xl">
+                                {orderTarget.toLocaleString('ko-KR')}
+                              </span>
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-semibold text-slate-400">남은 수량</p>
+                            <p className="text-lg font-bold tabular-nums text-sky-700 sm:text-xl">
+                              {sideRemaining.toLocaleString('ko-KR')}
+                            </p>
+                          </div>
                         </div>
-                        <span className="mt-1.5 block text-xs text-slate-500">
-                          남음{' '}
-                          <span className="font-bold tabular-nums text-slate-800">
-                            {sideRemaining.toLocaleString('ko-KR')}
-                          </span>
-                        </span>
+                        {orderTarget > 0 ? (
+                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white sm:h-2.5">
+                            <div
+                              className={`h-full rounded-full ${sideComplete ? 'bg-emerald-500' : 'bg-sky-500'}`}
+                              style={{ width: `${sideProgress}%` }}
+                            />
+                          </div>
+                        ) : null}
+                        <p className="mt-2 text-xs font-medium text-slate-500">
+                          {sideComplete
+                            ? '목표 수량을 달성했습니다.'
+                            : `${sideProgress}% 진행 · ${sideRemaining.toLocaleString('ko-KR')}대 더 등록 가능`}
+                        </p>
                       </button>
                     )
                   })}
                 </div>
-              ) : null}
-
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold tracking-[0.12em] text-slate-400 uppercase">
-                      {progressLabel}
-                    </p>
-                    <p className="mt-1.5 text-3xl font-bold tabular-nums text-slate-900 sm:text-4xl">
-                      {cumulative.toLocaleString('ko-KR')}
-                      <span className="mx-1.5 text-2xl font-semibold text-slate-300">/</span>
-                      <span className="text-2xl font-semibold text-slate-500">
-                        {target.toLocaleString('ko-KR')}
-                      </span>
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-semibold text-slate-400">남은 수량</p>
-                    <p className="text-xl font-bold tabular-nums text-sky-700 sm:text-2xl">
-                      {remaining.toLocaleString('ko-KR')}
+              ) : (
+                <div className="mt-4 border-t border-slate-100 pt-4">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 sm:p-4">
+                    <div className="flex flex-wrap items-end justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-bold tracking-[0.12em] text-slate-400 uppercase">
+                          {progressLabel}
+                        </p>
+                        <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">
+                          {cumulative.toLocaleString('ko-KR')}
+                          <span className="mx-1 text-xl font-semibold text-slate-300 sm:text-2xl">/</span>
+                          <span className="text-xl font-semibold text-slate-500 sm:text-2xl">
+                            {target.toLocaleString('ko-KR')}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-semibold text-slate-400">남은 수량</p>
+                        <p className="text-lg font-bold tabular-nums text-sky-700 sm:text-xl">
+                          {remaining.toLocaleString('ko-KR')}
+                        </p>
+                      </div>
+                    </div>
+                    {target > 0 ? (
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white sm:h-2.5">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            progressComplete ? 'bg-emerald-500' : 'bg-sky-500'
+                          }`}
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    ) : null}
+                    <p className="mt-2 text-xs font-medium text-slate-500">
+                      {progressComplete
+                        ? '목표 수량을 달성했습니다.'
+                        : `${progress}% 진행 · ${remaining.toLocaleString('ko-KR')}대 더 등록 가능`}
                     </p>
                   </div>
                 </div>
-                {target > 0 ? (
-                  <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100 sm:h-3.5">
-                    <div
-                      className={`h-full rounded-full transition-all ${
-                        progressComplete ? 'bg-emerald-500' : 'bg-sky-500'
-                      }`}
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                ) : null}
-                <p className="mt-2 text-xs font-medium text-slate-500 sm:text-sm">
-                  {progressComplete
-                    ? '목표 수량을 달성했습니다.'
-                    : `${progress}% 진행 · ${remaining.toLocaleString('ko-KR')}대 더 등록 가능`}
-                </p>
-              </div>
+              )}
             </div>
 
             <div className="mt-4 border-t border-slate-100 pt-4">

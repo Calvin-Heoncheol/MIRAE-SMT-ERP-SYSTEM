@@ -14,6 +14,8 @@ export type SmtProductionRecord = {
   defectQuantity: number
   source: SmtProductionSource
   note: string
+  createdBy: string | null
+  createdByName: string
   createdAt: string
 }
 
@@ -47,4 +49,5 @@ export type SmtProductionHistoryRow = {
   pcbSide: SmtPcbSide
   source: SmtProductionSource
   note: string
+  createdByName: string
 }

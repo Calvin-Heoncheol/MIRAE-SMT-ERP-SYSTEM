@@ -1,4 +1,5 @@
 import { createSupabaseClient } from '@/lib/supabase'
+import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import type {
@@ -54,6 +55,12 @@ function schemaErrorDetail(message: string): string | null {
   if (isPostProcessZeroQuantityConstraintError(message)) {
     return '양품 0 등록이 허용되지 않습니다. migrate-post-process-production-records-allow-zero-quantity.sql 을 실행하세요.'
   }
+  if (
+    (message.includes('created_by') || message.includes('created_by_name')) &&
+    (message.includes('column') || message.includes('schema cache') || message.includes('Could not find'))
+  ) {
+    return 'post_process_production_records.created_by 컬럼이 없습니다. migrate-production-records-created-by.sql 을 실행하세요.'
+  }
   return null
 }
 
@@ -74,6 +81,8 @@ function mapPostProcessProductionRecord(row: {
   source: string
   team?: string | null
   note: string
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
 }): PostProcessProductionRecord {
   return {
@@ -85,6 +94,8 @@ function mapPostProcessProductionRecord(row: {
     source: row.source === 'manual' ? 'manual' : 'manual',
     team: String(row.team ?? '').trim(),
     note: row.note || '',
+    createdBy: row.created_by ? String(row.created_by) : null,
+    createdByName: String(row.created_by_name || '').trim(),
     createdAt: row.created_at,
   }
 }
@@ -266,6 +277,7 @@ export async function createPostProcessProductionRecord(
 
     const recordDate = input.recordDate?.trim() || todayYmdSeoul()
     const source: PostProcessProductionSource = input.source || 'manual'
+    const createdBy = await resolveCreatedBySnapshot()
 
     const insertPayload = {
       record_date: recordDate,
@@ -275,6 +287,8 @@ export async function createPostProcessProductionRecord(
       source,
       team: input.team?.trim() || '',
       note: input.note?.trim() || '',
+      created_by: createdBy.createdBy,
+      created_by_name: createdBy.createdByName,
     }
 
     let { data: inserted, error: insertError } = await supabase
@@ -284,12 +298,33 @@ export async function createPostProcessProductionRecord(
       .single()
 
     if (insertError?.message.includes('team')) {
-      const { team: _team, ...legacyPayload } = insertPayload
+      const { team: _team, ...withoutTeam } = insertPayload
       ;({ data: inserted, error: insertError } = await supabase
         .from('post_process_production_records')
-        .insert(legacyPayload)
+        .insert(withoutTeam)
         .select('*')
         .single())
+    }
+
+    if (
+      insertError &&
+      (insertError.message.includes('created_by') || insertError.message.includes('created_by_name'))
+    ) {
+      const { created_by: _by, created_by_name: _name, ...withoutCreatedBy } = insertPayload
+      ;({ data: inserted, error: insertError } = await supabase
+        .from('post_process_production_records')
+        .insert(withoutCreatedBy)
+        .select('*')
+        .single())
+
+      if (insertError?.message.includes('team')) {
+        const { team: _team, created_by: _by2, created_by_name: _name2, ...legacy } = insertPayload
+        ;({ data: inserted, error: insertError } = await supabase
+          .from('post_process_production_records')
+          .insert(legacy)
+          .select('*')
+          .single())
+      }
     }
 
     if (insertError || !inserted) {
@@ -327,6 +362,8 @@ type PostProcessProductionHistoryRecordRow = {
   source: string
   team?: string | null
   note: string
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
   order_assembly_groups:
     | {
@@ -390,6 +427,7 @@ function mapPostProcessProductionHistoryRow(
     source: record.source,
     team: record.team,
     note: record.note,
+    createdByName: record.createdByName,
   }
 }
 
@@ -418,6 +456,8 @@ async function fetchPostProcessProductionRecords(options?: {
         source,
         team,
         note,
+        created_by,
+        created_by_name,
         created_at,
         order_assembly_groups (
           target_quantity,
@@ -435,14 +475,18 @@ async function fetchPostProcessProductionRecords(options?: {
       `
 
   const selectWithoutTeam = selectWithTeam.replace('\n        team,\n', '\n')
+  const selectWithoutCreatedBy = selectWithTeam
+    .replace('\n        created_by,\n', '\n')
+    .replace('\n        created_by_name,\n', '\n')
+  const selectLegacy = selectWithoutCreatedBy.replace('\n        team,\n', '\n')
 
   try {
     const supabase = createSupabaseClient()
 
-    async function runQuery(includeTeam: boolean) {
+    async function runQuery(select: string) {
       let query = supabase
         .from('post_process_production_records')
-        .select(includeTeam ? selectWithTeam : selectWithoutTeam)
+        .select(select)
         .order('created_at', { ascending: false })
         .limit(options?.limit ?? 1000)
 
@@ -453,10 +497,20 @@ async function fetchPostProcessProductionRecords(options?: {
       return query
     }
 
-    let { data, error } = await runQuery(true)
+    let { data, error } = await runQuery(selectWithTeam)
 
     if (error?.message.includes('team')) {
-      ;({ data, error } = await runQuery(false))
+      ;({ data, error } = await runQuery(selectWithoutTeam))
+    }
+
+    if (
+      error &&
+      (error.message.includes('created_by') || error.message.includes('created_by_name'))
+    ) {
+      ;({ data, error } = await runQuery(selectWithoutCreatedBy))
+      if (error?.message.includes('team')) {
+        ;({ data, error } = await runQuery(selectLegacy))
+      }
     }
 
     if (error) {

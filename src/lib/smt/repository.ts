@@ -1,4 +1,5 @@
 import { createSupabaseClient } from '@/lib/supabase'
+import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { normalizeProductPcbSideMode } from '@/lib/products/utils'
 import { buildSmtCountKey, buildSmtPlanProgressKey, smtPcbSidesForMode } from '@/lib/smt/count-keys'
@@ -52,6 +53,12 @@ function schemaErrorDetail(message: string): string | null {
   if (isSmtZeroQuantityConstraintError(message)) {
     return '양품 0 등록이 허용되지 않습니다. migrate-smt-production-records-allow-zero-quantity.sql 을 실행하세요.'
   }
+  if (
+    (message.includes('created_by') || message.includes('created_by_name')) &&
+    (message.includes('column') || message.includes('schema cache') || message.includes('Could not find'))
+  ) {
+    return 'smt_production_records.created_by 컬럼이 없습니다. migrate-production-records-created-by.sql 을 실행하세요.'
+  }
   return null
 }
 
@@ -73,6 +80,8 @@ function mapSmtProductionRecord(row: {
   defect_quantity?: number | null
   source: string
   note: string
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
 }): SmtProductionRecord {
   const pcbSide = String(row.pcb_side || 'SINGLE').toUpperCase()
@@ -89,6 +98,8 @@ function mapSmtProductionRecord(row: {
     defectQuantity: Math.max(0, Math.floor(Number(row.defect_quantity) || 0)),
     source: row.source === 'line_sync' ? 'line_sync' : 'manual',
     note: row.note || '',
+    createdBy: row.created_by ? String(row.created_by) : null,
+    createdByName: String(row.created_by_name || '').trim(),
     createdAt: row.created_at,
   }
 }
@@ -332,20 +343,38 @@ export async function createSmtProductionRecord(
       }
     }
 
-    const { data: inserted, error: insertError } = await supabase
+    const createdBy = await resolveCreatedBySnapshot()
+
+    const insertPayload = {
+      record_date: recordDate,
+      order_line_id: orderLineId,
+      line_no: lineNo,
+      pcb_side: pcbSide,
+      quantity,
+      defect_quantity: defectQuantity,
+      source: input.source || 'manual',
+      note: input.note?.trim() || '',
+      created_by: createdBy.createdBy,
+      created_by_name: createdBy.createdByName,
+    }
+
+    let { data: inserted, error: insertError } = await supabase
       .from('smt_production_records')
-      .insert({
-        record_date: recordDate,
-        order_line_id: orderLineId,
-        line_no: lineNo,
-        pcb_side: pcbSide,
-        quantity,
-        defect_quantity: defectQuantity,
-        source: input.source || 'manual',
-        note: input.note?.trim() || '',
-      })
+      .insert(insertPayload)
       .select('*')
       .single()
+
+    if (
+      insertError &&
+      (insertError.message.includes('created_by') || insertError.message.includes('created_by_name'))
+    ) {
+      const { created_by: _by, created_by_name: _name, ...legacyPayload } = insertPayload
+      ;({ data: inserted, error: insertError } = await supabase
+        .from('smt_production_records')
+        .insert(legacyPayload)
+        .select('*')
+        .single())
+    }
 
     if (insertError || !inserted) {
       const schemaDetail = insertError?.message ? schemaErrorDetail(insertError.message) : null
@@ -383,6 +412,8 @@ type SmtProductionHistoryRecordRow = {
   defect_quantity?: number | null
   source: string
   note: string
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
   order_lines:
     | {
@@ -453,6 +484,7 @@ function mapSmtProductionHistoryRow(row: SmtProductionHistoryRecordRow): SmtProd
     pcbSide: record.pcbSide,
     source: record.source,
     note: record.note,
+    createdByName: record.createdByName,
   }
 }
 
@@ -474,10 +506,7 @@ async function fetchSmtProductionRecords(options?: {
 
   try {
     const supabase = createSupabaseClient()
-    let query = supabase
-      .from('smt_production_records')
-      .select(
-        `
+    const selectWithCreatedBy = `
         id,
         record_date,
         order_line_id,
@@ -487,6 +516,8 @@ async function fetchSmtProductionRecords(options?: {
         defect_quantity,
         source,
         note,
+        created_by,
+        created_by_name,
         created_at,
         order_lines (
           product_code,
@@ -497,16 +528,33 @@ async function fetchSmtProductionRecords(options?: {
             customer
           )
         )
-      `,
-      )
-      .order('created_at', { ascending: false })
-      .limit(options?.limit ?? 1000)
+      `
+    const selectWithoutCreatedBy = selectWithCreatedBy
+      .replace('\n        created_by,\n', '\n')
+      .replace('\n        created_by_name,\n', '\n')
 
-    if (options?.recordDate) {
-      query = query.eq('record_date', options.recordDate)
+    async function runQuery(includeCreatedBy: boolean) {
+      let query = supabase
+        .from('smt_production_records')
+        .select(includeCreatedBy ? selectWithCreatedBy : selectWithoutCreatedBy)
+        .order('created_at', { ascending: false })
+        .limit(options?.limit ?? 1000)
+
+      if (options?.recordDate) {
+        query = query.eq('record_date', options.recordDate)
+      }
+
+      return query
     }
 
-    const { data, error } = await query
+    let { data, error } = await runQuery(true)
+
+    if (
+      error &&
+      (error.message.includes('created_by') || error.message.includes('created_by_name'))
+    ) {
+      ;({ data, error } = await runQuery(false))
+    }
 
     if (error) {
       const schemaDetail = schemaErrorDetail(error.message)
@@ -515,7 +563,7 @@ async function fetchSmtProductionRecords(options?: {
 
     const rows: SmtProductionHistoryRow[] = []
     for (const row of data || []) {
-      const mapped = mapSmtProductionHistoryRow(row as SmtProductionHistoryRecordRow)
+      const mapped = mapSmtProductionHistoryRow(row as unknown as SmtProductionHistoryRecordRow)
       if (mapped) rows.push(mapped)
     }
 

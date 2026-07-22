@@ -140,7 +140,7 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
 
       <p className="text-xs text-slate-400">
         SMT·후공정·출하 칸은 총관리자 직접 입력용입니다. 생산입력 화면과 별도이며, 등록 시 이력 비고에
-        「직접생산(관리자)」또는 「직접출하(관리자)」가 남습니다. (로그인 연동 전 · 현재는 화면에서 모두 가능)
+        「생산실사(관리자)」또는 「직접출하(관리자)」가 남습니다. (로그인 연동 전 · 현재는 화면에서 모두 가능)
       </p>
 
       <ProductionStatusQuickInputModal

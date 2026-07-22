@@ -1,7 +1,6 @@
-import { PostProcessHistoryWorkspace } from '@/components/post-process/post-process-history-workspace'
-import { fetchPostProcessProductionHistory } from '@/lib/post-process/repository'
+import { redirect } from 'next/navigation'
 
-export default async function PostProcessHistoryPage() {
-  const result = await fetchPostProcessProductionHistory()
-  return <PostProcessHistoryWorkspace result={result} />
+/** 구 후공정 생산이력 → 통합 생산이력 */
+export default function PostProcessHistoryRedirectPage() {
+  redirect('/production/history')
 }

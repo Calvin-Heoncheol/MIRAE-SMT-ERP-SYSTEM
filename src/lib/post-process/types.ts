@@ -11,6 +11,8 @@ export type PostProcessProductionRecord = {
   source: PostProcessProductionSource
   team: string
   note: string
+  createdBy: string | null
+  createdByName: string
   createdAt: string
 }
 
@@ -42,4 +44,5 @@ export type PostProcessProductionHistoryRow = {
   source: PostProcessProductionSource
   team: string
   note: string
+  createdByName: string
 }
