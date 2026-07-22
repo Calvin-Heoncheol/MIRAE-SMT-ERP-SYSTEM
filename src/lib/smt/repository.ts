@@ -37,9 +37,20 @@ export function isMissingSmtDefectQuantityColumn(detail: string) {
   )
 }
 
+export function isSmtZeroQuantityConstraintError(detail: string) {
+  return (
+    detail.includes('smt_production_records_quantity_check') ||
+    detail.includes('smt_production_records_qty_or_defect_check') ||
+    (detail.includes('quantity') && detail.toLowerCase().includes('check'))
+  )
+}
+
 function schemaErrorDetail(message: string): string | null {
   if (isMissingSmtDefectQuantityColumn(message)) {
     return 'smt_production_records.defect_quantity 컬럼이 없습니다. migrate-smt-production-records-defect-quantity.sql 을 실행하세요.'
+  }
+  if (isSmtZeroQuantityConstraintError(message)) {
+    return '양품 0 등록이 허용되지 않습니다. migrate-smt-production-records-allow-zero-quantity.sql 을 실행하세요.'
   }
   return null
 }
@@ -189,13 +200,16 @@ export async function createSmtProductionRecord(
   }
 
   const orderLineId = String(input.orderLineId || '').trim()
-  const quantity = Math.floor(Number(input.quantity) || 0)
+  const quantity = Math.max(0, Math.floor(Number(input.quantity) || 0))
   const defectQuantity = Math.max(0, Math.floor(Number(input.defectQuantity) || 0))
   if (!orderLineId) {
     return { ok: false, reason: 'validation', detail: '주문 라인을 찾을 수 없습니다.' }
   }
-  if (quantity < 1) {
-    return { ok: false, reason: 'validation', detail: '양품 수량은 1 이상이어야 합니다.' }
+  if (quantity < 1 && defectQuantity < 1) {
+    return { ok: false, reason: 'validation', detail: '수량을 1 이상 입력하세요.' }
+  }
+  if (quantity > 0 && defectQuantity > 0) {
+    return { ok: false, reason: 'validation', detail: '양품과 불량은 한 번에 하나만 등록할 수 있습니다.' }
   }
 
   try {
@@ -259,7 +273,7 @@ export async function createSmtProductionRecord(
 
     const currentTotal = Math.max(0, Math.floor(Number(totals?.total_quantity) || 0))
     const remaining = Math.max(0, targetQty - currentTotal)
-    if (targetQty > 0 && quantity > remaining) {
+    if (quantity > 0 && targetQty > 0 && quantity > remaining) {
       return {
         ok: false,
         reason: 'validation',
@@ -308,7 +322,7 @@ export async function createSmtProductionRecord(
           0,
         )
         const planRemaining = Math.max(0, plannedQuantity - planProduced)
-        if (quantity > planRemaining) {
+        if (quantity > 0 && quantity > planRemaining) {
           return {
             ok: false,
             reason: 'validation',

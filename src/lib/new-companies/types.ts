@@ -71,6 +71,8 @@ export type NewCompanyInquiry = {
   id: string
   contactName: string
   companyName: string
+  /** 지역 */
+  region: string
   email: string
   phone: string
   product: string
@@ -88,6 +90,8 @@ export type NewCompanyInquiry = {
 export type NewCompanyInquiryPayload = {
   contactName: string
   companyName: string
+  /** 지역 */
+  region: string
   email: string
   phone: string
   product: string

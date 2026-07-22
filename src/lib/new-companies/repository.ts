@@ -36,12 +36,22 @@ export function isMissingNewCompanyCloseReasonColumn(detail: string) {
   )
 }
 
+export function isMissingNewCompanyRegionColumn(detail: string) {
+  return (
+    detail.includes('region') &&
+    (detail.includes('column') || detail.includes('schema cache') || detail.includes('Could not find'))
+  )
+}
+
 function schemaErrorDetail(message: string): string | null {
   if (isMissingNewCompanySourceChannelColumn(message)) {
     return 'new_company_inquiries.source_channel 컬럼이 없습니다. migrate-new-company-status-source-channel.sql 을 실행하세요.'
   }
   if (isMissingNewCompanyCloseReasonColumn(message)) {
     return 'new_company_inquiries.close_reason 컬럼이 없습니다. migrate-new-company-close-reason.sql 을 실행하세요.'
+  }
+  if (isMissingNewCompanyRegionColumn(message)) {
+    return 'new_company_inquiries.region 컬럼이 없습니다. migrate-new-company-region.sql 을 실행하세요.'
   }
   return null
 }

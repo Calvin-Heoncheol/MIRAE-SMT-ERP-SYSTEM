@@ -77,10 +77,12 @@ export function ProductionInputPanel({
   onPlanProgressUpdated,
 }: ProductionInputPanelProps) {
   const [activeSide, setActiveSide] = useState<SmtPcbSide>('SINGLE')
+  const [qtyMode, setQtyMode] = useState<'good' | 'defect'>('good')
   const [qty, setQty] = useState('')
-  const [defectQty, setDefectQty] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null)
+  const isGoodMode = qtyMode === 'good'
+  const qtyModeLabel = isGoodMode ? '양품' : '불량'
 
   const isPostProcess = config.productionModule === 'post_process'
   const lockToPlan = Boolean(plan)
@@ -116,12 +118,16 @@ export function ProductionInputPanel({
     !showLineSelector || lockToPlan || (lineNo != null && lineNo >= 1 && lineNo <= 7)
   const canRegister =
     Boolean(order) &&
-    remaining > 0 &&
+    (qtyMode === 'defect' || remaining > 0) &&
     lineSelected &&
     (isPostProcess ? Boolean(assemblyGroupId) : Boolean(order?.orderLineId))
 
   const qtyNumber = Math.max(0, Math.floor(Number(qty) || 0))
   const sideLabel = pcbSide === 'TOP' || pcbSide === 'BOT' ? pcbSide : null
+  const qtyInputDisabled = !canRegister || saving
+  const presetDisabled = qtyInputDisabled || (isGoodMode && remaining < 1)
+  const bumpPlusDisabled =
+    qtyInputDisabled || (isGoodMode && qtyNumber >= remaining)
 
   useEffect(() => {
     if (smtPlan) {
@@ -133,32 +139,33 @@ export function ProductionInputPanel({
     } else {
       setActiveSide('SINGLE')
     }
+    setQtyMode('good')
     setQty('')
-    setDefectQty('')
     setMessage(null)
   }, [order?.uiKey, order?.splitPcbSides, lockToPlan, plan?.id, smtPlan?.pcbSide])
 
   useEffect(() => {
     if (lockToPlan) return
     setQty('')
-    setDefectQty('')
     setMessage(null)
   }, [activeSide, lockToPlan])
 
-  function setQtyClamped(next: number) {
-    const value = Math.max(0, Math.min(remaining, Math.floor(next)))
+  function setQtyValue(next: number) {
+    const floored = Math.max(0, Math.floor(next))
+    const value = isGoodMode ? Math.min(remaining, floored) : floored
     setQty(value > 0 ? String(value) : '')
     setMessage(null)
   }
 
-  function setDefectQtyValue(next: number) {
-    const value = Math.max(0, Math.floor(next))
-    setDefectQty(value > 0 ? String(value) : '')
-    setMessage(null)
+  function bumpQty(delta: number) {
+    setQtyValue(qtyNumber + delta)
   }
 
-  function bumpQty(delta: number) {
-    setQtyClamped(qtyNumber + delta)
+  function switchQtyMode(next: 'good' | 'defect') {
+    if (next === qtyMode) return
+    setQtyMode(next)
+    setQty('')
+    setMessage(null)
   }
 
   async function handleSubmit() {
@@ -169,13 +176,16 @@ export function ProductionInputPanel({
       return
     }
 
-    const value = Math.floor(Number(qty))
-    const defectValue = Math.max(0, Math.floor(Number(defectQty) || 0))
-    if (!value || value < 1) {
-      setMessage({ text: '양품 수량을 입력하세요.', kind: 'err' })
+    const value = Math.max(0, Math.floor(Number(qty) || 0))
+    if (value < 1) {
+      setMessage({ text: `${qtyModeLabel} 수량을 입력하세요.`, kind: 'err' })
       return
     }
-    if (target > 0 && value > remaining) {
+
+    const goodQuantity = isGoodMode ? value : 0
+    const defectQuantity = isGoodMode ? 0 : value
+
+    if (isGoodMode && target > 0 && goodQuantity > remaining) {
       setMessage({
         text: lockToPlan
           ? `계획 남은 수량(${remaining.toLocaleString('ko-KR')})을 초과할 수 없습니다.`
@@ -191,16 +201,14 @@ export function ProductionInputPanel({
     setMessage(null)
 
     function formatRegisterOk(cumulativeOrPlanText: string) {
-      return defectValue > 0
-        ? `양품 ${value.toLocaleString('ko-KR')} · 불량 ${defectValue.toLocaleString('ko-KR')} 등록 · ${cumulativeOrPlanText}`
-        : `양품 ${value.toLocaleString('ko-KR')}개 등록 · ${cumulativeOrPlanText}`
+      return `${qtyModeLabel} ${value.toLocaleString('ko-KR')}개 등록 · ${cumulativeOrPlanText}`
     }
 
     if (isPostProcess) {
       const result = await createPostProcessProductionRecord({
         assemblyGroupId,
-        quantity: value,
-        defectQuantity: defectValue,
+        quantity: goodQuantity,
+        defectQuantity,
         recordDate: postProcessPlan?.plannedDate,
         team: postProcessPlan?.team || postProcessTeam,
       })
@@ -214,21 +222,20 @@ export function ProductionInputPanel({
 
       onCountUpdated(assemblyGroupId, result.cumulative)
 
-      if (lockToPlan && postProcessPlan && onPlanProgressUpdated) {
+      if (lockToPlan && postProcessPlan && onPlanProgressUpdated && goodQuantity > 0) {
         const progressKey = buildPostProcessPlanProgressKey(
           postProcessPlan.assemblyGroupId,
           postProcessPlan.plannedDate,
           postProcessPlan.team,
         )
-        onPlanProgressUpdated(progressKey, planDone + value)
+        onPlanProgressUpdated(progressKey, planDone + goodQuantity)
       }
 
       setQty('')
-      setDefectQty('')
       setMessage({
         text: formatRegisterOk(
           lockToPlan
-            ? `${Math.min(planTarget, planDone + value).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
+            ? `${Math.min(planTarget, planDone + goodQuantity).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
             : `누적 ${result.cumulative.toLocaleString('ko-KR')}`,
         ),
         kind: 'ok',
@@ -245,8 +252,8 @@ export function ProductionInputPanel({
 
     const result = await createSmtProductionRecord({
       orderLineId: order.orderLineId,
-      quantity: value,
-      defectQuantity: defectValue,
+      quantity: goodQuantity,
+      defectQuantity,
       pcbSide,
       lineNo: resolvedLineNo,
       recordDate: smtPlan?.plannedDate,
@@ -262,22 +269,21 @@ export function ProductionInputPanel({
     const countKey = buildSmtCountKey(order.orderLineId, pcbSide)
     onCountUpdated(countKey, result.cumulative)
 
-    if (lockToPlan && smtPlan && onPlanProgressUpdated) {
+    if (lockToPlan && smtPlan && onPlanProgressUpdated && goodQuantity > 0) {
       const progressKey = buildSmtPlanProgressKey(
         order.orderLineId,
         pcbSide,
         smtPlan.lineNo,
         smtPlan.plannedDate,
       )
-      onPlanProgressUpdated(progressKey, planDone + value)
+      onPlanProgressUpdated(progressKey, planDone + goodQuantity)
     }
 
     setQty('')
-    setDefectQty('')
     setMessage({
       text: formatRegisterOk(
         lockToPlan
-          ? `${Math.min(planTarget, planDone + value).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
+          ? `${Math.min(planTarget, planDone + goodQuantity).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
           : `누적 ${result.cumulative.toLocaleString('ko-KR')}`,
       ),
       kind: 'ok',
@@ -496,18 +502,64 @@ export function ProductionInputPanel({
             <div className="mt-4 border-t border-slate-100 pt-4">
               <p className="text-sm font-bold text-slate-800">수량 입력</p>
               <p className="mt-0.5 text-xs text-slate-500">
-                양품은 진행률·남은 수량에 반영됩니다. 불량은 이력에만 기록됩니다.
+                {isGoodMode
+                  ? '양품은 진행률·남은 수량에 반영됩니다.'
+                  : '불량은 이력에만 기록되며, 남은 수량 제한을 받지 않습니다.'}
               </p>
 
-              <p className="mt-3 text-xs font-bold tracking-wide text-slate-500 uppercase">양품</p>
+              <div
+                className="mt-3 grid grid-cols-2 gap-2"
+                role="tablist"
+                aria-label="수량 입력 모드"
+              >
+                {(
+                  [
+                    { id: 'good' as const, label: '양품' },
+                    { id: 'defect' as const, label: '불량' },
+                  ] as const
+                ).map((mode) => {
+                  const active = qtyMode === mode.id
+                  const activeClass =
+                    mode.id === 'good'
+                      ? 'border-sky-500 bg-sky-50 text-sky-900 ring-2 ring-sky-200'
+                      : 'border-rose-500 bg-rose-50 text-rose-900 ring-2 ring-rose-200'
+                  return (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      disabled={saving}
+                      onClick={() => switchQtyMode(mode.id)}
+                      className={[
+                        'min-h-[2.75rem] rounded-xl border px-3 py-2 text-sm font-bold transition sm:text-base',
+                        active
+                          ? activeClass
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                      ].join(' ')}
+                    >
+                      {mode.label}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <p className="mt-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
+                {qtyModeLabel}
+              </p>
               <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {([1, 10, 100, 1000] as const).map((step) => (
                   <button
                     key={step}
                     type="button"
-                    disabled={!canRegister || saving || remaining < 1}
+                    disabled={presetDisabled}
                     onClick={() => bumpQty(step)}
-                    className="min-h-[3.25rem] rounded-xl border-2 border-slate-200 bg-slate-50 text-lg font-bold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[3.5rem] sm:text-xl"
+                    className={[
+                      'min-h-[3.25rem] rounded-xl border-2 text-lg font-bold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[3.5rem] sm:text-xl',
+                      isGoodMode
+                        ? 'border-slate-200 bg-slate-50 text-slate-700 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800'
+                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800',
+                    ].join(' ')}
                   >
                     +{step}
                   </button>
@@ -517,10 +569,10 @@ export function ProductionInputPanel({
               <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-stretch gap-2">
                 <button
                   type="button"
-                  disabled={!canRegister || saving || qtyNumber < 1}
+                  disabled={qtyInputDisabled || qtyNumber < 1}
                   onClick={() => bumpQty(-1)}
                   className="flex aspect-square min-h-[3.75rem] w-14 items-center justify-center rounded-xl border-2 border-slate-200 text-3xl font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[4.25rem] sm:w-16 sm:text-4xl"
-                  aria-label="양품 수량 1 감소"
+                  aria-label={`${qtyModeLabel} 수량 1 감소`}
                 >
                   −
                 </button>
@@ -530,7 +582,7 @@ export function ProductionInputPanel({
                   min={0}
                   step={1}
                   value={qty}
-                  disabled={!canRegister || saving}
+                  disabled={qtyInputDisabled}
                   onChange={(event) => {
                     const raw = event.target.value
                     if (raw === '') {
@@ -538,65 +590,43 @@ export function ProductionInputPanel({
                       setMessage(null)
                       return
                     }
-                    setQtyClamped(Number(raw) || 0)
+                    setQtyValue(Number(raw) || 0)
                   }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') void handleSubmit()
                   }}
                   placeholder="0"
-                  aria-label="양품 수량"
-                  className="min-h-[3.75rem] w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 text-center text-4xl font-bold text-slate-900 tabular-nums outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100 disabled:text-slate-400 sm:min-h-[4.25rem] sm:text-5xl"
+                  aria-label={`${qtyModeLabel} 수량`}
+                  className={[
+                    'min-h-[3.75rem] w-full rounded-xl border-2 bg-slate-50 px-3 text-center text-4xl font-bold text-slate-900 tabular-nums outline-none focus:bg-white disabled:text-slate-400 sm:min-h-[4.25rem] sm:text-5xl',
+                    isGoodMode
+                      ? 'border-slate-200 focus:border-sky-400 focus:ring-2 focus:ring-sky-100'
+                      : 'border-slate-200 focus:border-rose-300 focus:ring-2 focus:ring-rose-100',
+                  ].join(' ')}
                 />
                 <button
                   type="button"
-                  disabled={!canRegister || saving || qtyNumber >= remaining}
+                  disabled={bumpPlusDisabled}
                   onClick={() => bumpQty(1)}
                   className="flex aspect-square min-h-[3.75rem] w-14 items-center justify-center rounded-xl border-2 border-slate-200 text-3xl font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[4.25rem] sm:w-16 sm:text-4xl"
-                  aria-label="양품 수량 1 증가"
+                  aria-label={`${qtyModeLabel} 수량 1 증가`}
                 >
                   +
                 </button>
               </div>
 
-              <div className="mt-4 flex items-center gap-3">
-                <label
-                  htmlFor={`${config.qtyInputId}-defect`}
-                  className="shrink-0 text-xs font-bold tracking-wide text-slate-500 uppercase"
-                >
-                  불량
-                </label>
-                <input
-                  id={`${config.qtyInputId}-defect`}
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={defectQty}
-                  disabled={!canRegister || saving}
-                  onChange={(event) => {
-                    const raw = event.target.value
-                    if (raw === '') {
-                      setDefectQty('')
-                      setMessage(null)
-                      return
-                    }
-                    setDefectQtyValue(Number(raw) || 0)
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') void handleSubmit()
-                  }}
-                  placeholder="0"
-                  aria-label="불량 수량"
-                  className="min-h-[2.75rem] w-full max-w-[12rem] rounded-xl border-2 border-slate-200 bg-slate-50 px-3 text-center text-2xl font-bold text-slate-900 tabular-nums outline-none focus:border-rose-300 focus:bg-white focus:ring-2 focus:ring-rose-100 disabled:text-slate-400"
-                />
-              </div>
-
               <button
                 type="button"
-                disabled={!canRegister || saving || qtyNumber < 1}
+                disabled={qtyInputDisabled || qtyNumber < 1}
                 onClick={() => void handleSubmit()}
-                className="mt-3 min-h-[3.25rem] w-full rounded-xl bg-slate-800 text-base font-bold text-white transition hover:bg-slate-900 active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-[3.5rem] sm:text-lg"
+                className={[
+                  'mt-3 min-h-[3.25rem] w-full rounded-xl text-base font-bold text-white transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-[3.5rem] sm:text-lg',
+                  isGoodMode
+                    ? 'bg-slate-800 hover:bg-slate-900'
+                    : 'bg-rose-700 hover:bg-rose-800',
+                ].join(' ')}
               >
-                {saving ? '등록 중…' : '등록'}
+                {saving ? '등록 중…' : `${qtyModeLabel} 등록`}
               </button>
 
               {message ? (

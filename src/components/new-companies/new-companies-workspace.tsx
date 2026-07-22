@@ -34,6 +34,7 @@ function matchesQuery(inquiry: NewCompanyInquiry, query: string) {
   const haystack = [
     inquiry.contactName,
     inquiry.companyName,
+    inquiry.region,
     inquiry.email,
     inquiry.phone,
     inquiry.product,

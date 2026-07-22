@@ -200,16 +200,27 @@ function NewCompanyModalContent({
           </div>
         </div>
 
-        <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>
-            회사명 <span className="text-red-500">*</span>
-          </span>
-          <input
-            value={form.companyName}
-            onChange={(event) => updateForm('companyName', event.target.value)}
-            className={ERP_FIELD_INPUT_CLASS}
-          />
-        </label>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>
+              회사명 <span className="text-red-500">*</span>
+            </span>
+            <input
+              value={form.companyName}
+              onChange={(event) => updateForm('companyName', event.target.value)}
+              className={ERP_FIELD_INPUT_CLASS}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>지역</span>
+            <input
+              value={form.region}
+              onChange={(event) => updateForm('region', event.target.value)}
+              placeholder="예: 수원, 안산"
+              className={ERP_FIELD_INPUT_CLASS}
+            />
+          </label>
+        </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <label className="block text-sm">

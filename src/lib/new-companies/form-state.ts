@@ -101,6 +101,7 @@ export function shouldShowProgressFields(status: NewCompanyStatus): boolean {
 export type NewCompanyInquiryFormState = {
   contactName: string
   companyName: string
+  region: string
   email: string
   phone: string
   product: string
@@ -115,6 +116,7 @@ export function emptyNewCompanyInquiryForm(): NewCompanyInquiryFormState {
   return {
     contactName: '',
     companyName: '',
+    region: '',
     email: '',
     phone: '',
     product: '',
@@ -130,6 +132,7 @@ export function inquiryToForm(inquiry: NewCompanyInquiry): NewCompanyInquiryForm
   return {
     contactName: inquiry.contactName,
     companyName: inquiry.companyName,
+    region: inquiry.region,
     email: inquiry.email,
     phone: inquiry.phone,
     product: inquiry.product,
@@ -152,6 +155,7 @@ export function formToInquiryPayload(form: NewCompanyInquiryFormState): NewCompa
   return {
     contactName: form.contactName.trim(),
     companyName: form.companyName.trim(),
+    region: form.region.trim(),
     email: form.email.trim(),
     phone: form.phone.trim(),
     product: form.product.trim(),

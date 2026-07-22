@@ -6,6 +6,7 @@ create table if not exists public.new_company_inquiries (
   id uuid primary key default gen_random_uuid(),
   contact_name text not null default '',
   company_name text not null default '',
+  region text not null default '',
   email text not null default '',
   phone text not null default '',
   product text not null default '',
@@ -21,6 +22,7 @@ create table if not exists public.new_company_inquiries (
 comment on table public.new_company_inquiries is '영업관리 — 신규업체';
 comment on column public.new_company_inquiries.contact_name is '담당자';
 comment on column public.new_company_inquiries.company_name is '회사명';
+comment on column public.new_company_inquiries.region is '지역';
 comment on column public.new_company_inquiries.email is '이메일';
 comment on column public.new_company_inquiries.phone is '연락처';
 comment on column public.new_company_inquiries.product is '제품';
@@ -71,6 +73,7 @@ as $$
 begin
   new.contact_name := coalesce(trim(new.contact_name), '');
   new.company_name := coalesce(trim(new.company_name), '');
+  new.region := coalesce(trim(new.region), '');
   new.email := coalesce(trim(new.email), '');
   new.phone := coalesce(trim(new.phone), '');
   new.product := coalesce(trim(new.product), '');

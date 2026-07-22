@@ -9,6 +9,7 @@ export type NewCompanyInquiryRow = {
   id: string
   contact_name: string
   company_name: string
+  region?: string | null
   email: string
   phone: string
   product: string
@@ -34,6 +35,7 @@ export function mapNewCompanyInquiryRecord(row: NewCompanyInquiryRow): NewCompan
     id: row.id,
     contactName: row.contact_name ?? '',
     companyName: row.company_name ?? '',
+    region: row.region ?? '',
     email: row.email ?? '',
     phone: row.phone ?? '',
     product: row.product ?? '',
@@ -51,6 +53,7 @@ export function toNewCompanyInquiryRow(payload: NewCompanyInquiryPayload) {
   return {
     contact_name: payload.contactName.trim(),
     company_name: payload.companyName.trim(),
+    region: payload.region.trim(),
     email: payload.email.trim(),
     phone: payload.phone.trim(),
     product: payload.product.trim(),
