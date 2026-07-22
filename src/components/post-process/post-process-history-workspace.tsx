@@ -65,7 +65,8 @@ export function PostProcessHistoryWorkspace({ result }: PostProcessHistoryWorksp
         { header: '고객사', value: (row) => row.customer, width: 18 },
         { header: '완제품명', value: (row) => row.productName, width: 26 },
         { header: '품목코드', value: (row) => row.productCode, width: 16 },
-        { header: '수량', value: (row) => row.quantity, width: 10 },
+        { header: '양품', value: (row) => row.quantity, width: 10 },
+        { header: '불량', value: (row) => row.defectQuantity, width: 10 },
         { header: '비고', value: (row) => row.note, width: 24 },
       ],
     })

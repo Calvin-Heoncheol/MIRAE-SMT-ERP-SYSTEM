@@ -30,6 +30,20 @@ export function isMissingSmtProductionTable(detail: string) {
   )
 }
 
+export function isMissingSmtDefectQuantityColumn(detail: string) {
+  return (
+    detail.includes('defect_quantity') &&
+    (detail.includes('column') || detail.includes('schema cache') || detail.includes('Could not find'))
+  )
+}
+
+function schemaErrorDetail(message: string): string | null {
+  if (isMissingSmtDefectQuantityColumn(message)) {
+    return 'smt_production_records.defect_quantity 컬럼이 없습니다. migrate-smt-production-records-defect-quantity.sql 을 실행하세요.'
+  }
+  return null
+}
+
 function missingEnvResult(): { ok: false; reason: 'env'; detail: string } {
   return {
     ok: false,
@@ -45,6 +59,7 @@ function mapSmtProductionRecord(row: {
   line_no: number | null
   pcb_side: string
   quantity: number
+  defect_quantity?: number | null
   source: string
   note: string
   created_at: string
@@ -60,6 +75,7 @@ function mapSmtProductionRecord(row: {
     lineNo: row.line_no != null ? Number(row.line_no) : null,
     pcbSide: normalizedPcbSide,
     quantity: Math.max(0, Math.floor(Number(row.quantity) || 0)),
+    defectQuantity: Math.max(0, Math.floor(Number(row.defect_quantity) || 0)),
     source: row.source === 'line_sync' ? 'line_sync' : 'manual',
     note: row.note || '',
     createdAt: row.created_at,
@@ -174,11 +190,12 @@ export async function createSmtProductionRecord(
 
   const orderLineId = String(input.orderLineId || '').trim()
   const quantity = Math.floor(Number(input.quantity) || 0)
+  const defectQuantity = Math.max(0, Math.floor(Number(input.defectQuantity) || 0))
   if (!orderLineId) {
     return { ok: false, reason: 'validation', detail: '주문 라인을 찾을 수 없습니다.' }
   }
   if (quantity < 1) {
-    return { ok: false, reason: 'validation', detail: '등록 수량은 1 이상이어야 합니다.' }
+    return { ok: false, reason: 'validation', detail: '양품 수량은 1 이상이어야 합니다.' }
   }
 
   try {
@@ -309,6 +326,7 @@ export async function createSmtProductionRecord(
         line_no: lineNo,
         pcb_side: pcbSide,
         quantity,
+        defect_quantity: defectQuantity,
         source: input.source || 'manual',
         note: input.note?.trim() || '',
       })
@@ -316,10 +334,14 @@ export async function createSmtProductionRecord(
       .single()
 
     if (insertError || !inserted) {
+      const schemaDetail = insertError?.message ? schemaErrorDetail(insertError.message) : null
       return {
         ok: false,
         reason: 'query',
-        detail: insertError?.message || 'SMT 생산 기록 저장에 실패했습니다.',
+        detail:
+          schemaDetail ||
+          insertError?.message ||
+          'SMT 생산 기록 저장에 실패했습니다.',
       }
     }
 
@@ -344,6 +366,7 @@ type SmtProductionHistoryRecordRow = {
   line_no: number | null
   pcb_side: string
   quantity: number
+  defect_quantity?: number | null
   source: string
   note: string
   created_at: string
@@ -411,6 +434,7 @@ function mapSmtProductionHistoryRow(row: SmtProductionHistoryRecordRow): SmtProd
     productCode: orderLine.product_code || '',
     orderQuantity: Math.max(0, Math.floor(Number(orderLine.quantity) || 0)),
     quantity: record.quantity,
+    defectQuantity: record.defectQuantity,
     lineNo: record.lineNo,
     pcbSide: record.pcbSide,
     source: record.source,
@@ -446,6 +470,7 @@ async function fetchSmtProductionRecords(options?: {
         line_no,
         pcb_side,
         quantity,
+        defect_quantity,
         source,
         note,
         created_at,
@@ -470,7 +495,8 @@ async function fetchSmtProductionRecords(options?: {
     const { data, error } = await query
 
     if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
+      const schemaDetail = schemaErrorDetail(error.message)
+      return { ok: false, reason: 'query', detail: schemaDetail || error.message }
     }
 
     const rows: SmtProductionHistoryRow[] = []

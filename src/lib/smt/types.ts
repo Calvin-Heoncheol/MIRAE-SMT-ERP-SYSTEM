@@ -8,7 +8,10 @@ export type SmtProductionRecord = {
   orderLineId: string
   lineNo: number | null
   pcbSide: SmtPcbSide
+  /** 양품 수량 */
   quantity: number
+  /** 불량 수량 (진행률·잔량 미포함) */
+  defectQuantity: number
   source: SmtProductionSource
   note: string
   createdAt: string
@@ -16,7 +19,10 @@ export type SmtProductionRecord = {
 
 export type CreateSmtProductionRecordInput = {
   orderLineId: string
+  /** 양품 수량 */
   quantity: number
+  /** 불량 수량 (미입력·비어 있으면 0) */
+  defectQuantity?: number
   recordDate?: string
   lineNo?: number | null
   pcbSide?: SmtPcbSide
@@ -33,7 +39,10 @@ export type SmtProductionHistoryRow = {
   productName: string
   productCode: string
   orderQuantity: number
+  /** 양품 수량 */
   quantity: number
+  /** 불량 수량 */
+  defectQuantity: number
   lineNo: number | null
   pcbSide: SmtPcbSide
   source: SmtProductionSource

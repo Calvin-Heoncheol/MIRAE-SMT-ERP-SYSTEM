@@ -54,7 +54,7 @@ export function SmtHistoryModal({ open, row, onClose, onDeleted }: SmtHistoryMod
     if (
       !window.confirm(
         `${formatInternalCodeLabel(row.orderNumber)} · ${row.productName || row.productCode}\n` +
-          `수량 ${row.quantity.toLocaleString('ko-KR')}대 기록을 삭제하시겠습니까?`,
+          `양품 ${row.quantity.toLocaleString('ko-KR')}대 기록을 삭제하시겠습니까?`,
       )
     ) {
       return
@@ -108,7 +108,8 @@ export function SmtHistoryModal({ open, row, onClose, onDeleted }: SmtHistoryMod
           <DetailRow label="제품명" value={row.productName.trim() || row.productCode.trim() || '—'} />
           <DetailRow label="라인" value={row.lineNo != null ? `라인 ${row.lineNo}` : '—'} />
           <DetailRow label="면구분" value={formatSmtPcbSideLabel(row.pcbSide)} />
-          <DetailRow label="수량" value={`${row.quantity.toLocaleString('ko-KR')}대`} />
+          <DetailRow label="양품" value={`${row.quantity.toLocaleString('ko-KR')}대`} />
+          <DetailRow label="불량" value={`${row.defectQuantity.toLocaleString('ko-KR')}대`} />
           <DetailRow label="등록경로" value={formatSmtProductionSourceLabel(row.source)} />
           <DetailRow label="비고" value={row.note.trim() || '—'} />
         </dl>

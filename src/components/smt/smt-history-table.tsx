@@ -52,7 +52,10 @@ export function SmtHistoryTable({ rows, emptyMessage, onRowClick }: SmtHistoryTa
                 면구분
               </th>
               <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                수량
+                양품
+              </th>
+              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                불량
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
@@ -89,6 +92,9 @@ export function SmtHistoryTable({ rows, emptyMessage, onRowClick }: SmtHistoryTa
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm font-semibold tabular-nums text-sky-800">
                   {row.quantity.toLocaleString('ko-KR')}
+                </td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm tabular-nums text-slate-600">
+                  {row.defectQuantity > 0 ? row.defectQuantity.toLocaleString('ko-KR') : '-'}
                 </td>
                 <td className="px-4 py-2.5 text-sm text-slate-500">{cell(row.note)}</td>
               </tr>

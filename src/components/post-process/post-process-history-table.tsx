@@ -49,7 +49,10 @@ export function PostProcessHistoryTable({ rows, emptyMessage, onRowClick }: Post
                 목표
               </th>
               <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                등록수량
+                양품
+              </th>
+              <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                불량
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
@@ -83,6 +86,9 @@ export function PostProcessHistoryTable({ rows, emptyMessage, onRowClick }: Post
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm font-bold tabular-nums text-emerald-700">
                   {row.quantity.toLocaleString('ko-KR')}
+                </td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm tabular-nums text-slate-600">
+                  {row.defectQuantity > 0 ? row.defectQuantity.toLocaleString('ko-KR') : '-'}
                 </td>
                 <td className="px-4 py-2.5 text-sm text-slate-600">{cell(row.note)}</td>
               </tr>

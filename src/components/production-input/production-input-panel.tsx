@@ -78,6 +78,7 @@ export function ProductionInputPanel({
 }: ProductionInputPanelProps) {
   const [activeSide, setActiveSide] = useState<SmtPcbSide>('SINGLE')
   const [qty, setQty] = useState('')
+  const [defectQty, setDefectQty] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null)
 
@@ -133,18 +134,26 @@ export function ProductionInputPanel({
       setActiveSide('SINGLE')
     }
     setQty('')
+    setDefectQty('')
     setMessage(null)
   }, [order?.uiKey, order?.splitPcbSides, lockToPlan, plan?.id, smtPlan?.pcbSide])
 
   useEffect(() => {
     if (lockToPlan) return
     setQty('')
+    setDefectQty('')
     setMessage(null)
   }, [activeSide, lockToPlan])
 
   function setQtyClamped(next: number) {
     const value = Math.max(0, Math.min(remaining, Math.floor(next)))
     setQty(value > 0 ? String(value) : '')
+    setMessage(null)
+  }
+
+  function setDefectQtyValue(next: number) {
+    const value = Math.max(0, Math.floor(next))
+    setDefectQty(value > 0 ? String(value) : '')
     setMessage(null)
   }
 
@@ -161,8 +170,9 @@ export function ProductionInputPanel({
     }
 
     const value = Math.floor(Number(qty))
+    const defectValue = Math.max(0, Math.floor(Number(defectQty) || 0))
     if (!value || value < 1) {
-      setMessage({ text: '등록 수량을 입력하세요.', kind: 'err' })
+      setMessage({ text: '양품 수량을 입력하세요.', kind: 'err' })
       return
     }
     if (target > 0 && value > remaining) {
@@ -180,10 +190,17 @@ export function ProductionInputPanel({
     setSaving(true)
     setMessage(null)
 
+    function formatRegisterOk(cumulativeOrPlanText: string) {
+      return defectValue > 0
+        ? `양품 ${value.toLocaleString('ko-KR')} · 불량 ${defectValue.toLocaleString('ko-KR')} 등록 · ${cumulativeOrPlanText}`
+        : `양품 ${value.toLocaleString('ko-KR')}개 등록 · ${cumulativeOrPlanText}`
+    }
+
     if (isPostProcess) {
       const result = await createPostProcessProductionRecord({
         assemblyGroupId,
         quantity: value,
+        defectQuantity: defectValue,
         recordDate: postProcessPlan?.plannedDate,
         team: postProcessPlan?.team || postProcessTeam,
       })
@@ -207,10 +224,13 @@ export function ProductionInputPanel({
       }
 
       setQty('')
+      setDefectQty('')
       setMessage({
-        text: lockToPlan
-          ? `${value.toLocaleString('ko-KR')}개 등록 · ${Math.min(planTarget, planDone + value).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
-          : `${value.toLocaleString('ko-KR')}개 등록 · 누적 ${result.cumulative.toLocaleString('ko-KR')}`,
+        text: formatRegisterOk(
+          lockToPlan
+            ? `${Math.min(planTarget, planDone + value).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
+            : `누적 ${result.cumulative.toLocaleString('ko-KR')}`,
+        ),
         kind: 'ok',
       })
       return
@@ -226,6 +246,7 @@ export function ProductionInputPanel({
     const result = await createSmtProductionRecord({
       orderLineId: order.orderLineId,
       quantity: value,
+      defectQuantity: defectValue,
       pcbSide,
       lineNo: resolvedLineNo,
       recordDate: smtPlan?.plannedDate,
@@ -252,10 +273,13 @@ export function ProductionInputPanel({
     }
 
     setQty('')
+    setDefectQty('')
     setMessage({
-      text: lockToPlan
-        ? `${value.toLocaleString('ko-KR')}개 등록 · ${Math.min(planTarget, planDone + value).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
-        : `${value.toLocaleString('ko-KR')}개 등록 · 누적 ${result.cumulative.toLocaleString('ko-KR')}`,
+      text: formatRegisterOk(
+        lockToPlan
+          ? `${Math.min(planTarget, planDone + value).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
+          : `누적 ${result.cumulative.toLocaleString('ko-KR')}`,
+      ),
       kind: 'ok',
     })
   }
@@ -471,9 +495,12 @@ export function ProductionInputPanel({
 
             <div className="mt-4 border-t border-slate-100 pt-4">
               <p className="text-sm font-bold text-slate-800">수량 입력</p>
-              <p className="mt-0.5 text-xs text-slate-500">프리셋을 누르거나 숫자를 입력한 뒤 등록하세요.</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                양품은 진행률·남은 수량에 반영됩니다. 불량은 이력에만 기록됩니다.
+              </p>
 
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <p className="mt-3 text-xs font-bold tracking-wide text-slate-500 uppercase">양품</p>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {([1, 10, 100, 1000] as const).map((step) => (
                   <button
                     key={step}
@@ -493,7 +520,7 @@ export function ProductionInputPanel({
                   disabled={!canRegister || saving || qtyNumber < 1}
                   onClick={() => bumpQty(-1)}
                   className="flex aspect-square min-h-[3.75rem] w-14 items-center justify-center rounded-xl border-2 border-slate-200 text-3xl font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[4.25rem] sm:w-16 sm:text-4xl"
-                  aria-label="수량 1 감소"
+                  aria-label="양품 수량 1 감소"
                 >
                   −
                 </button>
@@ -517,6 +544,7 @@ export function ProductionInputPanel({
                     if (event.key === 'Enter') void handleSubmit()
                   }}
                   placeholder="0"
+                  aria-label="양품 수량"
                   className="min-h-[3.75rem] w-full rounded-xl border-2 border-slate-200 bg-slate-50 px-3 text-center text-4xl font-bold text-slate-900 tabular-nums outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100 disabled:text-slate-400 sm:min-h-[4.25rem] sm:text-5xl"
                 />
                 <button
@@ -524,10 +552,42 @@ export function ProductionInputPanel({
                   disabled={!canRegister || saving || qtyNumber >= remaining}
                   onClick={() => bumpQty(1)}
                   className="flex aspect-square min-h-[3.75rem] w-14 items-center justify-center rounded-xl border-2 border-slate-200 text-3xl font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[4.25rem] sm:w-16 sm:text-4xl"
-                  aria-label="수량 1 증가"
+                  aria-label="양품 수량 1 증가"
                 >
                   +
                 </button>
+              </div>
+
+              <div className="mt-4 flex items-center gap-3">
+                <label
+                  htmlFor={`${config.qtyInputId}-defect`}
+                  className="shrink-0 text-xs font-bold tracking-wide text-slate-500 uppercase"
+                >
+                  불량
+                </label>
+                <input
+                  id={`${config.qtyInputId}-defect`}
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={defectQty}
+                  disabled={!canRegister || saving}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    if (raw === '') {
+                      setDefectQty('')
+                      setMessage(null)
+                      return
+                    }
+                    setDefectQtyValue(Number(raw) || 0)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void handleSubmit()
+                  }}
+                  placeholder="0"
+                  aria-label="불량 수량"
+                  className="min-h-[2.75rem] w-full max-w-[12rem] rounded-xl border-2 border-slate-200 bg-slate-50 px-3 text-center text-2xl font-bold text-slate-900 tabular-nums outline-none focus:border-rose-300 focus:bg-white focus:ring-2 focus:ring-rose-100 disabled:text-slate-400"
+                />
               </div>
 
               <button

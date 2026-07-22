@@ -49,7 +49,7 @@ export function PostProcessHistoryModal({
     if (
       !window.confirm(
         `${formatInternalCodeLabel(row.orderNumber)} · ${row.productName || row.productCode}\n` +
-          `수량 ${row.quantity.toLocaleString('ko-KR')}대 기록을 삭제하시겠습니까?`,
+          `양품 ${row.quantity.toLocaleString('ko-KR')}대 기록을 삭제하시겠습니까?`,
       )
     ) {
       return
@@ -97,7 +97,8 @@ export function PostProcessHistoryModal({
         <DetailRow label="완제품명" value={row.productName.trim() || row.productCode.trim() || '—'} />
         <DetailRow label="생산팀" value={row.team.trim() || '—'} />
         <DetailRow label="목표" value={`${row.targetQuantity.toLocaleString('ko-KR')}대`} />
-        <DetailRow label="등록수량" value={`${row.quantity.toLocaleString('ko-KR')}대`} />
+        <DetailRow label="양품" value={`${row.quantity.toLocaleString('ko-KR')}대`} />
+        <DetailRow label="불량" value={`${row.defectQuantity.toLocaleString('ko-KR')}대`} />
         <DetailRow label="등록경로" value={formatPostProcessProductionSourceLabel(row.source)} />
         <DetailRow label="비고" value={row.note.trim() || '—'} />
       </dl>

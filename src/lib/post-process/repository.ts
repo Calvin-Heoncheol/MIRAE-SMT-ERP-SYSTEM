@@ -32,6 +32,20 @@ export function isMissingPostProcessProductionTable(detail: string) {
   )
 }
 
+export function isMissingPostProcessDefectQuantityColumn(detail: string) {
+  return (
+    detail.includes('defect_quantity') &&
+    (detail.includes('column') || detail.includes('schema cache') || detail.includes('Could not find'))
+  )
+}
+
+function schemaErrorDetail(message: string): string | null {
+  if (isMissingPostProcessDefectQuantityColumn(message)) {
+    return 'post_process_production_records.defect_quantity 컬럼이 없습니다. migrate-post-process-production-records-defect-quantity.sql 을 실행하세요.'
+  }
+  return null
+}
+
 function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }>(): T {
   return {
     ok: false,
@@ -45,6 +59,7 @@ function mapPostProcessProductionRecord(row: {
   record_date: string
   assembly_group_id: string
   quantity: number
+  defect_quantity?: number | null
   source: string
   team?: string | null
   note: string
@@ -55,6 +70,7 @@ function mapPostProcessProductionRecord(row: {
     recordDate: String(row.record_date || '').slice(0, 10),
     assemblyGroupId: row.assembly_group_id,
     quantity: Math.max(0, Math.floor(Number(row.quantity) || 0)),
+    defectQuantity: Math.max(0, Math.floor(Number(row.defect_quantity) || 0)),
     source: row.source === 'manual' ? 'manual' : 'manual',
     team: String(row.team ?? '').trim(),
     note: row.note || '',
@@ -181,12 +197,13 @@ export async function createPostProcessProductionRecord(
 
   const assemblyGroupId = String(input.assemblyGroupId || '').trim()
   const quantity = Math.floor(Number(input.quantity) || 0)
+  const defectQuantity = Math.max(0, Math.floor(Number(input.defectQuantity) || 0))
 
   if (!assemblyGroupId) {
     return { ok: false, reason: 'validation', detail: '조립 그룹을 찾을 수 없습니다.' }
   }
   if (quantity < 1) {
-    return { ok: false, reason: 'validation', detail: '등록 수량은 1 이상이어야 합니다.' }
+    return { ok: false, reason: 'validation', detail: '양품 수량은 1 이상이어야 합니다.' }
   }
 
   try {
@@ -240,6 +257,7 @@ export async function createPostProcessProductionRecord(
       record_date: recordDate,
       assembly_group_id: assemblyGroupId,
       quantity,
+      defect_quantity: defectQuantity,
       source,
       team: input.team?.trim() || '',
       note: input.note?.trim() || '',
@@ -261,10 +279,14 @@ export async function createPostProcessProductionRecord(
     }
 
     if (insertError || !inserted) {
+      const schemaDetail = insertError?.message ? schemaErrorDetail(insertError.message) : null
       return {
         ok: false,
         reason: 'query',
-        detail: insertError?.message || '후공정 생산 기록 저장에 실패했습니다.',
+        detail:
+          schemaDetail ||
+          insertError?.message ||
+          '후공정 생산 기록 저장에 실패했습니다.',
       }
     }
 
@@ -287,6 +309,7 @@ type PostProcessProductionHistoryRecordRow = {
   record_date: string
   assembly_group_id: string
   quantity: number
+  defect_quantity?: number | null
   source: string
   team?: string | null
   note: string
@@ -349,6 +372,7 @@ function mapPostProcessProductionHistoryRow(
     productCode: product?.id || assemblyGroup.parent_product_id || '',
     targetQuantity: Math.max(0, Math.floor(Number(assemblyGroup.target_quantity) || 0)),
     quantity: record.quantity,
+    defectQuantity: record.defectQuantity,
     source: record.source,
     team: record.team,
     note: record.note,
@@ -376,6 +400,7 @@ async function fetchPostProcessProductionRecords(options?: {
         record_date,
         assembly_group_id,
         quantity,
+        defect_quantity,
         source,
         team,
         note,
@@ -424,7 +449,8 @@ async function fetchPostProcessProductionRecords(options?: {
       if (isMissingPostProcessProductionTable(error.message)) {
         return { ok: true, rows: [] }
       }
-      return { ok: false, reason: 'query', detail: error.message }
+      const schemaDetail = schemaErrorDetail(error.message)
+      return { ok: false, reason: 'query', detail: schemaDetail || error.message }
     }
 
     const rows: PostProcessProductionHistoryRow[] = []

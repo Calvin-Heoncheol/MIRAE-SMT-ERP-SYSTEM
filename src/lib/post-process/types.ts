@@ -4,7 +4,10 @@ export type PostProcessProductionRecord = {
   id: string
   recordDate: string
   assemblyGroupId: string
+  /** 양품 수량 */
   quantity: number
+  /** 불량 수량 (진행률·잔량 미포함) */
+  defectQuantity: number
   source: PostProcessProductionSource
   team: string
   note: string
@@ -13,7 +16,10 @@ export type PostProcessProductionRecord = {
 
 export type CreatePostProcessProductionRecordInput = {
   assemblyGroupId: string
+  /** 양품 수량 */
   quantity: number
+  /** 불량 수량 (미입력·비어 있으면 0) */
+  defectQuantity?: number
   recordDate?: string
   source?: PostProcessProductionSource
   team?: string
@@ -29,7 +35,10 @@ export type PostProcessProductionHistoryRow = {
   productName: string
   productCode: string
   targetQuantity: number
+  /** 양품 수량 */
   quantity: number
+  /** 불량 수량 */
+  defectQuantity: number
   source: PostProcessProductionSource
   team: string
   note: string

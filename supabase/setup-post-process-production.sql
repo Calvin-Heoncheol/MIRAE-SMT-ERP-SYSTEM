@@ -7,6 +7,7 @@ create table if not exists public.post_process_production_records (
   record_date date not null default (timezone('Asia/Seoul', now()))::date,
   assembly_group_id uuid not null references public.order_assembly_groups(id) on delete cascade,
   quantity integer not null check (quantity > 0),
+  defect_quantity integer not null default 0 check (defect_quantity >= 0),
   source text not null default 'manual' check (source in ('manual')),
   team text not null default '',
   note text not null default '',
@@ -16,7 +17,8 @@ create table if not exists public.post_process_production_records (
 comment on table public.post_process_production_records is '후공정 생산 실적 — 조립 그룹(완제품)별 등록 이력';
 comment on column public.post_process_production_records.record_date is '기록일자 (KST)';
 comment on column public.post_process_production_records.assembly_group_id is '주문 조립 그룹 FK (order_assembly_groups.id)';
-comment on column public.post_process_production_records.quantity is '이번 등록 완제품 세트 수량';
+comment on column public.post_process_production_records.quantity is '이번 등록 양품(완제품 세트) 수량';
+comment on column public.post_process_production_records.defect_quantity is '이번 등록 불량 수량 (진행률·잔량 계산에 미포함)';
 comment on column public.post_process_production_records.source is 'manual=생산입력 화면';
 comment on column public.post_process_production_records.team is '생산팀 (생산2팀, 생산3팀, 생산4팀)';
 
@@ -38,7 +40,7 @@ select
 from public.post_process_production_records
 group by assembly_group_id;
 
-comment on view public.post_process_production_totals is '후공정 조립 그룹별 누적 생산 수량';
+comment on view public.post_process_production_totals is '후공정 조립 그룹별 누적 양품 수량 (defect_quantity 미포함)';
 
 alter table public.post_process_production_records enable row level security;
 

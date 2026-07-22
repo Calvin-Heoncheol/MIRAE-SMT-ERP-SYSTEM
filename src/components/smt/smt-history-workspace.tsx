@@ -63,7 +63,8 @@ export function SmtHistoryWorkspace({ result }: SmtHistoryWorkspaceProps) {
         { header: '품목코드', value: (row) => row.productCode, width: 16 },
         { header: '라인', value: (row) => (row.lineNo != null ? row.lineNo : ''), width: 8 },
         { header: '면구분', value: (row) => formatSmtPcbSideLabel(row.pcbSide), width: 10 },
-        { header: '수량', value: (row) => row.quantity, width: 10 },
+        { header: '양품', value: (row) => row.quantity, width: 10 },
+        { header: '불량', value: (row) => row.defectQuantity, width: 10 },
         { header: '비고', value: (row) => row.note, width: 24 },
       ],
     })
