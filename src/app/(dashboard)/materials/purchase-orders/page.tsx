@@ -1,7 +1,7 @@
-import { MaterialPurchaseOrdersWorkspace } from '@/components/materials/purchase-orders/material-purchase-orders-workspace'
-import { fetchMaterialPurchaseOrderRegisterData } from '@/lib/materials/purchase-orders/repository'
+import { MaterialOrderPurchaseWorkspace } from '@/components/materials/purchase-orders/material-order-purchase-workspace'
+import { fetchMaterialPurchaseOrderByOrderData } from '@/lib/materials/purchase-orders/repository'
 
-export default async function MaterialPurchaseOrdersRegisterPage() {
-  const result = await fetchMaterialPurchaseOrderRegisterData()
-  return <MaterialPurchaseOrdersWorkspace result={result} view="register" />
+export default async function MaterialPurchaseOrdersByOrderPage() {
+  const result = await fetchMaterialPurchaseOrderByOrderData()
+  return <MaterialOrderPurchaseWorkspace result={result} />
 }

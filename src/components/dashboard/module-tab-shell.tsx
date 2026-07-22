@@ -29,21 +29,40 @@ type ModuleTabShellProps = {
   children: React.ReactNode
 }
 
-function isTabActive(pathname: string, tab: ModuleTabItem) {
-  if (pathname === tab.href || pathname.startsWith(`${tab.href}/`)) return true
-  return Boolean(tab.menu?.some((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)))
+function tabHrefMatches(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
+function isTabActive(pathname: string, tab: ModuleTabItem, tabs: ModuleTabItem[]) {
+  const selfMatches =
+    tabHrefMatches(pathname, tab.href) ||
+    Boolean(tab.menu?.some((item) => tabHrefMatches(pathname, item.href)))
+  if (!selfMatches) return false
+
+  // /purchase-orders 와 /purchase-orders/by-material 처럼 접두가 겹치면 더 긴 href만 활성
+  const matchedHrefs = tabs.flatMap((candidate) => {
+    const hrefs = [candidate.href, ...(candidate.menu?.map((item) => item.href) ?? [])]
+    return hrefs.filter((href) => tabHrefMatches(pathname, href))
+  })
+  if (!matchedHrefs.length) return false
+  const bestHref = matchedHrefs.reduce((best, href) => (href.length > best.length ? href : best))
+  return tabHrefMatches(pathname, bestHref) && (
+    tab.href === bestHref || Boolean(tab.menu?.some((item) => item.href === bestHref))
+  )
 }
 
 function TabLink({
   tab,
+  tabs,
   pathname,
   querySuffix = '',
 }: {
   tab: ModuleTabItem
+  tabs: ModuleTabItem[]
   pathname: string
   querySuffix?: string
 }) {
-  const active = isTabActive(pathname, tab)
+  const active = isTabActive(pathname, tab, tabs)
   const hasMenu = Boolean(tab.menu?.length)
   const [open, setOpen] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -175,7 +194,13 @@ function TabNav({
       aria-label={ariaLabel}
     >
       {tabs.map((tab) => (
-        <TabLink key={tab.href + tab.label} tab={tab} pathname={pathname} querySuffix={querySuffix} />
+        <TabLink
+          key={tab.href + tab.label}
+          tab={tab}
+          tabs={tabs}
+          pathname={pathname}
+          querySuffix={querySuffix}
+        />
       ))}
     </nav>
   )

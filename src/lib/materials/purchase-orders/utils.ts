@@ -100,6 +100,8 @@ export function mapMaterialPurchaseOrderRecord(record: MaterialPurchaseOrderReco
     deliveryDate: formatMaterialPurchaseOrderDate(record.delivery_date),
     supplier: record.supplier || '',
     sourceOrderId: record.source_order_id || null,
+    coveredOrderLineId: record.covered_order_line_id || null,
+    coveredProductQuantity: Math.max(0, Math.floor(Number(record.covered_product_quantity) || 0)),
     createdAt: record.created_at,
     items,
     totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),

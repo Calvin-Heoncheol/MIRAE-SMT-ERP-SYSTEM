@@ -27,6 +27,9 @@ type MaterialPurchaseOrderModalProps = {
   initialSupplier?: string
   /** 주문서 카드에서 발주 시 연결할 고객 주문서 id */
   sourceOrderId?: string | null
+  /** 부분 발주 — 커버한 주문 라인 / 제품 수량 */
+  coveredOrderLineId?: string | null
+  coveredProductQuantity?: number | null
   onClose: () => void
   onSaved?: () => void
   onDeleted?: () => void
@@ -57,6 +60,8 @@ function MaterialPurchaseOrderModalContent({
   initialItems,
   initialSupplier,
   sourceOrderId,
+  coveredOrderLineId,
+  coveredProductQuantity,
   onClose,
   onSaved,
   onDeleted,
@@ -132,6 +137,11 @@ function MaterialPurchaseOrderModalContent({
       delivery_date: form.deliveryDate || '',
       supplier: form.supplier.trim(),
       source_order_id: mode === 'create' ? sourceOrderId || null : undefined,
+      covered_order_line_id: mode === 'create' ? coveredOrderLineId || null : undefined,
+      covered_product_quantity:
+        mode === 'create' && coveredProductQuantity != null && coveredProductQuantity > 0
+          ? coveredProductQuantity
+          : undefined,
       items: validation.items,
     }
 

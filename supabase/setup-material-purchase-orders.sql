@@ -1,6 +1,6 @@
 -- Supabase SQL Editor에서 실행하세요 (setup-items.sql 이후)
 --
--- 발주번호 = id — MRP-YYMMDD 또는 MRP-YYMMDD01 … 자동 발급
+-- 발주번호 = id — MRP-YYMMDD-01, MRP-YYMMDD-02 … 자동 발급
 
 create table if not exists public.material_purchase_orders (
   id text primary key,
@@ -8,20 +8,30 @@ create table if not exists public.material_purchase_orders (
   delivery_date date,
   supplier text not null default '',
   source_order_id text references public.orders(id) on delete set null,
+  covered_order_line_id text,
+  covered_product_quantity numeric check (covered_product_quantity is null or covered_product_quantity >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint material_purchase_orders_id_not_blank_check check (length(trim(id)) > 0),
-  constraint material_purchase_orders_id_format_check check (id ~ '^MRP-[0-9]{6}([0-9]{2})?$')
+  constraint material_purchase_orders_id_format_check check ((length(id) = 13 and id like 'MRP-______-__') or (length(id) = 10 and id like 'MRP-______') or (length(id) = 12 and id like 'MRP-________'))
 );
 
-comment on table public.material_purchase_orders is '자재 발주 마스터 — 발주번호=id(MRP-260707)';
-comment on column public.material_purchase_orders.id is '발주번호 MRP-YYMMDD (INSERT 시 자동 발급, 수정 불가)';
+comment on table public.material_purchase_orders is '자재 발주 마스터 — 발주번호=id(MRP-260722-01)';
+comment on column public.material_purchase_orders.id is '발주번호 MRP-YYMMDD-NN (INSERT 시 자동 발급, 수정 불가)';
 comment on column public.material_purchase_orders.supplier is '공급업체';
 comment on column public.material_purchase_orders.source_order_id is
   '연결된 고객 주문서(orders.id) — 주문서 카드에서 발주 시 자동 연결';
+comment on column public.material_purchase_orders.covered_order_line_id is
+  '부분 발주 시 커버한 고객 주문 라인(order_lines.id)';
+comment on column public.material_purchase_orders.covered_product_quantity is
+  '부분 발주 시 커버한 제품 수량 (주문 수량 중 이번 발주 분)';
 
 create index if not exists material_purchase_orders_source_order_idx
   on public.material_purchase_orders (source_order_id);
+
+create index if not exists material_purchase_orders_covered_line_idx
+  on public.material_purchase_orders (covered_order_line_id)
+  where covered_order_line_id is not null;
 
 create table if not exists public.material_purchase_order_lines (
   id uuid primary key default gen_random_uuid(),
@@ -100,14 +110,13 @@ $$;
 create or replace function public.generate_material_purchase_order_code()
 returns text
 language plpgsql
-as $$
+as $fn$
 declare
   seoul_date date;
   year_short text;
   month2 text;
   day2 text;
   prefix text;
-  has_base boolean := false;
   max_suffix integer := 0;
   row_id text;
   suffix_text text;
@@ -122,26 +131,43 @@ begin
   for row_id in
     select id
     from public.material_purchase_orders
-    where order_date = seoul_date
+    where id like prefix || '%'
+       or order_date = seoul_date
   loop
-    if row_id = prefix then
-      has_base := true;
-    elsif row_id ~ ('^' || prefix || '[0-9]{2}$') then
-      suffix_text := substring(row_id from length(prefix) + 1 for 2);
-      suffix_num := suffix_text::integer;
-      if suffix_num > max_suffix then
-        max_suffix := suffix_num;
+    if length(row_id) = length(prefix) + 3
+       and row_id like prefix || '-__' then
+      suffix_text := right(row_id, 2);
+      begin
+        suffix_num := suffix_text::integer;
+        if suffix_num > max_suffix then
+          max_suffix := suffix_num;
+        end if;
+      exception
+        when invalid_text_representation then
+          null;
+      end;
+    elsif row_id = prefix then
+      if max_suffix < 1 then
+        max_suffix := 1;
       end if;
+    elsif length(row_id) = length(prefix) + 2
+          and row_id like prefix || '__' then
+      suffix_text := right(row_id, 2);
+      begin
+        suffix_num := suffix_text::integer;
+        if suffix_num > max_suffix then
+          max_suffix := suffix_num;
+        end if;
+      exception
+        when invalid_text_representation then
+          null;
+      end;
     end if;
   end loop;
 
-  if not has_base and max_suffix = 0 then
-    return prefix;
-  end if;
-
-  return prefix || lpad((max_suffix + 1)::text, 2, '0');
+  return prefix || '-' || lpad((max_suffix + 1)::text, 2, '0');
 end;
-$$;
+$fn$;
 
 grant execute on function public.generate_material_purchase_order_code() to anon, authenticated;
 

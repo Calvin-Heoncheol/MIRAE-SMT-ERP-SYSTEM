@@ -1,14 +1,22 @@
 import { createSupabaseClient } from '@/lib/supabase'
 import { fetchBomEdges } from '@/lib/materials/outbound/repository'
+import type { BomEdge } from '@/lib/materials/outbound/types'
 import { fetchMaterials } from '@/lib/materials/repository'
+import type { Material } from '@/lib/materials/types'
 import { fetchOrders } from '@/lib/orders/repository'
 import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
-import { buildPurchaseSuggestionLines } from './need-utils'
+import {
+  buildOrderPurchaseCards,
+  buildOrderPurchaseMaterialPreview,
+  buildPurchaseSuggestionLines,
+} from './need-utils'
 import type {
   MaterialPurchaseOrderListGroup,
   MaterialPurchaseOrderRecord,
   MaterialPurchaseOrderRowPayload,
   MaterialPurchaseSuggestionLine,
+  OrderPurchaseCard,
+  OrderPurchaseMaterialPreview,
 } from './types'
 import { groupMaterialPurchaseOrdersFromRecords } from './utils'
 
@@ -21,6 +29,16 @@ export type FetchMaterialPurchaseRegisterResult =
       ok: true
       /** 자재 기준 발주 제안 (발주필요 > 0 자재만) */
       suggestionLines: MaterialPurchaseSuggestionLine[]
+    }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export type FetchMaterialPurchaseByOrderResult =
+  | {
+      ok: true
+      cards: OrderPurchaseCard[]
+      materials: Material[]
+      bomEdges: BomEdge[]
+      onHandByMaterialId: Record<string, number>
     }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
@@ -203,6 +221,82 @@ export async function fetchMaterialPurchaseOrderRegisterData(): Promise<FetchMat
   }
 }
 
+/** 주문서 단위 부분 발주 화면 데이터 */
+export async function fetchMaterialPurchaseOrderByOrderData(): Promise<FetchMaterialPurchaseByOrderResult> {
+  const [materialsResult, ordersResult, purchaseOrdersResult] = await Promise.all([
+    fetchMaterials(),
+    fetchOrders({ includeDerivedLines: true }),
+    fetchMaterialPurchaseOrders(),
+  ])
+
+  if (!materialsResult.ok) return materialsResult
+  if (!ordersResult.ok) return ordersResult
+  if (!purchaseOrdersResult.ok) return purchaseOrdersResult
+
+  try {
+    const [bomEdges, onHandResult, deletedNeedIdsResult] = await Promise.all([
+      fetchBomEdges(),
+      fetchOnHandByMaterialId(),
+      fetchDeletedNeedOrderIds(),
+    ])
+
+    if (!deletedNeedIdsResult.ok) {
+      return { ok: false, reason: 'query', detail: deletedNeedIdsResult.detail }
+    }
+    if (!onHandResult.ok) {
+      return { ok: false, reason: 'query', detail: onHandResult.detail }
+    }
+
+    const deletedNeedOrderIds = new Set(deletedNeedIdsResult.orderIds)
+    const activeOrders = ordersResult.orders.filter(
+      (order) => !deletedNeedOrderIds.has(order.orderId),
+    )
+
+    const cards = buildOrderPurchaseCards({
+      orders: activeOrders,
+      bomEdges,
+      purchaseOrders: purchaseOrdersResult.orders,
+    })
+
+    const onHandByMaterialId: Record<string, number> = {}
+    for (const [materialId, qty] of onHandResult.onHandByMaterialId.entries()) {
+      onHandByMaterialId[materialId] = qty
+    }
+
+    return {
+      ok: true,
+      cards,
+      materials: materialsResult.materials,
+      bomEdges,
+      onHandByMaterialId,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export function previewOrderPurchaseMaterials(input: {
+  productId: string
+  purchaseQuantity: number
+  bomEdges: BomEdge[]
+  materials: Material[]
+  onHandByMaterialId: Record<string, number>
+}): OrderPurchaseMaterialPreview[] {
+  return buildOrderPurchaseMaterialPreview({
+    productId: input.productId,
+    purchaseQuantity: input.purchaseQuantity,
+    bomEdges: input.bomEdges,
+    materials: input.materials,
+    onHandByMaterialId: new Map(
+      Object.entries(input.onHandByMaterialId).map(([id, qty]) => [id, qty]),
+    ),
+  })
+}
+
 export async function fetchMaterialPurchaseOrderHistoryData(): Promise<FetchMaterialPurchaseHistoryResult> {
   return fetchMaterialPurchaseOrders()
 }
@@ -224,6 +318,15 @@ export async function createMaterialPurchaseOrder(
     if (payload.source_order_id) {
       insertRow.source_order_id = payload.source_order_id
     }
+    if (payload.covered_order_line_id) {
+      insertRow.covered_order_line_id = payload.covered_order_line_id
+    }
+    if (
+      payload.covered_product_quantity != null &&
+      Number(payload.covered_product_quantity) > 0
+    ) {
+      insertRow.covered_product_quantity = Math.floor(Number(payload.covered_product_quantity))
+    }
 
     let { data: inserted, error } = await supabase
       .from('material_purchase_orders')
@@ -231,9 +334,16 @@ export async function createMaterialPurchaseOrder(
       .select('id')
       .single()
 
-    // 마이그레이션 전(컬럼 없음)이면 연결 없이 저장
-    if (error && payload.source_order_id && error.message.includes('source_order_id')) {
+    // 마이그레이션 전(컬럼 없음)이면 연결 필드 빼고 재시도
+    if (
+      error &&
+      (error.message.includes('source_order_id') ||
+        error.message.includes('covered_order_line_id') ||
+        error.message.includes('covered_product_quantity'))
+    ) {
       delete insertRow.source_order_id
+      delete insertRow.covered_order_line_id
+      delete insertRow.covered_product_quantity
       ;({ data: inserted, error } = await supabase
         .from('material_purchase_orders')
         .insert(insertRow)
