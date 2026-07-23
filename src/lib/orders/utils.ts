@@ -117,6 +117,8 @@ export function mapOrderRecord(
     note: record.note || '',
     source: record.source || 'manual',
     sourceQuoteId: record.source_quote_id,
+    createdBy: record.created_by ?? null,
+    createdByName: String(record.created_by_name || '').trim(),
     createdAt: record.created_at,
     items,
     totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),

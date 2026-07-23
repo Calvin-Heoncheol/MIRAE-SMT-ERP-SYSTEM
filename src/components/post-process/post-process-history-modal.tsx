@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import {
   formatPostProcessHistoryDateTime,
@@ -33,6 +34,7 @@ export function PostProcessHistoryModal({
   onClose,
   onDeleted,
 }: PostProcessHistoryModalProps) {
+  const canDelete = useCanDeleteRecords()
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,9 +83,13 @@ export function PostProcessHistoryModal({
         <div className="flex w-full flex-col gap-2">
           {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <ErpButton variant="danger" disabled={deleting} onClick={() => void handleDelete()}>
-              {deleting ? '삭제 중…' : '삭제'}
-            </ErpButton>
+            {canDelete ? (
+              <ErpButton variant="danger" disabled={deleting} onClick={() => void handleDelete()}>
+                {deleting ? '삭제 중…' : '삭제'}
+              </ErpButton>
+            ) : (
+              <span />
+            )}
             <ErpButton variant="secondary" disabled={deleting} onClick={onClose}>
               닫기
             </ErpButton>

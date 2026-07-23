@@ -1,3 +1,9 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
+import {
+  isMissingCreatedByColumn,
+  stripCreatedByFields,
+  withCreatedByFields,
+} from '@/lib/auth/created-by'
 import { createSupabaseClient } from '@/lib/supabase'
 import { fetchMaterials } from '@/lib/materials/repository'
 import { fetchMaterialPurchaseOrders } from '@/lib/materials/purchase-orders/repository'
@@ -21,11 +27,11 @@ export type FetchMaterialInboundPageResult =
 
 export type SaveMaterialInboundResult =
   | { ok: true; inboundId: string; inboundNumber: string }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type DeleteMaterialInboundResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 function missingFetchEnvResult(): FetchMaterialInboundsResult {
   return {
@@ -447,6 +453,9 @@ export async function deleteMaterialInbound(inboundId: string): Promise<DeleteMa
     }
   }
 
+  const gate = await assertCanWrite({ module: 'materials', action: 'delete' })
+  if (!gate.ok) return gate
+
   try {
     const existing = await fetchInboundRecordById(inboundId)
     if (!existing?.id) return { ok: true }
@@ -492,6 +501,9 @@ export async function createMaterialInbound(
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'materials', action: 'create' })
+  if (!gate.ok) return gate
 
   const validationError = validateInboundPayload(payload)
   if (validationError) {
@@ -539,16 +551,27 @@ export async function createMaterialInbound(
     }
 
     const supabase = createSupabaseClient()
-    const { data: inserted, error } = await supabase
+    let headerRow: Record<string, unknown> = await withCreatedByFields({
+      inbound_date: payload.inbound_date,
+      inbound_type: payload.inbound_type,
+      purchase_order_id: payload.inbound_type === 'purchase' ? payload.purchase_order_id : null,
+      note: payload.note,
+    })
+
+    let { data: inserted, error } = await supabase
       .from('material_inbound_records')
-      .insert({
-        inbound_date: payload.inbound_date,
-        inbound_type: payload.inbound_type,
-        purchase_order_id: payload.inbound_type === 'purchase' ? payload.purchase_order_id : null,
-        note: payload.note,
-      })
+      .insert(headerRow)
       .select('id')
       .single()
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      headerRow = stripCreatedByFields(headerRow)
+      ;({ data: inserted, error } = await supabase
+        .from('material_inbound_records')
+        .insert(headerRow)
+        .select('id')
+        .single())
+    }
 
     if (error || !inserted?.id) {
       return { ok: false, reason: 'query', detail: error?.message || '입고 저장에 실패했습니다.' }

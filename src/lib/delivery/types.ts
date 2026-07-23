@@ -7,6 +7,8 @@ export type DeliveryRecord = {
   quantity: number
   source: DeliverySource
   note: string
+  createdBy?: string | null
+  createdByName: string
   createdAt: string
 }
 
@@ -39,6 +41,8 @@ export type DeliveryHistoryRow = {
   quantity: number
   source: DeliverySource
   note: string
+  createdBy?: string | null
+  createdByName: string
 }
 
 export type DeliveryStatementData = {

@@ -122,6 +122,7 @@ export type MaterialPurchaseOrderListGroup = {
   items: MaterialPurchaseOrderLineItem[]
   totalQuantity: number
   totalAmount: number
+  createdByName: string
   createdAt: string
   hasInbound: boolean
 }
@@ -150,6 +151,8 @@ export type MaterialPurchaseOrderRecord = {
   source_order_id?: string | null
   covered_order_line_id?: string | null
   covered_product_quantity?: number | null
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
   updated_at: string
   material_purchase_order_lines: MaterialPurchaseOrderLineRecord[]

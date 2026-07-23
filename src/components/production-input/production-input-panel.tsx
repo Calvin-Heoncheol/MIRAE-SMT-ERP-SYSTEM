@@ -81,6 +81,7 @@ export function ProductionInputPanel({
   const [activeSide, setActiveSide] = useState<SmtPcbSide>('SINGLE')
   const [qtyMode, setQtyMode] = useState<'good' | 'defect'>('good')
   const [qty, setQty] = useState('')
+  const [defectReason, setDefectReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null)
   const isGoodMode = qtyMode === 'good'
@@ -149,6 +150,7 @@ export function ProductionInputPanel({
     }
     setQtyMode('good')
     setQty('')
+    setDefectReason('')
     setMessage(null)
   }, [order?.uiKey, order?.splitPcbSides, lockToPlan, plan?.id, smtPlan?.pcbSide])
 
@@ -173,6 +175,7 @@ export function ProductionInputPanel({
     if (next === qtyMode) return
     setQtyMode(next)
     setQty('')
+    setDefectReason('')
     setMessage(null)
   }
 
@@ -190,8 +193,15 @@ export function ProductionInputPanel({
       return
     }
 
+    const trimmedDefectReason = defectReason.trim()
+    if (!isGoodMode && !trimmedDefectReason) {
+      setMessage({ text: '불량사유를 입력하세요.', kind: 'err' })
+      return
+    }
+
     const goodQuantity = isGoodMode ? value : 0
     const defectQuantity = isGoodMode ? 0 : value
+    const note = isGoodMode ? undefined : trimmedDefectReason
 
     if (isGoodMode && target > 0 && goodQuantity > remaining) {
       setMessage({
@@ -217,6 +227,7 @@ export function ProductionInputPanel({
         assemblyGroupId,
         quantity: goodQuantity,
         defectQuantity,
+        note,
         recordDate: postProcessPlan?.plannedDate,
         team: postProcessPlan?.team || postProcessTeam,
       })
@@ -240,6 +251,7 @@ export function ProductionInputPanel({
       }
 
       setQty('')
+      setDefectReason('')
       setMessage({
         text: formatRegisterOk(
           lockToPlan
@@ -262,6 +274,7 @@ export function ProductionInputPanel({
       orderLineId: order.orderLineId,
       quantity: goodQuantity,
       defectQuantity,
+      note,
       pcbSide,
       lineNo: resolvedLineNo,
       recordDate: smtPlan?.plannedDate,
@@ -288,6 +301,7 @@ export function ProductionInputPanel({
     }
 
     setQty('')
+    setDefectReason('')
     setMessage({
       text: formatRegisterOk(
         lockToPlan
@@ -562,11 +576,6 @@ export function ProductionInputPanel({
 
             <div className="mt-4 border-t border-slate-100 pt-4">
               <p className="text-sm font-bold text-slate-800">수량 입력</p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {isGoodMode
-                  ? '양품은 진행률·남은 수량에 반영됩니다.'
-                  : '불량은 게이지에 빨간색으로 표시되며, 남은 수량 제한을 받지 않습니다.'}
-              </p>
 
               <div
                 className="mt-3 grid grid-cols-2 gap-2"
@@ -676,9 +685,38 @@ export function ProductionInputPanel({
                 </button>
               </div>
 
+              {!isGoodMode ? (
+                <div className="mt-3">
+                  <label
+                    htmlFor={`${config.qtyInputId}-defect-reason`}
+                    className="mb-1.5 block text-xs font-bold tracking-wide text-rose-700 uppercase"
+                  >
+                    불량사유
+                  </label>
+                  <textarea
+                    id={`${config.qtyInputId}-defect-reason`}
+                    value={defectReason}
+                    disabled={qtyInputDisabled}
+                    rows={2}
+                    maxLength={200}
+                    placeholder="예: 솔더 미납, 부품 파손, 오삽 등"
+                    aria-label="불량사유"
+                    onChange={(event) => {
+                      setDefectReason(event.target.value)
+                      setMessage(null)
+                    }}
+                    className="w-full resize-none rounded-xl border-2 border-rose-200 bg-rose-50/40 px-3 py-2.5 text-sm font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:border-rose-400 focus:bg-white focus:ring-2 focus:ring-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </div>
+              ) : null}
+
               <button
                 type="button"
-                disabled={qtyInputDisabled || qtyNumber < 1}
+                disabled={
+                  qtyInputDisabled ||
+                  qtyNumber < 1 ||
+                  (!isGoodMode && !defectReason.trim())
+                }
                 onClick={() => void handleSubmit()}
                 className={[
                   'mt-3 min-h-[3.25rem] w-full rounded-xl text-base font-bold text-white transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-[3.5rem] sm:text-lg',

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import {
   formatSmtHistoryDateTime,
@@ -27,6 +28,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export function SmtHistoryModal({ open, row, onClose, onDeleted }: SmtHistoryModalProps) {
+  const canDelete = useCanDeleteRecords()
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -119,14 +121,18 @@ export function SmtHistoryModal({ open, row, onClose, onDeleted }: SmtHistoryMod
         ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-5 py-4">
-          <button
-            type="button"
-            onClick={() => void handleDelete()}
-            disabled={deleting}
-            className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-          >
-            {deleting ? '삭제 중…' : '삭제'}
-          </button>
+          {canDelete ? (
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={deleting}
+              className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            >
+              {deleting ? '삭제 중…' : '삭제'}
+            </button>
+          ) : (
+            <span />
+          )}
           <button
             type="button"
             onClick={onClose}

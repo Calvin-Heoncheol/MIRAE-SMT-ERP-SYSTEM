@@ -1,11 +1,7 @@
 import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
-import {
-  formatWeekdayLabel,
-  formatWeekRangeLabel,
-  getWeekStartMondayYmd,
-} from '@/lib/smt/plan/utils'
+import { formatWeekRangeLabel, getWeekStartMondayYmd } from '@/lib/smt/plan/utils'
 
-export type ReportPeriod = 'day' | 'week' | 'month'
+export type ReportPeriod = 'week' | 'month'
 
 export type ResolvedReportPeriod = {
   period: ReportPeriod
@@ -44,19 +40,9 @@ export function resolveReportPeriod(params: {
   date?: string | string[]
 }): ResolvedReportPeriod {
   const rawPeriod = firstParam(params.period)
-  const period: ReportPeriod = rawPeriod === 'month' ? 'month' : rawPeriod === 'day' ? 'day' : 'week'
+  // 일간은 KPI에서 확인 — 구 period=day 쿼리는 주간으로 폴백
+  const period: ReportPeriod = rawPeriod === 'month' ? 'month' : 'week'
   const anchor = sanitizeYmd(firstParam(params.date), todayYmdSeoul())
-
-  if (period === 'day') {
-    return {
-      period,
-      startDate: anchor,
-      endDate: anchor,
-      rangeLabel: `${Number(anchor.slice(0, 4))}년 ${Number(anchor.slice(5, 7))}월 ${Number(anchor.slice(8, 10))}일 (${formatWeekdayLabel(anchor)})`,
-      prevDate: addDaysYmd(anchor, -1),
-      nextDate: addDaysYmd(anchor, 1),
-    }
-  }
 
   if (period === 'month') {
     const startDate = `${anchor.slice(0, 7)}-01`
@@ -85,7 +71,6 @@ export function buildReportHrefs(basePath: string, resolved: ResolvedReportPerio
   return {
     prevHref: `${basePath}?period=${resolved.period}&date=${resolved.prevDate}`,
     nextHref: `${basePath}?period=${resolved.period}&date=${resolved.nextDate}`,
-    dayHref: `${basePath}?period=day`,
     weekHref: `${basePath}?period=week`,
     monthHref: `${basePath}?period=month`,
   }

@@ -1,4 +1,10 @@
 import { fetchAssemblyGroups } from '@/lib/assembly/repository'
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
+import {
+  isMissingCreatedByColumn,
+  resolveCreatedBySnapshot,
+  stripCreatedByFields,
+} from '@/lib/auth/created-by'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
@@ -29,11 +35,11 @@ export type FetchSmtPlanPageResult =
 
 export type UpsertSmtProductionPlanResult =
   | { ok: true; plan: SmtProductionPlan }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type DeleteSmtProductionPlanResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }>(): T {
   return {
@@ -62,20 +68,24 @@ export function isMissingSmtPlanPcbSideColumn(detail: string) {
 }
 
 function planSchemaErrorDetail(message: string): string | null {
-  if (isMissingSmtPlanTable(message)) {
-    return 'smt_production_plans 테이블이 없습니다. setup-smt-production-plans.sql 을 실행하세요.'
-  }
   if (isMissingSmtPlanOrderLineColumn(message)) {
     return 'smt_production_plans.order_line_id 컬럼이 없습니다. migrate-smt-production-plans-order-line.sql 을 실행하세요.'
   }
   if (isMissingSmtPlanPcbSideColumn(message)) {
     return 'smt_production_plans.pcb_side 컬럼이 없습니다. migrate-smt-production-plans-pcb-side.sql 을 실행하세요.'
   }
+  if (isMissingCreatedByColumn(message)) {
+    return 'smt_production_plans.created_by 컬럼이 없습니다. migrate-created-by-high-med.sql 을 실행하세요.'
+  }
+  if (isMissingSmtPlanTable(message)) {
+    return 'smt_production_plans 테이블이 없습니다. setup-smt-production-plans.sql 을 실행하세요.'
+  }
   return null
 }
 
 const SMT_PLAN_SELECT =
-  'id, order_id, order_line_id, planned_date, line_no, pcb_side, planned_quantity, note, created_at'
+  'id, order_id, order_line_id, planned_date, line_no, pcb_side, planned_quantity, note, created_by, created_by_name, created_at'
+const SMT_PLAN_SELECT_LEGACY = SMT_PLAN_SELECT.replace(', created_by, created_by_name', '')
 
 function mapSmtProductionPlan(row: {
   id: string
@@ -86,6 +96,8 @@ function mapSmtProductionPlan(row: {
   pcb_side?: string | null
   planned_quantity: number
   note: string
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
 }): SmtProductionPlan {
   return {
@@ -97,6 +109,7 @@ function mapSmtProductionPlan(row: {
     pcbSide: normalizeSmtPlanPcbSide(row.pcb_side),
     plannedQuantity: Math.max(1, Math.floor(Number(row.planned_quantity) || 1)),
     note: row.note || '',
+    createdByName: String(row.created_by_name || '').trim(),
     createdAt: row.created_at,
   }
 }
@@ -115,11 +128,21 @@ export async function fetchSmtProductionPlansForDate(
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('smt_production_plans')
       .select(SMT_PLAN_SELECT)
       .eq('planned_date', date)
       .order('line_no', { ascending: true })
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      const legacy = await supabase
+        .from('smt_production_plans')
+        .select(SMT_PLAN_SELECT_LEGACY)
+        .eq('planned_date', date)
+        .order('line_no', { ascending: true })
+      data = legacy.data as typeof data
+      error = legacy.error
+    }
 
     if (error) {
       if (isMissingSmtPlanTable(error.message)) {
@@ -151,11 +174,21 @@ export async function fetchAllSmtProductionPlans(): Promise<
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('smt_production_plans')
       .select(SMT_PLAN_SELECT)
       .order('planned_date', { ascending: true })
       .order('line_no', { ascending: true })
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      const legacy = await supabase
+        .from('smt_production_plans')
+        .select(SMT_PLAN_SELECT_LEGACY)
+        .order('planned_date', { ascending: true })
+        .order('line_no', { ascending: true })
+      data = legacy.data as typeof data
+      error = legacy.error
+    }
 
     if (error) {
       if (isMissingSmtPlanTable(error.message)) {
@@ -200,10 +233,19 @@ export async function closeIncompletePastSmtPlans(
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('smt_production_plans')
       .select(SMT_PLAN_SELECT)
       .lt('planned_date', todayYmd)
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      const legacy = await supabase
+        .from('smt_production_plans')
+        .select(SMT_PLAN_SELECT_LEGACY)
+        .lt('planned_date', todayYmd)
+      data = legacy.data as typeof data
+      error = legacy.error
+    }
 
     if (error) {
       if (isMissingSmtPlanTable(error.message)) {
@@ -388,6 +430,12 @@ export async function upsertSmtProductionPlan(
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({
+    module: 'production_smt',
+    action: input.id ? 'update' : 'create',
+  })
+  if (!gate.ok) return gate
+
   const orderId = String(input.orderId || '').trim()
   const orderLineId = String(input.orderLineId || '').trim()
   const plannedDate = String(input.plannedDate || '').trim()
@@ -425,12 +473,21 @@ export async function upsertSmtProductionPlan(
     }
 
     if (input.id) {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('smt_production_plans')
         .update(payload)
         .eq('id', input.id)
         .select(SMT_PLAN_SELECT)
         .single()
+
+      if (error && isMissingCreatedByColumn(error.message)) {
+        ;({ data, error } = await supabase
+          .from('smt_production_plans')
+          .update(payload)
+          .eq('id', input.id)
+          .select(SMT_PLAN_SELECT_LEGACY)
+          .single())
+      }
 
       if (error || !data) {
         const schemaDetail = planSchemaErrorDetail(error?.message || '')
@@ -443,11 +500,27 @@ export async function upsertSmtProductionPlan(
       return { ok: true, plan: mapSmtProductionPlan(data) }
     }
 
-    const { data, error } = await supabase
+    const snap = await resolveCreatedBySnapshot()
+    let insertPayload: Record<string, unknown> = {
+      ...payload,
+      created_by: snap.createdBy,
+      created_by_name: snap.createdByName,
+    }
+
+    let { data, error } = await supabase
       .from('smt_production_plans')
-      .upsert(payload, { onConflict: 'order_line_id,planned_date,line_no,pcb_side' })
+      .upsert(insertPayload, { onConflict: 'order_line_id,planned_date,line_no,pcb_side' })
       .select(SMT_PLAN_SELECT)
       .single()
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      insertPayload = stripCreatedByFields(insertPayload)
+      ;({ data, error } = await supabase
+        .from('smt_production_plans')
+        .upsert(insertPayload, { onConflict: 'order_line_id,planned_date,line_no,pcb_side' })
+        .select(SMT_PLAN_SELECT_LEGACY)
+        .single())
+    }
 
     if (error || !data) {
       const schemaDetail = planSchemaErrorDetail(error?.message || '')
@@ -471,6 +544,9 @@ export async function deleteSmtProductionPlan(planId: string): Promise<DeleteSmt
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'production_smt', action: 'delete' })
+  if (!gate.ok) return gate
 
   const id = String(planId || '').trim()
   if (!id) {

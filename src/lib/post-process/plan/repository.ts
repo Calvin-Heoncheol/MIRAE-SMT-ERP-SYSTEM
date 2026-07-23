@@ -1,4 +1,13 @@
 import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups } from '@/lib/assembly/repository'
+import {
+  assertCanWrite,
+  postProcessTeamToAccessModule,
+} from '@/lib/auth/assert-can-write'
+import {
+  isMissingCreatedByColumn,
+  resolveCreatedBySnapshot,
+  stripCreatedByFields,
+} from '@/lib/auth/created-by'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
@@ -38,11 +47,11 @@ export type FetchPostProcessPlanPageResult =
 
 export type UpsertPostProcessProductionPlanResult =
   | { ok: true; plan: PostProcessProductionPlan }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type DeletePostProcessProductionPlanResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }>(): T {
   return {
@@ -64,17 +73,21 @@ export function isMissingPostProcessPlanTeamColumn(detail: string) {
 }
 
 function planSchemaErrorDetail(message: string): string | null {
-  if (isMissingPostProcessPlanTable(message)) {
-    return 'post_process_production_plans 테이블이 없습니다. setup-post-process-production-plans.sql 을 실행하세요.'
-  }
   if (isMissingPostProcessPlanTeamColumn(message)) {
     return 'post_process_production_plans.team 컬럼이 없습니다. migrate-post-process-production-plans-team.sql 을 실행하세요.'
+  }
+  if (isMissingCreatedByColumn(message)) {
+    return 'post_process_production_plans.created_by 컬럼이 없습니다. migrate-created-by-high-med.sql 을 실행하세요.'
+  }
+  if (isMissingPostProcessPlanTable(message)) {
+    return 'post_process_production_plans 테이블이 없습니다. setup-post-process-production-plans.sql 을 실행하세요.'
   }
   return null
 }
 
 const PLAN_SELECT =
-  'id, order_id, assembly_group_id, planned_date, team, planned_quantity, note, created_at'
+  'id, order_id, assembly_group_id, planned_date, team, planned_quantity, note, created_by, created_by_name, created_at'
+const PLAN_SELECT_LEGACY = PLAN_SELECT.replace(', created_by, created_by_name', '')
 
 function mapPlan(row: {
   id: string
@@ -84,6 +97,8 @@ function mapPlan(row: {
   team?: string | null
   planned_quantity: number
   note: string
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
 }): PostProcessProductionPlan {
   return {
@@ -94,6 +109,7 @@ function mapPlan(row: {
     team: normalizePostProcessTeam(row.team),
     plannedQuantity: Math.max(1, Math.floor(Number(row.planned_quantity) || 1)),
     note: row.note || '',
+    createdByName: String(row.created_by_name || '').trim(),
     createdAt: row.created_at,
   }
 }
@@ -114,11 +130,21 @@ export async function fetchPostProcessProductionPlansForDate(
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('post_process_production_plans')
       .select(PLAN_SELECT)
       .eq('planned_date', date)
       .order('created_at', { ascending: true })
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      const legacy = await supabase
+        .from('post_process_production_plans')
+        .select(PLAN_SELECT_LEGACY)
+        .eq('planned_date', date)
+        .order('created_at', { ascending: true })
+      data = legacy.data as typeof data
+      error = legacy.error
+    }
 
     if (error) {
       if (isMissingPostProcessPlanTable(error.message)) {
@@ -150,10 +176,19 @@ export async function fetchAllPostProcessProductionPlans(): Promise<
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('post_process_production_plans')
       .select(PLAN_SELECT)
       .order('planned_date', { ascending: true })
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      const legacy = await supabase
+        .from('post_process_production_plans')
+        .select(PLAN_SELECT_LEGACY)
+        .order('planned_date', { ascending: true })
+      data = legacy.data as typeof data
+      error = legacy.error
+    }
 
     if (error) {
       if (isMissingPostProcessPlanTable(error.message)) {
@@ -198,10 +233,19 @@ export async function closeIncompletePastPostProcessPlans(
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('post_process_production_plans')
       .select(PLAN_SELECT)
       .lt('planned_date', todayYmd)
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      const legacy = await supabase
+        .from('post_process_production_plans')
+        .select(PLAN_SELECT_LEGACY)
+        .lt('planned_date', todayYmd)
+      data = legacy.data as typeof data
+      error = legacy.error
+    }
 
     if (error) {
       if (isMissingPostProcessPlanTable(error.message)) {
@@ -460,6 +504,12 @@ export async function upsertPostProcessProductionPlan(
   const team = normalizePostProcessTeam(input.team)
   const plannedQuantity = Math.floor(Number(input.plannedQuantity) || 0)
 
+  const gate = await assertCanWrite({
+    module: postProcessTeamToAccessModule(team),
+    action: input.id ? 'update' : 'create',
+  })
+  if (!gate.ok) return gate
+
   if (!orderId) {
     return { ok: false, reason: 'validation', detail: '주문서를 선택하세요.' }
   }
@@ -486,12 +536,21 @@ export async function upsertPostProcessProductionPlan(
     }
 
     if (input.id) {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('post_process_production_plans')
         .update(payload)
         .eq('id', input.id)
         .select(PLAN_SELECT)
         .single()
+
+      if (error && isMissingCreatedByColumn(error.message)) {
+        ;({ data, error } = await supabase
+          .from('post_process_production_plans')
+          .update(payload)
+          .eq('id', input.id)
+          .select(PLAN_SELECT_LEGACY)
+          .single())
+      }
 
       if (error || !data) {
         const schemaDetail = planSchemaErrorDetail(error?.message || '')
@@ -504,11 +563,27 @@ export async function upsertPostProcessProductionPlan(
       return { ok: true, plan: mapPlan(data) }
     }
 
-    const { data, error } = await supabase
+    const snap = await resolveCreatedBySnapshot()
+    let insertPayload: Record<string, unknown> = {
+      ...payload,
+      created_by: snap.createdBy,
+      created_by_name: snap.createdByName,
+    }
+
+    let { data, error } = await supabase
       .from('post_process_production_plans')
-      .upsert(payload, { onConflict: 'assembly_group_id,planned_date,team' })
+      .upsert(insertPayload, { onConflict: 'assembly_group_id,planned_date,team' })
       .select(PLAN_SELECT)
       .single()
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      insertPayload = stripCreatedByFields(insertPayload)
+      ;({ data, error } = await supabase
+        .from('post_process_production_plans')
+        .upsert(insertPayload, { onConflict: 'assembly_group_id,planned_date,team' })
+        .select(PLAN_SELECT_LEGACY)
+        .single())
+    }
 
     if (error || !data) {
       const schemaDetail = planSchemaErrorDetail(error?.message || '')
@@ -542,6 +617,30 @@ export async function deletePostProcessProductionPlan(
 
   try {
     const supabase = createSupabaseClient()
+    const { data: existing, error: fetchError } = await supabase
+      .from('post_process_production_plans')
+      .select('team')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (fetchError) {
+      if (isMissingPostProcessPlanTable(fetchError.message)) {
+        return {
+          ok: false,
+          reason: 'query',
+          detail:
+            'post_process_production_plans 테이블이 없습니다. setup-post-process-production-plans.sql 을 실행하세요.',
+        }
+      }
+      return { ok: false, reason: 'query', detail: fetchError.message }
+    }
+
+    const gate = await assertCanWrite({
+      module: postProcessTeamToAccessModule(existing?.team),
+      action: 'delete',
+    })
+    if (!gate.ok) return gate
+
     const { error } = await supabase.from('post_process_production_plans').delete().eq('id', id)
 
     if (error) {

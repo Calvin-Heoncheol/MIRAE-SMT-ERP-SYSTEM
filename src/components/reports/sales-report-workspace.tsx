@@ -21,7 +21,6 @@ type SalesReportWorkspaceProps = {
   rangeLabel: string
   prevHref: string
   nextHref: string
-  dayHref: string
   weekHref: string
   monthHref: string
 }
@@ -44,7 +43,7 @@ type SalesTrendRow = {
   shippedAmount: number
 }
 
-/** 일간·주간 뷰: 일별 그대로, 월간 뷰: 월요일 시작 주 단위로 합산 */
+/** 주간 뷰: 일별 그대로, 월간 뷰: 월요일 시작 주 단위로 합산 */
 function buildTrendRows(daily: SalesReportDailyRow[], period: ReportPeriod): SalesTrendRow[] {
   if (period !== 'month') {
     return daily.map((row) => ({
@@ -110,7 +109,6 @@ export function SalesReportWorkspace({
   rangeLabel,
   prevHref,
   nextHref,
-  dayHref,
   weekHref,
   monthHref,
 }: SalesReportWorkspaceProps) {
@@ -171,7 +169,7 @@ export function SalesReportWorkspace({
     if (!data) return
 
     const trendRows = buildTrendRows(data.daily, period)
-    const trendTitle = period === 'month' ? '월별 추이' : period === 'week' ? '주별 추이' : '일별 추이'
+    const trendTitle = period === 'month' ? '월별 추이' : '주별 추이'
 
     exportReportPdf({
       title: '영업/매출 리포트',
@@ -228,7 +226,6 @@ export function SalesReportWorkspace({
         rangeLabel={rangeLabel}
         prevHref={prevHref}
         nextHref={nextHref}
-        dayHref={dayHref}
         weekHref={weekHref}
         monthHref={monthHref}
         actions={
@@ -314,7 +311,7 @@ export function SalesReportWorkspace({
           <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-4 py-3">
               <h2 className="text-sm font-bold text-slate-900">
-                {period === 'month' ? '월별 추이' : period === 'week' ? '주별 추이' : '일별 추이'}
+                {period === 'month' ? '월별 추이' : '주별 추이'}
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">출하 금액(막대) · 수주 금액(선) — 원</p>
             </div>

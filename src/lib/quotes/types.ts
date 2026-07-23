@@ -90,6 +90,8 @@ export type QuoteRecord = {
   board_qty: number
   total_amount: number
   detail_info: QuoteDetailInfo
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
   updated_at: string
 }
@@ -104,6 +106,8 @@ export type QuoteListItem = {
   boardQty: number
   totalAmount: number
   detailInfo: QuoteDetailInfo
+  createdBy?: string | null
+  createdByName: string
   createdAt: string
 }
 

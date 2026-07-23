@@ -57,6 +57,9 @@ export function QuoteListTable({ quotes, emptyMessage, onSelectQuote }: QuoteLis
               <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-blue-800 uppercase">
                 총 견적금액
               </th>
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
+                등록자
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -80,6 +83,9 @@ export function QuoteListTable({ quotes, emptyMessage, onSelectQuote }: QuoteLis
                 </td>
                 <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">
                   {formatQuoteMoneyTotal(quote.totalAmount, quote.quoteType)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                  {quote.createdByName || '-'}
                 </td>
               </tr>
             ))}

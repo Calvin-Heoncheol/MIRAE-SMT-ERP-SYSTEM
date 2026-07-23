@@ -50,6 +50,12 @@ export function resolveAccessModule(
   if (pathname === '/') return 'dashboard'
   if (pathname.startsWith('/production/status')) return 'dashboard'
   if (
+    pathname.startsWith('/reports/production') ||
+    pathname.startsWith('/reports/sales')
+  ) {
+    return 'dashboard'
+  }
+  if (
     pathname.startsWith('/new-companies') ||
     pathname.startsWith('/quotations') ||
     pathname.startsWith('/orders') ||
@@ -58,12 +64,6 @@ export function resolveAccessModule(
     return 'sales'
   }
   if (pathname.startsWith('/master')) return 'master'
-  if (
-    pathname.startsWith('/reports/production') ||
-    pathname.startsWith('/reports/sales')
-  ) {
-    return 'master'
-  }
   if (
     pathname.startsWith('/approvals') ||
     pathname.startsWith('/expense-reports') ||

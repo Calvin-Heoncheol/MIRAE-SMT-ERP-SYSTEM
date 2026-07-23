@@ -10,6 +10,7 @@ export type SmtProductionPlan = {
   pcbSide: SmtPcbSide
   plannedQuantity: number
   note: string
+  createdByName: string
   createdAt: string
 }
 

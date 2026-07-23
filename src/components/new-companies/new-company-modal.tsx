@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
@@ -46,6 +47,7 @@ function NewCompanyModalContent({
   onSaved,
   onDeleted,
 }: Omit<NewCompanyModalProps, 'open'>) {
+  const canDelete = useCanDeleteRecords()
   const isCreate = mode === 'create'
   const [form, setForm] = useState<NewCompanyInquiryFormState>(() =>
     inquiry ? inquiryToForm(inquiry) : emptyNewCompanyInquiryForm(),
@@ -156,7 +158,7 @@ function NewCompanyModalContent({
         <div className="flex w-full flex-col gap-3">
           {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
           <div className="flex justify-between gap-2">
-            {!isCreate ? (
+            {!isCreate && canDelete ? (
               <ErpButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>
                 {deleting ? '삭제 중…' : '삭제'}
               </ErpButton>

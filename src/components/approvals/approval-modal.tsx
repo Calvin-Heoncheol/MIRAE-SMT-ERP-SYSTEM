@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ApprovalFormDocument } from '@/components/approvals/approval-form-document'
 import { DocumentPrintActions } from '@/components/documents/document-print-actions'
 import { ErpButton } from '@/components/ui/erp-button'
@@ -65,6 +66,7 @@ export function ApprovalModal({
   onDeleted,
   onSignoffComplete,
 }: ApprovalModalProps) {
+  const canDelete = useCanDeleteRecords()
   const [selectedCategory, setSelectedCategory] = useState<ApprovalCategory>(category)
   const [form, setForm] = useState<ApprovalFormState>(createDefaultApprovalForm())
   const [saving, setSaving] = useState(false)
@@ -188,7 +190,7 @@ export function ApprovalModal({
             </div>
           ) : null}
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
-            {mode === 'edit' ? (
+            {mode === 'edit' && canDelete ? (
               <ErpButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>
                 삭제
               </ErpButton>

@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { LeaveRequestFormDocument } from '@/components/leave-requests/leave-request-form-document'
 import { DocumentPrintActions } from '@/components/documents/document-print-actions'
 import { ErpButton } from '@/components/ui/erp-button'
@@ -64,6 +65,7 @@ export function LeaveRequestModal({
   onDeleted,
   onSignoffComplete,
 }: LeaveRequestModalProps) {
+  const canDelete = useCanDeleteRecords()
   const [form, setForm] = useState<LeaveRequestFormState>(createDefaultLeaveRequestForm())
   const [saving, setSaving] = useState(false)
   const [signing, setSigning] = useState(false)
@@ -191,7 +193,7 @@ export function LeaveRequestModal({
             </div>
           ) : null}
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
-            {mode === 'edit' ? (
+            {mode === 'edit' && canDelete ? (
               <ErpButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>
                 삭제
               </ErpButton>

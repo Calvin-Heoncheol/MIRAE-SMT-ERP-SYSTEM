@@ -38,6 +38,8 @@ export type ExpenseReportRecord = {
   receipt_date: string | null
   total_amount: number
   detail_info: ExpenseReportDetailInfo
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
   updated_at: string
 }
@@ -48,6 +50,7 @@ export type ExpenseReportListItem = {
   writtenDate: string
   department: string
   author: string
+  createdByName: string
   accountCategory: string
   processingDetails: string
   approvalDate: string

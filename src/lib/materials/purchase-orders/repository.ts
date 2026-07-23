@@ -1,3 +1,12 @@
+import { fetchAssemblyGroups } from '@/lib/assembly/repository'
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
+import {
+  isMissingCreatedByColumn,
+  stripCreatedByFields,
+  withCreatedByFields,
+} from '@/lib/auth/created-by'
+import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
+import { buildFullyShippedOrderIdSet } from '@/lib/delivery/utils'
 import { createSupabaseClient } from '@/lib/supabase'
 import { fetchBomEdges } from '@/lib/materials/outbound/repository'
 import type { BomEdge } from '@/lib/materials/outbound/types'
@@ -5,6 +14,7 @@ import { fetchMaterials } from '@/lib/materials/repository'
 import type { Material } from '@/lib/materials/types'
 import { fetchOrders } from '@/lib/orders/repository'
 import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
+import type { OrderListGroup } from '@/lib/orders/types'
 import {
   buildOrderPurchaseCards,
   buildOrderPurchaseMaterialPreview,
@@ -19,6 +29,27 @@ import type {
   OrderPurchaseMaterialPreview,
 } from './types'
 import { groupMaterialPurchaseOrdersFromRecords } from './utils'
+
+/** 수동 제외 + 출하완료 주문을 발주 소요/카드에서 빼기 (불출과 동일 규칙) */
+async function filterOrdersForPurchaseNeed(
+  orders: OrderListGroup[],
+  deletedNeedOrderIds: Set<string>,
+): Promise<OrderListGroup[]> {
+  const [assemblyResult, deliveryCountsResult] = await Promise.all([
+    fetchAssemblyGroups(),
+    fetchDeliveryCumulativeCounts(),
+  ])
+
+  const fullyShippedOrderIds =
+    assemblyResult.ok && deliveryCountsResult.ok
+      ? buildFullyShippedOrderIdSet(assemblyResult.groups, deliveryCountsResult.counts)
+      : new Set<string>()
+
+  return orders.filter(
+    (order) =>
+      !deletedNeedOrderIds.has(order.orderId) && !fullyShippedOrderIds.has(order.orderId),
+  )
+}
 
 export type FetchMaterialPurchaseOrdersResult =
   | { ok: true; orders: MaterialPurchaseOrderListGroup[] }
@@ -48,11 +79,11 @@ export type FetchMaterialPurchaseHistoryResult =
 
 export type SaveMaterialPurchaseOrderResult =
   | { ok: true; orderId: string; orderNumber: string }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type DeleteMaterialPurchaseOrderResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 function missingEnvResult(): SaveMaterialPurchaseOrderResult {
   return {
@@ -195,9 +226,10 @@ export async function fetchMaterialPurchaseOrderRegisterData(): Promise<FetchMat
     }
 
     const deletedNeedOrderIds = new Set(deletedNeedIdsResult.orderIds)
-    // 발주 화면에서 제외 처리한 주문서는 소요 집계에서 제외
-    const activeOrders = ordersResult.orders.filter(
-      (order) => !deletedNeedOrderIds.has(order.orderId),
+    // 수동 제외·출하완료 주문서는 소요 집계에서 제외
+    const activeOrders = await filterOrdersForPurchaseNeed(
+      ordersResult.orders,
+      deletedNeedOrderIds,
     )
 
     const suggestionLines = buildPurchaseSuggestionLines({
@@ -248,8 +280,9 @@ export async function fetchMaterialPurchaseOrderByOrderData(): Promise<FetchMate
     }
 
     const deletedNeedOrderIds = new Set(deletedNeedIdsResult.orderIds)
-    const activeOrders = ordersResult.orders.filter(
-      (order) => !deletedNeedOrderIds.has(order.orderId),
+    const activeOrders = await filterOrdersForPurchaseNeed(
+      ordersResult.orders,
+      deletedNeedOrderIds,
     )
 
     const cards = buildOrderPurchaseCards({
@@ -308,13 +341,16 @@ export async function createMaterialPurchaseOrder(
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'materials', action: 'create' })
+  if (!gate.ok) return gate
+
   try {
     const supabase = createSupabaseClient()
-    const insertRow: Record<string, unknown> = {
+    let insertRow: Record<string, unknown> = await withCreatedByFields({
       order_date: payload.order_date,
       delivery_date: payload.delivery_date || null,
       supplier: payload.supplier,
-    }
+    })
     if (payload.source_order_id) {
       insertRow.source_order_id = payload.source_order_id
     }
@@ -373,6 +409,15 @@ export async function createMaterialPurchaseOrder(
         .single())
     }
 
+    if (error && isMissingCreatedByColumn(error.message)) {
+      insertRow = stripCreatedByFields(insertRow)
+      ;({ data: inserted, error } = await supabase
+        .from('material_purchase_orders')
+        .insert(insertRow)
+        .select('id')
+        .single())
+    }
+
     if (error || !inserted?.id) {
       return { ok: false, reason: 'query', detail: error?.message || '자재 발주 저장에 실패했습니다.' }
     }
@@ -395,6 +440,9 @@ export async function updateMaterialPurchaseOrder(
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'materials', action: 'update' })
+  if (!gate.ok) return gate
 
   try {
     const supabase = createSupabaseClient()
@@ -459,6 +507,9 @@ export async function deleteMaterialPurchaseOrder(
       detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
     }
   }
+
+  const gate = await assertCanWrite({ module: 'materials', action: 'delete' })
+  if (!gate.ok) return gate
 
   try {
     if (await fetchOrderHasInbound(orderId)) {

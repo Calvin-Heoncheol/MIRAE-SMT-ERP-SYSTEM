@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { MaterialPurchaseOrderItemsForm } from '@/components/materials/purchase-orders/material-purchase-order-items-form'
 import { validateMaterialPurchaseOrderItems } from '@/lib/materials/purchase-orders/build-payload'
 import {
@@ -66,6 +67,7 @@ function MaterialPurchaseOrderModalContent({
   onSaved,
   onDeleted,
 }: Omit<MaterialPurchaseOrderModalProps, 'open'>) {
+  const canDelete = useCanDeleteRecords()
   const [form, setForm] = useState<MaterialPurchaseOrderFormState>(() =>
     createInitialForm(order, initialSupplier),
   )
@@ -196,7 +198,7 @@ function MaterialPurchaseOrderModalContent({
               : '신규 자재 발주'}
           </h2>
           <div className="flex items-center gap-2">
-            {mode === 'edit' && !readOnly ? (
+            {mode === 'edit' && !readOnly && canDelete ? (
               <button
                 type="button"
                 onClick={handleDelete}

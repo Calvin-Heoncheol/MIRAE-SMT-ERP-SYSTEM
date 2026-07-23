@@ -3,6 +3,12 @@ import {
   fetchAssemblyGroups,
   repairChildrenOnlyAssemblyGroups,
 } from '@/lib/assembly/repository'
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
+import {
+  isMissingCreatedByColumn,
+  stripCreatedByFields,
+  withCreatedByFields,
+} from '@/lib/auth/created-by'
 import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { fetchPostProcessCumulativeCounts } from '@/lib/post-process/repository'
@@ -34,15 +40,15 @@ export type FetchDeliveryCumulativeCountsResult =
 
 export type CreateDeliveryRecordResult =
   | { ok: true; record: DeliveryRecord; cumulative: number }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type UpdateDeliveryRecordResult =
   | { ok: true; record: DeliveryRecord; cumulative: number }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type DeleteDeliveryRecordResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type FetchOrderLineUnitPriceResult =
   | { ok: true; unitPrice: number }
@@ -75,6 +81,8 @@ function mapDeliveryRecord(row: {
   quantity: number
   source: string
   note: string
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
 }): DeliveryRecord {
   return {
@@ -84,6 +92,8 @@ function mapDeliveryRecord(row: {
     quantity: Math.max(0, Math.floor(Number(row.quantity) || 0)),
     source: row.source === 'manual' ? 'manual' : 'manual',
     note: row.note || '',
+    createdBy: row.created_by ?? null,
+    createdByName: String(row.created_by_name || '').trim(),
     createdAt: row.created_at,
   }
 }
@@ -181,6 +191,9 @@ export async function createDeliveryRecord(
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'sales', action: 'create' })
+  if (!gate.ok) return gate
 
   const assemblyGroupId = String(input.assemblyGroupId || '').trim()
   const quantity = Math.floor(Number(input.quantity) || 0)
@@ -296,7 +309,7 @@ export async function createDeliveryRecord(
       }
     }
 
-    const insertPayload: {
+    const basePayload: {
       id?: string
       record_date: string
       assembly_group_id: string
@@ -312,14 +325,23 @@ export async function createDeliveryRecord(
     }
 
     if (shipmentNumber) {
-      insertPayload.id = shipmentNumber
+      basePayload.id = shipmentNumber
     }
 
-    const { data: inserted, error: insertError } = await supabase
+    const insertPayload = await withCreatedByFields(basePayload)
+    let { data: inserted, error: insertError } = await supabase
       .from('delivery_records')
       .insert(insertPayload)
       .select('*')
       .single()
+
+    if (insertError && isMissingCreatedByColumn(insertError.message)) {
+      ;({ data: inserted, error: insertError } = await supabase
+        .from('delivery_records')
+        .insert(stripCreatedByFields(insertPayload))
+        .select('*')
+        .single())
+    }
 
     if (insertError || !inserted) {
       return {
@@ -524,6 +546,9 @@ export async function updateDeliveryRecord(
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'sales', action: 'update' })
+  if (!gate.ok) return gate
+
   const id = String(recordId || '').trim()
   if (!id) {
     return { ok: false, reason: 'validation', detail: '출하번호를 찾을 수 없습니다.' }
@@ -600,6 +625,9 @@ export async function deleteDeliveryRecord(recordId: string): Promise<DeleteDeli
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'sales', action: 'delete' })
+  if (!gate.ok) return gate
+
   const id = String(recordId || '').trim()
   if (!id) {
     return { ok: false, reason: 'validation', detail: '출하번호를 찾을 수 없습니다.' }
@@ -630,6 +658,8 @@ type DeliveryHistoryRecordRow = {
   quantity: number
   source: string
   note: string
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
   order_assembly_groups:
     | {
@@ -690,6 +720,8 @@ function mapDeliveryHistoryRow(row: DeliveryHistoryRecordRow): DeliveryHistoryRo
     quantity: record.quantity,
     source: record.source,
     note: record.note,
+    createdBy: record.createdBy,
+    createdByName: record.createdByName,
   }
 }
 

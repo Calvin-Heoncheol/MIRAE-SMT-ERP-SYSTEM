@@ -28,6 +28,7 @@ export type MaterialInboundListGroup = {
   note: string
   items: MaterialInboundLineItem[]
   totalQuantity: number
+  createdByName: string
   createdAt: string
 }
 
@@ -52,6 +53,8 @@ export type MaterialInboundRecord = {
   inbound_type: string
   purchase_order_id: string | null
   note: string
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
   updated_at: string
   material_inbound_lines: MaterialInboundLineRecord[]

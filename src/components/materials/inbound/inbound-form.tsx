@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { InboundDirectLinesForm } from '@/components/materials/inbound/inbound-direct-lines-form'
 import { InboundPurchaseLinesForm } from '@/components/materials/inbound/inbound-purchase-lines-form'
 import { buildMaterialInboundPayload } from '@/lib/materials/inbound/build-payload'
@@ -68,6 +69,7 @@ export function InboundForm({
   onDeleted,
   onMaterialsChanged,
 }: InboundFormProps) {
+  const canDelete = useCanDeleteRecords()
   const isEdit = mode === 'edit'
   const isPage = variant === 'page'
   const [form, setForm] = useState<MaterialInboundFormState>(() =>
@@ -342,7 +344,7 @@ export function InboundForm({
           {activeLineCount.toLocaleString('ko-KR')}건 · 총 {totalInboundQty.toLocaleString('ko-KR')}개
         </p>
         <div className="flex items-center justify-end gap-2">
-          {isEdit ? (
+          {isEdit && canDelete ? (
             <button
               type="button"
               onClick={() => void handleDelete()}

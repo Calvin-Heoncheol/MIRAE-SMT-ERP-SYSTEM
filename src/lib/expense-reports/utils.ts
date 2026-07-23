@@ -44,6 +44,7 @@ export function mapExpenseReportRecord(record: ExpenseReportRecord): ExpenseRepo
     writtenDate: record.written_date,
     department: normalizeApprovalDepartment(record.department),
     author: record.author,
+    createdByName: String(record.created_by_name || '').trim(),
     accountCategory: record.account_category,
     processingDetails: normalizeExpenseReportProcessingMethod(record.processing_details),
     approvalDate: record.approval_date ?? '',

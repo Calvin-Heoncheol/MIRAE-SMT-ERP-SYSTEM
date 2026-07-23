@@ -22,7 +22,6 @@ type ProductionReportWorkspaceProps = {
   rangeLabel: string
   prevHref: string
   nextHref: string
-  dayHref: string
   weekHref: string
   monthHref: string
 }
@@ -46,7 +45,7 @@ type ProductionTrendRow = {
   total: number
 }
 
-/** 일간·주간 뷰: 일별 그대로, 월간 뷰: 월요일 시작 주 단위로 합산 */
+/** 주간 뷰: 일별 그대로, 월간 뷰: 월요일 시작 주 단위로 합산 */
 function buildTrendRows(
   daily: ProductionReportDailyRow[],
   period: ReportPeriod,
@@ -104,7 +103,6 @@ export function ProductionReportWorkspace({
   rangeLabel,
   prevHref,
   nextHref,
-  dayHref,
   weekHref,
   monthHref,
 }: ProductionReportWorkspaceProps) {
@@ -175,7 +173,7 @@ export function ProductionReportWorkspace({
 
     const trendRows = buildTrendRows(data.daily, period)
     const trendTitle =
-      period === 'month' ? '월별 생산량' : period === 'week' ? '주별 생산량' : '일별 생산량'
+      period === 'month' ? '월별 생산량' : '주별 생산량'
 
     exportReportPdf({
       title: '생산실적 리포트',
@@ -243,7 +241,6 @@ export function ProductionReportWorkspace({
         rangeLabel={rangeLabel}
         prevHref={prevHref}
         nextHref={nextHref}
-        dayHref={dayHref}
         weekHref={weekHref}
         monthHref={monthHref}
         actions={
@@ -360,7 +357,7 @@ export function ProductionReportWorkspace({
           <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-4 py-3">
               <h2 className="text-sm font-bold text-slate-900">
-                {period === 'month' ? '월별 생산량' : period === 'week' ? '주별 생산량' : '일별 생산량'}
+                {period === 'month' ? '월별 생산량' : '주별 생산량'}
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">팀별 누적 — EA</p>
             </div>

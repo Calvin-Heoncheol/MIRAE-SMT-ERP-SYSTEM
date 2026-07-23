@@ -1,4 +1,10 @@
 import { createSupabaseClient } from '@/lib/supabase'
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
+import {
+  isMissingCreatedByColumn,
+  stripCreatedByFields,
+  withCreatedByFields,
+} from '@/lib/auth/created-by'
 import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { buildFullyShippedOrderIdSet } from '@/lib/delivery/utils'
@@ -41,11 +47,11 @@ export type FetchMaterialOutboundPageResult =
 
 export type SaveMaterialOutboundResult =
   | { ok: true; outboundId: string; outboundNumber: string }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type DeleteMaterialOutboundResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 function missingFetchEnvResult(): FetchMaterialOutboundsResult {
   return {
@@ -495,6 +501,9 @@ export async function createMaterialOutbound(
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'materials', action: 'create' })
+  if (!gate.ok) return gate
+
   const validationError = validateOutboundPayload(payload)
   if (validationError) {
     return { ok: false, reason: 'validation', detail: validationError }
@@ -514,16 +523,27 @@ export async function createMaterialOutbound(
 
   try {
     const supabase = createSupabaseClient()
-    const { data: inserted, error } = await supabase
+    let headerRow: Record<string, unknown> = await withCreatedByFields({
+      outbound_date: payload.outbound_date,
+      outbound_type: payload.outbound_type,
+      order_id: payload.order_id,
+      note: payload.note,
+    })
+
+    let { data: inserted, error } = await supabase
       .from('material_outbound_records')
-      .insert({
-        outbound_date: payload.outbound_date,
-        outbound_type: payload.outbound_type,
-        order_id: payload.order_id,
-        note: payload.note,
-      })
+      .insert(headerRow)
       .select('id')
       .single()
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      headerRow = stripCreatedByFields(headerRow)
+      ;({ data: inserted, error } = await supabase
+        .from('material_outbound_records')
+        .insert(headerRow)
+        .select('id')
+        .single())
+    }
 
     if (error || !inserted?.id) {
       return { ok: false, reason: 'query', detail: error?.message || '불출 저장에 실패했습니다.' }
@@ -646,6 +666,9 @@ export async function deleteMaterialOutbound(outboundId: string): Promise<Delete
       detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
     }
   }
+
+  const gate = await assertCanWrite({ module: 'materials', action: 'delete' })
+  if (!gate.ok) return gate
 
   try {
     const supabase = createSupabaseClient()

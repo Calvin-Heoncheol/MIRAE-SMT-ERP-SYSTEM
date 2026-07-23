@@ -231,6 +231,16 @@ export function resolveProductionCount(order: ProductionOrderLine, counts: Produ
   return resolveProductionSideCount(order, counts, 'SINGLE')
 }
 
+/** 불량 누적 — 양면은 면별 합산(한 면에만 있어도 현황 게이지에 표시) */
+export function resolveProductionDefectCount(order: ProductionOrderLine, counts: ProductionCounts) {
+  if (order.splitPcbSides) {
+    const top = resolveProductionSideCount(order, counts, 'TOP')
+    const bot = resolveProductionSideCount(order, counts, 'BOT')
+    return top + bot
+  }
+  return resolveProductionSideCount(order, counts, 'SINGLE')
+}
+
 export function getProductionSideCounts(order: ProductionOrderLine, counts: ProductionCounts) {
   if (order.splitPcbSides) {
     return {
@@ -314,10 +324,26 @@ export function getStackedProgressWidths(good: number, defect: number, target: n
   }
   const safeGood = Math.max(0, good)
   const safeDefect = Math.max(0, defect)
-  const totalPercent = Math.min(100, Math.round(((safeGood + safeDefect) / target) * 100))
-  const goodPercent = Math.min(totalPercent, Math.round((safeGood / target) * 100))
-  const defectPercent = Math.max(0, totalPercent - goodPercent)
-  return { goodPercent, defectPercent, totalPercent }
+  let goodPercent = Math.round((safeGood / target) * 100)
+  let defectPercent = Math.round((safeDefect / target) * 100)
+
+  // 양품이 목표를 채운 뒤에도 불량 구간이 보이도록, 합이 100%를 넘으면 비율로 압축
+  if (goodPercent + defectPercent > 100) {
+    const scale = 100 / (goodPercent + defectPercent)
+    goodPercent = Math.round(goodPercent * scale)
+    defectPercent = Math.max(0, 100 - goodPercent)
+  }
+
+  if (safeDefect > 0 && defectPercent === 0) {
+    defectPercent = 1
+    goodPercent = Math.min(goodPercent, 99)
+  }
+
+  return {
+    goodPercent,
+    defectPercent,
+    totalPercent: Math.min(100, goodPercent + defectPercent),
+  }
 }
 
 export function normalizeProductionPcbSideMode(value: string | null | undefined) {

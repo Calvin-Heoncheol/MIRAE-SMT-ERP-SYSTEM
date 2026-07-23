@@ -27,6 +27,8 @@ export type OrderListGroup = {
   totalAmount: number
   source?: string
   sourceQuoteId?: string | null
+  createdBy?: string | null
+  createdByName: string
   createdAt: string
 }
 
@@ -52,6 +54,8 @@ export type OrderRecord = {
   source: string
   source_quote_id: string | null
   note?: string
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
   updated_at: string
   order_lines: OrderLineRecord[]

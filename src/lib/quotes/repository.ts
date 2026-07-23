@@ -1,3 +1,9 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
+import {
+  isMissingCreatedByColumn,
+  stripCreatedByFields,
+  withCreatedByFields,
+} from '@/lib/auth/created-by'
 import { createSupabaseClient } from '@/lib/supabase'
 import type { QuoteRowPayload } from './build-quote-payload'
 import type { QuoteRecord, QuoteType } from './types'
@@ -9,11 +15,11 @@ export type FetchQuotesResult =
 
 export type SaveQuoteResult =
   | { ok: true; quoteId: string; quoteNumber: string }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 export type DeleteQuotesResult =
   | { ok: true; deletedCount: number }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 function missingEnvResult(): SaveQuoteResult {
   return {
@@ -68,20 +74,28 @@ export async function createQuote(payload: QuoteRowPayload, _quoteType: QuoteTyp
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'sales', action: 'create' })
+  if (!gate.ok) return gate
+
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
-      .from('quotations')
-      .insert({
-        quote_date: payload.quote_date,
-        customer: payload.customer,
-        product_name: payload.product_name,
-        board_qty: payload.board_qty,
-        total_amount: payload.total_amount,
-        detail_info: payload.detail_info,
-      })
-      .select('id')
-      .single()
+    const insertRow = await withCreatedByFields({
+      quote_date: payload.quote_date,
+      customer: payload.customer,
+      product_name: payload.product_name,
+      board_qty: payload.board_qty,
+      total_amount: payload.total_amount,
+      detail_info: payload.detail_info,
+    })
+    let { data, error } = await supabase.from('quotations').insert(insertRow).select('id').single()
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      ;({ data, error } = await supabase
+        .from('quotations')
+        .insert(stripCreatedByFields(insertRow))
+        .select('id')
+        .single())
+    }
 
     if (error || !data?.id) {
       return { ok: false, reason: 'query', detail: error?.message || '견적서 저장에 실패했습니다.' }
@@ -101,6 +115,9 @@ export async function updateQuote(quoteId: string, payload: QuoteRowPayload): Pr
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'sales', action: 'update' })
+  if (!gate.ok) return gate
 
   try {
     const supabase = createSupabaseClient()
@@ -143,6 +160,9 @@ export async function deleteQuotes(quoteIds: string[]): Promise<DeleteQuotesResu
       detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
     }
   }
+
+  const gate = await assertCanWrite({ module: 'sales', action: 'delete' })
+  if (!gate.ok) return gate
 
   try {
     const supabase = createSupabaseClient()

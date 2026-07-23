@@ -30,6 +30,8 @@ export type LeaveRequestRecord = {
   end_time: string
   reason: string
   detail_info: LeaveRequestDetailInfo
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
   updated_at: string
 }
@@ -41,6 +43,7 @@ export type LeaveRequestListItem = {
   department: string
   position: string
   author: string
+  createdByName: string
   leaveType: LeaveType
   startDate: string
   startTime: string

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { MaterialCombobox } from '@/components/materials/purchase-orders/material-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
@@ -57,6 +58,7 @@ function OutboundModalContent({
   onSaved,
   onDeleted,
 }: Omit<OutboundModalProps, 'open'>) {
+  const canDelete = useCanDeleteRecords()
   const isEdit = mode === 'edit'
   const [form, setForm] = useState<MaterialOutboundFormState>(() => {
     if (outbound) return materialOutboundFormStateFromDetail(outbound)
@@ -147,7 +149,7 @@ function OutboundModalContent({
         <div className="flex w-full flex-col gap-2">
           {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
-            {isEdit ? (
+            {isEdit && canDelete ? (
               <ErpButton variant="danger" disabled={busy} onClick={() => void handleDelete()}>
                 {deleting ? '삭제 중…' : '삭제'}
               </ErpButton>

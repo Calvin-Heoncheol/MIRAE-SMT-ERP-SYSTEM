@@ -1,5 +1,6 @@
+import { canAccessPath } from '@/lib/auth/permissions'
+import type { AuthDepartment, AuthRole } from '@/lib/auth/types'
 import { normalizePostProcessTeam } from '@/lib/post-process/teams'
-import type { AuthRole } from '@/lib/auth/types'
 
 export type NavChildItem = {
   label: string
@@ -22,8 +23,10 @@ export const NAV_ITEMS: NavItem[] = [
     label: '대시보드',
     href: '/',
     children: [
-      { label: '홈', href: '/' },
+      { label: 'KPI', href: '/' },
       { label: '주문별 현황', href: '/production/status' },
+      { label: '생산실적', href: '/reports/production' },
+      { label: '영업/매출', href: '/reports/sales' },
     ],
   },
   {
@@ -35,8 +38,6 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '품목등록', href: '/master/products' },
       { label: 'BOM등록', href: '/master/bom' },
       { label: '사용자등록', href: '/master/users' },
-      { label: '생산실적', href: '/reports/production' },
-      { label: '영업/매출', href: '/reports/sales' },
     ],
   },
   {
@@ -93,6 +94,20 @@ function splitNavHref(href: string): { path: string; team: string | null } {
   }
 }
 
+function navSearchFromHref(href: string): NavSearch | null {
+  const { team } = splitNavHref(href)
+  if (!team) return null
+  return { get: (name: string) => (name === 'team' ? team : null) }
+}
+
+function canAccessNavHref(
+  profile: { role: AuthRole; department: AuthDepartment | null },
+  href: string,
+) {
+  const { path } = splitNavHref(href)
+  return canAccessPath(profile, path, navSearchFromHref(href))
+}
+
 function matchesNavTeam(team: string | null, search?: NavSearch | null) {
   if (!team) return true
   return normalizePostProcessTeam(search?.get('team')) === team
@@ -128,11 +143,38 @@ export function isNavItemActive(pathname: string, item: NavItem, search?: NavSea
   return isNavLinkActive(pathname, item.href, search)
 }
 
-/** 사이드바용 — adminOnly 메뉴는 관리자(또는 인증 꺼짐)만 */
+/**
+ * 사이드바용 — 부서·역할로 접근 가능한 메뉴만 표시.
+ * 인증 꺼짐(개발)이면 전체 노출.
+ */
 export function getVisibleNavItems(options: {
   role?: AuthRole | null
+  department?: AuthDepartment | null
   authDisabled?: boolean
 }) {
-  const isAdmin = options.authDisabled || options.role === 'admin'
-  return NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin)
+  if (options.authDisabled) return NAV_ITEMS
+
+  const profile = {
+    role: options.role ?? 'operator',
+    department: options.department ?? null,
+  }
+
+  const visible: NavItem[] = []
+
+  for (const item of NAV_ITEMS) {
+    if (item.adminOnly && profile.role !== 'admin') continue
+
+    if (!item.children?.length) {
+      if (canAccessNavHref(profile, item.href)) visible.push(item)
+      continue
+    }
+
+    const children = item.children.filter((child) => canAccessNavHref(profile, child.href))
+    if (!children.length) continue
+
+    const parentHref = canAccessNavHref(profile, item.href) ? item.href : children[0]!.href
+    visible.push({ ...item, href: parentHref, children })
+  }
+
+  return visible
 }

@@ -9,6 +9,7 @@ export type PostProcessProductionPlan = {
   team: PostProcessTeam
   plannedQuantity: number
   note: string
+  createdByName: string
   createdAt: string
 }
 

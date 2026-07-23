@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
@@ -31,6 +32,7 @@ export function ProductionHistoryModal({
   onClose,
   onDeleted,
 }: ProductionHistoryModalProps) {
+  const canDelete = useCanDeleteRecords()
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -80,9 +82,13 @@ export function ProductionHistoryModal({
       closeOnEscape={!deleting}
       footer={
         <div className="flex w-full items-center justify-between gap-3">
-          <ErpButton type="button" variant="danger" disabled={deleting} onClick={() => void handleDelete()}>
-            {deleting ? '삭제 중…' : '삭제'}
-          </ErpButton>
+          {canDelete ? (
+            <ErpButton type="button" variant="danger" disabled={deleting} onClick={() => void handleDelete()}>
+              {deleting ? '삭제 중…' : '삭제'}
+            </ErpButton>
+          ) : (
+            <span />
+          )}
           <ErpButton type="button" variant="secondary" disabled={deleting} onClick={onClose}>
             닫기
           </ErpButton>

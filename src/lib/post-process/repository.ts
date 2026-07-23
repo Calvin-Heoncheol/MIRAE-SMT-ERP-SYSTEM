@@ -1,3 +1,7 @@
+import {
+  assertCanWrite,
+  postProcessTeamToAccessModule,
+} from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { todayYmdSeoul } from '@/lib/orders/utils'
@@ -19,7 +23,7 @@ export type FetchPostProcessCumulativeCountsResult =
 
 export type CreatePostProcessProductionRecordResult =
   | { ok: true; record: PostProcessProductionRecord; cumulative: number; defectCumulative: number }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type FetchPostProcessProductionHistoryResult =
   | { ok: true; rows: PostProcessProductionHistoryRow[] }
@@ -247,6 +251,12 @@ export async function createPostProcessProductionRecord(
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({
+    module: postProcessTeamToAccessModule(input.team),
+    action: 'create',
+  })
+  if (!gate.ok) return gate
 
   const assemblyGroupId = String(input.assemblyGroupId || '').trim()
   const quantity = Math.max(0, Math.floor(Number(input.quantity) || 0))
@@ -607,7 +617,7 @@ async function fetchPostProcessProductionRecords(options?: {
 
 export type DeletePostProcessProductionRecordResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export async function deletePostProcessProductionRecord(
   recordId: string,
@@ -615,6 +625,9 @@ export async function deletePostProcessProductionRecord(
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'production_history', action: 'delete' })
+  if (!gate.ok) return gate
 
   const id = String(recordId || '').trim()
   if (!id) {

@@ -48,6 +48,9 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
               <th className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 출하수량
               </th>
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                등록자
+              </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
               </th>
@@ -76,6 +79,9 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm font-bold tabular-nums text-violet-700">
                   {row.quantity.toLocaleString('ko-KR')}
+                </td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-sm text-slate-700">
+                  {cell(row.createdByName)}
                 </td>
                 <td className="px-4 py-2.5 text-sm text-slate-600">{cell(row.note)}</td>
               </tr>

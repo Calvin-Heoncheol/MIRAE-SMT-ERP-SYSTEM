@@ -5,7 +5,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { ProductionStatusQuickInputModal } from '@/components/production-status/production-status-quick-input-modal'
 import { ProductionStatusTable } from '@/components/production-status/production-status-table'
 import { ListPagination } from '@/components/ui/list-pagination'
-import { WorkspaceHeader } from '@/components/ui/workspace-header'
+import { PageShell } from '@/components/ui/page-shell'
 import type { FetchProductionStatusResult } from '@/lib/production-status/repository'
 import type {
   ProductionStatusLine,
@@ -30,6 +30,43 @@ function isLineDeliveryComplete(line: ProductionStatusLine) {
   return line.deliveryTarget > 0 && line.deliveryProduced >= line.deliveryTarget
 }
 
+function averagePercent(lines: ProductionStatusLine[], pick: (line: ProductionStatusLine) => number) {
+  if (!lines.length) return 0
+  const sum = lines.reduce((acc, line) => acc + Math.max(0, pick(line)), 0)
+  return Math.round(sum / lines.length)
+}
+
+function SummaryKpi({
+  label,
+  value,
+  unit,
+  tone = 'default',
+}: {
+  label: string
+  value: number
+  unit?: string
+  tone?: 'default' | 'sky' | 'emerald' | 'slate'
+}) {
+  const valueClass =
+    tone === 'sky'
+      ? 'text-sky-700'
+      : tone === 'emerald'
+        ? 'text-emerald-700'
+        : tone === 'slate'
+          ? 'text-slate-700'
+          : 'text-slate-900'
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">{label}</p>
+      <p className={`mt-2 text-2xl font-bold tabular-nums ${valueClass}`}>
+        {value.toLocaleString('ko-KR')}
+        {unit ? <span className="ml-1 text-sm font-semibold text-slate-400">{unit}</span> : null}
+      </p>
+    </div>
+  )
+}
+
 export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -40,6 +77,16 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
   const data = result.ok ? result.data : null
   const lines = data?.lines ?? []
   const query = search.trim()
+
+  const doneCount = useMemo(() => lines.filter(isLineDeliveryComplete).length, [lines])
+  const activeCount = lines.length - doneCount
+
+  const avgSmt = useMemo(() => averagePercent(lines, (line) => line.smtPercent), [lines])
+  const avgPost = useMemo(() => averagePercent(lines, (line) => line.postPercent), [lines])
+  const avgDelivery = useMemo(
+    () => averagePercent(lines, (line) => line.deliveryPercent),
+    [lines],
+  )
 
   const statusFilteredLines = useMemo(() => {
     if (statusFilter === 'all') return lines
@@ -61,9 +108,8 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
   }, [statusFilteredLines, query])
   const pagination = useClientPagination(filteredLines)
 
-  const doneCount = useMemo(() => lines.filter(isLineDeliveryComplete).length, [lines])
   const statusChips: { key: StatusFilter; label: string; count: number }[] = [
-    { key: 'active', label: '진행중', count: lines.length - doneCount },
+    { key: 'active', label: '진행중', count: activeCount },
     { key: 'done', label: '완료', count: doneCount },
     { key: 'all', label: '전체', count: lines.length },
   ]
@@ -94,16 +140,29 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
   }
 
   return (
-    <div className="flex w-full flex-1 flex-col gap-4">
-      <WorkspaceHeader
-        totalCount={lines.length}
-        filteredCount={filteredLines.length}
-        hasQuery={Boolean(query)}
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="주문서번호, 고객사, 제품명 검색…"
-        accent="slate"
-        filters={
+    <PageShell className="gap-5">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold tracking-wide text-slate-400 uppercase">Dashboard</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">주문별 현황</h1>
+        </div>
+        <p className="text-sm font-medium text-slate-500">
+          표시 {filteredLines.length.toLocaleString('ko-KR')} / 전체{' '}
+          {lines.length.toLocaleString('ko-KR')}
+        </p>
+      </header>
+
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+        <SummaryKpi label="진행중" value={activeCount} unit="건" />
+        <SummaryKpi label="완료" value={doneCount} unit="건" tone="emerald" />
+        <SummaryKpi label="전체" value={lines.length} unit="건" tone="slate" />
+        <SummaryKpi label="평균 SMT" value={avgSmt} unit="%" tone="sky" />
+        <SummaryKpi label="평균 후공정" value={avgPost} unit="%" tone="emerald" />
+        <SummaryKpi label="평균 출하" value={avgDelivery} unit="%" tone="slate" />
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-2">
             {statusChips.map((chip) => (
               <button
@@ -111,10 +170,10 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
                 type="button"
                 onClick={() => setStatusFilter(chip.key)}
                 className={[
-                  'rounded-full px-4 py-1.5 text-sm font-semibold transition-colors',
+                  'rounded-lg px-3.5 py-1.5 text-sm font-semibold transition-colors',
                   statusFilter === chip.key
-                    ? 'bg-slate-800 text-white shadow-sm'
-                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100',
                 ].join(' ')}
               >
                 {chip.label}{' '}
@@ -124,8 +183,15 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
               </button>
             ))}
           </div>
-        }
-      />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="주문서번호, 고객사, 제품명 검색…"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 sm:max-w-xs"
+          />
+        </div>
+      </section>
 
       <ProductionStatusTable lines={pagination.pageItems} onStageClick={handleStageClick} />
 
@@ -139,8 +205,8 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
       />
 
       <p className="text-xs text-slate-400">
-        SMT·후공정·출하 칸은 총관리자 직접 입력용입니다. 생산입력 화면과 별도이며, 등록 시 이력 비고에
-        「생산실사(관리자)」또는 「직접출하(관리자)」가 남습니다. (로그인 연동 전 · 현재는 화면에서 모두 가능)
+        SMT·후공정·출하 칸을 클릭하면 생산실사(관리자) 입력을 할 수 있습니다. 등록 시 이력 비고에
+        「생산실사(관리자)」또는 「직접출하(관리자)」가 남습니다.
       </p>
 
       <ProductionStatusQuickInputModal
@@ -157,6 +223,6 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
         onClose={() => setQuickInput(null)}
         onRegistered={handleRegistered}
       />
-    </div>
+    </PageShell>
   )
 }

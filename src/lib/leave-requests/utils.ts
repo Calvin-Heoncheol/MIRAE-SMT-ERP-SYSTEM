@@ -31,6 +31,7 @@ export function mapLeaveRequestRecord(record: LeaveRequestRecord): LeaveRequestL
     department: normalizeApprovalDepartment(record.department),
     position: record.position,
     author: record.author,
+    createdByName: String(record.created_by_name || '').trim(),
     leaveType: normalizeLeaveType(record.leave_type),
     startDate: record.start_date ?? '',
     startTime: record.start_time,

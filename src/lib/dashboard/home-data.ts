@@ -61,7 +61,19 @@ export type HomeDeptSection = {
   metrics: HomeDeptMetric[]
 }
 
+export type HomeHeroMetric = {
+  key: string
+  label: string
+  value: number | null
+  unit: '건' | 'EA' | '%'
+  href: string
+  tone: 'default' | 'warn' | 'danger'
+  hint?: string
+}
+
 export type HomeDashboardData = {
+  todayLabel: string
+  hero: HomeHeroMetric[]
   departments: HomeDeptSection[]
   smtLines: HomeSmtLine[]
   productionTeams: HomeProductionTeam[]
@@ -239,6 +251,14 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     ? smtTodayResult.rows.reduce((sum, row) => sum + Math.max(0, row.quantity), 0)
     : 0
 
+  const todayDefectQuantity =
+    (smtTodayResult.ok
+      ? smtTodayResult.rows.reduce((sum, row) => sum + Math.max(0, row.defectQuantity), 0)
+      : 0) +
+    (postTodayResult.ok
+      ? postTodayResult.rows.reduce((sum, row) => sum + Math.max(0, row.defectQuantity), 0)
+      : 0)
+
   const productionTeams: HomeProductionTeam[] = [
     { team: '생산1팀', todayQuantity: smtTeamQuantity, href: '/smt' },
     ...POST_PROCESS_TEAMS.map((team) => {
@@ -354,6 +374,14 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
           href: '/production/status',
           tone: 'default',
         },
+        {
+          key: 'production:defect',
+          label: '오늘 불량',
+          value: todayDefectQuantity,
+          unit: 'EA',
+          href: '/production/history',
+          tone: todayDefectQuantity > 0 ? 'danger' : 'default',
+        },
       ],
     },
     {
@@ -388,7 +416,64 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     },
   ]
 
+  const hero: HomeHeroMetric[] = [
+    {
+      key: 'hero:new-orders',
+      label: '오늘 신규 주문',
+      value: todayNewOrders,
+      unit: '건',
+      href: '/orders',
+      tone: 'default',
+    },
+    {
+      key: 'hero:achievement',
+      label: '계획 달성률',
+      value: todayAchievementRate,
+      unit: '%',
+      href: '/production/status',
+      tone: 'default',
+      hint:
+        todayPlannedQuantity > 0
+          ? `${todayProducedQuantity.toLocaleString('ko-KR')} / ${todayPlannedQuantity.toLocaleString('ko-KR')} EA`
+          : '오늘 계획 없음',
+    },
+    {
+      key: 'hero:shipped',
+      label: '오늘 출하',
+      value: todayShipped,
+      unit: '건',
+      href: '/delivery',
+      tone: 'default',
+      hint:
+        todayDeliveryDue != null
+          ? `예정 ${todayDeliveryDue.toLocaleString('ko-KR')}건`
+          : undefined,
+    },
+    {
+      key: 'hero:alerts',
+      label: '주의 알림',
+      value: alerts.length,
+      unit: '건',
+      href: '/production/status',
+      tone: alerts.some((alert) => alert.tone === 'danger')
+        ? 'danger'
+        : alerts.length > 0
+          ? 'warn'
+          : 'default',
+    },
+  ]
+
+  const todayLabel = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  }).format(new Date(`${today}T12:00:00+09:00`))
+
   return {
+    todayLabel,
+    hero,
     departments,
     smtLines,
     productionTeams,

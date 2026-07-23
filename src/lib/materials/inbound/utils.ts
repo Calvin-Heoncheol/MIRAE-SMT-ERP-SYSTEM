@@ -45,6 +45,7 @@ export function mapInboundRecord(record: MaterialInboundRecord): MaterialInbound
     note: record.note || '',
     items,
     totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
+    createdByName: String(record.created_by_name || '').trim(),
     createdAt: record.created_at,
   }
 }

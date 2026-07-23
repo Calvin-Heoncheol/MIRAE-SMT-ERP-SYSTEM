@@ -49,6 +49,7 @@ export function mapApprovalRecord(record: ApprovalRecord): ApprovalListItem {
     writtenDate: record.written_date,
     department: normalizeApprovalDepartment(record.department),
     author: record.author,
+    createdByName: String(record.created_by_name || '').trim(),
     subject: record.subject,
     totalAmount: Number(record.total_amount) || 0,
     detailInfo: normalizeDetailInfo(record.detail_info),

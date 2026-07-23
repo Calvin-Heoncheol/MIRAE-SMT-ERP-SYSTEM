@@ -26,7 +26,7 @@ export function OutboundListTable({
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[920px] table-fixed border-collapse">
+        <table className="w-full min-w-[1000px] table-fixed border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -46,6 +46,9 @@ export function OutboundListTable({
               </th>
               <th className="px-3 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 총 수량
+              </th>
+              <th className="whitespace-nowrap px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                등록자
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
@@ -76,6 +79,9 @@ export function OutboundListTable({
                 </td>
                 <td className="px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900">
                   {outbound.totalQuantity.toLocaleString('ko-KR')}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
+                  {outbound.createdByName || '-'}
                 </td>
                 <td className="px-3 py-2.5 text-sm text-slate-500">
                   <span className="block truncate" title={outbound.note || '-'}>

@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import {
   deleteDeliveryRecord,
   fetchOrderLineUnitPrice,
@@ -36,6 +37,7 @@ export function DeliveryHistoryModal({
   onSaved,
   onDeleted,
 }: DeliveryHistoryModalProps) {
+  const canDelete = useCanDeleteRecords()
   const [recordDate, setRecordDate] = useState('')
   const [quantity, setQuantity] = useState('')
   const [note, setNote] = useState('')
@@ -179,14 +181,16 @@ export function DeliveryHistoryModal({
             >
               거래명세서
             </button>
-            <button
-              type="button"
-              onClick={() => void handleDelete()}
-              disabled={deleting || saving}
-              className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
-            >
-              {deleting ? '삭제 중…' : '삭제'}
-            </button>
+            {canDelete ? (
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                disabled={deleting || saving}
+                className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+              >
+                {deleting ? '삭제 중…' : '삭제'}
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onClose}

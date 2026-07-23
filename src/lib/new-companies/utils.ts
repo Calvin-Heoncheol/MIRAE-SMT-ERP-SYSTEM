@@ -19,6 +19,8 @@ export type NewCompanyInquiryRow = {
   status?: string | null
   source_channel?: string | null
   close_reason?: string | null
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
   updated_at: string
 }
@@ -44,6 +46,7 @@ export function mapNewCompanyInquiryRecord(row: NewCompanyInquiryRow): NewCompan
     status: normalizeNewCompanyStatus(row.status),
     sourceChannel: row.source_channel ?? '',
     closeReason: row.close_reason ?? '',
+    createdByName: String(row.created_by_name || '').trim(),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

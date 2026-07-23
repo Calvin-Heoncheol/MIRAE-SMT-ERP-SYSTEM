@@ -82,6 +82,8 @@ export function mapQuoteRecord(record: QuoteRecord): QuoteListItem {
     boardQty: record.board_qty,
     totalAmount: Number(record.total_amount) || 0,
     detailInfo,
+    createdBy: record.created_by ?? null,
+    createdByName: String(record.created_by_name || '').trim(),
     createdAt: record.created_at,
   }
 }

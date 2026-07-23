@@ -6,6 +6,7 @@ import {
   getProgressPercent,
   getStackedProgressWidths,
   resolveProductionCount,
+  resolveProductionDefectCount,
 } from '@/lib/production-input/utils'
 import type { ProductionStatusLine, ProductionStatusProductLine } from './types'
 
@@ -83,7 +84,7 @@ function buildProductLinesForOrder(
     if (smtLine) {
       smtTarget = Math.max(0, Math.floor(smtLine.quantity))
       smtProduced = resolveProductionCount(smtLine, smtCounts)
-      smtDefected = resolveProductionCount(smtLine, smtDefectCounts)
+      smtDefected = resolveProductionDefectCount(smtLine, smtDefectCounts)
       smtOrderLineIds.push(smtLine.orderLineId)
     }
 
@@ -137,7 +138,7 @@ function buildProductLinesForOrder(
 
     const smtTarget = Math.max(0, Math.floor(smtLine.quantity))
     const smtProduced = resolveProductionCount(smtLine, smtCounts)
-    const smtDefected = resolveProductionCount(smtLine, smtDefectCounts)
+    const smtDefected = resolveProductionDefectCount(smtLine, smtDefectCounts)
     const smtStack = getStackedProgressWidths(smtProduced, smtDefected, smtTarget)
 
     products.push({
@@ -189,7 +190,7 @@ export function buildProductionStatusLines(
       const lineTarget = Math.max(0, Math.floor(smtLine.quantity))
       smtTarget += lineTarget
       smtProduced += resolveProductionCount(smtLine, smtCounts)
-      smtDefected += resolveProductionCount(smtLine, smtDefectCounts)
+      smtDefected += resolveProductionDefectCount(smtLine, smtDefectCounts)
     }
 
     const orderAssemblies = assembliesByOrderId.get(order.orderId) ?? []

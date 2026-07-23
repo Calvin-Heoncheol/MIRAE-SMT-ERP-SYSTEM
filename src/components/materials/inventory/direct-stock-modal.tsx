@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { setMaterialDirectStockBatch } from '@/lib/materials/inventory/direct-stock'
@@ -16,6 +17,7 @@ type DirectStockModalProps = {
 }
 
 export function DirectStockModal({ open, row, onClose, onSaved }: DirectStockModalProps) {
+  const canDelete = useCanDeleteRecords()
   const [qty, setQty] = useState(String(Math.max(0, row.onHandQuantity)))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -33,6 +35,7 @@ export function DirectStockModal({ open, row, onClose, onSaved }: DirectStockMod
       : null
 
   async function handleSave() {
+    if (!canDelete) return
     if (!Number.isFinite(targetQuantity) || targetQuantity < 0) {
       setError('현재고는 0 이상 숫자로 입력해 주세요.')
       return
@@ -62,7 +65,11 @@ export function DirectStockModal({ open, row, onClose, onSaved }: DirectStockMod
     <ErpModal
       open={open}
       title="현재고 설정"
-      description="입력한 수량으로 현재고를 맞춥니다. (증가=사급입고, 감소=조정불출)"
+      description={
+        canDelete
+          ? '입력한 수량으로 현재고를 맞춥니다. (증가=사급입고, 감소=조정불출)'
+          : '현재고 조정은 관리자 이상만 할 수 있습니다.'
+      }
       size="form"
       onClose={handleClose}
       closeOnEscape={!saving}
@@ -71,11 +78,13 @@ export function DirectStockModal({ open, row, onClose, onSaved }: DirectStockMod
           {error ? <p className="text-sm text-rose-600">{error}</p> : null}
           <div className="flex justify-end gap-2">
             <ErpButton variant="secondary" disabled={saving} onClick={handleClose}>
-              취소
+              {canDelete ? '취소' : '닫기'}
             </ErpButton>
-            <ErpButton disabled={saving} onClick={() => void handleSave()}>
-              {saving ? '적용 중…' : '적용'}
-            </ErpButton>
+            {canDelete ? (
+              <ErpButton disabled={saving} onClick={() => void handleSave()}>
+                {saving ? '적용 중…' : '적용'}
+              </ErpButton>
+            ) : null}
           </div>
         </div>
       }
@@ -111,28 +120,32 @@ export function DirectStockModal({ open, row, onClose, onSaved }: DirectStockMod
           </div>
         </div>
 
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">맞출 현재고</span>
-          <input
-            type="number"
-            min={0}
-            step={1}
-            value={qty}
-            onChange={(event) => setQty(event.target.value)}
-            disabled={saving}
-            className={ERP_FIELD_INPUT_CLASS}
-            autoFocus
-          />
-        </label>
+        {canDelete ? (
+          <>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-600">맞출 현재고</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={qty}
+                onChange={(event) => setQty(event.target.value)}
+                disabled={saving}
+                className={ERP_FIELD_INPUT_CLASS}
+                autoFocus
+              />
+            </label>
 
-        {delta != null ? (
-          <p className="text-xs text-slate-500">
-            {delta === 0
-              ? '변경 없음'
-              : delta > 0
-                ? `+${formatInventoryQuantity(delta)} 입고(사급)로 반영`
-                : `${formatInventoryQuantity(delta)} 불출(조정)로 반영`}
-          </p>
+            {delta != null ? (
+              <p className="text-xs text-slate-500">
+                {delta === 0
+                  ? '변경 없음'
+                  : delta > 0
+                    ? `+${formatInventoryQuantity(delta)} 입고(사급)로 반영`
+                    : `${formatInventoryQuantity(delta)} 불출(조정)로 반영`}
+              </p>
+            ) : null}
+          </>
         ) : null}
       </div>
     </ErpModal>

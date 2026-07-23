@@ -1,3 +1,4 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createMaterialInbound } from '@/lib/materials/inbound/repository'
 import { createMaterialOutbound } from '@/lib/materials/outbound/repository'
 import { todayYmdSeoul } from '@/lib/materials/purchase-orders/utils'
@@ -11,7 +12,7 @@ export type SetMaterialDirectStockBatchResult =
       decreasedCount: number
       unchangedCount: number
     }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 const DIRECT_STOCK_NOTE = '직접재고'
 
@@ -27,6 +28,9 @@ export type DirectStockTarget = {
 export async function setMaterialDirectStockBatch(
   targets: DirectStockTarget[],
 ): Promise<SetMaterialDirectStockBatchResult> {
+  const gate = await assertCanWrite({ module: 'materials', action: 'adjust' })
+  if (!gate.ok) return gate
+
   if (!targets.length) {
     return { ok: false, reason: 'validation', detail: '적용할 품목이 없습니다.' }
   }

@@ -32,7 +32,7 @@ export function MaterialPurchaseOrderListTable({
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-[1040px] w-full border-collapse">
+        <table className="min-w-[1120px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -55,6 +55,9 @@ export function MaterialPurchaseOrderListTable({
               </th>
               <th className="min-w-[96px] whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 발주금액
+              </th>
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                등록자
               </th>
               <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 상태
@@ -80,6 +83,9 @@ export function MaterialPurchaseOrderListTable({
                 </td>
                 <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">
                   {formatMaterialPurchaseOrderMoney(order.totalAmount)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                  {order.createdByName || '-'}
                 </td>
                 <td className="px-4 py-3 text-center">
                   <span

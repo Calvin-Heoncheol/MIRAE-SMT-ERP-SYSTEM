@@ -32,16 +32,16 @@ function MiniProgress({
   const totalPercent = Math.min(100, percent + defectPercent)
 
   return (
-    <div className="min-w-[88px]">
-      <div className="mb-1 flex justify-between text-[11px] font-medium text-slate-500">
+    <div className="min-w-[108px]">
+      <div className="mb-1.5 flex justify-between text-xs font-semibold text-slate-600">
         <span className="tabular-nums">{totalPercent}%</span>
       </div>
-      <div className="flex h-1.5 overflow-hidden rounded-full bg-slate-100">
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-100">
         {percent > 0 ? (
-          <div className={`h-full ${barClass}`} style={{ width: `${percent}%` }} />
+          <div className={`h-full shrink-0 ${barClass}`} style={{ width: `${percent}%` }} />
         ) : null}
         {defectPercent > 0 ? (
-          <div className="h-full bg-rose-500" style={{ width: `${defectPercent}%` }} />
+          <div className="h-full shrink-0 bg-rose-500" style={{ width: `${defectPercent}%` }} />
         ) : null}
       </div>
     </div>
@@ -75,9 +75,9 @@ function StageCell({
 
   if (!onClick) {
     return (
-      <td className="px-4 py-3">
+      <td className="px-4 py-3.5">
         <MiniProgress percent={percent} defectPercent={defectPercent} tone={tone} />
-        <p className="mt-1 text-[11px] tabular-nums text-slate-400">{detail}</p>
+        <p className="mt-1.5 text-xs tabular-nums text-slate-500">{detail}</p>
       </td>
     )
   }
@@ -91,10 +91,10 @@ function StageCell({
           onClick()
         }}
         title={`${label} 총관리자 직접 입력`}
-        className="w-full rounded-lg px-2 py-1.5 text-left transition hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+        className="w-full rounded-xl px-2.5 py-2 text-left transition hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
       >
         <MiniProgress percent={percent} defectPercent={defectPercent} tone={tone} />
-        <p className="mt-1 text-[11px] tabular-nums text-slate-400">{detail}</p>
+        <p className="mt-1.5 text-xs tabular-nums text-slate-500">{detail}</p>
       </button>
     </td>
   )
@@ -195,36 +195,36 @@ export function ProductionStatusTable({ lines, onStageClick }: ProductionStatusT
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-[1040px] w-full border-collapse">
-          <thead className="bg-slate-50">
+        <table className="min-w-[1080px] w-full border-collapse">
+          <thead className="bg-slate-50/90">
             <tr>
-              <th className="w-10 px-2 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <th className="w-10 px-2 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <span className="sr-only">펼치기</span>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                주문서번호
+              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                주문서
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 고객사
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 제품
               </th>
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <th className="whitespace-nowrap px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 납기
               </th>
-              <th className="px-4 py-3 pr-10 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <th className="px-4 py-3.5 pr-10 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
                 수량
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 SMT
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 후공정
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 출하
               </th>
             </tr>
@@ -296,11 +296,11 @@ function OrderStatusRows({
             <span className="block w-7" />
           )}
         </td>
-        <td className="px-4 py-3 font-mono text-xs font-medium text-slate-900" title={line.orderNumber}>
+        <td className="px-4 py-3.5 font-mono text-sm font-bold text-slate-900" title={line.orderNumber}>
           {formatInternalCodeLabel(line.orderNumber)}
         </td>
-        <td className="px-4 py-3 text-sm text-slate-700">{line.customer || '—'}</td>
-        <td className="px-4 py-3 text-sm font-medium text-slate-900">
+        <td className="px-4 py-3.5 text-sm font-semibold text-slate-800">{line.customer || '—'}</td>
+        <td className="px-4 py-3.5 text-sm font-medium text-slate-900">
           <span>{line.productName || '—'}</span>
           {line.productCount > 1 ? (
             <span className="ml-1.5 text-xs font-normal text-slate-400">

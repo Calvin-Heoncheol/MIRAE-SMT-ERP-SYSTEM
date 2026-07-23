@@ -1,3 +1,4 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { todayYmdSeoul } from '@/lib/orders/utils'
@@ -15,7 +16,7 @@ export type FetchSmtDayPlanProgressResult =
 
 export type CreateSmtProductionRecordResult =
   | { ok: true; record: SmtProductionRecord; cumulative: number; defectCumulative: number }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type FetchSmtProductionHistoryResult =
   | { ok: true; rows: SmtProductionHistoryRow[] }
@@ -241,6 +242,9 @@ export async function createSmtProductionRecord(
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'production_smt', action: 'create' })
+  if (!gate.ok) return gate
 
   const orderLineId = String(input.orderLineId || '').trim()
   const quantity = Math.max(0, Math.floor(Number(input.quantity) || 0))
@@ -643,7 +647,7 @@ async function fetchSmtProductionRecords(options?: {
 
 export type DeleteSmtProductionRecordResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export async function deleteSmtProductionRecord(
   recordId: string,
@@ -651,6 +655,9 @@ export async function deleteSmtProductionRecord(
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'production_smt', action: 'delete' })
+  if (!gate.ok) return gate
 
   const id = String(recordId || '').trim()
   if (!id) {

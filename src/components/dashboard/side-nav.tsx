@@ -181,6 +181,7 @@ function SidebarNavBody({
 }) {
   const items = getVisibleNavItems({
     role: profile?.role,
+    department: profile?.department,
     authDisabled,
   })
 

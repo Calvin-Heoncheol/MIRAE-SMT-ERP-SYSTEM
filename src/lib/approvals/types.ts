@@ -50,6 +50,8 @@ export type ApprovalRecord = {
   intro_body: string
   total_amount: number
   detail_info: ApprovalDetailInfo
+  created_by?: string | null
+  created_by_name?: string | null
   created_at: string
   updated_at: string
 }
@@ -61,6 +63,7 @@ export type ApprovalListItem = {
   writtenDate: string
   department: string
   author: string
+  createdByName: string
   subject: string
   totalAmount: number
   detailInfo: ApprovalDetailInfo

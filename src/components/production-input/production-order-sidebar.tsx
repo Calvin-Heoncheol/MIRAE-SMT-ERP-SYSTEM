@@ -36,6 +36,8 @@ const MIN_ORDER_PAGE_SIZE = 3
 const MAX_ORDER_PAGE_SIZE = 10
 const DEFAULT_ORDER_PAGE_SIZE = 6
 
+type StatusFilter = 'all' | ProductionOrderState
+
 function stateLabel(state: ProductionOrderState) {
   if (state === 'full') return '완료'
   if (state === 'progress') return '진행'
@@ -89,6 +91,7 @@ export function ProductionOrderSidebar({
   const listRef = useRef<HTMLDivElement>(null)
   const [pageSize, setPageSize] = useState(DEFAULT_ORDER_PAGE_SIZE)
   const [page, setPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   useEffect(() => {
     const el = listRef.current
@@ -107,20 +110,44 @@ export function ProductionOrderSidebar({
     return () => observer.disconnect()
   }, [])
 
-  const totalPages = Math.max(1, Math.ceil(orders.length / pageSize) || 1)
+  const statusCounts = useMemo(() => {
+    let none = 0
+    let progress = 0
+    let full = 0
+    for (const order of orders) {
+      const state = getProductionOrderState(order, counts)
+      if (state === 'full') full += 1
+      else if (state === 'progress') progress += 1
+      else none += 1
+    }
+    return { all: orders.length, none, progress, full }
+  }, [orders, counts])
+
+  const filteredOrders = useMemo(() => {
+    if (statusFilter === 'all') return orders
+    return orders.filter((order) => getProductionOrderState(order, counts) === statusFilter)
+  }, [orders, counts, statusFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize) || 1)
 
   const prevOrdersLenRef = useRef(orders.length)
   const prevSearchRef = useRef(search)
+  const prevStatusFilterRef = useRef(statusFilter)
   const prevPageSizeRef = useRef(pageSize)
   const prevSelectedKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (prevOrdersLenRef.current !== orders.length || prevSearchRef.current !== search) {
+    if (
+      prevOrdersLenRef.current !== orders.length ||
+      prevSearchRef.current !== search ||
+      prevStatusFilterRef.current !== statusFilter
+    ) {
       prevOrdersLenRef.current = orders.length
       prevSearchRef.current = search
+      prevStatusFilterRef.current = statusFilter
       setPage(1)
     }
-  }, [orders.length, search])
+  }, [orders.length, search, statusFilter])
 
   useEffect(() => {
     if (prevPageSizeRef.current === pageSize) return
@@ -142,28 +169,89 @@ export function ProductionOrderSidebar({
     const selectionChanged = prev !== selectedKey
     prevSelectedKeyRef.current = selectedKey
     if (prev !== null && !selectionChanged) return
-    if (!selectedKey || !orders.length) return
-    const index = orders.findIndex((order) => order.uiKey === selectedKey)
+    if (!selectedKey || !filteredOrders.length) return
+    const index = filteredOrders.findIndex((order) => order.uiKey === selectedKey)
     if (index < 0) return
     setPage(Math.floor(index / pageSize) + 1)
-  }, [selectedKey, orders, pageSize])
+  }, [selectedKey, filteredOrders, pageSize])
 
   const currentPage = Math.min(Math.max(page, 1), totalPages)
   const pageItems = useMemo(() => {
     const start = (currentPage - 1) * pageSize
-    return orders.slice(start, start + pageSize)
-  }, [orders, currentPage, pageSize])
+    return filteredOrders.slice(start, start + pageSize)
+  }, [filteredOrders, currentPage, pageSize])
 
-  const showPager = orders.length > pageSize
+  const showPager = filteredOrders.length > pageSize
+
+  const statusChips: {
+    key: StatusFilter
+    label: string
+    count: number
+    idleClass: string
+    activeClass: string
+  }[] = [
+    {
+      key: 'all',
+      label: '전체',
+      count: statusCounts.all,
+      idleClass: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100',
+      activeClass: 'bg-slate-800 text-white ring-1 ring-slate-800',
+    },
+    {
+      key: 'none',
+      label: '대기',
+      count: statusCounts.none,
+      idleClass: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80 hover:bg-slate-200/70',
+      activeClass: 'bg-slate-600 text-white ring-1 ring-slate-600',
+    },
+    {
+      key: 'progress',
+      label: '진행',
+      count: statusCounts.progress,
+      idleClass: 'bg-amber-50 text-amber-800 ring-1 ring-amber-100 hover:bg-amber-100/80',
+      activeClass: 'bg-amber-500 text-white ring-1 ring-amber-500',
+    },
+    {
+      key: 'full',
+      label: '완료',
+      count: statusCounts.full,
+      idleClass: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 hover:bg-emerald-100/80',
+      activeClass: 'bg-emerald-600 text-white ring-1 ring-emerald-600',
+    },
+  ]
 
   return (
     <aside className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-b border-slate-200 bg-white lg:w-[360px] lg:flex-none lg:shrink-0 lg:border-b-0 lg:border-r">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-3 py-2.5">
         <h4 className="text-sm font-bold text-slate-900">주문 선택</h4>
-        <span className="text-xs font-medium text-slate-400 tabular-nums">{orders.length}건</span>
+        <span className="text-xs font-medium text-slate-400 tabular-nums">
+          {filteredOrders.length.toLocaleString('ko-KR')}건
+          {statusFilter !== 'all' ? ` / ${orders.length.toLocaleString('ko-KR')}` : ''}
+        </span>
       </div>
 
-      <div className="shrink-0 border-b border-slate-100 px-3 py-2">
+      <div className="shrink-0 space-y-2 border-b border-slate-100 px-3 py-2">
+        <div className="flex flex-wrap gap-1.5">
+          {statusChips.map((chip) => {
+            const active = statusFilter === chip.key
+            return (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={() => setStatusFilter(chip.key)}
+                className={[
+                  'rounded-md px-2.5 py-1 text-[11px] font-bold transition-colors',
+                  active ? chip.activeClass : chip.idleClass,
+                ].join(' ')}
+              >
+                {chip.label}{' '}
+                <span className={active ? 'opacity-80' : 'opacity-70'}>
+                  {chip.count.toLocaleString('ko-KR')}
+                </span>
+              </button>
+            )
+          })}
+        </div>
         <input
           type="search"
           value={search}
@@ -177,9 +265,11 @@ export function ProductionOrderSidebar({
         ref={listRef}
         className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden px-2 py-2"
       >
-        {!orders.length ? (
+        {!filteredOrders.length ? (
           <p className="py-8 text-center text-sm text-slate-400">
-            {search.trim() ? '검색 결과 없음' : '표시할 주문이 없습니다'}
+            {search.trim() || statusFilter !== 'all'
+              ? '검색·필터 결과 없음'
+              : '표시할 주문이 없습니다'}
           </p>
         ) : (
           pageItems.map((order) => {

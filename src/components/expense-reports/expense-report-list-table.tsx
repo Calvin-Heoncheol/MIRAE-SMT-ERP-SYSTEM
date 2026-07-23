@@ -23,7 +23,7 @@ export function ExpenseReportListTable({ reports, emptyMessage, onSelectReport }
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-[960px] w-full border-collapse">
+        <table className="min-w-[1040px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
@@ -31,6 +31,9 @@ export function ExpenseReportListTable({ reports, emptyMessage, onSelectReport }
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
                 문서번호
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
+                작성자
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
                 처리사항
@@ -55,6 +58,7 @@ export function ExpenseReportListTable({ reports, emptyMessage, onSelectReport }
               >
                 <td className="px-4 py-3 text-sm text-slate-700">{report.writtenDate || '-'}</td>
                 <td className="px-4 py-3 font-mono text-xs text-blue-700">{report.docNumber || report.id}</td>
+                <td className="px-4 py-3 text-sm text-slate-700">{report.author || '-'}</td>
                 <td className="px-4 py-3 text-sm text-slate-700">
                   {getExpenseReportProcessingMethodLabel(report.processingDetails)}
                 </td>

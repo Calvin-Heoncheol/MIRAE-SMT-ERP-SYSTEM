@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { OrderItemsForm } from '@/components/orders/order-items-form'
 import { ErpButton } from '@/components/ui/erp-button'
@@ -62,6 +63,7 @@ function OrderModalContent({
   onSaved,
   onDeleted,
 }: Omit<OrderModalProps, 'open'>) {
+  const canDelete = useCanDeleteRecords()
   const [form, setForm] = useState<OrderFormState>(() => createInitialForm(order))
   const [items, setItems] = useState<OrderItemForm[]>(() =>
     order ? orderItemsFromDetail(order.items) : [defaultOrderItemForm()],
@@ -187,7 +189,7 @@ function OrderModalContent({
         <div className="flex w-full flex-col gap-2">
           {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
-            {mode === 'edit' ? (
+            {mode === 'edit' && canDelete ? (
               <ErpButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>
                 {deleting ? '삭제 중…' : '삭제'}
               </ErpButton>

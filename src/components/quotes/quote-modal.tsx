@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { DipPcbBoardForm } from '@/components/quotes/dip-pcb-board-form'
 import { PostProcessLinesEditor } from '@/components/quotes/post-process-lines-editor'
 import { QuoteBreakdownPreview } from '@/components/quotes/quote-breakdown-preview'
@@ -263,6 +264,7 @@ function QuoteModalContent({
   onSaved,
   onDeleted,
 }: Omit<QuoteModalProps, 'open'>) {
+  const canDelete = useCanDeleteRecords()
   const initial = createInitialState(mode, quote)
   const [form, setForm] = useState<FormState>(initial.form)
   const [smtForms, setSmtForms] = useState(initial.smtForms)
@@ -522,14 +524,16 @@ function QuoteModalContent({
                     영문 PDF
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {deleting ? '삭제 중...' : '삭제'}
-                </button>
+                {canDelete ? (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deleting ? '삭제 중...' : '삭제'}
+                  </button>
+                ) : null}
               </>
             ) : null}
             <button

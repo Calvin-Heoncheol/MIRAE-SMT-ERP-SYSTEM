@@ -49,6 +49,9 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
               <th className="min-w-[96px] whitespace-nowrap px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 주문금액
               </th>
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                등록자
+              </th>
               <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 구분
               </th>
@@ -73,6 +76,9 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
                 </td>
                 <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">
                   {formatOrderMoney(order.totalAmount)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-700">
+                  {order.createdByName || '-'}
                 </td>
                 <td className="px-4 py-3 text-center">
                   <OrderCategoryBadge category={order.category} />

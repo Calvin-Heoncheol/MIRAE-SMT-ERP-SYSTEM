@@ -1,3 +1,9 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
+import {
+  isMissingCreatedByColumn,
+  stripCreatedByFields,
+  withCreatedByFields,
+} from '@/lib/auth/created-by'
 import { createSupabaseClient } from '@/lib/supabase'
 import { syncAssemblyGroupsForOrder } from '@/lib/assembly/repository'
 import type { OrderListGroup, OrderRecord, OrderRowPayload } from './types'
@@ -9,11 +15,11 @@ export type FetchOrdersResult =
 
 export type SaveOrderResult =
   | { ok: true; orderId: string; orderNumber: string }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 export type DeleteOrderResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 function missingEnvResult(): SaveOrderResult {
   return {
@@ -113,6 +119,9 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'sales', action: 'create' })
+  if (!gate.ok) return gate
+
   try {
     const supabase = createSupabaseClient()
 
@@ -133,7 +142,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       }
     }
 
-    const insertRow: {
+    const baseRow: {
       id?: string
       order_date: string
       delivery_date: string | null
@@ -153,10 +162,19 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
     }
 
     if (orderCode) {
-      insertRow.id = orderCode
+      baseRow.id = orderCode
     }
 
-    const { data: inserted, error } = await supabase.from('orders').insert(insertRow).select('id').single()
+    const insertRow = await withCreatedByFields(baseRow)
+    let { data: inserted, error } = await supabase.from('orders').insert(insertRow).select('id').single()
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      ;({ data: inserted, error } = await supabase
+        .from('orders')
+        .insert(stripCreatedByFields(insertRow))
+        .select('id')
+        .single())
+    }
 
     if (error || !inserted?.id) {
       return { ok: false, reason: 'query', detail: error?.message || '주문서 저장에 실패했습니다.' }
@@ -178,6 +196,9 @@ export async function updateOrder(orderId: string, payload: OrderRowPayload): Pr
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'sales', action: 'update' })
+  if (!gate.ok) return gate
 
   try {
     const supabase = createSupabaseClient()
@@ -231,6 +252,9 @@ export async function deleteOrder(orderId: string): Promise<DeleteOrderResult> {
       detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
     }
   }
+
+  const gate = await assertCanWrite({ module: 'sales', action: 'delete' })
+  if (!gate.ok) return gate
 
   try {
     const supabase = createSupabaseClient()

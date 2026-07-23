@@ -1,3 +1,9 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
+import {
+  isMissingCreatedByColumn,
+  resolveCreatedBySnapshot,
+  stripCreatedByFields,
+} from '@/lib/auth/created-by'
 import { createSupabaseClient } from '@/lib/supabase'
 import type { ApprovalCategory } from './categories'
 import type { ApprovalRecord, ApprovalRowPayload } from './types'
@@ -9,11 +15,11 @@ export type FetchApprovalsResult =
 
 export type SaveApprovalResult =
   | { ok: true; id: string; docNumber: string }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 export type DeleteApprovalsResult =
   | { ok: true; deletedCount: number }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 function missingEnvResult(): SaveApprovalResult {
   return {
@@ -60,16 +66,36 @@ export async function createApproval(payload: ApprovalRowPayload): Promise<SaveA
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'approvals', action: 'create' })
+  if (!gate.ok) return gate
+
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    const snap = await resolveCreatedBySnapshot()
+    let insertPayload: Record<string, unknown> = {
+      ...payload,
+      author: payload.author.trim() || snap.createdByName,
+      created_by: snap.createdBy,
+      created_by_name: snap.createdByName,
+    }
+
+    let { data, error } = await supabase
       .from('approvals')
-      .insert(payload)
+      .insert(insertPayload)
       .select('id, doc_number')
       .single()
 
-    if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
+    if (error && isMissingCreatedByColumn(error.message)) {
+      insertPayload = stripCreatedByFields(insertPayload)
+      ;({ data, error } = await supabase
+        .from('approvals')
+        .insert(insertPayload)
+        .select('id, doc_number')
+        .single())
+    }
+
+    if (error || !data) {
+      return { ok: false, reason: 'query', detail: error?.message || '저장에 실패했습니다.' }
     }
 
     return { ok: true, id: data.id, docNumber: data.doc_number }
@@ -86,6 +112,9 @@ export async function updateApproval(id: string, payload: ApprovalRowPayload): P
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'approvals', action: 'update' })
+  if (!gate.ok) return gate
 
   try {
     const supabase = createSupabaseClient()
@@ -118,6 +147,9 @@ export async function deleteApprovals(ids: string[]): Promise<DeleteApprovalsRes
   if (!ids.length) {
     return { ok: true, deletedCount: 0 }
   }
+
+  const gate = await assertCanWrite({ module: 'approvals', action: 'delete' })
+  if (!gate.ok) return gate
 
   try {
     const supabase = createSupabaseClient()

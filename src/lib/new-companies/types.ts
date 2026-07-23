@@ -83,6 +83,7 @@ export type NewCompanyInquiry = {
   sourceChannel: string
   /** 종료 사유 (상태=closed) */
   closeReason: string
+  createdByName: string
   createdAt: string
   updatedAt: string
 }

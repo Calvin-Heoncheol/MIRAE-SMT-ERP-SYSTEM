@@ -9,7 +9,6 @@ type ReportPeriodControlsProps = {
   rangeLabel: string
   prevHref: string
   nextHref: string
-  dayHref: string
   weekHref: string
   monthHref: string
   /** 오른쪽 끝 액션 (EXCEL 버튼 등) */
@@ -24,7 +23,6 @@ export function ReportPeriodControls({
   rangeLabel,
   prevHref,
   nextHref,
-  dayHref,
   weekHref,
   monthHref,
   actions,
@@ -34,7 +32,6 @@ export function ReportPeriodControls({
       <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
         {(
           [
-            { key: 'day', label: '일간', href: dayHref },
             { key: 'week', label: '주간', href: weekHref },
             { key: 'month', label: '월간', href: monthHref },
           ] as const
