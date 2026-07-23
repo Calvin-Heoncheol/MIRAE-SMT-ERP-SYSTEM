@@ -1,5 +1,6 @@
-import type { DipPcbBoard, SmtPcbBoard } from './types'
+import type { DipPcbBoard, SmtPcbBoard, SmtSide } from './types'
 import { defaultDipPcbBoard, defaultSmtPcbBoard } from './utils'
+import { isMultiSideSmt, normalizeSmtSide } from './constants'
 
 export type SmtBoardForm = {
   pcbName: string
@@ -8,7 +9,7 @@ export type SmtBoardForm = {
   smtSpecial: string
   icPin: string
   bga: string
-  smtSide: 'single' | 'double'
+  smtSide: SmtSide
   aoiEnabled: boolean
   pcbWashEnabled: boolean
   smtTopCount: string
@@ -49,7 +50,8 @@ export function defaultDipBoardForm(index = 0): DipBoardForm {
 }
 
 export function smtBoardToForm(board: SmtPcbBoard): SmtBoardForm {
-  const isDouble = board.smtSide === 'double'
+  const smtSide = normalizeSmtSide(board.smtSide)
+  const multi = isMultiSideSmt(smtSide)
 
   return {
     pcbName: board.pcbName,
@@ -58,16 +60,17 @@ export function smtBoardToForm(board: SmtPcbBoard): SmtBoardForm {
     smtSpecial: toNumericField(board.smtSpecial),
     icPin: toNumericField(board.icPin),
     bga: toNumericField(board.bga),
-    smtSide: isDouble ? 'double' : 'single',
+    smtSide,
     aoiEnabled: board.aoiEnabled === true,
     pcbWashEnabled: board.pcbWashEnabled === true,
     smtTopCount: toNumericField(board.smtTopCount),
-    smtBotCount: isDouble ? toNumericField(board.smtBotCount) : '0',
+    smtBotCount: multi ? toNumericField(board.smtBotCount) : '0',
   }
 }
 
 export function smtBoardFormToModel(form: SmtBoardForm): SmtPcbBoard {
-  const isDouble = form.smtSide === 'double'
+  const smtSide = normalizeSmtSide(form.smtSide)
+  const multi = isMultiSideSmt(smtSide)
 
   return {
     pcbName: form.pcbName.trim() || 'PCB',
@@ -76,11 +79,11 @@ export function smtBoardFormToModel(form: SmtBoardForm): SmtPcbBoard {
     smtSpecial: parseNumericField(form.smtSpecial),
     icPin: parseNumericField(form.icPin),
     bga: parseNumericField(form.bga),
-    smtSide: form.smtSide,
+    smtSide,
     aoiEnabled: form.aoiEnabled === true,
     pcbWashEnabled: form.pcbWashEnabled === true,
     smtTopCount: parseNumericField(form.smtTopCount),
-    smtBotCount: isDouble ? parseNumericField(form.smtBotCount) : 0,
+    smtBotCount: multi ? parseNumericField(form.smtBotCount) : 0,
   }
 }
 

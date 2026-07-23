@@ -80,9 +80,11 @@ export function UsersWorkspace({ result }: UsersWorkspaceProps) {
         <p className="mt-2 text-rose-700">{result.detail}</p>
         {result.reason === 'env' ? (
           <p className="mt-3 text-rose-700">
-            Dashboard → Project Settings → API → <code className="font-mono">service_role</code> 키를
-            `.env.local`의 <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code> 에 넣고 개발
-            서버를 재시작하세요.
+            Supabase Dashboard → Project Settings → API →{' '}
+            <code className="font-mono">service_role</code> 키를{' '}
+            <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code> 로 넣으세요. 로컬은{' '}
+            <code className="font-mono">.env.local</code>, 배포는 Vercel Environment Variables에
+            추가한 뒤 재배포하세요. (브라우저/계정 문제가 아닙니다.)
           </p>
         ) : null}
       </div>

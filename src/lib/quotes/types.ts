@@ -3,6 +3,9 @@ export type QuoteType = 'export' | 'domestic'
 /** 해외용 견적서 미리보기·입력 화면 표시 통화 */
 export type QuoteDisplayCurrency = 'usd' | 'krw'
 
+/** SMT 면: 단면 / 듀얼 / 양면 */
+export type SmtSide = 'single' | 'dual' | 'double'
+
 export type SmtPcbBoard = {
   pcbName: string
   chip: number
@@ -10,7 +13,7 @@ export type SmtPcbBoard = {
   bga: number
   smtOdd: number
   smtSpecial: number
-  smtSide: 'single' | 'double'
+  smtSide: SmtSide
   aoiEnabled: boolean
   pcbWashEnabled: boolean
   smtTopCount: number
@@ -50,7 +53,7 @@ export type QuoteDetailInfo = {
   inputs?: {
     smt?: {
       pcbBoards?: SmtPcbBoard[]
-      smtSide?: 'single' | 'double'
+      smtSide?: SmtSide
     }
     dip?: { dipBoards?: DipPcbBoard[] }
     postProcess?: {
@@ -66,6 +69,8 @@ export type QuoteDetailInfo = {
   }
   settings?: {
     materialCostPerUnit?: number
+    /** 메탈마스크 총액 */
+    metalMaskCost?: number
     pcbBoardCount?: number
     specialDiscount?: number
     quoteType?: QuoteType | 'legacy'
@@ -105,6 +110,8 @@ export type QuoteListItem = {
 export type EstimateInput = {
   boardQty?: number | string
   materialCost?: number | string
+  /** 메탈마스크 총액 (단면 11만 / 양면 22만 × PCB 수) */
+  metalMaskCost?: number | string
   postAssembly?: number | string
   postTest?: number | string
   postPacking?: number | string
@@ -114,8 +121,9 @@ export type EstimateInput = {
   dipBoards?: DipPcbBoard[]
   quoteType?: QuoteType
   existingQuoteNumber?: string
+  includeSmd?: boolean
   /** @deprecated legacy single-board fields */
-  smtSide?: 'single' | 'double'
+  smtSide?: SmtSide
   aoiEnabled?: boolean
   pcbWashEnabled?: boolean
   smtTopCount?: number

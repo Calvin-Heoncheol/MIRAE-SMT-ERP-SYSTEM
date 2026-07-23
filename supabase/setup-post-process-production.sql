@@ -44,11 +44,13 @@ drop view if exists public.post_process_production_totals;
 create view public.post_process_production_totals as
 select
   assembly_group_id,
-  coalesce(sum(quantity), 0)::integer as total_quantity
+  coalesce(sum(quantity), 0)::integer as total_quantity,
+  coalesce(sum(defect_quantity), 0)::integer as total_defect_quantity
 from public.post_process_production_records
 group by assembly_group_id;
 
-comment on view public.post_process_production_totals is '후공정 조립 그룹별 누적 양품 수량 (defect_quantity 미포함)';
+comment on view public.post_process_production_totals is
+  '후공정 조립 그룹별 누적 양품(total_quantity)·불량(total_defect_quantity)';
 
 alter table public.post_process_production_records enable row level security;
 

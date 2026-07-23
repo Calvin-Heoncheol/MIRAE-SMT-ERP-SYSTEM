@@ -11,7 +11,7 @@ export function PdfDownloadButton({ onDownload, disabled = false }: PdfDownloadB
       type="button"
       onClick={onDownload}
       disabled={disabled}
-      className="rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+      className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300"
     >
       PDF
     </button>

@@ -27,7 +27,7 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    label: '관리부',
+    label: 'ERP 관리',
     href: '/master/customers',
     adminOnly: true,
     children: [

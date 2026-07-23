@@ -6,7 +6,7 @@ export type PostProcessProductionRecord = {
   assemblyGroupId: string
   /** 양품 수량 */
   quantity: number
-  /** 불량 수량 (진행률·잔량 미포함) */
+  /** 불량 수량 (게이지에 빨간색으로 표시, 잔량·완료 판정에는 미포함) */
   defectQuantity: number
   source: PostProcessProductionSource
   team: string

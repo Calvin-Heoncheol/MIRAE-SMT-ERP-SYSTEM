@@ -10,6 +10,8 @@ type DipPcbBoardFormProps = {
   board: DipBoardForm
   quoteType: QuoteType
   displayCurrency?: QuoteDisplayCurrency
+  boardIndex?: number
+  boardCount?: number
   onChange: (board: DipBoardForm) => void
 }
 
@@ -33,6 +35,8 @@ export function DipPcbBoardForm({
   board,
   quoteType,
   displayCurrency = 'usd',
+  boardIndex = 0,
+  boardCount = 1,
   onChange,
 }: DipPcbBoardFormProps) {
   function patch(patch: Partial<DipBoardForm>) {
@@ -41,7 +45,9 @@ export function DipPcbBoardForm({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-      <p className="mb-3 text-sm font-semibold text-slate-800">■ {board.pcbName}</p>
+      {boardCount > 1 ? (
+        <p className="mb-3 text-sm font-semibold text-slate-800">보드 {boardIndex + 1}</p>
+      ) : null}
 
       <p className="mb-2 text-xs font-semibold text-slate-600">수납땜</p>
       <div className="grid grid-cols-3 gap-3">

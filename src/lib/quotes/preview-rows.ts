@@ -11,7 +11,7 @@ import {
   computeSmtSetupBillingBreakdown,
 } from './calculate-estimate'
 import { formatQuoteMoneyByDisplay, formatQuoteSetupMinutes } from './format'
-import { getPreviewLabels } from './preview-i18n'
+import { getPreviewLabels, resolveLabelQuoteType, type QuoteDocumentLanguage } from './preview-i18n'
 import type {
   DipBoardDetail,
   EstimateResult,
@@ -52,6 +52,7 @@ export type PreviewFormFields = {
   postTest: string | number
   postPacking: string | number
   materialCost: string | number
+  metalMaskCost?: string | number
   assemblyLines?: PreviewPostProcessLine[]
   testLines?: PreviewPostProcessLine[]
   packingLines?: PreviewPostProcessLine[]
@@ -199,8 +200,8 @@ export function buildProcessBreakdownSections(
 ): BreakdownSectionPreview[] {
   const labels = getPreviewLabels(quoteType)
   const definitions: { key: PreviewSection; title: string }[] = [
-    { key: 'smt', title: 'SMT' },
     { key: 'setup', title: 'SET-UP' },
+    { key: 'smt', title: 'SMD' },
     { key: 'post', title: pdfSummarySectionLabel(labels.postProcess, quoteType) },
     { key: 'material', title: pdfSummarySectionLabel(labels.materials, quoteType) },
   ]
@@ -270,6 +271,7 @@ export function previewFormFromQuote(quote: QuoteListItem): PreviewFormFields {
     postTest: input.postTest ?? 0,
     postPacking: input.postPacking ?? 0,
     materialCost: input.materialCost ?? 0,
+    metalMaskCost: input.metalMaskCost ?? 0,
     assemblyLines: post.assemblyLines,
     testLines: post.testLines,
     packingLines: post.packingLines,
@@ -284,8 +286,9 @@ function smtDetailRowsForBoard(
   board: SmtBoardDetail,
   result: EstimateResult,
   quoteType: QuoteType,
+  labelType: QuoteType = quoteType,
 ): PreviewRow[] {
-  const labels = getPreviewLabels(quoteType)
+  const labels = getPreviewLabels(labelType)
   const rates = getSmtUnitRates(quoteType)
   const rows: PreviewRow[] = []
   const useMinPlacementFee = board.laborMinApplied && board.laborMinAdjustment > 0
@@ -351,11 +354,20 @@ function smtDetailRowsForBoard(
   return rows
 }
 
-function inspectionDetailRowsForBoard(board: SmtBoardDetail, quoteType: QuoteType): PreviewRow[] {
+function inspectionDetailRowsForBoard(
+  board: SmtBoardDetail,
+  quoteType: QuoteType,
+  labelType: QuoteType = quoteType,
+): PreviewRow[] {
   if (board.inspectionUnit <= 0) return []
 
-  const labels = getPreviewLabels(quoteType)
-  const sideLabel = board.smtSide === 'double' ? labels.sideDouble : labels.sideSingle
+  const labels = getPreviewLabels(labelType)
+  const sideLabel =
+    board.smtSide === 'dual'
+      ? labels.sideDual
+      : board.smtSide === 'double'
+        ? labels.sideDouble
+        : labels.sideSingle
   const rows: PreviewRow[] = []
 
   if (board.aoiInspectionUnit > 0) {
@@ -386,12 +398,13 @@ function smtSetupDetailRowsForBoard(
   board: SmtBoardDetail,
   result: EstimateResult,
   quoteType: QuoteType,
+  labelType: QuoteType = quoteType,
 ): PreviewRow[] {
   if (board.setupAmount <= 0) return []
 
-  const labels = getPreviewLabels(quoteType)
+  const labels = getPreviewLabels(labelType)
   const qty = result.qty || 1
-  const smtSide = board.smtSide === 'double' ? 'double' : 'single'
+  const smtSide = board.smtSide
   const breakdown = computeSmtSetupBillingBreakdown(board.setupPartCount, smtSide, quoteType)
 
   function setupDetailRow(
@@ -414,25 +427,29 @@ function smtSetupDetailRowsForBoard(
       labels.setupBaseTime,
       labels.setupBaseDesc,
       breakdown.baseMinutes,
-      formatQuoteSetupMinutes(breakdown.baseMinutes, quoteType),
+      formatQuoteSetupMinutes(breakdown.baseMinutes, labelType),
     ),
     setupDetailRow(
       labels.firstArticle,
       labels.setupFirstArticleDesc,
       breakdown.firstArticleMinutes,
-      formatQuoteSetupMinutes(breakdown.firstArticleMinutes, quoteType),
+      formatQuoteSetupMinutes(breakdown.firstArticleMinutes, labelType),
     ),
     setupDetailRow(
       'SETTING',
       labels.setupSettingDesc,
       breakdown.settingMinutes,
-      formatQuoteSetupMinutes(breakdown.settingMinutes, quoteType),
+      formatQuoteSetupMinutes(breakdown.settingMinutes, labelType),
     ),
   ]
 }
 
-function dipDetailRowsForBoard(board: DipBoardDetail, quoteType: QuoteType): PreviewRow[] {
-  const labels = getPreviewLabels(quoteType)
+function dipDetailRowsForBoard(
+  board: DipBoardDetail,
+  quoteType: QuoteType,
+  labelType: QuoteType = quoteType,
+): PreviewRow[] {
+  const labels = getPreviewLabels(labelType)
   const rows: PreviewRow[] = []
   if (board.dipGeneral > 0) {
     rows.push({
@@ -501,8 +518,13 @@ function postProcessDetailDescription(
   return names.length > 0 ? names.join(' · ') : fallback
 }
 
-function postDetailRows(form: PreviewFormFields, indent: number, quoteType: QuoteType): PreviewRow[] {
-  const labels = getPreviewLabels(quoteType)
+function postDetailRows(
+  form: PreviewFormFields,
+  indent: number,
+  quoteType: QuoteType,
+  labelType: QuoteType = quoteType,
+): PreviewRow[] {
+  const labels = getPreviewLabels(labelType)
   const postRate = getPostRate(quoteType)
   const rows: PreviewRow[] = []
   if (Number(form.postAssembly) > 0) {
@@ -542,42 +564,55 @@ function hasPostInputs(form: PreviewFormFields) {
   return Number(form.postAssembly) > 0 || Number(form.postTest) > 0 || Number(form.postPacking) > 0
 }
 
-function previewMaterialRows(result: EstimateResult, form: PreviewFormFields, quoteType: QuoteType): PreviewRow[] {
-  const labels = getPreviewLabels(quoteType)
+function previewMaterialRows(
+  result: EstimateResult,
+  form: PreviewFormFields,
+  quoteType: QuoteType,
+  labelType: QuoteType = quoteType,
+): PreviewRow[] {
+  const labels = getPreviewLabels(labelType)
+  const qty = result.qty || 1
   const materialPerUnit = Number(form.materialCost) || 0
-  const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, result.qty)
-  const hasRaw = materialPerUnit > 0
-  const hasMgmt = result.common.materialManagement > 0
-  if (!hasRaw && !hasMgmt) return []
+  const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, qty)
+  const metalMaskTotal =
+    Number(form.metalMaskCost) || result.common.subMaterial || 0
+  const metalMaskPerUnit = quotePerUnitTotal(metalMaskTotal, qty)
+  const totalPerUnit = materialPerUnit + materialMgmtPerUnit + metalMaskPerUnit
 
   const rows: PreviewRow[] = [
     {
       label: labels.materials,
-      amount: materialPerUnit + materialMgmtPerUnit,
+      amount: totalPerUnit,
       emphasize: true,
       amountEmphasize: true,
       sectionTotal: 'material',
     },
   ]
 
-  if (hasRaw) {
-    rows.push({
-      label: labels.rawMaterial,
-      unit: materialPerUnit,
-      count: labels.oneUnit,
-      amount: materialPerUnit,
-      indent: 1,
-    })
-  }
-  if (hasMgmt) {
-    rows.push({
-      label: labels.managementFee,
-      unit: materialMgmtPerUnit,
-      count: labels.oneUnit,
-      amount: materialMgmtPerUnit,
-      indent: 1,
-    })
-  }
+  rows.push({
+    label: labels.rawMaterial,
+    unit: materialPerUnit,
+    count: labels.oneUnit,
+    amount: materialPerUnit,
+    indent: 1,
+  })
+
+  rows.push({
+    label: labels.metalMask,
+    description: labelType === 'domestic' ? '일회성 비용' : 'One-time charge',
+    unit: metalMaskTotal,
+    count: labels.oneTime,
+    amount: metalMaskPerUnit,
+    indent: 1,
+  })
+
+  rows.push({
+    label: labels.managementFee,
+    unit: materialMgmtPerUnit,
+    count: labels.oneUnit,
+    amount: materialMgmtPerUnit,
+    indent: 1,
+  })
 
   return rows
 }
@@ -586,8 +621,9 @@ function buildBoardCentricPreviewRows(
   result: EstimateResult,
   form: PreviewFormFields,
   quoteType: QuoteType,
+  labelType: QuoteType = quoteType,
 ): PreviewRow[] {
-  const labels = getPreviewLabels(quoteType)
+  const labels = getPreviewLabels(labelType)
   const qty = result.qty || 1
   const pcbCount = result.common.pcbBoardDetails.length
   const singlePcb = pcbCount <= 1
@@ -602,10 +638,10 @@ function buildBoardCentricPreviewRows(
     const inspectionPerUnit = smtBoardInspectionPerUnit(smtBoard)
     const dip = dipBoard?.boardUnit ?? 0
     const boardPost = singlePcb ? postPerUnit : 0
-    const smtDetails = smtDetailRowsForBoard(smtBoard, result, quoteType)
-    const setupDetails = smtSetupDetailRowsForBoard(smtBoard, result, quoteType)
-    const inspectionDetails = inspectionDetailRowsForBoard(smtBoard, quoteType)
-    const dipDetails = dipBoard ? dipDetailRowsForBoard(dipBoard, quoteType) : []
+    const smtDetails = smtDetailRowsForBoard(smtBoard, result, quoteType, labelType)
+    const setupDetails = smtSetupDetailRowsForBoard(smtBoard, result, quoteType, labelType)
+    const inspectionDetails = inspectionDetailRowsForBoard(smtBoard, quoteType, labelType)
+    const dipDetails = dipBoard ? dipDetailRowsForBoard(dipBoard, quoteType, labelType) : []
 
     rows.push({
       label: `■ ${smtBoard.pcbName}`,
@@ -614,18 +650,6 @@ function buildBoardCentricPreviewRows(
       emphasize: true,
       amountEmphasize: true,
     })
-
-    if (smtLabor > 0 || smtDetails.length > 0) {
-      rows.push({
-        label: 'SMD',
-        amount: smtLabor,
-        indent: 1,
-        boardSubtotal: true,
-        emphasize: true,
-        amountEmphasize: true,
-      })
-      rows.push(...smtDetails)
-    }
 
     if (setupPerUnit > 0 || setupDetails.length > 0) {
       rows.push({
@@ -639,15 +663,16 @@ function buildBoardCentricPreviewRows(
       rows.push(...setupDetails)
     }
 
-    if (inspectionPerUnit > 0 || inspectionDetails.length > 0) {
+    if (smtLabor > 0 || smtDetails.length > 0 || inspectionPerUnit > 0 || inspectionDetails.length > 0) {
       rows.push({
-        label: labels.inspection,
-        amount: inspectionPerUnit,
+        label: 'SMD',
+        amount: smtLabor + inspectionPerUnit,
         indent: 1,
         boardSubtotal: true,
         emphasize: true,
         amountEmphasize: true,
       })
+      rows.push(...smtDetails)
       rows.push(...inspectionDetails)
     }
 
@@ -674,7 +699,7 @@ function buildBoardCentricPreviewRows(
         rows.push(...dipDetails.map((row) => ({ ...row, indent: 3 })))
       }
       if (hasBoardPost) {
-        rows.push(...postDetailRows(form, 2, quoteType))
+        rows.push(...postDetailRows(form, 2, quoteType, labelType))
       }
     }
   }
@@ -695,7 +720,7 @@ function buildBoardCentricPreviewRows(
         const dipBoard = result.common.dipBoardDetails[index]
         if (!dipBoard) continue
         const dip = dipBoard.boardUnit ?? 0
-        const dipDetails = dipDetailRowsForBoard(dipBoard, quoteType)
+        const dipDetails = dipDetailRowsForBoard(dipBoard, quoteType, labelType)
         if (dip <= 0 && !dipDetails.length) continue
         rows.push({
           label: labels.soldering,
@@ -709,12 +734,12 @@ function buildBoardCentricPreviewRows(
         rows.push(...dipDetails)
       }
       if (hasSharedPost) {
-        rows.push(...postDetailRows(form, 1, quoteType))
+        rows.push(...postDetailRows(form, 1, quoteType, labelType))
       }
     }
   }
 
-  rows.push(...previewMaterialRows(result, form, quoteType))
+  rows.push(...previewMaterialRows(result, form, quoteType, labelType))
   return rows
 }
 
@@ -722,61 +747,18 @@ function withBoardName(rows: PreviewRow[], pcbName: string): PreviewRow[] {
   return rows.map((row) => ({ ...row, boardName: pcbName }))
 }
 
-/** PDF 세부 산정내역 — SMT / SET-UP / 후공정(납땜 포함) / 자재 */
+/** PDF 세부 산정내역 — SET-UP / SMD / 후공정(납땜 포함) / 자재 */
 export function buildProcessCentricPdfBreakdownRows(
   result: EstimateResult,
   form: PreviewFormFields,
   quoteType: QuoteType,
+  labelType: QuoteType = quoteType,
 ): PreviewRow[] {
-  const labels = getPreviewLabels(quoteType)
+  const labels = getPreviewLabels(labelType)
   const qty = result.qty || 1
   const pcbCount = result.common.pcbBoardDetails.length
   const multiBoard = pcbCount > 1
   const rows: PreviewRow[] = []
-
-  const smtTotal = pdfSmtSectionTotal(result)
-  if (smtTotal > 0) {
-    rows.push({
-      label: pdfSummarySectionLabel('SMT', quoteType),
-      amount: smtTotal,
-      sectionTotal: 'smt',
-      emphasize: true,
-      amountEmphasize: true,
-    })
-
-    for (let index = 0; index < pcbCount; index += 1) {
-      const smtBoard = result.common.pcbBoardDetails[index]
-      const boardName = multiBoard ? smtBoard.pcbName : undefined
-      const smtLabor = smtBoardLaborPerUnit(smtBoard)
-      const inspectionPerUnit = smtBoardInspectionPerUnit(smtBoard)
-      const smtDetails = smtDetailRowsForBoard(smtBoard, result, quoteType)
-      const inspectionDetails = inspectionDetailRowsForBoard(smtBoard, quoteType)
-
-      if (smtLabor > 0 || smtDetails.length > 0) {
-        rows.push({
-          label: 'SMD',
-          amount: null,
-          indent: 1,
-          boardSubtotal: true,
-          emphasize: true,
-          boardName,
-        })
-        rows.push(...(multiBoard ? withBoardName(smtDetails, smtBoard.pcbName) : smtDetails))
-      }
-
-      if (inspectionPerUnit > 0 || inspectionDetails.length > 0) {
-        rows.push({
-          label: labels.inspection,
-          amount: null,
-          indent: 1,
-          boardSubtotal: true,
-          emphasize: true,
-          boardName,
-        })
-        rows.push(...(multiBoard ? withBoardName(inspectionDetails, smtBoard.pcbName) : inspectionDetails))
-      }
-    }
-  }
 
   const setupTotal = pdfSetupSectionTotal(result)
   if (setupTotal > 0) {
@@ -792,7 +774,7 @@ export function buildProcessCentricPdfBreakdownRows(
       const smtBoard = result.common.pcbBoardDetails[index]
       const boardName = multiBoard ? smtBoard.pcbName : undefined
       const setupPerUnit = smtSetupPerUnit(smtBoard.setupAmount, qty)
-      const setupDetails = smtSetupDetailRowsForBoard(smtBoard, result, quoteType)
+      const setupDetails = smtSetupDetailRowsForBoard(smtBoard, result, quoteType, labelType)
       if (setupPerUnit <= 0 && !setupDetails.length) continue
 
       if (multiBoard && setupDetails.length === 0) {
@@ -818,12 +800,58 @@ export function buildProcessCentricPdfBreakdownRows(
     }
   }
 
+  const smtTotal = pdfSmtSectionTotal(result)
+  if (smtTotal > 0) {
+    rows.push({
+      label: pdfSummarySectionLabel('SMD', labelType),
+      amount: smtTotal,
+      sectionTotal: 'smt',
+      emphasize: true,
+      amountEmphasize: true,
+    })
+
+    for (let index = 0; index < pcbCount; index += 1) {
+      const smtBoard = result.common.pcbBoardDetails[index]
+      const boardName = multiBoard ? smtBoard.pcbName : undefined
+      const smtLabor = smtBoardLaborPerUnit(smtBoard)
+      const inspectionPerUnit = smtBoardInspectionPerUnit(smtBoard)
+      const smtDetails = smtDetailRowsForBoard(smtBoard, result, quoteType, labelType)
+      const inspectionDetails = inspectionDetailRowsForBoard(smtBoard, quoteType, labelType)
+      const hasSmdContent =
+        smtLabor > 0 || smtDetails.length > 0 || inspectionPerUnit > 0 || inspectionDetails.length > 0
+      if (!hasSmdContent) continue
+
+      if (multiBoard && smtDetails.length === 0 && inspectionDetails.length === 0) {
+        rows.push({
+          label: '',
+          amount: smtLabor + inspectionPerUnit,
+          boardSubtotal: true,
+          emphasize: true,
+          amountEmphasize: true,
+          boardName,
+        })
+        continue
+      }
+
+      rows.push({
+        label: 'SMD',
+        amount: null,
+        indent: 1,
+        boardSubtotal: true,
+        emphasize: true,
+        boardName,
+      })
+      rows.push(...(multiBoard ? withBoardName(smtDetails, smtBoard.pcbName) : smtDetails))
+      rows.push(...(multiBoard ? withBoardName(inspectionDetails, smtBoard.pcbName) : inspectionDetails))
+    }
+  }
+
   const dipTotal = pdfSolderingSectionTotal(result)
   const postPerUnit = quotePerUnitTotal(result.values.postProcess, qty)
   const postSectionTotal = postPerUnit + dipTotal
   if (postSectionTotal > 0 || hasPostInputs(form) || dipTotal > 0) {
     rows.push({
-      label: pdfSummarySectionLabel(labels.postProcess, quoteType),
+      label: pdfSummarySectionLabel(labels.postProcess, labelType),
       amount: postSectionTotal,
       sectionTotal: 'post',
       emphasize: true,
@@ -846,7 +874,7 @@ export function buildProcessCentricPdfBreakdownRows(
 
         const boardName = multiBoard ? smtBoard.pcbName : undefined
         const dip = dipBoard.boardUnit ?? 0
-        const dipDetails = dipDetailRowsForBoard(dipBoard, quoteType)
+        const dipDetails = dipDetailRowsForBoard(dipBoard, quoteType, labelType)
         if (dip <= 0 && !dipDetails.length) continue
 
         if (multiBoard && !dipDetails.length) {
@@ -872,16 +900,16 @@ export function buildProcessCentricPdfBreakdownRows(
     }
 
     if (postPerUnit > 0 || hasPostInputs(form)) {
-      rows.push(...postDetailRows(form, 1, quoteType))
+      rows.push(...postDetailRows(form, 1, quoteType, labelType))
     }
   }
 
-  const materialRows = previewMaterialRows(result, form, quoteType)
+  const materialRows = previewMaterialRows(result, form, quoteType, labelType)
   if (materialRows.length > 0) {
     const [materialHeader, ...materialDetails] = materialRows
     rows.push({
       ...materialHeader,
-      label: pdfSummarySectionLabel(labels.materials, quoteType),
+      label: pdfSummarySectionLabel(labels.materials, labelType),
     })
     rows.push(...materialDetails)
   }
@@ -889,8 +917,13 @@ export function buildProcessCentricPdfBreakdownRows(
   return rows
 }
 
-export function buildPreviewRows(result: EstimateResult, form: PreviewFormFields, quoteType: QuoteType) {
-  return buildBoardCentricPreviewRows(result, form, quoteType)
+export function buildPreviewRows(
+  result: EstimateResult,
+  form: PreviewFormFields,
+  quoteType: QuoteType,
+  labelType: QuoteType = quoteType,
+) {
+  return buildBoardCentricPreviewRows(result, form, quoteType, labelType)
 }
 
 export type PdfSummaryBreakdownLine = {
@@ -933,22 +966,23 @@ export function buildPdfSummaryBreakdownLines(
   result: EstimateResult,
   form: PreviewFormFields,
   quoteType: QuoteType,
+  labelType: QuoteType = quoteType,
 ): PdfSummaryBreakdownLine[] {
-  const labels = getPreviewLabels(quoteType)
+  const labels = getPreviewLabels(labelType)
   const lines: PdfSummaryBreakdownLine[] = []
-
-  const smt = pdfSmtSectionTotal(result)
-  if (smt > 0) lines.push({ label: pdfSummarySectionLabel('SMT', quoteType), total: smt, section: 'smt' })
 
   const setup = pdfSetupSectionTotal(result)
   if (setup > 0) lines.push({ label: 'SET-UP', total: setup, section: 'setup' })
+
+  const smt = pdfSmtSectionTotal(result)
+  if (smt > 0) lines.push({ label: pdfSummarySectionLabel('SMD', labelType), total: smt, section: 'smt' })
 
   const soldering = pdfSolderingSectionTotal(result)
   const postPerUnit = quotePerUnitTotal(result.values.postProcess, result.qty || 1)
   const postTotal = postPerUnit + soldering
   if (postTotal > 0 || hasPostInputs(form) || soldering > 0) {
     lines.push({
-      label: pdfSummarySectionLabel(labels.postProcess, quoteType),
+      label: pdfSummarySectionLabel(labels.postProcess, labelType),
       total: postTotal,
       section: 'post',
     })
@@ -956,14 +990,16 @@ export function buildPdfSummaryBreakdownLines(
 
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, result.qty || 1)
-  const materials = materialPerUnit + materialMgmtPerUnit
-  if (materials > 0) {
-    lines.push({
-      label: pdfSummarySectionLabel(labels.materials, quoteType),
-      total: materials,
-      section: 'material',
-    })
-  }
+  const metalMaskPerUnit = quotePerUnitTotal(
+    Number(form.metalMaskCost) || result.common.subMaterial || 0,
+    result.qty || 1,
+  )
+  const materials = materialPerUnit + materialMgmtPerUnit + metalMaskPerUnit
+  lines.push({
+    label: pdfSummarySectionLabel(labels.materials, labelType),
+    total: materials,
+    section: 'material',
+  })
 
   return lines
 }
@@ -974,7 +1010,7 @@ export function buildPdfSmtBoardSummaryRows(
   _productName: string,
 ): PdfSummaryBreakdownLine[] {
   const total = pdfSmtSectionTotal(result)
-  return total > 0 ? [{ label: 'SMT', total, section: 'smt' as const }] : []
+  return total > 0 ? [{ label: 'SMD', total, section: 'smt' as const }] : []
 }
 
 /** @deprecated Use buildPdfSummaryBreakdownLines */
@@ -1007,8 +1043,11 @@ export function buildPdfMaterialsBoardSummaryRows(
 ): PdfSummaryBreakdownLine[] {
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, result.qty || 1)
-  const total = materialPerUnit + materialMgmtPerUnit
-  if (total <= 0) return []
+  const metalMaskPerUnit = quotePerUnitTotal(
+    Number(form.metalMaskCost) || result.common.subMaterial || 0,
+    result.qty || 1,
+  )
+  const total = materialPerUnit + materialMgmtPerUnit + metalMaskPerUnit
   return [{ label: 'Materials', total, section: 'material' as const }]
 }
 
@@ -1077,17 +1116,15 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
 
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, qty)
-  const materialRows: PreviewMatrixMaterialRow[] = []
-
-  if (materialPerUnit > 0) {
-    materialRows.push({ label: '원자재', amountPerUnit: materialPerUnit })
-  }
-  if (materialMgmtPerUnit > 0) {
-    materialRows.push({
-      label: '관리비',
-      amountPerUnit: materialMgmtPerUnit,
-    })
-  }
+  const metalMaskPerUnit = quotePerUnitTotal(
+    Number(form.metalMaskCost) || result.common.subMaterial || 0,
+    qty,
+  )
+  const materialRows: PreviewMatrixMaterialRow[] = [
+    { label: '원자재 비용', amountPerUnit: materialPerUnit },
+    { label: '메탈마스크 비용 (일회성)', amountPerUnit: metalMaskPerUnit },
+    { label: '관리비', amountPerUnit: materialMgmtPerUnit },
+  ]
 
   return {
     boardRows,
@@ -1099,16 +1136,21 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
       rowTotalPerUnit: smtPerUnit + setupPerUnit + postPerUnit,
     },
     materialRows,
-    materialTotalPerUnit: materialPerUnit + materialMgmtPerUnit,
+    materialTotalPerUnit: materialPerUnit + materialMgmtPerUnit + metalMaskPerUnit,
     grandPerUnit: result.values.grandTotal / qty,
   }
 }
 
-export function buildQuotePreviewData(quote: QuoteListItem) {
+export function buildQuotePreviewData(
+  quote: QuoteListItem,
+  options?: { labelLanguage?: QuoteDocumentLanguage },
+) {
   const estimate = estimateSavedQuote(quote)
   const form = previewFormFromQuote(quote)
-  const rows = buildPreviewRows(estimate, form, quote.quoteType)
-  const pdfBreakdownRows = buildProcessCentricPdfBreakdownRows(estimate, form, quote.quoteType)
+  const quoteType = quote.quoteType
+  const labelType = resolveLabelQuoteType(quoteType, options?.labelLanguage)
+  const rows = buildPreviewRows(estimate, form, quoteType, labelType)
+  const pdfBreakdownRows = buildProcessCentricPdfBreakdownRows(estimate, form, quoteType, labelType)
   const matrix = buildPreviewMatrix(estimate, form)
-  return { estimate, rows, pdfBreakdownRows, form, matrix }
+  return { estimate, rows, pdfBreakdownRows, form, matrix, labelType }
 }

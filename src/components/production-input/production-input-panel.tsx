@@ -14,7 +14,7 @@ import type { SmtPcbSide } from '@/lib/smt/types'
 import type { ProductionInputConfig, ProductionOrderLine } from '@/lib/production-input/types'
 import {
   formatProductionProductName,
-  getProgressPercent,
+  getStackedProgressWidths,
   resolveProductionSideCount,
 } from '@/lib/production-input/utils'
 import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
@@ -35,8 +35,9 @@ function isSmtPlan(plan: SmtPlanBlock | PostProcessPlanBlock): plan is SmtPlanBl
 type ProductionInputPanelProps = {
   order: ProductionOrderLine | null
   counts: Record<string, number>
+  defectCounts?: Record<string, number>
   config: Pick<ProductionInputConfig, 'qtyInputId' | 'productionModule'>
-  onCountUpdated: (countKey: string, cumulative: number) => void
+  onCountUpdated: (countKey: string, cumulative: number, defectCumulative?: number) => void
   /** SMT 생산입력 — 선택한 라인 번호 */
   lineNo?: number | null
   onLineNoChange?: (lineNo: number | null) => void
@@ -59,6 +60,7 @@ type ProductionInputPanelProps = {
 export function ProductionInputPanel({
   order,
   counts,
+  defectCounts = {},
   config,
   onCountUpdated,
   lineNo = null,
@@ -100,7 +102,13 @@ export function ProductionInputPanel({
         : 'TOP'
       : 'SINGLE'
 
+  const assemblyGroupId = order?.assemblyGroupId || order?.orderLineId || ''
   const orderCumulative = order ? resolveProductionSideCount(order, counts, pcbSide) : 0
+  const orderDefectCumulative = order
+    ? isPostProcess
+      ? Math.max(0, Math.floor(Number(defectCounts[assemblyGroupId] || 0)))
+      : resolveProductionSideCount(order, defectCounts, pcbSide)
+    : 0
   const orderTarget = order ? Math.max(0, Math.floor(order.quantity)) : 0
   const orderRemaining = Math.max(0, orderTarget - orderCumulative)
 
@@ -109,11 +117,11 @@ export function ProductionInputPanel({
   const planRemaining = lockToPlan ? Math.max(0, planTarget - planDone) : 0
 
   const cumulative = lockToPlan ? planDone : orderCumulative
+  const defectCumulative = lockToPlan ? 0 : orderDefectCumulative
   const target = lockToPlan ? planTarget : orderTarget
   const remaining = lockToPlan ? Math.min(planRemaining, orderRemaining) : orderRemaining
-  const progress = getProgressPercent(cumulative, target)
+  const stacked = getStackedProgressWidths(cumulative, defectCumulative, target)
 
-  const assemblyGroupId = order?.assemblyGroupId || order?.orderLineId || ''
   const lineSelected =
     !showLineSelector || lockToPlan || (lineNo != null && lineNo >= 1 && lineNo <= 7)
   const canRegister =
@@ -220,7 +228,7 @@ export function ProductionInputPanel({
         return
       }
 
-      onCountUpdated(assemblyGroupId, result.cumulative)
+      onCountUpdated(assemblyGroupId, result.cumulative, result.defectCumulative)
 
       if (lockToPlan && postProcessPlan && onPlanProgressUpdated && goodQuantity > 0) {
         const progressKey = buildPostProcessPlanProgressKey(
@@ -267,7 +275,7 @@ export function ProductionInputPanel({
     }
 
     const countKey = buildSmtCountKey(order.orderLineId, pcbSide)
-    onCountUpdated(countKey, result.cumulative)
+    onCountUpdated(countKey, result.cumulative, result.defectCumulative)
 
     if (lockToPlan && smtPlan && onPlanProgressUpdated && goodQuantity > 0) {
       const progressKey = buildSmtPlanProgressKey(
@@ -423,9 +431,14 @@ export function ProductionInputPanel({
                 <div className="mt-4 grid grid-cols-2 gap-2.5 border-t border-slate-100 pt-4">
                   {(['TOP', 'BOT'] as const).map((side) => {
                     const sideCumulative = resolveProductionSideCount(order, counts, side)
+                    const sideDefectCumulative = resolveProductionSideCount(order, defectCounts, side)
                     const sideRemaining = Math.max(0, orderTarget - sideCumulative)
                     const selected = activeSide === side
-                    const sideProgress = getProgressPercent(sideCumulative, orderTarget)
+                    const sideStacked = getStackedProgressWidths(
+                      sideCumulative,
+                      sideDefectCumulative,
+                      orderTarget,
+                    )
                     const sideComplete = orderTarget > 0 && sideCumulative >= orderTarget
                     return (
                       <button
@@ -460,17 +473,32 @@ export function ProductionInputPanel({
                           </div>
                         </div>
                         {orderTarget > 0 ? (
-                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white sm:h-2.5">
-                            <div
-                              className={`h-full rounded-full ${sideComplete ? 'bg-emerald-500' : 'bg-sky-500'}`}
-                              style={{ width: `${sideProgress}%` }}
-                            />
+                          <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-white sm:h-2.5">
+                            {sideStacked.goodPercent > 0 ? (
+                              <div
+                                className={`h-full transition-all ${
+                                  sideComplete && sideStacked.defectPercent <= 0
+                                    ? 'bg-emerald-500'
+                                    : 'bg-sky-500'
+                                }`}
+                                style={{ width: `${sideStacked.goodPercent}%` }}
+                              />
+                            ) : null}
+                            {sideStacked.defectPercent > 0 ? (
+                              <div
+                                className="h-full bg-rose-500 transition-all"
+                                style={{ width: `${sideStacked.defectPercent}%` }}
+                              />
+                            ) : null}
                           </div>
                         ) : null}
                         <p className="mt-2 text-xs font-medium text-slate-500">
                           {sideComplete
                             ? '목표 수량을 달성했습니다.'
-                            : `${sideProgress}% 진행 · ${sideRemaining.toLocaleString('ko-KR')}대 더 등록 가능`}
+                            : `${sideStacked.totalPercent}% 진행 · ${sideRemaining.toLocaleString('ko-KR')}대 더 등록 가능`}
+                          {sideDefectCumulative > 0
+                            ? ` · 불량 ${sideDefectCumulative.toLocaleString('ko-KR')}대`
+                            : ''}
                         </p>
                       </button>
                     )
@@ -500,19 +528,32 @@ export function ProductionInputPanel({
                       </div>
                     </div>
                     {target > 0 ? (
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white sm:h-2.5">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            progressComplete ? 'bg-emerald-500' : 'bg-sky-500'
-                          }`}
-                          style={{ width: `${progress}%` }}
-                        />
+                      <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-white sm:h-2.5">
+                        {stacked.goodPercent > 0 ? (
+                          <div
+                            className={`h-full transition-all ${
+                              progressComplete && stacked.defectPercent <= 0
+                                ? 'bg-emerald-500'
+                                : 'bg-sky-500'
+                            }`}
+                            style={{ width: `${stacked.goodPercent}%` }}
+                          />
+                        ) : null}
+                        {stacked.defectPercent > 0 ? (
+                          <div
+                            className="h-full bg-rose-500 transition-all"
+                            style={{ width: `${stacked.defectPercent}%` }}
+                          />
+                        ) : null}
                       </div>
                     ) : null}
                     <p className="mt-2 text-xs font-medium text-slate-500">
                       {progressComplete
                         ? '목표 수량을 달성했습니다.'
-                        : `${progress}% 진행 · ${remaining.toLocaleString('ko-KR')}대 더 등록 가능`}
+                        : `${stacked.totalPercent}% 진행 · ${remaining.toLocaleString('ko-KR')}대 더 등록 가능`}
+                      {defectCumulative > 0
+                        ? ` · 불량 ${defectCumulative.toLocaleString('ko-KR')}대`
+                        : ''}
                     </p>
                   </div>
                 </div>
@@ -524,7 +565,7 @@ export function ProductionInputPanel({
               <p className="mt-0.5 text-xs text-slate-500">
                 {isGoodMode
                   ? '양품은 진행률·남은 수량에 반영됩니다.'
-                  : '불량은 이력에만 기록되며, 남은 수량 제한을 받지 않습니다.'}
+                  : '불량은 게이지에 빨간색으로 표시되며, 남은 수량 제한을 받지 않습니다.'}
               </p>
 
               <div

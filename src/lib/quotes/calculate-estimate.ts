@@ -10,7 +10,10 @@ import {
   getSmtSetupRate,
   getSmtPlacementMinFee,
   getSmtUnitRates,
+  isMultiSideSmt,
+  normalizeSmtSide,
   RAW_MATERIAL_MANAGEMENT_RATE,
+  toBillingSmtSide,
 } from './constants'
 import type {
   DipBoardDetail,
@@ -20,6 +23,7 @@ import type {
   QuoteType,
   SmtBoardDetail,
   SmtPcbBoard,
+  SmtSide,
 } from './types'
 
 type SmtComponentFields = Pick<SmtPcbBoard, 'chip' | 'icPin' | 'bga' | 'smtOdd' | 'smtSpecial'>
@@ -55,7 +59,7 @@ function computeSmtOtherLabor(
 }
 
 function computeBoardInspection(board: SmtPcbBoard, quoteType: QuoteType = 'export') {
-  const smtSide = board.smtSide === 'double' ? 'double' : 'single'
+  const smtSide = toBillingSmtSide(board.smtSide)
   const aoiInspectionUnit = board.aoiEnabled ? getAoiUnit(smtSide) : 0
   const pcbWashUnit =
     quoteType === 'domestic' && board.pcbWashEnabled ? PCB_WASH_UNIT : 0
@@ -99,10 +103,9 @@ function hasSmtComponentInputs(input: SmtComponentFields) {
 }
 
 export function getSmtSetupPartCount(board: Pick<SmtPcbBoard, 'smtSide' | 'smtTopCount' | 'smtBotCount'>) {
-  const smtSide = board.smtSide === 'double' ? 'double' : 'single'
   const top = Number(board.smtTopCount) || 0
   const bot = Number(board.smtBotCount) || 0
-  return smtSide === 'double' ? top + bot : top
+  return isMultiSideSmt(board.smtSide) ? top + bot : top
 }
 
 export type SmtSetupBillingBreakdown = {
@@ -116,7 +119,7 @@ export type SmtSetupBillingBreakdown = {
 /** SET-UP 청구 분 = 기본시간 + 초품검사(종당 20초) + SETTING(국내 종당 2분 / 해외 종당 3분) */
 export function computeSmtSetupBillingBreakdown(
   partCount: number,
-  smtSide: 'single' | 'double',
+  smtSide: SmtSide | 'single' | 'double',
   quoteType: QuoteType = 'export',
 ): SmtSetupBillingBreakdown {
   const count = Math.max(0, Math.floor(Number(partCount) || 0))
@@ -138,13 +141,13 @@ export function computeSmtSetupBillingBreakdown(
 
 export function computeSmtSetupBillingMinutes(
   partCount: number,
-  smtSide: 'single' | 'double',
+  smtSide: SmtSide | 'single' | 'double',
   quoteType: QuoteType = 'export',
 ): number {
   return computeSmtSetupBillingBreakdown(partCount, smtSide, quoteType).totalMinutes
 }
 
-function computeSmtSetup(partCount: number, quoteType: QuoteType, smtSide: 'single' | 'double') {
+function computeSmtSetup(partCount: number, quoteType: QuoteType, smtSide: SmtSide | 'single' | 'double') {
   const count = Math.max(0, Math.floor(Number(partCount) || 0))
   if (count <= 0) {
     return { setupMinutes: 0, setupAmount: 0, setupMinApplied: false, setupRate: 0 }
@@ -208,7 +211,7 @@ export function normalizeSmtPcbBoards(data: EstimateInput): SmtPcbBoard[] {
       const comp = readSmtBoardComponentFields(board)
       return {
         pcbName: String(board.pcbName || `PCB ${index + 1}`).trim() || `PCB ${index + 1}`,
-        smtSide: board.smtSide === 'double' ? 'double' : 'single',
+        smtSide: normalizeSmtSide(board.smtSide),
         aoiEnabled: board.aoiEnabled === true,
         pcbWashEnabled: board.pcbWashEnabled === true,
         smtTopCount: Number(board.smtTopCount) || 0,
@@ -221,7 +224,7 @@ export function normalizeSmtPcbBoards(data: EstimateInput): SmtPcbBoard[] {
   return [
     {
       pcbName: 'PCB 1',
-      smtSide: data.smtSide === 'double' ? 'double' : 'single',
+      smtSide: normalizeSmtSide(data.smtSide),
       aoiEnabled: data.aoiEnabled === true,
       pcbWashEnabled: data.pcbWashEnabled === true,
       smtTopCount: Number(data.smtTopCount) || 0,
@@ -288,7 +291,7 @@ export function aggregateSmtFromPcbBoards(pcbBoards: SmtPcbBoard[], quoteType: Q
     if (lab.smtLaborMinApplied) anyLaborMin = true
     inspectionUnit += inspection.inspectionUnit
 
-    const smtSide = board.smtSide === 'double' ? 'double' : 'single'
+    const smtSide = toBillingSmtSide(board.smtSide)
     const partCount = getSmtSetupPartCount(board)
     const setup = computeSmtSetup(partCount, quoteType, smtSide)
     const setupMinutes = setup.setupMinutes
@@ -383,6 +386,7 @@ export function calculateEstimate(
   const postPacking = Number(data.postPacking) || 0
   const postProcessUnit = (postAssembly + postTest + postPacking) * getPostRate(quoteType)
   const matUnit = Number(data.materialCost) || 0
+  const metalMaskTotal = Math.max(0, Number(data.metalMaskCost) || 0)
 
   const matTotalRaw = matUnit * qty
   const smtTotal = smtUnit * qty + smtSetupAmount + smtInspectionPerUnit * qty
@@ -392,7 +396,8 @@ export function calculateEstimate(
   const materialManagementTotal =
     matTotalRaw > 0 ? matTotalRaw * RAW_MATERIAL_MANAGEMENT_RATE : 0
 
-  const subtotalBeforeDiscount = laborFinal + matTotalRaw + materialManagementTotal
+  const subtotalBeforeDiscount =
+    laborFinal + matTotalRaw + materialManagementTotal + metalMaskTotal
   let specialDiscount = Math.max(0, Number(data.specialDiscount) || 0)
   if (specialDiscount > subtotalBeforeDiscount) specialDiscount = subtotalBeforeDiscount
   const grandTotal = subtotalBeforeDiscount - specialDiscount
@@ -423,7 +428,7 @@ export function calculateEstimate(
       pcbBoardCount: Number(data.pcbBoardCount) || pcbBoards.length,
       pcbBoardDetails: smtAgg.boardDetails,
       dipBoardDetails: dipAgg.boardDetails,
-      subMaterial: 0,
+      subMaterial: metalMaskTotal,
       materialManagement: materialManagementTotal,
       specialDiscount,
       subtotalBeforeDiscount,

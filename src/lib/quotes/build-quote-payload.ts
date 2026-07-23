@@ -15,6 +15,7 @@ export type QuoteFormSnapshot = {
   boardQty: string
   pcbBoardCount: string
   materialCost: string
+  metalMaskCost: string
   /** @deprecated 합계는 assemblyLines 등에서 산출. 하위호환용 */
   postAssembly?: string
   postTest?: string
@@ -51,6 +52,7 @@ export function buildQuoteDetailInfo(
   const d0 = dipBoards[0]
   const qty = result.qty || 0
   const materialCostPerUnit = Number(form.materialCost) || 0
+  const metalMaskCost = Number(form.metalMaskCost) || 0
   const includeDip = form.includeDip !== false
   const assemblyLines: PostProcessLine[] =
     includeDip && form.assemblyLines ? postProcessLinesToModels(form.assemblyLines) : []
@@ -84,7 +86,7 @@ export function buildQuoteDetailInfo(
       materialCost: materialCostPerUnit * qty,
       materialManagementCost: result.common.materialManagement,
       setupCost: result.common.smtSetup,
-      subMaterialCost: result.common.subMaterial,
+      subMaterialCost: metalMaskCost,
     },
     inputs: {
       smt: {
@@ -128,6 +130,7 @@ export function buildQuoteDetailInfo(
     },
     settings: {
       materialCostPerUnit,
+      metalMaskCost,
       smtIncludesSetup: true,
       pcbBoardCount: Number(form.pcbBoardCount) || pcbBoards.length,
       specialDiscount: Number(form.specialDiscount) || 0,

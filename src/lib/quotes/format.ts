@@ -10,6 +10,11 @@ function roundExportSummaryUsd(usd: number) {
   return Math.round(usd * factor) / factor
 }
 
+/** 국내용 대당·합계 — 원 단위 반올림 */
+export function roundDomesticKrw(krw: number) {
+  return Math.round(Number(krw) || 0)
+}
+
 export function formatUsdAmount(usd: number, fractionDigits = EXPORT_USD_FRACTION_DIGITS) {
   return `$${usd.toLocaleString('en-US', {
     minimumFractionDigits: fractionDigits,
@@ -37,11 +42,10 @@ export function formatExportUnitPrice(usd: number) {
 }
 
 export function formatQuoteKrw(krw: number) {
-  const value = Number(krw) || 0
-  const isWhole = Math.abs(value - Math.round(value)) < 1e-9
+  const value = roundDomesticKrw(krw)
   return `₩${value.toLocaleString('ko-KR', {
-    minimumFractionDigits: isWhole ? 0 : 2,
-    maximumFractionDigits: isWhole ? 0 : 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   })}`
 }
 
@@ -58,17 +62,15 @@ export function formatQuoteUsd(krw: number) {
   return formatUsdAmount(krwToUsd(krw))
 }
 
-/** 해외용 1페이지 요약: 합계(USD) 기준으로 단가를 역산해 검산 오차를 최소화 */
+/** 해외용 요약: 대당·합계 소수점 2자리 */
 export function exportSummaryFromKrw(grandTotalKrw: number, qty: number) {
-  const totalUsd = krwToUsd(grandTotalKrw)
-  const safeQty = qty || 1
-  const unitUsd = roundUsd(totalUsd / safeQty)
+  const { unitUsd, totalUsd } = exportPage1SummaryAmounts(grandTotalKrw, qty)
 
   return {
     totalUsd,
     unitUsd,
-    totalFormatted: formatUsdAmount(totalUsd),
-    unitFormatted: formatUsdAmount(unitUsd),
+    totalFormatted: formatExportSummaryUsd(totalUsd),
+    unitFormatted: formatExportSummaryUsd(unitUsd),
   }
 }
 
@@ -97,6 +99,14 @@ export function formatQuoteMoneyUnit(krw: number, quoteType?: QuoteType) {
   return quoteType === 'export' ? formatQuoteUsd(krw) : formatQuoteKrw(krw)
 }
 
+/** 국내용 대당·합계 요약 (원 단위 반올림) */
+export function domesticPage1SummaryAmounts(grandTotalKrw: number, qty: number) {
+  const safeQty = qty || 1
+  const totalKrw = roundDomesticKrw(grandTotalKrw)
+  const unitKrw = roundDomesticKrw(totalKrw / safeQty)
+  return { unitKrw, totalKrw }
+}
+
 export function formatQuotePreviewSummary(
   grandTotalKrw: number,
   qty: number,
@@ -105,6 +115,14 @@ export function formatQuotePreviewSummary(
 ) {
   if (quoteType === 'export' && resolveQuoteDisplayCurrency(quoteType, displayCurrency) === 'usd') {
     return exportSummaryFromKrw(grandTotalKrw, qty)
+  }
+
+  if (quoteType === 'domestic') {
+    const { unitKrw, totalKrw } = domesticPage1SummaryAmounts(grandTotalKrw, qty)
+    return {
+      unitFormatted: formatQuoteKrw(unitKrw),
+      totalFormatted: formatQuoteKrw(totalKrw),
+    }
   }
 
   const safeQty = qty || 1

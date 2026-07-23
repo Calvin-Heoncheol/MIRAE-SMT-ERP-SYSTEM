@@ -81,6 +81,9 @@ export function ProductionInputWorkspace({
   const [counts, setCounts] = useState<Record<string, number>>(() =>
     result.ok ? result.data.counts : {},
   )
+  const [defectCounts, setDefectCounts] = useState<Record<string, number>>(() =>
+    result.ok ? result.data.defectCounts : {},
+  )
   const [planProgress, setPlanProgress] = useState<Record<string, number>>(initialPlanProgress)
 
   const isPostProcess = config.productionModule === 'post_process'
@@ -225,6 +228,7 @@ export function ProductionInputWorkspace({
         <ProductionInputPanel
           order={selectedOrder}
           counts={counts}
+          defectCounts={defectCounts}
           config={config}
           showPostProcessPlanSelector
           postProcessTeam={selectedTeam}
@@ -239,8 +243,11 @@ export function ProductionInputWorkspace({
           plan={selectedPostProcessPlan ?? null}
           planProduced={planProduced}
           planSetupHref={`/post-process/plan?team=${encodeURIComponent(selectedTeam)}`}
-          onCountUpdated={(countKey, cumulative) => {
+          onCountUpdated={(countKey, cumulative, defectCumulative) => {
             setCounts((current) => ({ ...current, [countKey]: cumulative }))
+            if (defectCumulative != null) {
+              setDefectCounts((current) => ({ ...current, [countKey]: defectCumulative }))
+            }
           }}
           onPlanProgressUpdated={(progressKey, produced) => {
             setPlanProgress((current) => ({ ...current, [progressKey]: produced }))
@@ -260,6 +267,7 @@ export function ProductionInputWorkspace({
         <ProductionInputPanel
           order={selectedOrder}
           counts={counts}
+          defectCounts={defectCounts}
           config={config}
           showLineSelector
           lineNo={selectedLineNo}
@@ -275,8 +283,11 @@ export function ProductionInputWorkspace({
           plan={selectedSmtPlan ?? null}
           planProduced={planProduced}
           planSetupHref="/smt/plan"
-          onCountUpdated={(countKey, cumulative) => {
+          onCountUpdated={(countKey, cumulative, defectCumulative) => {
             setCounts((current) => ({ ...current, [countKey]: cumulative }))
+            if (defectCumulative != null) {
+              setDefectCounts((current) => ({ ...current, [countKey]: defectCumulative }))
+            }
           }}
           onPlanProgressUpdated={(progressKey, produced) => {
             setPlanProgress((current) => ({ ...current, [progressKey]: produced }))
@@ -300,14 +311,18 @@ export function ProductionInputWorkspace({
         <ProductionInputPanel
           order={selectedOrder}
           counts={counts}
+          defectCounts={defectCounts}
           config={config}
           showLineSelector={!isPostProcess}
           lineNo={!isPostProcess ? selectedLineNo : null}
           onLineNoChange={!isPostProcess ? handleSelectLine : undefined}
           postProcessTeam={isPostProcess ? selectedTeam : undefined}
           emptyPlanHint={selectedKey ? undefined : '주문서를 선택하세요'}
-          onCountUpdated={(countKey, cumulative) => {
+          onCountUpdated={(countKey, cumulative, defectCumulative) => {
             setCounts((current) => ({ ...current, [countKey]: cumulative }))
+            if (defectCumulative != null) {
+              setDefectCounts((current) => ({ ...current, [countKey]: defectCumulative }))
+            }
           }}
         />
       </div>

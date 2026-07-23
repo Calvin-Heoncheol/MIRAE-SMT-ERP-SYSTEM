@@ -1,4 +1,22 @@
-import type { QuoteType } from './types'
+import type { QuoteType, SmtSide } from './types'
+
+export const SMT_SIDES: SmtSide[] = ['single', 'dual', 'double']
+
+export function normalizeSmtSide(value: unknown): SmtSide {
+  if (value === 'dual' || value === 'double' || value === 'single') return value
+  return 'single'
+}
+
+/** 듀얼·양면은 2차면(BOT) 종수·양면 단가 적용 */
+export function isMultiSideSmt(side: SmtSide | string | undefined) {
+  const normalized = normalizeSmtSide(side)
+  return normalized === 'dual' || normalized === 'double'
+}
+
+/** 단가·기본시간 계산용 — 듀얼은 양면과 동일 */
+export function toBillingSmtSide(side: SmtSide | string | undefined): 'single' | 'double' {
+  return isMultiSideSmt(side) ? 'double' : 'single'
+}
 
 export const QUOTE_KRW_PER_USD = 1350
 
@@ -88,8 +106,26 @@ export const DIP_UNIT = {
   waveWire: 350,
 } as const
 
-/** 관리비: 원자재 원가의 10% */
+/** 관리비: 원자재 비용의 10% */
 export const RAW_MATERIAL_MANAGEMENT_RATE = 0.1
+
+/** 메탈마스크: 단면 */
+export const METAL_MASK_COST_SINGLE = 110_000
+/** 메탈마스크: 양면 */
+export const METAL_MASK_COST_DOUBLE = 220_000
+
+export function metalMaskCostForSide(side: SmtSide | string | undefined) {
+  return toBillingSmtSide(side) === 'double' ? METAL_MASK_COST_DOUBLE : METAL_MASK_COST_SINGLE
+}
+
+/** PCB별 메탈마스크 비용 합계 (단면 11만 / 듀얼·양면 22만) */
+export function computeMetalMaskCostTotal(
+  boards: Array<{ smtSide?: SmtSide | string }>,
+  includeSmd = true,
+) {
+  if (!includeSmd || boards.length === 0) return 0
+  return boards.reduce((sum, board) => sum + metalMaskCostForSide(board.smtSide), 0)
+}
 
 export function getSmtPlacementMinFee(quoteType: QuoteType) {
   return quoteType === 'domestic' ? SMT_PLACEMENT_MIN_FEE_DOMESTIC : SMT_PLACEMENT_MIN_FEE_EXPORT
@@ -129,24 +165,25 @@ export function getSmtUnitRates(quoteType: QuoteType) {
 }
 
 export function getSmtSetupBaseMinutes(
-  smtSide: 'single' | 'double',
+  smtSide: SmtSide | 'single' | 'double',
   quoteType: QuoteType = 'export',
 ) {
+  const billingSide = toBillingSmtSide(smtSide)
   if (quoteType === 'domestic') {
-    return smtSide === 'double'
+    return billingSide === 'double'
       ? SMT_SETUP_BASE_MINUTES_DOUBLE_DOMESTIC
       : SMT_SETUP_BASE_MINUTES_SINGLE_DOMESTIC
   }
-  return smtSide === 'double'
+  return billingSide === 'double'
     ? SMT_SETUP_BASE_MINUTES_DOUBLE_EXPORT
     : SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT
 }
 
-export function getAoiUnit(smtSide: 'single' | 'double') {
-  return smtSide === 'double' ? AOI_UNIT * 2 : AOI_UNIT
+export function getAoiUnit(smtSide: SmtSide | 'single' | 'double') {
+  return toBillingSmtSide(smtSide) === 'double' ? AOI_UNIT * 2 : AOI_UNIT
 }
 
 /** @deprecated getAoiUnit 사용 */
-export function getBoardInspectionUnit(smtSide: 'single' | 'double') {
+export function getBoardInspectionUnit(smtSide: SmtSide | 'single' | 'double') {
   return getAoiUnit(smtSide)
 }

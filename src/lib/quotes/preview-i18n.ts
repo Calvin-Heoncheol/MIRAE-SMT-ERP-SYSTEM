@@ -1,5 +1,17 @@
 import type { QuoteType } from './types'
 
+export type QuoteDocumentLanguage = 'ko' | 'en'
+
+/** PDF·미리보기 문구용 타입 (금액 계산 quoteType 과 분리 가능) */
+export function resolveLabelQuoteType(
+  quoteType: QuoteType,
+  language?: QuoteDocumentLanguage,
+): QuoteType {
+  if (language === 'en') return 'export'
+  if (language === 'ko') return 'domestic'
+  return quoteType
+}
+
 export type PreviewLabels = {
   title: string
   colItem: string
@@ -37,12 +49,14 @@ export type PreviewLabels = {
   rawMaterial: string
   managementFee: string
   subMaterial: string
+  metalMask: string
   setupBaseTime: string
   firstArticle: string
   setupBaseDesc: string
   setupFirstArticleDesc: string
   setupSettingDesc: string
   sideSingle: string
+  sideDual: string
   sideDouble: string
   dipGeneral: string
   dipConnector: string
@@ -52,6 +66,7 @@ export type PreviewLabels = {
   waveWire: string
   onePcb: string
   oneUnit: string
+  oneTime: string
   minPlacementDesc: (score: number, threshold: number) => string
   partsCount: (count: number) => string
   minutesCount: (minutes: number | string) => string
@@ -92,15 +107,17 @@ const DOMESTIC_LABELS: PreviewLabels = {
   testDesc: '경사도 · 화이트밸런스 · MSR',
   packingDesc: '액세서리 · 제품',
   materials: '자재',
-  rawMaterial: '원자재',
+  rawMaterial: '원자재 비용',
   managementFee: '관리비',
-  subMaterial: '부자재',
+  subMaterial: '메탈마스크 비용 (일회성)',
+  metalMask: '메탈마스크 비용 (일회성)',
   setupBaseTime: '기본시간',
   firstArticle: '초품검사',
   setupBaseDesc: 'Loader/Unloader · Screen Print & SPI · Reflow Profile 측정',
   setupFirstArticleDesc: 'BOM 실장 확인 및 LCR 측정',
   setupSettingDesc: '부품 피더 장착 및 좌표확인',
   sideSingle: '단면',
+  sideDual: '듀얼',
   sideDouble: '양면',
   dipGeneral: '수납땜 소형(1~3PIN)',
   dipConnector: '수납땜 중형(4~10PIN)',
@@ -110,6 +127,7 @@ const DOMESTIC_LABELS: PreviewLabels = {
   waveWire: 'WAVE 대형(10PIN+)',
   onePcb: '1 PCB',
   oneUnit: '1대',
+  oneTime: '1회',
   minPlacementDesc: (score, threshold) => `${score}점 · ${threshold}점 이하`,
   partsCount: (count) => `${count}개`,
   minutesCount: (minutes) => `${minutes}분`,
@@ -150,15 +168,17 @@ const EXPORT_LABELS: PreviewLabels = {
   testDesc: 'Slope · White Balance · MSR',
   packingDesc: 'Accessories · Product',
   materials: 'Materials',
-  rawMaterial: 'Raw Material',
+  rawMaterial: 'Raw Material Cost',
   managementFee: 'Management Fee',
-  subMaterial: 'Sub-Material',
+  subMaterial: 'Metal Mask Cost (one-time)',
+  metalMask: 'Metal Mask Cost (one-time)',
   setupBaseTime: 'Base Time',
   firstArticle: 'First Article Inspection',
   setupBaseDesc: 'Loader/Unloader · Screen Print & SPI · Reflow Profile',
   setupFirstArticleDesc: 'BOM verification & LCR measurement',
   setupSettingDesc: 'Feeder setup & coordinate verification',
   sideSingle: 'Single-sided',
+  sideDual: 'Dual',
   sideDouble: 'Double-sided',
   dipGeneral: 'Hand Solder Small (1-3 PIN)',
   dipConnector: 'Hand Solder Medium (4-10 PIN)',
@@ -168,6 +188,7 @@ const EXPORT_LABELS: PreviewLabels = {
   waveWire: 'Wave Large (10+ PIN)',
   onePcb: '1 PCB',
   oneUnit: '1 unit',
+  oneTime: '1 time',
   minPlacementDesc: (score, threshold) => `${score} pts · ≤${threshold} pts`,
   partsCount: (count) => `${count} pcs`,
   minutesCount: (minutes) => `${minutes} min`,

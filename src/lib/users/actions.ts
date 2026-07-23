@@ -93,7 +93,7 @@ export async function fetchErpUsers(): Promise<FetchErpUsersResult> {
         ok: false,
         reason: 'env',
         detail:
-          'SUPABASE_SERVICE_ROLE_KEY 가 없습니다. .env.local 에 service_role 키를 추가한 뒤 개발 서버를 재시작하세요.',
+          '서버에 SUPABASE_SERVICE_ROLE_KEY 가 없습니다. 로컬은 .env.local, 배포(Vercel 등)는 Environment Variables 에 service_role 키를 넣고 재배포하세요.',
       }
     }
 
@@ -123,7 +123,7 @@ export async function createErpUser(input: CreateErpUserInput): Promise<MutateEr
       ok: false,
       reason: 'env',
       detail:
-        'SUPABASE_SERVICE_ROLE_KEY 가 없습니다. .env.local 에 service_role 키를 추가한 뒤 개발 서버를 재시작하세요.',
+        '서버에 SUPABASE_SERVICE_ROLE_KEY 가 없습니다. 로컬은 .env.local, 배포(Vercel 등)는 Environment Variables 에 service_role 키를 넣고 재배포하세요.',
     }
   }
 
@@ -214,7 +214,7 @@ export async function updateErpUser(input: UpdateErpUserInput): Promise<MutateEr
       ok: false,
       reason: 'env',
       detail:
-        'SUPABASE_SERVICE_ROLE_KEY 가 없습니다. .env.local 에 service_role 키를 추가한 뒤 개발 서버를 재시작하세요.',
+        '서버에 SUPABASE_SERVICE_ROLE_KEY 가 없습니다. 로컬은 .env.local, 배포(Vercel 등)는 Environment Variables 에 service_role 키를 넣고 재배포하세요.',
     }
   }
 
@@ -298,7 +298,7 @@ export async function deleteErpUser(userId: string): Promise<MutateErpUserResult
       ok: false,
       reason: 'env',
       detail:
-        'SUPABASE_SERVICE_ROLE_KEY 가 없습니다. .env.local 에 service_role 키를 추가한 뒤 개발 서버를 재시작하세요.',
+        '서버에 SUPABASE_SERVICE_ROLE_KEY 가 없습니다. 로컬은 .env.local, 배포(Vercel 등)는 Environment Variables 에 service_role 키를 넣고 재배포하세요.',
     }
   }
 

@@ -7,8 +7,8 @@ import {
   COMPANY_QUOTE_EMAIL_DOMESTIC,
   COMPANY_QUOTE_EMAIL_EXPORT,
 } from '@/lib/app-config'
-import { exportPage1SummaryAmounts, formatExportSummaryUsd, formatQuoteMoneyTotal, formatQuoteValidityText } from './format'
-import { getPreviewLabels } from './preview-i18n'
+import { exportPage1SummaryAmounts, formatExportSummaryUsd, formatQuoteMoneyTotal, formatQuoteValidityText, domesticPage1SummaryAmounts, formatQuoteKrw } from './format'
+import { getPreviewLabels, resolveLabelQuoteType, type QuoteDocumentLanguage } from './preview-i18n'
 import {
   breakdownBoardColLabel,
   buildPdfSummaryBreakdownLines,
@@ -28,6 +28,15 @@ import {
   type PreviewSection,
 } from './preview-rows'
 import type { QuoteListItem, QuoteType } from './types'
+
+export type ExportQuotePdfOptions = {
+  /** 국내용도 영문 문구로 PDF 출력 가능 */
+  language?: QuoteDocumentLanguage
+}
+
+function pdfLabelType(quote: QuoteListItem, language?: QuoteDocumentLanguage): QuoteType {
+  return resolveLabelQuoteType(quote.quoteType, language)
+}
 
 function escapeHtml(value: string) {
   return value
@@ -65,15 +74,15 @@ function buildSummaryBreakdownLineRowHtml(line: PdfSummaryBreakdownLine, quoteTy
   </tr>`
 }
 
-function buildSummaryBreakdownTableHtml(quote: QuoteListItem) {
-  const { estimate, form } = buildQuotePreviewData(quote)
-  const lines = buildPdfSummaryBreakdownLines(estimate, form, quote.quoteType)
+function buildSummaryBreakdownTableHtml(quote: QuoteListItem, language?: QuoteDocumentLanguage) {
+  const { estimate, form, labelType } = buildQuotePreviewData(quote, { labelLanguage: language })
+  const lines = buildPdfSummaryBreakdownLines(estimate, form, quote.quoteType, labelType)
   if (!lines.length) return ''
 
-  const isDomestic = quote.quoteType === 'domestic'
-  const itemLabel = isDomestic ? '항목' : 'ITEM'
-  const amountLabel = isDomestic ? '대당 합계' : 'PER UNIT'
-  const totalLabel = isDomestic ? '합계' : 'TOTAL'
+  const isKorean = labelType === 'domestic'
+  const itemLabel = isKorean ? '항목' : 'ITEM'
+  const amountLabel = isKorean ? '대당 합계' : 'PER UNIT'
+  const totalLabel = isKorean ? '합계' : 'TOTAL'
   const grandTotal = lines.reduce((sum, line) => sum + line.total, 0)
 
   return `<table class="quote-table board-details-table board-summary-table summary-breakdown-table">
@@ -97,8 +106,8 @@ function buildSummaryBreakdownTableHtml(quote: QuoteListItem) {
   </table>`
 }
 
-function buildBoardDetailsTableHtml(quote: QuoteListItem) {
-  const table = buildSummaryBreakdownTableHtml(quote)
+function buildBoardDetailsTableHtml(quote: QuoteListItem, language?: QuoteDocumentLanguage) {
+  const table = buildSummaryBreakdownTableHtml(quote, language)
   if (!table) return ''
 
   return `<div class="breakdown-sections board-details-groups">${table}</div>`
@@ -188,15 +197,20 @@ function buildPreviewRowHtml(
 function buildQuoteBreakdownTableHtml(
   rows: PreviewRow[],
   quoteType: QuoteType,
-  options: { variant?: 'default' | 'board-summary'; continuous?: boolean; showBoardColumn?: boolean } = {},
+  options: {
+    variant?: 'default' | 'board-summary'
+    continuous?: boolean
+    showBoardColumn?: boolean
+    labelType?: QuoteType
+  } = {},
 ) {
-  const { variant = 'default', continuous = false, showBoardColumn = false } = options
-  const labels = getPreviewLabels(quoteType)
+  const { variant = 'default', continuous = false, showBoardColumn = false, labelType = quoteType } = options
+  const labels = getPreviewLabels(labelType)
   const tableClass =
     variant === 'board-summary'
       ? 'quote-table line-items-table board-summary-table'
       : 'quote-table line-items-table'
-  const boardHeader = showBoardColumn ? `<th class="breakdown-col-board">${breakdownBoardColLabel(quoteType)}</th>` : ''
+  const boardHeader = showBoardColumn ? `<th class="breakdown-col-board">${breakdownBoardColLabel(labelType)}</th>` : ''
   const tableHead = `<thead>
       <tr>
         ${boardHeader}
@@ -256,10 +270,11 @@ function buildBreakdownSectionHtml(
   quoteType: QuoteType,
   sectionKey: PreviewSection,
   modifier = '',
+  labelType: QuoteType = quoteType,
 ) {
   if (!rows.length) return ''
 
-  const tableRows = prepareBreakdownSectionTableRows(rows, sectionKey, quoteType)
+  const tableRows = prepareBreakdownSectionTableRows(rows, sectionKey, labelType)
 
   const showBoardColumn = tableRows.some((row) => row.boardName)
   const sectionClass = `breakdown-section-${sectionKey}`
@@ -267,7 +282,7 @@ function buildBreakdownSectionHtml(
   return `<div class="breakdown-section ${sectionClass} ${modifier}">
     <div class="breakdown-section-inner">
       <h3 class="breakdown-section-title">${escapeHtml(title)}</h3>
-      ${buildQuoteBreakdownTableHtml(tableRows, quoteType, { continuous: true, showBoardColumn })}
+      ${buildQuoteBreakdownTableHtml(tableRows, quoteType, { continuous: true, showBoardColumn, labelType })}
     </div>
   </div>`
 }
@@ -276,31 +291,35 @@ function buildQuoteSummaryMetaHtml(
   quote: QuoteListItem,
   estimate: ReturnType<typeof buildQuotePreviewData>['estimate'],
   previewTitle: string,
+  language?: QuoteDocumentLanguage,
 ) {
-  const isDomestic = quote.quoteType === 'domestic'
-  const labels = getPreviewLabels(quote.quoteType)
+  const labelType = pdfLabelType(quote, language)
+  const isKorean = labelType === 'domestic'
+  const labels = getPreviewLabels(labelType)
   const issueDate = quote.quoteDate || estimate.date
   const validityText = formatQuoteValidityText(issueDate)
   const qtyText = labels.formatQty(estimate.qty)
   const customer = quote.customer?.trim() || '-'
   const productName = quote.productName?.trim() || '-'
-  const recipientLabel = isDomestic ? '수신' : 'Bill To'
-  const supplierLabel = isDomestic ? '공급' : 'From'
-  const customerLabel = isDomestic ? '고객사' : 'Customer'
-  const productLabel = isDomestic ? '제품명' : 'Product'
-  const issueLabel = isDomestic ? '발행일자' : 'Issue Date'
-  const validityLabel = isDomestic ? '유효기간' : 'Valid Until'
-  const qtyLabelText = isDomestic ? '생산 수량' : 'Quantity'
-  const contactLabel = isDomestic ? '담당' : 'Contact'
-  const addressLabel = isDomestic ? '주소' : 'Address'
+  const recipientLabel = isKorean ? '수신' : 'Bill To'
+  const supplierLabel = isKorean ? '공급' : 'From'
+  const customerLabel = isKorean ? '고객사' : 'Customer'
+  const productLabel = isKorean ? '제품명' : 'Product'
+  const issueLabel = isKorean ? '발행일자' : 'Issue Date'
+  const validityLabel = isKorean ? '유효기간' : 'Valid Until'
+  const qtyLabelText = isKorean ? '생산 수량' : 'Quantity'
+  const contactLabel = isKorean ? '담당' : 'Contact'
+  const addressLabel = isKorean ? '주소' : 'Address'
   const emailLabel = 'E-mail'
 
-  const companyName = isDomestic ? APP_SHORT_NAME : COMPANY_NAME_EN
+  // 영문 PDF는 영문 회사 표기, 국문은 국문 표기 (금액은 국내 원화 유지)
+  const useDomesticCompany = isKorean
+  const companyName = useDomesticCompany ? APP_SHORT_NAME : COMPANY_NAME_EN
 
   return `<div class="summary-hero">
     <div class="summary-brand">
       <p class="summary-brand-name">${escapeHtml(companyName)}</p>
-      <p class="summary-brand-tagline">${isDomestic ? 'SMT 전자조립 · EMS' : 'SMT Assembly · EMS'}</p>
+      <p class="summary-brand-tagline">${useDomesticCompany ? 'SMT 전자조립 · EMS' : 'SMT Assembly · EMS'}</p>
     </div>
     <div class="summary-title-block">
       <h1 class="summary-doc-title">${previewTitle}</h1>
@@ -329,20 +348,20 @@ function buildQuoteSummaryMetaHtml(
       <p class="summary-party-label">${supplierLabel}</p>
       <dl class="summary-party-list">
         <div class="summary-party-row">
-          <dt>${isDomestic ? '업체명' : 'Company'}</dt>
+          <dt>${useDomesticCompany ? '업체명' : 'Company'}</dt>
           <dd>${escapeHtml(companyName)}</dd>
         </div>
         <div class="summary-party-row summary-party-row-wide">
           <dt>${addressLabel}</dt>
-          <dd>${escapeHtml(isDomestic ? COMPANY_ADDRESS_DOMESTIC : COMPANY_ADDRESS_EXPORT)}</dd>
+          <dd>${escapeHtml(useDomesticCompany ? COMPANY_ADDRESS_DOMESTIC : COMPANY_ADDRESS_EXPORT)}</dd>
         </div>
         <div class="summary-party-row">
           <dt>${emailLabel}</dt>
-          <dd><a class="summary-email" href="mailto:${escapeHtml(isDomestic ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT)}">${escapeHtml(isDomestic ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT)}</a></dd>
+          <dd><a class="summary-email" href="mailto:${escapeHtml(useDomesticCompany ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT)}">${escapeHtml(useDomesticCompany ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT)}</a></dd>
         </div>
         <div class="summary-party-row">
           <dt>${contactLabel}</dt>
-          <dd>${isDomestic ? '영업관리팀' : escapeHtml(COMPANY_QUOTE_CONTACT_EXPORT)}</dd>
+          <dd>${useDomesticCompany ? '영업관리팀' : escapeHtml(COMPANY_QUOTE_CONTACT_EXPORT)}</dd>
         </div>
       </dl>
     </div>
@@ -356,30 +375,37 @@ function buildQuoteSummaryMetaHtml(
 function buildQuoteSummaryTableHtml(
   quote: QuoteListItem,
   estimate: ReturnType<typeof buildQuotePreviewData>['estimate'],
+  language?: QuoteDocumentLanguage,
 ) {
   const qty = estimate.qty || 1
-  const page1Amounts =
-    quote.quoteType === 'export'
-      ? exportPage1SummaryAmounts(estimate.values.grandTotal, qty)
+  const page1Export =
+    quote.quoteType === 'export' ? exportPage1SummaryAmounts(estimate.values.grandTotal, qty) : null
+  const page1Domestic =
+    quote.quoteType === 'domestic'
+      ? domesticPage1SummaryAmounts(estimate.values.grandTotal, qty)
       : null
-  const perUnitGrand = page1Amounts ? page1Amounts.unitUsd : estimate.values.grandTotal / qty
-  const unitPriceText = page1Amounts
-    ? formatExportSummaryUsd(page1Amounts.unitUsd)
-    : formatQuoteMoneyTotal(perUnitGrand, quote.quoteType)
-  const totalText = page1Amounts
-    ? formatExportSummaryUsd(page1Amounts.totalUsd)
-    : formatQuoteMoneyTotal(estimate.values.grandTotal, quote.quoteType)
-  const labels = getPreviewLabels(quote.quoteType)
+  const unitPriceText = page1Export
+    ? formatExportSummaryUsd(page1Export.unitUsd)
+    : page1Domestic
+      ? formatQuoteKrw(page1Domestic.unitKrw)
+      : formatQuoteMoneyTotal(estimate.values.grandTotal / qty, quote.quoteType)
+  const totalText = page1Export
+    ? formatExportSummaryUsd(page1Export.totalUsd)
+    : page1Domestic
+      ? formatQuoteKrw(page1Domestic.totalKrw)
+      : formatQuoteMoneyTotal(estimate.values.grandTotal, quote.quoteType)
+  const labelType = pdfLabelType(quote, language)
+  const labels = getPreviewLabels(labelType)
   const qtyText = labels.formatQty(qty)
   const productName = quote.productName?.trim() || '-'
-  const isDomestic = quote.quoteType === 'domestic'
-  const sectionTitle = isDomestic ? '견적 금액' : 'Quote Amount'
-  const unitPriceLabel = isDomestic ? '단가 (VAT 별도)' : 'Unit Price (excl. VAT)'
-  const qtyColLabel = isDomestic ? '개수' : 'Qty'
-  const totalLabel = isDomestic ? '총 합계 (VAT 별도)' : 'Total (excl. VAT)'
-  const productColLabel = isDomestic ? '제품명' : 'Product'
-  const grandLabel = isDomestic ? '최종 합계 금액 (VAT 별도)' : 'Grand Total (excl. VAT)'
-  const note = isDomestic
+  const isKorean = labelType === 'domestic'
+  const sectionTitle = isKorean ? '견적 금액' : 'Quote Amount'
+  const unitPriceLabel = isKorean ? '단가 (VAT 별도)' : 'Unit Price (excl. VAT)'
+  const qtyColLabel = isKorean ? '개수' : 'Qty'
+  const totalLabel = isKorean ? '총 합계 (VAT 별도)' : 'Total (excl. VAT)'
+  const productColLabel = isKorean ? '제품명' : 'Product'
+  const grandLabel = isKorean ? '최종 합계 금액 (VAT 별도)' : 'Grand Total (excl. VAT)'
+  const note = isKorean
     ? '※ 항목별 요약·세부 산정내역은 다음 페이지를 참고해 주세요.'
     : '※ See the summary breakdown and detailed breakdown on the following pages.'
 
@@ -414,79 +440,82 @@ function buildQuoteSummaryTableHtml(
 function buildQuoteDetailHeaderHtml(
   quote: QuoteListItem,
   estimate: ReturnType<typeof buildQuotePreviewData>['estimate'],
+  language?: QuoteDocumentLanguage,
 ) {
-  const isDomestic = quote.quoteType === 'domestic'
-  const title = isDomestic ? '항목별 요약' : 'Summary Breakdown'
-  const note = isDomestic
-    ? 'SMT·SET-UP·후공정·자재 대당 합계입니다.'
-    : 'Per-unit totals for SMT, SET-UP, post-process, and materials.'
+  const isKorean = pdfLabelType(quote, language) === 'domestic'
+  const title = isKorean ? '항목별 요약' : 'Summary Breakdown'
+  const note = isKorean
+    ? 'SET-UP·SMD·후공정·자재 대당 합계입니다.'
+    : 'Per-unit totals for SET-UP, SMD, post-process, and materials.'
 
   return `${buildSectionPageHeaderHtml(quote, estimate, title, note)}`
 }
 
-function buildQuoteDetailedBreakdownPage(quote: QuoteListItem) {
-  const { estimate, pdfBreakdownRows } = buildQuotePreviewData(quote)
-  const labels = getPreviewLabels(quote.quoteType)
+function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteDocumentLanguage) {
+  const { estimate, pdfBreakdownRows, labelType } = buildQuotePreviewData(quote, {
+    labelLanguage: language,
+  })
+  const labels = getPreviewLabels(labelType)
   const smtRows = filterPdfBreakdownRows(pdfBreakdownRows, 'smt', quote.quoteType)
   const setupRows = filterPdfBreakdownRows(pdfBreakdownRows, 'setup', quote.quoteType)
   const postRows = filterPdfBreakdownRows(pdfBreakdownRows, 'post', quote.quoteType)
   const materialRows = filterPdfBreakdownRows(pdfBreakdownRows, 'material', quote.quoteType)
   if (!smtRows.length && !setupRows.length && !postRows.length && !materialRows.length) return ''
 
-  const isDomestic = quote.quoteType === 'domestic'
-  const pageTitle = isDomestic ? '공정별 세부 산정내역' : 'Detailed Breakdown by Process'
-  const pageNote = isDomestic
-    ? 'SMT·SET-UP·후공정(납땜 포함)·자재 항목별 단가·수량 기준 산정식입니다.'
-    : 'Itemized calculation for SMT, SET-UP, post-process (incl. soldering), and materials.'
-  const postTitle = pdfSummarySectionLabel(labels.postProcess, quote.quoteType)
-  const materialTitle = pdfSummarySectionLabel(labels.materials, quote.quoteType)
+  const isKorean = labelType === 'domestic'
+  const pageTitle = isKorean ? '공정별 세부 산정내역' : 'Detailed Breakdown by Process'
+  const pageNote = isKorean
+    ? 'SET-UP·SMD·후공정(납땜 포함)·자재 항목별 단가·수량 기준 산정식입니다.'
+    : 'Itemized calculation for SET-UP, SMD, post-process (incl. soldering), and materials.'
+  const postTitle = pdfSummarySectionLabel(labels.postProcess, labelType)
+  const materialTitle = pdfSummarySectionLabel(labels.materials, labelType)
 
   return `<section class="quote-page quote-page-breakdown">
     <div class="quote-card">
       ${buildSectionPageHeaderHtml(quote, estimate, pageTitle, pageNote)}
       <div class="breakdown-sections">
-        ${buildBreakdownSectionHtml('SMT', smtRows, quote.quoteType, 'smt', 'breakdown-section-smt')}
-        ${buildBreakdownSectionHtml('SET-UP', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated')}
-        ${buildBreakdownSectionHtml(postTitle, postRows, quote.quoteType, 'post', 'breakdown-section-separated')}
-        ${buildBreakdownSectionHtml(materialTitle, materialRows, quote.quoteType, 'material', 'breakdown-section-separated')}
+        ${buildBreakdownSectionHtml('SET-UP', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated', labelType)}
+        ${buildBreakdownSectionHtml('SMD', smtRows, quote.quoteType, 'smt', 'breakdown-section-smt', labelType)}
+        ${buildBreakdownSectionHtml(postTitle, postRows, quote.quoteType, 'post', 'breakdown-section-separated', labelType)}
+        ${buildBreakdownSectionHtml(materialTitle, materialRows, quote.quoteType, 'material', 'breakdown-section-separated', labelType)}
       </div>
     </div>
   </section>`
 }
 
-function buildQuoteSummaryPage(quote: QuoteListItem) {
-  const { estimate } = buildQuotePreviewData(quote)
-  const labels = getPreviewLabels(quote.quoteType)
+function buildQuoteSummaryPage(quote: QuoteListItem, language?: QuoteDocumentLanguage) {
+  const { estimate, labelType } = buildQuotePreviewData(quote, { labelLanguage: language })
+  const labels = getPreviewLabels(labelType)
 
   return `<section class="quote-page quote-page-summary">
     <div class="quote-card quote-card-summary">
-      ${buildQuoteSummaryMetaHtml(quote, estimate, labels.title)}
-      ${buildQuoteSummaryTableHtml(quote, estimate)}
+      ${buildQuoteSummaryMetaHtml(quote, estimate, labels.title, language)}
+      ${buildQuoteSummaryTableHtml(quote, estimate, language)}
     </div>
   </section>`
 }
 
-function buildQuoteDetailPage(quote: QuoteListItem) {
-  const { estimate } = buildQuotePreviewData(quote)
-  const isDomestic = quote.quoteType === 'domestic'
-  const footerNote = isDomestic
+function buildQuoteDetailPage(quote: QuoteListItem, language?: QuoteDocumentLanguage) {
+  const { estimate } = buildQuotePreviewData(quote, { labelLanguage: language })
+  const isKorean = pdfLabelType(quote, language) === 'domestic'
+  const footerNote = isKorean
     ? '※ 공정별 세부 산정내역은 다음 페이지를 참고해 주세요.'
     : '※ See the following page for the detailed breakdown by process.'
 
   return `<section class="quote-page quote-page-detail">
     <div class="quote-card">
-      ${buildQuoteDetailHeaderHtml(quote, estimate)}
-      ${buildBoardDetailsTableHtml(quote)}
+      ${buildQuoteDetailHeaderHtml(quote, estimate, language)}
+      ${buildBoardDetailsTableHtml(quote, language)}
       <p class="detail-footer-note">${footerNote}</p>
     </div>
   </section>`
 }
 
-function buildQuotePages(quote: QuoteListItem) {
+function buildQuotePages(quote: QuoteListItem, language?: QuoteDocumentLanguage) {
   return (
-    buildQuoteSummaryPage(quote) +
-    buildQuoteDetailPage(quote) +
-    buildQuoteDetailedBreakdownPage(quote)
+    buildQuoteSummaryPage(quote, language) +
+    buildQuoteDetailPage(quote, language) +
+    buildQuoteDetailedBreakdownPage(quote, language)
   )
 }
 
@@ -507,14 +536,22 @@ function buildPdfSectionColorCss() {
     .join('\n')
 }
 
-function buildQuotesPdfHtml(quotes: QuoteListItem[]) {
-  const pages = quotes.map(buildQuotePages).join('')
+function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOptions) {
+  const language = options?.language
+  const pages = quotes.map((quote) => buildQuotePages(quote, language)).join('')
+  const isEnglish = language === 'en' || quotes.every((q) => q.quoteType === 'export')
+  const docLang = isEnglish ? 'en' : 'ko'
+  const docTitle = isEnglish ? 'Quotation PDF' : '견적서 PDF'
+  const printHint = isEnglish
+    ? 'In the print dialog, choose “Save as PDF”.'
+    : '인쇄 대화상자에서 「PDF로 저장」을 선택하세요.'
+  const printButton = isEnglish ? 'Save as PDF' : 'PDF로 저장'
 
   return `<!DOCTYPE html>
-<html lang="ko">
+<html lang="${docLang}">
 <head>
   <meta charset="utf-8" />
-  <title>견적서 PDF</title>
+  <title>${docTitle}</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -1251,20 +1288,20 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[]) {
 </head>
 <body>
   <div class="no-print">
-    인쇄 대화상자에서 「PDF로 저장」을 선택하세요.
-    <button type="button" onclick="window.print()">PDF로 저장</button>
+    ${printHint}
+    <button type="button" onclick="window.print()">${printButton}</button>
   </div>
   ${pages}
 </body>
 </html>`
 }
 
-export function exportQuotesToPdf(quotes: QuoteListItem[]) {
+export function exportQuotesToPdf(quotes: QuoteListItem[], options?: ExportQuotePdfOptions) {
   if (!quotes.length || typeof document === 'undefined') return false
 
-  const html = buildQuotesPdfHtml(quotes)
+  const html = buildQuotesPdfHtml(quotes, options)
   const iframe = document.createElement('iframe')
-  iframe.setAttribute('title', '견적서 PDF')
+  iframe.setAttribute('title', options?.language === 'en' ? 'Quotation PDF' : '견적서 PDF')
   iframe.style.position = 'fixed'
   iframe.style.width = '0'
   iframe.style.height = '0'

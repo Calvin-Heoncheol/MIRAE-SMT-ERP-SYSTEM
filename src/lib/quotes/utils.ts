@@ -134,6 +134,10 @@ export function toEstimateInputFromDetail(
   return {
     boardQty: quote.boardQty,
     materialCost: settings.materialCostPerUnit ?? 0,
+    metalMaskCost:
+      settings.metalMaskCost ??
+      quote.detailInfo.amounts?.subMaterialCost ??
+      0,
     postAssembly,
     postTest,
     postPacking,
@@ -143,6 +147,7 @@ export function toEstimateInputFromDetail(
     dipBoards,
     quoteType: quote.quoteType,
     existingQuoteNumber: quote.quoteNumber,
+    includeSmd: settings.includeSmd,
     ...overrides,
   }
 }

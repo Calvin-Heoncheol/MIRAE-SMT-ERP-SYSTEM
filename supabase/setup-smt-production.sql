@@ -49,11 +49,13 @@ create view public.smt_production_totals as
 select
   order_line_id,
   pcb_side,
-  coalesce(sum(quantity), 0)::integer as total_quantity
+  coalesce(sum(quantity), 0)::integer as total_quantity,
+  coalesce(sum(defect_quantity), 0)::integer as total_defect_quantity
 from public.smt_production_records
 group by order_line_id, pcb_side;
 
-comment on view public.smt_production_totals is 'SMT 주문 라인·면구분별 누적 양품 수량 (defect_quantity 미포함)';
+comment on view public.smt_production_totals is
+  'SMT 주문 라인·면구분별 누적 양품(total_quantity)·불량(total_defect_quantity)';
 
 alter table public.smt_production_records enable row level security;
 

@@ -18,17 +18,31 @@ type ProductionStatusTableProps = {
   ) => void
 }
 
-function MiniProgress({ percent, tone }: { percent: number; tone: 'sky' | 'emerald' | 'violet' }) {
+function MiniProgress({
+  percent,
+  defectPercent = 0,
+  tone,
+}: {
+  percent: number
+  defectPercent?: number
+  tone: 'sky' | 'emerald' | 'violet'
+}) {
   const barClass =
     tone === 'sky' ? 'bg-sky-500' : tone === 'emerald' ? 'bg-emerald-500' : 'bg-violet-500'
+  const totalPercent = Math.min(100, percent + defectPercent)
 
   return (
     <div className="min-w-[88px]">
       <div className="mb-1 flex justify-between text-[11px] font-medium text-slate-500">
-        <span className="tabular-nums">{percent}%</span>
+        <span className="tabular-nums">{totalPercent}%</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${percent}%` }} />
+      <div className="flex h-1.5 overflow-hidden rounded-full bg-slate-100">
+        {percent > 0 ? (
+          <div className={`h-full ${barClass}`} style={{ width: `${percent}%` }} />
+        ) : null}
+        {defectPercent > 0 ? (
+          <div className="h-full bg-rose-500" style={{ width: `${defectPercent}%` }} />
+        ) : null}
       </div>
     </div>
   )
@@ -36,6 +50,7 @@ function MiniProgress({ percent, tone }: { percent: number; tone: 'sky' | 'emera
 
 function StageCell({
   percent,
+  defectPercent = 0,
   tone,
   detail,
   label,
@@ -43,6 +58,7 @@ function StageCell({
   onClick,
 }: {
   percent: number
+  defectPercent?: number
   tone: 'sky' | 'emerald' | 'violet'
   detail: string
   label: string
@@ -60,7 +76,7 @@ function StageCell({
   if (!onClick) {
     return (
       <td className="px-4 py-3">
-        <MiniProgress percent={percent} tone={tone} />
+        <MiniProgress percent={percent} defectPercent={defectPercent} tone={tone} />
         <p className="mt-1 text-[11px] tabular-nums text-slate-400">{detail}</p>
       </td>
     )
@@ -77,19 +93,29 @@ function StageCell({
         title={`${label} 총관리자 직접 입력`}
         className="w-full rounded-lg px-2 py-1.5 text-left transition hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
       >
-        <MiniProgress percent={percent} tone={tone} />
+        <MiniProgress percent={percent} defectPercent={defectPercent} tone={tone} />
         <p className="mt-1 text-[11px] tabular-nums text-slate-400">{detail}</p>
       </button>
     </td>
   )
 }
 
+function stageDetail(produced: number, defected: number, target: number) {
+  const base = `${produced.toLocaleString('ko-KR')} / ${target.toLocaleString('ko-KR')}`
+  if (defected <= 0) return base
+  return `${base} · 불량 ${defected.toLocaleString('ko-KR')}`
+}
+
 function StageCells({
   smtPercent,
+  smtDefectPercent,
   smtProduced,
+  smtDefected,
   smtTarget,
   postPercent,
+  postDefectPercent,
   postProduced,
+  postDefected,
   postTarget,
   deliveryPercent,
   deliveryProduced,
@@ -99,10 +125,14 @@ function StageCells({
   onDeliveryClick,
 }: {
   smtPercent: number
+  smtDefectPercent: number
   smtProduced: number
+  smtDefected: number
   smtTarget: number
   postPercent: number
+  postDefectPercent: number
   postProduced: number
+  postDefected: number
   postTarget: number
   deliveryPercent: number
   deliveryProduced: number
@@ -115,18 +145,20 @@ function StageCells({
     <>
       <StageCell
         percent={smtPercent}
+        defectPercent={smtDefectPercent}
         tone="sky"
         label="SMT"
         empty={smtTarget <= 0}
-        detail={`${smtProduced.toLocaleString('ko-KR')} / ${smtTarget.toLocaleString('ko-KR')}`}
+        detail={stageDetail(smtProduced, smtDefected, smtTarget)}
         onClick={onSmtClick}
       />
       <StageCell
         percent={postPercent}
+        defectPercent={postDefectPercent}
         tone="emerald"
         label="후공정"
         empty={postTarget <= 0}
-        detail={`${postProduced.toLocaleString('ko-KR')} / ${postTarget.toLocaleString('ko-KR')}`}
+        detail={stageDetail(postProduced, postDefected, postTarget)}
         onClick={onPostClick}
       />
       <StageCell
@@ -287,10 +319,14 @@ function OrderStatusRows({
         </td>
         <StageCells
           smtPercent={line.smtPercent}
+          smtDefectPercent={line.smtDefectPercent}
           smtProduced={line.smtProduced}
+          smtDefected={line.smtDefected}
           smtTarget={line.smtTarget}
           postPercent={line.postPercent}
+          postDefectPercent={line.postDefectPercent}
           postProduced={line.postProduced}
+          postDefected={line.postDefected}
           postTarget={line.postTarget}
           deliveryPercent={line.deliveryPercent}
           deliveryProduced={line.deliveryProduced}
@@ -324,10 +360,14 @@ function OrderStatusRows({
               </td>
               <StageCells
                 smtPercent={product.smtPercent}
+                smtDefectPercent={product.smtDefectPercent}
                 smtProduced={product.smtProduced}
+                smtDefected={product.smtDefected}
                 smtTarget={product.smtTarget}
                 postPercent={product.postPercent}
+                postDefectPercent={product.postDefectPercent}
                 postProduced={product.postProduced}
+                postDefected={product.postDefected}
                 postTarget={product.postTarget}
                 deliveryPercent={product.deliveryPercent}
                 deliveryProduced={product.deliveryProduced}

@@ -47,7 +47,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </div>
 
         <p className="mb-5 text-sm text-slate-600">
-          등록된 직원 계정으로 로그인해 주세요. 계정은 관리자가 발급합니다.
+          등록된 직원 계정으로 로그인해 주세요.
+          <br />
+          계정이 없으시다면 관리부로 방문해주시기 바랍니다.
         </p>
 
         {autoLoginError ? (

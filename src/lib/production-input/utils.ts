@@ -307,6 +307,19 @@ export function getProgressPercent(cumulative: number, target: number) {
   return Math.min(100, Math.round((cumulative / target) * 100))
 }
 
+/** 양품(기존 색) + 불량(빨강) stacked 게이지용 너비. 잔량·완료는 양품만 기준으로 유지 */
+export function getStackedProgressWidths(good: number, defect: number, target: number) {
+  if (target <= 0) {
+    return { goodPercent: 0, defectPercent: 0, totalPercent: 0 }
+  }
+  const safeGood = Math.max(0, good)
+  const safeDefect = Math.max(0, defect)
+  const totalPercent = Math.min(100, Math.round(((safeGood + safeDefect) / target) * 100))
+  const goodPercent = Math.min(totalPercent, Math.round((safeGood / target) * 100))
+  const defectPercent = Math.max(0, totalPercent - goodPercent)
+  return { goodPercent, defectPercent, totalPercent }
+}
+
 export function normalizeProductionPcbSideMode(value: string | null | undefined) {
   return normalizeProductPcbSideMode(value)
 }

@@ -60,6 +60,7 @@ export async function fetchProductionInputPageData(
       data: {
         orders,
         counts: countsResult.counts,
+        defectCounts: countsResult.defectCounts,
       },
     }
   }
@@ -112,6 +113,7 @@ export async function fetchProductionInputPageData(
       data: {
         orders,
         counts: countsResult.counts,
+        defectCounts: countsResult.defectCounts,
       },
     }
   }
@@ -138,6 +140,7 @@ export async function fetchProductionInputPageData(
         config.productionModule,
       ),
       counts,
+      defectCounts: {},
     },
   }
 }

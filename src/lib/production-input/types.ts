@@ -35,6 +35,7 @@ export type ProductionCounts = Record<string, number>
 export type ProductionPageData = {
   orders: ProductionOrderLine[]
   counts: ProductionCounts
+  defectCounts: ProductionCounts
 }
 
 export type ProductionInputConfig = {

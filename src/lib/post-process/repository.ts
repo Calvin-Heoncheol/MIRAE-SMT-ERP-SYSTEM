@@ -14,11 +14,11 @@ export type FetchPostProcessDayPlanProgressResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type FetchPostProcessCumulativeCountsResult =
-  | { ok: true; counts: Record<string, number> }
+  | { ok: true; counts: Record<string, number>; defectCounts: Record<string, number> }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type CreatePostProcessProductionRecordResult =
-  | { ok: true; record: PostProcessProductionRecord; cumulative: number }
+  | { ok: true; record: PostProcessProductionRecord; cumulative: number; defectCumulative: number }
   | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
 
 export type FetchPostProcessProductionHistoryResult =
@@ -107,25 +107,56 @@ export async function fetchPostProcessCumulativeCounts(): Promise<FetchPostProce
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    let usedLegacyTotals = false
+    let { data, error } = await supabase
       .from('post_process_production_totals')
-      .select('assembly_group_id, total_quantity')
+      .select('assembly_group_id, total_quantity, total_defect_quantity')
+
+    if (error && isMissingPostProcessDefectQuantityColumn(error.message)) {
+      usedLegacyTotals = true
+      ;({ data, error } = await supabase
+        .from('post_process_production_totals')
+        .select('assembly_group_id, total_quantity'))
+    }
 
     if (error) {
       if (isMissingPostProcessProductionTable(error.message)) {
-        return { ok: true, counts: {} }
+        return { ok: true, counts: {}, defectCounts: {} }
       }
       return { ok: false, reason: 'query', detail: error.message }
     }
 
     const counts: Record<string, number> = {}
+    const defectCounts: Record<string, number> = {}
     for (const row of data || []) {
       const assemblyGroupId = String(row.assembly_group_id || '').trim()
       if (!assemblyGroupId) continue
       counts[assemblyGroupId] = Math.max(0, Math.floor(Number(row.total_quantity) || 0))
+      if (!usedLegacyTotals) {
+        defectCounts[assemblyGroupId] = Math.max(
+          0,
+          Math.floor(Number((row as { total_defect_quantity?: number }).total_defect_quantity) || 0),
+        )
+      }
     }
 
-    return { ok: true, counts }
+    if (usedLegacyTotals) {
+      const defectRows = await supabase
+        .from('post_process_production_records')
+        .select('assembly_group_id, defect_quantity')
+        .gt('defect_quantity', 0)
+      if (!defectRows.error) {
+        for (const row of defectRows.data || []) {
+          const assemblyGroupId = String(row.assembly_group_id || '').trim()
+          if (!assemblyGroupId) continue
+          defectCounts[assemblyGroupId] =
+            (defectCounts[assemblyGroupId] || 0) +
+            Math.max(0, Math.floor(Number(row.defect_quantity) || 0))
+        }
+      }
+    }
+
+    return { ok: true, counts, defectCounts }
   } catch (error) {
     return {
       ok: false,
@@ -250,11 +281,42 @@ export async function createPostProcessProductionRecord(
     const targetQty = Math.max(0, Math.floor(Number(assemblyGroup.target_quantity) || 0))
     const { data: totals, error: totalsError } = await supabase
       .from('post_process_production_totals')
-      .select('total_quantity')
+      .select('total_quantity, total_defect_quantity')
       .eq('assembly_group_id', assemblyGroupId)
       .maybeSingle()
 
-    if (totalsError) {
+    let currentTotal = 0
+    let currentDefectTotal = 0
+
+    if (totalsError && isMissingPostProcessDefectQuantityColumn(totalsError.message)) {
+      const legacy = await supabase
+        .from('post_process_production_totals')
+        .select('total_quantity')
+        .eq('assembly_group_id', assemblyGroupId)
+        .maybeSingle()
+      if (legacy.error) {
+        if (isMissingPostProcessProductionTable(legacy.error.message)) {
+          return {
+            ok: false,
+            reason: 'query',
+            detail: 'post_process_production_records 테이블이 없습니다. setup-post-process-production.sql 을 실행하세요.',
+          }
+        }
+        return { ok: false, reason: 'query', detail: legacy.error.message }
+      }
+      currentTotal = Math.max(0, Math.floor(Number(legacy.data?.total_quantity) || 0))
+      const defectRows = await supabase
+        .from('post_process_production_records')
+        .select('defect_quantity')
+        .eq('assembly_group_id', assemblyGroupId)
+        .gt('defect_quantity', 0)
+      if (!defectRows.error) {
+        currentDefectTotal = (defectRows.data || []).reduce(
+          (sum, row) => sum + Math.max(0, Math.floor(Number(row.defect_quantity) || 0)),
+          0,
+        )
+      }
+    } else if (totalsError) {
       if (isMissingPostProcessProductionTable(totalsError.message)) {
         return {
           ok: false,
@@ -263,9 +325,14 @@ export async function createPostProcessProductionRecord(
         }
       }
       return { ok: false, reason: 'query', detail: totalsError.message }
+    } else {
+      currentTotal = Math.max(0, Math.floor(Number(totals?.total_quantity) || 0))
+      currentDefectTotal = Math.max(
+        0,
+        Math.floor(Number((totals as { total_defect_quantity?: number } | null)?.total_defect_quantity) || 0),
+      )
     }
 
-    const currentTotal = Math.max(0, Math.floor(Number(totals?.total_quantity) || 0))
     const remaining = Math.max(0, targetQty - currentTotal)
     if (quantity > 0 && targetQty > 0 && quantity > remaining) {
       return {
@@ -343,6 +410,7 @@ export async function createPostProcessProductionRecord(
       ok: true,
       record: mapPostProcessProductionRecord(inserted),
       cumulative: currentTotal + quantity,
+      defectCumulative: currentDefectTotal + defectQuantity,
     }
   } catch (error) {
     return {

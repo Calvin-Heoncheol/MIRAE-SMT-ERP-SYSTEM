@@ -4,6 +4,7 @@ import { formatProductSummary } from '@/lib/orders/utils'
 import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-input/types'
 import {
   getProgressPercent,
+  getStackedProgressWidths,
   resolveProductionCount,
 } from '@/lib/production-input/utils'
 import type { ProductionStatusLine, ProductionStatusProductLine } from './types'
@@ -45,7 +46,9 @@ function buildProductLinesForOrder(
   orderSmtLines: ProductionOrderLine[],
   orderAssemblies: OrderAssemblyGroup[],
   smtCounts: ProductionCounts,
+  smtDefectCounts: ProductionCounts,
   postCounts: ProductionCounts,
+  postDefectCounts: ProductionCounts,
   deliveryCounts: ProductionCounts,
 ): ProductionStatusProductLine[] {
   const smtByLineId = new Map(orderSmtLines.map((line) => [line.orderLineId, line]))
@@ -74,16 +77,19 @@ function buildProductLinesForOrder(
 
     let smtTarget = 0
     let smtProduced = 0
+    let smtDefected = 0
     const smtOrderLineIds: string[] = []
 
     if (smtLine) {
       smtTarget = Math.max(0, Math.floor(smtLine.quantity))
       smtProduced = resolveProductionCount(smtLine, smtCounts)
+      smtDefected = resolveProductionCount(smtLine, smtDefectCounts)
       smtOrderLineIds.push(smtLine.orderLineId)
     }
 
     let postTarget = 0
     let postProduced = 0
+    let postDefected = 0
     let deliveryTarget = 0
     let deliveryProduced = 0
     const assemblyGroupIds: string[] = []
@@ -92,12 +98,15 @@ function buildProductLinesForOrder(
       const assemblyTarget = Math.max(0, Math.floor(assembly.targetQuantity))
       postTarget = assemblyTarget
       postProduced = Math.max(0, Math.floor(Number(postCounts[assembly.id]) || 0))
+      postDefected = Math.max(0, Math.floor(Number(postDefectCounts[assembly.id]) || 0))
       deliveryTarget = assemblyTarget
       deliveryProduced = Math.max(0, Math.floor(Number(deliveryCounts[assembly.id]) || 0))
       assemblyGroupIds.push(assembly.id)
     }
 
     const quantity = Math.max(0, Math.floor(item.quantity))
+    const smtStack = getStackedProgressWidths(smtProduced, smtDefected, smtTarget)
+    const postStack = getStackedProgressWidths(postProduced, postDefected, postTarget)
 
     products.push({
       key: `item:${lineId || productId || item.productName}`,
@@ -106,10 +115,14 @@ function buildProductLinesForOrder(
       quantity,
       smtTarget,
       smtProduced,
-      smtPercent: getProgressPercent(smtProduced, smtTarget),
+      smtDefected,
+      smtPercent: smtStack.goodPercent,
+      smtDefectPercent: smtStack.defectPercent,
       postTarget,
       postProduced,
-      postPercent: getProgressPercent(postProduced, postTarget),
+      postDefected,
+      postPercent: postStack.goodPercent,
+      postDefectPercent: postStack.defectPercent,
       deliveryTarget,
       deliveryProduced,
       deliveryPercent: getProgressPercent(deliveryProduced, deliveryTarget),
@@ -124,6 +137,8 @@ function buildProductLinesForOrder(
 
     const smtTarget = Math.max(0, Math.floor(smtLine.quantity))
     const smtProduced = resolveProductionCount(smtLine, smtCounts)
+    const smtDefected = resolveProductionCount(smtLine, smtDefectCounts)
+    const smtStack = getStackedProgressWidths(smtProduced, smtDefected, smtTarget)
 
     products.push({
       key: `smt:${smtLine.orderLineId}`,
@@ -132,10 +147,14 @@ function buildProductLinesForOrder(
       quantity: smtTarget,
       smtTarget,
       smtProduced,
-      smtPercent: getProgressPercent(smtProduced, smtTarget),
+      smtDefected,
+      smtPercent: smtStack.goodPercent,
+      smtDefectPercent: smtStack.defectPercent,
       postTarget: 0,
       postProduced: 0,
+      postDefected: 0,
       postPercent: 0,
+      postDefectPercent: 0,
       deliveryTarget: 0,
       deliveryProduced: 0,
       deliveryPercent: 0,
@@ -154,6 +173,8 @@ export function buildProductionStatusLines(
   smtCounts: ProductionCounts,
   postCounts: ProductionCounts,
   deliveryCounts: ProductionCounts = {},
+  smtDefectCounts: ProductionCounts = {},
+  postDefectCounts: ProductionCounts = {},
 ): ProductionStatusLine[] {
   const smtLinesByOrderNumber = groupSmtLinesByOrderNumber(smtLines)
   const assembliesByOrderId = groupAssemblyGroupsByOrderId(assemblyGroups)
@@ -162,16 +183,19 @@ export function buildProductionStatusLines(
     const orderSmtLines = smtLinesByOrderNumber.get(order.orderNumber) ?? []
     let smtTarget = 0
     let smtProduced = 0
+    let smtDefected = 0
 
     for (const smtLine of orderSmtLines) {
       const lineTarget = Math.max(0, Math.floor(smtLine.quantity))
       smtTarget += lineTarget
       smtProduced += resolveProductionCount(smtLine, smtCounts)
+      smtDefected += resolveProductionCount(smtLine, smtDefectCounts)
     }
 
     const orderAssemblies = assembliesByOrderId.get(order.orderId) ?? []
     let postTarget = 0
     let postProduced = 0
+    let postDefected = 0
     let deliveryTarget = 0
     let deliveryProduced = 0
 
@@ -179,6 +203,7 @@ export function buildProductionStatusLines(
       const assemblyTarget = Math.max(0, Math.floor(assembly.targetQuantity))
       postTarget += assemblyTarget
       postProduced += Math.max(0, Math.floor(Number(postCounts[assembly.id]) || 0))
+      postDefected += Math.max(0, Math.floor(Number(postDefectCounts[assembly.id]) || 0))
       deliveryTarget += assemblyTarget
       deliveryProduced += Math.max(0, Math.floor(Number(deliveryCounts[assembly.id]) || 0))
     }
@@ -188,7 +213,9 @@ export function buildProductionStatusLines(
       orderSmtLines,
       orderAssemblies,
       smtCounts,
+      smtDefectCounts,
       postCounts,
+      postDefectCounts,
       deliveryCounts,
     )
 
@@ -198,6 +225,9 @@ export function buildProductionStatusLines(
         : products.length === 1
           ? products[0]!.productName
           : `${products[0]!.productName} 외 ${products.length - 1}건`
+
+    const smtStack = getStackedProgressWidths(smtProduced, smtDefected, smtTarget)
+    const postStack = getStackedProgressWidths(postProduced, postDefected, postTarget)
 
     return {
       orderId: order.orderId,
@@ -209,10 +239,14 @@ export function buildProductionStatusLines(
       quantity: Math.max(0, Math.floor(order.totalQuantity)),
       smtTarget,
       smtProduced,
-      smtPercent: getProgressPercent(smtProduced, smtTarget),
+      smtDefected,
+      smtPercent: smtStack.goodPercent,
+      smtDefectPercent: smtStack.defectPercent,
       postTarget,
       postProduced,
-      postPercent: getProgressPercent(postProduced, postTarget),
+      postDefected,
+      postPercent: postStack.goodPercent,
+      postDefectPercent: postStack.defectPercent,
       deliveryTarget,
       deliveryProduced,
       deliveryPercent: getProgressPercent(deliveryProduced, deliveryTarget),

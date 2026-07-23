@@ -11,10 +11,14 @@ export type ProductionStatusProductLine = {
   quantity: number
   smtTarget: number
   smtProduced: number
+  smtDefected: number
   smtPercent: number
+  smtDefectPercent: number
   postTarget: number
   postProduced: number
+  postDefected: number
   postPercent: number
+  postDefectPercent: number
   deliveryTarget: number
   deliveryProduced: number
   deliveryPercent: number
@@ -36,10 +40,14 @@ export type ProductionStatusLine = {
   quantity: number
   smtTarget: number
   smtProduced: number
+  smtDefected: number
   smtPercent: number
+  smtDefectPercent: number
   postTarget: number
   postProduced: number
+  postDefected: number
   postPercent: number
+  postDefectPercent: number
   deliveryTarget: number
   deliveryProduced: number
   deliveryPercent: number
@@ -53,7 +61,9 @@ export type ProductionStatusPageData = {
   postOrders: ProductionOrderLine[]
   deliveryOrders: ProductionOrderLine[]
   smtCounts: ProductionCounts
+  smtDefectCounts: ProductionCounts
   postCounts: ProductionCounts
+  postDefectCounts: ProductionCounts
   deliveryCounts: ProductionCounts
   deliveryAvailabilityByGroupId: Record<string, DeliveryAvailability>
 }

@@ -6,7 +6,7 @@ import { buildSmtCountKey, buildSmtPlanProgressKey, smtPcbSidesForMode } from '@
 import type { CreateSmtProductionRecordInput, SmtPcbSide, SmtProductionHistoryRow, SmtProductionRecord } from './types'
 
 export type FetchSmtCumulativeCountsResult =
-  | { ok: true; counts: Record<string, number> }
+  | { ok: true; counts: Record<string, number>; defectCounts: Record<string, number> }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type FetchSmtDayPlanProgressResult =
@@ -14,7 +14,7 @@ export type FetchSmtDayPlanProgressResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type CreateSmtProductionRecordResult =
-  | { ok: true; record: SmtProductionRecord; cumulative: number }
+  | { ok: true; record: SmtProductionRecord; cumulative: number; defectCumulative: number }
   | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
 
 export type FetchSmtProductionHistoryResult =
@@ -111,28 +111,60 @@ export async function fetchSmtCumulativeCounts(): Promise<FetchSmtCumulativeCoun
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    let usedLegacyTotals = false
+    let { data, error } = await supabase
       .from('smt_production_totals')
-      .select('order_line_id, pcb_side, total_quantity')
+      .select('order_line_id, pcb_side, total_quantity, total_defect_quantity')
+
+    if (error && isMissingSmtDefectQuantityColumn(error.message)) {
+      usedLegacyTotals = true
+      ;({ data, error } = await supabase
+        .from('smt_production_totals')
+        .select('order_line_id, pcb_side, total_quantity'))
+    }
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }
     }
 
     const counts: Record<string, number> = {}
+    const defectCounts: Record<string, number> = {}
     for (const row of data || []) {
       const orderLineId = String(row.order_line_id || '').trim()
       if (!orderLineId) continue
       const pcbSideRaw = String(row.pcb_side || 'SINGLE').toUpperCase()
       const pcbSide: SmtPcbSide =
         pcbSideRaw === 'TOP' || pcbSideRaw === 'BOT' ? pcbSideRaw : 'SINGLE'
-      counts[buildSmtCountKey(orderLineId, pcbSide)] = Math.max(
-        0,
-        Math.floor(Number(row.total_quantity) || 0),
-      )
+      const key = buildSmtCountKey(orderLineId, pcbSide)
+      counts[key] = Math.max(0, Math.floor(Number(row.total_quantity) || 0))
+      if (!usedLegacyTotals) {
+        defectCounts[key] = Math.max(
+          0,
+          Math.floor(Number((row as { total_defect_quantity?: number }).total_defect_quantity) || 0),
+        )
+      }
     }
 
-    return { ok: true, counts }
+    if (usedLegacyTotals) {
+      const defectRows = await supabase
+        .from('smt_production_records')
+        .select('order_line_id, pcb_side, defect_quantity')
+        .gt('defect_quantity', 0)
+      if (!defectRows.error) {
+        for (const row of defectRows.data || []) {
+          const orderLineId = String(row.order_line_id || '').trim()
+          if (!orderLineId) continue
+          const pcbSideRaw = String(row.pcb_side || 'SINGLE').toUpperCase()
+          const pcbSide: SmtPcbSide =
+            pcbSideRaw === 'TOP' || pcbSideRaw === 'BOT' ? pcbSideRaw : 'SINGLE'
+          const key = buildSmtCountKey(orderLineId, pcbSide)
+          defectCounts[key] =
+            (defectCounts[key] || 0) + Math.max(0, Math.floor(Number(row.defect_quantity) || 0))
+        }
+      }
+    }
+
+    return { ok: true, counts, defectCounts }
   } catch (error) {
     return {
       ok: false,
@@ -273,16 +305,47 @@ export async function createSmtProductionRecord(
     const targetQty = Math.max(0, Math.floor(Number(orderLine.quantity) || 0))
     const { data: totals, error: totalsError } = await supabase
       .from('smt_production_totals')
-      .select('total_quantity')
+      .select('total_quantity, total_defect_quantity')
       .eq('order_line_id', orderLineId)
       .eq('pcb_side', requestedPcbSide)
       .maybeSingle()
 
-    if (totalsError) {
+    let currentTotal = 0
+    let currentDefectTotal = 0
+
+    if (totalsError && isMissingSmtDefectQuantityColumn(totalsError.message)) {
+      const legacy = await supabase
+        .from('smt_production_totals')
+        .select('total_quantity')
+        .eq('order_line_id', orderLineId)
+        .eq('pcb_side', requestedPcbSide)
+        .maybeSingle()
+      if (legacy.error) {
+        return { ok: false, reason: 'query', detail: legacy.error.message }
+      }
+      currentTotal = Math.max(0, Math.floor(Number(legacy.data?.total_quantity) || 0))
+      const defectRows = await supabase
+        .from('smt_production_records')
+        .select('defect_quantity')
+        .eq('order_line_id', orderLineId)
+        .eq('pcb_side', requestedPcbSide)
+        .gt('defect_quantity', 0)
+      if (!defectRows.error) {
+        currentDefectTotal = (defectRows.data || []).reduce(
+          (sum, row) => sum + Math.max(0, Math.floor(Number(row.defect_quantity) || 0)),
+          0,
+        )
+      }
+    } else if (totalsError) {
       return { ok: false, reason: 'query', detail: totalsError.message }
+    } else {
+      currentTotal = Math.max(0, Math.floor(Number(totals?.total_quantity) || 0))
+      currentDefectTotal = Math.max(
+        0,
+        Math.floor(Number((totals as { total_defect_quantity?: number } | null)?.total_defect_quantity) || 0),
+      )
     }
 
-    const currentTotal = Math.max(0, Math.floor(Number(totals?.total_quantity) || 0))
     const remaining = Math.max(0, targetQty - currentTotal)
     if (quantity > 0 && targetQty > 0 && quantity > remaining) {
       return {
@@ -392,6 +455,7 @@ export async function createSmtProductionRecord(
       ok: true,
       record: mapSmtProductionRecord(inserted),
       cumulative: currentTotal + quantity,
+      defectCumulative: currentDefectTotal + defectQuantity,
     }
   } catch (error) {
     return {
