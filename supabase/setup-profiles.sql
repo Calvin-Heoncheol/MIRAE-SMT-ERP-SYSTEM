@@ -10,6 +10,7 @@ create table if not exists public.profiles (
   display_name text not null default '',
   role text not null default 'operator',
   department text,
+  must_change_password boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -18,9 +19,12 @@ comment on table public.profiles is 'ERP 사용자 프로필 — auth.users 와 
 comment on column public.profiles.role is 'admin | manager | operator';
 comment on column public.profiles.department is
   'sales | materials | production1 | production2 | production3 | production4 | office';
+comment on column public.profiles.must_change_password is
+  'true 이면 로그인 후 새 비밀번호로 변경해야 함 (초기 비밀번호 등)';
 
 -- 기존 DB 호환
 alter table public.profiles add column if not exists department text;
+alter table public.profiles add column if not exists must_change_password boolean not null default false;
 update public.profiles set role = 'operator' where role = 'user';
 
 alter table public.profiles drop constraint if exists profiles_role_check;
@@ -73,7 +77,7 @@ begin
     ''
   );
 
-  insert into public.profiles (id, email, display_name, role, department)
+  insert into public.profiles (id, email, display_name, role, department, must_change_password)
   values (
     new.id,
     coalesce(new.email, ''),
@@ -83,7 +87,8 @@ begin
         then new.raw_user_meta_data ->> 'role'
       else 'operator'
     end,
-    nullif(trim(coalesce(new.raw_user_meta_data ->> 'department', '')), '')
+    nullif(trim(coalesce(new.raw_user_meta_data ->> 'department', '')), ''),
+    true
   )
   on conflict (id) do update
     set email = excluded.email,

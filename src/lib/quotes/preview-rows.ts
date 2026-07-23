@@ -23,7 +23,7 @@ import type {
 } from './types'
 import { toEstimateInputFromDetail } from './utils'
 
-export type PreviewSection = 'smt' | 'dip' | 'post' | 'material'
+export type PreviewSection = 'smt' | 'setup' | 'dip' | 'post' | 'material'
 
 export type PreviewRow = {
   label: string
@@ -71,6 +71,7 @@ export type PdfSectionColor = {
 
 export const PDF_SECTION_COLORS: Record<PreviewSection, PdfSectionColor> = {
   smt: { bg: '#dbeafe', line: '#93c5fd', accent: '#2563eb' },
+  setup: { bg: '#e0f2fe', line: '#7dd3fc', accent: '#0284c7' },
   dip: { bg: '#ffedd5', line: '#fdba74', accent: '#ea580c' },
   post: { bg: '#dcfce7', line: '#86efac', accent: '#16a34a' },
   material: { bg: '#ede9fe', line: '#c4b5fd', accent: '#7c3aed' },
@@ -104,7 +105,7 @@ export function filterPdfBoardDetailRows(rows: PreviewRow[]) {
   return rows.filter(isPdfBoardDetailSummaryRow)
 }
 
-export type PdfBreakdownSection = 'smt' | 'dip' | 'post' | 'material'
+export type PdfBreakdownSection = 'smt' | 'setup' | 'dip' | 'post' | 'material'
 
 export function filterPdfBreakdownRows(
   rows: PreviewRow[],
@@ -199,7 +200,7 @@ export function buildProcessBreakdownSections(
   const labels = getPreviewLabels(quoteType)
   const definitions: { key: PreviewSection; title: string }[] = [
     { key: 'smt', title: 'SMT' },
-    { key: 'dip', title: pdfSummarySectionLabel(labels.soldering, quoteType) },
+    { key: 'setup', title: 'SET-UP' },
     { key: 'post', title: pdfSummarySectionLabel(labels.postProcess, quoteType) },
     { key: 'material', title: pdfSummarySectionLabel(labels.materials, quoteType) },
   ]
@@ -253,12 +254,12 @@ function smtBoardInspectionPerUnit(board: SmtBoardDetail) {
   return board.inspectionUnit
 }
 
-/** SMT 대당 합계 = 실장비(대당) + SET-UP(총액 안분) + 검사(대당) */
+/** SMT 대당 합계 = 실장비(대당) + 검사(대당). SET-UP은 별도 섹션 */
 function previewSmtSectionPerUnit(result: EstimateResult) {
   const qty = result.qty || 1
   const laborTotal = result.common.smtLaborPerUnit * qty
   const inspectionTotal = result.common.smtInspectionPerUnit * qty
-  return quotePerUnitTotal(laborTotal + result.common.smtSetup + inspectionTotal, qty)
+  return quotePerUnitTotal(laborTotal + inspectionTotal, qty)
 }
 
 export function previewFormFromQuote(quote: QuoteListItem): PreviewFormFields {
@@ -608,7 +609,7 @@ function buildBoardCentricPreviewRows(
 
     rows.push({
       label: `■ ${smtBoard.pcbName}`,
-      amount: smtLabor + setupPerUnit + inspectionPerUnit + dip + boardPost,
+      amount: smtLabor + setupPerUnit + inspectionPerUnit + (singlePcb ? dip + boardPost : 0),
       boardTotal: true,
       emphasize: true,
       amountEmphasize: true,
@@ -650,40 +651,67 @@ function buildBoardCentricPreviewRows(
       rows.push(...inspectionDetails)
     }
 
-    if (dip > 0 || dipDetails.length > 0) {
-      rows.push({
-        label: labels.soldering,
-        amount: dip,
-        indent: 1,
-        boardSubtotal: true,
-        emphasize: true,
-        amountEmphasize: true,
-      })
-      rows.push(...dipDetails)
-    }
-
-    if (singlePcb && (postPerUnit > 0 || hasPostInputs(form))) {
+    const hasDip = singlePcb && (dip > 0 || dipDetails.length > 0)
+    const hasBoardPost = singlePcb && (postPerUnit > 0 || hasPostInputs(form))
+    if (hasDip || hasBoardPost) {
       rows.push({
         label: labels.postProcess,
-        amount: postPerUnit,
+        amount: dip + boardPost,
         indent: 1,
         boardSubtotal: true,
         emphasize: true,
         amountEmphasize: true,
       })
-      rows.push(...postDetailRows(form, 2, quoteType))
+      if (hasDip) {
+        rows.push({
+          label: labels.soldering,
+          amount: dip,
+          indent: 2,
+          boardSubtotal: true,
+          emphasize: true,
+          amountEmphasize: true,
+        })
+        rows.push(...dipDetails.map((row) => ({ ...row, indent: 3 })))
+      }
+      if (hasBoardPost) {
+        rows.push(...postDetailRows(form, 2, quoteType))
+      }
     }
   }
 
-  if (!singlePcb && (postPerUnit > 0 || hasPostInputs(form))) {
-    rows.push({
-      label: labels.postProcess,
-      amount: postPerUnit,
-      emphasize: true,
-      amountEmphasize: true,
-      sectionTotal: 'post',
-    })
-    rows.push(...postDetailRows(form, 1, quoteType))
+  if (!singlePcb) {
+    const sharedDipTotal = result.common.dipBoardDetails.reduce((sum, board) => sum + (board?.boardUnit ?? 0), 0)
+    const hasSharedPost = postPerUnit > 0 || hasPostInputs(form)
+    if (sharedDipTotal > 0 || hasSharedPost) {
+      rows.push({
+        label: labels.postProcess,
+        amount: sharedDipTotal + postPerUnit,
+        emphasize: true,
+        amountEmphasize: true,
+        sectionTotal: 'post',
+      })
+      for (let index = 0; index < pcbCount; index += 1) {
+        const smtBoard = result.common.pcbBoardDetails[index]
+        const dipBoard = result.common.dipBoardDetails[index]
+        if (!dipBoard) continue
+        const dip = dipBoard.boardUnit ?? 0
+        const dipDetails = dipDetailRowsForBoard(dipBoard, quoteType)
+        if (dip <= 0 && !dipDetails.length) continue
+        rows.push({
+          label: labels.soldering,
+          description: smtBoard.pcbName,
+          amount: dip,
+          indent: 1,
+          boardSubtotal: true,
+          emphasize: true,
+          amountEmphasize: true,
+        })
+        rows.push(...dipDetails)
+      }
+      if (hasSharedPost) {
+        rows.push(...postDetailRows(form, 1, quoteType))
+      }
+    }
   }
 
   rows.push(...previewMaterialRows(result, form, quoteType))
@@ -694,7 +722,7 @@ function withBoardName(rows: PreviewRow[], pcbName: string): PreviewRow[] {
   return rows.map((row) => ({ ...row, boardName: pcbName }))
 }
 
-/** PDF 세부 산정내역 — 2페이지 Summary Breakdown 과 동일하게 공정별(SMT·납땜·후공정·자재) */
+/** PDF 세부 산정내역 — SMT / SET-UP / 후공정(납땜 포함) / 자재 */
 export function buildProcessCentricPdfBreakdownRows(
   result: EstimateResult,
   form: PreviewFormFields,
@@ -720,10 +748,8 @@ export function buildProcessCentricPdfBreakdownRows(
       const smtBoard = result.common.pcbBoardDetails[index]
       const boardName = multiBoard ? smtBoard.pcbName : undefined
       const smtLabor = smtBoardLaborPerUnit(smtBoard)
-      const setupPerUnit = smtSetupPerUnit(smtBoard.setupAmount, qty)
       const inspectionPerUnit = smtBoardInspectionPerUnit(smtBoard)
       const smtDetails = smtDetailRowsForBoard(smtBoard, result, quoteType)
-      const setupDetails = smtSetupDetailRowsForBoard(smtBoard, result, quoteType)
       const inspectionDetails = inspectionDetailRowsForBoard(smtBoard, quoteType)
 
       if (smtLabor > 0 || smtDetails.length > 0) {
@@ -736,18 +762,6 @@ export function buildProcessCentricPdfBreakdownRows(
           boardName,
         })
         rows.push(...(multiBoard ? withBoardName(smtDetails, smtBoard.pcbName) : smtDetails))
-      }
-
-      if (setupPerUnit > 0 || setupDetails.length > 0) {
-        rows.push({
-          label: 'SET-UP',
-          amount: null,
-          indent: 1,
-          boardSubtotal: true,
-          emphasize: true,
-          boardName,
-        })
-        rows.push(...(multiBoard ? withBoardName(setupDetails, smtBoard.pcbName) : setupDetails))
       }
 
       if (inspectionPerUnit > 0 || inspectionDetails.length > 0) {
@@ -764,50 +778,102 @@ export function buildProcessCentricPdfBreakdownRows(
     }
   }
 
-  const dipTotal = pdfSolderingSectionTotal(result)
-  if (dipTotal > 0) {
+  const setupTotal = pdfSetupSectionTotal(result)
+  if (setupTotal > 0) {
     rows.push({
-      label: pdfSummarySectionLabel(labels.soldering, quoteType),
-      amount: dipTotal,
-      sectionTotal: 'dip',
+      label: 'SET-UP',
+      amount: setupTotal,
+      sectionTotal: 'setup',
       emphasize: true,
       amountEmphasize: true,
     })
 
     for (let index = 0; index < pcbCount; index += 1) {
       const smtBoard = result.common.pcbBoardDetails[index]
-      const dipBoard = result.common.dipBoardDetails[index]
-      if (!dipBoard) continue
-
       const boardName = multiBoard ? smtBoard.pcbName : undefined
-      const dip = dipBoard.boardUnit ?? 0
-      const dipDetails = dipDetailRowsForBoard(dipBoard, quoteType)
-      if (dip <= 0 && !dipDetails.length) continue
+      const setupPerUnit = smtSetupPerUnit(smtBoard.setupAmount, qty)
+      const setupDetails = smtSetupDetailRowsForBoard(smtBoard, result, quoteType)
+      if (setupPerUnit <= 0 && !setupDetails.length) continue
 
-      if (multiBoard && !dipDetails.length) {
+      if (multiBoard && setupDetails.length === 0) {
         rows.push({
           label: '',
-          amount: dip,
+          amount: setupPerUnit,
           boardSubtotal: true,
           emphasize: true,
           amountEmphasize: true,
           boardName,
         })
+      } else if (setupDetails.length > 0) {
+        rows.push({
+          label: 'SET-UP',
+          amount: null,
+          indent: 1,
+          boardSubtotal: true,
+          emphasize: true,
+          boardName,
+        })
+        rows.push(...(multiBoard ? withBoardName(setupDetails, smtBoard.pcbName) : setupDetails))
       }
-      rows.push(...(multiBoard ? withBoardName(dipDetails, smtBoard.pcbName) : dipDetails))
     }
   }
 
+  const dipTotal = pdfSolderingSectionTotal(result)
   const postPerUnit = quotePerUnitTotal(result.values.postProcess, qty)
-  if (postPerUnit > 0 || hasPostInputs(form)) {
+  const postSectionTotal = postPerUnit + dipTotal
+  if (postSectionTotal > 0 || hasPostInputs(form) || dipTotal > 0) {
     rows.push({
       label: pdfSummarySectionLabel(labels.postProcess, quoteType),
-      amount: postPerUnit,
+      amount: postSectionTotal,
       sectionTotal: 'post',
       emphasize: true,
       amountEmphasize: true,
     })
-    rows.push(...postDetailRows(form, 1, quoteType))
+
+    if (dipTotal > 0) {
+      rows.push({
+        label: labels.soldering,
+        amount: null,
+        indent: 1,
+        boardSubtotal: true,
+        emphasize: true,
+      })
+
+      for (let index = 0; index < pcbCount; index += 1) {
+        const smtBoard = result.common.pcbBoardDetails[index]
+        const dipBoard = result.common.dipBoardDetails[index]
+        if (!dipBoard) continue
+
+        const boardName = multiBoard ? smtBoard.pcbName : undefined
+        const dip = dipBoard.boardUnit ?? 0
+        const dipDetails = dipDetailRowsForBoard(dipBoard, quoteType)
+        if (dip <= 0 && !dipDetails.length) continue
+
+        if (multiBoard && !dipDetails.length) {
+          rows.push({
+            label: '',
+            amount: dip,
+            indent: 2,
+            boardSubtotal: true,
+            emphasize: true,
+            amountEmphasize: true,
+            boardName,
+          })
+        }
+        rows.push(
+          ...(multiBoard
+            ? withBoardName(
+                dipDetails.map((row) => ({ ...row, indent: Math.max(2, (row.indent ?? 1) + 1) })),
+                smtBoard.pcbName,
+              )
+            : dipDetails.map((row) => ({ ...row, indent: Math.max(2, (row.indent ?? 1) + 1) }))),
+        )
+      }
+    }
+
+    if (postPerUnit > 0 || hasPostInputs(form)) {
+      rows.push(...postDetailRows(form, 1, quoteType))
+    }
   }
 
   const materialRows = previewMaterialRows(result, form, quoteType)
@@ -837,13 +903,19 @@ export type PdfSummaryBreakdownLine = {
 export type PdfBoardSummaryRow = PdfSummaryBreakdownLine
 
 function pdfSmtSectionTotal(result: EstimateResult) {
-  const qty = result.qty || 1
   return result.common.pcbBoardDetails.reduce((sum, smtBoard) => {
     const smt = smtBoardLaborPerUnit(smtBoard)
-    const setup = smtSetupPerUnit(smtBoard.setupAmount, qty)
     const inspection = smtBoardInspectionPerUnit(smtBoard)
-    return sum + smt + setup + inspection
+    return sum + smt + inspection
   }, 0)
+}
+
+function pdfSetupSectionTotal(result: EstimateResult) {
+  const qty = result.qty || 1
+  return result.common.pcbBoardDetails.reduce(
+    (sum, smtBoard) => sum + smtSetupPerUnit(smtBoard.setupAmount, qty),
+    0,
+  )
 }
 
 function pdfSolderingSectionTotal(result: EstimateResult) {
@@ -868,20 +940,16 @@ export function buildPdfSummaryBreakdownLines(
   const smt = pdfSmtSectionTotal(result)
   if (smt > 0) lines.push({ label: pdfSummarySectionLabel('SMT', quoteType), total: smt, section: 'smt' })
 
-  const soldering = pdfSolderingSectionTotal(result)
-  if (soldering > 0) {
-    lines.push({
-      label: pdfSummarySectionLabel(labels.soldering, quoteType),
-      total: soldering,
-      section: 'dip',
-    })
-  }
+  const setup = pdfSetupSectionTotal(result)
+  if (setup > 0) lines.push({ label: 'SET-UP', total: setup, section: 'setup' })
 
+  const soldering = pdfSolderingSectionTotal(result)
   const postPerUnit = quotePerUnitTotal(result.values.postProcess, result.qty || 1)
-  if (postPerUnit > 0 || hasPostInputs(form)) {
+  const postTotal = postPerUnit + soldering
+  if (postTotal > 0 || hasPostInputs(form) || soldering > 0) {
     lines.push({
       label: pdfSummarySectionLabel(labels.postProcess, quoteType),
-      total: postPerUnit,
+      total: postTotal,
       section: 'post',
     })
   }
@@ -924,9 +992,11 @@ export function buildPdfPostProcessBoardSummaryRows(
   form: PreviewFormFields,
   _productName: string,
 ): PdfSummaryBreakdownLine[] {
+  const soldering = pdfSolderingSectionTotal(result)
   const postPerUnit = quotePerUnitTotal(result.values.postProcess, result.qty || 1)
-  if (postPerUnit <= 0 && !hasPostInputs(form)) return []
-  return [{ label: 'Post-Process', total: postPerUnit, section: 'post' as const }]
+  const total = soldering + postPerUnit
+  if (total <= 0 && !hasPostInputs(form)) return []
+  return [{ label: 'Post-Process', total, section: 'post' as const }]
 }
 
 /** @deprecated Use buildPdfSummaryBreakdownLines */
@@ -977,9 +1047,12 @@ export type PreviewMatrix = {
 
 export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFields): PreviewMatrix {
   const qty = result.qty || 1
-  const postPerUnit = quotePerUnitTotal(result.values.postProcess, qty)
+  const postOnlyPerUnit = quotePerUnitTotal(result.values.postProcess, qty)
   const smtPerUnit = previewSmtSectionPerUnit(result)
+  const setupPerUnit = pdfSetupSectionTotal(result)
   const dipPerUnit = quotePerUnitTotal(result.values.dip, qty)
+  /** 표시용 후공정 = 납땜 + 조립·테스트·포장 */
+  const postPerUnit = dipPerUnit + postOnlyPerUnit
   const pcbCount = result.common.pcbBoardDetails.length
   const postOnBoardRow = pcbCount <= 1
 
@@ -989,14 +1062,14 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
     const setup = smtSetupPerUnit(smtBoard.setupAmount, qty)
     const inspection = smtBoardInspectionPerUnit(smtBoard)
     const dip = dipBoard?.boardUnit ?? 0
-    const post = postOnBoardRow ? postPerUnit : null
+    const post = postOnBoardRow ? postOnlyPerUnit + dip : null
 
     return {
       pcbName: smtBoard.pcbName,
-      smtPerUnit: smtLabor + setup + inspection,
+      smtPerUnit: smtLabor + inspection,
       dipPerUnit: dip,
       postPerUnit: post,
-      rowTotalPerUnit: smtLabor + setup + inspection + dip + (post ?? 0),
+      rowTotalPerUnit: smtLabor + setup + inspection + dip + (postOnBoardRow ? postOnlyPerUnit : 0),
     }
   })
 
@@ -1023,7 +1096,7 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
       smtPerUnit,
       dipPerUnit,
       postPerUnit,
-      rowTotalPerUnit: smtPerUnit + dipPerUnit + postPerUnit,
+      rowTotalPerUnit: smtPerUnit + setupPerUnit + postPerUnit,
     },
     materialRows,
     materialTotalPerUnit: materialPerUnit + materialMgmtPerUnit,

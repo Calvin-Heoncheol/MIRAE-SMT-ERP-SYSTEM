@@ -7,6 +7,9 @@ export function isAuthDisabled() {
   return process.env.AUTH_ENABLED !== 'true'
 }
 
+/** 신규 계정 초기 비밀번호 (로그인 후 변경 강제) */
+export const DEFAULT_INITIAL_PASSWORD = '123123'
+
 /** 개발 환경에서 로그인 페이지 진입 시 자동 로그인 */
 export function isAuthDevAutoLoginEnabled() {
   if (process.env.NODE_ENV === 'production') return false

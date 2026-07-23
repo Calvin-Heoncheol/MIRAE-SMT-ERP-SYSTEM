@@ -43,8 +43,8 @@ function breakdownPageTitle(quoteType: QuoteType) {
 
 function breakdownPageNote(quoteType: QuoteType) {
   return quoteType === 'domestic'
-    ? 'SMT·납땜·후공정·자재 항목별 단가·수량 기준 산정식입니다.'
-    : 'Itemized calculation for SMT, soldering, post-process, and materials.'
+    ? 'SMT·SET-UP·후공정(납땜 포함)·자재 항목별 단가·수량 기준 산정식입니다.'
+    : 'Itemized calculation for SMT, SET-UP, post-process (incl. soldering), and materials.'
 }
 
 function formatAmount(
@@ -57,7 +57,7 @@ function formatAmount(
 
 function rowIndentClass(indent?: number) {
   if (indent === 1) return 'pl-6'
-  if (indent === 2) return 'pl-10 text-xs'
+  if (indent != null && indent >= 2) return 'pl-10 text-xs'
   return ''
 }
 

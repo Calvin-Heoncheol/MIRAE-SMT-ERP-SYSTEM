@@ -13,6 +13,7 @@ import {
 } from '@/lib/auth/types'
 import { createErpUser, deleteErpUser, updateErpUser } from '@/lib/users/actions'
 import type { ErpUserRow } from '@/lib/users/types'
+import { DEFAULT_INITIAL_PASSWORD } from '@/lib/auth/config'
 
 type UsersModalProps = {
   open: boolean
@@ -34,7 +35,7 @@ type FormState = {
 function emptyForm(): FormState {
   return {
     email: '',
-    password: '',
+    password: DEFAULT_INITIAL_PASSWORD,
     displayName: '',
     role: 'operator',
     department: '',
@@ -116,10 +117,15 @@ function UsersModalContent({
   }
 
   async function handleSave() {
+    if (!form.department) {
+      setSaveError('부서를 선택해 주세요.')
+      return
+    }
+
     setSaving(true)
     setSaveError(null)
 
-    const department = form.department || null
+    const department = form.department
     const result = isCreate
       ? await createErpUser({
           email: form.email,
@@ -178,8 +184,8 @@ function UsersModalContent({
       title={isCreate ? '사용자 등록' : '사용자 수정'}
       description={
         isCreate
-          ? '이메일·비밀번호와 이름·역할·부서를 한 번에 등록합니다.'
-          : '이름·역할·부서를 수정합니다. 비밀번호는 필요할 때만 입력하세요.'
+          ? `초기 비밀번호는 ${DEFAULT_INITIAL_PASSWORD} 입니다. 첫 로그인 시 새 비밀번호로 변경하게 됩니다.`
+          : '이름·역할·부서를 수정합니다. 비밀번호를 바꾸면 다음 로그인 시 변경을 다시 요청합니다.'
       }
       onClose={onClose}
       closeOnEscape={!busy}
@@ -227,13 +233,13 @@ function UsersModalContent({
           />
         </Field>
 
-        <Field label={isCreate ? '비밀번호' : '비밀번호 변경 (선택)'}>
+        <Field label={isCreate ? '초기 비밀번호' : '비밀번호 변경 (선택)'}>
           <input
             className={inputClass}
             type="password"
             value={form.password}
             onChange={(e) => updateForm('password', e.target.value)}
-            placeholder={isCreate ? '6자 이상' : '변경 시에만 입력'}
+            placeholder={isCreate ? DEFAULT_INITIAL_PASSWORD : '변경 시에만 입력'}
             disabled={busy}
             autoComplete="new-password"
           />
@@ -263,8 +269,11 @@ function UsersModalContent({
                 updateForm('department', e.target.value as AuthDepartment | '')
               }
               disabled={busy}
+              required
             >
-              <option value="">미지정</option>
+              <option value="" disabled>
+                부서 선택
+              </option>
               {AUTH_DEPARTMENTS.map((department) => (
                 <option key={department} value={department}>
                   {formatAuthDepartmentLabel(department)}

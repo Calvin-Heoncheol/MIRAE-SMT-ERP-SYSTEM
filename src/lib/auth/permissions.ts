@@ -16,13 +16,13 @@ export type AuthAccessModule =
   | 'reports_sales'
 
 const DEPARTMENT_MODULES: Record<AuthDepartment, AuthAccessModule[]> = {
-  sales: ['dashboard', 'sales', 'approvals', 'reports_sales'],
+  sales: ['dashboard', 'sales', 'approvals'],
   materials: ['dashboard', 'materials', 'approvals'],
   production1: ['dashboard', 'production_smt', 'production_history', 'approvals'],
   production2: ['dashboard', 'production_post_2', 'production_history', 'approvals'],
   production3: ['dashboard', 'production_post_3', 'production_history', 'approvals'],
   production4: ['dashboard', 'production_post_4', 'production_history', 'approvals'],
-  office: ['dashboard', 'approvals', 'reports_production', 'reports_sales'],
+  office: ['dashboard', 'approvals'],
 }
 
 /** 관리자 전용 모듈 — 부서와 무관하게 admin만 */
@@ -48,16 +48,22 @@ export function resolveAccessModule(
   searchParams?: { get(name: string): string | null } | null,
 ): AuthAccessModule | null {
   if (pathname === '/') return 'dashboard'
+  if (pathname.startsWith('/production/status')) return 'dashboard'
   if (
     pathname.startsWith('/new-companies') ||
     pathname.startsWith('/quotations') ||
     pathname.startsWith('/orders') ||
-    pathname.startsWith('/production/status') ||
     pathname.startsWith('/delivery')
   ) {
     return 'sales'
   }
   if (pathname.startsWith('/master')) return 'master'
+  if (
+    pathname.startsWith('/reports/production') ||
+    pathname.startsWith('/reports/sales')
+  ) {
+    return 'master'
+  }
   if (
     pathname.startsWith('/approvals') ||
     pathname.startsWith('/expense-reports') ||
@@ -74,8 +80,6 @@ export function resolveAccessModule(
     return 'production_post_2'
   }
   if (pathname.startsWith('/production/history')) return 'production_history'
-  if (pathname.startsWith('/reports/production')) return 'reports_production'
-  if (pathname.startsWith('/reports/sales')) return 'reports_sales'
   return null
 }
 
@@ -88,8 +92,8 @@ export function getAllowedModules(input: {
   const withoutAdminOnly = (modules: AuthAccessModule[]) =>
     modules.filter((module) => !ADMIN_ONLY_MODULES.includes(module))
 
-  // 부서 미지정: 과도기 — 관리자 전용 제외한 전체
-  if (!input.department) return withoutAdminOnly(ALL_MODULES)
+  // 부서 미지정: 메뉴 접근 없음 (부서 필수)
+  if (!input.department) return []
   return withoutAdminOnly(DEPARTMENT_MODULES[input.department])
 }
 

@@ -1,4 +1,5 @@
 import { SideNav } from '@/components/dashboard/side-nav'
+import { ForcePasswordChangeModal } from '@/components/auth/force-password-change-modal'
 import { isAuthDisabled } from '@/lib/auth/config'
 import { getAuthProfile } from '@/lib/auth/session'
 
@@ -19,6 +20,7 @@ export default async function DashboardLayout({
       <main className="flex min-h-0 min-w-0 w-full flex-1 flex-col px-4 py-4 lg:px-6 lg:py-5">
         {children}
       </main>
+      <ForcePasswordChangeModal open={Boolean(profile?.mustChangePassword)} />
     </div>
   )
 }

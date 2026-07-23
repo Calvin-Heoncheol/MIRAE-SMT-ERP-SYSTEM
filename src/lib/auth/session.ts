@@ -23,6 +23,7 @@ export async function getAuthProfile(): Promise<AuthProfile | null> {
       displayName: '개발모드',
       role: 'admin',
       department: null,
+      mustChangePassword: false,
     }
   }
 
@@ -34,7 +35,7 @@ export async function getAuthProfile(): Promise<AuthProfile | null> {
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id, email, display_name, role, department')
+    .select('id, email, display_name, role, department, must_change_password')
     .eq('id', user.id)
     .maybeSingle()
 
@@ -49,6 +50,7 @@ export async function getAuthProfile(): Promise<AuthProfile | null> {
       displayName: user.email?.split('@')[0] || '사용자',
       role: 'operator',
       department: null,
+      mustChangePassword: false,
     }
   }
 
@@ -63,5 +65,6 @@ export async function getAuthProfile(): Promise<AuthProfile | null> {
     displayName,
     role: normalizeAuthRole(profile.role),
     department: normalizeAuthDepartment(profile.department),
+    mustChangePassword: Boolean(profile.must_change_password),
   }
 }

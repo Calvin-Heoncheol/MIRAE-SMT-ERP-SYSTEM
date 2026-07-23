@@ -13,6 +13,8 @@ type ErpModalProps = {
   footer?: ReactNode
   /** Esc로 닫기 (저장 중이면 false 권장) */
   closeOnEscape?: boolean
+  /** 헤더 × 닫기 버튼 (강제 모달 등에서는 false) */
+  showCloseButton?: boolean
   /** 본문 래퍼 클래스 (기본: px-5 py-4) */
   contentClassName?: string
   /** 헤더 우측 추가 액션 (PDF 등) — 닫기 버튼 왼쪽 */
@@ -37,6 +39,7 @@ export function ErpModal({
   children,
   footer,
   closeOnEscape = true,
+  showCloseButton = true,
   contentClassName = 'min-h-0 flex-1 overflow-y-auto px-5 py-4',
   headerActions,
   zIndexClassName = 'z-50',
@@ -73,14 +76,16 @@ export function ErpModal({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {headerActions}
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg px-2 py-1 text-2xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              aria-label="닫기"
-            >
-              ×
-            </button>
+            {showCloseButton ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg px-2 py-1 text-2xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="닫기"
+              >
+                ×
+              </button>
+            ) : null}
           </div>
         </div>
 

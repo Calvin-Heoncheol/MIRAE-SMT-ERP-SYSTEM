@@ -134,7 +134,8 @@ function buildPreviewRowHtml(
   const sectionColors = sectionFooter ? PDF_SECTION_COLORS[sectionFooter] : null
   const sectionBg = isBoardTotal || isSectionTotal ? SECTION_TOTAL_ROW_BG : isBoardSubtotal ? '#e2e8f0' : ''
   const footerBg = sectionColors?.bg ?? sectionBg
-  const indent = row.indent === 1 ? 'padding-left:24px;' : row.indent === 2 ? 'padding-left:40px;' : ''
+  const indent =
+    row.indent === 1 ? 'padding-left:24px;' : row.indent != null && row.indent >= 2 ? 'padding-left:40px;' : ''
   const labelStyle =
     isBoardTotal || row.emphasize || sectionFooter
       ? 'font-weight:700;color:#0f172a;'
@@ -417,8 +418,8 @@ function buildQuoteDetailHeaderHtml(
   const isDomestic = quote.quoteType === 'domestic'
   const title = isDomestic ? '항목별 요약' : 'Summary Breakdown'
   const note = isDomestic
-    ? 'SMT·납땜·후공정·자재 대당 합계입니다.'
-    : 'Per-unit totals for SMT, soldering, post-process, and materials.'
+    ? 'SMT·SET-UP·후공정·자재 대당 합계입니다.'
+    : 'Per-unit totals for SMT, SET-UP, post-process, and materials.'
 
   return `${buildSectionPageHeaderHtml(quote, estimate, title, note)}`
 }
@@ -427,17 +428,16 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem) {
   const { estimate, pdfBreakdownRows } = buildQuotePreviewData(quote)
   const labels = getPreviewLabels(quote.quoteType)
   const smtRows = filterPdfBreakdownRows(pdfBreakdownRows, 'smt', quote.quoteType)
-  const solderingRows = filterPdfBreakdownRows(pdfBreakdownRows, 'dip', quote.quoteType)
+  const setupRows = filterPdfBreakdownRows(pdfBreakdownRows, 'setup', quote.quoteType)
   const postRows = filterPdfBreakdownRows(pdfBreakdownRows, 'post', quote.quoteType)
   const materialRows = filterPdfBreakdownRows(pdfBreakdownRows, 'material', quote.quoteType)
-  if (!smtRows.length && !solderingRows.length && !postRows.length && !materialRows.length) return ''
+  if (!smtRows.length && !setupRows.length && !postRows.length && !materialRows.length) return ''
 
   const isDomestic = quote.quoteType === 'domestic'
   const pageTitle = isDomestic ? '공정별 세부 산정내역' : 'Detailed Breakdown by Process'
   const pageNote = isDomestic
-    ? 'SMT·납땜·후공정·자재 항목별 단가·수량 기준 산정식입니다.'
-    : 'Itemized calculation for SMT, soldering, post-process, and materials.'
-  const solderingTitle = pdfSummarySectionLabel(labels.soldering, quote.quoteType)
+    ? 'SMT·SET-UP·후공정(납땜 포함)·자재 항목별 단가·수량 기준 산정식입니다.'
+    : 'Itemized calculation for SMT, SET-UP, post-process (incl. soldering), and materials.'
   const postTitle = pdfSummarySectionLabel(labels.postProcess, quote.quoteType)
   const materialTitle = pdfSummarySectionLabel(labels.materials, quote.quoteType)
 
@@ -446,7 +446,7 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem) {
       ${buildSectionPageHeaderHtml(quote, estimate, pageTitle, pageNote)}
       <div class="breakdown-sections">
         ${buildBreakdownSectionHtml('SMT', smtRows, quote.quoteType, 'smt', 'breakdown-section-smt')}
-        ${buildBreakdownSectionHtml(solderingTitle, solderingRows, quote.quoteType, 'dip', 'breakdown-section-separated')}
+        ${buildBreakdownSectionHtml('SET-UP', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated')}
         ${buildBreakdownSectionHtml(postTitle, postRows, quote.quoteType, 'post', 'breakdown-section-separated')}
         ${buildBreakdownSectionHtml(materialTitle, materialRows, quote.quoteType, 'material', 'breakdown-section-separated')}
       </div>
@@ -491,7 +491,7 @@ function buildQuotePages(quote: QuoteListItem) {
 }
 
 function buildPdfSectionColorCss() {
-  const sections: PreviewSection[] = ['smt', 'dip', 'post', 'material']
+  const sections: PreviewSection[] = ['smt', 'setup', 'dip', 'post', 'material']
 
   return sections
     .map((section) => {
@@ -1219,6 +1219,7 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[]) {
         print-color-adjust: exact;
       }
       .breakdown-section-total-smt td,
+      .breakdown-section-total-setup td,
       .breakdown-section-total-dip td,
       .breakdown-section-total-post td,
       .breakdown-section-total-material td {

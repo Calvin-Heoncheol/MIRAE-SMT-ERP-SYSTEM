@@ -18,6 +18,8 @@ export type AuthProfile = {
   displayName: string
   role: AuthRole
   department: AuthDepartment | null
+  /** true면 로그인 후 비밀번호 변경 모달 */
+  mustChangePassword: boolean
 }
 
 export function normalizeAuthRole(value: string | null | undefined): AuthRole {

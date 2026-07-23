@@ -11,7 +11,8 @@ export type ErpUserRow = {
 
 export type CreateErpUserInput = {
   email: string
-  password: string
+  /** 비우면 초기 비밀번호 123123 */
+  password?: string
   displayName: string
   role: AuthRole
   department: AuthDepartment | null

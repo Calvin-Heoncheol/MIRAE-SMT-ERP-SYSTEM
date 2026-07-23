@@ -29,6 +29,15 @@ function roleBadgeClass(role: AuthRole) {
   return 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80'
 }
 
+function departmentBadgeClass(department: AuthProfile['department']) {
+  if (!department) return 'bg-slate-50 text-slate-500 ring-1 ring-slate-200/80'
+  if (department === 'sales') return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
+  if (department === 'materials') return 'bg-amber-50 text-amber-800 ring-1 ring-amber-100'
+  if (department.startsWith('production')) return 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100'
+  if (department === 'office') return 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'
+  return 'bg-slate-50 text-slate-600 ring-1 ring-slate-200/80'
+}
+
 function avatarClass(role: AuthRole) {
   if (role === 'admin') return 'bg-gradient-to-br from-slate-800 to-slate-950 text-white'
   if (role === 'manager') return 'bg-gradient-to-br from-sky-600 to-sky-800 text-white'
@@ -65,16 +74,17 @@ export function SideNavUserMenu({ profile, authDisabled = false }: SideNavUserMe
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <p className="min-w-0 truncate text-sm font-bold text-slate-900">{profile.displayName}</p>
             <span
+              className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${departmentBadgeClass(profile.department)}`}
+            >
+              {formatAuthDepartmentLabel(profile.department)}
+            </span>
+            <span
               className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${roleBadgeClass(profile.role)}`}
             >
               {formatAuthRoleLabel(profile.role)}
             </span>
           </div>
-          <p className="mt-0.5 truncate text-[11px] text-slate-500">
-            {formatAuthDepartmentLabel(profile.department)}
-            <span className="mx-1 text-slate-300">·</span>
-            {profile.email}
-          </p>
+          <p className="mt-0.5 truncate text-[11px] text-slate-500">{profile.email}</p>
         </div>
       </div>
 

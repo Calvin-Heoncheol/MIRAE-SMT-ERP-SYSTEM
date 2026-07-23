@@ -1,7 +1,7 @@
 'use server'
 
 import { getAuthProfile } from '@/lib/auth/session'
-import { isAuthDisabled } from '@/lib/auth/config'
+import { DEFAULT_INITIAL_PASSWORD, isAuthDisabled } from '@/lib/auth/config'
 import {
   AUTH_DEPARTMENTS,
   AUTH_ROLES,
@@ -128,7 +128,7 @@ export async function createErpUser(input: CreateErpUserInput): Promise<MutateEr
   }
 
   const email = String(input.email || '').trim().toLowerCase()
-  const password = String(input.password || '')
+  const password = String(input.password || '').trim() || DEFAULT_INITIAL_PASSWORD
   const displayName = String(input.displayName || '').trim()
   const role = input.role
   const department = input.department
@@ -145,8 +145,12 @@ export async function createErpUser(input: CreateErpUserInput): Promise<MutateEr
   if (!validateRole(role)) {
     return { ok: false, reason: 'validation', detail: '역할이 올바르지 않습니다.' }
   }
-  if (validateDepartment(department) === false) {
+  const normalizedDepartment = validateDepartment(department)
+  if (normalizedDepartment === false) {
     return { ok: false, reason: 'validation', detail: '부서가 올바르지 않습니다.' }
+  }
+  if (normalizedDepartment == null) {
+    return { ok: false, reason: 'validation', detail: '부서를 선택해 주세요.' }
   }
 
   try {
@@ -158,7 +162,7 @@ export async function createErpUser(input: CreateErpUserInput): Promise<MutateEr
       user_metadata: {
         display_name: displayName,
         role,
-        department: department || '',
+        department: normalizedDepartment,
       },
     })
 
@@ -176,7 +180,8 @@ export async function createErpUser(input: CreateErpUserInput): Promise<MutateEr
         email,
         display_name: displayName,
         role,
-        department,
+        department: normalizedDepartment,
+        must_change_password: true,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'id' },
@@ -228,8 +233,12 @@ export async function updateErpUser(input: UpdateErpUserInput): Promise<MutateEr
   if (!validateRole(role)) {
     return { ok: false, reason: 'validation', detail: '역할이 올바르지 않습니다.' }
   }
-  if (validateDepartment(department) === false) {
+  const normalizedDepartment = validateDepartment(department)
+  if (normalizedDepartment === false) {
     return { ok: false, reason: 'validation', detail: '부서가 올바르지 않습니다.' }
+  }
+  if (normalizedDepartment == null) {
+    return { ok: false, reason: 'validation', detail: '부서를 선택해 주세요.' }
   }
   if (password && password.length < 6) {
     return { ok: false, reason: 'validation', detail: '비밀번호는 6자 이상이어야 합니다.' }
@@ -245,7 +254,7 @@ export async function updateErpUser(input: UpdateErpUserInput): Promise<MutateEr
       user_metadata: {
         display_name: displayName,
         role,
-        department: department || '',
+        department: normalizedDepartment,
       },
     }
     if (password) authUpdate.password = password
@@ -260,7 +269,8 @@ export async function updateErpUser(input: UpdateErpUserInput): Promise<MutateEr
       .update({
         display_name: displayName,
         role,
-        department,
+        department: normalizedDepartment,
+        ...(password ? { must_change_password: true } : {}),
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)

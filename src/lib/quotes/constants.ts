@@ -27,7 +27,7 @@ export const SMT_SETUP_MINUTES_PER_PART_EXPORT = 3
 /** @deprecated getSmtSetupMinutesPerPart 사용 */
 export const SMT_SETUP_MINUTES_PER_PART = SMT_SETUP_MINUTES_PER_PART_EXPORT
 /** 150점 이하일 때 PCB당 적용되는 최소 실장비 (IC/BGA 등 단가 무효, 이 금액만 청구) */
-export const SMT_PLACEMENT_MIN_FEE_DOMESTIC = 6_000
+export const SMT_PLACEMENT_MIN_FEE_DOMESTIC = 5_000
 export const SMT_PLACEMENT_MIN_FEE_EXPORT = 6_000
 /** CHIP·이형·특수/모듈·IC PIN·BGA BALL 합산 점수(개수 1:1)가 이 값 이하이면 최소 실장비 적용 */
 export const SMT_PLACEMENT_MIN_SCORE = 150
@@ -42,7 +42,12 @@ export const POST_RATE = POST_RATE_EXPORT
 export const SMT_UNIT_CHIP_DOMESTIC = 6
 /** CHIP 단가: 해외 ₩5.25/개 */
 export const SMT_UNIT_CHIP_EXPORT = 5.25
-export const SMT_UNIT_ODD = 20
+/** 이형 단가: 국내 ₩24/개 */
+export const SMT_UNIT_ODD_DOMESTIC = 24
+/** 이형 단가: 해외 ₩20/개 */
+export const SMT_UNIT_ODD_EXPORT = 20
+/** @deprecated getSmtUnitRates 사용 */
+export const SMT_UNIT_ODD = SMT_UNIT_ODD_EXPORT
 export const SMT_UNIT_SPECIAL = 100
 /** IC PIN 단가: 국내 ₩2/PIN */
 export const SMT_UNIT_IC_PIN_DOMESTIC = 2
@@ -108,7 +113,7 @@ export function getSmtUnitRates(quoteType: QuoteType) {
   if (quoteType === 'domestic') {
     return {
       chip: SMT_UNIT_CHIP_DOMESTIC,
-      odd: SMT_UNIT_ODD,
+      odd: SMT_UNIT_ODD_DOMESTIC,
       special: SMT_UNIT_SPECIAL,
       icPin: SMT_UNIT_IC_PIN_DOMESTIC,
       bgaBall: SMT_UNIT_BGA_BALL_DOMESTIC,
@@ -116,7 +121,7 @@ export function getSmtUnitRates(quoteType: QuoteType) {
   }
   return {
     chip: SMT_UNIT_CHIP_EXPORT,
-    odd: SMT_UNIT_ODD,
+    odd: SMT_UNIT_ODD_EXPORT,
     special: SMT_UNIT_SPECIAL,
     icPin: SMT_UNIT_IC_PIN_EXPORT,
     bgaBall: SMT_UNIT_BGA_BALL_EXPORT,
