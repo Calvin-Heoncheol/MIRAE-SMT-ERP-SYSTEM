@@ -1,3 +1,4 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import type { ItemCategory } from '@/lib/items/types'
 import { normalizeItemCategory } from '@/lib/items/utils'
@@ -10,11 +11,11 @@ export type FetchBomResult =
 
 export type SaveBomResult =
   | { ok: true; parentProductId: string; lineCount: number }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type DeleteBomResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export function isMissingBomTable(detail: string) {
   return (
@@ -465,6 +466,9 @@ export async function saveBomForParent(
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'master', action: 'update' })
+  if (!gate.ok) return gate
+
   const parentId = parentProductId.trim()
   if (!parentId) {
     return { ok: false, reason: 'validation', detail: '부모 품목을 선택해 주세요.' }
@@ -599,6 +603,9 @@ export async function deleteBomForParent(parentProductId: string): Promise<Delet
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'master', action: 'delete' })
+  if (!gate.ok) return gate
 
   const parentId = parentProductId.trim()
   if (!parentId) {

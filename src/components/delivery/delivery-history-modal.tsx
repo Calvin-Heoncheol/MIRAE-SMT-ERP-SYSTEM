@@ -168,7 +168,7 @@ export function DeliveryHistoryModal({
             <h2 id="delivery-history-modal-title" className="text-lg font-bold text-slate-900">
               출하 수정
             </h2>
-            <p className="mt-1 font-mono text-xs text-violet-700">
+            <p className="mt-1 font-mono text-xs text-slate-700">
               출하번호 {row.id} <span className="text-slate-400">(수정 불가)</span>
             </p>
           </div>
@@ -177,7 +177,7 @@ export function DeliveryHistoryModal({
               type="button"
               onClick={handlePrintStatement}
               disabled={saving || deleting || qtyNumber < 1}
-              className="rounded-lg bg-gradient-to-r from-violet-600 to-violet-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 disabled:opacity-50"
+              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-900 disabled:opacity-50"
             >
               거래명세서
             </button>
@@ -252,7 +252,7 @@ export function DeliveryHistoryModal({
             </label>
             <div className="block text-sm">
               <span className="mb-1 block font-medium text-slate-600">공급가액 (거래명세서)</span>
-              <div className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2.5 text-base font-bold tabular-nums text-violet-800">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-base font-bold tabular-nums text-slate-800">
                 ₩{formatMoneyInput(supplyAmount)}
               </div>
             </div>

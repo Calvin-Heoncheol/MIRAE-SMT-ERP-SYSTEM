@@ -68,7 +68,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // 사이드바는 허용 모듈만 표시. 권한 없는 URL 직접 접근은 여기서 차단.
+  // 메뉴는 사이드바에 보이되, 권한 없는 URL 직접 접근·클릭은 여기서 차단.
   if (user && !isLoginPage && !isForbiddenPage) {
     const { data: profile } = await supabase
       .from('profiles')

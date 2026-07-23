@@ -6,6 +6,7 @@ import { NewCompanyFetchError } from '@/components/new-companies/new-company-fet
 import { NewCompanyListTable } from '@/components/new-companies/new-company-list-table'
 import { NewCompanyModal } from '@/components/new-companies/new-company-modal'
 import { ErpButton } from '@/components/ui/erp-button'
+import { FilterChipBar } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchNewCompanyInquiriesResult } from '@/lib/new-companies/repository'
@@ -69,13 +70,21 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
   )
   const pagination = useClientPagination(filtered)
 
-  const statusChips: { key: StatusFilter; label: string; count: number }[] = [
-    { key: 'all', label: '전체', count: inquiries.length },
-    ...NEW_COMPANY_STATUSES.map((status) => ({
-      key: status as StatusFilter,
-      label: NEW_COMPANY_STATUS_LABELS[status],
-      count: inquiries.filter((inquiry) => inquiry.status === status).length,
-    })),
+  const statusChips = [
+    { value: 'all' as const, label: '전체', count: inquiries.length },
+    ...NEW_COMPANY_STATUSES.map((status) => {
+      const badge = NEW_COMPANY_STATUS_BADGE_CLASS[status]
+      return {
+        value: status as StatusFilter,
+        label: NEW_COMPANY_STATUS_LABELS[status],
+        count: inquiries.filter((inquiry) => inquiry.status === status).length,
+        tone: {
+          idleClassName: `ring-1 opacity-80 hover:opacity-100 ${badge}`,
+          activeClassName: `ring-2 ring-offset-1 ring-slate-400 ${badge}`,
+          activeCountClassName: 'opacity-80',
+        },
+      }
+    }),
   ]
 
   function openCreate() {
@@ -108,56 +117,18 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="회사명, 담당자, 유입경로, 상태, 이메일, 연락처, 제품, 진행사항 검색…"
           accent="slate"
           filters={
-            <div className="flex flex-wrap gap-2">
-              {statusChips.map((chip) => {
-                const active = statusFilter === chip.key
-                const statusBadgeClass =
-                  chip.key === 'all'
-                    ? null
-                    : NEW_COMPANY_STATUS_BADGE_CLASS[chip.key]
-                return (
-                  <button
-                    key={chip.key}
-                    type="button"
-                    onClick={() => setStatusFilter(chip.key)}
-                    className={[
-                      'rounded-full px-4 py-1.5 text-sm font-semibold transition-colors',
-                      statusBadgeClass == null
-                        ? active
-                          ? 'bg-slate-800 text-white shadow-sm'
-                          : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
-                        : [
-                            'ring-1',
-                            statusBadgeClass,
-                            active
-                              ? 'ring-2 ring-offset-1 ring-slate-400'
-                              : 'opacity-70 hover:opacity-100',
-                          ].join(' '),
-                    ].join(' ')}
-                  >
-                    {chip.label}{' '}
-                    <span
-                      className={
-                        statusBadgeClass == null
-                          ? active
-                            ? 'text-slate-300'
-                            : 'text-slate-400'
-                          : 'opacity-80'
-                      }
-                    >
-                      {chip.count.toLocaleString('ko-KR')}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
+            <FilterChipBar
+              options={statusChips}
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
           }
           actions={<ErpButton onClick={openCreate}>신규업체 등록</ErpButton>}
         />

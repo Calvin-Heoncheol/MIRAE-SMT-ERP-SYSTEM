@@ -6,6 +6,7 @@ import { MaterialPurchaseOrderFetchError } from '@/components/materials/purchase
 import { MaterialPurchaseOrderListTable } from '@/components/materials/purchase-orders/material-purchase-order-list-table'
 import { MaterialPurchaseOrderModal } from '@/components/materials/purchase-orders/material-purchase-order-modal'
 import { MaterialPurchaseSuggestionTable } from '@/components/materials/purchase-orders/material-purchase-suggestion-table'
+import { FilterChipBar } from '@/components/ui/filter-chip'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
@@ -19,6 +20,7 @@ import type {
   MaterialPurchaseOrderListGroup,
   MaterialPurchaseSuggestionLine,
 } from '@/lib/materials/purchase-orders/types'
+import { getMaterialPurchaseSourceKind } from '@/lib/materials/purchase-orders/utils'
 
 type MaterialPurchaseOrdersWorkspaceProps =
   | { view: 'register'; result: FetchMaterialPurchaseRegisterResult }
@@ -36,6 +38,8 @@ type EditModalState =
   | { open: false }
   | { open: true; order: MaterialPurchaseOrderListGroup }
 
+type HistorySourceFilter = 'all' | 'order' | 'material'
+
 function matchesSuggestionLine(line: MaterialPurchaseSuggestionLine, query: string) {
   if (!query) return true
   const haystack = [line.materialId, line.materialName, line.specification, line.mpn, line.supplier]
@@ -49,6 +53,7 @@ function matchesPurchaseOrder(order: MaterialPurchaseOrderListGroup, query: stri
   const haystack = [
     order.orderNumber,
     order.supplier,
+    order.sourceOrderId || '',
     ...order.items.flatMap((item) => [item.materialName, item.materialCode, item.mpn, item.specification]),
   ]
     .join(' ')
@@ -62,6 +67,7 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
   const [editModal, setEditModal] = useState<EditModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
   const [search, setSearch] = useState('')
+  const [sourceFilter, setSourceFilter] = useState<HistorySourceFilter>('all')
 
   const suggestionLines =
     props.view === 'register' && props.result.ok ? props.result.suggestionLines : []
@@ -72,12 +78,37 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
     () => suggestionLines.filter((line) => matchesSuggestionLine(line, query)),
     [suggestionLines, query],
   )
+  const suggestionsPagination = useClientPagination(filteredSuggestions)
+
+  const sourceCounts = useMemo(() => {
+    let order = 0
+    let material = 0
+    for (const item of purchaseOrders) {
+      if (getMaterialPurchaseSourceKind(item) === 'order') order += 1
+      else material += 1
+    }
+    return { all: purchaseOrders.length, order, material }
+  }, [purchaseOrders])
 
   const filteredPurchaseOrders = useMemo(
-    () => purchaseOrders.filter((order) => matchesPurchaseOrder(order, query)),
-    [purchaseOrders, query],
+    () =>
+      purchaseOrders.filter((order) => {
+        if (!matchesPurchaseOrder(order, query)) return false
+        if (sourceFilter === 'all') return true
+        return getMaterialPurchaseSourceKind(order) === sourceFilter
+      }),
+    [purchaseOrders, query, sourceFilter],
   )
   const ordersPagination = useClientPagination(filteredPurchaseOrders)
+
+  const historyChips = useMemo(
+    () => [
+      { value: 'all' as const, label: '전체', count: sourceCounts.all },
+      { value: 'order' as const, label: '주문서', count: sourceCounts.order },
+      { value: 'material' as const, label: '자재별', count: sourceCounts.material },
+    ],
+    [sourceCounts],
+  )
 
   function openCreate(seed?: { items?: MaterialPurchaseOrderItemForm[]; supplier?: string }) {
     setModalSession((value) => value + 1)
@@ -116,7 +147,7 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
   if (props.view === 'register') {
     return (
       <>
-        <div className="flex w-full flex-1 flex-col gap-4">
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
           <WorkspaceHeader
             totalCount={suggestionLines.length}
             filteredCount={filteredSuggestions.length}
@@ -124,7 +155,7 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
             search={search}
             onSearchChange={setSearch}
             searchPlaceholder="자재코드, 자재명, MPN, 공급사 검색…"
-            accent="violet"
+            accent="slate"
             meta={
               <p className="mt-0.5 text-slate-500">
                 발주필요{' '}
@@ -136,9 +167,20 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
             }
           />
 
-          <MaterialPurchaseSuggestionTable
-            lines={filteredSuggestions}
-            onCreateOrder={handleCreateSuggestionOrder}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <MaterialPurchaseSuggestionTable
+              lines={suggestionsPagination.pageItems}
+              onCreateOrder={handleCreateSuggestionOrder}
+            />
+          </div>
+
+          <ListPagination
+            page={suggestionsPagination.page}
+            totalPages={suggestionsPagination.totalPages}
+            onPageChange={suggestionsPagination.setPage}
+            rangeStart={suggestionsPagination.rangeStart}
+            rangeEnd={suggestionsPagination.rangeEnd}
+            totalCount={suggestionsPagination.totalCount}
           />
         </div>
 
@@ -159,23 +201,30 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
           totalCount={purchaseOrders.length}
           filteredCount={filteredPurchaseOrders.length}
-          hasQuery={Boolean(query)}
+          hasQuery={Boolean(query) || sourceFilter !== 'all'}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="발주번호, 공급사, 자재명, MPN 검색…"
-          accent="violet"
+          searchPlaceholder="발주번호, 주문서, 공급사, 자재명, MPN 검색…"
+          accent="slate"
+          filters={
+            <FilterChipBar
+              options={historyChips}
+              value={sourceFilter}
+              onChange={setSourceFilter}
+            />
+          }
         />
 
         <MaterialPurchaseOrderListTable
           orders={ordersPagination.pageItems}
           emptyMessage={formatEmptyListMessage({
-            hasQuery: Boolean(query),
+            hasQuery: Boolean(query) || sourceFilter !== 'all',
             emptyLabel: '등록된 자재 발주가 없습니다',
-            actionHint: '발주등록 탭에서 등록하세요',
+            actionHint: '주문서 발주 또는 자재별 발주 탭에서 등록하세요',
           })}
           onSelectOrder={openEdit}
         />

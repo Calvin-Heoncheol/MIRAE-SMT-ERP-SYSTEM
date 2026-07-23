@@ -1,14 +1,11 @@
 import Link from 'next/link'
 import type {
   HomeDashboardData,
-  HomeDeptMetric,
   HomeHeroMetric,
   HomeSmtLine,
 } from '@/lib/dashboard/home-data'
-
-function formatCount(value: number | null) {
-  return value == null ? '–' : value.toLocaleString('ko-KR')
-}
+import { HomeTeamPerformanceChart } from '@/components/dashboard/home/home-team-performance-chart'
+import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 
 const SMT_LINE_STATUS = {
   idle: { label: '대기', chip: 'bg-slate-100 text-slate-500' },
@@ -24,12 +21,6 @@ function smtLineProgressPercent(line: HomeSmtLine) {
   return Math.min(100, Math.round((line.producedQuantity / line.plannedQuantity) * 100))
 }
 
-const TONE_VALUE: Record<HomeDeptMetric['tone'], string> = {
-  default: 'text-slate-900',
-  warn: 'text-amber-600',
-  danger: 'text-rose-600',
-}
-
 const HERO_ACCENT: Record<string, string> = {
   'hero:new-orders': 'border-sky-200 bg-sky-50/70',
   'hero:achievement': 'border-emerald-200 bg-emerald-50/70',
@@ -38,24 +29,17 @@ const HERO_ACCENT: Record<string, string> = {
 }
 
 function HeroCard({ metric }: { metric: HomeHeroMetric }) {
+  const accent = HERO_ACCENT[metric.key] ?? 'border-slate-200 bg-white'
   return (
-    <Link
-      href={metric.href}
-      className={[
-        'rounded-xl border px-3.5 py-3 transition hover:border-slate-300 hover:shadow-sm',
-        HERO_ACCENT[metric.key] ?? 'border-slate-200 bg-white',
-      ].join(' ')}
-    >
-      <p className="text-[11px] font-semibold text-slate-500">{metric.label}</p>
-      <p className={`mt-1 text-2xl font-bold tabular-nums ${TONE_VALUE[metric.tone]}`}>
-        {formatCount(metric.value)}
-        <span className="ml-1 text-xs font-semibold text-slate-400">{metric.unit}</span>
-      </p>
-      {metric.hint ? (
-        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
-          {metric.hint}
-        </p>
-      ) : null}
+    <Link href={metric.href} className="block transition hover:opacity-95">
+      <KpiStatCard
+        label={metric.label}
+        value={metric.value}
+        unit={metric.unit}
+        hint={metric.hint}
+        tone={metric.tone === 'warn' ? 'amber' : metric.tone === 'danger' ? 'rose' : 'default'}
+        className={['transition hover:border-slate-300 hover:shadow-sm', accent].join(' ')}
+      />
     </Link>
   )
 }
@@ -66,11 +50,6 @@ function HeroCard({ metric }: { metric: HomeHeroMetric }) {
 export function HomeDashboard({ data }: { data: HomeDashboardData }) {
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col gap-3 overflow-hidden lg:max-h-[calc(100dvh-2.5rem)]">
-      <header className="flex shrink-0 items-center justify-between gap-3">
-        <h1 className="text-lg font-bold tracking-tight text-slate-900">KPI</h1>
-        <p className="text-xs font-semibold text-slate-500">{data.todayLabel}</p>
-      </header>
-
       <section className="grid shrink-0 grid-cols-2 gap-2 xl:grid-cols-4">
         {data.hero.map((metric) => (
           <HeroCard key={metric.key} metric={metric} />
@@ -127,25 +106,7 @@ export function HomeDashboard({ data }: { data: HomeDashboardData }) {
               현황 →
             </Link>
           </div>
-          <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 xl:grid-cols-4">
-            {data.productionTeams.map((team) => (
-              <div
-                key={team.team}
-                className="flex min-h-0 flex-col justify-between rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5"
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-xs font-bold text-slate-800">{team.team}</span>
-                  <span className="text-[10px] font-semibold text-slate-400">
-                    {team.todayQuantity > 0 ? '가동' : '대기'}
-                  </span>
-                </div>
-                <p className="mt-2 text-xl font-bold tabular-nums text-slate-900">
-                  {team.todayQuantity.toLocaleString('ko-KR')}
-                  <span className="ml-0.5 text-xs font-semibold text-slate-500">EA</span>
-                </p>
-              </div>
-            ))}
-          </div>
+          <HomeTeamPerformanceChart teams={data.productionTeams} />
         </section>
 
         <aside className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm">

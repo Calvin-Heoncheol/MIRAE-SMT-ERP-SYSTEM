@@ -182,7 +182,7 @@ export function MaterialCombobox({
               onClick={() => selectMaterial(material)}
               className={[
                 'block w-full px-3 py-2.5 text-left text-sm',
-                index === activeIndex ? 'bg-violet-50 text-violet-900' : 'text-slate-700 hover:bg-slate-50',
+                index === activeIndex ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-50',
               ].join(' ')}
             >
               <span className="block font-semibold">{formatMaterialOptionLabel(material, 'id')}</span>

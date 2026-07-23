@@ -1,14 +1,17 @@
 ﻿'use client'
 
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
 import { LeaveRequestFetchError } from '@/components/leave-requests/leave-request-fetch-error'
 import { LeaveRequestListTable } from '@/components/leave-requests/leave-request-list-table'
 import { LeaveRequestModal } from '@/components/leave-requests/leave-request-modal'
+import { ErpButton } from '@/components/ui/erp-button'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchLeaveRequestsResult } from '@/lib/leave-requests/repository'
 import type { LeaveRequestListItem } from '@/lib/leave-requests/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type LeaveRequestsWorkspaceProps = {
   result: FetchLeaveRequestsResult
@@ -19,12 +22,36 @@ type ModalState =
   | { open: true; mode: 'create' }
   | { open: true; mode: 'edit'; request: LeaveRequestListItem }
 
+function matchesLeaveSearch(item: LeaveRequestListItem, query: string) {
+  if (!query) return true
+  const haystack = [
+    item.docNumber,
+    item.department,
+    item.position,
+    item.author,
+    item.createdByName,
+    item.leaveType,
+    item.reason,
+    item.writtenDate,
+    item.startDate,
+    item.endDate,
+  ]
+    .join(' ')
+    .toLowerCase()
+  return haystack.includes(query)
+}
+
 export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) {
   const router = useRouter()
+  const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
-  const requests = result.ok ? result.requests : []
+  const query = search.trim().toLowerCase()
+  const requests = useMemo(() => {
+    const all = result.ok ? result.requests : []
+    return all.filter((item) => matchesLeaveSearch(item, query))
+  }, [result, query])
   const pagination = useClientPagination(requests)
 
   function openCreate() {
@@ -52,16 +79,14 @@ export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) 
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={openCreate}
-            className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
-          >
-            새 휴가원
-          </button>
-        </div>
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+        <WorkspaceHeader
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="문서번호, 작성자, 부서, 휴가유형, 사유 검색…"
+          accent="slate"
+          actions={<ErpButton onClick={openCreate}>새 휴가원</ErpButton>}
+        />
 
         {!result.ok ? (
           <LeaveRequestFetchError result={result} />
@@ -69,7 +94,11 @@ export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) 
           <>
             <LeaveRequestListTable
               requests={pagination.pageItems}
-              emptyMessage="등록된 휴가원이 없습니다"
+              emptyMessage={formatEmptyListMessage({
+                hasQuery: Boolean(query),
+                emptyLabel: '등록된 휴가원이 없습니다',
+                actionHint: '오른쪽 상단에서 작성하세요',
+              })}
               onSelectRequest={openEdit}
             />
 

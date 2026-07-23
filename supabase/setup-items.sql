@@ -50,6 +50,8 @@ alter table public.items
 alter table public.items
   add column if not exists process_type text not null default '';
 alter table public.items
+  add column if not exists safety_stock integer not null default 0;
+alter table public.items
   add column if not exists item_category smallint;
 alter table public.items
   add column if not exists is_active boolean not null default true;

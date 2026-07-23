@@ -13,6 +13,7 @@ import {
   type OrderFormState,
   type OrderItemForm,
 } from '@/lib/orders/form-state'
+import { buildOrderPrintData, printOrder } from '@/lib/orders/print-order'
 import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
 import { ORDER_CATEGORIES } from '@/lib/orders/types'
 import type { OrderListGroup } from '@/lib/orders/types'
@@ -197,6 +198,18 @@ function OrderModalContent({
               <span />
             )}
             <div className="flex gap-2">
+              {mode === 'edit' && order ? (
+                <ErpButton
+                  variant="secondary"
+                  onClick={() => {
+                    const ok = printOrder(buildOrderPrintData(order))
+                    if (!ok) setSaveError('주문서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
+                  }}
+                  disabled={busy}
+                >
+                  주문서 인쇄
+                </ErpButton>
+              ) : null}
               <ErpButton variant="secondary" onClick={onClose} disabled={busy}>
                 취소
               </ErpButton>

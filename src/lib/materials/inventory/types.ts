@@ -3,6 +3,7 @@ import type { Material } from '@/lib/materials/types'
 export type MaterialInventoryRow = Material & {
   onHandQuantity: number
   expectedInboundQuantity: number
+  belowSafetyStock: boolean
 }
 
 export type MaterialPurchaseOrderLineAggregateRecord = {
@@ -11,5 +12,5 @@ export type MaterialPurchaseOrderLineAggregateRecord = {
   inbound_quantity: number
 }
 
-export const INVENTORY_FILTER_MODES = ['all', 'pending', 'negative'] as const
+export const INVENTORY_FILTER_MODES = ['all', 'pending', 'negative', 'below'] as const
 export type InventoryFilterMode = (typeof INVENTORY_FILTER_MODES)[number]

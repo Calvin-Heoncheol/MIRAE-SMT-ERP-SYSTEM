@@ -58,13 +58,20 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
     router.refresh()
   }
 
+  function handleConvertedToOrder(orderNumber: string) {
+    closeModal()
+    window.alert(`주문서 ${orderNumber} 가 생성되었습니다.`)
+    router.push('/orders')
+    router.refresh()
+  }
+
   if (!result.ok) {
     return <QuoteFetchError result={result} />
   }
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
           title="견적서"
           totalCount={quotes.length}
@@ -112,6 +119,7 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
           onClose={closeModal}
           onSaved={handleSaved}
           onDeleted={handleDeleted}
+          onConvertedToOrder={handleConvertedToOrder}
         />
       ) : null}
     </>

@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { ProductionOrderLine, ProductionOrderState } from '@/lib/production-input/types'
 import {
@@ -45,9 +47,9 @@ function stateLabel(state: ProductionOrderState) {
 }
 
 function stateBadgeClass(state: ProductionOrderState) {
-  if (state === 'full') return 'bg-emerald-50 text-emerald-700'
-  if (state === 'progress') return 'bg-amber-50 text-amber-800'
-  return 'bg-slate-100 text-slate-600'
+  if (state === 'full') return 'bg-emerald-100 text-emerald-800'
+  if (state === 'progress') return 'bg-amber-100 text-amber-800'
+  return 'bg-slate-100 text-slate-700'
 }
 
 function stateAccentClass(state: ProductionOrderState) {
@@ -183,40 +185,25 @@ export function ProductionOrderSidebar({
 
   const showPager = filteredOrders.length > pageSize
 
-  const statusChips: {
-    key: StatusFilter
-    label: string
-    count: number
-    idleClass: string
-    activeClass: string
-  }[] = [
+  const statusChips = [
+    { value: 'all' as const, label: '전체', count: statusCounts.all },
     {
-      key: 'all',
-      label: '전체',
-      count: statusCounts.all,
-      idleClass: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100',
-      activeClass: 'bg-slate-800 text-white ring-1 ring-slate-800',
-    },
-    {
-      key: 'none',
+      value: 'none' as const,
       label: '대기',
       count: statusCounts.none,
-      idleClass: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80 hover:bg-slate-200/70',
-      activeClass: 'bg-slate-600 text-white ring-1 ring-slate-600',
+      tone: STATUS_FILTER_TONES.waiting,
     },
     {
-      key: 'progress',
+      value: 'progress' as const,
       label: '진행',
       count: statusCounts.progress,
-      idleClass: 'bg-amber-50 text-amber-800 ring-1 ring-amber-100 hover:bg-amber-100/80',
-      activeClass: 'bg-amber-500 text-white ring-1 ring-amber-500',
+      tone: STATUS_FILTER_TONES.progress,
     },
     {
-      key: 'full',
+      value: 'full' as const,
       label: '완료',
       count: statusCounts.full,
-      idleClass: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 hover:bg-emerald-100/80',
-      activeClass: 'bg-emerald-600 text-white ring-1 ring-emerald-600',
+      tone: STATUS_FILTER_TONES.done,
     },
   ]
 
@@ -231,27 +218,11 @@ export function ProductionOrderSidebar({
       </div>
 
       <div className="shrink-0 space-y-2 border-b border-slate-100 px-3 py-2">
-        <div className="flex flex-wrap gap-1.5">
-          {statusChips.map((chip) => {
-            const active = statusFilter === chip.key
-            return (
-              <button
-                key={chip.key}
-                type="button"
-                onClick={() => setStatusFilter(chip.key)}
-                className={[
-                  'rounded-md px-2.5 py-1 text-[11px] font-bold transition-colors',
-                  active ? chip.activeClass : chip.idleClass,
-                ].join(' ')}
-              >
-                {chip.label}{' '}
-                <span className={active ? 'opacity-80' : 'opacity-70'}>
-                  {chip.count.toLocaleString('ko-KR')}
-                </span>
-              </button>
-            )
-          })}
-        </div>
+        <FilterChipBar
+          options={statusChips}
+          value={statusFilter}
+          onChange={setStatusFilter}
+        />
         <input
           type="search"
           value={search}
@@ -319,27 +290,23 @@ export function ProductionOrderSidebar({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <span
-                      className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${stateBadgeClass(state)}`}
-                    >
-                      {stateLabel(state)}
-                    </span>
-                    <span
-                      className={[
-                        'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold',
+                    <StatusBadge
+                      label={stateLabel(state)}
+                      className={stateBadgeClass(state)}
+                    />
+                    <StatusBadge
+                      label={order.splitPcbSides ? '양면' : '단면'}
+                      className={
                         order.splitPcbSides
-                          ? 'bg-sky-50 text-sky-700'
-                          : 'bg-slate-100 text-slate-500',
-                      ].join(' ')}
-                    >
-                      {order.splitPcbSides ? '양면' : '단면'}
-                    </span>
+                          ? 'bg-sky-100 text-sky-800'
+                          : 'bg-slate-100 text-slate-500'
+                      }
+                    />
                     {dueLabel ? (
-                      <span
-                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${urgencyBadgeClass(daysUntilDelivery)}`}
-                      >
-                        {dueLabel}
-                      </span>
+                      <StatusBadge
+                        label={dueLabel}
+                        className={urgencyBadgeClass(daysUntilDelivery)}
+                      />
                     ) : null}
                   </div>
                   <span className="shrink-0 text-[11px] font-bold text-slate-400 tabular-nums">

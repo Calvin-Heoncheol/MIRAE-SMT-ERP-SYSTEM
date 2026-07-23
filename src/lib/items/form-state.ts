@@ -29,6 +29,7 @@ export type ItemFormState = {
   smdUnitPrice: string
   dipUnitPrice: string
   materialUnitPrice: string
+  safetyStock: string
 }
 
 export function emptyItemForm(): ItemFormState {
@@ -46,6 +47,7 @@ export function emptyItemForm(): ItemFormState {
     smdUnitPrice: '',
     dipUnitPrice: '',
     materialUnitPrice: '',
+    safetyStock: '',
   }
 }
 
@@ -68,6 +70,7 @@ export function itemToForm(item: Item): ItemFormState {
     smdUnitPrice: priceToFormValue(item.smdUnitPrice),
     dipUnitPrice: priceToFormValue(item.dipUnitPrice),
     materialUnitPrice: priceToFormValue(item.materialUnitPrice),
+    safetyStock: item.safetyStock > 0 ? String(item.safetyStock) : '',
   }
 }
 
@@ -75,6 +78,12 @@ function parseUnitPrice(value: string) {
   const parsed = Number(String(value).replace(/,/g, '').trim())
   if (!Number.isFinite(parsed) || parsed < 0) return 0
   return Math.round(parsed)
+}
+
+function parseSafetyStock(value: string) {
+  const parsed = Number(String(value).replace(/,/g, '').trim())
+  if (!Number.isFinite(parsed) || parsed < 0) return 0
+  return Math.floor(parsed)
 }
 
 export function validateItemForm(form: ItemFormState, options?: { isCreate?: boolean }): string | null {
@@ -134,6 +143,7 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     dipUnitPrice,
     materialUnitPrice,
     itemCategory,
+    safetyStock: parseSafetyStock(form.safetyStock),
   }
 }
 

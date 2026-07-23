@@ -1,6 +1,15 @@
-﻿'use client'
+'use client'
 
-import { getApprovalCategoryLabel, getApprovalCategoryShortLabel } from '@/lib/approvals/categories'
+import { EmptyListState } from '@/components/ui/empty-list-state'
+
+import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+
+import { CategoryBadge } from '@/components/ui/category-badge'
+import { SignoffStatusBadge } from '@/components/ui/status-badge'
+import {
+  APPROVAL_CATEGORY_BADGE_CLASS,
+  getApprovalCategoryShortLabel,
+} from '@/lib/approvals/categories'
 import type { ApprovalListItem } from '@/lib/approvals/types'
 import { formatApprovalMoney, getSignoffStatusLabel } from '@/lib/approvals/utils'
 
@@ -8,43 +17,49 @@ type ApprovalListTableProps = {
   approvals: ApprovalListItem[]
   emptyMessage: string
   onSelectApproval?: (approval: ApprovalListItem) => void
+  /** 카테고리 탭으로 이미 걸러진 경우 열 숨김 */
+  hideCategory?: boolean
 }
 
-export function ApprovalListTable({ approvals, emptyMessage, onSelectApproval }: ApprovalListTableProps) {
+export function ApprovalListTable({
+  approvals,
+  emptyMessage,
+  onSelectApproval,
+  hideCategory = false,
+}: ApprovalListTableProps) {
   if (!approvals.length) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
-        <p className="text-base font-semibold text-slate-700">{emptyMessage}</p>
-        <p className="mt-2 text-sm text-slate-500">새 품의서 버튼으로 작성할 수 있습니다.</p>
-      </div>
+      <EmptyListState message={emptyMessage} hint="새 품의서 버튼으로 작성할 수 있습니다." />
     )
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
+    <div className={ERP_TABLE_WRAP_CLASS}>
       <div className="overflow-x-auto">
         <table className="min-w-[1040px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 작성일
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 문서번호
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
-                카테고리
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
+              {!hideCategory ? (
+                <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                  카테고리
+                </th>
+              ) : null}
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 제목
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 작성자
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-blue-800 uppercase">
+              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 결재상태
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-blue-800 uppercase">
+              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 합계(VAT포함)
               </th>
             </tr>
@@ -56,26 +71,24 @@ export function ApprovalListTable({ approvals, emptyMessage, onSelectApproval }:
                 className="cursor-pointer border-t border-slate-100 hover:bg-slate-50/80"
                 onClick={() => onSelectApproval?.(approval)}
               >
-                <td className="px-4 py-3 text-sm text-slate-700">{approval.writtenDate || '-'}</td>
-                <td className="px-4 py-3 font-mono text-xs text-blue-700">{approval.docNumber || approval.id}</td>
-                <td className="px-4 py-3 text-sm text-slate-700">
-                  {getApprovalCategoryShortLabel(approval.category)}
+                <td className="px-3 py-2.5 text-sm text-slate-700">{approval.writtenDate || '-'}</td>
+                <td className="px-3 py-2.5 font-mono text-xs text-slate-700">
+                  {approval.docNumber || approval.id}
                 </td>
-                <td className="px-4 py-3 text-sm text-slate-700">{approval.subject || '-'}</td>
-                <td className="px-4 py-3 text-sm text-slate-700">{approval.author || '-'}</td>
-                <td className="px-4 py-3 text-sm">
-                  <span
-                    className={[
-                      'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
-                      getSignoffStatusLabel(approval.detailInfo.signoffs) === '결재완료'
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-amber-50 text-amber-700',
-                    ].join(' ')}
-                  >
-                    {getSignoffStatusLabel(approval.detailInfo.signoffs)}
-                  </span>
+                {!hideCategory ? (
+                  <td className="px-3 py-2.5 text-center">
+                    <CategoryBadge
+                      label={getApprovalCategoryShortLabel(approval.category)}
+                      className={APPROVAL_CATEGORY_BADGE_CLASS[approval.category]}
+                    />
+                  </td>
+                ) : null}
+                <td className="px-3 py-2.5 text-sm text-slate-700">{approval.subject || '-'}</td>
+                <td className="px-3 py-2.5 text-sm text-slate-700">{approval.author || '-'}</td>
+                <td className="px-3 py-2.5 text-center">
+                  <SignoffStatusBadge label={getSignoffStatusLabel(approval.detailInfo.signoffs)} />
                 </td>
-                <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">
+                <td className="px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900">
                   {formatApprovalMoney(approval.totalAmount)}
                 </td>
               </tr>

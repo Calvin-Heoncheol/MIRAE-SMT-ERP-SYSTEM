@@ -16,12 +16,36 @@ export type AuthAccessModule =
   | 'reports_sales'
 
 const DEPARTMENT_MODULES: Record<AuthDepartment, AuthAccessModule[]> = {
-  sales: ['dashboard', 'sales', 'approvals'],
+  sales: ['dashboard', 'sales', 'approvals', 'reports_sales'],
   materials: ['dashboard', 'materials', 'approvals'],
-  production1: ['dashboard', 'production_smt', 'production_history', 'approvals'],
-  production2: ['dashboard', 'production_post_2', 'production_history', 'approvals'],
-  production3: ['dashboard', 'production_post_3', 'production_history', 'approvals'],
-  production4: ['dashboard', 'production_post_4', 'production_history', 'approvals'],
+  production1: [
+    'dashboard',
+    'production_smt',
+    'production_history',
+    'approvals',
+    'reports_production',
+  ],
+  production2: [
+    'dashboard',
+    'production_post_2',
+    'production_history',
+    'approvals',
+    'reports_production',
+  ],
+  production3: [
+    'dashboard',
+    'production_post_3',
+    'production_history',
+    'approvals',
+    'reports_production',
+  ],
+  production4: [
+    'dashboard',
+    'production_post_4',
+    'production_history',
+    'approvals',
+    'reports_production',
+  ],
   office: ['dashboard', 'approvals'],
 }
 
@@ -49,12 +73,8 @@ export function resolveAccessModule(
 ): AuthAccessModule | null {
   if (pathname === '/') return 'dashboard'
   if (pathname.startsWith('/production/status')) return 'dashboard'
-  if (
-    pathname.startsWith('/reports/production') ||
-    pathname.startsWith('/reports/sales')
-  ) {
-    return 'dashboard'
-  }
+  if (pathname.startsWith('/reports/production')) return 'reports_production'
+  if (pathname.startsWith('/reports/sales')) return 'reports_sales'
   if (
     pathname.startsWith('/new-companies') ||
     pathname.startsWith('/quotations') ||

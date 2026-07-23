@@ -9,7 +9,7 @@ const STYLES: Record<OrderCategory, string> = {
 export function OrderCategoryBadge({ category }: { category: OrderCategory }) {
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${STYLES[category] || 'bg-slate-100 text-slate-600'}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STYLES[category] || 'bg-slate-100 text-slate-600'}`}
     >
       {category}
     </span>

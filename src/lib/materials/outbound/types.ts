@@ -101,7 +101,7 @@ export type MaterialOutboundNeedRow = {
   remainingQuantity: number
 }
 
-/** 미불출 주문·품목·자재구분 카드 */
+/** 미불출 주문·품목·자재구분 카드 (SMD/DIP/기타 액션 단위) */
 export type MaterialOutboundNeedCard = {
   key: string
   orderId: string
@@ -115,6 +115,21 @@ export type MaterialOutboundNeedCard = {
   remainingProductQuantity: number
   issuableQuantity: number
   lines: MaterialOutboundNeedRow[]
+}
+
+/** 미불출 주문서 카드 — 발주와 같이 주문 1장, 내부에서 SMD/DIP 불출 */
+export type MaterialOutboundOrderCard = {
+  key: string
+  orderId: string
+  orderNumber: string
+  customer: string
+  deliveryDate: string
+  productLabel: string
+  productCount: number
+  /** 주문 내 제품×버킷 액션 카드 */
+  actions: MaterialOutboundNeedCard[]
+  /** 불출가능 > 0 인 액션 수 */
+  issuableActionCount: number
 }
 
 

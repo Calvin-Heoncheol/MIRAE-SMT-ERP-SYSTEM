@@ -11,7 +11,7 @@ type InboundPurchaseLinesFormProps = {
 
 export function InboundPurchaseLinesForm({ items, onChange }: InboundPurchaseLinesFormProps) {
   const inputClassName =
-    'w-full min-w-0 rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100'
+    'w-full min-w-0 rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
 
   function patchItem(index: number, patch: Partial<PurchaseInboundItemForm>) {
     onChange((current) =>
@@ -43,7 +43,7 @@ export function InboundPurchaseLinesForm({ items, onChange }: InboundPurchaseLin
         <tbody>
           {items.map((item, index) => (
             <tr key={item.purchaseOrderLineId} className="border-t border-slate-100">
-              <td className="px-3 py-2 font-medium text-violet-800">{item.materialCode || '-'}</td>
+              <td className="px-3 py-2 font-medium text-slate-800">{item.materialCode || '-'}</td>
               <td className="px-3 py-2 text-slate-700">{item.materialName || '-'}</td>
               <td className="px-3 py-2 text-right tabular-nums text-slate-700">
                 {item.orderedQuantity.toLocaleString('ko-KR')}

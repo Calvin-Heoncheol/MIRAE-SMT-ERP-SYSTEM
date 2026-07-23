@@ -36,6 +36,22 @@ export const ITEM_CATEGORY_LABELS: Record<ItemCategory, string> = {
   4: '완제품',
 }
 
+/** 목록·필터용 soft pastel */
+export const ITEM_CATEGORY_BADGE_CLASS: Record<ItemCategory, string> = {
+  1: 'bg-sky-100 text-sky-800',
+  2: 'bg-violet-100 text-violet-800',
+  3: 'bg-amber-100 text-amber-800',
+  4: 'bg-emerald-100 text-emerald-800',
+}
+
+/** 필터 idle — 비선택 시 옅은 틴트 */
+export const ITEM_CATEGORY_FILTER_IDLE_CLASS: Record<ItemCategory, string> = {
+  1: 'border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100',
+  2: 'border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100',
+  3: 'border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100',
+  4: 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
+}
+
 export function isMaterialItemCategory(category: ItemCategory) {
   return category === 1 || category === 2
 }
@@ -138,6 +154,7 @@ export type Item = {
   dipUnitPrice: number
   materialUnitPrice: number
   itemCategory: ItemCategory
+  safetyStock: number
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -158,6 +175,7 @@ export type ItemPayload = {
   dipUnitPrice: number
   materialUnitPrice: number
   itemCategory: ItemCategory
+  safetyStock: number
 }
 
 export type UpdateItemPayload = Omit<ItemPayload, 'id'>
@@ -177,4 +195,5 @@ export const ITEM_COLUMN_LABELS = {
   dipUnitPrice: 'DIP 단가',
   materialUnitPrice: '자재 단가',
   itemCategory: '품목구분',
+  safetyStock: '안전재고',
 } as const

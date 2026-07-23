@@ -91,7 +91,7 @@ export function InboundDirectLinesForm({
   )
 
   const inputClassName =
-    'w-full min-w-0 rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100'
+    'w-full min-w-0 rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
   const readOnlyClassName = `${inputClassName} bg-slate-50 text-slate-600`
 
   function patchItem(index: number, patch: Partial<DirectInboundItemForm>) {
@@ -240,7 +240,7 @@ export function InboundDirectLinesForm({
             onKeyDown={handleScanKeyDown}
             placeholder="스캔 후 Enter"
             autoFocus
-            className="h-10 w-full rounded-lg border border-slate-200 px-3 font-mono text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            className="h-10 w-full rounded-lg border border-slate-200 px-3 font-mono text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
           />
         </label>
         <label className="block text-sm">
@@ -252,7 +252,7 @@ export function InboundDirectLinesForm({
             value={scanQuantityPerReel}
             onChange={(event) => setScanQuantityPerReel(event.target.value.replace(/[^\d.]/g, ''))}
             onKeyDown={handleScanKeyDown}
-            className="h-10 w-full rounded-lg border border-slate-200 px-3 text-right text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            className="h-10 w-full rounded-lg border border-slate-200 px-3 text-right text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
           />
         </label>
         <label className="block text-sm">
@@ -262,7 +262,7 @@ export function InboundDirectLinesForm({
             value={scanReelCount}
             onChange={setScanReelCount}
             onKeyDown={handleScanKeyDown}
-            className="h-10 w-full rounded-lg border border-slate-200 px-3 text-right text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            className="h-10 w-full rounded-lg border border-slate-200 px-3 text-right text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
           />
         </label>
         <button
@@ -303,8 +303,8 @@ export function InboundDirectLinesForm({
       ) : null}
 
       {labelPrintItems.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-violet-100 bg-violet-50/50 px-3 py-2">
-          <p className="text-xs text-violet-800">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
+          <p className="text-xs text-slate-600">
             입고 라인 기준으로 자재코드 바코드 라벨을 출력합니다. 릴 개수만큼 장수가 정해집니다.
           </p>
           <MaterialLabelPrintButton items={labelPrintItems} />

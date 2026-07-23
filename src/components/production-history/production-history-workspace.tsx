@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ProductionHistoryModal } from '@/components/production-history/production-history-modal'
 import { ProductionHistoryTable } from '@/components/production-history/production-history-table'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
+import { FilterChipBar } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
@@ -21,22 +22,13 @@ import {
 } from '@/lib/production-history/utils'
 import { formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
-import {
-  ERP_FILTER_CHIP_ACTIVE_CLASS,
-  ERP_FILTER_CHIP_IDLE_CLASS,
-  formatEmptyListMessage,
-} from '@/lib/ui/tokens'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type ProductionHistoryWorkspaceProps = {
   result: FetchProductionHistoryResult
 }
 
 type ModalState = { open: false } | { open: true; row: ProductionHistoryRow }
-
-const TEAM_FILTER_OPTIONS: { value: ProductionHistoryTeamFilter; label: string }[] = [
-  { value: 'all', label: '전체' },
-  ...PRODUCTION_HISTORY_TEAMS.map((team) => ({ value: team, label: team })),
-]
 
 export function ProductionHistoryWorkspace({ result }: ProductionHistoryWorkspaceProps) {
   const router = useRouter()
@@ -53,6 +45,18 @@ export function ProductionHistoryWorkspace({ result }: ProductionHistoryWorkspac
   const pagination = useClientPagination(filtered)
   const hasActiveFilter = Boolean(search.trim()) || teamFilter !== 'all'
   const showSmtColumns = teamFilter === 'all' || teamFilter === '생산1팀'
+
+  const teamFilterOptions = useMemo(() => {
+    const searched = filterProductionHistory(rows, search, 'all')
+    return [
+      { value: 'all' as const, label: '전체', count: searched.length },
+      ...PRODUCTION_HISTORY_TEAMS.map((team) => ({
+        value: team as ProductionHistoryTeamFilter,
+        label: team,
+        count: searched.filter((row) => row.team === team).length,
+      })),
+    ]
+  }, [rows, search])
 
   function openDetail(row: ProductionHistoryRow) {
     setModal({ open: true, row })
@@ -125,24 +129,11 @@ export function ProductionHistoryWorkspace({ result }: ProductionHistoryWorkspac
           searchPlaceholder="주문서번호, 고객사, 제품명, 팀, 기록일 검색…"
           accent="slate"
           filters={
-            <div className="flex flex-wrap gap-2">
-              {TEAM_FILTER_OPTIONS.map((option) => {
-                const active = teamFilter === option.value
-                return (
-                  <button
-                    key={String(option.value)}
-                    type="button"
-                    onClick={() => setTeamFilter(option.value)}
-                    className={[
-                      'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
-                      active ? ERP_FILTER_CHIP_ACTIVE_CLASS : ERP_FILTER_CHIP_IDLE_CLASS,
-                    ].join(' ')}
-                  >
-                    {option.label}
-                  </button>
-                )
-              })}
-            </div>
+            <FilterChipBar
+              options={teamFilterOptions}
+              value={teamFilter}
+              onChange={setTeamFilter}
+            />
           }
           actions={
             <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!filtered.length} />

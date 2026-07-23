@@ -84,6 +84,7 @@ export function mapItemRecord(row: {
   smd_unit_price?: number | null
   dip_unit_price?: number | null
   material_unit_price?: number | null
+  safety_stock?: number | null
   item_category: number | string
   is_active: boolean
   created_at: string
@@ -94,6 +95,7 @@ export function mapItemRecord(row: {
   const smdUnitPrice = Number(row.smd_unit_price) || 0
   const dipUnitPrice = Number(row.dip_unit_price) || 0
   const materialUnitPrice = Number(row.material_unit_price) || 0
+  const safetyStock = Math.max(0, Math.floor(Number(row.safety_stock) || 0))
   const isSemi = itemCategory === 3
   const hasBreakdown = smdUnitPrice > 0 || dipUnitPrice > 0 || materialUnitPrice > 0
   // 마이그레이션 전 데이터: 세부 단가가 없으면 합계를 SMD(또는 DIP 공정이면 DIP)로 간주
@@ -128,6 +130,7 @@ export function mapItemRecord(row: {
     dipUnitPrice: isSemi ? resolvedDip : 0,
     materialUnitPrice: isSemi ? resolvedMaterial : 0,
     itemCategory,
+    safetyStock,
     isActive: row.is_active !== false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -150,6 +153,7 @@ export function toItemInsertRow(payload: ItemPayload) {
     dip_unit_price: payload.dipUnitPrice,
     material_unit_price: payload.materialUnitPrice,
     item_category: payload.itemCategory,
+    safety_stock: Math.max(0, Math.floor(Number(payload.safetyStock) || 0)),
   }
 }
 
@@ -168,6 +172,7 @@ export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
     dip_unit_price: payload.dipUnitPrice,
     material_unit_price: payload.materialUnitPrice,
     item_category: payload.itemCategory,
+    safety_stock: Math.max(0, Math.floor(Number(payload.safetyStock) || 0)),
   }
 }
 

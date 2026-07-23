@@ -6,6 +6,7 @@ import { MaterialOrderPartialPurchaseModal } from '@/components/materials/purcha
 import { MaterialOrderPurchaseCards } from '@/components/materials/purchase-orders/material-order-purchase-cards'
 import { MaterialPurchaseOrderFetchError } from '@/components/materials/purchase-orders/material-purchase-order-fetch-error'
 import { MaterialPurchaseOrderModal } from '@/components/materials/purchase-orders/material-purchase-order-modal'
+import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
@@ -88,10 +89,15 @@ export function MaterialOrderPurchaseWorkspace({ result }: MaterialOrderPurchase
     () => cards.filter((card) => cardHasOpenPurchase(card) || card.products.every((p) => !p.hasBom)).length,
     [cards],
   )
-  const statusChips: { key: StatusFilter; label: string; count: number }[] = [
-    { key: 'active', label: '진행중', count: activeCount },
-    { key: 'done', label: '완료', count: doneCount },
-    { key: 'all', label: '전체', count: cards.length },
+  const statusChips = [
+    {
+      value: 'active' as const,
+      label: '진행중',
+      count: activeCount,
+      tone: STATUS_FILTER_TONES.progress,
+    },
+    { value: 'done' as const, label: '완료', count: doneCount, tone: STATUS_FILTER_TONES.done },
+    { value: 'all' as const, label: '전체', count: cards.length },
   ]
 
   function openPartial(card: OrderPurchaseCard, orderLineId: string) {
@@ -155,40 +161,20 @@ export function MaterialOrderPurchaseWorkspace({ result }: MaterialOrderPurchase
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="주문번호, 고객사, 제품명 검색…"
-          accent="violet"
+          accent="slate"
           filters={
-            <div className="flex flex-wrap gap-2">
-              {statusChips.map((chip) => (
-                <button
-                  key={chip.key}
-                  type="button"
-                  onClick={() => setStatusFilter(chip.key)}
-                  className={[
-                    'rounded-full px-4 py-1.5 text-sm font-semibold transition-colors',
-                    statusFilter === chip.key
-                      ? 'bg-violet-700 text-white shadow-sm'
-                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
-                  ].join(' ')}
-                >
-                  {chip.label}{' '}
-                  <span className={statusFilter === chip.key ? 'text-violet-200' : 'text-slate-400'}>
-                    {chip.count.toLocaleString('ko-KR')}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <FilterChipBar
+              options={statusChips}
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
           }
         />
-
-        <p className="text-sm text-slate-500">
-          주문 제품 수량 중 일부만 발주할 수 있습니다. 예: 주문 4,000개 → 이번 발주 100개면 잔량 3,900개가
-          진행중에 남습니다. 발주 수량은 직접 입력해야 합니다(기본값 없음).
-        </p>
 
         <MaterialOrderPurchaseCards
           cards={pagination.pageItems}

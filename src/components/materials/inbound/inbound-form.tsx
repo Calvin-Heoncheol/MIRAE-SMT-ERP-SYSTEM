@@ -229,7 +229,7 @@ export function InboundForm({
     <>
       <div className={isPage ? 'space-y-4' : 'min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4'}>
         {isEdit && inbound ? (
-          <p className="font-mono text-xs text-blue-700">
+          <p className="font-mono text-xs text-slate-700">
             입고번호 {inbound.inboundNumber} <span className="text-slate-400">(수정 불가)</span>
           </p>
         ) : null}
@@ -271,7 +271,7 @@ export function InboundForm({
                   className={[
                     'rounded-lg px-3 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                     active
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-slate-800 text-white'
                       : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
                   ].join(' ')}
                 >

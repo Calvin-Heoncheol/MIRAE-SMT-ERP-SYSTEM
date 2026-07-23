@@ -1,3 +1,4 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import { syncFinishedParentsUsingChild } from '@/lib/bom/repository'
 import type { Item, ItemPayload, UpdateItemPayload } from './types'
@@ -17,11 +18,11 @@ export type FetchItemsResult =
 
 export type SaveItemResult =
   | { ok: true; id: string }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type DeleteItemResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export function isMissingItemsTable(detail: string) {
   return detail.includes('items') || detail.includes('schema cache')
@@ -125,6 +126,9 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'master', action: 'create' })
+  if (!gate.ok) return gate
+
   if (!payload.id.trim() && isManualItemCodeCategory(payload.itemCategory)) {
     return { ok: false, reason: 'validation', detail: '품목코드를 입력해 주세요.' }
   }
@@ -174,7 +178,7 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
 
 export type CreateItemsResult =
   | { ok: true; ids: string[] }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string; savedCount: number }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string; savedCount: number }
 
 /** 일괄 등록 — 행 단위로 순차 저장 (중간 실패 시 이미 저장된 건수 포함) */
 export async function createItems(payloads: ItemPayload[]): Promise<CreateItemsResult> {
@@ -203,6 +207,9 @@ export async function updateItem(id: string, payload: UpdateItemPayload): Promis
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'master', action: 'update' })
+  if (!gate.ok) return gate
 
   const key = id.trim()
   if (!key) {
@@ -273,6 +280,9 @@ export async function deleteItem(id: string): Promise<DeleteItemResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'master', action: 'delete' })
+  if (!gate.ok) return gate
 
   const key = id.trim()
   if (!key) {

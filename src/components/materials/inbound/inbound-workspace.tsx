@@ -131,7 +131,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
   if (view === 'register') {
     return (
       <>
-        <div className="flex w-full flex-1 flex-col gap-4">
+        <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
           <InboundScanPanel
             materials={result.materials}
             purchaseOrders={result.purchaseOrders}
@@ -142,7 +142,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
           <div className="flex flex-wrap items-center gap-3">
             <h3 className="text-sm font-bold text-slate-800">
               입고 대기 발주{' '}
-              <span className="tabular-nums font-semibold text-blue-700">
+              <span className="tabular-nums font-semibold text-slate-800">
                 {pendingOrders.length.toLocaleString('ko-KR')}
               </span>
               건
@@ -152,7 +152,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="발주번호, 공급사, 자재명, MPN 검색…"
-              className="ml-auto w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="ml-auto w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
             />
           </div>
 
@@ -183,7 +183,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
           totalCount={inbounds.length}
           filteredCount={filtered.length}

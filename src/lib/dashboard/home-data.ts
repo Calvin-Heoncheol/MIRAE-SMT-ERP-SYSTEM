@@ -386,14 +386,14 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     },
     {
       dept: '출하',
-      href: '/delivery',
+      href: '/delivery/input',
       metrics: [
         {
           key: 'delivery:today-due',
           label: '오늘 출하 예정',
           value: todayDeliveryDue,
           unit: '건',
-          href: '/delivery',
+          href: '/delivery/input',
           tone: warnIfPositive(todayDeliveryDue),
         },
         {
@@ -401,7 +401,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
           label: '오늘 출하 완료',
           value: todayShipped,
           unit: '건',
-          href: '/delivery',
+          href: '/delivery/input',
           tone: 'default',
         },
         {
@@ -409,7 +409,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
           label: '출하 미완료',
           value: unshippedOrders,
           unit: '건',
-          href: '/delivery',
+          href: '/delivery/input',
           tone: 'default',
         },
       ],
@@ -442,7 +442,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
       label: '오늘 출하',
       value: todayShipped,
       unit: '건',
-      href: '/delivery',
+      href: '/delivery/input',
       tone: 'default',
       hint:
         todayDeliveryDue != null

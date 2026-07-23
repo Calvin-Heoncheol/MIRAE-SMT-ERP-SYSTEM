@@ -5,18 +5,16 @@ import { useRouter } from 'next/navigation'
 import { BomFetchError } from '@/components/bom/bom-fetch-error'
 import { BomListTable } from '@/components/bom/bom-list-table'
 import { BomModal } from '@/components/bom/bom-modal'
+import { FilterChipBar } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchBomResult } from '@/lib/bom/repository'
 import type { BomGroup, BomListRow, BomParentFilter } from '@/lib/bom/types'
 import { buildBomListRows, filterBomListRows, groupBomLines } from '@/lib/bom/utils'
 import type { FetchItemsResult } from '@/lib/items/repository'
+import { ITEM_CATEGORY_FILTER_IDLE_CLASS, ITEM_CATEGORY_LABELS } from '@/lib/items/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
-import {
-  ERP_FILTER_CHIP_ACTIVE_CLASS,
-  ERP_FILTER_CHIP_IDLE_CLASS,
-  formatEmptyListMessage,
-} from '@/lib/ui/tokens'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type BomWorkspaceProps = {
   bomResult: FetchBomResult
@@ -27,12 +25,6 @@ type ModalState =
   | { open: false }
   | { open: true; mode: 'create'; parentProductId?: string }
   | { open: true; mode: 'edit'; group: BomGroup }
-
-const PARENT_FILTER_OPTIONS: { value: BomParentFilter; label: string }[] = [
-  { value: 'all', label: '전체' },
-  { value: 3, label: '반제품' },
-  { value: 4, label: '완제품' },
-]
 
 export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
   const router = useRouter()
@@ -51,6 +43,32 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
   const filtered = useMemo(
     () => filterBomListRows(listRows, query, parentFilter),
     [listRows, query, parentFilter],
+  )
+  const parentCounts = useMemo(() => {
+    const base = filterBomListRows(listRows, query, 'all')
+    return {
+      all: base.length,
+      3: base.filter((row) => row.parentItemCategory === 3).length,
+      4: base.filter((row) => row.parentItemCategory === 4).length,
+    }
+  }, [listRows, query])
+  const parentFilterOptions = useMemo(
+    () => [
+      { value: 'all' as const, label: '전체', count: parentCounts.all },
+      {
+        value: 3 as BomParentFilter,
+        label: ITEM_CATEGORY_LABELS[3],
+        count: parentCounts[3],
+        tone: { idleClassName: ITEM_CATEGORY_FILTER_IDLE_CLASS[3] },
+      },
+      {
+        value: 4 as BomParentFilter,
+        label: ITEM_CATEGORY_LABELS[4],
+        count: parentCounts[4],
+        tone: { idleClassName: ITEM_CATEGORY_FILTER_IDLE_CLASS[4] },
+      },
+    ],
+    [parentCounts],
   )
   const pagination = useClientPagination(filtered)
   const existingParentIds = useMemo(
@@ -114,7 +132,7 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
           title="BOM등록"
           totalCount={listRows.length}
@@ -125,24 +143,11 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
           searchPlaceholder="품목코드, 품목명, 미등록/등록완료 검색…"
           accent="slate"
           filters={
-            <div className="flex flex-wrap gap-2">
-              {PARENT_FILTER_OPTIONS.map((option) => {
-                const active = parentFilter === option.value
-                return (
-                  <button
-                    key={String(option.value)}
-                    type="button"
-                    onClick={() => setParentFilter(option.value)}
-                    className={[
-                      'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
-                      active ? ERP_FILTER_CHIP_ACTIVE_CLASS : ERP_FILTER_CHIP_IDLE_CLASS,
-                    ].join(' ')}
-                  >
-                    {option.label}
-                  </button>
-                )
-              })}
-            </div>
+            <FilterChipBar
+              options={parentFilterOptions}
+              value={parentFilter}
+              onChange={setParentFilter}
+            />
           }
         />
 

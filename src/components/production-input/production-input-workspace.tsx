@@ -212,11 +212,11 @@ export function ProductionInputWorkspace({
   }
 
   /**
-   * 탭 아래·main 패딩을 상쇄해 내비 오른쪽을 풀블리드 split처럼 씀 (생산입력 전용).
-   * min-h-0 + flex-1 + overflow-hidden 으로 카드 0높이·스크롤 체인 깨짐 방지.
+   * 생산입력 전용 풀하이트 셸.
+   * main 패딩·상단 위치 표기와 좌우를 맞추기 위해 음수 마진으로 풀블리드하지 않음.
    */
   const flushShellClass =
-    'flex min-h-0 w-full flex-1 flex-col overflow-hidden border-t border-slate-200 bg-white -mx-4 -mb-4 -mt-4 lg:-mx-6 lg:-mb-5'
+    'flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white'
 
   if (!showOrderSidebar && isPostProcess) {
     const planProduced = selectedPostProcessPlan

@@ -1,3 +1,4 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import type { BusinessPartner, BusinessPartnerPayload } from './types'
 import { mapBusinessPartnerRecord, normalizeBusinessRegNo, toBusinessPartnerRow } from './utils'
@@ -8,11 +9,11 @@ export type FetchBusinessPartnersResult =
 
 export type SaveBusinessPartnerResult =
   | { ok: true; businessRegNo: string }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type DeleteBusinessPartnerResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export function isMissingBusinessPartnersTable(detail: string) {
   return detail.includes('business_partners') || detail.includes('schema cache')
@@ -134,6 +135,9 @@ export async function createBusinessPartner(
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'master', action: 'create' })
+  if (!gate.ok) return gate
+
   const businessRegNo = normalizeBusinessRegNo(payload.businessRegNo)
   if (!businessRegNo) {
     return { ok: false, reason: 'validation', detail: '사업자번호를 입력해 주세요.' }
@@ -172,6 +176,9 @@ export async function updateBusinessPartner(
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'master', action: 'update' })
+  if (!gate.ok) return gate
+
   const key = normalizeBusinessRegNo(businessRegNo)
   if (!key) {
     return { ok: false, reason: 'validation', detail: '사업자번호를 찾을 수 없습니다.' }
@@ -205,6 +212,9 @@ export async function deleteBusinessPartner(businessRegNo: string): Promise<Dele
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'master', action: 'delete' })
+  if (!gate.ok) return gate
 
   const key = normalizeBusinessRegNo(businessRegNo)
   if (!key) {

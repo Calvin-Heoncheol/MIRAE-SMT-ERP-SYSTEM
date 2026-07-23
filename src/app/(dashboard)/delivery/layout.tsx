@@ -1,10 +1,5 @@
-import { ModuleTabShell } from '@/components/dashboard/module-tab-shell'
-import { DELIVERY_TABS } from '@/lib/delivery/tabs'
+import { PageShell } from '@/components/ui/page-shell'
 
 export default function DeliveryLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <ModuleTabShell title="출하" tabs={DELIVERY_TABS} ariaLabel="출하 탭">
-      {children}
-    </ModuleTabShell>
-  )
+  return <PageShell>{children}</PageShell>
 }

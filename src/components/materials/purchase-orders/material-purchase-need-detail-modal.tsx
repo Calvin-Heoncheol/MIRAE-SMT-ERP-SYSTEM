@@ -1,6 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { EmptyListState } from '@/components/ui/empty-list-state'
+import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
+import { StatusBadge } from '@/components/ui/status-badge'
 import type { MaterialPurchaseNeedCard } from '@/lib/materials/purchase-orders/types'
 
 type MaterialPurchaseNeedDetailModalProps = {
@@ -42,6 +45,29 @@ export function MaterialPurchaseNeedDetailModal({
     return card.lines.filter((line) => line.status === filter)
   }, [card.lines, filter])
 
+  const filterOptions = useMemo(
+    () => [
+      { value: 'all' as const, label: '전체', count: card.materialCount },
+      {
+        value: '부족' as const,
+        label: '부족',
+        count: card.shortageCount,
+        tone: {
+          idleClassName: 'border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100',
+          activeClassName: 'bg-rose-700 text-white shadow-sm',
+          activeCountClassName: 'text-rose-100',
+        },
+      },
+      {
+        value: '충분' as const,
+        label: '충분',
+        count: card.sufficientCount,
+        tone: STATUS_FILTER_TONES.done,
+      },
+    ],
+    [card.materialCount, card.shortageCount, card.sufficientCount],
+  )
+
   function handleDelete() {
     if (!onDelete || deleting) return
     if (
@@ -69,7 +95,7 @@ export function MaterialPurchaseNeedDetailModal({
             <h2 id="purchase-need-detail-title" className="text-lg font-bold text-slate-900">
               발주 필요 자재
             </h2>
-            <p className="mt-1 font-mono text-sm font-semibold text-violet-700">{card.orderNumber}</p>
+            <p className="mt-1 font-mono text-sm font-semibold text-slate-700">{card.orderNumber}</p>
             <p className="mt-0.5 text-sm text-slate-600">
               {card.customer || '—'} · {card.productLabel} · 수량{' '}
               {card.productQuantity.toLocaleString('ko-KR')}
@@ -104,42 +130,13 @@ export function MaterialPurchaseNeedDetailModal({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-3">
-          {(
-            [
-              { key: 'all', label: `전체 ${card.materialCount}` },
-              { key: '부족', label: `부족 ${card.shortageCount}` },
-              { key: '충분', label: `충분 ${card.sufficientCount}` },
-            ] as const
-          ).map((item) => {
-            const active = filter === item.key
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => setFilter(item.key)}
-                className={[
-                  'rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors',
-                  active
-                    ? item.key === '부족'
-                      ? 'bg-rose-600 text-white'
-                      : item.key === '충분'
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-800 text-white'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-                ].join(' ')}
-              >
-                {item.label}
-              </button>
-            )
-          })}
+        <div className="border-b border-slate-100 px-5 py-3">
+          <FilterChipBar options={filterOptions} value={filter} onChange={setFilter} />
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {!filteredLines.length ? (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
-              표시할 자재가 없습니다.
-            </div>
+            <EmptyListState message="표시할 자재가 없습니다" />
           ) : (
             <div className="overflow-x-auto rounded-lg border border-slate-200">
               <table className="min-w-[980px] w-full table-fixed border-collapse text-sm">
@@ -155,28 +152,28 @@ export function MaterialPurchaseNeedDetailModal({
                 </colgroup>
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                       상태
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                       자재코드
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                       자재명
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                       규격
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                       공급사
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-slate-600">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                       소요
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-slate-600">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                       현재고
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-slate-600">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                       부족
                     </th>
                   </tr>
@@ -184,43 +181,41 @@ export function MaterialPurchaseNeedDetailModal({
                 <tbody>
                   {filteredLines.map((line) => (
                     <tr key={line.materialId} className="border-t border-slate-100">
-                      <td className="whitespace-nowrap px-3 py-2">
-                        <span
-                          className={[
-                            'inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold',
+                      <td className="whitespace-nowrap px-3 py-2.5">
+                        <StatusBadge
+                          label={line.status}
+                          className={
                             line.status === '부족'
-                              ? 'bg-rose-50 text-rose-700'
-                              : 'bg-emerald-50 text-emerald-700',
-                          ].join(' ')}
-                        >
-                          {line.status}
-                        </span>
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }
+                        />
                       </td>
-                      <td className="truncate whitespace-nowrap px-3 py-2 font-mono text-xs text-slate-700">
+                      <td className="truncate whitespace-nowrap px-3 py-2.5 font-mono text-xs text-slate-700">
                         {line.materialCode}
                       </td>
-                      <td className="truncate px-3 py-2 text-slate-800" title={line.materialName}>
+                      <td className="truncate px-3 py-2.5 text-slate-800" title={line.materialName}>
                         {line.materialName}
                       </td>
                       <td
-                        className="truncate px-3 py-2 text-slate-600"
+                        className="truncate px-3 py-2.5 text-slate-600"
                         title={line.specification || undefined}
                       >
                         {line.specification || '—'}
                       </td>
-                      <td className="truncate whitespace-nowrap px-3 py-2 text-slate-600">
+                      <td className="truncate whitespace-nowrap px-3 py-2.5 text-slate-600">
                         {line.supplier || '—'}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-800">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-slate-800">
                         {line.requiredQuantity.toLocaleString('ko-KR')}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-800">
+                      <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-slate-800">
                         {line.onHandQuantity.toLocaleString('ko-KR')}
                       </td>
                       <td
                         className={[
-                          'whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums',
-                          line.shortageQuantity > 0 ? 'text-rose-600' : 'text-emerald-700',
+                          'whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums',
+                          line.shortageQuantity > 0 ? 'text-rose-700' : 'text-emerald-700',
                         ].join(' ')}
                       >
                         {line.shortageQuantity > 0

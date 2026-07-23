@@ -1,5 +1,15 @@
 export type QuoteType = 'export' | 'domestic'
 
+export const QUOTE_TYPE_LABELS: Record<QuoteType, string> = {
+  domestic: '국내',
+  export: '해외',
+}
+
+export const QUOTE_TYPE_BADGE_CLASS: Record<QuoteType, string> = {
+  domestic: 'bg-blue-100 text-blue-800',
+  export: 'bg-teal-100 text-teal-800',
+}
+
 /** 해외용 견적서 미리보기·입력 화면 표시 통화 */
 export type QuoteDisplayCurrency = 'usd' | 'krw'
 

@@ -14,15 +14,15 @@ export const ERP_MODULE_ACCENT = {
   orders: 'slate',
   quotes: 'slate',
   master: 'slate',
-  inventory: 'blue',
-  inbound: 'blue',
-  outbound: 'orange',
-  purchaseOrders: 'violet',
+  inventory: 'slate',
+  inbound: 'slate',
+  outbound: 'slate',
+  purchaseOrders: 'slate',
   smt: 'sky',
   postProcess: 'emerald',
   delivery: 'sky',
   production: 'sky',
-  approvals: 'blue',
+  approvals: 'slate',
 } as const satisfies Record<string, ErpModuleAccent>
 
 export const ERP_PRIMARY_BUTTON_CLASS =
@@ -71,15 +71,18 @@ export const ERP_SEARCH_INPUT_BASE =
   'w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400'
 
 export const ERP_TABLE_WRAP_CLASS =
-  'min-h-0 flex-1 overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm'
+  'overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm'
 
 export const ERP_TABLE_CLASS = 'min-w-full border-collapse text-left text-sm'
 
 export const ERP_TABLE_HEAD_CLASS =
   'sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500'
 
+/** 목록 표 공통 밀도 */
 export const ERP_TABLE_TH_CLASS = 'px-3 py-2.5'
 export const ERP_TABLE_TD_CLASS = 'px-3 py-2.5'
+
+export const ERP_TABLE_ROW_CLASS = 'border-t border-slate-100 hover:bg-slate-50/80'
 
 /** 폼 필드 공통 */
 export const ERP_FIELD_LABEL_CLASS = 'mb-1 block font-medium text-slate-600'

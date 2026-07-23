@@ -18,9 +18,9 @@ type WorkspaceHeaderProps = {
   filteredCount?: number
   /** @deprecated 건수 미표시 — 호출부 호환용 */
   hasQuery?: boolean
-  search: string
-  onSearchChange: (value: string) => void
-  searchPlaceholder: string
+  search?: string
+  onSearchChange?: (value: string) => void
+  searchPlaceholder?: string
   accent?: ErpModuleAccent
   actions?: ReactNode
   /** 검색 위/옆에 추가 컨트롤 (필터 등) */
@@ -37,15 +37,19 @@ export function WorkspaceHeader({
   actions,
   filters,
 }: WorkspaceHeaderProps) {
+  const showSearch = search != null && onSearchChange != null
+
   return (
     <div className="flex w-full flex-wrap items-center gap-3">
-      <input
-        type="search"
-        value={search}
-        onChange={(event) => onSearchChange(event.target.value)}
-        placeholder={searchPlaceholder}
-        className={`${ERP_SEARCH_INPUT_BASE} ${erpSearchFocusClass(accent)}`}
-      />
+      {showSearch ? (
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder={searchPlaceholder ?? '검색…'}
+          className={`${ERP_SEARCH_INPUT_BASE} ${erpSearchFocusClass(accent)}`}
+        />
+      ) : null}
       {filters}
       {actions ? <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
     </div>

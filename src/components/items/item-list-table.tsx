@@ -1,6 +1,11 @@
 'use client'
 
+import { EmptyListState } from '@/components/ui/empty-list-state'
+
+import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+
 import {
+  ITEM_CATEGORY_BADGE_CLASS,
   ITEM_CATEGORY_LABELS,
   ITEM_MATERIAL_TYPE_LABELS,
   ITEM_PCB_SIDE_MODE_LABELS,
@@ -13,6 +18,7 @@ import {
   type ItemCategory,
 } from '@/lib/items/types'
 import { formatItemUnitPrice } from '@/lib/items/utils'
+import { CategoryBadge } from '@/components/ui/category-badge'
 
 type ItemCategoryFilter = 'all' | ItemCategory
 
@@ -57,10 +63,7 @@ export function ItemListTable({
 
   if (!items.length) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
-        <p className="text-base font-semibold text-slate-700">{emptyMessage}</p>
-        <p className="mt-2 text-sm text-slate-500">품목을 등록하면 여기에 표시됩니다.</p>
-      </div>
+      <EmptyListState message={emptyMessage} hint="품목을 등록하면 여기에 표시됩니다." />
     )
   }
 
@@ -74,7 +77,7 @@ export function ItemListTable({
           : 'min-w-[640px]'
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
+    <div className={ERP_TABLE_WRAP_CLASS}>
       <div className="overflow-x-auto">
         <table className={`w-full ${minWidth} table-fixed border-collapse`}>
           <colgroup>
@@ -92,52 +95,52 @@ export function ItemListTable({
           </colgroup>
           <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목코드
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목명
               </th>
               {columns.specification ? (
-                <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   규격
                 </th>
               ) : null}
               {columns.mpn ? (
-                <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   MPN
                 </th>
               ) : null}
               {columns.materialType ? (
-                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   구분
                 </th>
               ) : null}
               {columns.supplyType ? (
-                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   도급/사급
                 </th>
               ) : null}
               {columns.supplier ? (
-                <th className="px-4 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   공급사
                 </th>
               ) : null}
               {columns.pcbSideMode ? (
-                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   면 구분
                 </th>
               ) : null}
               {columns.processType ? (
-                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   공정
                 </th>
               ) : null}
-              <th className="px-4 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 단가
               </th>
               {columns.itemCategory ? (
-                <th className="px-4 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   품목구분
                 </th>
               ) : null}
@@ -152,10 +155,10 @@ export function ItemListTable({
                   onSelectItem ? 'cursor-pointer' : ''
                 }`}
               >
-                <td className="truncate whitespace-nowrap px-4 py-2.5 font-mono text-sm font-semibold text-slate-800">
+                <td className="truncate whitespace-nowrap px-3 py-2.5 font-mono text-sm font-semibold text-slate-800">
                   {cell(item.id)}
                 </td>
-                <td className="truncate px-4 py-2.5 text-sm font-medium text-slate-900" title={item.name}>
+                <td className="truncate px-3 py-2.5 text-sm font-medium text-slate-900" title={item.name}>
                   {cell(item.name)}
                 </td>
                 {columns.specification ? (
@@ -167,27 +170,27 @@ export function ItemListTable({
                   </td>
                 ) : null}
                 {columns.mpn ? (
-                  <td className="truncate px-4 py-2.5 font-mono text-sm text-slate-700" title={item.mpn}>
+                  <td className="truncate px-3 py-2.5 font-mono text-sm text-slate-700" title={item.mpn}>
                     {cell(item.mpn)}
                   </td>
                 ) : null}
                 {columns.materialType ? (
-                  <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm text-slate-700">
+                  <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
                     {item.materialType ? ITEM_MATERIAL_TYPE_LABELS[item.materialType] : '-'}
                   </td>
                 ) : null}
                 {columns.supplyType ? (
-                  <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm text-slate-700">
+                  <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
                     {item.supplyType ? ITEM_SUPPLY_TYPE_LABELS[item.supplyType] : '-'}
                   </td>
                 ) : null}
                 {columns.supplier ? (
-                  <td className="truncate px-4 py-2.5 text-sm text-slate-700" title={item.supplier}>
+                  <td className="truncate px-3 py-2.5 text-sm text-slate-700" title={item.supplier}>
                     {cell(item.supplier)}
                   </td>
                 ) : null}
                 {columns.pcbSideMode ? (
-                  <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm text-slate-700">
+                  <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
                     {isSemiFinishedItemCategory(item.itemCategory) &&
                     (item.pcbSideMode === 'single' ||
                       item.pcbSideMode === 'duo' ||
@@ -197,7 +200,7 @@ export function ItemListTable({
                   </td>
                 ) : null}
                 {columns.processType ? (
-                  <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm text-slate-700">
+                  <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
                     {isSemiFinishedItemCategory(item.itemCategory) &&
                     (item.processType === 'smt' ||
                       item.processType === 'post' ||
@@ -207,7 +210,7 @@ export function ItemListTable({
                   </td>
                 ) : null}
                 <td
-                  className="whitespace-nowrap px-4 py-2.5 text-right text-sm tabular-nums text-slate-700"
+                  className="whitespace-nowrap px-3 py-2.5 text-right text-sm tabular-nums text-slate-700"
                   title={
                     isSemiFinishedItemCategory(item.itemCategory) &&
                     (item.smdUnitPrice > 0 || item.dipUnitPrice > 0 || item.materialUnitPrice > 0)
@@ -218,8 +221,11 @@ export function ItemListTable({
                   {item.unitPrice > 0 ? formatItemUnitPrice(item.unitPrice) : '-'}
                 </td>
                 {columns.itemCategory ? (
-                  <td className="whitespace-nowrap px-4 py-2.5 text-center text-sm font-medium text-slate-700">
-                    {ITEM_CATEGORY_LABELS[item.itemCategory]}
+                  <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                    <CategoryBadge
+                      label={ITEM_CATEGORY_LABELS[item.itemCategory]}
+                      className={ITEM_CATEGORY_BADGE_CLASS[item.itemCategory]}
+                    />
                   </td>
                 ) : null}
               </tr>

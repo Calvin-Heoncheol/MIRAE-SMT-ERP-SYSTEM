@@ -1,7 +1,16 @@
 'use client'
 
+import { EmptyListState } from '@/components/ui/empty-list-state'
 import { computePurchaseOrderRemainingQuantity } from '@/lib/materials/purchase-orders/utils'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
+import {
+  ERP_SECONDARY_BUTTON_CLASS,
+  ERP_TABLE_CLASS,
+  ERP_TABLE_HEAD_CLASS,
+  ERP_TABLE_TD_CLASS,
+  ERP_TABLE_TH_CLASS,
+  ERP_TABLE_WRAP_CLASS,
+} from '@/lib/ui/tokens'
 
 type InboundPendingOrdersTableProps = {
   orders: MaterialPurchaseOrderListGroup[]
@@ -15,66 +24,68 @@ export function InboundPendingOrdersTable({
   emptyMessage,
   onInboundClick,
 }: InboundPendingOrdersTableProps) {
+  if (!orders.length) {
+    return <EmptyListState message={emptyMessage} />
+  }
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
-      <table className="w-full min-w-[760px] border-collapse text-sm">
-        <thead className="bg-slate-50">
+    <div className={`${ERP_TABLE_WRAP_CLASS} overflow-x-auto`}>
+      <table className={`${ERP_TABLE_CLASS} min-w-[760px]`}>
+        <thead className={ERP_TABLE_HEAD_CLASS}>
           <tr>
-            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">발주번호</th>
-            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">공급업체</th>
-            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">발주일</th>
-            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">입고예정일</th>
-            <th className="px-4 py-2.5 text-right font-semibold text-slate-600">자재</th>
-            <th className="px-4 py-2.5 text-right font-semibold text-slate-600">입고 잔량</th>
-            <th className="w-24 px-3 py-2.5" />
+            <th className={`${ERP_TABLE_TH_CLASS} text-left`}>발주번호</th>
+            <th className={`${ERP_TABLE_TH_CLASS} text-left`}>공급업체</th>
+            <th className={`${ERP_TABLE_TH_CLASS} text-left`}>발주일</th>
+            <th className={`${ERP_TABLE_TH_CLASS} text-left`}>입고예정일</th>
+            <th className={`${ERP_TABLE_TH_CLASS} text-right`}>자재</th>
+            <th className={`${ERP_TABLE_TH_CLASS} text-right`}>입고 잔량</th>
+            <th className={`w-24 ${ERP_TABLE_TH_CLASS}`} />
           </tr>
         </thead>
         <tbody>
-          {orders.length === 0 ? (
-            <tr>
-              <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">
-                {emptyMessage}
-              </td>
-            </tr>
-          ) : (
-            orders.map((order) => {
-              const totalOrdered = order.items.reduce(
-                (sum, item) => sum + (Number(item.quantity) || 0),
-                0,
-              )
-              const totalReceived = order.items.reduce(
-                (sum, item) => sum + (Number(item.inboundQuantity) || 0),
-                0,
-              )
-              const remaining = computePurchaseOrderRemainingQuantity(totalOrdered, totalReceived)
+          {orders.map((order) => {
+            const totalOrdered = order.items.reduce(
+              (sum, item) => sum + (Number(item.quantity) || 0),
+              0,
+            )
+            const totalReceived = order.items.reduce(
+              (sum, item) => sum + (Number(item.inboundQuantity) || 0),
+              0,
+            )
+            const remaining = computePurchaseOrderRemainingQuantity(totalOrdered, totalReceived)
 
-              return (
-                <tr key={order.orderId} className="border-t border-slate-100 hover:bg-blue-50/40">
-                  <td className="px-4 py-2.5 font-mono text-sm font-semibold text-slate-900">
-                    {order.orderNumber}
-                  </td>
-                  <td className="px-4 py-2.5 text-slate-700">{order.supplier || '공급업체 미입력'}</td>
-                  <td className="px-4 py-2.5 tabular-nums text-slate-700">{order.orderDate || '—'}</td>
-                  <td className="px-4 py-2.5 tabular-nums text-slate-700">{order.deliveryDate || '—'}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
-                    {order.items.length.toLocaleString('ko-KR')}종
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-blue-700">
-                    {remaining.toLocaleString('ko-KR')}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => onInboundClick(order)}
-                      className="rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
-                    >
-                      입고
-                    </button>
-                  </td>
-                </tr>
-              )
-            })
-          )}
+            return (
+              <tr key={order.orderId} className="border-t border-slate-100 hover:bg-slate-50/80">
+                <td className={`${ERP_TABLE_TD_CLASS} font-mono text-sm font-semibold text-slate-900`}>
+                  {order.orderNumber}
+                </td>
+                <td className={`${ERP_TABLE_TD_CLASS} text-slate-700`}>
+                  {order.supplier || '공급업체 미입력'}
+                </td>
+                <td className={`${ERP_TABLE_TD_CLASS} tabular-nums text-slate-700`}>
+                  {order.orderDate || '—'}
+                </td>
+                <td className={`${ERP_TABLE_TD_CLASS} tabular-nums text-slate-700`}>
+                  {order.deliveryDate || '—'}
+                </td>
+                <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums text-slate-700`}>
+                  {order.items.length.toLocaleString('ko-KR')}종
+                </td>
+                <td className={`${ERP_TABLE_TD_CLASS} text-right font-semibold tabular-nums text-slate-800`}>
+                  {remaining.toLocaleString('ko-KR')}
+                </td>
+                <td className={`${ERP_TABLE_TD_CLASS} text-right`}>
+                  <button
+                    type="button"
+                    onClick={() => onInboundClick(order)}
+                    className={`${ERP_SECONDARY_BUTTON_CLASS} px-3 py-1.5`}
+                  >
+                    입고
+                  </button>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

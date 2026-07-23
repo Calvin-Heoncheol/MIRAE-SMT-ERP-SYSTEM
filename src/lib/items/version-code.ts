@@ -66,5 +66,6 @@ export function itemToVersionUpPayload(item: Item, newId: string) {
     dipUnitPrice: item.dipUnitPrice,
     materialUnitPrice: item.materialUnitPrice,
     itemCategory: item.itemCategory,
+    safetyStock: item.safetyStock,
   }
 }

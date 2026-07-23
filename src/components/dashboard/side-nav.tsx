@@ -47,15 +47,21 @@ function NavSection({
       <Link
         href={item.href}
         onClick={onNavigate}
+        title={item.locked ? '접근 권한이 없습니다' : undefined}
         className={[
-          'mb-0.5 flex items-center rounded-lg px-3 py-2.5 text-sm font-bold transition-colors',
-          sectionActive
-            ? 'bg-blue-50 text-blue-700'
-            : 'text-slate-800 hover:bg-slate-50 hover:text-slate-900',
+          'mb-0.5 flex items-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-bold transition-colors',
+          item.locked
+            ? 'text-slate-400 hover:bg-slate-50'
+            : sectionActive
+              ? 'bg-blue-50 text-blue-700'
+              : 'text-slate-800 hover:bg-slate-50 hover:text-slate-900',
         ].join(' ')}
-        aria-current={sectionActive ? 'page' : undefined}
+        aria-current={sectionActive && !item.locked ? 'page' : undefined}
       >
-        {item.label}
+        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+        {item.locked ? (
+          <span className="shrink-0 text-[10px] font-semibold text-slate-400">잠금</span>
+        ) : null}
       </Link>
     )
   }
@@ -83,15 +89,21 @@ function NavSection({
                 key={child.href}
                 href={child.href}
                 onClick={onNavigate}
+                title={child.locked ? '접근 권한이 없습니다' : undefined}
                 className={[
-                  'block rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors',
-                  childActive
-                    ? 'bg-blue-50 font-semibold text-blue-700'
-                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
+                  'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors',
+                  child.locked
+                    ? 'text-slate-400 hover:bg-slate-50'
+                    : childActive
+                      ? 'bg-blue-50 font-semibold text-blue-700'
+                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
                 ].join(' ')}
-                aria-current={childActive ? 'page' : undefined}
+                aria-current={childActive && !child.locked ? 'page' : undefined}
               >
-                {child.label}
+                <span className="min-w-0 flex-1 truncate">{child.label}</span>
+                {child.locked ? (
+                  <span className="shrink-0 text-[10px] font-semibold text-slate-400">잠금</span>
+                ) : null}
               </Link>
             )
           })}

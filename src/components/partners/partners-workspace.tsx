@@ -86,7 +86,7 @@ export function PartnersWorkspace({ result }: PartnersWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
           title="거래처등록"
           totalCount={partners.length}

@@ -11,9 +11,9 @@ import { ListPagination } from '@/components/ui/list-pagination'
 import type { FetchMaterialOutboundPageResult } from '@/lib/materials/outbound/repository'
 import type {
   MaterialOutboundListGroup,
-  MaterialOutboundNeedCard,
+  MaterialOutboundOrderCard,
 } from '@/lib/materials/outbound/types'
-import { getOutboundTypeLabel } from '@/lib/materials/outbound/utils'
+import { buildOutboundOrderCards, getOutboundTypeLabel } from '@/lib/materials/outbound/utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
@@ -41,9 +41,16 @@ function matchesQuery(outbound: MaterialOutboundListGroup, query: string) {
   return haystack.includes(query)
 }
 
-function matchesNeedCardQuery(card: MaterialOutboundNeedCard, query: string) {
+function matchesOrderCardQuery(card: MaterialOutboundOrderCard, query: string) {
   if (!query) return true
-  const haystack = [card.orderNumber, card.customer, card.productName].join(' ').toLowerCase()
+  const haystack = [
+    card.orderNumber,
+    card.customer,
+    card.productLabel,
+    ...card.actions.map((action) => action.productName),
+  ]
+    .join(' ')
+    .toLowerCase()
   return haystack.includes(query)
 }
 
@@ -60,16 +67,18 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
   const orders = result.ok ? result.orders : []
   const query = search.trim().toLowerCase()
 
+  const orderCards = useMemo(() => buildOutboundOrderCards(needCards), [needCards])
+
   const filtered = useMemo(
     () => outbounds.filter((outbound) => matchesQuery(outbound, query)),
     [outbounds, query],
   )
 
-  const filteredNeedCards = useMemo(
-    () => needCards.filter((card) => matchesNeedCardQuery(card, query)),
-    [needCards, query],
+  const filteredOrderCards = useMemo(
+    () => orderCards.filter((card) => matchesOrderCardQuery(card, query)),
+    [orderCards, query],
   )
-  const needsPagination = useClientPagination(filteredNeedCards)
+  const needsPagination = useClientPagination(filteredOrderCards)
   const historyPagination = useClientPagination(filtered)
 
   function openEdit(outbound: MaterialOutboundListGroup) {
@@ -97,16 +106,16 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
 
   if (view === 'register') {
     return (
-      <div className="flex w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
           subtitle="주문·BOM 기준 미불출 필요 수량입니다"
-          totalCount={needCards.length}
-          filteredCount={filteredNeedCards.length}
+          totalCount={orderCards.length}
+          filteredCount={filteredOrderCards.length}
           hasQuery={Boolean(query)}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="주문번호, 고객사, 품목 검색…"
-          accent="orange"
+          accent="slate"
         />
 
         <OutboundNeedsTable
@@ -130,7 +139,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
           totalCount={outbounds.length}
           filteredCount={filtered.length}
@@ -138,7 +147,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="불출번호, 주문번호, 자재명, 자재코드 검색…"
-          accent="orange"
+          accent="slate"
         />
 
         <OutboundListTable

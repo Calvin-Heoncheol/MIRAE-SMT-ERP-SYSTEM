@@ -15,10 +15,15 @@ import {
   deleteMaterialPurchaseOrder,
   updateMaterialPurchaseOrder,
 } from '@/lib/materials/purchase-orders/repository'
+import {
+  buildMaterialPurchaseOrderPrintData,
+  printMaterialPurchaseOrder,
+} from '@/lib/materials/purchase-orders/print-material-purchase-order'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
 import { addDaysYmd, todayYmdSeoul } from '@/lib/materials/purchase-orders/utils'
 import { fetchMaterials } from '@/lib/materials/repository'
 import type { Material } from '@/lib/materials/types'
+import { ERP_PRIMARY_BUTTON_CLASS, ERP_SECONDARY_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 type MaterialPurchaseOrderModalProps = {
   open: boolean
@@ -123,7 +128,7 @@ function MaterialPurchaseOrderModalContent({
     }
   }
 
-  async function handleSave() {
+  async function handleSave(printAfter = false) {
     if (readOnly) return
 
     if (!form.supplier.trim()) {
@@ -165,7 +170,41 @@ function MaterialPurchaseOrderModalContent({
       return
     }
 
+    if (printAfter) {
+      const printed = printMaterialPurchaseOrder(
+        buildMaterialPurchaseOrderPrintData({
+          orderNumber: result.orderNumber,
+          sourceOrderNumber:
+            mode === 'create' ? sourceOrderId : order?.sourceOrderId || sourceOrderId,
+          orderDate: payload.order_date,
+          deliveryDate: payload.delivery_date,
+          supplier: payload.supplier,
+          items: validation.items,
+        }),
+      )
+      if (!printed) {
+        window.alert('발주는 저장됐지만 발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
+      }
+    }
+
     onSaved?.()
+  }
+
+  function handlePrintOnly() {
+    if (!order) return
+    const printed = printMaterialPurchaseOrder(
+      buildMaterialPurchaseOrderPrintData({
+        orderNumber: order.orderNumber,
+        sourceOrderNumber: order.sourceOrderId,
+        orderDate: order.orderDate || form.orderDate || todayYmdSeoul(),
+        deliveryDate: order.deliveryDate || form.deliveryDate || '',
+        supplier: order.supplier || form.supplier,
+        items: order.items,
+      }),
+    )
+    if (!printed) {
+      setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
+    }
   }
 
   async function handleDelete() {
@@ -228,12 +267,27 @@ function MaterialPurchaseOrderModalContent({
           ) : null}
 
           {mode === 'create' && coveredProductQuantity != null && coveredProductQuantity > 0 ? (
-            <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
               이 발주서가 커버하는 제품 수량:{' '}
               <span className="font-bold tabular-nums">
                 {coveredProductQuantity.toLocaleString('ko-KR')}
               </span>
               개 (주문 카드의 발주 수량에 합산됩니다)
+            </div>
+          ) : null}
+
+          {mode === 'edit' && order?.coveredProductQuantity ? (
+            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
+              주문서 발주 · 커버 제품 수량{' '}
+              <span className="font-bold tabular-nums">
+                {order.coveredProductQuantity.toLocaleString('ko-KR')}
+              </span>
+              개
+              {order.sourceOrderId ? (
+                <span className="ml-2 font-mono text-xs text-slate-500">
+                  ({order.sourceOrderId})
+                </span>
+              ) : null}
             </div>
           ) : null}
 
@@ -250,11 +304,20 @@ function MaterialPurchaseOrderModalContent({
             ) : null}
             {(mode === 'edit' ? order?.sourceOrderId : sourceOrderId) ? (
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-medium text-slate-600">연결 주문서</span>
+                <span className="mb-1 block font-medium text-slate-600">구분 · 연결 주문서</span>
                 <input
-                  value={(mode === 'edit' ? order?.sourceOrderId : sourceOrderId) || ''}
+                  value={`주문서 · ${(mode === 'edit' ? order?.sourceOrderId : sourceOrderId) || ''}`}
                   readOnly
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600"
+                />
+              </label>
+            ) : mode === 'edit' ? (
+              <label className="block text-sm sm:col-span-2">
+                <span className="mb-1 block font-medium text-slate-600">구분</span>
+                <input
+                  value="자재별 발주"
+                  readOnly
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
                 />
               </label>
             ) : null}
@@ -334,19 +397,39 @@ function MaterialPurchaseOrderModalContent({
             type="button"
             onClick={onClose}
             disabled={saving || deleting}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className={`${ERP_SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
           >
             {readOnly ? '닫기' : '취소'}
           </button>
-          {!readOnly ? (
+          {mode === 'edit' && order ? (
             <button
               type="button"
-              onClick={handleSave}
+              onClick={handlePrintOnly}
               disabled={saving || deleting}
-              className="rounded-lg bg-gradient-to-r from-violet-500 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+              className={`${ERP_SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
             >
-              {saving ? '저장 중...' : '저장'}
+              발주서 출력
             </button>
+          ) : null}
+          {!readOnly ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void handleSave(false)}
+                disabled={saving || deleting}
+                className={`${ERP_PRIMARY_BUTTON_CLASS} disabled:opacity-50`}
+              >
+                {saving ? '저장 중...' : '저장'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSave(true)}
+                disabled={saving || deleting}
+                className={`${ERP_SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
+              >
+                {saving ? '저장 중...' : '저장 후 발주서'}
+              </button>
+            </>
           ) : null}
         </div>
       </div>

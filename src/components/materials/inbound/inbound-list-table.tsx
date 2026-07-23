@@ -1,4 +1,8 @@
-﻿'use client'
+'use client'
+
+import { EmptyListState } from '@/components/ui/empty-list-state'
+
+import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 import { getInboundTypeLabel } from '@/lib/materials/inbound/utils'
 import type { MaterialInboundListGroup } from '@/lib/materials/inbound/types'
@@ -13,41 +17,38 @@ type InboundListTableProps = {
 export function InboundListTable({ inbounds, emptyMessage, onSelectInbound }: InboundListTableProps) {
   if (!inbounds.length) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
-        <p className="text-base font-semibold text-slate-700">{emptyMessage}</p>
-        <p className="mt-2 text-sm text-slate-500">입고 등록 내역이 여기에 표시됩니다.</p>
-      </div>
+      <EmptyListState message={emptyMessage} hint="입고 등록 내역이 여기에 표시됩니다." />
     )
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
+    <div className={ERP_TABLE_WRAP_CLASS}>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1000px] table-fixed border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 입고번호
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 입고일
               </th>
-              <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 유형
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 발주번호
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목
               </th>
-              <th className="px-3 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 총 수량
               </th>
-              <th className="whitespace-nowrap px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 등록자
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
               </th>
             </tr>
@@ -59,7 +60,7 @@ export function InboundListTable({ inbounds, emptyMessage, onSelectInbound }: In
                 className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
                 onClick={() => onSelectInbound?.(inbound)}
               >
-                <td className="px-3 py-2.5 font-mono text-sm font-medium text-blue-800">{inbound.inboundNumber}</td>
+                <td className="px-3 py-2.5 font-mono text-sm font-medium text-slate-800">{inbound.inboundNumber}</td>
                 <td className="px-3 py-2.5 text-sm text-slate-700">{inbound.inboundDate}</td>
                 <td className="px-3 py-2.5 text-center text-sm font-medium text-slate-700">
                   {getInboundTypeLabel(inbound.inboundType)}

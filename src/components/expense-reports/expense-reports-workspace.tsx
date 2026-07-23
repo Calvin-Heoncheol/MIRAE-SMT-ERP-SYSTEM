@@ -1,14 +1,17 @@
 ﻿'use client'
 
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
 import { ExpenseReportFetchError } from '@/components/expense-reports/expense-report-fetch-error'
 import { ExpenseReportListTable } from '@/components/expense-reports/expense-report-list-table'
 import { ExpenseReportModal } from '@/components/expense-reports/expense-report-modal'
+import { ErpButton } from '@/components/ui/erp-button'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchExpenseReportsResult } from '@/lib/expense-reports/repository'
 import type { ExpenseReportListItem } from '@/lib/expense-reports/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type ExpenseReportsWorkspaceProps = {
   result: FetchExpenseReportsResult
@@ -19,12 +22,34 @@ type ModalState =
   | { open: true; mode: 'create' }
   | { open: true; mode: 'edit'; report: ExpenseReportListItem }
 
+function matchesExpenseSearch(item: ExpenseReportListItem, query: string) {
+  if (!query) return true
+  const haystack = [
+    item.docNumber,
+    item.department,
+    item.author,
+    item.createdByName,
+    item.accountCategory,
+    item.processingDetails,
+    item.recipient,
+    item.writtenDate,
+  ]
+    .join(' ')
+    .toLowerCase()
+  return haystack.includes(query)
+}
+
 export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps) {
   const router = useRouter()
+  const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
-  const reports = result.ok ? result.reports : []
+  const query = search.trim().toLowerCase()
+  const reports = useMemo(() => {
+    const all = result.ok ? result.reports : []
+    return all.filter((item) => matchesExpenseSearch(item, query))
+  }, [result, query])
   const pagination = useClientPagination(reports)
 
   function openCreate() {
@@ -52,16 +77,14 @@ export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={openCreate}
-            className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
-          >
-            새 지출결의서
-          </button>
-        </div>
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+        <WorkspaceHeader
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="문서번호, 작성자, 계정과목, 지급처 검색…"
+          accent="slate"
+          actions={<ErpButton onClick={openCreate}>새 지출결의서</ErpButton>}
+        />
 
         {!result.ok ? (
           <ExpenseReportFetchError result={result} />
@@ -69,7 +92,11 @@ export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps
           <>
             <ExpenseReportListTable
               reports={pagination.pageItems}
-              emptyMessage="등록된 지출결의서가 없습니다"
+              emptyMessage={formatEmptyListMessage({
+                hasQuery: Boolean(query),
+                emptyLabel: '등록된 지출결의서가 없습니다',
+                actionHint: '오른쪽 상단에서 작성하세요',
+              })}
               onSelectReport={openEdit}
             />
 

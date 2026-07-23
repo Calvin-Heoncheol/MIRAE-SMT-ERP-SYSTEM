@@ -3,7 +3,15 @@
 import { ReportBarChart } from '@/components/reports/report-bar-chart'
 import { ReportPeriodControls } from '@/components/reports/report-period-controls'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
+import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
+import {
+  ERP_TABLE_CLASS,
+  ERP_TABLE_HEAD_CLASS,
+  ERP_TABLE_TD_CLASS,
+  ERP_TABLE_TH_CLASS,
+  ERP_TABLE_WRAP_CLASS,
+} from '@/lib/ui/tokens'
 import { downloadExcelSheets, type ExcelColumn } from '@/lib/excel/export'
 import { exportReportPdf } from '@/lib/reports/export-report-pdf'
 import type { ReportPeriod } from '@/lib/reports/period'
@@ -85,16 +93,6 @@ function buildTrendRows(
         total: bucket.total,
       }
     })
-}
-
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">{value}</p>
-      {sub ? <p className="mt-0.5 text-xs text-slate-500">{sub}</p> : null}
-    </div>
-  )
 }
 
 export function ProductionReportWorkspace({
@@ -235,7 +233,7 @@ export function ProductionReportWorkspace({
   }
 
   return (
-    <div className="flex w-full flex-1 flex-col gap-4">
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
       <ReportPeriodControls
         period={period}
         rangeLabel={rangeLabel}
@@ -256,64 +254,61 @@ export function ProductionReportWorkspace({
           리포트 데이터를 불러오지 못했습니다: {result.detail}
         </div>
       ) : data ? (
-        <>
-          {/* 기간 합계 카드 */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="총 생산수량" value={`${formatCount(data.totalQuantity)} EA`} />
-            <StatCard label="총 생산금액" value={`${formatCount(data.totalAmount)} 원`} />
-            <StatCard
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+          <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
+            <KpiStatCard label="총 생산수량" value={data.totalQuantity} unit="EA" />
+            <KpiStatCard label="총 생산금액" value={data.totalAmount} unit="원" />
+            <KpiStatCard
               label="계획 달성률"
-              value={data.totalAchievementRate != null ? `${data.totalAchievementRate}%` : '—'}
-              sub={
+              value={data.totalAchievementRate != null ? `${data.totalAchievementRate}%` : null}
+              hint={
                 data.totalPlannedQuantity > 0
                   ? `원계획 ${formatCount(data.totalPlannedQuantity)} EA (지난 날짜 기준)`
                   : '기간 내 마감된 계획 없음'
               }
+              tone={
+                data.totalAchievementRate == null
+                  ? 'slate'
+                  : data.totalAchievementRate >= 100
+                    ? 'emerald'
+                    : data.totalAchievementRate >= 80
+                      ? 'default'
+                      : 'rose'
+              }
             />
-            <StatCard
+            <KpiStatCard
               label="납기 지연 주문"
-              value={`${formatCount(data.totalOverdueOrders)} 건`}
-              sub="납기 경과 · 출하 미완료 (현재 기준)"
+              value={data.totalOverdueOrders}
+              unit="건"
+              hint="납기 경과 · 출하 미완료 (현재 기준)"
+              tone={data.totalOverdueOrders > 0 ? 'rose' : 'default'}
             />
           </div>
 
-          {/* 팀별 요약 */}
-          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
+          <div className={`${ERP_TABLE_WRAP_CLASS} min-h-0 shrink-0`}>
             <div className="overflow-x-auto">
-              <table className="min-w-[720px] w-full border-collapse">
-                <thead className="bg-slate-50">
+              <table className={`${ERP_TABLE_CLASS} min-w-[720px]`}>
+                <thead className={ERP_TABLE_HEAD_CLASS}>
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      팀
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      생산수량
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      생산금액
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      계획 달성률
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      가동일수
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      납기지연 주문
-                    </th>
+                    <th className={`${ERP_TABLE_TH_CLASS} text-left`}>팀</th>
+                    <th className={`${ERP_TABLE_TH_CLASS} text-right`}>생산수량</th>
+                    <th className={`${ERP_TABLE_TH_CLASS} text-right`}>생산금액</th>
+                    <th className={`${ERP_TABLE_TH_CLASS} text-right`}>계획 달성률</th>
+                    <th className={`${ERP_TABLE_TH_CLASS} text-right`}>가동일수</th>
+                    <th className={`${ERP_TABLE_TH_CLASS} text-right`}>납기지연 주문</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.teams.map((team) => (
-                    <tr key={team.team} className="border-t border-slate-100 hover:bg-slate-50/60">
-                      <td className="px-4 py-3 text-sm font-bold text-slate-900">{team.team}</td>
-                      <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">
+                    <tr key={team.team} className="border-t border-slate-100 hover:bg-slate-50/80">
+                      <td className={`${ERP_TABLE_TD_CLASS} font-bold text-slate-900`}>{team.team}</td>
+                      <td className={`${ERP_TABLE_TD_CLASS} text-right font-semibold tabular-nums text-slate-900`}>
                         {formatCount(team.quantity)}
                       </td>
-                      <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-700">
+                      <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums text-slate-700`}>
                         {formatCount(team.amount)} 원
                       </td>
-                      <td className="px-4 py-3 text-right text-sm tabular-nums">
+                      <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums`}>
                         {team.achievementRate != null ? (
                           <span
                             className={[
@@ -334,10 +329,10 @@ export function ProductionReportWorkspace({
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-700">
+                      <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums text-slate-700`}>
                         {formatCount(team.activeDays)}일
                       </td>
-                      <td className="px-4 py-3 text-right text-sm tabular-nums">
+                      <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums`}>
                         {team.overdueOrders > 0 ? (
                           <span className="font-semibold text-rose-700">
                             {formatCount(team.overdueOrders)}건
@@ -353,15 +348,14 @@ export function ProductionReportWorkspace({
             </div>
           </div>
 
-          {/* 생산량 추이: 팀별 누적 막대 */}
-          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-4 py-3">
+          <div className={`${ERP_TABLE_WRAP_CLASS} flex min-h-0 flex-1 flex-col overflow-hidden`}>
+            <div className="shrink-0 border-b border-slate-100 px-4 py-3">
               <h2 className="text-sm font-bold text-slate-900">
                 {period === 'month' ? '월별 생산량' : '주별 생산량'}
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">팀별 누적 — EA</p>
             </div>
-            <div className="px-4 py-4">
+            <div className="min-h-0 flex-1 overflow-hidden px-4 py-4">
               <ReportBarChart
                 rows={buildTrendRows(data.daily, period).map((row) => ({
                   label: row.label,
@@ -380,8 +374,7 @@ export function ProductionReportWorkspace({
               />
             </div>
           </div>
-
-        </>
+        </div>
       ) : null}
     </div>
   )

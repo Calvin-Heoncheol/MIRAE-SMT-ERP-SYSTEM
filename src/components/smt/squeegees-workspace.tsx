@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { ListPagination } from '@/components/ui/list-pagination'
 import {
   applySqueegeeUsage,
   createSqueegeeAsset,
@@ -13,6 +14,7 @@ import {
 import type { SqueegeeAsset } from '@/lib/squeegees/types'
 import { DEFAULT_SQUEEGEE_USE_LIMIT, SQUEEGEE_STATUS_LABELS } from '@/lib/squeegees/types'
 import { isSqueegeeNearLimit, squeegeeRemaining } from '@/lib/squeegees/utils'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 
 type SqueegeesWorkspaceProps = {
   result: FetchSqueegeesResult
@@ -213,6 +215,8 @@ export function SqueegeesWorkspace({ result }: SqueegeesWorkspaceProps) {
     })
   }, [assets, query, showRetired])
 
+  const pagination = useClientPagination(filtered)
+
   useEffect(() => {
     const code = usageBarcode.trim()
     if (!code) {
@@ -339,7 +343,7 @@ export function SqueegeesWorkspace({ result }: SqueegeesWorkspaceProps) {
     usageBarcode.trim() === usagePreview.barcode
 
   return (
-    <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] lg:items-stretch">
+    <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] lg:items-stretch">
       <form
         onSubmit={(event) => void handleUsage(event)}
         className="flex h-fit flex-col rounded-xl border border-sky-200 bg-sky-50/40 p-3.5 shadow-sm lg:sticky lg:top-0"
@@ -465,84 +469,96 @@ export function SqueegeesWorkspace({ result }: SqueegeesWorkspaceProps) {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table className="min-w-full border-collapse text-left text-sm">
-            <thead className="sticky top-0 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-3 py-2.5">바코드</th>
-                <th className="px-3 py-2.5">이름</th>
-                <th className="px-3 py-2.5 text-right">사용/한도</th>
-                <th className="px-3 py-2.5 text-right">잔여</th>
-                <th className="px-3 py-2.5">상태</th>
-                <th className="px-3 py-2.5">비고</th>
-                <th className="px-3 py-2.5 text-right">작업</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="min-h-0 flex-1 overflow-x-auto">
+            <table className="min-w-full border-collapse text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
-                  <td colSpan={7} className="px-3 py-10 text-center text-slate-400">
-                    {query ? '검색 결과가 없습니다' : '등록된 스퀴즈가 없습니다'}
-                  </td>
+                  <th className="px-3 py-2.5">바코드</th>
+                  <th className="px-3 py-2.5">이름</th>
+                  <th className="px-3 py-2.5 text-right">사용/한도</th>
+                  <th className="px-3 py-2.5 text-right">잔여</th>
+                  <th className="px-3 py-2.5">상태</th>
+                  <th className="px-3 py-2.5">비고</th>
+                  <th className="px-3 py-2.5 text-right">작업</th>
                 </tr>
-              ) : (
-                filtered.map((asset) => {
-                  const remaining = squeegeeRemaining(asset)
-                  const near = isSqueegeeNearLimit(asset) && asset.status === 'active'
-                  const over = remaining <= 0 && asset.status === 'active'
-                  return (
-                    <tr
-                      key={asset.id}
-                      className={`border-t border-slate-100 ${
-                        over
-                          ? 'bg-red-50/80'
-                          : near
-                            ? 'bg-amber-50/70'
-                            : asset.status === 'retired'
-                              ? 'bg-slate-50 text-slate-500'
-                              : 'bg-white'
-                      }`}
-                    >
-                      <td className="px-3 py-2.5 font-semibold tabular-nums text-slate-900">
-                        {asset.barcode}
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-700">{asset.name || '—'}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
-                        {asset.useCount.toLocaleString('ko-KR')} /{' '}
-                        {asset.useLimit.toLocaleString('ko-KR')}
-                      </td>
-                      <td
-                        className={`px-3 py-2.5 text-right font-semibold tabular-nums ${
-                          over ? 'text-red-700' : near ? 'text-amber-800' : 'text-slate-800'
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-10 text-center text-slate-400">
+                      {query ? '검색 결과가 없습니다' : '등록된 스퀴즈가 없습니다'}
+                    </td>
+                  </tr>
+                ) : (
+                  pagination.pageItems.map((asset) => {
+                    const remaining = squeegeeRemaining(asset)
+                    const near = isSqueegeeNearLimit(asset) && asset.status === 'active'
+                    const over = remaining <= 0 && asset.status === 'active'
+                    return (
+                      <tr
+                        key={asset.id}
+                        className={`border-t border-slate-100 ${
+                          over
+                            ? 'bg-red-50/80'
+                            : near
+                              ? 'bg-amber-50/70'
+                              : asset.status === 'retired'
+                                ? 'bg-slate-50 text-slate-500'
+                                : 'bg-white'
                         }`}
                       >
-                        {remaining.toLocaleString('ko-KR')}
-                        {over ? ' · 초과' : near ? ' · 임박' : ''}
-                      </td>
-                      <td className="px-3 py-2.5">{SQUEEGEE_STATUS_LABELS[asset.status]}</td>
-                      <td className="max-w-[10rem] truncate px-3 py-2.5 text-slate-500">
-                        {asset.note || '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        {asset.status === 'active' ? (
-                          <button
-                            type="button"
-                            disabled={retiringId === asset.id}
-                            onClick={() => void handleRetire(asset)}
-                            className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-900 disabled:opacity-40"
-                          >
-                            {retiringId === asset.id ? '처리 중…' : '교체완료'}
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
+                        <td className="px-3 py-2.5 font-semibold tabular-nums text-slate-900">
+                          {asset.barcode}
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-700">{asset.name || '—'}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
+                          {asset.useCount.toLocaleString('ko-KR')} /{' '}
+                          {asset.useLimit.toLocaleString('ko-KR')}
+                        </td>
+                        <td
+                          className={`px-3 py-2.5 text-right font-semibold tabular-nums ${
+                            over ? 'text-red-700' : near ? 'text-amber-800' : 'text-slate-800'
+                          }`}
+                        >
+                          {remaining.toLocaleString('ko-KR')}
+                          {over ? ' · 초과' : near ? ' · 임박' : ''}
+                        </td>
+                        <td className="px-3 py-2.5">{SQUEEGEE_STATUS_LABELS[asset.status]}</td>
+                        <td className="max-w-[10rem] truncate px-3 py-2.5 text-slate-500">
+                          {asset.note || '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          {asset.status === 'active' ? (
+                            <button
+                              type="button"
+                              disabled={retiringId === asset.id}
+                              onClick={() => void handleRetire(asset)}
+                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-900 disabled:opacity-40"
+                            >
+                              {retiringId === asset.id ? '처리 중…' : '교체완료'}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="shrink-0 border-t border-slate-100 px-3 py-2">
+            <ListPagination
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={pagination.setPage}
+              rangeStart={pagination.rangeStart}
+              rangeEnd={pagination.rangeEnd}
+              totalCount={pagination.totalCount}
+            />
+          </div>
         </div>
       </div>
 

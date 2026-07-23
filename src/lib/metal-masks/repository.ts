@@ -1,3 +1,4 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { MetalMaskAsset, MetalMaskAssetPayload, MetalMaskPcbSide } from './types'
@@ -20,11 +21,11 @@ export type FindMetalMaskResult =
 
 export type SaveMetalMaskResult =
   | { ok: true; asset: MetalMaskAsset }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type ApplyMetalMaskUsageResult =
   | { ok: true; asset: MetalMaskAsset }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export function isMissingMetalMasksTable(detail: string) {
   return (
@@ -109,6 +110,9 @@ export async function createMetalMaskAsset(payload: MetalMaskAssetPayload): Prom
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'production_smt', action: 'create' })
+  if (!gate.ok) return gate
+
   const barcode = normalizeMetalMaskBarcode(payload.barcode)
   if (!barcode) {
     return { ok: false, reason: 'validation', detail: '바코드를 입력해 주세요.' }
@@ -167,6 +171,9 @@ export async function retireMetalMaskAsset(assetId: string): Promise<SaveMetalMa
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'production_smt', action: 'update' })
+  if (!gate.ok) return gate
+
   const id = String(assetId || '').trim()
   if (!id) {
     return { ok: false, reason: 'validation', detail: '마스크를 찾을 수 없습니다.' }
@@ -209,6 +216,9 @@ export async function applyMetalMaskUsage(input: {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'production_smt', action: 'update' })
+  if (!gate.ok) return gate
 
   const barcode = normalizeMetalMaskBarcode(input.barcode)
   if (!barcode) {

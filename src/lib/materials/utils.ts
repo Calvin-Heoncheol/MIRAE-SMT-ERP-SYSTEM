@@ -83,6 +83,7 @@ export function mapMaterialRecord(record: MaterialRecord): Material {
     supplyType: record.supply_type,
     moq: Number(record.moq) || 0,
     unitPrice: Number(record.unit_price) || 0,
+    safetyStock: 0,
     createdAt: record.created_at,
     updatedAt: record.updated_at,
   }
@@ -97,6 +98,7 @@ export function mapItemRowToMaterial(row: {
   supply_type?: string | null
   supplier?: string | null
   unit_price?: number | null
+  safety_stock?: number | null
   item_category: number | string
   created_at: string
   updated_at: string
@@ -123,6 +125,7 @@ export function mapItemRowToMaterial(row: {
     supplyType: normalizedSupplyType,
     moq: 0,
     unitPrice: Number(row.unit_price) || 0,
+    safetyStock: Math.max(0, Math.floor(Number(row.safety_stock) || 0)),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

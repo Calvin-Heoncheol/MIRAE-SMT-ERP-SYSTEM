@@ -7,36 +7,26 @@ import { ItemFetchError } from '@/components/items/item-fetch-error'
 import { ItemListTable } from '@/components/items/item-list-table'
 import { ItemModal } from '@/components/items/item-modal'
 import { ItemNewMenu } from '@/components/items/item-new-menu'
+import { FilterChipBar } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchItemsResult } from '@/lib/items/repository'
 import { filterItemsForSearch } from '@/lib/items/utils'
 import {
   ITEM_CATEGORIES,
+  ITEM_CATEGORY_FILTER_IDLE_CLASS,
   ITEM_CATEGORY_LABELS,
   type Item,
   type ItemCategory,
 } from '@/lib/items/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
-import {
-  ERP_FILTER_CHIP_ACTIVE_CLASS,
-  ERP_FILTER_CHIP_IDLE_CLASS,
-  formatEmptyListMessage,
-} from '@/lib/ui/tokens'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type ItemsWorkspaceProps = {
   result: FetchItemsResult
 }
 
 type ItemCategoryFilter = 'all' | ItemCategory
-
-const CATEGORY_FILTER_OPTIONS: { value: ItemCategoryFilter; label: string }[] = [
-  { value: 'all', label: '전체' },
-  ...ITEM_CATEGORIES.map((category) => ({
-    value: category as ItemCategoryFilter,
-    label: ITEM_CATEGORY_LABELS[category],
-  })),
-]
 
 type ModalState =
   | { open: false }
@@ -61,6 +51,31 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     if (categoryFilter === 'all') return searched
     return searched.filter((item) => item.itemCategory === categoryFilter)
   }, [items, query, categoryFilter])
+
+  const categoryCounts = useMemo(() => {
+    const searched = filterItemsForSearch(items, query)
+    const counts = { all: searched.length, 1: 0, 2: 0, 3: 0, 4: 0 } as Record<
+      ItemCategoryFilter,
+      number
+    >
+    for (const item of searched) {
+      counts[item.itemCategory] += 1
+    }
+    return counts
+  }, [items, query])
+
+  const categoryFilterOptions = useMemo(
+    () => [
+      { value: 'all' as const, label: '전체', count: categoryCounts.all },
+      ...ITEM_CATEGORIES.map((category) => ({
+        value: category as ItemCategoryFilter,
+        label: ITEM_CATEGORY_LABELS[category],
+        count: categoryCounts[category],
+        tone: { idleClassName: ITEM_CATEGORY_FILTER_IDLE_CLASS[category] },
+      })),
+    ],
+    [categoryCounts],
+  )
 
   const pagination = useClientPagination(filtered)
 
@@ -107,7 +122,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
           title="품목등록"
           totalCount={items.length}
@@ -118,24 +133,11 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
           searchPlaceholder="품목코드, 품목명, 규격, MPN 검색…"
           accent="slate"
           filters={
-            <div className="flex flex-wrap gap-2">
-              {CATEGORY_FILTER_OPTIONS.map((option) => {
-                const active = categoryFilter === option.value
-                return (
-                  <button
-                    key={String(option.value)}
-                    type="button"
-                    onClick={() => setCategoryFilter(option.value)}
-                    className={[
-                      'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
-                      active ? ERP_FILTER_CHIP_ACTIVE_CLASS : ERP_FILTER_CHIP_IDLE_CLASS,
-                    ].join(' ')}
-                  >
-                    {option.label}
-                  </button>
-                )
-              })}
-            </div>
+            <FilterChipBar
+              options={categoryFilterOptions}
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+            />
           }
           actions={<ItemNewMenu onOpenCreate={openCreate} onOpenBulk={openBulk} />}
         />

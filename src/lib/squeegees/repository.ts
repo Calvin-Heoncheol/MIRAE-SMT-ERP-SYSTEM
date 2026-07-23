@@ -1,3 +1,4 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { SqueegeeAsset, SqueegeeAssetPayload } from './types'
@@ -19,11 +20,11 @@ export type FindSqueegeeResult =
 
 export type SaveSqueegeeResult =
   | { ok: true; asset: SqueegeeAsset }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type ApplySqueegeeUsageResult =
   | { ok: true; asset: SqueegeeAsset }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export function isMissingSqueegeesTable(detail: string) {
   return (
@@ -108,6 +109,9 @@ export async function createSqueegeeAsset(payload: SqueegeeAssetPayload): Promis
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'production_smt', action: 'create' })
+  if (!gate.ok) return gate
+
   const barcode = normalizeSqueegeeBarcode(payload.barcode)
   if (!barcode) {
     return { ok: false, reason: 'validation', detail: '바코드를 입력해 주세요.' }
@@ -158,6 +162,9 @@ export async function retireSqueegeeAsset(assetId: string): Promise<SaveSqueegee
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'production_smt', action: 'update' })
+  if (!gate.ok) return gate
+
   const id = String(assetId || '').trim()
   if (!id) {
     return { ok: false, reason: 'validation', detail: '스퀴즈를 찾을 수 없습니다.' }
@@ -199,6 +206,9 @@ export async function applySqueegeeUsage(input: {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'production_smt', action: 'update' })
+  if (!gate.ok) return gate
 
   const barcode = normalizeSqueegeeBarcode(input.barcode)
   if (!barcode) {

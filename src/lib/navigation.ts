@@ -5,6 +5,8 @@ import { normalizePostProcessTeam } from '@/lib/post-process/teams'
 export type NavChildItem = {
   label: string
   href: string
+  /** true면 메뉴는 보이지만 접근 권한 없음 (클릭 시 /forbidden) */
+  locked?: boolean
 }
 
 /** useSearchParams()의 ReadonlyURLSearchParams 호환 최소 타입 */
@@ -14,8 +16,9 @@ export type NavItem = {
   label: string
   href: string
   children?: NavChildItem[]
-  /** true면 admin만 사이드바에 표시 */
+  /** true면 admin만 사이드바에 표시(잠금 없이 숨김) — 기초등록·사용자 */
   adminOnly?: boolean
+  locked?: boolean
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -47,7 +50,8 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '문의업체', href: '/new-companies' },
       { label: '견적서', href: '/quotations' },
       { label: '주문서', href: '/orders' },
-      { label: '출하', href: '/delivery' },
+      { label: '출하', href: '/delivery/input' },
+      { label: '출하이력', href: '/delivery/history' },
     ],
   },
   {
@@ -66,6 +70,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/materials/inventory',
     children: [
       { label: '재고현황', href: '/materials/inventory' },
+      { label: '제품재고', href: '/materials/product-inventory' },
       { label: '발주', href: '/materials/purchase-orders' },
       { label: '입고', href: '/materials/inbound' },
       { label: '불출', href: '/materials/outbound' },
@@ -127,6 +132,7 @@ const NAV_EXACT_CHILD_PATHS = [
   '/quotations',
   '/master/customers',
   '/materials/inventory',
+  '/materials/product-inventory',
 ] as const
 
 export function isNavChildActive(pathname: string, href: string, search?: NavSearch | null) {
@@ -144,7 +150,8 @@ export function isNavItemActive(pathname: string, item: NavItem, search?: NavSea
 }
 
 /**
- * 사이드바용 — 부서·역할로 접근 가능한 메뉴만 표시.
+ * 사이드바용 — 메뉴는 모두 보이되, 권한 없는 항목은 locked.
+ * ERP 관리(adminOnly)만 비관리자에게 숨김.
  * 인증 꺼짐(개발)이면 전체 노출.
  */
 export function getVisibleNavItems(options: {
@@ -165,16 +172,73 @@ export function getVisibleNavItems(options: {
     if (item.adminOnly && profile.role !== 'admin') continue
 
     if (!item.children?.length) {
-      if (canAccessNavHref(profile, item.href)) visible.push(item)
+      visible.push({
+        ...item,
+        locked: !canAccessNavHref(profile, item.href),
+      })
       continue
     }
 
-    const children = item.children.filter((child) => canAccessNavHref(profile, child.href))
-    if (!children.length) continue
+    const children = item.children.map((child) => ({
+      ...child,
+      locked: !canAccessNavHref(profile, child.href),
+    }))
 
-    const parentHref = canAccessNavHref(profile, item.href) ? item.href : children[0]!.href
-    visible.push({ ...item, href: parentHref, children })
+    const parentLocked = !canAccessNavHref(profile, item.href)
+    const firstUnlocked = children.find((child) => !child.locked)
+    const parentHref = parentLocked
+      ? (firstUnlocked?.href ?? item.href)
+      : item.href
+
+    visible.push({
+      ...item,
+      href: parentHref,
+      locked: parentLocked && !firstUnlocked,
+      children,
+    })
   }
 
   return visible
+}
+
+export type NavBreadcrumb = {
+  section: string
+  page: string
+}
+
+/**
+ * 현재 경로의 사이드바 메뉴 기준 위치 (예: 대시보드 / 생산실적).
+ * 하위 경로도 가장 긴 매칭 메뉴로 해석합니다.
+ */
+export function resolveNavBreadcrumb(
+  pathname: string,
+  search?: NavSearch | null,
+): NavBreadcrumb | null {
+  let best: { section: string; page: string; score: number } | null = null
+
+  for (const item of NAV_ITEMS) {
+    if (!item.children?.length) continue
+
+    for (const child of item.children) {
+      const { path, team } = splitNavHref(child.href)
+      if (!matchesNavTeam(team, search)) continue
+
+      let matches = false
+      let score = 0
+      if (path === '/') {
+        matches = pathname === '/'
+        score = 1
+      } else if (pathname === path || pathname.startsWith(`${path}/`)) {
+        matches = true
+        score = path.length
+      }
+
+      if (!matches) continue
+      if (!best || score > best.score) {
+        best = { section: item.label, page: child.label, score }
+      }
+    }
+  }
+
+  return best ? { section: best.section, page: best.page } : null
 }

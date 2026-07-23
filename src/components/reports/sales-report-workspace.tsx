@@ -2,8 +2,19 @@
 
 import { ReportBarChart } from '@/components/reports/report-bar-chart'
 import { ReportPeriodControls } from '@/components/reports/report-period-controls'
+import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
+import { KpiStatCard } from '@/components/ui/kpi-stat-card'
+import { ListPagination } from '@/components/ui/list-pagination'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
+import {
+  ERP_TABLE_CLASS,
+  ERP_TABLE_HEAD_CLASS,
+  ERP_TABLE_TD_CLASS,
+  ERP_TABLE_TH_CLASS,
+  ERP_TABLE_WRAP_CLASS,
+} from '@/lib/ui/tokens'
+import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { downloadExcelSheets, type ExcelColumn } from '@/lib/excel/export'
 import { exportReportPdf } from '@/lib/reports/export-report-pdf'
 import type { ReportPeriod } from '@/lib/reports/period'
@@ -93,16 +104,6 @@ function buildTrendRows(daily: SalesReportDailyRow[], period: ReportPeriod): Sal
     }))
 }
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">{value}</p>
-      {sub ? <p className="mt-0.5 text-xs text-slate-500">{sub}</p> : null}
-    </div>
-  )
-}
-
 export function SalesReportWorkspace({
   result,
   period,
@@ -113,6 +114,8 @@ export function SalesReportWorkspace({
   monthHref,
 }: SalesReportWorkspaceProps) {
   const data = result.ok ? result.data : null
+  const customers = data?.customers ?? []
+  const customersPagination = useClientPagination(customers, 8)
 
   async function handleExcelDownload() {
     if (!data) return
@@ -220,7 +223,7 @@ export function SalesReportWorkspace({
   }
 
   return (
-    <div className="flex w-full flex-1 flex-col gap-4">
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
       <ReportPeriodControls
         period={period}
         rangeLabel={rangeLabel}
@@ -241,81 +244,90 @@ export function SalesReportWorkspace({
           리포트 데이터를 불러오지 못했습니다: {result.detail}
         </div>
       ) : data ? (
-        <>
-          {/* 기간 합계 카드 */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard label="수주 건수" value={`${formatCount(data.totalOrderCount)} 건`} sub="주문일 기준" />
-            <StatCard label="수주 금액" value={`${formatCount(data.totalOrderAmount)} 원`} />
-            <StatCard label="출하 수량" value={`${formatCount(data.totalShippedQuantity)} EA`} sub="출하일 기준" />
-            <StatCard label="출하 금액" value={`${formatCount(data.totalShippedAmount)} 원`} />
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+          <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
+            <KpiStatCard
+              label="수주 건수"
+              value={data.totalOrderCount}
+              unit="건"
+              hint="주문일 기준"
+            />
+            <KpiStatCard label="수주 금액" value={data.totalOrderAmount} unit="원" />
+            <KpiStatCard
+              label="출하 수량"
+              value={data.totalShippedQuantity}
+              unit="EA"
+              hint="출하일 기준"
+            />
+            <KpiStatCard label="출하 금액" value={data.totalShippedAmount} unit="원" />
           </div>
 
-          {/* 거래처별 요약 */}
-          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
+          <div className={`${ERP_TABLE_WRAP_CLASS} min-h-0 shrink-0`}>
             <div className="border-b border-slate-100 px-4 py-3">
               <h2 className="text-sm font-bold text-slate-900">거래처별 요약</h2>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-[720px] w-full border-collapse">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      고객사
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      수주 건수
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      수주 금액
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      출하 수량
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      출하 금액
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.customers.length ? (
-                    data.customers.map((row) => (
-                      <tr key={row.customer} className="border-t border-slate-100 hover:bg-slate-50/60">
-                        <td className="px-4 py-3 text-sm font-bold text-slate-900">{row.customer}</td>
-                        <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-700">
-                          {formatCount(row.orderCount)}건
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">
-                          {formatCount(row.orderAmount)} 원
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm tabular-nums text-slate-700">
-                          {formatCount(row.shippedQuantity)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-sm font-semibold tabular-nums text-slate-900">
-                          {formatCount(row.shippedAmount)} 원
-                        </td>
+            {customers.length ? (
+              <>
+                <div className="overflow-x-auto">
+                  <table className={`${ERP_TABLE_CLASS} min-w-[720px]`}>
+                    <thead className={ERP_TABLE_HEAD_CLASS}>
+                      <tr>
+                        <th className={`${ERP_TABLE_TH_CLASS} text-left`}>고객사</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} text-right`}>수주 건수</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} text-right`}>수주 금액</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} text-right`}>출하 수량</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} text-right`}>출하 금액</th>
                       </tr>
-                    ))
-                  ) : (
-                    <tr className="border-t border-slate-100">
-                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
-                        기간 내 수주·출하 데이터가 없습니다.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {customersPagination.pageItems.map((row) => (
+                        <tr key={row.customer} className="border-t border-slate-100 hover:bg-slate-50/80">
+                          <td className={`${ERP_TABLE_TD_CLASS} font-bold text-slate-900`}>
+                            {row.customer}
+                          </td>
+                          <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums text-slate-700`}>
+                            {formatCount(row.orderCount)}건
+                          </td>
+                          <td className={`${ERP_TABLE_TD_CLASS} text-right font-semibold tabular-nums text-slate-900`}>
+                            {formatCount(row.orderAmount)} 원
+                          </td>
+                          <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums text-slate-700`}>
+                            {formatCount(row.shippedQuantity)}
+                          </td>
+                          <td className={`${ERP_TABLE_TD_CLASS} text-right font-semibold tabular-nums text-slate-900`}>
+                            {formatCount(row.shippedAmount)} 원
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-4 pb-3">
+                  <ListPagination
+                    page={customersPagination.page}
+                    totalPages={customersPagination.totalPages}
+                    onPageChange={customersPagination.setPage}
+                    rangeStart={customersPagination.rangeStart}
+                    rangeEnd={customersPagination.rangeEnd}
+                    totalCount={customersPagination.totalCount}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="p-4">
+                <EmptyListState message="기간 내 수주·출하 데이터가 없습니다." />
+              </div>
+            )}
           </div>
 
-          {/* 추이 차트: 출하 금액(막대) + 수주 금액(꺾은선) */}
-          <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-4 py-3">
+          <div className={`${ERP_TABLE_WRAP_CLASS} flex min-h-0 flex-1 flex-col overflow-hidden`}>
+            <div className="shrink-0 border-b border-slate-100 px-4 py-3">
               <h2 className="text-sm font-bold text-slate-900">
                 {period === 'month' ? '월별 추이' : '주별 추이'}
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">출하 금액(막대) · 수주 금액(선) — 원</p>
             </div>
-            <div className="px-4 py-4">
+            <div className="min-h-0 flex-1 overflow-hidden px-4 py-4">
               <ReportBarChart
                 rows={buildTrendRows(data.daily, period).map((row) => ({
                   label: row.label,
@@ -331,7 +343,7 @@ export function SalesReportWorkspace({
               />
             </div>
           </div>
-        </>
+        </div>
       ) : null}
     </div>
   )

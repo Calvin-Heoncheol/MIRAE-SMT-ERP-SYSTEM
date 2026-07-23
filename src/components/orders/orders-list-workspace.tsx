@@ -6,6 +6,7 @@ import { OrderListTable } from '@/components/orders/order-list-table'
 import { OrderModal } from '@/components/orders/order-modal'
 import { OrderFetchError } from '@/components/orders/order-fetch-error'
 import { ErpButton } from '@/components/ui/erp-button'
+import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchOrdersResult } from '@/lib/orders/repository'
@@ -52,10 +53,20 @@ export function OrdersListWorkspace({ result, completedOrderIds }: OrdersListWor
     [orders, completedSet],
   )
 
-  const statusChips: { key: OrderStatusFilter; label: string; count: number }[] = [
-    { key: 'active', label: '진행중', count: orders.length - doneCount },
-    { key: 'done', label: '완료', count: doneCount },
-    { key: 'all', label: '전체', count: orders.length },
+  const statusChips: {
+    value: OrderStatusFilter
+    label: string
+    count: number
+    tone?: (typeof STATUS_FILTER_TONES)[keyof typeof STATUS_FILTER_TONES]
+  }[] = [
+    {
+      value: 'active',
+      label: '진행중',
+      count: orders.length - doneCount,
+      tone: STATUS_FILTER_TONES.progress,
+    },
+    { value: 'done', label: '완료', count: doneCount, tone: STATUS_FILTER_TONES.done },
+    { value: 'all', label: '전체', count: orders.length },
   ]
 
   function openCreate() {
@@ -88,7 +99,7 @@ export function OrdersListWorkspace({ result, completedOrderIds }: OrdersListWor
 
   return (
     <>
-      <div className="flex w-full flex-1 flex-col gap-4">
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
           title="주문서"
           totalCount={orders.length}
@@ -99,28 +110,11 @@ export function OrdersListWorkspace({ result, completedOrderIds }: OrdersListWor
           searchPlaceholder="주문번호, 고객사, 제품명, 주문일 검색…"
           accent="slate"
           filters={
-            <div className="flex flex-wrap gap-2">
-              {statusChips.map((chip) => (
-                <button
-                  key={chip.key}
-                  type="button"
-                  onClick={() => setStatusFilter(chip.key)}
-                  className={[
-                    'rounded-full px-4 py-1.5 text-sm font-semibold transition-colors',
-                    statusFilter === chip.key
-                      ? 'bg-slate-800 text-white shadow-sm'
-                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
-                  ].join(' ')}
-                >
-                  {chip.label}{' '}
-                  <span
-                    className={statusFilter === chip.key ? 'text-slate-300' : 'text-slate-400'}
-                  >
-                    {chip.count.toLocaleString('ko-KR')}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <FilterChipBar
+              options={statusChips}
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
           }
           actions={<ErpButton onClick={openCreate}>주문서 등록</ErpButton>}
         />

@@ -76,6 +76,7 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
         { header: '품목코드', value: (row) => row.productCode, width: 16 },
         { header: '주문수량', value: (row) => row.targetQuantity, width: 10 },
         { header: '출하수량', value: (row) => row.quantity, width: 10 },
+        { header: '등록자', value: (row) => row.createdByName, width: 12 },
         { header: '비고', value: (row) => row.note, width: 24 },
       ],
     })
@@ -87,9 +88,9 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
-          subtitle="출하입력에서 등록된 납품 실적을 최신순으로 보여줍니다. 행을 클릭하면 수정·거래명세서 출력이 가능합니다."
+          subtitle="출하에서 등록된 납품 실적을 최신순으로 보여줍니다. 행을 클릭하면 수정·거래명세서 출력이 가능합니다."
           totalCount={rows.length}
           filteredCount={filtered.length}
           hasQuery={Boolean(search.trim())}
@@ -115,7 +116,7 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(search.trim()),
             emptyLabel: '등록된 출하 이력이 없습니다',
-            actionHint: '출하입력에서 등록하세요',
+            actionHint: '출하 메뉴에서 등록하세요',
           })}
           onRowClick={openEdit}
         />

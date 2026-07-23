@@ -398,7 +398,7 @@ export function InboundScanPanel({
   const draftReserved = draft ? reservedQuantityByPoLine(draft.editingKey) : new Map<string, number>()
 
   const inputClassName =
-    'w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100'
+    'w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
 
   return (
     <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -414,7 +414,7 @@ export function InboundScanPanel({
               onKeyDown={handleScanKeyDown}
               placeholder="릴 바코드 스캔 또는 자재코드·MPN 입력 후 Enter"
               autoFocus
-              className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 font-mono text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 font-mono text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
             />
           </label>
           {message ? (
@@ -455,8 +455,8 @@ export function InboundScanPanel({
                     key={line.key}
                     onClick={() => editLine(line)}
                     className={[
-                      'cursor-pointer border-t border-slate-100 transition hover:bg-blue-50/50',
-                      draft?.editingKey === line.key ? 'bg-blue-50' : '',
+                      'cursor-pointer border-t border-slate-100 transition hover:bg-slate-50/80',
+                      draft?.editingKey === line.key ? 'bg-slate-100' : '',
                     ].join(' ')}
                   >
                     <td className="px-3 py-2">
@@ -468,7 +468,7 @@ export function InboundScanPanel({
                     </td>
                     <td className="px-3 py-2">
                       {line.poLine ? (
-                        <span className="font-mono text-xs text-blue-700">{line.poLine.orderNumber}</span>
+                        <span className="font-mono text-xs text-slate-700">{line.poLine.orderNumber}</span>
                       ) : (
                         <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
                           사급
@@ -533,7 +533,7 @@ export function InboundScanPanel({
               type="button"
               onClick={() => void handleSaveAll()}
               disabled={saving || !lines.length}
-              className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900 disabled:opacity-50"
             >
               {saving ? '처리 중…' : '입고 처리'}
             </button>
@@ -553,8 +553,8 @@ export function InboundScanPanel({
             }}
           />
         ) : draft ? (
-          <section className="rounded-2xl border border-blue-200 bg-white shadow-sm">
-            <div className="border-b border-blue-100 bg-blue-50/60 px-4 py-3">
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3">
               <h3 className="text-sm font-bold text-slate-900">
                 {draft.editingKey ? '라인 수정' : '스캔 자재'}
               </h3>

@@ -11,8 +11,8 @@ const ROW_HEIGHT_PX = 40
  * 검색/필터/페이지네이션/메인 패딩 등 표 밖 영역.
  * 하단에 여유 공백이 남도록 약간 넉넉히 예약.
  */
-const RESERVED_CHROME_DESKTOP_PX = 290
-const RESERVED_CHROME_MOBILE_PX = 330
+const RESERVED_CHROME_DESKTOP_PX = 360
+const RESERVED_CHROME_MOBILE_PX = 400
 const MIN_PAGE_SIZE = 10
 const MAX_PAGE_SIZE = 45
 

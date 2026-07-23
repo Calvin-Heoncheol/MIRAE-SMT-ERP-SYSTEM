@@ -5,6 +5,7 @@ import type {
   MaterialOutboundListGroup,
   MaterialOutboundNeedCard,
   MaterialOutboundNeedRow,
+  MaterialOutboundOrderCard,
   MaterialOutboundRecord,
   MaterialOutboundType,
   OutboundMaterialBucket,
@@ -394,6 +395,60 @@ export function buildOutboundNeedCards(input: {
     if (productCompare !== 0) return productCompare
     return (bucketOrder[a.materialBucket] ?? 9) - (bucketOrder[b.materialBucket] ?? 9)
   })
+}
+
+/** 미불출 액션 카드를 주문서 단위로 묶습니다 (발주 카드와 동일 UX) */
+export function buildOutboundOrderCards(
+  needCards: MaterialOutboundNeedCard[],
+): MaterialOutboundOrderCard[] {
+  const map = new Map<string, MaterialOutboundNeedCard[]>()
+
+  for (const card of needCards) {
+    const list = map.get(card.orderId) || []
+    list.push(card)
+    map.set(card.orderId, list)
+  }
+
+  const bucketOrder: Record<string, number> = { SMD: 0, DIP: 1, ETC: 2 }
+
+  return [...map.entries()]
+    .map(([orderId, actions]) => {
+      const first = actions[0]
+      if (!first) return null
+
+      const products = new Map<string, string>()
+      for (const action of actions) {
+        if (!products.has(action.productId)) {
+          products.set(action.productId, action.productName || action.productId)
+        }
+      }
+      const productNames = [...products.values()]
+      const firstName = productNames[0] || '—'
+      const productLabel =
+        productNames.length <= 1
+          ? firstName
+          : `${firstName} 외 ${productNames.length - 1}건`
+
+      const sortedActions = [...actions].sort((a, b) => {
+        const productCompare = a.productId.localeCompare(b.productId, 'ko')
+        if (productCompare !== 0) return productCompare
+        return (bucketOrder[a.materialBucket] ?? 9) - (bucketOrder[b.materialBucket] ?? 9)
+      })
+
+      return {
+        key: orderId,
+        orderId,
+        orderNumber: first.orderNumber,
+        customer: first.customer,
+        deliveryDate: first.deliveryDate,
+        productLabel,
+        productCount: products.size,
+        actions: sortedActions,
+        issuableActionCount: sortedActions.filter((item) => item.issuableQuantity > 0).length,
+      } satisfies MaterialOutboundOrderCard
+    })
+    .filter((card): card is MaterialOutboundOrderCard => card != null)
+    .sort((a, b) => b.orderNumber.localeCompare(a.orderNumber, 'ko'))
 }
 
 export function buildOutboundLinesForProductQuantity(

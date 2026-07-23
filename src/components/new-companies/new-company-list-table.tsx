@@ -1,5 +1,8 @@
 'use client'
 
+import { EmptyListState } from '@/components/ui/empty-list-state'
+
+import { StatusBadge } from '@/components/ui/status-badge'
 import type { NewCompanyInquiry } from '@/lib/new-companies/types'
 import {
   NEW_COMPANY_STATUS_BADGE_CLASS,
@@ -25,9 +28,7 @@ export function NewCompanyListTable({
 }: NewCompanyListTableProps) {
   if (!inquiries.length) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
-        <p className="text-base font-semibold text-slate-700">{emptyMessage}</p>
-      </div>
+      <EmptyListState message={emptyMessage} />
     )
   }
 
@@ -42,10 +43,10 @@ export function NewCompanyListTable({
               <th className="px-3 py-2.5">회사명</th>
               <th className="max-w-[6rem] px-3 py-2.5">지역</th>
               <th className="max-w-[5.5rem] px-3 py-2.5">담당자</th>
-              <th className="max-w-[5.5rem] px-3 py-2.5">등록자</th>
               <th className="px-3 py-2.5">이메일</th>
               <th className="px-3 py-2.5">연락처</th>
               <th className="px-3 py-2.5">유입경로</th>
+              <th className="max-w-[5.5rem] px-3 py-2.5">등록자</th>
             </tr>
           </thead>
           <tbody>
@@ -67,14 +68,10 @@ export function NewCompanyListTable({
                     {inquiry.createdAt.slice(0, 10)}
                   </td>
                   <td className="px-3 py-2.5">
-                    <span
-                      className={[
-                        'inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1',
-                        NEW_COMPANY_STATUS_BADGE_CLASS[inquiry.status],
-                      ].join(' ')}
-                    >
-                      {NEW_COMPANY_STATUS_LABELS[inquiry.status]}
-                    </span>
+                    <StatusBadge
+                      label={NEW_COMPANY_STATUS_LABELS[inquiry.status]}
+                      className={`ring-1 ${NEW_COMPANY_STATUS_BADGE_CLASS[inquiry.status]}`}
+                    />
                   </td>
                   <td className="px-3 py-2.5 font-medium text-slate-900">{cell(inquiry.companyName)}</td>
                   <td
@@ -90,12 +87,6 @@ export function NewCompanyListTable({
                     {contactLabel}
                   </td>
                   <td
-                    className="max-w-[5.5rem] truncate px-3 py-2.5 text-slate-600"
-                    title={registrantLabel !== '-' ? registrantLabel : undefined}
-                  >
-                    {registrantLabel}
-                  </td>
-                  <td
                     className="max-w-[12rem] truncate px-3 py-2.5 text-slate-600"
                     title={emailLabel !== '-' ? emailLabel : undefined}
                   >
@@ -103,6 +94,12 @@ export function NewCompanyListTable({
                   </td>
                   <td className="px-3 py-2.5 tabular-nums text-slate-600">{cell(inquiry.phone)}</td>
                   <td className="px-3 py-2.5 text-slate-600">{cell(inquiry.sourceChannel)}</td>
+                  <td
+                    className="max-w-[5.5rem] truncate px-3 py-2.5 text-slate-600"
+                    title={registrantLabel !== '-' ? registrantLabel : undefined}
+                  >
+                    {registrantLabel}
+                  </td>
                 </tr>
               )
             })}

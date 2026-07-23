@@ -39,6 +39,10 @@ import { createQuote, deleteQuotes, updateQuote } from '@/lib/quotes/repository'
 import { exportQuotesToPdf } from '@/lib/quotes/export-quote-pdf'
 import type { EstimateResult, QuoteDisplayCurrency, QuoteListItem, QuoteType } from '@/lib/quotes/types'
 import { toEstimateInputFromDetail } from '@/lib/quotes/utils'
+import { buildOrderPayloadFromQuote } from '@/lib/orders/from-quote'
+import { createOrder, findOrderNumberBySourceQuoteId } from '@/lib/orders/repository'
+import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
+import { fetchProducts } from '@/lib/products/repository'
 
 type QuoteModalProps = {
   open: boolean
@@ -49,6 +53,8 @@ type QuoteModalProps = {
   onClose: () => void
   onSaved?: () => void
   onDeleted?: () => void
+  /** 주문서로 전환 성공 시 (주문번호) */
+  onConvertedToOrder?: (orderNumber: string) => void
 }
 
 type FormState = {
@@ -263,6 +269,7 @@ function QuoteModalContent({
   onClose,
   onSaved,
   onDeleted,
+  onConvertedToOrder,
 }: Omit<QuoteModalProps, 'open'>) {
   const canDelete = useCanDeleteRecords()
   const initial = createInitialState(mode, quote)
@@ -278,6 +285,7 @@ function QuoteModalContent({
   )
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [converting, setConverting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [displayCurrency, setDisplayCurrency] = useState<QuoteDisplayCurrency>('usd')
   const [dipTab, setDipTab] = useState<'solder' | 'post'>('solder')
@@ -439,6 +447,86 @@ function QuoteModalContent({
     onDeleted?.()
   }
 
+  async function handleConvertToOrder() {
+    if (!quote) return
+    if (!result) {
+      setSaveError('견적 금액을 계산한 뒤 전환해 주세요.')
+      return
+    }
+
+    if (
+      !window.confirm(
+        `${quote.quoteNumber} 견적을 주문서로 전환할까요?\n현재 화면에 표시된 고객사·제품·수량·금액 기준으로 생성됩니다.`,
+      )
+    ) {
+      return
+    }
+
+    setConverting(true)
+    setSaveError(null)
+
+    const existing = await findOrderNumberBySourceQuoteId(quote.quoteId)
+    if (!existing.ok) {
+      setConverting(false)
+      setSaveError(existing.detail)
+      return
+    }
+    if (existing.orderNumber) {
+      const proceed = window.confirm(
+        `이미 이 견적으로 만든 주문서(${existing.orderNumber})가 있습니다.\n추가로 생성할까요?`,
+      )
+      if (!proceed) {
+        setConverting(false)
+        return
+      }
+    }
+
+    const [productsResult, partnersResult] = await Promise.all([
+      fetchProducts(),
+      fetchSalesBusinessPartners(),
+    ])
+
+    if (!productsResult.ok) {
+      setConverting(false)
+      setSaveError(productsResult.detail)
+      return
+    }
+    if (!partnersResult.ok) {
+      setConverting(false)
+      setSaveError(partnersResult.detail)
+      return
+    }
+
+    const built = buildOrderPayloadFromQuote(
+      {
+        quoteId: quote.quoteId,
+        quoteNumber: quote.quoteNumber,
+        customer: form.customer,
+        productName: form.productName,
+        boardQty: Number(form.boardQty) || result.qty || 0,
+        totalAmount: result.values.grandTotal,
+      },
+      productsResult.products,
+      partnersResult.partners,
+    )
+
+    if (!built.ok) {
+      setConverting(false)
+      setSaveError(built.detail)
+      return
+    }
+
+    const createResult = await createOrder(built.payload)
+    setConverting(false)
+
+    if (!createResult.ok) {
+      setSaveError(createResult.detail)
+      return
+    }
+
+    onConvertedToOrder?.(createResult.orderNumber)
+  }
+
   const previewCustomer = form.customer.trim() || '-'
   const previewIssueDate =
     mode === 'edit' && quote?.quoteDate ? quote.quoteDate : result?.date || ''
@@ -510,6 +598,14 @@ function QuoteModalContent({
               <>
                 <button
                   type="button"
+                  onClick={() => void handleConvertToOrder()}
+                  disabled={converting || deleting || saving}
+                  className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {converting ? '전환 중…' : '주문서로 전환'}
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleDownloadPdf()}
                   className="inline-flex items-center rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-105"
                 >
@@ -528,7 +624,7 @@ function QuoteModalContent({
                   <button
                     type="button"
                     onClick={handleDelete}
-                    disabled={deleting}
+                    disabled={deleting || converting}
                     className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {deleting ? '삭제 중...' : '삭제'}
@@ -539,7 +635,7 @@ function QuoteModalContent({
             <button
               type="button"
               onClick={onClose}
-              disabled={deleting}
+              disabled={deleting || converting}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
               aria-label="닫기"
             >

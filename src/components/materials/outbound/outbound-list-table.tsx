@@ -1,4 +1,8 @@
-﻿'use client'
+'use client'
+
+import { EmptyListState } from '@/components/ui/empty-list-state'
+
+import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 import { getOutboundTypeLabel, formatOutboundMaterialSummary } from '@/lib/materials/outbound/utils'
 import type { MaterialOutboundListGroup } from '@/lib/materials/outbound/types'
@@ -16,41 +20,38 @@ export function OutboundListTable({
 }: OutboundListTableProps) {
   if (!outbounds.length) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-12 text-center">
-        <p className="text-base font-semibold text-slate-700">{emptyMessage}</p>
-        <p className="mt-2 text-sm text-slate-500">불출 등록 내역이 여기에 표시됩니다.</p>
-      </div>
+      <EmptyListState message={emptyMessage} hint="불출 등록 내역이 여기에 표시됩니다." />
     )
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white/90 shadow-sm">
+    <div className={ERP_TABLE_WRAP_CLASS}>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1000px] table-fixed border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 불출번호
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 불출일
               </th>
-              <th className="px-3 py-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 유형
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 주문번호
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목
               </th>
-              <th className="px-3 py-3 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 총 수량
               </th>
-              <th className="whitespace-nowrap px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 등록자
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
               </th>
             </tr>

@@ -601,6 +601,23 @@ function ItemModalContent({
             </label>
           </div>
         ) : null}
+        {showMaterialFields ? (
+          <label className="block text-sm sm:col-span-2">
+            <span className={ERP_FIELD_LABEL_CLASS}>안전재고</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={form.safetyStock}
+              onChange={(event) => updateForm('safetyStock', event.target.value)}
+              placeholder="0"
+              className={`${ERP_FIELD_INPUT_CLASS} max-w-xs tabular-nums`}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              현재고가 이 수량보다 적으면 자재 재고현황에서 미달로 표시됩니다.
+            </p>
+          </label>
+        ) : null}
       </div>
     </ErpModal>
   )

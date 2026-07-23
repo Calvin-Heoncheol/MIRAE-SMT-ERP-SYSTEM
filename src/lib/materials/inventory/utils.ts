@@ -29,11 +29,16 @@ export function mergeMaterialInventoryRows(
   pendingByMaterialId: Map<string, number>,
   onHandByMaterialId: Map<string, number>,
 ): MaterialInventoryRow[] {
-  return materials.map((material) => ({
-    ...material,
-    onHandQuantity: onHandByMaterialId.get(material.id) ?? 0,
-    expectedInboundQuantity: pendingByMaterialId.get(material.id) ?? 0,
-  }))
+  return materials.map((material) => {
+    const onHandQuantity = onHandByMaterialId.get(material.id) ?? 0
+    const safetyStock = material.safetyStock
+    return {
+      ...material,
+      onHandQuantity,
+      expectedInboundQuantity: pendingByMaterialId.get(material.id) ?? 0,
+      belowSafetyStock: safetyStock > 0 && onHandQuantity < safetyStock,
+    }
+  })
 }
 
 export function matchesInventoryQuery(row: MaterialInventoryRow, query: string) {
@@ -57,6 +62,7 @@ export function matchesInventoryQuery(row: MaterialInventoryRow, query: string) 
 export function matchesInventoryFilter(row: MaterialInventoryRow, mode: InventoryFilterMode) {
   if (mode === 'pending') return row.expectedInboundQuantity > 0
   if (mode === 'negative') return row.onHandQuantity < 0
+  if (mode === 'below') return row.belowSafetyStock
   return true
 }
 
@@ -69,5 +75,6 @@ export function summarizeInventoryRows(rows: MaterialInventoryRow[]) {
     total: rows.length,
     expectedInboundCount: rows.filter((row) => row.expectedInboundQuantity > 0).length,
     negativeCount: rows.filter((row) => row.onHandQuantity < 0).length,
+    belowSafetyCount: rows.filter((row) => row.belowSafetyStock).length,
   }
 }

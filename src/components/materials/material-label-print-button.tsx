@@ -45,7 +45,7 @@ export function MaterialLabelPrintButton({
             inputMode="numeric"
             value={copies}
             onChange={(event) => setCopies(event.target.value.replace(/[^\d]/g, ''))}
-            className="h-9 w-16 rounded-lg border border-slate-200 px-2 text-right text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+            className="h-9 w-16 rounded-lg border border-slate-200 px-2 text-right text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
           />
         </label>
       ) : null}
@@ -53,7 +53,7 @@ export function MaterialLabelPrintButton({
         type="button"
         onClick={handlePrint}
         disabled={disabled}
-        className="h-9 rounded-lg border border-violet-200 bg-violet-50 px-4 text-sm font-semibold text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+        className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
       >
         바코드 라벨 출력
       </button>

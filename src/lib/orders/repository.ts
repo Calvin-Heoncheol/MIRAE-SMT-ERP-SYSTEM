@@ -109,6 +109,40 @@ export async function fetchOrderById(orderId: string): Promise<OrderListGroup | 
   return groupOrdersFromRecords([data as OrderRecord])[0] ?? null
 }
 
+/** 견적에서 이미 전환된 주문서 번호 (있으면) */
+export async function findOrderNumberBySourceQuoteId(
+  quoteId: string,
+): Promise<{ ok: true; orderNumber: string | null } | { ok: false; detail: string }> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return {
+      ok: false,
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
+  }
+
+  const id = String(quoteId || '').trim()
+  if (!id) return { ok: true, orderNumber: null }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('source_quote_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) return { ok: false, detail: error.message }
+    return { ok: true, orderNumber: data?.id ? String(data.id) : null }
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 /** @deprecated orderNumber는 id와 동일 */
 export async function fetchOrderByNumber(orderNumber: string): Promise<OrderListGroup | null> {
   return fetchOrderById(orderNumber)

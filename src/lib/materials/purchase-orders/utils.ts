@@ -124,6 +124,19 @@ export function formatMaterialSummary(group: MaterialPurchaseOrderListGroup) {
   return `${first} 외 ${group.items.length - 1}건`
 }
 
+/** 주문서 발주 vs 자재별 발주 — source_order_id 유무로 구분 */
+export type MaterialPurchaseSourceKind = 'order' | 'material'
+
+export function getMaterialPurchaseSourceKind(
+  order: Pick<MaterialPurchaseOrderListGroup, 'sourceOrderId'>,
+): MaterialPurchaseSourceKind {
+  return order.sourceOrderId?.trim() ? 'order' : 'material'
+}
+
+export function getMaterialPurchaseSourceLabel(kind: MaterialPurchaseSourceKind) {
+  return kind === 'order' ? '주문서' : '자재별'
+}
+
 export function computeMaterialPurchaseOrderLineAmount(quantity: number, unitPrice: number) {
   const qty = Math.max(0, Math.floor(Number(quantity) || 0))
   const price = Math.max(0, Math.round(Number(unitPrice) || 0))

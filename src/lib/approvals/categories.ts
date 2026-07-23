@@ -66,6 +66,29 @@ export type ApprovalCategory = (typeof APPROVAL_CATEGORIES)[number]['slug']
 
 export const DEFAULT_APPROVAL_CATEGORY: ApprovalCategory = 'consumables'
 
+/** 목록·필터용 soft pastel */
+export const APPROVAL_CATEGORY_BADGE_CLASS: Record<ApprovalCategory, string> = {
+  consumables: 'bg-sky-100 text-sky-800',
+  'equipment-purchase': 'bg-violet-100 text-violet-800',
+  'facility-investment': 'bg-indigo-100 text-indigo-800',
+  maintenance: 'bg-amber-100 text-amber-800',
+  'duty-tax': 'bg-rose-100 text-rose-800',
+  'exhibition-program': 'bg-emerald-100 text-emerald-800',
+  general: 'bg-slate-100 text-slate-700',
+}
+
+export const APPROVAL_CATEGORY_FILTER_IDLE_CLASS: Record<ApprovalCategory, string> = {
+  consumables: 'border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100',
+  'equipment-purchase': 'border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100',
+  'facility-investment':
+    'border border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100',
+  maintenance: 'border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100',
+  'duty-tax': 'border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100',
+  'exhibition-program':
+    'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100',
+  general: 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100',
+}
+
 export function isApprovalCategory(value: string): value is ApprovalCategory {
   return APPROVAL_CATEGORIES.some((category) => category.slug === value)
 }

@@ -51,6 +51,7 @@ export type Material = {
   supplyType: MaterialSupplyType
   moq: number
   unitPrice: number
+  safetyStock: number
   createdAt: string
   updatedAt: string
 }

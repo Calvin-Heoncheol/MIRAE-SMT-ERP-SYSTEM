@@ -82,7 +82,7 @@ export function MaterialPurchaseSuggestionTable({
           type="button"
           onClick={handleCreateOrder}
           disabled={!selectedLines.length}
-          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           선택 자재 발주 ({selectedLines.length.toLocaleString('ko-KR')})
         </button>
@@ -147,7 +147,7 @@ export function MaterialPurchaseSuggestionTable({
                   onClick={() => toggleOne(line.materialId)}
                   className={[
                     'cursor-pointer border-t border-slate-100 transition-colors',
-                    selected ? 'bg-violet-50/40' : 'hover:bg-slate-50',
+                    selected ? 'bg-slate-50/80' : 'hover:bg-slate-50',
                   ].join(' ')}
                 >
                   <td className="px-3 py-2">
@@ -185,7 +185,7 @@ export function MaterialPurchaseSuggestionTable({
                     className={[
                       'whitespace-nowrap px-3 py-2 text-right tabular-nums',
                       line.pendingInboundQuantity > 0
-                        ? 'font-semibold text-violet-700'
+                        ? 'font-semibold text-slate-800'
                         : 'text-slate-400',
                     ].join(' ')}
                   >

@@ -12,16 +12,16 @@ import {
 type ErpTableShellProps = {
   children: ReactNode
   className?: string
-  /** sticky thead를 끄려면 false */
-  stickyHeader?: boolean
+  /** table에 붙일 min-width 등 */
+  tableClassName?: string
 }
 
-export function ErpTableShell({ children, className = '', stickyHeader = true }: ErpTableShellProps) {
+export function ErpTableShell({ children, className = '', tableClassName = '' }: ErpTableShellProps) {
   return (
     <div className={[ERP_TABLE_WRAP_CLASS, className].filter(Boolean).join(' ')}>
-      <table className={ERP_TABLE_CLASS} data-sticky-header={stickyHeader ? 'true' : 'false'}>
-        {children}
-      </table>
+      <div className="overflow-x-auto">
+        <table className={[ERP_TABLE_CLASS, tableClassName].filter(Boolean).join(' ')}>{children}</table>
+      </div>
     </div>
   )
 }
@@ -39,8 +39,13 @@ export function ErpTableTh({
   className?: string
   align?: 'left' | 'right' | 'center'
 }) {
-  const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
-  return <th className={[ERP_TABLE_TH_CLASS, alignClass, className].filter(Boolean).join(' ')}>{children}</th>
+  const alignClass =
+    align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
+  return (
+    <th className={[ERP_TABLE_TH_CLASS, alignClass, className].filter(Boolean).join(' ')}>
+      {children}
+    </th>
+  )
 }
 
 export function ErpTableTd({
@@ -52,16 +57,11 @@ export function ErpTableTd({
   className?: string
   align?: 'left' | 'right' | 'center'
 }) {
-  const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : ''
-  return <td className={[ERP_TABLE_TD_CLASS, alignClass, className].filter(Boolean).join(' ')}>{children}</td>
-}
-
-export function ErpTableEmpty({ colSpan, message }: { colSpan: number; message: string }) {
+  const alignClass =
+    align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : ''
   return (
-    <tr>
-      <td colSpan={colSpan} className="px-3 py-16 text-center text-sm text-slate-400">
-        {message}
-      </td>
-    </tr>
+    <td className={[ERP_TABLE_TD_CLASS, alignClass, className].filter(Boolean).join(' ')}>
+      {children}
+    </td>
   )
 }

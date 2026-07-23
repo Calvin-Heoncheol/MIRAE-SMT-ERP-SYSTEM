@@ -153,12 +153,12 @@ export function DeliveryInputShipPanel({
 
   const shellClass = embedded
     ? 'space-y-4'
-    : 'rounded-xl border border-blue-200 bg-gradient-to-b from-blue-50/60 to-white p-5 shadow-sm'
+    : 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
 
   return (
     <div className={shellClass}>
       {!embedded ? (
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-blue-100 pb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
           <div className="min-w-0">
             <p className="text-sm text-slate-500">
               {order.customer} · {order.orderNumber}
@@ -178,9 +178,9 @@ export function DeliveryInputShipPanel({
                 {shipped.toLocaleString('ko-KR')}
               </p>
             </div>
-            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-              <p className="text-[11px] font-semibold text-blue-700">출하가능</p>
-              <p className="mt-0.5 text-base font-bold tabular-nums text-blue-800">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+              <p className="text-[11px] font-semibold text-emerald-700">출하가능</p>
+              <p className="mt-0.5 text-base font-bold tabular-nums text-emerald-800">
                 {shippable.toLocaleString('ko-KR')}
               </p>
             </div>
@@ -200,9 +200,9 @@ export function DeliveryInputShipPanel({
               {shipped.toLocaleString('ko-KR')}
             </p>
           </div>
-          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
-            <p className="text-[11px] font-semibold text-blue-700">출하가능</p>
-            <p className="mt-0.5 text-base font-bold tabular-nums text-blue-800">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+            <p className="text-[11px] font-semibold text-emerald-700">출하가능</p>
+            <p className="mt-0.5 text-base font-bold tabular-nums text-emerald-800">
               {shippable.toLocaleString('ko-KR')}
             </p>
           </div>
@@ -220,7 +220,7 @@ export function DeliveryInputShipPanel({
                 type="button"
                 disabled={!canRegister || saving}
                 onClick={applyFullQuantity}
-                className="text-xs font-semibold text-blue-700 hover:text-blue-900 disabled:opacity-40"
+                className="text-xs font-semibold text-slate-600 hover:text-slate-900 disabled:opacity-40"
               >
                 전량 출하 ({registerMax.toLocaleString('ko-KR')})
               </button>
@@ -237,7 +237,7 @@ export function DeliveryInputShipPanel({
                 if (event.key === 'Enter') void handleSubmit(false)
               }}
               placeholder="0"
-              className="w-full max-w-xs rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-2xl font-bold tabular-nums text-slate-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
+              className="w-full max-w-xs rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-2xl font-bold tabular-nums text-slate-900 outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-100 disabled:bg-slate-50 disabled:text-slate-400"
             />
           </div>
           <label className="block text-sm">
@@ -267,7 +267,7 @@ export function DeliveryInputShipPanel({
             type="button"
             disabled={!canRegister || saving}
             onClick={() => void handleSubmit(true)}
-            className="rounded-xl border border-blue-300 bg-white px-5 py-3 text-sm font-bold text-blue-800 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             등록 후 명세서
           </button>
@@ -285,7 +285,7 @@ export function DeliveryInputShipPanel({
 
       {message ? (
         <p
-          className={`text-sm font-medium ${message.kind === 'ok' ? 'text-blue-700' : 'text-red-700'}`}
+          className={`text-sm font-medium ${message.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}
         >
           {message.text}
         </p>

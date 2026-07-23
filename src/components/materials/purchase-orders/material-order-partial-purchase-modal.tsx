@@ -100,7 +100,7 @@ export function MaterialOrderPartialPurchaseModal({
             <h2 id="partial-purchase-title" className="text-lg font-bold text-slate-900">
               발주
             </h2>
-            <p className="mt-1 font-mono text-sm font-semibold text-violet-700">{card.orderNumber}</p>
+            <p className="mt-1 font-mono text-sm font-semibold text-slate-700">{card.orderNumber}</p>
             <p className="mt-0.5 truncate text-sm text-slate-600">
               {card.customer || '—'} · {product.productName}
               {product.productCode ? ` [${product.productCode}]` : ''}
@@ -130,14 +130,14 @@ export function MaterialOrderPartialPurchaseModal({
                 {product.coveredQuantity.toLocaleString('ko-KR')}
               </p>
             </div>
-            <div className="rounded-lg bg-violet-50 px-3 py-2">
-              <p className="text-[11px] text-violet-700">잔량</p>
-              <p className="mt-0.5 text-base font-bold tabular-nums text-violet-900">
+            <div className="rounded-lg bg-slate-50 px-3 py-2">
+              <p className="text-[11px] text-slate-700">잔량</p>
+              <p className="mt-0.5 text-base font-bold tabular-nums text-slate-900">
                 {product.remainingQuantity.toLocaleString('ko-KR')}
               </p>
             </div>
-            <label className="rounded-lg border border-violet-200 bg-white px-3 py-2">
-              <span className="text-[11px] font-semibold text-violet-800">이번 발주 수량</span>
+            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+              <span className="text-[11px] font-semibold text-slate-800">이번 발주 수량</span>
               <input
                 type="number"
                 min={1}
@@ -228,7 +228,7 @@ export function MaterialOrderPartialPurchaseModal({
               type="button"
               onClick={handleConfirm}
               disabled={purchaseQuantity <= 0}
-              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               발주서 작성
             </button>

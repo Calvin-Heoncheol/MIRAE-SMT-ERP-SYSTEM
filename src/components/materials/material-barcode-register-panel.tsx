@@ -76,14 +76,14 @@ export function MaterialBarcodeRegisterPanel({
   }
 
   const inputClassName =
-    'w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100'
+    'w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
 
   return (
-    <div className="rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3">
+    <div className="rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold text-violet-900">릴 바코드 → 대체 MPN 등록</h2>
-          <p className="mt-0.5 text-xs text-violet-700/80">
+          <h2 className="text-sm font-semibold text-slate-900">릴 바코드 → 대체 MPN 등록</h2>
+          <p className="mt-0.5 text-xs text-slate-500">
             매칭이 안 되는 릴 바코드를 스캔한 뒤, 해당 자재를 선택해 등록하세요. 이후 입고·검색에서 자동 매칭됩니다.
           </p>
         </div>
