@@ -1,9 +1,12 @@
 /**
  * 인증 강제 여부.
- * - AUTH_ENABLED=true 일 때만 로그인 필수
- * - 그 외(미설정·false)는 기존처럼 로그인 없이 사용 (개발 중 기본)
+ * - production: 기본 ON (AUTH_ENABLED=false 일 때만 끔)
+ * - development: 기본 OFF (AUTH_ENABLED=true 일 때만 켬)
  */
 export function isAuthDisabled() {
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.AUTH_ENABLED === 'false'
+  }
   return process.env.AUTH_ENABLED !== 'true'
 }
 

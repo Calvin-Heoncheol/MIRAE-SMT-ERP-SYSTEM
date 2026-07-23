@@ -49,7 +49,7 @@ export function SideNavUserMenu({ profile, authDisabled = false }: SideNavUserMe
     return (
       <div className="border-t border-slate-200 px-3 py-3">
         <p className="text-xs font-semibold text-amber-800">개발모드 · 인증 꺼짐</p>
-        <p className="mt-0.5 text-[11px] text-slate-500">AUTH_ENABLED 미설정</p>
+        <p className="mt-0.5 text-[11px] text-slate-500">로컬에서 AUTH_ENABLED=true 로 켜세요</p>
       </div>
     )
   }
