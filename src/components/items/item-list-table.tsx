@@ -5,8 +5,6 @@ import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 import {
-  ITEM_CATEGORY_BADGE_CLASS,
-  ITEM_CATEGORY_LABELS,
   ITEM_MATERIAL_TYPE_LABELS,
   ITEM_PCB_SIDE_MODE_LABELS,
   ITEM_PROCESS_TYPE_LABELS,
@@ -18,14 +16,12 @@ import {
   type ItemCategory,
 } from '@/lib/items/types'
 import { formatItemUnitPrice } from '@/lib/items/utils'
-import { CategoryBadge } from '@/components/ui/category-badge'
-
-type ItemCategoryFilter = 'all' | ItemCategory
+import { formatItemVersionLabel, parseItemVersionCode } from '@/lib/items/version-code'
 
 type ItemListTableProps = {
   items: Item[]
   emptyMessage: string
-  categoryFilter?: ItemCategoryFilter
+  categoryFilter: ItemCategory
   onSelectItem?: (item: Item) => void
 }
 
@@ -34,29 +30,27 @@ function cell(value: string) {
   return trimmed || '-'
 }
 
-function getVisibleColumns(filter: ItemCategoryFilter) {
-  const showMaterialFields = filter === 'all' || isMaterialItemCategory(filter as ItemCategory)
-  const showRawMaterialFields = filter === 'all' || isRawMaterialItemCategory(filter as ItemCategory)
-  const showSemiFinishedFields =
-    filter === 'all' || isSemiFinishedItemCategory(filter as ItemCategory)
-  const showCategory = filter === 'all'
+function versionLabelFromItemId(itemId: string) {
+  return formatItemVersionLabel(parseItemVersionCode(itemId.trim()).version)
+}
 
+function getVisibleColumns(filter: ItemCategory) {
   return {
-    specification: showMaterialFields,
-    mpn: showRawMaterialFields,
-    materialType: showRawMaterialFields,
-    supplyType: showRawMaterialFields,
-    supplier: showMaterialFields,
-    pcbSideMode: showSemiFinishedFields,
-    processType: showSemiFinishedFields,
-    itemCategory: showCategory,
+    version: !isRawMaterialItemCategory(filter),
+    specification: isMaterialItemCategory(filter),
+    mpn: isRawMaterialItemCategory(filter),
+    materialType: isRawMaterialItemCategory(filter),
+    supplyType: isRawMaterialItemCategory(filter),
+    supplier: isMaterialItemCategory(filter),
+    pcbSideMode: isSemiFinishedItemCategory(filter),
+    processType: isSemiFinishedItemCategory(filter),
   }
 }
 
 export function ItemListTable({
   items,
   emptyMessage,
-  categoryFilter = 'all',
+  categoryFilter,
   onSelectItem,
 }: ItemListTableProps) {
   const columns = getVisibleColumns(categoryFilter)
@@ -67,14 +61,11 @@ export function ItemListTable({
     )
   }
 
-  const minWidth =
-    categoryFilter === 'all'
-      ? 'min-w-[1180px]'
-      : isMaterialItemCategory(categoryFilter)
-        ? 'min-w-[900px]'
-        : isSemiFinishedItemCategory(categoryFilter)
-          ? 'min-w-[720px]'
-          : 'min-w-[640px]'
+  const minWidth = isMaterialItemCategory(categoryFilter)
+    ? 'min-w-[960px]'
+    : isSemiFinishedItemCategory(categoryFilter)
+      ? 'min-w-[780px]'
+      : 'min-w-[700px]'
 
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
@@ -83,6 +74,7 @@ export function ItemListTable({
           <colgroup>
             <col className="w-[120px]" />
             <col className="w-[180px]" />
+            {columns.version ? <col className="w-[64px]" /> : null}
             {columns.specification ? <col className="w-[160px]" /> : null}
             {columns.mpn ? <col className="w-[140px]" /> : null}
             {columns.materialType ? <col className="w-[72px]" /> : null}
@@ -91,7 +83,6 @@ export function ItemListTable({
             {columns.pcbSideMode ? <col className="w-[88px]" /> : null}
             {columns.processType ? <col className="w-[110px]" /> : null}
             <col className="w-[96px]" />
-            {columns.itemCategory ? <col className="w-[88px]" /> : null}
           </colgroup>
           <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
@@ -101,6 +92,11 @@ export function ItemListTable({
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목명
               </th>
+              {columns.version ? (
+                <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                  버전
+                </th>
+              ) : null}
               {columns.specification ? (
                 <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   규격
@@ -139,11 +135,6 @@ export function ItemListTable({
               <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 단가
               </th>
-              {columns.itemCategory ? (
-                <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                  품목구분
-                </th>
-              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -161,6 +152,11 @@ export function ItemListTable({
                 <td className="truncate px-3 py-2.5 text-sm font-medium text-slate-900" title={item.name}>
                   {cell(item.name)}
                 </td>
+                {columns.version ? (
+                  <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm font-medium tabular-nums text-slate-700">
+                    {versionLabelFromItemId(item.id)}
+                  </td>
+                ) : null}
                 {columns.specification ? (
                   <td
                     className="truncate px-3 py-2.5 text-sm text-slate-700"
@@ -220,14 +216,6 @@ export function ItemListTable({
                 >
                   {item.unitPrice > 0 ? formatItemUnitPrice(item.unitPrice) : '-'}
                 </td>
-                {columns.itemCategory ? (
-                  <td className="whitespace-nowrap px-3 py-2.5 text-center">
-                    <CategoryBadge
-                      label={ITEM_CATEGORY_LABELS[item.itemCategory]}
-                      className={ITEM_CATEGORY_BADGE_CLASS[item.itemCategory]}
-                    />
-                  </td>
-                ) : null}
               </tr>
             ))}
           </tbody>

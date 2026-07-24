@@ -41,7 +41,6 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
     return {
       orderCode: order.orderNumber,
       orderDate: order.orderDate || today,
-      deliveryDate: order.deliveryDate || '',
       customer: order.customer || '',
       category: order.category,
       note: order.note || '',
@@ -50,7 +49,6 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
   return {
     orderCode: '',
     orderDate: today,
-    deliveryDate: '',
     customer: '',
     category: '양산',
     note: '',
@@ -67,7 +65,9 @@ function OrderModalContent({
   const canDelete = useCanDeleteRecords()
   const [form, setForm] = useState<OrderFormState>(() => createInitialForm(order))
   const [items, setItems] = useState<OrderItemForm[]>(() =>
-    order ? orderItemsFromDetail(order.items) : [defaultOrderItemForm()],
+    order
+      ? orderItemsFromDetail(order.items, order.deliveryDate)
+      : [defaultOrderItemForm()],
   )
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -127,9 +127,15 @@ function OrderModalContent({
       return
     }
 
+    const lineDeliveryDates = validation.items
+      .map((item) => item.deliveryDate)
+      .filter(Boolean)
+      .sort()
+    const headerDeliveryDate = lineDeliveryDates[0] || ''
+
     const payload = {
       order_date: form.orderDate || todayYmdSeoul(),
-      delivery_date: form.deliveryDate || '',
+      delivery_date: headerDeliveryDate,
       customer: customerName,
       category: form.category,
       note: form.note,
@@ -268,7 +274,7 @@ function OrderModalContent({
         </label>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>구분</span>
           <select
@@ -289,15 +295,6 @@ function OrderModalContent({
             type="date"
             value={form.orderDate}
             onChange={(event) => updateForm('orderDate', event.target.value)}
-            className={ERP_FIELD_INPUT_CLASS}
-          />
-        </label>
-        <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>납기일</span>
-          <input
-            type="date"
-            value={form.deliveryDate}
-            onChange={(event) => updateForm('deliveryDate', event.target.value)}
             className={ERP_FIELD_INPUT_CLASS}
           />
         </label>

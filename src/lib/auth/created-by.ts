@@ -1,4 +1,4 @@
-import { createSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { createSupabaseClient } from '@/lib/supabase'
 
 export type CreatedBySnapshot = {
   createdBy: string | null
@@ -18,32 +18,40 @@ export async function resolveCreatedBySnapshot(): Promise<CreatedBySnapshot> {
   }
 
   try {
-    const supabase = createSupabaseBrowserClient()
+    // 데이터 쓰기와 동일 싱글톤 클라이언트 사용 (세션 불일치 방지)
+    const supabase = createSupabaseClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return { createdBy: null, createdByName: '' }
+    let resolved = user
+    if (!resolved) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      resolved = session?.user ?? null
+    }
+    if (!resolved) return { createdBy: null, createdByName: '' }
 
     const metaName = String(
-      user.user_metadata?.display_name ||
-        user.user_metadata?.full_name ||
-        user.user_metadata?.name ||
+      resolved.user_metadata?.display_name ||
+        resolved.user_metadata?.full_name ||
+        resolved.user_metadata?.name ||
         '',
     ).trim()
 
     const { data: profile } = await supabase
       .from('profiles')
       .select('display_name, email')
-      .eq('id', user.id)
+      .eq('id', resolved.id)
       .maybeSingle()
 
     const createdByName =
       (profile?.display_name || '').trim() ||
       metaName ||
-      (profile?.email || user.email || '').split('@')[0] ||
+      (profile?.email || resolved.email || '').split('@')[0] ||
       ''
 
-    return { createdBy: user.id, createdByName }
+    return { createdBy: resolved.id, createdByName }
   } catch {
     return { createdBy: null, createdByName: '' }
   }

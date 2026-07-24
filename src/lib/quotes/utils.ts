@@ -140,6 +140,7 @@ export function toEstimateInputFromDetail(
       settings.metalMaskCost ??
       quote.detailInfo.amounts?.subMaterialCost ??
       0,
+    productionKind: settings.productionKind === '샘플' ? '샘플' : '양산',
     postAssembly,
     postTest,
     postPacking,

@@ -1,9 +1,5 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
-import {
-  isMissingCreatedByColumn,
-  stripCreatedByFields,
-  withCreatedByFields,
-} from '@/lib/auth/created-by'
+import { isMissingCreatedByColumn, withCreatedByFields } from '@/lib/auth/created-by'
 import { createSupabaseClient } from '@/lib/supabase'
 import type { QuoteRowPayload } from './build-quote-payload'
 import type { QuoteRecord, QuoteType } from './types'
@@ -87,18 +83,22 @@ export async function createQuote(payload: QuoteRowPayload, _quoteType: QuoteTyp
       total_amount: payload.total_amount,
       detail_info: payload.detail_info,
     })
-    let { data, error } = await supabase.from('quotations').insert(insertRow).select('id').single()
+    const { data, error } = await supabase.from('quotations').insert(insertRow).select('id').single()
 
-    if (error && isMissingCreatedByColumn(error.message)) {
-      ;({ data, error } = await supabase
-        .from('quotations')
-        .insert(stripCreatedByFields(insertRow))
-        .select('id')
-        .single())
+    if (error) {
+      if (isMissingCreatedByColumn(error.message)) {
+        return {
+          ok: false,
+          reason: 'query',
+          detail:
+            'quotations.created_by 컬럼이 없습니다. supabase/migrate-created-by-high-med.sql 을 Supabase에서 실행한 뒤 다시 저장해 주세요.',
+        }
+      }
+      return { ok: false, reason: 'query', detail: error.message || '견적서 저장에 실패했습니다.' }
     }
 
-    if (error || !data?.id) {
-      return { ok: false, reason: 'query', detail: error?.message || '견적서 저장에 실패했습니다.' }
+    if (!data?.id) {
+      return { ok: false, reason: 'query', detail: '견적서 저장에 실패했습니다.' }
     }
 
     return { ok: true, quoteId: data.id, quoteNumber: data.id }

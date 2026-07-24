@@ -122,7 +122,7 @@ export function isManualItemCodeCategory(category: ItemCategory) {
   return category === 1
 }
 
-/** 반제품(3)·완제품(4): 비우면 자동 생성, 입력하면 그 값을 코드로 사용 */
+/** 반제품(3)·완제품(4): 비우면 품목명으로 생성, 입력하면 그 값을 코드로 사용 */
 export function isOptionalItemCodeCategory(category: ItemCategory) {
   return category === 3 || category === 4
 }

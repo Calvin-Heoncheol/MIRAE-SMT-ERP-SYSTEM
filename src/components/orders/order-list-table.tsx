@@ -5,7 +5,12 @@ import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 import { OrderCategoryBadge } from '@/components/orders/order-category-badge'
-import { formatInternalCodeLabel, formatOrderMoney, formatProductSummary } from '@/lib/orders/utils'
+import {
+  formatInternalCodeLabel,
+  formatOrderDeliverySummary,
+  formatOrderMoney,
+  formatProductSummary,
+} from '@/lib/orders/utils'
 import type { OrderListGroup } from '@/lib/orders/types'
 
 type OrderListTableProps = {
@@ -64,7 +69,9 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
                 onClick={() => onSelectOrder?.(order)}
               >
                 <td className="px-3 py-2.5 text-sm text-slate-700">{order.orderDate || '-'}</td>
-                <td className="px-3 py-2.5 text-sm text-slate-700">{order.deliveryDate || '-'}</td>
+                <td className="px-3 py-2.5 text-sm text-slate-700">
+                  {formatOrderDeliverySummary(order)}
+                </td>
                 <td className="px-3 py-2.5 font-mono text-xs text-emerald-800" title={order.orderNumber}>
                   {formatInternalCodeLabel(order.orderNumber)}
                 </td>

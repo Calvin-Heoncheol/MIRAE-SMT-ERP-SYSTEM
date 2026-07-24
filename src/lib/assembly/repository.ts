@@ -149,6 +149,8 @@ async function syncDerivedOrderLines(
   }
 
   for (const spec of specs) {
+    const parentLine = orderLines.find((line) => line.id === spec.parentLineId)
+    const parentDeliveryDate = parentLine?.delivery_date || null
     const existing = orderLines.find(
       (line) =>
         line.derived_from_line_id === spec.parentLineId &&
@@ -166,6 +168,7 @@ async function syncDerivedOrderLines(
           line_seq: spec.lineSeq,
           unit_price: 0,
           order_amount: 0,
+          delivery_date: parentDeliveryDate,
         })
         .eq('id', existing.id)
 
@@ -184,6 +187,7 @@ async function syncDerivedOrderLines(
       quantity: spec.quantity,
       unit_price: 0,
       order_amount: 0,
+      delivery_date: parentDeliveryDate,
       derived_from_line_id: spec.parentLineId,
     })
 

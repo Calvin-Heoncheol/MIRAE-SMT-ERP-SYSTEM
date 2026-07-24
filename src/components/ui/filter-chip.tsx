@@ -73,7 +73,7 @@ export type FilterChipOption<T extends string | number> = {
 
 type FilterChipBarProps<T extends string | number> = {
   options: FilterChipOption<T>[]
-  value: T
+  value: T | null
   onChange: (value: T) => void
   className?: string
 }

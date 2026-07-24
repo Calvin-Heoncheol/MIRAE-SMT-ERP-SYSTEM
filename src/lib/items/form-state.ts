@@ -14,10 +14,13 @@ import {
   isSemiFinishedItemCategory,
 } from './types'
 import { normalizeItemCategory } from './utils'
+import { composeItemIdWithVersion, parseItemVersionCode, versionToFormValue } from './version-code'
 
 export type ItemFormState = {
   id: string
   name: string
+  /** 반제품·완제품 버전 라벨 (코드 접미사: V1, REV2 등). 원자재·부자재는 미사용 */
+  version: string
   itemCategory: ItemCategory | ''
   specification: string
   mpn: string
@@ -36,6 +39,7 @@ export function emptyItemForm(): ItemFormState {
   return {
     id: '',
     name: '',
+    version: '',
     itemCategory: '',
     specification: '',
     mpn: '',
@@ -56,9 +60,11 @@ function priceToFormValue(value: number) {
 }
 
 export function itemToForm(item: Item): ItemFormState {
+  const { base, version } = parseItemVersionCode(item.id)
   return {
-    id: item.id,
+    id: base || item.id,
     name: item.name,
+    version: versionToFormValue(version),
     itemCategory: item.itemCategory,
     specification: item.specification,
     mpn: item.mpn,
@@ -128,8 +134,13 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     ? smdUnitPrice + dipUnitPrice + materialUnitPrice
     : parseUnitPrice(form.unitPrice)
 
+  const rawId = form.id.trim() || (isRawMaterialItemCategory(itemCategory) ? '' : form.name.trim())
+  const id = isRawMaterialItemCategory(itemCategory)
+    ? rawId
+    : composeItemIdWithVersion(rawId, form.version)
+
   return {
-    id: form.id.trim(),
+    id,
     name: form.name.trim(),
     specification: isMaterial ? form.specification.trim() : '',
     mpn: isRawMaterial ? form.mpn.trim() : '',

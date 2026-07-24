@@ -60,8 +60,8 @@ export const POST_RATE = POST_RATE_EXPORT
 export const SMT_UNIT_CHIP_DOMESTIC = 6
 /** CHIP 단가: 해외 ₩5.25/개 */
 export const SMT_UNIT_CHIP_EXPORT = 5.25
-/** 이형 단가: 국내 ₩24/개 */
-export const SMT_UNIT_ODD_DOMESTIC = 24
+/** 이형 단가: 국내 ₩20/개 */
+export const SMT_UNIT_ODD_DOMESTIC = 20
 /** 이형 단가: 해외 ₩20/개 */
 export const SMT_UNIT_ODD_EXPORT = 20
 /** @deprecated getSmtUnitRates 사용 */
@@ -108,11 +108,19 @@ export const DIP_UNIT = {
 
 /** 관리비: 원자재 비용의 10% */
 export const RAW_MATERIAL_MANAGEMENT_RATE = 0.1
+/** 부자재 비용(대당): SMD 합계 + DIP 합계의 5% */
+export const AUXILIARY_MATERIAL_RATE = 0.05
 
 /** 메탈마스크: 단면 */
 export const METAL_MASK_COST_SINGLE = 110_000
 /** 메탈마스크: 양면 */
 export const METAL_MASK_COST_DOUBLE = 220_000
+/** 샘플 비용 (일회성) — 구분이 샘플일 때 기타에 고정 반영 */
+export const SAMPLE_COST = 200_000
+
+export function computeSampleCostTotal(productionKind?: string | null) {
+  return productionKind === '샘플' ? SAMPLE_COST : 0
+}
 
 export function metalMaskCostForSide(side: SmtSide | string | undefined) {
   return toBillingSmtSide(side) === 'double' ? METAL_MASK_COST_DOUBLE : METAL_MASK_COST_SINGLE
@@ -125,6 +133,17 @@ export function computeMetalMaskCostTotal(
 ) {
   if (!includeSmd || boards.length === 0) return 0
   return boards.reduce((sum, board) => sum + metalMaskCostForSide(board.smtSide), 0)
+}
+
+/** 부자재 대당 = (SMD 합계 + DIP 합계) × 5% / 생산수량 */
+export function computeAuxiliaryMaterialPerUnit(
+  smdSectionTotal: number,
+  dipSectionTotal: number,
+  qty: number,
+) {
+  const base = Math.max(0, smdSectionTotal) + Math.max(0, dipSectionTotal)
+  const safeQty = Math.max(1, Math.floor(Number(qty) || 1))
+  return (base * AUXILIARY_MATERIAL_RATE) / safeQty
 }
 
 export function getSmtPlacementMinFee(quoteType: QuoteType) {

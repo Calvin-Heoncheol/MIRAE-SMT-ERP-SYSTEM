@@ -311,7 +311,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
           label: '오늘 신규 주문',
           value: todayNewOrders,
           unit: '건',
-          href: '/orders',
+          href: '/orders?filter=today',
           tone: 'default',
         },
         {
@@ -422,7 +422,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
       label: '오늘 신규 주문',
       value: todayNewOrders,
       unit: '건',
-      href: '/orders',
+      href: '/orders?filter=today',
       tone: 'default',
     },
     {

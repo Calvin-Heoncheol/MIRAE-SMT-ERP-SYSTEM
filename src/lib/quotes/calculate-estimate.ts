@@ -13,6 +13,8 @@ import {
   isMultiSideSmt,
   normalizeSmtSide,
   RAW_MATERIAL_MANAGEMENT_RATE,
+  computeAuxiliaryMaterialPerUnit,
+  computeSampleCostTotal,
   toBillingSmtSide,
 } from './constants'
 import type {
@@ -387,17 +389,31 @@ export function calculateEstimate(
   const postProcessUnit = (postAssembly + postTest + postPacking) * getPostRate(quoteType)
   const matUnit = Number(data.materialCost) || 0
   const metalMaskTotal = Math.max(0, Number(data.metalMaskCost) || 0)
+  const sampleCostTotal = computeSampleCostTotal(data.productionKind)
 
   const matTotalRaw = matUnit * qty
-  const smtTotal = smtUnit * qty + smtSetupAmount + smtInspectionPerUnit * qty
+  const smtLaborAndInspectionTotal = smtUnit * qty + smtInspectionPerUnit * qty
+  const smtTotal = smtLaborAndInspectionTotal + smtSetupAmount
   const dipTotal = dipUnit * qty
   const postProcessTotal = postProcessUnit * qty
+  const dipSectionTotal = dipTotal + postProcessTotal
   const laborFinal = smtTotal + dipTotal + postProcessTotal
   const materialManagementTotal =
     matTotalRaw > 0 ? matTotalRaw * RAW_MATERIAL_MANAGEMENT_RATE : 0
+  const auxiliaryMaterialPerUnit = computeAuxiliaryMaterialPerUnit(
+    smtLaborAndInspectionTotal,
+    dipSectionTotal,
+    qty,
+  )
+  const auxiliaryMaterialTotal = auxiliaryMaterialPerUnit * qty
 
   const subtotalBeforeDiscount =
-    laborFinal + matTotalRaw + materialManagementTotal + metalMaskTotal
+    laborFinal +
+    matTotalRaw +
+    materialManagementTotal +
+    metalMaskTotal +
+    sampleCostTotal +
+    auxiliaryMaterialTotal
   let specialDiscount = Math.max(0, Number(data.specialDiscount) || 0)
   if (specialDiscount > subtotalBeforeDiscount) specialDiscount = subtotalBeforeDiscount
   const grandTotal = subtotalBeforeDiscount - specialDiscount
@@ -429,6 +445,8 @@ export function calculateEstimate(
       pcbBoardDetails: smtAgg.boardDetails,
       dipBoardDetails: dipAgg.boardDetails,
       subMaterial: metalMaskTotal,
+      sampleCost: sampleCostTotal,
+      auxiliaryMaterial: auxiliaryMaterialTotal,
       materialManagement: materialManagementTotal,
       specialDiscount,
       subtotalBeforeDiscount,

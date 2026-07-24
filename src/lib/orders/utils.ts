@@ -77,16 +77,20 @@ export function sortOrderGroupsNewestFirst(groups: OrderListGroup[]) {
   })
 }
 
-export function mapOrderLineRecord(line: {
-  id?: string
-  product_id?: string | null
-  product_code: string
-  product_name: string
-  quantity: number
-  unit_price: number
-  order_amount: number
-  derived_from_line_id?: string | null
-}): OrderLineItem {
+export function mapOrderLineRecord(
+  line: {
+    id?: string
+    product_id?: string | null
+    product_code: string
+    product_name: string
+    quantity: number
+    unit_price: number
+    order_amount: number
+    delivery_date?: string | null
+    derived_from_line_id?: string | null
+  },
+  fallbackDeliveryDate = '',
+): OrderLineItem {
   return {
     lineId: line.id,
     productId: line.product_id || null,
@@ -95,23 +99,46 @@ export function mapOrderLineRecord(line: {
     quantity: Number(line.quantity) || 0,
     unitPrice: Number(line.unit_price) || 0,
     orderAmount: Number(line.order_amount) || 0,
+    deliveryDate: formatOrderDate(line.delivery_date) || fallbackDeliveryDate,
     derivedFromLineId: line.derived_from_line_id || null,
   }
+}
+
+export function earliestDeliveryDate(dates: Array<string | null | undefined>) {
+  const valid = dates
+    .map((value) => formatOrderDate(value))
+    .filter(Boolean)
+    .sort()
+  return valid[0] || ''
+}
+
+export function formatOrderDeliverySummary(order: Pick<OrderListGroup, 'deliveryDate' | 'items'>) {
+  const dates = [
+    ...new Set(
+      order.items
+        .map((item) => formatOrderDate(item.deliveryDate) || formatOrderDate(order.deliveryDate))
+        .filter(Boolean),
+    ),
+  ].sort()
+  if (!dates.length) return order.deliveryDate || '-'
+  if (dates.length === 1) return dates[0]!
+  return `${dates[0]} 외 ${dates.length - 1}`
 }
 
 export function mapOrderRecord(
   record: OrderRecord,
   options?: { includeDerivedLines?: boolean },
 ): OrderListGroup {
+  const headerDeliveryDate = formatOrderDate(record.delivery_date)
   const lines = [...(record.order_lines || [])]
     .filter((line) => options?.includeDerivedLines || !line.derived_from_line_id)
     .sort((a, b) => a.line_seq - b.line_seq)
-  const items = lines.map(mapOrderLineRecord)
+  const items = lines.map((line) => mapOrderLineRecord(line, headerDeliveryDate))
   return {
     orderId: record.id,
     orderNumber: record.id,
     orderDate: formatOrderDate(record.order_date),
-    deliveryDate: formatOrderDate(record.delivery_date),
+    deliveryDate: earliestDeliveryDate(items.map((item) => item.deliveryDate)) || headerDeliveryDate,
     customer: record.customer || '',
     category: normalizeOrderCategory(record.category),
     note: record.note || '',

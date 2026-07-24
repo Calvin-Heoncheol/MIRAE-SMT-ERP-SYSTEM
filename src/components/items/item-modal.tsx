@@ -37,6 +37,12 @@ import {
   type ItemSupplyType,
 } from '@/lib/items/types'
 import { nextItemCodeForCategory } from '@/lib/items/utils'
+import {
+  composeItemIdWithVersion,
+  normalizeVersionLabel,
+  parseItemVersionCode,
+  versionToFormValue,
+} from '@/lib/items/version-code'
 import { fetchPurchaseBusinessPartners } from '@/lib/partners/repository'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
@@ -121,12 +127,20 @@ function ItemModalContent({
     form.itemCategory !== '' && isManualItemCodeCategory(form.itemCategory)
   const isOptionalCode =
     form.itemCategory !== '' && isOptionalItemCodeCategory(form.itemCategory)
+  const showVersionField =
+    form.itemCategory !== '' && !isRawMaterialItemCategory(form.itemCategory)
   const canEditCode =
-    isCreate && form.itemCategory !== '' && canEditItemCodeOnCreate(form.itemCategory)
+    form.itemCategory !== '' &&
+    (isCreate
+      ? canEditItemCodeOnCreate(form.itemCategory)
+      : !isRawMaterialItemCategory(form.itemCategory))
   const autoPreviewCode = useMemo(() => {
     if (form.itemCategory === '' || isManualItemCodeCategory(form.itemCategory)) return ''
+    if (isOptionalItemCodeCategory(form.itemCategory)) {
+      return form.name.trim()
+    }
     return nextItemCodeForCategory(existingItems, form.itemCategory) ?? ''
-  }, [form.itemCategory, existingItems])
+  }, [form.itemCategory, form.name, existingItems])
   const previewItemCode = autoPreviewCode
 
   useEffect(() => {
@@ -209,7 +223,23 @@ function ItemModalContent({
   }, [isCreate, form.itemCategory, existingItems])
 
   function updateForm<K extends keyof ItemFormState>(key: K, value: ItemFormState[K]) {
-    setForm((current) => ({ ...current, [key]: value }))
+    setForm((current) => {
+      const next = { ...current, [key]: value }
+      // 수정 시 품목명만 바꾼 경우(코드 미수정), 코드 기반도 품목명에 맞춤
+      if (
+        key === 'name' &&
+        !isCreate &&
+        item &&
+        current.itemCategory !== '' &&
+        !isRawMaterialItemCategory(current.itemCategory)
+      ) {
+        const itemBase = parseItemVersionCode(item.id).base || item.id
+        if (!current.id.trim() || current.id.trim() === itemBase) {
+          next.id = String(value).trim()
+        }
+      }
+      return next
+    })
   }
 
   function updateItemCategory(value: ItemCategory | '') {
@@ -253,6 +283,9 @@ function ItemModalContent({
           next.id = resolvePreviewItemCode(value, existingItems)
         }
       }
+      if (!value || isRawMaterialItemCategory(value)) {
+        next.version = ''
+      }
       return next
     })
   }
@@ -271,6 +304,17 @@ function ItemModalContent({
     form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)
   const showSemiUnitPriceFields =
     form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
+  const displayItemCode = (() => {
+    if (form.itemCategory === '') return ''
+    if (isCreate && !canEditCode) {
+      return composeItemIdWithVersion(previewItemCode, form.version)
+    }
+    if (showVersionField) {
+      const base = form.id.trim() || (isCreate ? previewItemCode : '')
+      return composeItemIdWithVersion(base, form.version)
+    }
+    return isCreate && !canEditCode ? previewItemCode : form.id
+  })()
 
   async function handleSave() {
     const validationError = validateItemForm(form, { isCreate })
@@ -283,13 +327,28 @@ function ItemModalContent({
     setSaveError(null)
 
     let saveForm = form
+    if (
+      isCreate &&
+      form.itemCategory !== '' &&
+      !isRawMaterialItemCategory(form.itemCategory) &&
+      !form.id.trim()
+    ) {
+      const base = form.name.trim()
+      if (base) {
+        saveForm = { ...saveForm, id: base }
+      }
+    }
     if (form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)) {
-      const finishedId = (isCreate ? form.id : item?.id || form.id).trim()
+      const finishedId = (
+        isCreate
+          ? composeItemIdWithVersion(saveForm.id.trim() || previewItemCode, saveForm.version)
+          : item?.id || form.id
+      ).trim()
       if (finishedId) {
         const calc = await calcParentUnitPriceFromBom(finishedId)
         if (calc.ok) {
           saveForm = {
-            ...form,
+            ...saveForm,
             unitPrice: calc.unitPrice > 0 ? String(calc.unitPrice) : '',
           }
           setForm(saveForm)
@@ -297,9 +356,19 @@ function ItemModalContent({
       }
     }
 
-    const result = isCreate
-      ? await createItem(formToItemPayload(saveForm))
-      : await updateItem(item!.id, formToItemUpdatePayload(saveForm))
+    let result
+    if (isCreate) {
+      result = await createItem(formToItemPayload(saveForm))
+    } else {
+      const baseId = saveForm.id.trim() || saveForm.name.trim()
+      const nextId =
+        saveForm.itemCategory !== '' && !isRawMaterialItemCategory(saveForm.itemCategory)
+          ? composeItemIdWithVersion(baseId, saveForm.version)
+          : baseId
+      result = await updateItem(item!.id, formToItemUpdatePayload(saveForm), {
+        nextId: nextId && nextId !== item!.id ? nextId : undefined,
+      })
+    }
 
     setSaving(false)
 
@@ -390,20 +459,36 @@ function ItemModalContent({
           </span>
           <input
             value={
-              isCreate && !canEditCode && form.itemCategory !== ''
-                ? previewItemCode
-                : form.id
+              canEditCode
+                ? form.id
+                : displayItemCode
             }
-            onChange={(event) => updateForm('id', event.target.value)}
+            onChange={(event) => {
+              const nextId = event.target.value
+              if (!showVersionField) {
+                updateForm('id', nextId)
+                return
+              }
+              const parsed = parseItemVersionCode(nextId)
+              setForm((current) => ({
+                ...current,
+                // 버전 접미사(-V1, -REV2 등)를 붙여 입력하면 버전 칸으로 분리
+                id: parsed.version != null ? parsed.base : nextId,
+                version:
+                  parsed.version != null
+                    ? versionToFormValue(parsed.version)
+                    : current.version,
+              }))
+            }}
             placeholder={
               form.itemCategory === ''
                 ? '품목구분 선택 후 표시'
                 : isRequiredManualCode
                   ? '직접 입력'
                   : isOptionalCode
-                    ? autoPreviewCode
-                      ? `비우면 ${autoPreviewCode} 자동`
-                      : '비우면 자동 생성'
+                    ? form.name.trim()
+                      ? `비우면 「${form.name.trim()}」`
+                      : '비우면 품목명으로 생성'
                     : '자동 생성'
             }
             readOnly={!canEditCode}
@@ -413,23 +498,51 @@ function ItemModalContent({
           />
           {isCreate && form.itemCategory !== '' && isOptionalCode ? (
             <p className="mt-1 text-xs text-slate-500">
-              비워 두면 {autoPreviewCode || '자동 코드'} 로 생성되고, 입력하면 그 값이 품목코드가 됩니다.
+              비워 두면 품목명
+              {normalizeVersionLabel(form.version)
+                ? ` + 버전(${normalizeVersionLabel(form.version)})`
+                : ''}
+              으로 품목코드가 만들어집니다. 직접 입력하면 그 값이 코드가 됩니다.
             </p>
           ) : null}
           {isCreate && form.itemCategory !== '' && !canEditCode ? (
-            <p className="mt-1 text-xs text-slate-500">저장 시 {previewItemCode} 로 자동 생성됩니다.</p>
+            <p className="mt-1 text-xs text-slate-500">저장 시 {displayItemCode || '품목명'} 로 생성됩니다.</p>
+          ) : null}
+          {!isCreate && showVersionField && displayItemCode ? (
+            <p className="mt-1 text-xs text-slate-500">
+              저장 시 품목코드: <span className="font-mono">{displayItemCode}</span>
+            </p>
           ) : null}
         </label>
-        <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>
-            품목명 <span className="text-red-500">*</span>
-          </span>
-          <input
-            value={form.name}
-            onChange={(event) => updateForm('name', event.target.value)}
-            className={ERP_FIELD_INPUT_CLASS}
-          />
-        </label>
+        <div className={showVersionField ? 'grid grid-cols-1 gap-4 sm:grid-cols-2' : undefined}>
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>
+              품목명 <span className="text-red-500">*</span>
+            </span>
+            <input
+              value={form.name}
+              onChange={(event) => updateForm('name', event.target.value)}
+              className={ERP_FIELD_INPUT_CLASS}
+            />
+          </label>
+          {showVersionField ? (
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>버전</span>
+              <input
+                value={form.version}
+                onChange={(event) => updateForm('version', event.target.value)}
+                placeholder="예: V1, REV2, 1"
+                autoComplete="off"
+                className={ERP_FIELD_INPUT_CLASS}
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                {isCreate
+                  ? '숫자만 입력하면 -V1 형식, V1·REV2 등은 그대로 코드 뒤에 붙습니다.'
+                  : '숫자만 입력하면 -V1 형식, V1·REV2 등은 그대로 붙습니다. 저장 시 품목코드가 함께 바뀝니다.'}
+              </p>
+            </label>
+          ) : null}
+        </div>
         {showMaterialFields ? (
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>규격</span>

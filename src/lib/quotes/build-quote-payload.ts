@@ -21,6 +21,7 @@ export type QuoteFormSnapshot = {
   postTest?: string
   postPacking?: string
   specialDiscount: string
+  productionKind?: '샘플' | '양산'
   includeSmd?: boolean
   includeDip?: boolean
   assemblyLines?: PostProcessLineForm[]
@@ -53,28 +54,25 @@ export function buildQuoteDetailInfo(
   const qty = result.qty || 0
   const materialCostPerUnit = Number(form.materialCost) || 0
   const metalMaskCost = Number(form.metalMaskCost) || 0
-  const includeDip = form.includeDip !== false
-  const assemblyLines: PostProcessLine[] =
-    includeDip && form.assemblyLines ? postProcessLinesToModels(form.assemblyLines) : []
-  const testLines: PostProcessLine[] =
-    includeDip && form.testLines ? postProcessLinesToModels(form.testLines) : []
-  const packingLines: PostProcessLine[] =
-    includeDip && form.packingLines ? postProcessLinesToModels(form.packingLines) : []
-  const postAssembly = includeDip
-    ? form.assemblyLines
-      ? sumPostProcessLineMinutes(assemblyLines)
-      : Number(form.postAssembly) || 0
-    : 0
-  const postTest = includeDip
-    ? form.testLines
-      ? sumPostProcessLineMinutes(testLines)
-      : Number(form.postTest) || 0
-    : 0
-  const postPacking = includeDip
-    ? form.packingLines
-      ? sumPostProcessLineMinutes(packingLines)
-      : Number(form.postPacking) || 0
-    : 0
+  const sampleCost = result.common.sampleCost || 0
+  const auxiliaryMaterialCostPerUnit =
+    result.qty > 0 ? result.common.auxiliaryMaterial / result.qty : 0
+  const assemblyLines: PostProcessLine[] = form.assemblyLines
+    ? postProcessLinesToModels(form.assemblyLines)
+    : []
+  const testLines: PostProcessLine[] = form.testLines ? postProcessLinesToModels(form.testLines) : []
+  const packingLines: PostProcessLine[] = form.packingLines
+    ? postProcessLinesToModels(form.packingLines)
+    : []
+  const postAssembly = form.assemblyLines
+    ? sumPostProcessLineMinutes(assemblyLines)
+    : Number(form.postAssembly) || 0
+  const postTest = form.testLines
+    ? sumPostProcessLineMinutes(testLines)
+    : Number(form.postTest) || 0
+  const postPacking = form.packingLines
+    ? sumPostProcessLineMinutes(packingLines)
+    : Number(form.postPacking) || 0
 
   return {
     amounts: {
@@ -87,6 +85,8 @@ export function buildQuoteDetailInfo(
       materialManagementCost: result.common.materialManagement,
       setupCost: result.common.smtSetup,
       subMaterialCost: metalMaskCost,
+      sampleCost,
+      auxiliaryMaterialCost: result.common.auxiliaryMaterial,
     },
     inputs: {
       smt: {
@@ -131,9 +131,11 @@ export function buildQuoteDetailInfo(
     settings: {
       materialCostPerUnit,
       metalMaskCost,
+      auxiliaryMaterialCostPerUnit,
       smtIncludesSetup: true,
       pcbBoardCount: Number(form.pcbBoardCount) || pcbBoards.length,
       specialDiscount: Number(form.specialDiscount) || 0,
+      productionKind: form.productionKind === '샘플' ? '샘플' : '양산',
       quoteType,
       includeSmd: Boolean(form.includeSmd),
       includeDip: Boolean(form.includeDip),

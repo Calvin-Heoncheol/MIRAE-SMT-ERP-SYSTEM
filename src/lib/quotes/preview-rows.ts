@@ -1,6 +1,7 @@
 import {
   DIP_UNIT,
   SMT_PLACEMENT_MIN_SCORE,
+  computeSampleCostTotal,
   getPostRate,
   getSmtPlacementMinFee,
   getSmtUnitRates,
@@ -23,7 +24,7 @@ import type {
 } from './types'
 import { toEstimateInputFromDetail } from './utils'
 
-export type PreviewSection = 'smt' | 'setup' | 'dip' | 'post' | 'material'
+export type PreviewSection = 'smt' | 'setup' | 'dip' | 'post' | 'material' | 'other'
 
 export type PreviewRow = {
   label: string
@@ -53,6 +54,7 @@ export type PreviewFormFields = {
   postPacking: string | number
   materialCost: string | number
   metalMaskCost?: string | number
+  productionKind?: '샘플' | '양산'
   assemblyLines?: PreviewPostProcessLine[]
   testLines?: PreviewPostProcessLine[]
   packingLines?: PreviewPostProcessLine[]
@@ -76,6 +78,7 @@ export const PDF_SECTION_COLORS: Record<PreviewSection, PdfSectionColor> = {
   dip: { bg: '#ffedd5', line: '#fdba74', accent: '#ea580c' },
   post: { bg: '#dcfce7', line: '#86efac', accent: '#16a34a' },
   material: { bg: '#ede9fe', line: '#c4b5fd', accent: '#7c3aed' },
+  other: { bg: '#fef3c7', line: '#fcd34d', accent: '#d97706' },
 }
 
 export function formatPreviewRowUnit(
@@ -99,14 +102,14 @@ export function isPreviewHighlightRow(row: PreviewRow) {
 /** PDF 항목별 요약 — 섹션별 제품명·합계 */
 export function isPdfBoardDetailSummaryRow(row: PreviewRow) {
   if (row.boardTotal) return true
-  return row.sectionTotal === 'post' || row.sectionTotal === 'material'
+  return row.sectionTotal === 'post' || row.sectionTotal === 'material' || row.sectionTotal === 'other'
 }
 
 export function filterPdfBoardDetailRows(rows: PreviewRow[]) {
   return rows.filter(isPdfBoardDetailSummaryRow)
 }
 
-export type PdfBreakdownSection = 'smt' | 'setup' | 'dip' | 'post' | 'material'
+export type PdfBreakdownSection = 'smt' | 'setup' | 'dip' | 'post' | 'material' | 'other'
 
 export function filterPdfBreakdownRows(
   rows: PreviewRow[],
@@ -204,6 +207,7 @@ export function buildProcessBreakdownSections(
     { key: 'smt', title: 'SMD' },
     { key: 'post', title: pdfSummarySectionLabel(labels.postProcess, quoteType) },
     { key: 'material', title: pdfSummarySectionLabel(labels.materials, quoteType) },
+    { key: 'other', title: pdfSummarySectionLabel(labels.other, quoteType) },
   ]
 
   return definitions.flatMap(({ key, title }) => {
@@ -272,6 +276,7 @@ export function previewFormFromQuote(quote: QuoteListItem): PreviewFormFields {
     postPacking: input.postPacking ?? 0,
     materialCost: input.materialCost ?? 0,
     metalMaskCost: input.metalMaskCost ?? 0,
+    productionKind: input.productionKind === '샘플' ? '샘플' : '양산',
     assemblyLines: post.assemblyLines,
     testLines: post.testLines,
     packingLines: post.packingLines,
@@ -574,10 +579,8 @@ function previewMaterialRows(
   const qty = result.qty || 1
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, qty)
-  const metalMaskTotal =
-    Number(form.metalMaskCost) || result.common.subMaterial || 0
-  const metalMaskPerUnit = quotePerUnitTotal(metalMaskTotal, qty)
-  const totalPerUnit = materialPerUnit + materialMgmtPerUnit + metalMaskPerUnit
+  const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, qty)
+  const totalPerUnit = materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
 
   const rows: PreviewRow[] = [
     {
@@ -598,11 +601,12 @@ function previewMaterialRows(
   })
 
   rows.push({
-    label: labels.metalMask,
-    description: labelType === 'domestic' ? '일회성 비용' : 'One-time charge',
-    unit: metalMaskTotal,
-    count: labels.oneTime,
-    amount: metalMaskPerUnit,
+    label: labels.auxiliaryMaterial,
+    description:
+      labelType === 'domestic' ? 'SMD·DIP 합계의 5%' : '5% of SMD + DIP totals',
+    unit: auxiliaryPerUnit,
+    count: labels.oneUnit,
+    amount: auxiliaryPerUnit,
     indent: 1,
   })
 
@@ -613,6 +617,61 @@ function previewMaterialRows(
     amount: materialMgmtPerUnit,
     indent: 1,
   })
+
+  return rows
+}
+
+function previewOtherRows(
+  result: EstimateResult,
+  form: PreviewFormFields,
+  quoteType: QuoteType,
+  labelType: QuoteType = quoteType,
+): PreviewRow[] {
+  const labels = getPreviewLabels(labelType)
+  const qty = result.qty || 1
+  const metalMaskTotal =
+    Number(form.metalMaskCost) || result.common.subMaterial || 0
+  const metalMaskPerUnit = quotePerUnitTotal(metalMaskTotal, qty)
+  const isSample =
+    form.productionKind === '샘플' || (result.common.sampleCost || 0) > 0
+  const sampleTotal = isSample
+    ? result.common.sampleCost || computeSampleCostTotal('샘플')
+    : 0
+  const samplePerUnit = quotePerUnitTotal(sampleTotal, qty)
+  const totalPerUnit = metalMaskPerUnit + samplePerUnit
+  if (totalPerUnit <= 0) return []
+
+  const rows: PreviewRow[] = [
+    {
+      label: labels.other,
+      amount: totalPerUnit,
+      emphasize: true,
+      amountEmphasize: true,
+      sectionTotal: 'other',
+    },
+  ]
+
+  if (metalMaskTotal > 0 || metalMaskPerUnit > 0) {
+    rows.push({
+      label: labels.metalMask,
+      description: labelType === 'domestic' ? '일회성 비용' : 'One-time charge',
+      unit: metalMaskTotal,
+      count: labels.oneTime,
+      amount: metalMaskPerUnit,
+      indent: 1,
+    })
+  }
+
+  if (sampleTotal > 0) {
+    rows.push({
+      label: labels.sampleCost,
+      description: labelType === 'domestic' ? '일회성 · 샘플 고정' : 'One-time · sample fixed',
+      unit: sampleTotal,
+      count: labels.oneTime,
+      amount: samplePerUnit,
+      indent: 1,
+    })
+  }
 
   return rows
 }
@@ -740,6 +799,7 @@ function buildBoardCentricPreviewRows(
   }
 
   rows.push(...previewMaterialRows(result, form, quoteType, labelType))
+  rows.push(...previewOtherRows(result, form, quoteType, labelType))
   return rows
 }
 
@@ -747,7 +807,7 @@ function withBoardName(rows: PreviewRow[], pcbName: string): PreviewRow[] {
   return rows.map((row) => ({ ...row, boardName: pcbName }))
 }
 
-/** PDF 세부 산정내역 — SET-UP / SMD / 후공정(납땜 포함) / 자재 */
+/** PDF 세부 산정내역 — SET-UP / SMD / 후공정(납땜 포함) / 자재 / 기타 */
 export function buildProcessCentricPdfBreakdownRows(
   result: EstimateResult,
   form: PreviewFormFields,
@@ -914,6 +974,16 @@ export function buildProcessCentricPdfBreakdownRows(
     rows.push(...materialDetails)
   }
 
+  const otherRows = previewOtherRows(result, form, quoteType, labelType)
+  if (otherRows.length > 0) {
+    const [otherHeader, ...otherDetails] = otherRows
+    rows.push({
+      ...otherHeader,
+      label: pdfSummarySectionLabel(labels.other, labelType),
+    })
+    rows.push(...otherDetails)
+  }
+
   return rows
 }
 
@@ -990,16 +1060,32 @@ export function buildPdfSummaryBreakdownLines(
 
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, result.qty || 1)
-  const metalMaskPerUnit = quotePerUnitTotal(
-    Number(form.metalMaskCost) || result.common.subMaterial || 0,
-    result.qty || 1,
-  )
-  const materials = materialPerUnit + materialMgmtPerUnit + metalMaskPerUnit
+  const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, result.qty || 1)
+  const materials = materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
   lines.push({
     label: pdfSummarySectionLabel(labels.materials, labelType),
     total: materials,
     section: 'material',
   })
+
+  const metalMaskPerUnit = quotePerUnitTotal(
+    Number(form.metalMaskCost) || result.common.subMaterial || 0,
+    result.qty || 1,
+  )
+  const isSample =
+    form.productionKind === '샘플' || (result.common.sampleCost || 0) > 0
+  const samplePerUnit = quotePerUnitTotal(
+    isSample ? result.common.sampleCost || computeSampleCostTotal('샘플') : 0,
+    result.qty || 1,
+  )
+  const otherTotal = metalMaskPerUnit + samplePerUnit
+  if (otherTotal > 0) {
+    lines.push({
+      label: pdfSummarySectionLabel(labels.other, labelType),
+      total: otherTotal,
+      section: 'other',
+    })
+  }
 
   return lines
 }
@@ -1043,11 +1129,8 @@ export function buildPdfMaterialsBoardSummaryRows(
 ): PdfSummaryBreakdownLine[] {
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, result.qty || 1)
-  const metalMaskPerUnit = quotePerUnitTotal(
-    Number(form.metalMaskCost) || result.common.subMaterial || 0,
-    result.qty || 1,
-  )
-  const total = materialPerUnit + materialMgmtPerUnit + metalMaskPerUnit
+  const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, result.qty || 1)
+  const total = materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
   return [{ label: 'Materials', total, section: 'material' as const }]
 }
 
@@ -1081,6 +1164,8 @@ export type PreviewMatrix = {
   }
   materialRows: PreviewMatrixMaterialRow[]
   materialTotalPerUnit: number
+  otherRows: PreviewMatrixMaterialRow[]
+  otherTotalPerUnit: number
   grandPerUnit: number
 }
 
@@ -1120,11 +1205,24 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
     Number(form.metalMaskCost) || result.common.subMaterial || 0,
     qty,
   )
+  const isSample =
+    form.productionKind === '샘플' || (result.common.sampleCost || 0) > 0
+  const samplePerUnit = quotePerUnitTotal(
+    isSample ? result.common.sampleCost || computeSampleCostTotal('샘플') : 0,
+    qty,
+  )
+  const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, qty)
   const materialRows: PreviewMatrixMaterialRow[] = [
     { label: '원자재 비용', amountPerUnit: materialPerUnit },
-    { label: '메탈마스크 비용 (일회성)', amountPerUnit: metalMaskPerUnit },
+    { label: '부자재 비용', amountPerUnit: auxiliaryPerUnit },
     { label: '관리비', amountPerUnit: materialMgmtPerUnit },
   ]
+  const otherRows: PreviewMatrixMaterialRow[] = [
+    { label: '메탈마스크 비용 (일회성)', amountPerUnit: metalMaskPerUnit },
+  ]
+  if (samplePerUnit > 0) {
+    otherRows.push({ label: '샘플 비용', amountPerUnit: samplePerUnit })
+  }
 
   return {
     boardRows,
@@ -1136,7 +1234,9 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
       rowTotalPerUnit: smtPerUnit + setupPerUnit + postPerUnit,
     },
     materialRows,
-    materialTotalPerUnit: materialPerUnit + materialMgmtPerUnit + metalMaskPerUnit,
+    materialTotalPerUnit: materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit,
+    otherRows,
+    otherTotalPerUnit: metalMaskPerUnit + samplePerUnit,
     grandPerUnit: result.values.grandTotal / qty,
   }
 }

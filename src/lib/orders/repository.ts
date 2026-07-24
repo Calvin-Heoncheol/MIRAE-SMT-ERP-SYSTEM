@@ -51,6 +51,7 @@ async function insertOrderLines(orderId: string, items: OrderRowPayload['items']
     quantity: item.quantity,
     unit_price: item.unitPrice,
     order_amount: item.orderAmount,
+    delivery_date: item.deliveryDate?.trim() || null,
   }))
 
   const { error } = await supabase.from('order_lines').insert(rows)

@@ -32,11 +32,13 @@ create table if not exists public.order_lines (
   quantity integer not null default 0 check (quantity > 0),
   unit_price numeric not null default 0 check (unit_price >= 0),
   order_amount numeric not null default 0 check (order_amount >= 0),
+  delivery_date date,
   derived_from_line_id uuid references public.order_lines(id) on delete cascade,
   unique (order_id, line_seq)
 );
 
 comment on column public.order_lines.derived_from_line_id is '완제품 주문 줄에서 BOM 펼침으로 생성된 반제품 줄 (주문 UI 비표시)';
+comment on column public.order_lines.delivery_date is '제품(라인)별 납기일';
 
 create index if not exists orders_order_date_idx on public.orders (order_date desc);
 create index if not exists orders_created_at_idx on public.orders (created_at desc);

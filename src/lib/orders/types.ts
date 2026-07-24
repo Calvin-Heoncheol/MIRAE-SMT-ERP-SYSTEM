@@ -10,6 +10,8 @@ export type OrderLineItem = {
   quantity: number
   unitPrice: number
   orderAmount: number
+  /** 제품(라인)별 납기일 YYYY-MM-DD */
+  deliveryDate: string
   /** BOM 펼침으로 생성된 반제품 줄 */
   derivedFromLineId?: string | null
 }
@@ -42,6 +44,7 @@ export type OrderLineRecord = {
   quantity: number
   unit_price: number
   order_amount: number
+  delivery_date?: string | null
   derived_from_line_id?: string | null
 }
 

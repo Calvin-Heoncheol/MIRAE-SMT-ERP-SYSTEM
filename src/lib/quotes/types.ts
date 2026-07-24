@@ -50,6 +50,10 @@ export type QuoteDetailAmounts = {
   materialManagementCost: number
   setupCost: number
   subMaterialCost: number
+  /** 샘플 비용 (일회성, 구분=샘플일 때) */
+  sampleCost?: number
+  /** 부자재 비용 총액 (대당 × 수량) */
+  auxiliaryMaterialCost?: number
 }
 
 /** DIP 조립·테스트·포장 세부 공정 행 */
@@ -81,8 +85,12 @@ export type QuoteDetailInfo = {
     materialCostPerUnit?: number
     /** 메탈마스크 총액 */
     metalMaskCost?: number
+    /** 부자재 비용(대당) — SMD+DIP 합계의 5% */
+    auxiliaryMaterialCostPerUnit?: number
     pcbBoardCount?: number
     specialDiscount?: number
+    /** 샘플 / 양산 */
+    productionKind?: '샘플' | '양산'
     quoteType?: QuoteType | 'legacy'
     smtIncludesSetup?: boolean
     /** 국내용/해외용 — SMD(SMT) 입력 섹션 사용 */
@@ -126,6 +134,10 @@ export type EstimateInput = {
   materialCost?: number | string
   /** 메탈마스크 총액 (단면 11만 / 양면 22만 × PCB 수) */
   metalMaskCost?: number | string
+  /** 샘플 / 양산 — 샘플이면 샘플 비용 고정 반영 */
+  productionKind?: '샘플' | '양산'
+  /** 부자재 비용(대당) */
+  auxiliaryMaterialCost?: number | string
   postAssembly?: number | string
   postTest?: number | string
   postPacking?: number | string
@@ -179,6 +191,10 @@ export type EstimateResult = {
     pcbBoardDetails: SmtBoardDetail[]
     dipBoardDetails: DipBoardDetail[]
     subMaterial: number
+    /** 샘플 비용 총액 (일회성) */
+    sampleCost: number
+    /** 부자재 비용 총액 (대당 × 수량) */
+    auxiliaryMaterial: number
     materialManagement: number
     specialDiscount: number
     subtotalBeforeDiscount: number

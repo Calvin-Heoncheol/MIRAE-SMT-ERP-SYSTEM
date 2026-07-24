@@ -14,6 +14,7 @@ export function orderItemFormToModel(item: OrderItemForm) {
     quantity,
     unitPrice,
     orderAmount: computeLineAmount(quantity, unitPrice),
+    deliveryDate: String(item.deliveryDate || '').trim(),
   }
 }
 
@@ -29,7 +30,8 @@ export function validateOrderItems(
         item.productName ||
         item.productCode ||
         item.quantity > 0 ||
-        item.orderAmount > 0,
+        item.orderAmount > 0 ||
+        item.deliveryDate,
     )
 
   if (!parsed.length) {
@@ -48,6 +50,9 @@ export function validateOrderItems(
     }
     if (item.unitPrice < 0) {
       return { ok: false as const, message: `${index + 1}행 단가는 0 이상이어야 합니다.` }
+    }
+    if (!item.deliveryDate) {
+      return { ok: false as const, message: `${index + 1}행 납기일을 입력하세요.` }
     }
 
     const matched = resolveOrderLineProduct(products, customer, {

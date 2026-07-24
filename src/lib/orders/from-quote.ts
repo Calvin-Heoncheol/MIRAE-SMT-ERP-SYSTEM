@@ -2,7 +2,7 @@ import type { BusinessPartner } from '@/lib/partners/types'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import type { Product } from '@/lib/products/types'
 import { resolveOrderLineProduct } from '@/lib/products/utils'
-import type { OrderRowPayload } from './types'
+import type { OrderCategory, OrderRowPayload } from './types'
 import { computeLineAmount, todayYmdSeoul } from './utils'
 
 export type BuildOrderFromQuoteInput = {
@@ -12,6 +12,7 @@ export type BuildOrderFromQuoteInput = {
   productName: string
   boardQty: number
   totalAmount: number
+  category?: OrderCategory
 }
 
 /**
@@ -61,7 +62,7 @@ export function buildOrderPayloadFromQuote(
       order_date: todayYmdSeoul(),
       delivery_date: '',
       customer: partner.name,
-      category: '양산',
+      category: input.category === '샘플' ? '샘플' : '양산',
       note: `견적 ${input.quoteNumber} 전환`,
       source: 'quote',
       source_quote_id: input.quoteId,
@@ -73,6 +74,7 @@ export function buildOrderPayloadFromQuote(
           quantity,
           unitPrice,
           orderAmount: computeLineAmount(quantity, unitPrice),
+          deliveryDate: '',
         },
       ],
     },

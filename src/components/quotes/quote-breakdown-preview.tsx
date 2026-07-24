@@ -33,6 +33,7 @@ type QuoteBreakdownPreviewProps = {
   customer: string
   productName: string
   issueDate: string
+  productionKind?: '샘플' | '양산'
   loading?: boolean
   emptyMessage?: string
 }
@@ -43,8 +44,8 @@ function breakdownPageTitle(quoteType: QuoteType) {
 
 function breakdownPageNote(quoteType: QuoteType) {
   return quoteType === 'domestic'
-    ? 'SET-UP·SMD·후공정(납땜 포함)·자재 항목별 단가·수량 기준 산정식입니다.'
-    : 'Itemized calculation for SET-UP, SMD, post-process (incl. soldering), and materials.'
+    ? 'SET-UP·SMD·후공정(납땜 포함)·자재·기타 항목별 단가·수량 기준 산정식입니다.'
+    : 'Itemized calculation for SET-UP, SMD, post-process (incl. soldering), materials, and other.'
 }
 
 function formatAmount(
@@ -182,6 +183,7 @@ export function QuoteBreakdownPreview({
   customer,
   productName,
   issueDate,
+  productionKind = '양산',
   loading = false,
   emptyMessage,
 }: QuoteBreakdownPreviewProps) {
@@ -190,6 +192,10 @@ export function QuoteBreakdownPreview({
   const companyName = isDomestic ? APP_SHORT_NAME : COMPANY_NAME_EN
   const recipientLabel = isDomestic ? '수신' : 'Bill To'
   const supplierLabel = isDomestic ? '공급' : 'From'
+  const productionKindText =
+    productionKind === '샘플'
+      ? previewLabels.productionKindSample
+      : previewLabels.productionKindMass
   const breakdownRows = result ? buildProcessCentricPdfBreakdownRows(result, form, quoteType) : []
   const sections = result ? buildProcessBreakdownSections(breakdownRows, quoteType) : []
   const previewSummary = result
@@ -215,15 +221,19 @@ export function QuoteBreakdownPreview({
         <div className="border-b border-slate-200 p-4 sm:border-b-0 sm:border-r lg:p-5">
           <p className="mb-3 text-[11px] font-bold tracking-[0.2em] text-slate-500">{recipientLabel}</p>
           <dl className="space-y-2 text-sm">
-            <div className="grid grid-cols-[72px_1fr] gap-2">
+            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
               <dt className="text-slate-500">{previewLabels.customer}</dt>
-              <dd className="font-semibold text-slate-900">{customer}</dd>
+              <dd className="min-w-0 break-words font-semibold text-slate-900">{customer}</dd>
             </div>
-            <div className="grid grid-cols-[72px_1fr] gap-2">
+            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
               <dt className="text-slate-500">{previewLabels.product}</dt>
-              <dd className="font-semibold text-slate-900">{productName}</dd>
+              <dd className="min-w-0 break-words font-semibold text-slate-900">{productName}</dd>
             </div>
-            <div className="grid grid-cols-[72px_1fr] gap-2">
+            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
+              <dt className="text-slate-500">{previewLabels.productionKind}</dt>
+              <dd className="font-semibold text-slate-900">{productionKindText}</dd>
+            </div>
+            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
               <dt className="text-slate-500">{previewLabels.quantity}</dt>
               <dd className="font-semibold text-slate-900">
                 {result ? previewLabels.formatQty(result.qty) : '-'}
@@ -238,15 +248,15 @@ export function QuoteBreakdownPreview({
               <dt className="text-slate-500">{isDomestic ? '업체명' : 'Company'}</dt>
               <dd className="font-semibold text-slate-900">{companyName}</dd>
             </div>
-            <div className="grid grid-cols-[72px_1fr] gap-2">
+            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
               <dt className="text-slate-500">{isDomestic ? '주소' : 'Address'}</dt>
-              <dd className="font-semibold leading-snug text-slate-900">
+              <dd className="min-w-0 break-words font-semibold leading-snug text-slate-900">
                 {isDomestic ? COMPANY_ADDRESS_DOMESTIC : COMPANY_ADDRESS_EXPORT}
               </dd>
             </div>
-            <div className="grid grid-cols-[72px_1fr] gap-2">
+            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
               <dt className="text-slate-500">E-mail</dt>
-              <dd className="font-semibold text-blue-700">
+              <dd className="min-w-0 break-all font-semibold text-blue-700">
                 {isDomestic ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT}
               </dd>
             </div>

@@ -133,7 +133,7 @@ export function buildProductionOrderLines(
         orderId: order.orderId,
         orderNumber: order.orderNumber,
         orderDate: order.orderDate,
-        deliveryDate: order.deliveryDate,
+        deliveryDate: item.deliveryDate || order.deliveryDate,
         customer: order.customer,
         productCode,
         productName,

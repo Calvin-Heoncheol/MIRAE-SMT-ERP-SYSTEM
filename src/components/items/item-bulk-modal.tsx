@@ -219,11 +219,11 @@ function ItemBulkModalContent({
               Excel에서 아래 열 순서대로 복사한 뒤, 이 칸에 붙여넣으세요.
             </p>
             {!isManualItemCodeCategory(category) && !isOptionalItemCodeCategory(category) ? (
-              <p className="mt-1 text-xs text-blue-700">품목코드는 저장 시 자동 생성됩니다.</p>
+              <p className="mt-1 text-xs text-blue-700">품목코드는 비우면 품목명으로 생성됩니다.</p>
             ) : null}
             {isOptionalItemCodeCategory(category) ? (
               <p className="mt-1 text-xs text-blue-700">
-                품목코드 열은 선택입니다. 비우면 자동 생성되고, 입력하면 그 값이 코드가 됩니다.
+                품목코드 열은 선택입니다. 비우면 품목명으로 생성되고, 입력하면 그 값이 코드가 됩니다.
               </p>
             ) : null}
 

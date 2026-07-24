@@ -46,10 +46,16 @@ export type PreviewLabels = {
   testDesc: string
   packingDesc: string
   materials: string
+  other: string
   rawMaterial: string
   managementFee: string
+  auxiliaryMaterial: string
   subMaterial: string
   metalMask: string
+  sampleCost: string
+  productionKind: string
+  productionKindSample: string
+  productionKindMass: string
   setupBaseTime: string
   firstArticle: string
   setupBaseDesc: string
@@ -107,10 +113,16 @@ const DOMESTIC_LABELS: PreviewLabels = {
   testDesc: '경사도 · 화이트밸런스 · MSR',
   packingDesc: '액세서리 · 제품',
   materials: '자재',
+  other: '기타',
   rawMaterial: '원자재 비용',
   managementFee: '관리비',
+  auxiliaryMaterial: '부자재 비용',
   subMaterial: '메탈마스크 비용 (일회성)',
   metalMask: '메탈마스크 비용 (일회성)',
+  sampleCost: '샘플 비용',
+  productionKind: '구분',
+  productionKindSample: '샘플',
+  productionKindMass: '양산',
   setupBaseTime: '기본시간',
   firstArticle: '초품검사',
   setupBaseDesc: 'Loader/Unloader · Screen Print & SPI · Reflow Profile 측정',
@@ -168,10 +180,16 @@ const EXPORT_LABELS: PreviewLabels = {
   testDesc: 'Slope · White Balance · MSR',
   packingDesc: 'Accessories · Product',
   materials: 'Materials',
+  other: 'Other',
   rawMaterial: 'Raw Material Cost',
   managementFee: 'Management Fee',
+  auxiliaryMaterial: 'Auxiliary Material Cost',
   subMaterial: 'Metal Mask Cost (one-time)',
   metalMask: 'Metal Mask Cost (one-time)',
+  sampleCost: 'Sample Fee',
+  productionKind: 'Type',
+  productionKindSample: 'Sample',
+  productionKindMass: 'Production',
   setupBaseTime: 'Base Time',
   firstArticle: 'First Article Inspection',
   setupBaseDesc: 'Loader/Unloader · Screen Print & SPI · Reflow Profile',

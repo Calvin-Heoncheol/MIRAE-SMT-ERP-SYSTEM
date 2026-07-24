@@ -2,10 +2,8 @@ import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import { syncFinishedParentsUsingChild } from '@/lib/bom/repository'
 import type { Item, ItemPayload, UpdateItemPayload } from './types'
-import { isManualItemCodeCategory, isOptionalItemCodeCategory, ITEM_CATEGORY_CODE_PREFIX } from './types'
+import { isManualItemCodeCategory } from './types'
 import {
-  findMaxItemCodeSequence,
-  formatItemCode,
   mapItemRecord,
   normalizeItemCategory,
   toItemInsertRow,
@@ -38,28 +36,129 @@ function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }
 
 function mapDuplicateError(detail: string) {
   if (detail.includes('items_pkey') || detail.includes('duplicate key')) {
-    return '이미 등록된 품목코드입니다.'
+    return '이미 등록된 품목코드입니다. 품목명을 바꾸거나 품목코드를 직접 입력해 주세요.'
   }
   return detail
 }
 
-async function fetchItemIdsByPrefix(
+/** 품목코드(PK) 변경 시 참조 테이블도 함께 갱신 */
+async function rekeyItemReferences(
   supabase: ReturnType<typeof createSupabaseClient>,
-  prefix: string,
-): Promise<{ ok: true; ids: string[] } | { ok: false; detail: string }> {
-  const { data, error } = await supabase.from('items').select('id').ilike('id', `${prefix}%`)
+  oldId: string,
+  newId: string,
+): Promise<{ ok: true } | { ok: false; detail: string }> {
+  const updates: Array<PromiseLike<{ error: { message: string } | null }>> = [
+    supabase.from('bom_items').update({ parent_product_id: newId }).eq('parent_product_id', oldId),
+    supabase.from('bom_items').update({ child_product_id: newId }).eq('child_product_id', oldId),
+    supabase
+      .from('order_assembly_groups')
+      .update({ parent_product_id: newId })
+      .eq('parent_product_id', oldId),
+    supabase
+      .from('order_assembly_group_lines')
+      .update({ child_product_id: newId })
+      .eq('child_product_id', oldId),
+    supabase.from('order_lines').update({ product_id: newId }).eq('product_id', oldId),
+    supabase.from('order_lines').update({ product_code: newId }).eq('product_code', oldId),
+    supabase.from('metal_mask_assets').update({ item_id: newId }).eq('item_id', oldId),
+    supabase.from('material_inbound_lines').update({ material_id: newId }).eq('material_id', oldId),
+    supabase.from('material_outbound_lines').update({ material_id: newId }).eq('material_id', oldId),
+    supabase
+      .from('material_purchase_order_lines')
+      .update({ material_id: newId })
+      .eq('material_id', oldId),
+  ]
 
-  if (error) {
-    return { ok: false, detail: error.message }
+  for (const pending of updates) {
+    const { error } = await pending
+    if (error) {
+      // 테이블이 없는 환경도 있어 스키마 오류는 무시하고, 그 외는 실패 처리
+      const message = error.message || ''
+      if (
+        message.includes('schema cache') ||
+        message.includes('does not exist') ||
+        message.includes('Could not find')
+      ) {
+        continue
+      }
+      return { ok: false, detail: message }
+    }
   }
 
-  return { ok: true, ids: (data || []).map((row) => row.id) }
+  return { ok: true }
 }
 
-async function resolveCreateItemId(
+async function replaceItemId(
   supabase: ReturnType<typeof createSupabaseClient>,
+  oldId: string,
+  newId: string,
+  payload: UpdateItemPayload,
+): Promise<SaveItemResult> {
+  const { data: existing, error: fetchError } = await supabase
+    .from('items')
+    .select('*')
+    .eq('id', oldId)
+    .maybeSingle()
+
+  if (fetchError) {
+    return { ok: false, reason: 'query', detail: fetchError.message }
+  }
+  if (!existing) {
+    return { ok: false, reason: 'validation', detail: '기존 품목을 찾을 수 없습니다.' }
+  }
+
+  const { data: conflict, error: conflictError } = await supabase
+    .from('items')
+    .select('id')
+    .eq('id', newId)
+    .maybeSingle()
+
+  if (conflictError) {
+    return { ok: false, reason: 'query', detail: conflictError.message }
+  }
+  if (conflict) {
+    return {
+      ok: false,
+      reason: 'validation',
+      detail: `이미 등록된 품목코드입니다: ${newId}`,
+    }
+  }
+
+  const insertPayload: ItemPayload = {
+    ...payload,
+    id: newId,
+  }
+
+  const { error: insertError } = await supabase.from('items').insert({
+    ...toItemInsertRow(insertPayload),
+    is_active: existing.is_active !== false,
+  })
+
+  if (insertError) {
+    return { ok: false, reason: 'query', detail: mapDuplicateError(insertError.message) }
+  }
+
+  const rekey = await rekeyItemReferences(supabase, oldId, newId)
+  if (!rekey.ok) {
+    await supabase.from('items').delete().eq('id', newId)
+    return { ok: false, reason: 'query', detail: rekey.detail }
+  }
+
+  const { error: deleteError } = await supabase.from('items').delete().eq('id', oldId)
+  if (deleteError) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: `새 코드는 반영됐지만 이전 코드 삭제에 실패했습니다: ${deleteError.message}`,
+    }
+  }
+
+  return { ok: true, id: newId }
+}
+
+function resolveCreateItemId(
   payload: ItemPayload,
-): Promise<{ ok: true; id: string } | { ok: false; detail: string }> {
+): { ok: true; id: string } | { ok: false; detail: string } {
   const category = normalizeItemCategory(payload.itemCategory)
   if (!category) {
     return { ok: false, detail: '품목구분을 선택해 주세요.' }
@@ -73,23 +172,17 @@ async function resolveCreateItemId(
     return { ok: true, id }
   }
 
-  const optionalId = payload.id.trim()
-  if (isOptionalItemCodeCategory(category) && optionalId) {
-    return { ok: true, id: optionalId }
+  const explicitId = payload.id.trim()
+  if (explicitId) {
+    return { ok: true, id: explicitId }
   }
 
-  const prefix = ITEM_CATEGORY_CODE_PREFIX[category]
-  if (!prefix) {
-    return { ok: false, detail: '품목코드를 생성할 수 없습니다.' }
+  // 품목코드 미입력 시 품목명을 코드로 사용 (기존 SFG-/FG- 일련번호 대체)
+  const nameAsId = payload.name.trim()
+  if (!nameAsId) {
+    return { ok: false, detail: '품목명을 입력해 주세요.' }
   }
-
-  const idsResult = await fetchItemIdsByPrefix(supabase, prefix)
-  if (!idsResult.ok) {
-    return { ok: false, detail: idsResult.detail }
-  }
-
-  const nextSequence = findMaxItemCodeSequence(idsResult.ids.map((id) => ({ id })), prefix) + 1
-  return { ok: true, id: formatItemCode(prefix, nextSequence) }
+  return { ok: true, id: nameAsId }
 }
 
 export async function fetchItems(activeOnly = true): Promise<FetchItemsResult> {
@@ -143,7 +236,7 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
     const supabase = createSupabaseClient()
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const resolved = await resolveCreateItemId(supabase, payload)
+      const resolved = resolveCreateItemId(payload)
       if (!resolved.ok) {
         return { ok: false, reason: 'validation', detail: resolved.detail }
       }
@@ -203,7 +296,11 @@ export async function createItems(payloads: ItemPayload[]): Promise<CreateItemsR
   return { ok: true, ids }
 }
 
-export async function updateItem(id: string, payload: UpdateItemPayload): Promise<SaveItemResult> {
+export async function updateItem(
+  id: string,
+  payload: UpdateItemPayload,
+  options?: { nextId?: string },
+): Promise<SaveItemResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
@@ -222,8 +319,24 @@ export async function updateItem(id: string, payload: UpdateItemPayload): Promis
     return { ok: false, reason: 'validation', detail: '품목구분을 선택해 주세요.' }
   }
 
+  const nextId = String(options?.nextId || '').trim()
+
   try {
     const supabase = createSupabaseClient()
+
+    if (nextId && nextId !== key) {
+      const replaced = await replaceItemId(supabase, key, nextId, payload)
+      if (!replaced.ok) return replaced
+
+      if (normalizeItemCategory(payload.itemCategory) === 3) {
+        const syncResult = await syncFinishedParentsUsingChild(replaced.id)
+        if (!syncResult.ok) {
+          return { ok: false, reason: 'query', detail: syncResult.detail }
+        }
+      }
+      return replaced
+    }
+
     const { error } = await supabase.from('items').update(toItemUpdateRow(payload)).eq('id', key)
 
     if (error) {

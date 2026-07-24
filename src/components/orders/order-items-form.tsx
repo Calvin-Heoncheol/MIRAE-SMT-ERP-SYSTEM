@@ -4,7 +4,8 @@ import { type Dispatch, type SetStateAction } from 'react'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { ProductCombobox } from '@/components/orders/product-combobox'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
-import type { OrderItemForm } from '@/lib/orders/form-state'
+import { formatItemVersionLabel, parseItemVersionCode } from '@/lib/items/version-code'
+import { defaultOrderItemForm, type OrderItemForm } from '@/lib/orders/form-state'
 import { computeLineAmount } from '@/lib/orders/utils'
 import type { Product } from '@/lib/products/types'
 
@@ -25,7 +26,16 @@ function applyProductToItem(item: OrderItemForm, product: Product): OrderItemFor
   }
 }
 
-export function OrderItemsForm({ items, customer, products, onChange }: OrderItemsFormProps) {
+function formatProductVersionLabel(productCode: string) {
+  return formatItemVersionLabel(parseItemVersionCode(productCode.trim()).version)
+}
+
+export function OrderItemsForm({
+  items,
+  customer,
+  products,
+  onChange,
+}: OrderItemsFormProps) {
   function patchItem(index: number, patch: Partial<OrderItemForm>) {
     onChange((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
@@ -33,10 +43,10 @@ export function OrderItemsForm({ items, customer, products, onChange }: OrderIte
   }
 
   function addRow() {
-    onChange([
-      ...items,
-      { productId: '', productCode: '', productName: '', quantity: '0', unitPrice: '0' },
-    ])
+    const fallback =
+      [...items].reverse().find((item) => String(item.deliveryDate || '').trim())?.deliveryDate ||
+      ''
+    onChange([...items, defaultOrderItemForm(String(fallback))])
   }
 
   function removeRow(index: number) {
@@ -62,12 +72,18 @@ export function OrderItemsForm({ items, customer, products, onChange }: OrderIte
         <ErpRowAddButton onClick={addRow} title="제품 추가" />
       </div>
 
-      <div className="rounded-lg border border-slate-200">
-        <table className="min-w-[640px] w-full border-collapse text-sm">
+      <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <table className="min-w-[980px] w-full border-collapse text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="min-w-[280px] px-3 py-2 text-left text-sm font-semibold text-slate-600">
+              <th className="min-w-[140px] px-3 py-2 text-left text-sm font-semibold text-slate-600">
+                제품코드
+              </th>
+              <th className="min-w-[220px] px-3 py-2 text-left text-sm font-semibold text-slate-600">
                 제품명
+              </th>
+              <th className="min-w-[64px] whitespace-nowrap px-3 py-2 text-left text-sm font-semibold text-slate-600">
+                버전
               </th>
               <th className="min-w-[72px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
                 수량
@@ -77,6 +93,9 @@ export function OrderItemsForm({ items, customer, products, onChange }: OrderIte
               </th>
               <th className="min-w-[104px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
                 금액 (원)
+              </th>
+              <th className="min-w-[132px] whitespace-nowrap px-3 py-2 text-left text-sm font-semibold text-slate-600">
+                납기일
               </th>
               <th className="w-10 px-2 py-2" />
             </tr>
@@ -88,18 +107,38 @@ export function OrderItemsForm({ items, customer, products, onChange }: OrderIte
                 <tr key={index} className="border-t border-slate-100">
                   <td className="px-3 py-2 align-top">
                     <ProductCombobox
+                      value={item.productCode}
+                      products={products}
+                      customer={customer}
+                      field="code"
+                      placeholder="제품코드 검색"
+                      ariaLabel={`${index + 1}행 제품코드`}
+                      inputClassName={`${inputClassName} min-w-[140px]`}
+                      onValueChange={(productCode) =>
+                        patchItem(index, { productCode, productId: '', productName: '' })
+                      }
+                      onProductSelect={(product) => selectProduct(index, product)}
+                    />
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <ProductCombobox
                       value={item.productName}
                       products={products}
                       customer={customer}
                       field="name"
                       placeholder="제품명 입력 또는 검색"
                       ariaLabel={`${index + 1}행 제품명`}
-                      inputClassName={`${inputClassName} min-w-[280px]`}
+                      inputClassName={`${inputClassName} min-w-[220px]`}
                       onValueChange={(productName) =>
                         patchItem(index, { productName, productId: '', productCode: '' })
                       }
                       onProductSelect={(product) => selectProduct(index, product)}
                     />
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <div className="flex h-[38px] min-w-[64px] items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-sm font-medium tabular-nums text-slate-700">
+                      {formatProductVersionLabel(item.productCode || item.productId)}
+                    </div>
                   </td>
                   <td className="px-3 py-2 align-top">
                     <QuoteNumericInput
@@ -120,6 +159,15 @@ export function OrderItemsForm({ items, customer, products, onChange }: OrderIte
                   <td className="px-3 py-2 text-right text-sm font-medium tabular-nums text-slate-800 align-top">
                     {amount.toLocaleString('ko-KR')}
                   </td>
+                  <td className="px-3 py-2 align-top">
+                    <input
+                      type="date"
+                      value={item.deliveryDate || ''}
+                      onChange={(event) => patchItem(index, { deliveryDate: event.target.value })}
+                      aria-label={`${index + 1}행 납기일`}
+                      className={`${inputClassName} min-w-[132px]`}
+                    />
+                  </td>
                   <td className="w-10 px-2 py-2 text-center align-top">
                     <button
                       type="button"
@@ -138,8 +186,8 @@ export function OrderItemsForm({ items, customer, products, onChange }: OrderIte
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        제품명은 등록된 제품 목록과 정확히 일치해야 저장됩니다. 선택 후 제품명을 수정·삭제하면 저장되지
-        않습니다.
+        제품코드 또는 제품명으로 등록 제품을 선택하세요. 선택 후 값을 수정·삭제하면 저장되지 않습니다.
+        버전은 제품코드 접미사(V1, REV2 등)에서 자동 표시됩니다. 납기일은 제품마다 다르게 입력할 수 있습니다.
       </p>
     </div>
   )

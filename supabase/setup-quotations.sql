@@ -10,6 +10,8 @@ create table if not exists public.quotations (
   board_qty integer not null default 0 check (board_qty >= 0),
   total_amount numeric not null default 0 check (total_amount >= 0),
   detail_info jsonb not null default '{}'::jsonb,
+  created_by uuid references auth.users (id) on delete set null,
+  created_by_name text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint quotations_id_mrq_format_check check (id ~ '^MRQ-[0-9]+$')
@@ -17,10 +19,13 @@ create table if not exists public.quotations (
 
 comment on table public.quotations is '견적 마스터 — 내부코드=id(MRQ-0001)';
 comment on column public.quotations.id is '내부 견적코드 MRQ-0001 (INSERT 시 자동 발급, 수정 불가)';
+comment on column public.quotations.created_by is '등록자 auth.users.id';
+comment on column public.quotations.created_by_name is '등록자 표시명 스냅샷 (profiles.display_name)';
 
 create index if not exists quotations_quote_date_idx on public.quotations (quote_date desc);
 create index if not exists quotations_customer_idx on public.quotations (customer);
 create index if not exists quotations_created_at_idx on public.quotations (created_at desc);
+create index if not exists quotations_created_by_idx on public.quotations (created_by);
 
 alter table public.quotations enable row level security;
 

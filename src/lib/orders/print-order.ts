@@ -8,6 +8,7 @@ export type OrderPrintLine = {
   quantity: number
   unitPrice: number
   orderAmount: number
+  deliveryDate: string
 }
 
 export type OrderPrintData = {
@@ -56,6 +57,9 @@ export function buildOrderHtml(data: OrderPrintData) {
       const qty = formatNumber(item.quantity)
       const unitPrice = formatNumber(item.unitPrice)
       const amount = formatNumber(item.orderAmount)
+      const lineDelivery = escapeHtml(
+        formatOrderDate(item.deliveryDate) || item.deliveryDate || deliveryDate || '—',
+      )
       return `<tr>
         <td class="c-no">${index + 1}</td>
         <td class="mono">${code}</td>
@@ -63,6 +67,7 @@ export function buildOrderHtml(data: OrderPrintData) {
         <td class="num">${qty}</td>
         <td class="num">₩${unitPrice}</td>
         <td class="num amt">₩${amount}</td>
+        <td class="num">${lineDelivery}</td>
       </tr>`
     })
     .join('')
@@ -164,7 +169,7 @@ td.amt { font-weight: 700; }
 
   <div class="meta">
     <div>주문일 <strong>${orderDate}</strong></div>
-    <div>납기일 <strong>${deliveryDate}</strong></div>
+    <div>납기(최초) <strong>${deliveryDate}</strong></div>
     <div>구분 <strong>${category}</strong></div>
   </div>
 
@@ -177,6 +182,7 @@ td.amt { font-weight: 700; }
         <th>수량</th>
         <th>단가</th>
         <th>금액</th>
+        <th>납기일</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -248,6 +254,7 @@ export function buildOrderPrintData(order: OrderListGroup): OrderPrintData {
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       orderAmount: item.orderAmount,
+      deliveryDate: item.deliveryDate || order.deliveryDate,
     })),
   }
 }

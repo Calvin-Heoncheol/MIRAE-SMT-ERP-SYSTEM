@@ -308,9 +308,13 @@ function buildQuoteSummaryMetaHtml(
   const issueLabel = isKorean ? '발행일자' : 'Issue Date'
   const validityLabel = isKorean ? '유효기간' : 'Valid Until'
   const qtyLabelText = isKorean ? '생산 수량' : 'Quantity'
+  const kindLabelText = labels.productionKind
   const contactLabel = isKorean ? '담당' : 'Contact'
   const addressLabel = isKorean ? '주소' : 'Address'
   const emailLabel = 'E-mail'
+  const productionKind = quote.detailInfo.settings?.productionKind === '샘플' ? '샘플' : '양산'
+  const productionKindText =
+    productionKind === '샘플' ? labels.productionKindSample : labels.productionKindMass
 
   // 영문 PDF는 영문 회사 표기, 국문은 국문 표기 (금액은 국내 원화 유지)
   const useDomesticCompany = isKorean
@@ -339,6 +343,10 @@ function buildQuoteSummaryMetaHtml(
           <dd>${escapeHtml(productName)}</dd>
         </div>
         <div class="summary-party-row">
+          <dt>${kindLabelText}</dt>
+          <dd>${escapeHtml(productionKindText)}</dd>
+        </div>
+        <div class="summary-party-row">
           <dt>${qtyLabelText}</dt>
           <dd>${escapeHtml(qtyText)}</dd>
         </div>
@@ -351,13 +359,13 @@ function buildQuoteSummaryMetaHtml(
           <dt>${useDomesticCompany ? '업체명' : 'Company'}</dt>
           <dd>${escapeHtml(companyName)}</dd>
         </div>
-        <div class="summary-party-row summary-party-row-wide">
+        <div class="summary-party-row summary-party-row-wrap">
           <dt>${addressLabel}</dt>
-          <dd>${escapeHtml(useDomesticCompany ? COMPANY_ADDRESS_DOMESTIC : COMPANY_ADDRESS_EXPORT)}</dd>
+          <dd class="summary-party-value-wrap">${escapeHtml(useDomesticCompany ? COMPANY_ADDRESS_DOMESTIC : COMPANY_ADDRESS_EXPORT)}</dd>
         </div>
-        <div class="summary-party-row">
+        <div class="summary-party-row summary-party-row-wrap">
           <dt>${emailLabel}</dt>
-          <dd><a class="summary-email" href="mailto:${escapeHtml(useDomesticCompany ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT)}">${escapeHtml(useDomesticCompany ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT)}</a></dd>
+          <dd class="summary-party-value-wrap"><a class="summary-email" href="mailto:${escapeHtml(useDomesticCompany ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT)}">${escapeHtml(useDomesticCompany ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT)}</a></dd>
         </div>
         <div class="summary-party-row">
           <dt>${contactLabel}</dt>
@@ -445,8 +453,8 @@ function buildQuoteDetailHeaderHtml(
   const isKorean = pdfLabelType(quote, language) === 'domestic'
   const title = isKorean ? '항목별 요약' : 'Summary Breakdown'
   const note = isKorean
-    ? 'SET-UP·SMD·후공정·자재 대당 합계입니다.'
-    : 'Per-unit totals for SET-UP, SMD, post-process, and materials.'
+    ? 'SET-UP·SMD·후공정·자재·기타 대당 합계입니다.'
+    : 'Per-unit totals for SET-UP, SMD, post-process, materials, and other.'
 
   return `${buildSectionPageHeaderHtml(quote, estimate, title, note)}`
 }
@@ -460,15 +468,25 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
   const setupRows = filterPdfBreakdownRows(pdfBreakdownRows, 'setup', quote.quoteType)
   const postRows = filterPdfBreakdownRows(pdfBreakdownRows, 'post', quote.quoteType)
   const materialRows = filterPdfBreakdownRows(pdfBreakdownRows, 'material', quote.quoteType)
-  if (!smtRows.length && !setupRows.length && !postRows.length && !materialRows.length) return ''
+  const otherRows = filterPdfBreakdownRows(pdfBreakdownRows, 'other', quote.quoteType)
+  if (
+    !smtRows.length &&
+    !setupRows.length &&
+    !postRows.length &&
+    !materialRows.length &&
+    !otherRows.length
+  ) {
+    return ''
+  }
 
   const isKorean = labelType === 'domestic'
   const pageTitle = isKorean ? '공정별 세부 산정내역' : 'Detailed Breakdown by Process'
   const pageNote = isKorean
-    ? 'SET-UP·SMD·후공정(납땜 포함)·자재 항목별 단가·수량 기준 산정식입니다.'
-    : 'Itemized calculation for SET-UP, SMD, post-process (incl. soldering), and materials.'
+    ? 'SET-UP·SMD·후공정(납땜 포함)·자재·기타 항목별 단가·수량 기준 산정식입니다.'
+    : 'Itemized calculation for SET-UP, SMD, post-process (incl. soldering), materials, and other.'
   const postTitle = pdfSummarySectionLabel(labels.postProcess, labelType)
   const materialTitle = pdfSummarySectionLabel(labels.materials, labelType)
+  const otherTitle = pdfSummarySectionLabel(labels.other, labelType)
 
   return `<section class="quote-page quote-page-breakdown">
     <div class="quote-card">
@@ -478,6 +496,7 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
         ${buildBreakdownSectionHtml('SMD', smtRows, quote.quoteType, 'smt', 'breakdown-section-smt', labelType)}
         ${buildBreakdownSectionHtml(postTitle, postRows, quote.quoteType, 'post', 'breakdown-section-separated', labelType)}
         ${buildBreakdownSectionHtml(materialTitle, materialRows, quote.quoteType, 'material', 'breakdown-section-separated', labelType)}
+        ${buildBreakdownSectionHtml(otherTitle, otherRows, quote.quoteType, 'other', 'breakdown-section-separated', labelType)}
       </div>
     </div>
   </section>`
@@ -520,7 +539,7 @@ function buildQuotePages(quote: QuoteListItem, language?: QuoteDocumentLanguage)
 }
 
 function buildPdfSectionColorCss() {
-  const sections: PreviewSection[] = ['smt', 'setup', 'dip', 'post', 'material']
+  const sections: PreviewSection[] = ['smt', 'setup', 'dip', 'post', 'material', 'other']
 
   return sections
     .map((section) => {
@@ -635,7 +654,7 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       padding: 0;
       border: none;
       border-radius: 0;
-      overflow: hidden;
+      overflow: visible;
     }
     .quote-card-summary {
       border: 1px solid #cbd5e1;
@@ -707,7 +726,7 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
     }
     .summary-party-row {
       display: grid;
-      grid-template-columns: 72px 1fr;
+      grid-template-columns: 56px minmax(0, 1fr);
       gap: 8px;
       margin-bottom: 10px;
       font-size: 14px;
@@ -723,16 +742,23 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
     }
     .summary-party-row dd {
       margin: 0;
+      min-width: 0;
       color: #0f172a;
       font-weight: 600;
     }
-    .summary-party-row-wide dd {
+    .summary-party-value-wrap {
       line-height: 1.45;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .summary-email {
+      display: inline-block;
+      max-width: 100%;
       color: #1d4ed8;
       text-decoration: none;
       font-weight: 600;
+      overflow-wrap: anywhere;
+      word-break: break-all;
     }
     .summary-doc-meta {
       display: flex;
@@ -996,7 +1022,8 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       page-break-after: avoid;
     }
     .breakdown-section-post .breakdown-section-inner,
-    .breakdown-section-material .breakdown-section-inner {
+    .breakdown-section-material .breakdown-section-inner,
+    .breakdown-section-other .breakdown-section-inner {
       break-inside: avoid;
       page-break-inside: avoid;
     }
@@ -1187,6 +1214,19 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       .summary-hero {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+        padding: 24px 24px 22px;
+      }
+      .summary-party-card {
+        padding: 18px 20px;
+      }
+      .summary-party-row {
+        font-size: 12.5px;
+      }
+      .summary-doc-meta {
+        padding: 12px 20px;
+      }
+      .summary-amount-section {
+        padding: 22px 20px 26px;
       }
       .summary-table thead {
         background: #1e293b !important;
@@ -1202,7 +1242,8 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       }
       .quote-page { margin-bottom: 0; }
       .breakdown-section-post .breakdown-section-inner,
-      .breakdown-section-material .breakdown-section-inner {
+      .breakdown-section-material .breakdown-section-inner,
+      .breakdown-section-other .breakdown-section-inner {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
       }
@@ -1259,7 +1300,8 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       .breakdown-section-total-setup td,
       .breakdown-section-total-dip td,
       .breakdown-section-total-post td,
-      .breakdown-section-total-material td {
+      .breakdown-section-total-material td,
+      .breakdown-section-total-other td {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
