@@ -20,7 +20,11 @@ import {
   printMaterialPurchaseOrder,
 } from '@/lib/materials/purchase-orders/print-material-purchase-order'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
-import { addDaysYmd, todayYmdSeoul } from '@/lib/materials/purchase-orders/utils'
+import {
+  addDaysYmd,
+  latestMaterialPurchaseOrderDeliveryDate,
+  todayYmdSeoul,
+} from '@/lib/materials/purchase-orders/utils'
 import { fetchMaterials } from '@/lib/materials/repository'
 import type { Material } from '@/lib/materials/types'
 import { ERP_PRIMARY_BUTTON_CLASS, ERP_SECONDARY_BUTTON_CLASS } from '@/lib/ui/tokens'
@@ -77,9 +81,21 @@ function MaterialPurchaseOrderModalContent({
     createInitialForm(order, initialSupplier),
   )
   const [items, setItems] = useState<MaterialPurchaseOrderItemForm[]>(() => {
-    if (order) return materialPurchaseOrderItemsFromDetail(order.items)
-    if (initialItems?.length) return initialItems
-    return [defaultMaterialPurchaseOrderItemForm()]
+    const defaultDelivery = createInitialForm(order, initialSupplier).deliveryDate
+    if (order) {
+      return materialPurchaseOrderItemsFromDetail(order.items).map((item) => ({
+        ...item,
+        deliveryDate: item.deliveryDate || order.deliveryDate || defaultDelivery,
+      }))
+    }
+    if (initialItems?.length) {
+      return initialItems.map((item) => ({
+        ...defaultMaterialPurchaseOrderItemForm(defaultDelivery),
+        ...item,
+        deliveryDate: item.deliveryDate || defaultDelivery,
+      }))
+    }
+    return [defaultMaterialPurchaseOrderItemForm(defaultDelivery)]
   })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -118,7 +134,20 @@ function MaterialPurchaseOrderModalContent({
     key: K,
     value: MaterialPurchaseOrderFormState[K],
   ) {
-    setForm((current) => ({ ...current, [key]: value }))
+    setForm((current) => {
+      if (key === 'deliveryDate') {
+        const previous = current.deliveryDate
+        const nextDate = String(value || '')
+        setItems((rows) =>
+          rows.map((item) =>
+            !item.deliveryDate || item.deliveryDate === previous
+              ? { ...item, deliveryDate: nextDate }
+              : item,
+          ),
+        )
+      }
+      return { ...current, [key]: value }
+    })
   }
 
   function suggestSupplier(supplier: string) {
@@ -136,15 +165,25 @@ function MaterialPurchaseOrderModalContent({
       return
     }
 
-    const validation = validateMaterialPurchaseOrderItems(items, materials, form.supplier.trim())
+    const validation = validateMaterialPurchaseOrderItems(
+      items,
+      materials,
+      form.supplier.trim(),
+      form.deliveryDate,
+    )
     if (!validation.ok) {
       setSaveError(validation.message)
       return
     }
 
+    const headerDelivery =
+      latestMaterialPurchaseOrderDeliveryDate(validation.items.map((item) => item.deliveryDate)) ||
+      form.deliveryDate ||
+      ''
+
     const payload = {
       order_date: form.orderDate || todayYmdSeoul(),
-      delivery_date: form.deliveryDate || '',
+      delivery_date: headerDelivery,
       supplier: form.supplier.trim(),
       source_order_id: mode === 'create' ? sourceOrderId || null : undefined,
       covered_order_line_id: mode === 'create' ? coveredOrderLineId || null : undefined,
@@ -229,7 +268,7 @@ function MaterialPurchaseOrderModalContent({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-      <div className="relative flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className="relative flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
           <h2 className="text-lg font-bold text-slate-900">
             {mode === 'edit'
@@ -332,7 +371,7 @@ function MaterialPurchaseOrderModalContent({
               />
             </label>
             <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">납기일</span>
+              <span className="mb-1 block font-medium text-slate-600">기본 납기일</span>
               <input
                 type="date"
                 value={form.deliveryDate}
@@ -340,6 +379,9 @@ function MaterialPurchaseOrderModalContent({
                 readOnly={readOnly}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
               />
+              <span className="mt-1 block text-xs text-slate-500">
+                자재 행에 비어 있는 납기를 채우고, 목록 요약에도 사용됩니다.
+              </span>
             </label>
           </div>
 
@@ -347,7 +389,7 @@ function MaterialPurchaseOrderModalContent({
             {readOnly ? <h3 className="mb-3 text-sm font-bold text-slate-900">자재</h3> : null}
             {readOnly ? (
               <div className="overflow-x-auto rounded-lg border border-slate-200">
-                <table className="min-w-[720px] w-full border-collapse text-sm">
+                <table className="min-w-[820px] w-full border-collapse text-sm">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">자재코드</th>
@@ -356,6 +398,7 @@ function MaterialPurchaseOrderModalContent({
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">규격</th>
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">공급사</th>
                       <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">납기일</th>
                       <th className="px-3 py-2 text-right font-semibold text-slate-600">단가</th>
                       <th className="px-3 py-2 text-right font-semibold text-slate-600">금액</th>
                     </tr>
@@ -369,6 +412,7 @@ function MaterialPurchaseOrderModalContent({
                         <td className="px-3 py-2">{item.specification || '-'}</td>
                         <td className="px-3 py-2">{order?.supplier || '-'}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{item.quantity.toLocaleString('ko-KR')}</td>
+                        <td className="px-3 py-2 tabular-nums">{item.deliveryDate || order?.deliveryDate || '-'}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{item.unitPrice.toLocaleString('ko-KR')}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{item.orderAmount.toLocaleString('ko-KR')}</td>
                       </tr>
@@ -381,6 +425,7 @@ function MaterialPurchaseOrderModalContent({
                 items={items}
                 supplier={form.supplier}
                 materials={materials}
+                defaultDeliveryDate={form.deliveryDate}
                 lockSeededFields={lockSeededFields}
                 onChange={setItems}
                 onSupplierChange={(supplier) => updateForm('supplier', supplier)}

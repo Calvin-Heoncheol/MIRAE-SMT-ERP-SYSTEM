@@ -63,7 +63,7 @@ export function PostProcessHistoryWorkspace({ result }: PostProcessHistoryWorksp
         { header: '팀', value: (row) => row.team, width: 10 },
         { header: '주문서번호', value: (row) => row.orderNumber, width: 22 },
         { header: '고객사', value: (row) => row.customer, width: 18 },
-        { header: '완제품명', value: (row) => row.productName, width: 26 },
+        { header: '조립제품명', value: (row) => row.productName, width: 26 },
         { header: '품목코드', value: (row) => row.productCode, width: 16 },
         { header: '양품', value: (row) => row.quantity, width: 10 },
         { header: '불량', value: (row) => row.defectQuantity, width: 10 },
@@ -80,13 +80,13 @@ export function PostProcessHistoryWorkspace({ result }: PostProcessHistoryWorksp
     <>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
-          subtitle="후공정 생산입력에서 등록된 완제품 세트 실적을 최신순으로 보여줍니다. 행을 클릭하면 삭제할 수 있습니다."
+          subtitle="후공정 생산입력에서 등록된 조립제품 세트 실적을 최신순으로 보여줍니다. 행을 클릭하면 삭제할 수 있습니다."
           totalCount={rows.length}
           filteredCount={filtered.length}
           hasQuery={Boolean(search.trim())}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="주문서번호, 고객사, 완제품명, 기록일 검색…"
+          searchPlaceholder="주문서번호, 고객사, 조립제품명, 기록일 검색…"
           accent="emerald"
           actions={
             <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!filtered.length} />

@@ -244,7 +244,7 @@ function BomModalContent({
       open
       size={showExcelPaste ? 'lg' : 'md'}
       title={isCreate ? 'BOM 등록' : 'BOM 수정'}
-      description="완제품 → 반제품, 반제품 → 원자재·부자재 구성을 등록합니다."
+      description="조립제품 → 반제품, 반제품 → 원자재·부자재 구성을 등록합니다."
       onClose={onClose}
       closeOnEscape={!busy}
       footer={
@@ -541,7 +541,7 @@ function BomModalContent({
             <p className="mt-2 text-xs text-slate-500">
               선택 가능 구성:{' '}
               {selectedParent.itemCategory === 4
-                ? `${ITEM_CATEGORY_LABELS[3]} (여러 완제품에서 공용 가능)`
+                ? `${ITEM_CATEGORY_LABELS[3]} (여러 조립제품에서 공용 가능)`
                 : `${ITEM_CATEGORY_LABELS[1]}, ${ITEM_CATEGORY_LABELS[2]}`}
             </p>
           ) : null}

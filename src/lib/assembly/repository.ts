@@ -457,7 +457,7 @@ export async function fetchAssemblyGroups(
 }
 
 /**
- * 반제품만 주문했는데 완제품으로 합쳐진 조립 그룹을 다시 동기화해
+ * 반제품만 주문했는데 조립제품으로 합쳐진 조립 그룹을 다시 동기화해
  * 반제품 단독 그룹으로 분리한다. 변경이 있으면 그룹을 다시 조회한다.
  */
 export async function repairChildrenOnlyAssemblyGroups(

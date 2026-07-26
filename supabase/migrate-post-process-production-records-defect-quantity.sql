@@ -12,5 +12,5 @@ alter table public.post_process_production_records
   add constraint post_process_production_records_defect_quantity_check
   check (defect_quantity >= 0);
 
-comment on column public.post_process_production_records.quantity is '이번 등록 양품(완제품 세트) 수량';
+comment on column public.post_process_production_records.quantity is '이번 등록 양품(조립제품 세트) 수량';
 comment on column public.post_process_production_records.defect_quantity is '이번 등록 불량 수량 (진행률·잔량 계산에 미포함)';

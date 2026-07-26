@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
@@ -226,7 +226,7 @@ export function DeliveryHistoryModal({
               />
             </label>
             <div className="block text-sm sm:col-span-2">
-              <span className="mb-1 block font-medium text-slate-600">주문 / 고객 / 완제품</span>
+              <span className="mb-1 block font-medium text-slate-600">주문 / 고객 / 조립제품</span>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
                 <p>
                   <span className="font-semibold text-slate-900">{row.orderNumber}</span>

@@ -259,7 +259,7 @@ export async function calcParentUnitPriceFromBom(
   }
 }
 
-/** 완제품 단가를 BOM 합산값으로 items.unit_price 에 반영 */
+/** 조립제품 단가를 BOM 합산값으로 items.unit_price 에 반영 */
 export async function syncFinishedParentUnitPriceFromBom(
   parentProductId: string,
 ): Promise<CalcBomUnitPriceResult> {
@@ -305,7 +305,7 @@ export async function syncFinishedParentUnitPriceFromBom(
   }
 }
 
-/** 반제품 단가 변경 시, 해당 반제품을 쓰는 완제품들의 단가 재계산 */
+/** 반제품 단가 변경 시, 해당 반제품을 쓰는 조립제품들의 단가 재계산 */
 export async function syncFinishedParentsUsingChild(
   childProductId: string,
 ): Promise<{ ok: true } | { ok: false; reason: 'env' | 'query'; detail: string }> {
@@ -354,7 +354,7 @@ export type SyncAllFinishedUnitPricesResult =
   | { ok: true; updated: number; pricesById: Record<string, number> }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
-/** 모든 완제품 단가를 BOM 합산으로 일괄 동기화 */
+/** 모든 조립제품 단가를 BOM 합산으로 일괄 동기화 */
 export async function syncAllFinishedUnitPricesFromBom(): Promise<SyncAllFinishedUnitPricesResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
@@ -490,7 +490,7 @@ export async function saveBomForParent(
       return {
         ok: false,
         reason: 'validation',
-        detail: '부모 품목은 반제품 또는 완제품만 선택할 수 있습니다.',
+        detail: '부모 품목은 반제품 또는 조립제품만 선택할 수 있습니다.',
       }
     }
 
@@ -518,7 +518,7 @@ export async function saveBomForParent(
           reason: 'validation',
           detail:
             parentCategory === 4
-              ? '완제품 BOM의 구성은 반제품만 가능합니다.'
+              ? '조립제품 BOM의 구성은 반제품만 가능합니다.'
               : '반제품 BOM의 구성은 원자재·부자재만 가능합니다.',
         }
       }

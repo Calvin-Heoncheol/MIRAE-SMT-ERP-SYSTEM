@@ -64,7 +64,7 @@ function buildOpenPoLinesByMaterial(orders: MaterialPurchaseOrderListGroup[]) {
         orderNumber: order.orderNumber,
         supplier: order.supplier,
         orderDate: order.orderDate || '',
-        deliveryDate: order.deliveryDate || '',
+        deliveryDate: item.deliveryDate || order.deliveryDate || '',
         lineId: item.lineId,
         remaining,
       })

@@ -12,16 +12,18 @@ export type AuthAccessModule =
   | 'production_post_3'
   | 'production_post_4'
   | 'production_history'
+  | 'production_plan'
   | 'reports_production'
   | 'reports_sales'
 
 const DEPARTMENT_MODULES: Record<AuthDepartment, AuthAccessModule[]> = {
   sales: ['dashboard', 'sales', 'approvals', 'reports_sales'],
-  materials: ['dashboard', 'materials', 'approvals'],
+  materials: ['dashboard', 'materials', 'approvals', 'production_plan'],
   production1: [
     'dashboard',
     'production_smt',
     'production_history',
+    'production_plan',
     'approvals',
     'reports_production',
   ],
@@ -29,6 +31,7 @@ const DEPARTMENT_MODULES: Record<AuthDepartment, AuthAccessModule[]> = {
     'dashboard',
     'production_post_2',
     'production_history',
+    'production_plan',
     'approvals',
     'reports_production',
   ],
@@ -36,6 +39,7 @@ const DEPARTMENT_MODULES: Record<AuthDepartment, AuthAccessModule[]> = {
     'dashboard',
     'production_post_3',
     'production_history',
+    'production_plan',
     'approvals',
     'reports_production',
   ],
@@ -43,6 +47,7 @@ const DEPARTMENT_MODULES: Record<AuthDepartment, AuthAccessModule[]> = {
     'dashboard',
     'production_post_4',
     'production_history',
+    'production_plan',
     'approvals',
     'reports_production',
   ],
@@ -63,6 +68,7 @@ const ALL_MODULES: AuthAccessModule[] = [
   'production_post_3',
   'production_post_4',
   'production_history',
+  'production_plan',
   'reports_production',
   'reports_sales',
 ]
@@ -72,6 +78,7 @@ export function resolveAccessModule(
   searchParams?: { get(name: string): string | null } | null,
 ): AuthAccessModule | null {
   if (pathname === '/') return 'dashboard'
+  if (pathname.startsWith('/production/plan')) return 'production_plan'
   if (pathname.startsWith('/production/status')) return 'dashboard'
   if (pathname.startsWith('/reports/production')) return 'reports_production'
   if (pathname.startsWith('/reports/sales')) return 'reports_sales'

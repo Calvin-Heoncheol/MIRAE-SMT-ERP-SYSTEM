@@ -41,7 +41,7 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
                 고객사
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                완제품명
+                조립제품명
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 목표

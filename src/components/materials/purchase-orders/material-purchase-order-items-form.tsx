@@ -12,6 +12,8 @@ type MaterialPurchaseOrderItemsFormProps = {
   items: MaterialPurchaseOrderItemForm[]
   supplier: string
   materials: Material[]
+  /** 신규 행·빈 납기에 채울 기본 납기 (YYYY-MM-DD) */
+  defaultDeliveryDate?: string
   /** 주문서/제안에서 시드된 신규 발주 — 자재코드·공급사·수량·단가 잠금 */
   lockSeededFields?: boolean
   onChange: Dispatch<SetStateAction<MaterialPurchaseOrderItemForm[]>>
@@ -51,6 +53,7 @@ export function MaterialPurchaseOrderItemsForm({
   items,
   supplier,
   materials,
+  defaultDeliveryDate = '',
   lockSeededFields = false,
   onChange,
   onSupplierChange,
@@ -73,6 +76,7 @@ export function MaterialPurchaseOrderItemsForm({
         mpn: '',
         quantity: '0',
         unitPrice: '0',
+        deliveryDate: defaultDeliveryDate,
       },
     ])
   }
@@ -115,16 +119,19 @@ export function MaterialPurchaseOrderItemsForm({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="min-w-[920px] w-full border-collapse text-sm">
+        <table className="min-w-[1080px] w-full border-collapse text-sm">
           <thead className="bg-slate-50">
             <tr>
               <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">자재코드</th>
               <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">MPN</th>
-              <th className="min-w-[180px] px-3 py-2 text-left text-sm font-semibold text-slate-600">자재명</th>
-              <th className="min-w-[140px] px-3 py-2 text-left text-sm font-semibold text-slate-600">규격</th>
-              <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">공급사</th>
+              <th className="min-w-[160px] px-3 py-2 text-left text-sm font-semibold text-slate-600">자재명</th>
+              <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">규격</th>
+              <th className="min-w-[110px] px-3 py-2 text-left text-sm font-semibold text-slate-600">공급사</th>
               <th className="min-w-[72px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
                 수량
+              </th>
+              <th className="min-w-[132px] whitespace-nowrap px-3 py-2 text-left text-sm font-semibold text-slate-600">
+                납기일
               </th>
               <th className="min-w-[96px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
                 단가
@@ -168,14 +175,14 @@ export function MaterialPurchaseOrderItemsForm({
                         value={supplier}
                         onChange={(event) => onSupplierChange?.(event.target.value)}
                         placeholder="공급사명"
-                        className={`${inputClassName} min-w-[120px]`}
+                        className={`${inputClassName} min-w-[110px]`}
                         aria-label="공급사"
                       />
                     ) : (
                       <input
                         value={supplier}
                         readOnly
-                        className={`${readOnlyClassName} min-w-[120px]`}
+                        className={`${readOnlyClassName} min-w-[110px]`}
                         aria-label="공급사"
                       />
                     )}
@@ -187,6 +194,15 @@ export function MaterialPurchaseOrderItemsForm({
                       onChange={(quantity) => patchItem(index, { quantity })}
                       readOnly={lockSeededFields}
                       className={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[80px] text-right`}
+                    />
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <input
+                      type="date"
+                      value={item.deliveryDate || ''}
+                      onChange={(event) => patchItem(index, { deliveryDate: event.target.value })}
+                      aria-label={`${index + 1}행 납기일`}
+                      className={`${inputClassName} min-w-[132px]`}
                     />
                   </td>
                   <td className="px-3 py-2 align-top">
@@ -219,7 +235,8 @@ export function MaterialPurchaseOrderItemsForm({
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        자재코드로 자재를 선택하세요. 선택 시 MPN·자재명·규격·단가가 자동으로 채워집니다.
+        자재코드로 자재를 선택하세요. 선택 시 MPN·자재명·규격·단가가 자동으로 채워집니다. 납기일은 자재별로
+        지정할 수 있습니다.
       </p>
     </div>
   )

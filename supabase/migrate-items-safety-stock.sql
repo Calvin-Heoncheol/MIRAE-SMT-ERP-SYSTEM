@@ -1,4 +1,4 @@
--- 품목 안전재고 (원자재·부자재·반제품·완제품 공통)
+-- 품목 안전재고 (원자재·부자재·반제품·조립제품 공통)
 -- Supabase SQL Editor에서 실행하세요.
 
 alter table public.items

@@ -2,12 +2,12 @@
 --   setup-orders.sql → setup-items.sql 이후
 --
 -- BOM (단일 테이블)
---   parent_product_id: 완제품(4) 또는 반제품(3) items.id
+--   parent_product_id: 조립제품(4) 또는 반제품(3) items.id
 --   child_product_id:  반제품(3) 또는 원자재·부자재(1·2) items.id
 --   quantity_per:      부모 1단위당 자식 소요량
 --
 -- 규칙
---   완제품(4) → 반제품(3)
+--   조립제품(4) → 반제품(3)
 --   반제품(3) → 원자재(1)·부자재(2)
 --
 -- [주문 ↔ 생산입력 흐름]
@@ -35,8 +35,8 @@ create table if not exists public.bom_items (
   constraint bom_items_no_self_reference check (parent_product_id <> child_product_id)
 );
 
-comment on table public.bom_items is 'BOM — 완제품/반제품 → 하위 품목 구성';
-comment on column public.bom_items.parent_product_id is '부모 품목 items.id (완제품 4 또는 반제품 3)';
+comment on table public.bom_items is 'BOM — 조립제품/반제품 → 하위 품목 구성';
+comment on column public.bom_items.parent_product_id is '부모 품목 items.id (조립제품 4 또는 반제품 3)';
 comment on column public.bom_items.child_product_id is '자식 품목 items.id (반제품 3 또는 원자재·부자재 1·2)';
 comment on column public.bom_items.quantity_per is '부모 1단위당 자식 소요량';
 
@@ -44,7 +44,7 @@ create index if not exists bom_items_parent_idx on public.bom_items (parent_prod
 create index if not exists bom_items_child_idx on public.bom_items (child_product_id);
 
 -- ---------------------------------------------------------------------------
--- 주문 조립 그룹 (완제품 BOM → 주문 라인 세트)
+-- 주문 조립 그룹 (조립제품 BOM → 주문 라인 세트)
 -- ---------------------------------------------------------------------------
 
 create table if not exists public.order_assembly_groups (
@@ -59,9 +59,9 @@ create table if not exists public.order_assembly_groups (
   constraint order_assembly_groups_order_group_seq_unique unique (order_id, group_seq)
 );
 
-comment on table public.order_assembly_groups is '주문별 완제품 조립 세트 — 후공정·출하 추적 단위';
-comment on column public.order_assembly_groups.parent_product_id is '완제품 items.id';
-comment on column public.order_assembly_groups.target_quantity is '완제품 목표 세트 수';
+comment on table public.order_assembly_groups is '주문별 조립제품 조립 세트 — 후공정·출하 추적 단위';
+comment on column public.order_assembly_groups.parent_product_id is '조립제품 items.id';
+comment on column public.order_assembly_groups.target_quantity is '조립제품 목표 세트 수';
 
 create index if not exists order_assembly_groups_order_id_idx
   on public.order_assembly_groups (order_id);
@@ -81,7 +81,7 @@ create table if not exists public.order_assembly_group_lines (
 
 comment on table public.order_assembly_group_lines is '조립 세트에 포함된 주문 라인(반제품)';
 comment on column public.order_assembly_group_lines.order_line_id is '주문 라인 FK — 라인당 하나의 조립 그룹만';
-comment on column public.order_assembly_group_lines.quantity_per is '완제품 1세트당 이 라인(반제품) 수량';
+comment on column public.order_assembly_group_lines.quantity_per is '조립제품 1세트당 이 라인(반제품) 수량';
 
 create index if not exists order_assembly_group_lines_assembly_group_id_idx
   on public.order_assembly_group_lines (assembly_group_id);
@@ -234,7 +234,7 @@ begin
   end if;
 
   if parent_category not in (3, 4) then
-    raise exception '부모 품목은 반제품(3) 또는 완제품(4)만 등록할 수 있습니다.';
+    raise exception '부모 품목은 반제품(3) 또는 조립제품(4)만 등록할 수 있습니다.';
   end if;
 
   select item_category into child_category
@@ -246,7 +246,7 @@ begin
   end if;
 
   if parent_category = 4 and child_category <> 3 then
-    raise exception '완제품 BOM의 자식은 반제품(3)이어야 합니다.';
+    raise exception '조립제품 BOM의 자식은 반제품(3)이어야 합니다.';
   end if;
 
   if parent_category = 3 and child_category not in (1, 2) then
@@ -319,7 +319,7 @@ alter table public.bom_items
 -- [등록 예시] items 등록 후 품목코드로 치환하여 실행
 -- ---------------------------------------------------------------------------
 --
--- 완제품 BOM (FG-0001 = SFG-0001 + SFG-0002):
+-- 조립제품 BOM (FG-0001 = SFG-0001 + SFG-0002):
 --   insert into bom_items (parent_product_id, child_product_id, quantity_per)
 --   values
 --     ('FG-0001', 'SFG-0001', 1),

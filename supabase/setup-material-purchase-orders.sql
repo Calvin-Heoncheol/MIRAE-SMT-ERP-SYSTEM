@@ -47,11 +47,13 @@ create table if not exists public.material_purchase_order_lines (
   order_amount numeric not null default 0 check (order_amount >= 0),
   status text not null default '발주',
   inbound_quantity numeric not null default 0 check (inbound_quantity >= 0),
+  delivery_date date,
   unique (order_id, line_seq)
 );
 
 comment on column public.material_purchase_order_lines.status is '발주 / (입고 후 변경)';
 comment on column public.material_purchase_order_lines.inbound_quantity is '누적 입고 수량 (입고 모듈 연동용)';
+comment on column public.material_purchase_order_lines.delivery_date is '자재(라인)별 공급사 납기 예정일';
 
 create index if not exists material_purchase_orders_order_date_idx
   on public.material_purchase_orders (order_date desc);

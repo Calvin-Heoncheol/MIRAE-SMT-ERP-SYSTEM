@@ -22,7 +22,7 @@ export type FetchProductionStatusResult =
 /**
  * 조립그룹 전체 동기화(ensureAssemblyGroupsForOrders)는 페이지 로드에서 제외.
  * 주문 저장·출하 입력 시 동기화되며, 여기서 await 하면 TTFB가 급증함.
- * 단, 반제품→완제품으로 잘못 합쳐진 그룹만 소량 복구한다.
+ * 단, 반제품→조립제품으로 잘못 합쳐진 그룹만 소량 복구한다.
  */
 export async function fetchProductionStatusPageData(): Promise<FetchProductionStatusResult> {
   const [

@@ -140,7 +140,7 @@ export function SalesReportWorkspace({
       { header: '출하일', value: (row) => row.recordDate, width: 12 },
       { header: '주문서번호', value: (row) => row.orderNumber, width: 22 },
       { header: '고객사', value: (row) => row.customer, width: 18 },
-      { header: '완제품명', value: (row) => row.productName, width: 26 },
+      { header: '조립제품명', value: (row) => row.productName, width: 26 },
       { header: '수량', value: (row) => row.quantity, width: 10 },
       { header: '판매단가(원)', value: (row) => row.unitPrice, width: 12 },
       { header: '금액(원)', value: (row) => row.amount, width: 14 },

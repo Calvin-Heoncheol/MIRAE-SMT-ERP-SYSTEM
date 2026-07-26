@@ -24,7 +24,7 @@ export function processTypeIncludesPostProcess(processType: ProductProcessType |
   return value === '' || value === 'post' || value === 'smt_post'
 }
 
-/** 완제품 구성 판정용 — 명시적으로 후공정이 있는 경우만 */
+/** 조립제품 구성 판정용 — 명시적으로 후공정이 있는 경우만 */
 function processTypeRequiresPostProcess(processType: ProductProcessType | null | undefined) {
   return processType === 'post' || processType === 'smt_post'
 }
@@ -40,9 +40,9 @@ function resolveProductProcessType(
 
 /**
  * 후공정 후보 여부.
- * 완제품(조립 그룹): 구성 반제품 중 공정이 후공정 / SMD+후공정인 것이 하나라도 있을 때만 노출.
- * (SMD만인 반제품으로만 구성된 완제품은 후공정에 안 보임. 미설정 반제품은 후공정 필요로 보지 않음.)
- * 주문에 반제품만 있는 경우 완제품으로 합치지 않고 반제품 단독 그룹으로 노출한다.
+ * 조립제품(조립 그룹): 구성 반제품 중 공정이 후공정 / SMD+후공정인 것이 하나라도 있을 때만 노출.
+ * (SMD만인 반제품으로만 구성된 조립제품은 후공정에 안 보임. 미설정 반제품은 후공정 필요로 보지 않음.)
+ * 주문에 반제품만 있는 경우 조립제품으로 합치지 않고 반제품 단독 그룹으로 노출한다.
  */
 function assemblyGroupIncludesPostProcess(
   group: OrderAssemblyGroup,
@@ -171,7 +171,7 @@ export function buildPostProcessAssemblyLines(
 
     const parentProduct = productById[group.parentProductId]
     const isFinished = parentProduct?.productKind === 'assembly'
-    const productKindLabel = isFinished ? '완제품' : '반제품'
+    const productKindLabel = isFinished ? '조립제품' : '반제품'
 
     const labelParts: string[] = []
     if (productName) labelParts.push(productName)

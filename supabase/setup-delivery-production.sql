@@ -1,6 +1,6 @@
 -- Supabase SQL Editor에서 실행하세요 (setup-bom.sql 이후)
 --
--- 출하입력: 조립 그룹(완제품 세트)별 출하(납품) 실적 기록
+-- 출하입력: 조립 그룹(조립제품 세트)별 출하(납품) 실적 기록
 -- 출하번호(id) = MRS-0001, MRS-0002 … 자동 발급
 
 create table if not exists public.delivery_records (

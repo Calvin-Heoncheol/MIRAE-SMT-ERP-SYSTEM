@@ -21,6 +21,7 @@ export function materialPurchaseOrderItemFormToModel(item: MaterialPurchaseOrder
     orderAmount: computeMaterialPurchaseOrderLineAmount(quantity, unitPrice),
     status: '발주' as const,
     inboundQuantity: 0,
+    deliveryDate: String(item.deliveryDate || '').trim().slice(0, 10),
   }
 }
 
@@ -28,6 +29,7 @@ export function validateMaterialPurchaseOrderItems(
   items: MaterialPurchaseOrderItemForm[],
   materials: Material[],
   supplier: string,
+  fallbackDeliveryDate = '',
 ) {
   const parsed = items
     .map(materialPurchaseOrderItemFormToModel)
@@ -43,6 +45,7 @@ export function validateMaterialPurchaseOrderItems(
     return { ok: false as const, message: '자재를 1개 이상 입력하세요.' }
   }
 
+  const headerDelivery = String(fallbackDeliveryDate || '').trim().slice(0, 10)
   const validated: ReturnType<typeof materialPurchaseOrderItemFormToModel>[] = []
 
   for (let index = 0; index < parsed.length; index += 1) {
@@ -55,6 +58,14 @@ export function validateMaterialPurchaseOrderItems(
     }
     if (item.unitPrice < 0) {
       return { ok: false as const, message: `${index + 1}행 단가는 0 이상이어야 합니다.` }
+    }
+
+    const deliveryDate = item.deliveryDate || headerDelivery
+    if (!deliveryDate || !/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)) {
+      return {
+        ok: false as const,
+        message: `${index + 1}행 납기일을 입력하세요. (또는 상단 기본 납기일을 지정)`,
+      }
     }
 
     const matched = resolveMaterialPurchaseOrderLineMaterial(materials, supplier, item)
@@ -79,6 +90,7 @@ export function validateMaterialPurchaseOrderItems(
       materialName: matched.materialName,
       specification: matched.specification,
       mpn: matched.mpn,
+      deliveryDate,
     })
   }
 

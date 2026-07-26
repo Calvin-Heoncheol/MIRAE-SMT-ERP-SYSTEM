@@ -40,7 +40,7 @@ function resolveItemProductId(item: OrderListGroup['items'][number]) {
 
 /**
  * 주문 라인(실제 제품) 단위로 펼침 행을 만든다.
- * 완제품 조립 그룹 부모명으로 반제품 A·B를 합치지 않는다.
+ * 조립제품 조립 그룹 부모명으로 반제품 A·B를 합치지 않는다.
  */
 function buildProductLinesForOrder(
   order: OrderListGroup,
@@ -132,7 +132,7 @@ function buildProductLinesForOrder(
     })
   }
 
-  // 완제품 주문에서 BOM 전개된 반제품 SMT 라인 — 주문 라인과 별도로 표시
+  // 조립제품 주문에서 BOM 전개된 반제품 SMT 라인 — 주문 라인과 별도로 표시
   for (const smtLine of orderSmtLines) {
     if (coveredSmtLineIds.has(smtLine.orderLineId)) continue
 

@@ -127,6 +127,7 @@ export function MaterialOrderPurchaseWorkspace({ result }: MaterialOrderPurchase
       // 주문서 발주는 해당 수량 BOM 소요를 기본값으로 넣고, 재고 반영은 사용자가 조정
       quantity: String(line.requiredQuantity),
       unitPrice: String(line.unitPrice || 0),
+      deliveryDate: '',
     }))
 
     if (!items.length) {

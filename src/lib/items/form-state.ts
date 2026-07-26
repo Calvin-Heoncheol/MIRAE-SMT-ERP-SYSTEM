@@ -19,7 +19,7 @@ import { composeItemIdWithVersion, parseItemVersionCode, versionToFormValue } fr
 export type ItemFormState = {
   id: string
   name: string
-  /** 반제품·완제품 버전 라벨 (코드 접미사: V1, REV2 등). 원자재·부자재는 미사용 */
+  /** 반제품·조립제품 버전 라벨 (코드 접미사: V1, REV2 등). 원자재·부자재는 미사용 */
   version: string
   itemCategory: ItemCategory | ''
   specification: string

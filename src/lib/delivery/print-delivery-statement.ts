@@ -38,7 +38,7 @@ function buildStatementCopyHtml(data: DeliveryStatementData, copyLabel: string) 
   <div class="letterhead">
     <div class="issuer">
       <div class="brand">${escapeHtml(APP_SHORT_NAME)}</div>
-      <div class="sub">완제품 출하</div>
+      <div class="sub">조립제품 출하</div>
     </div>
     <div class="doc-title">
       <div class="en">TRANSACTION STATEMENT</div>

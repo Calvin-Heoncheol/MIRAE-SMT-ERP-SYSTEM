@@ -89,7 +89,7 @@ export function computeAssemblyGroupsForOrder(
   const byParent = groupBomByParent(bomRows)
 
   for (const [parentProductId, children] of byParent) {
-    // 주문에 반제품만 있을 때 BOM 완제품으로 합치지 않음 — 라인(반제품) 단위 유지
+    // 주문에 반제품만 있을 때 BOM 조립제품으로 합치지 않음 — 라인(반제품) 단위 유지
     const parentGroup = tryMatchAssemblyParentGroup(parentProductId, children, orderLines)
     if (parentGroup) {
       groups.push(parentGroup)
@@ -249,8 +249,8 @@ export function isMissingAssemblyTable(detail: string) {
 }
 
 /**
- * 주문에 없는 완제품을 BOM으로 추정해 반제품 라인을 합친 조립 그룹인지.
- * (반제품 A·B만 주문했는데 완제품 C 그룹이 생긴 경우)
+ * 주문에 없는 조립제품을 BOM으로 추정해 반제품 라인을 합친 조립 그룹인지.
+ * (반제품 A·B만 주문했는데 조립제품 C 그룹이 생긴 경우)
  */
 export function isChildrenOnlyAssemblyGroup(
   group: Pick<OrderAssemblyGroup, 'parentProductId' | 'lines'>,

@@ -105,6 +105,8 @@ export type MaterialPurchaseOrderLineItem = {
   orderAmount: number
   status: MaterialPurchaseOrderStatus
   inboundQuantity: number
+  /** YYYY-MM-DD 자재별 납기 */
+  deliveryDate: string
 }
 
 export type MaterialPurchaseOrderListGroup = {
@@ -141,6 +143,7 @@ export type MaterialPurchaseOrderLineRecord = {
   order_amount: number
   status: string
   inbound_quantity: number
+  delivery_date?: string | null
 }
 
 export type MaterialPurchaseOrderRecord = {

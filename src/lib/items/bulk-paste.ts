@@ -52,7 +52,7 @@ export function itemBulkPasteSampleValues(category: ItemCategory): string[] {
     1: ['MR-001', '저항 10K', '0603', 'RC0603', 'SMD', '도급', '서창전자', '12'],
     2: ['나사 M3', 'SUS', '서창전자', '50'],
     3: ['SFG-CUSTOM', '메인보드', '단면', '1000', '500', '300'],
-    4: ['FG-CUSTOM', '완제품 A'],
+    4: ['FG-CUSTOM', '조립제품 A'],
   }
   return sampleByCategory[category]
 }

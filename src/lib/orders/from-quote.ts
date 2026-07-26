@@ -52,7 +52,7 @@ export function buildOrderPayloadFromQuote(
   if (!matched) {
     return {
       ok: false,
-      detail: `「${productName}」 제품이 품목등록에 없습니다. 기초등록 → 품목등록에서 해당 고객사 완제품을 먼저 등록해 주세요.`,
+      detail: `「${productName}」 제품이 품목등록에 없습니다. 기초등록 → 품목등록에서 해당 고객사 조립제품을 먼저 등록해 주세요.`,
     }
   }
 

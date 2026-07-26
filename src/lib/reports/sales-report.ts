@@ -115,7 +115,7 @@ export async function fetchSalesReportData(
     )
     const deliveryRows = (deliveryResult.data || []) as DeliveryRecordRow[]
 
-    // ── 2. 출하 기록 → 조립그룹(주문·고객사·완제품) ──────────────
+    // ── 2. 출하 기록 → 조립그룹(주문·고객사·조립제품) ──────────────
     const groupIds = [
       ...new Set(deliveryRows.map((row) => row.assembly_group_id).filter(Boolean)),
     ] as string[]
@@ -149,7 +149,7 @@ export async function fetchSalesReportData(
       }
     }
 
-    // ── 3. 출하 판매 단가: 주문라인(완제품) 우선, 품목 단가 폴백 ──
+    // ── 3. 출하 판매 단가: 주문라인(조립제품) 우선, 품목 단가 폴백 ──
     const shipOrderIds = [...new Set([...groupInfoById.values()].map((info) => info.orderId).filter(Boolean))]
     /** orderId → (productId → unitPrice) */
     const linePriceByOrder = new Map<string, Map<string, number>>()

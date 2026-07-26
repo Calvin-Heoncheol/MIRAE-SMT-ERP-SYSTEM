@@ -9,9 +9,9 @@ export function allowedChildCategories(parentCategory: ItemCategory): ItemCatego
 }
 
 export function describeBomRule(parentCategory: ItemCategory) {
-  if (parentCategory === 4) return '완제품 BOM → 자식은 반제품만 등록할 수 있습니다.'
+  if (parentCategory === 4) return '조립제품 BOM → 자식은 반제품만 등록할 수 있습니다.'
   if (parentCategory === 3) return '반제품 BOM → 자식은 원자재·부자재만 등록할 수 있습니다.'
-  return '부모 품목은 반제품 또는 완제품만 선택할 수 있습니다.'
+  return '부모 품목은 반제품 또는 조립제품만 선택할 수 있습니다.'
 }
 
 export function isValidBomPair(parentCategory: ItemCategory, childCategory: ItemCategory) {
@@ -42,7 +42,7 @@ export function groupBomLines(lines: BomLine[]): BomGroup[] {
   })
 }
 
-/** 품목등록된 반제품·완제품 + BOM 유무 */
+/** 품목등록된 반제품·조립제품 + BOM 유무 */
 export function buildBomListRows(items: Item[], bomGroups: BomGroup[]): BomListRow[] {
   const bomByParent = new Map(bomGroups.map((group) => [group.parentProductId, group]))
 
@@ -107,7 +107,7 @@ export function parentItemsForBom(items: Item[]) {
 }
 
 export function childItemsForParent(items: Item[], parentCategory: ItemCategory) {
-  // 반제품은 여러 완제품 BOM에서 공용 가능 — 이미 다른 부모에 쓰인 구성품도 그대로 노출
+  // 반제품은 여러 조립제품 BOM에서 공용 가능 — 이미 다른 부모에 쓰인 구성품도 그대로 노출
   const allowed = new Set(allowedChildCategories(parentCategory))
   return items
     .filter((item) => allowed.has(item.itemCategory))

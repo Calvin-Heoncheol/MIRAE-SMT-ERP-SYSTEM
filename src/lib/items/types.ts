@@ -24,7 +24,7 @@ export const ITEM_SUPPLY_TYPE_LABELS: Record<ItemSupplyType, string> = {
   사급: '사급',
 }
 
-/** 1=원자재, 2=부자재, 3=반제품, 4=완제품 */
+/** 1=원자재, 2=부자재, 3=반제품, 4=조립제품 */
 export type ItemCategory = 1 | 2 | 3 | 4
 
 export const ITEM_CATEGORIES: ItemCategory[] = [1, 2, 3, 4]
@@ -33,7 +33,7 @@ export const ITEM_CATEGORY_LABELS: Record<ItemCategory, string> = {
   1: '원자재',
   2: '부자재',
   3: '반제품',
-  4: '완제품',
+  4: '조립제품',
 }
 
 /** 목록·필터용 soft pastel */
@@ -122,12 +122,12 @@ export function isManualItemCodeCategory(category: ItemCategory) {
   return category === 1
 }
 
-/** 반제품(3)·완제품(4): 비우면 품목명으로 생성, 입력하면 그 값을 코드로 사용 */
+/** 반제품(3)·조립제품(4): 비우면 품목명으로 생성, 입력하면 그 값을 코드로 사용 */
 export function isOptionalItemCodeCategory(category: ItemCategory) {
   return category === 3 || category === 4
 }
 
-/** 생성 시 품목코드 입력란 편집 가능 (원자재 필수 / 반·완제품 선택) */
+/** 생성 시 품목코드 입력란 편집 가능 (원자재 필수 / 반·조립제품 선택) */
 export function canEditItemCodeOnCreate(category: ItemCategory) {
   return isManualItemCodeCategory(category) || isOptionalItemCodeCategory(category)
 }

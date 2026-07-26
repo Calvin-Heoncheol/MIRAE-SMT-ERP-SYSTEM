@@ -98,7 +98,7 @@ function createFormWithCategory(
     form.dipUnitPrice = ''
     form.materialUnitPrice = ''
   }
-  // 부자재만 자동코드 미리보기 채움. 반·완제품은 비워 두고 저장 시 자동/수동 결정
+  // 부자재만 자동코드 미리보기 채움. 반·조립제품은 비워 두고 저장 시 자동/수동 결정
   form.id = isOptionalItemCodeCategory(category) ? '' : resolvePreviewItemCode(category, existingItems)
   return form
 }

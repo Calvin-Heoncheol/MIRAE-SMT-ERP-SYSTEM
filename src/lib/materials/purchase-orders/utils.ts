@@ -60,19 +60,33 @@ export function normalizeMaterialPurchaseOrderStatus(
   return '발주'
 }
 
-export function mapMaterialPurchaseOrderLineRecord(line: {
-  id?: string
-  material_id?: string | null
-  cpn: string
-  material_name: string
-  specification: string
-  mpn: string
-  quantity: number
-  unit_price: number
-  order_amount: number
-  status: string
-  inbound_quantity: number
-}): MaterialPurchaseOrderLineItem {
+export function latestMaterialPurchaseOrderDeliveryDate(
+  dates: Array<string | null | undefined>,
+) {
+  const valid = dates
+    .map((value) => formatMaterialPurchaseOrderDate(value))
+    .filter(Boolean)
+    .sort()
+  return valid[valid.length - 1] || ''
+}
+
+export function mapMaterialPurchaseOrderLineRecord(
+  line: {
+    id?: string
+    material_id?: string | null
+    cpn: string
+    material_name: string
+    specification: string
+    mpn: string
+    quantity: number
+    unit_price: number
+    order_amount: number
+    status: string
+    inbound_quantity: number
+    delivery_date?: string | null
+  },
+  fallbackDeliveryDate = '',
+): MaterialPurchaseOrderLineItem {
   return {
     lineId: line.id || '',
     materialId: line.material_id || null,
@@ -85,19 +99,26 @@ export function mapMaterialPurchaseOrderLineRecord(line: {
     orderAmount: Number(line.order_amount) || 0,
     status: normalizeMaterialPurchaseOrderStatus(line.status),
     inboundQuantity: Number(line.inbound_quantity) || 0,
+    deliveryDate:
+      formatMaterialPurchaseOrderDate(line.delivery_date) ||
+      formatMaterialPurchaseOrderDate(fallbackDeliveryDate),
   }
 }
 
 export function mapMaterialPurchaseOrderRecord(record: MaterialPurchaseOrderRecord): MaterialPurchaseOrderListGroup {
+  const headerDeliveryDate = formatMaterialPurchaseOrderDate(record.delivery_date)
   const lines = [...(record.material_purchase_order_lines || [])].sort((a, b) => a.line_seq - b.line_seq)
-  const items = lines.map(mapMaterialPurchaseOrderLineRecord)
+  const items = lines.map((line) => mapMaterialPurchaseOrderLineRecord(line, headerDeliveryDate))
   const hasInbound = items.some((item) => item.inboundQuantity > 0)
+  const lineDeliverySummary =
+    latestMaterialPurchaseOrderDeliveryDate(items.map((item) => item.deliveryDate)) ||
+    headerDeliveryDate
 
   return {
     orderId: record.id,
     orderNumber: record.id,
     orderDate: formatMaterialPurchaseOrderDate(record.order_date),
-    deliveryDate: formatMaterialPurchaseOrderDate(record.delivery_date),
+    deliveryDate: lineDeliverySummary,
     supplier: record.supplier || '',
     sourceOrderId: record.source_order_id || null,
     coveredOrderLineId: record.covered_order_line_id || null,

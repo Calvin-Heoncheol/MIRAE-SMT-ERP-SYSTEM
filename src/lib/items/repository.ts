@@ -343,7 +343,7 @@ export async function updateItem(
       return { ok: false, reason: 'query', detail: error.message }
     }
 
-    // 반제품 단가 변경 → 이 반제품을 쓰는 완제품 단가(BOM 합산) 재동기화
+    // 반제품 단가 변경 → 이 반제품을 쓰는 조립제품 단가(BOM 합산) 재동기화
     if (normalizeItemCategory(payload.itemCategory) === 3) {
       const syncResult = await syncFinishedParentsUsingChild(key)
       if (!syncResult.ok) {

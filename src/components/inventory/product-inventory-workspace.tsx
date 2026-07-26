@@ -57,7 +57,7 @@ export function ProductInventoryWorkspace({ result }: ProductInventoryWorkspaceP
     return [
       { value: 'all' as const, label: '전체', count: rows.length },
       { value: '3' as const, label: '반제품', count: semi },
-      { value: '4' as const, label: '완제품', count: finished },
+      { value: '4' as const, label: '조립제품', count: finished },
     ]
   }, [rows])
 
@@ -92,7 +92,7 @@ export function ProductInventoryWorkspace({ result }: ProductInventoryWorkspaceP
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
       <WorkspaceHeader
-        subtitle="생산 − 출하(완제품 출하 시 반제품 BOM 차감 포함) = 현재고"
+        subtitle="생산 − 출하(조립제품 출하 시 반제품 BOM 차감 포함) = 현재고"
         totalCount={rows.length}
         filteredCount={filtered.length}
         hasQuery={Boolean(query) || categoryFilter !== 'all'}
@@ -110,8 +110,8 @@ export function ProductInventoryWorkspace({ result }: ProductInventoryWorkspaceP
         rows={pagination.pageItems}
         emptyMessage={formatEmptyListMessage({
           hasQuery: Boolean(query) || categoryFilter !== 'all',
-          emptyLabel: '등록된 반제품·완제품이 없습니다',
-          actionHint: '품목등록에서 반제품·완제품을 등록하세요',
+          emptyLabel: '등록된 반제품·조립제품이 없습니다',
+          actionHint: '품목등록에서 반제품·조립제품을 등록하세요',
         })}
       />
 

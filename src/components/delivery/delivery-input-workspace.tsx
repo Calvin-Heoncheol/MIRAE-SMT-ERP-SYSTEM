@@ -108,7 +108,7 @@ export function DeliveryInputWorkspace({ result }: DeliveryInputWorkspaceProps) 
       <WorkspaceHeader
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="주문번호, 고객사, 완제품명 검색…"
+        searchPlaceholder="주문번호, 고객사, 조립제품명 검색…"
         accent="slate"
         filters={
           <FilterChipBar options={filterOptions} value={filter} onChange={setFilter} />

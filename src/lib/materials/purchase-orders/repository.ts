@@ -133,6 +133,14 @@ async function fetchDeletedNeedOrderIds(): Promise<
   }
 }
 
+function isMissingLineDeliveryDateColumn(detail: string) {
+  const lower = detail.toLowerCase()
+  return (
+    lower.includes('delivery_date') &&
+    (lower.includes('column') || lower.includes('schema cache') || lower.includes('could not find'))
+  )
+}
+
 async function insertMaterialPurchaseOrderLines(
   orderId: string,
   items: MaterialPurchaseOrderRowPayload['items'],
@@ -151,10 +159,19 @@ async function insertMaterialPurchaseOrderLines(
     order_amount: item.orderAmount,
     status: item.status,
     inbound_quantity: item.inboundQuantity,
+    delivery_date: item.deliveryDate || null,
   }))
 
   const { error } = await supabase.from('material_purchase_order_lines').insert(rows)
-  if (error) throw new Error(error.message)
+  if (error) {
+    if (!isMissingLineDeliveryDateColumn(error.message)) {
+      throw new Error(error.message)
+    }
+    // 마이그레이션 전 DB: 라인 납기 컬럼 없이 저장 (헤더 납기로 대체)
+    const legacyRows = rows.map(({ delivery_date: _deliveryDate, ...row }) => row)
+    const retry = await supabase.from('material_purchase_order_lines').insert(legacyRows)
+    if (retry.error) throw new Error(retry.error.message)
+  }
 }
 
 async function fetchOrderHasInbound(orderId: string) {

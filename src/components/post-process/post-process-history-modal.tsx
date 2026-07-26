@@ -100,7 +100,7 @@ export function PostProcessHistoryModal({
       <dl>
         <DetailRow label="기록일" value={row.recordDate || '—'} />
         <DetailRow label="등록시각" value={formatPostProcessHistoryDateTime(row.createdAt)} />
-        <DetailRow label="완제품명" value={row.productName.trim() || row.productCode.trim() || '—'} />
+        <DetailRow label="조립제품명" value={row.productName.trim() || row.productCode.trim() || '—'} />
         <DetailRow label="생산팀" value={row.team.trim() || '—'} />
         <DetailRow label="목표" value={`${row.targetQuantity.toLocaleString('ko-KR')}대`} />
         <DetailRow label="양품" value={`${row.quantity.toLocaleString('ko-KR')}대`} />

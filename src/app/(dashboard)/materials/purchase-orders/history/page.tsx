@@ -1,7 +1,5 @@
-import { MaterialPurchaseOrdersWorkspace } from '@/components/materials/purchase-orders/material-purchase-orders-workspace'
-import { fetchMaterialPurchaseOrderHistoryData } from '@/lib/materials/purchase-orders/repository'
+import { redirect } from 'next/navigation'
 
-export default async function MaterialPurchaseOrdersHistoryPage() {
-  const result = await fetchMaterialPurchaseOrderHistoryData()
-  return <MaterialPurchaseOrdersWorkspace result={result} view="history" />
+export default function MaterialPurchaseOrdersHistoryRedirectPage() {
+  redirect('/materials/history?category=purchase')
 }

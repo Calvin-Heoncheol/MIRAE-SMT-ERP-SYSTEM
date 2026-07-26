@@ -306,7 +306,7 @@ export async function fetchProductionReportData(
       }
     }
 
-    /** 후공정 1세트 단가 = 구성 반제품들의 DIP 단가 × 소요수량 합. 구성 정보 없으면 그룹 완제품 자체의 DIP 단가 */
+    /** 후공정 1세트 단가 = 구성 반제품들의 DIP 단가 × 소요수량 합. 구성 정보 없으면 그룹 조립제품 자체의 DIP 단가 */
     function resolvePostSetPrice(groupId: string, info: AssemblyGroupInfo): number {
       const lines = groupLinesByGroupId.get(groupId)
       if (lines?.length) {

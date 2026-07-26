@@ -58,7 +58,7 @@ export function DeliveryInputTable({
             <tr>
               <th className={`${ERP_TABLE_TH_CLASS} text-left`}>주문번호</th>
               <th className={`${ERP_TABLE_TH_CLASS} text-left`}>고객사</th>
-              <th className={`${ERP_TABLE_TH_CLASS} text-left`}>완제품</th>
+              <th className={`${ERP_TABLE_TH_CLASS} text-left`}>조립제품</th>
               <th className={`${ERP_TABLE_TH_CLASS} whitespace-nowrap text-left`}>납기</th>
               <th className={`${ERP_TABLE_TH_CLASS} text-right`}>주문</th>
               <th className={`${ERP_TABLE_TH_CLASS} text-right`}>출하</th>

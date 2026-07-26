@@ -1,7 +1,7 @@
 -- Supabase SQL Editor에서 실행하세요 (setup-orders.sql 이후)
 --
 -- 품목 마스터 — 품목코드(id) 직접 입력
--- item_category: 1=원자재, 2=부자재, 3=반제품, 4=완제품
+-- item_category: 1=원자재, 2=부자재, 3=반제품, 4=조립제품
 -- material_type: SMD / DIP (선택)
 -- 필수: id, name, item_category
 
@@ -74,7 +74,7 @@ comment on column public.items.dip_unit_price is 'DIP 단가 — 반제품(3)';
 comment on column public.items.material_unit_price is '자재 단가 — 반제품(3)';
 comment on column public.items.pcb_side_mode is '면 구분 — 단면(single)/듀얼(duo)/양면(double) — 반제품(3)만 사용';
 comment on column public.items.process_type is '공정 — 반제품(3)만: smt=SMD, post=후공정, smt_post=SMD+후공정';
-comment on column public.items.item_category is '1=원자재, 2=부자재, 3=반제품, 4=완제품 (필수)';
+comment on column public.items.item_category is '1=원자재, 2=부자재, 3=반제품, 4=조립제품 (필수)';
 comment on column public.items.is_active is '사용 여부';
 
 create index if not exists items_name_idx on public.items (name);
@@ -231,7 +231,7 @@ create unique index if not exists order_lines_derived_parent_product_unique_idx
 
 comment on column public.order_lines.product_id is '품목 FK (items.id)';
 comment on column public.order_lines.product_code is 'items.id 복사본 (조회 편의)';
-comment on column public.order_lines.derived_from_line_id is '완제품 주문 줄에서 BOM 펼침으로 생성된 반제품 줄 (주문 UI 비표시)';
+comment on column public.order_lines.derived_from_line_id is '조립제품 주문 줄에서 BOM 펼침으로 생성된 반제품 줄 (주문 UI 비표시)';
 
 -- 기존 DB: product_id FK 가 products 를 가리키면 items 로 교체
 alter table public.order_lines drop constraint if exists order_lines_product_id_fkey;

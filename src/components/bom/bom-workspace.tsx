@@ -155,7 +155,7 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
           rows={pagination.pageItems}
           emptyMessage={formatEmptyListMessage({
             hasQuery: hasActiveFilter,
-            emptyLabel: '표시할 반제품·완제품이 없습니다',
+            emptyLabel: '표시할 반제품·조립제품이 없습니다',
             actionHint: '미등록 행을 클릭해 BOM을 등록하세요',
           })}
           onSelectRow={openRow}

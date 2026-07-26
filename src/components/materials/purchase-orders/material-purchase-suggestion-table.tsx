@@ -48,6 +48,7 @@ export function MaterialPurchaseSuggestionTable({
       mpn: line.mpn,
       quantity: String(line.suggestedQuantity),
       unitPrice: String(line.unitPrice || 0),
+      deliveryDate: '',
     }))
     const suppliers = [...new Set(selectedLines.map((line) => line.supplier.trim()).filter(Boolean))]
     onCreateOrder(items, suppliers.length === 1 ? suppliers[0] : '')

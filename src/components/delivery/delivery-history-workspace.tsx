@@ -72,7 +72,7 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
         },
         { header: '주문서번호', value: (row) => row.orderNumber, width: 22 },
         { header: '고객사', value: (row) => row.customer, width: 18 },
-        { header: '완제품명', value: (row) => row.productName, width: 26 },
+        { header: '조립제품명', value: (row) => row.productName, width: 26 },
         { header: '품목코드', value: (row) => row.productCode, width: 16 },
         { header: '주문수량', value: (row) => row.targetQuantity, width: 10 },
         { header: '출하수량', value: (row) => row.quantity, width: 10 },
@@ -96,7 +96,7 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
           hasQuery={Boolean(search.trim())}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="출하번호, 주문서번호, 고객사, 완제품명, 기록일 검색…"
+          searchPlaceholder="출하번호, 주문서번호, 고객사, 조립제품명, 기록일 검색…"
           accent="sky"
           actions={
             <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!filtered.length} />
