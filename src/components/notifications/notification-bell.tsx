@@ -71,13 +71,11 @@ export function NotificationBell({
         setFeed(next)
         setError('')
         setReadKeys(loadReadNotificationKeys(userId))
-        return next
       } catch (err) {
         setError(err instanceof Error ? err.message : '알림을 불러오지 못했습니다.')
-        return null
       }
     })
-  }, [userId])
+  }, [startTransition, userId])
 
   const updatePanelPosition = useCallback(() => {
     const button = buttonRef.current
