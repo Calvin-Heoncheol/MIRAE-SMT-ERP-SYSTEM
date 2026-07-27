@@ -15,7 +15,7 @@ import {
   toBillingSmtSide,
 } from '@/lib/quotes/constants'
 import { computeSmtSetupBillingMinutes, getSmtSetupPartCount } from '@/lib/quotes/calculate-estimate'
-import { formatQuoteMoneyByDisplay, formatQuoteSetupMinutes } from '@/lib/quotes/format'
+import { formatQuoteMoneyByDisplay, formatQuoteMoneyRateByDisplay, formatQuoteSetupMinutes } from '@/lib/quotes/format'
 import type { SmtBoardForm } from '@/lib/quotes/form-state'
 import type { QuoteDisplayCurrency, QuoteType, SmtSide } from '@/lib/quotes/types'
 
@@ -45,7 +45,7 @@ function UnitPreview({
 }) {
   return (
     <span className="mt-1 block text-[11px] text-slate-400">
-      {formatQuoteMoneyByDisplay(krw, quoteType, displayCurrency)}
+      {formatQuoteMoneyRateByDisplay(krw, quoteType, displayCurrency)}
       {suffix}
     </span>
   )

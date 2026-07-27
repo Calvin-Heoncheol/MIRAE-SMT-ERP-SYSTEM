@@ -17,7 +17,7 @@ export async function fetchProductionInputPageData(
 ): Promise<FetchProductionInputPageResult> {
   // 조립 그룹 동기화는 주문 저장/수정 시 수행. 탭 로드는 조회만 해서 Vercel 응답을 빠르게 유지.
   if (config.productionModule === 'smt') {
-    const productsResult = await fetchProducts()
+    const productsResult = await fetchProducts(false)
     if (!productsResult.ok) {
       return productsResult
     }
@@ -66,7 +66,7 @@ export async function fetchProductionInputPageData(
   }
 
   if (config.productionModule === 'post_process') {
-    const [ordersResult, productsResult] = await Promise.all([fetchOrders(), fetchProducts()])
+    const [ordersResult, productsResult] = await Promise.all([fetchOrders(), fetchProducts(false)])
 
     if (!ordersResult.ok) {
       return ordersResult
@@ -118,7 +118,7 @@ export async function fetchProductionInputPageData(
     }
   }
 
-  const [ordersResult, productsResult] = await Promise.all([fetchOrders(), fetchProducts()])
+  const [ordersResult, productsResult] = await Promise.all([fetchOrders(), fetchProducts(false)])
 
   if (!ordersResult.ok) {
     return ordersResult

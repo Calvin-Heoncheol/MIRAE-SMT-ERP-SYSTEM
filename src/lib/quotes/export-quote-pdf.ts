@@ -47,6 +47,26 @@ function escapeHtml(value: string) {
     .replaceAll("'", '&#39;')
 }
 
+/** PDF「다른 이름으로 저장」기본 파일명용 — Windows 금지문자 제거 */
+function sanitizePdfFilenamePart(value: string) {
+  return value
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
+}
+
+/** 견적서번호_품목 (복수 건이면 _외N건) */
+function buildQuotePdfDocumentTitle(quotes: QuoteListItem[]) {
+  if (!quotes.length) return '견적서'
+  const quote = quotes[0]
+  const number = sanitizePdfFilenamePart(String(quote.quoteNumber || '').trim()) || '견적서'
+  const product = sanitizePdfFilenamePart(String(quote.productName || '').trim()) || '품목'
+  const base = `${number}_${product}`
+  if (quotes.length === 1) return base
+  return `${base}_외${quotes.length - 1}건`
+}
+
 function buildSectionPageHeaderHtml(
   quote: QuoteListItem,
   estimate: ReturnType<typeof buildQuotePreviewData>['estimate'],
@@ -560,7 +580,7 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
   const pages = quotes.map((quote) => buildQuotePages(quote, language)).join('')
   const isEnglish = language === 'en' || quotes.every((q) => q.quoteType === 'export')
   const docLang = isEnglish ? 'en' : 'ko'
-  const docTitle = isEnglish ? 'Quotation PDF' : '견적서 PDF'
+  const docTitle = buildQuotePdfDocumentTitle(quotes)
   const printHint = isEnglish
     ? 'In the print dialog, choose “Save as PDF”.'
     : '인쇄 대화상자에서 「PDF로 저장」을 선택하세요.'
@@ -570,7 +590,7 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
 <html lang="${docLang}">
 <head>
   <meta charset="utf-8" />
-  <title>${docTitle}</title>
+  <title>${escapeHtml(docTitle)}</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -1341,9 +1361,10 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
 export function exportQuotesToPdf(quotes: QuoteListItem[], options?: ExportQuotePdfOptions) {
   if (!quotes.length || typeof document === 'undefined') return false
 
+  const pdfTitle = buildQuotePdfDocumentTitle(quotes)
   const html = buildQuotesPdfHtml(quotes, options)
   const iframe = document.createElement('iframe')
-  iframe.setAttribute('title', options?.language === 'en' ? 'Quotation PDF' : '견적서 PDF')
+  iframe.setAttribute('title', pdfTitle)
   iframe.style.position = 'fixed'
   iframe.style.width = '0'
   iframe.style.height = '0'
@@ -1365,12 +1386,35 @@ export function exportQuotesToPdf(quotes: QuoteListItem[], options?: ExportQuote
   doc.write(html)
   doc.close()
 
+  // Chrome 등: iframe print 시 부모 document.title 이 「다른 이름으로 저장」기본명으로 쓰임
+  const previousTitle = document.title
+  document.title = pdfTitle
+
+  let cleaned = false
+  const cleanup = () => {
+    if (cleaned) return
+    cleaned = true
+    document.title = previousTitle
+    window.removeEventListener('afterprint', cleanup)
+    try {
+      printWindow.removeEventListener('afterprint', cleanup)
+    } catch {
+      /* ignore */
+    }
+    iframe.remove()
+  }
+
+  window.addEventListener('afterprint', cleanup)
+  try {
+    printWindow.addEventListener('afterprint', cleanup)
+  } catch {
+    /* ignore */
+  }
+  // 대화상자가 열린 동안 제목 유지 (저장 후 afterprint 또는 타임아웃)
+  window.setTimeout(cleanup, 120_000)
+
   printWindow.focus()
   printWindow.print()
-
-  window.setTimeout(() => {
-    iframe.remove()
-  }, 1500)
 
   return true
 }

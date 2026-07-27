@@ -1,6 +1,14 @@
-import { APP_SHORT_NAME } from '@/lib/app-config'
-import { todayYmdSeoul } from '@/lib/orders/utils'
+import {
+  APP_SHORT_NAME,
+  COMPANY_ADDRESS_STATEMENT,
+  COMPANY_BIZ_NO,
+  COMPANY_CEO_NAME,
+  COMPANY_TEL,
+} from '@/lib/app-config'
 import type { DeliveryStatementData } from './types'
+
+/** 1장에 고객용·내부용 2부 → 빈 행은 적게 */
+const ITEM_ROW_COUNT = 5
 
 function escapeHtml(value: string) {
   return value
@@ -14,82 +22,157 @@ function formatNumber(value: number) {
   return Math.max(0, Math.floor(Number(value) || 0)).toLocaleString('ko-KR')
 }
 
-function buildStatementCopyHtml(data: DeliveryStatementData, copyLabel: string) {
-  const shipDate = escapeHtml(data.shipDate)
-  const orderNo = escapeHtml(data.orderNumber)
-  const customer = escapeHtml(data.customer)
-  const productName = escapeHtml(data.productName)
-  const productCode = escapeHtml(data.productCode)
+/** YYYY-MM-DD → YYYY/MM/DD */
+function formatSlashDate(ymd: string) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim())
+  if (!m) return ymd
+  return `${m[1]}/${m[2]}/${m[3]}`
+}
+
+/** 금액을 한글 표기 (예: 3650000 → 삼백육십오만원 정) */
+export function formatAmountInKorean(amount: number): string {
+  const n = Math.max(0, Math.round(Number(amount) || 0))
+  if (n === 0) return '영원 정'
+
+  const digits = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구']
+  const small = ['', '십', '백', '천']
+  const big = ['', '만', '억', '조']
+
+  const chunkToKorean = (chunk: number) => {
+    if (chunk <= 0) return ''
+    let result = ''
+    const str = String(chunk).padStart(4, '0')
+    for (let i = 0; i < 4; i += 1) {
+      const d = Number(str[i])
+      if (d === 0) continue
+      const unit = small[3 - i]
+      if (d === 1 && unit) result += unit
+      else result += `${digits[d]}${unit}`
+    }
+    return result
+  }
+
+  const parts: string[] = []
+  let rest = n
+  let bigIndex = 0
+  while (rest > 0 && bigIndex < big.length) {
+    const chunk = rest % 10000
+    if (chunk > 0) {
+      parts.unshift(`${chunkToKorean(chunk)}${big[bigIndex]}`)
+    }
+    rest = Math.floor(rest / 10000)
+    bigIndex += 1
+  }
+
+  return `${parts.join('')}원 정`
+}
+
+function buildItemRows(data: DeliveryStatementData) {
   const qty = Math.max(0, Math.floor(Number(data.qty) || 0))
   const unitPrice = Math.max(0, Math.round(Number(data.unitPrice) || 0))
   const supply = Math.max(0, Math.round(Number(data.supplyAmount) || qty * unitPrice))
-  const noteRaw = data.note.trim()
-  const note = escapeHtml(noteRaw)
-  const issuedAt = todayYmdSeoul()
-  const docNo = escapeHtml(data.docNo)
-  const copy = escapeHtml(copyLabel)
+  const code = escapeHtml(data.productCode || '')
+  const name = escapeHtml(data.productName || '')
 
-  const notesHtml = noteRaw
-    ? `<div class="notes"><strong>비고</strong> ${note}</div>`
-    : `<div class="notes"><strong>안내</strong> 출하일 ${shipDate} · 수량 ${formatNumber(qty)}대</div>`
+  const rows: string[] = [
+    `<tr>
+      <td class="code">${code}</td>
+      <td class="name">${name}</td>
+      <td class="num">${formatNumber(qty)}</td>
+      <td class="num">₩${formatNumber(unitPrice)}</td>
+      <td class="num amt">₩${formatNumber(supply)}</td>
+    </tr>`,
+  ]
+
+  for (let i = 1; i < ITEM_ROW_COUNT; i += 1) {
+    rows.push(
+      `<tr class="empty">
+        <td class="code">&nbsp;</td>
+        <td class="name">&nbsp;</td>
+        <td class="num">&nbsp;</td>
+        <td class="num">&nbsp;</td>
+        <td class="num">&nbsp;</td>
+      </tr>`,
+    )
+  }
+
+  return rows.join('')
+}
+
+function buildStatementCopyHtml(data: DeliveryStatementData) {
+  const shipDateSlash = formatSlashDate(data.shipDate)
+  const customer = escapeHtml(data.customer.trim() || '—')
+  const qty = Math.max(0, Math.floor(Number(data.qty) || 0))
+  const supply = Math.max(
+    0,
+    Math.round(Number(data.supplyAmount) || qty * Math.round(Number(data.unitPrice) || 0)),
+  )
+  const vat = 0
+  const total = supply + vat
+  const koreanAmount = escapeHtml(formatAmountInKorean(total))
+  const shipNo = escapeHtml(data.docNo.trim() || '—')
+  const noteRaw = data.note.trim()
 
   return `<section class="statement-copy">
-  <div class="copy-badge">${copy}</div>
-  <div class="letterhead">
-    <div class="issuer">
-      <div class="brand">${escapeHtml(APP_SHORT_NAME)}</div>
-      <div class="sub">조립제품 출하</div>
+  <div class="header-row">
+    <div class="title-block">
+      <p class="doc-en">TRANSACTION STATEMENT</p>
+      <h1 class="doc-title">거래명세서</h1>
+      <p class="doc-date">${escapeHtml(shipDateSlash)}</p>
+      <p class="doc-buyer"><span class="buyer-name">${customer}</span><span class="buyer-honor">귀하</span></p>
     </div>
-    <div class="doc-title">
-      <div class="en">TRANSACTION STATEMENT</div>
-      <h1>거래명세서</h1>
-      <div class="no">문서번호 ${docNo}</div>
+    <div class="supplier-block">
+      <div class="supplier-label">공급자</div>
+      <div class="supplier-grid">
+        <div class="sg-label">출하번호</div>
+        <div class="sg-value mono">${shipNo}</div>
+        <div class="sg-label">TEL</div>
+        <div class="sg-value mono">${escapeHtml(COMPANY_TEL)}</div>
+        <div class="sg-label">사업자번호</div>
+        <div class="sg-value mono">${escapeHtml(COMPANY_BIZ_NO)}</div>
+        <div class="sg-label">성명</div>
+        <div class="sg-value">${escapeHtml(COMPANY_CEO_NAME)}</div>
+        <div class="sg-label">상호</div>
+        <div class="sg-value">${escapeHtml(APP_SHORT_NAME)}</div>
+        <div class="sg-label">주소</div>
+        <div class="sg-value addr">${escapeHtml(COMPANY_ADDRESS_STATEMENT)}</div>
+      </div>
     </div>
   </div>
-  <div class="party-grid">
-    <div class="party-box">
-      <div class="label">공급자</div>
-      <div class="name">${escapeHtml(APP_SHORT_NAME)}</div>
-      <div class="meta">출하일 ${shipDate} · 작성일 ${issuedAt}</div>
-    </div>
-    <div class="party-box party-box-buyer">
-      <div class="label">공급받는자</div>
-      <div class="name">${customer}</div>
-      <div class="meta">주문서번호 ${orderNo}</div>
-    </div>
+
+  <div class="amount-bar">
+    <span class="amount-label">금액</span>
+    <span class="amount-korean">${koreanAmount}</span>
+    <span class="amount-num">₩${formatNumber(total)}</span>
   </div>
-  <div class="meta-bar">
-    <div class="cell"><strong>출하일</strong>${shipDate}</div>
-    <div class="cell"><strong>주문서번호</strong>${orderNo}</div>
-    <div class="cell"><strong>품목코드</strong>${productCode}</div>
-    <div class="cell"><strong>출하수량</strong>${formatNumber(qty)} 대</div>
-  </div>
+
   <table class="items">
     <thead>
       <tr>
-        <th class="c-no">No</th>
-        <th>품명</th>
+        <th class="code">품목코드</th>
+        <th class="name">품목명 [규격]</th>
         <th class="num">수량</th>
         <th class="num">단가</th>
         <th class="num">공급가액</th>
       </tr>
     </thead>
     <tbody>
-      <tr>
-        <td class="c-no">1</td>
-        <td>${productName}</td>
-        <td class="num">${formatNumber(qty)}</td>
-        <td class="num">₩${formatNumber(unitPrice)}</td>
-        <td class="num amt">₩${formatNumber(supply)}</td>
-      </tr>
+      ${buildItemRows(data)}
     </tbody>
   </table>
-  <div class="totals-wrap">
-    <div class="totals">
-      <div class="row"><span>공급가액 합계</span><span class="val">₩${formatNumber(supply)}</span></div>
-    </div>
+
+  <div class="footer-bar">
+    <div class="ft-cell"><span class="ft-label">수량</span><span class="ft-val">${formatNumber(qty)}</span></div>
+    <div class="ft-cell"><span class="ft-label">공급가액</span><span class="ft-val">₩${formatNumber(supply)}</span></div>
+    <div class="ft-cell"><span class="ft-label">VAT</span><span class="ft-val">₩${formatNumber(vat)}</span></div>
+    <div class="ft-cell ft-total"><span class="ft-label">합계</span><span class="ft-val">₩${formatNumber(total)}</span></div>
+    <div class="ft-cell ft-sign"><span class="ft-label">인수</span><span class="sign-box">인</span></div>
   </div>
-  ${notesHtml}
+  ${
+    noteRaw
+      ? `<div class="notes"><strong>비고</strong> ${escapeHtml(noteRaw)}</div>`
+      : ''
+  }
 </section>`
 }
 
@@ -100,6 +183,7 @@ export function buildDeliveryStatementHtml(data: DeliveryStatementData) {
 <title>거래명세서 ${orderNo}</title><style>
 @page { size: A4 portrait; margin: 8mm; }
 html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+* { box-sizing: border-box; }
 body {
   margin: 0;
   padding: 0;
@@ -119,29 +203,18 @@ body {
   position: relative;
   flex: 1 1 0;
   min-height: 0;
-  padding: 7mm 8mm 6mm;
-  border: 1px solid #94a3b8;
+  padding: 6mm 7mm 5mm;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
   background: #fff;
-}
-.copy-badge {
-  position: absolute;
-  top: 6mm;
-  right: 8mm;
-  padding: 2px 8px;
-  border: 1px solid #64748b;
-  border-radius: 4px;
-  background: #f1f5f9;
-  color: #334155;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  overflow: hidden;
 }
 .cut-line {
   flex: 0 0 auto;
   margin: 0;
   padding: 2mm 0;
-  border-top: 1px dashed #64748b;
-  border-bottom: 1px dashed #64748b;
+  border-top: 1px dashed #94a3b8;
+  border-bottom: 1px dashed #94a3b8;
   background: #f8fafc;
   color: #64748b;
   font-size: 8px;
@@ -149,47 +222,241 @@ body {
   letter-spacing: 0.2em;
   text-align: center;
 }
-.letterhead {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1.5px solid #cbd5e1;
+
+.header-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.35fr);
+  gap: 8px;
+  margin-bottom: 7px;
 }
-.issuer .brand { font-size: 15px; font-weight: 800; color: #1e293b; }
-.issuer .sub { margin-top: 2px; font-size: 9px; color: #64748b; }
-.doc-title { padding-right: 52px; text-align: right; }
-.doc-title .en { font-size: 8px; font-weight: 700; color: #64748b; letter-spacing: 0.1em; }
-.doc-title h1 { margin: 2px 0 0; font-size: 17px; font-weight: 800; color: #334155; letter-spacing: 0.28em; }
-.doc-title .no { margin-top: 4px; font-size: 10px; font-weight: 700; color: #475569; }
-.party-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-.party-box { padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc; }
-.party-box-buyer { background: #fff; }
-.party-box .label { margin-bottom: 4px; font-size: 8px; font-weight: 700; color: #64748b; letter-spacing: 0.06em; }
-.party-box .name { font-size: 12px; font-weight: 700; color: #0f172a; }
-.party-box .meta { margin-top: 4px; font-size: 9px; color: #475569; }
-.meta-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
-.meta-bar .cell { padding: 6px 7px; border: 1px solid #e2e8f0; border-radius: 3px; background: #fff; font-size: 9px; }
-.meta-bar .cell strong { display: block; margin-bottom: 2px; color: #64748b; font-size: 8px; }
-.items { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 9px; }
-.items th { padding: 6px 5px; border: 1px solid #94a3b8; background: #475569; color: #fff; font-weight: 600; text-align: left; }
-.items th.num, .items td.num { text-align: right; }
-.items td { padding: 6px 5px; border: 1px solid #e2e8f0; vertical-align: top; }
-.items td.c-no, .items th.c-no { width: 28px; text-align: center; }
-.items td.amt { font-weight: 700; color: #1e293b; }
-.totals-wrap { display: flex; justify-content: flex-end; margin-bottom: 6px; }
-.totals { width: 220px; border: 1.5px solid #64748b; border-radius: 4px; overflow: hidden; }
-.totals .row { display: flex; justify-content: space-between; padding: 6px 9px; background: #f8fafc; font-size: 10px; font-weight: 700; color: #1e293b; }
-.totals .row .val { font-variant-numeric: tabular-nums; }
-.notes { padding: 6px 8px; border-left: 3px solid #64748b; background: #f8fafc; font-size: 8px; color: #475569; }
-.notes strong { color: #334155; }
+.title-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+  color: #fff;
+  text-align: center;
+  min-height: 88px;
+}
+.doc-en {
+  margin: 0;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #94a3b8;
+}
+.doc-title {
+  margin: 4px 0 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+  color: #fff;
+}
+.doc-date {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #93c5fd;
+  letter-spacing: 0.04em;
+}
+.doc-buyer {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+.buyer-honor {
+  margin-left: 6px;
+  color: #94a3b8;
+  letter-spacing: 0.12em;
+}
+
+.supplier-block {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+  min-height: 88px;
+}
+.supplier-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: 0.35em;
+  font-size: 11px;
+  font-weight: 800;
+  color: #e2e8f0;
+  background: #475569;
+}
+.supplier-grid {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 48px minmax(0, 1.1fr);
+  grid-auto-rows: 1fr;
+}
+.sg-label {
+  display: flex;
+  align-items: center;
+  padding: 3px 6px;
+  font-size: 8px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+}
+.sg-value {
+  display: flex;
+  align-items: center;
+  padding: 3px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #0f172a;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  min-width: 0;
+}
+.supplier-grid > :nth-child(4n) { border-right: none; }
+.supplier-grid > :nth-last-child(-n+4) { border-bottom: none; }
+.sg-value.mono { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.sg-value.addr { font-size: 9px; font-weight: 500; color: #334155; line-height: 1.3; }
+
+.amount-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  padding: 7px 12px;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  background: linear-gradient(to right, #eff6ff, #fff);
+}
+.amount-label {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #1e3a8a;
+}
+.amount-korean {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: #1d4ed8;
+  letter-spacing: 0.04em;
+}
+.amount-num {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.items {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 7px;
+  font-size: 9px;
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.items th {
+  padding: 5px 6px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #e2e8f0;
+  font-weight: 600;
+  text-align: center;
+}
+.items td {
+  padding: 5px 6px;
+  border: 1px solid #e2e8f0;
+  vertical-align: middle;
+  height: 22px;
+}
+.items td.code { width: 18%; word-break: break-all; color: #475569; font-variant-numeric: tabular-nums; }
+.items th.code { width: 18%; }
+.items td.name, .items th.name { width: 42%; }
+.items td.name { text-align: left; color: #0f172a; font-weight: 600; }
+.items td.num, .items th.num { width: 13.333%; }
+.items td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #334155;
+}
+.items td.amt { font-weight: 700; color: #0f172a; }
+.items tbody tr.empty td { background: #fafbfc; }
+
+.footer-bar {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr 1.2fr 0.85fr;
+  gap: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+.ft-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  border-right: 1px solid #e2e8f0;
+}
+.ft-cell:last-child { border-right: none; }
+.ft-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.ft-val {
+  font-size: 10px;
+  font-weight: 700;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.ft-total {
+  background: #f1f5f9;
+}
+.ft-total .ft-val { color: #1d4ed8; }
+.ft-sign { justify-content: space-between; }
+.sign-box {
+  display: inline-block;
+  min-width: 36px;
+  padding: 1px 4px 1px 14px;
+  border-bottom: 1.5px solid #64748b;
+  text-align: right;
+  font-size: 10px;
+  font-weight: 700;
+  color: #475569;
+}
+.notes {
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-left: 3px solid #64748b;
+  background: #f8fafc;
+  font-size: 8px;
+  color: #475569;
+}
+.notes strong { color: #334155; margin-right: 4px; }
 </style></head><body>
 <div class="sheet">
-${buildStatementCopyHtml(data, '고객용')}
+${buildStatementCopyHtml(data)}
 <div class="cut-line">— 절취선 —</div>
-${buildStatementCopyHtml(data, '내부용')}
+${buildStatementCopyHtml(data)}
 </div>
 </body></html>`
 }

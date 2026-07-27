@@ -41,6 +41,21 @@ export function parseItemVersionCode(id: string): { base: string; version: strin
 }
 
 /**
+ * 품목명 끝에 버전이 이미 붙어 있으면 제거 (구 데이터: "0302C6QA A0" + 코드 -A0).
+ * 예: ("0302C6QA A0", "A0") → "0302C6QA"
+ */
+export function stripTrailingVersionFromName(name: string, version: string | null | undefined) {
+  const label = String(version || '').trim()
+  if (!label) return name.trim()
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const stripped = name
+    .trim()
+    .replace(new RegExp(`(?:[\\s\\-_]+)${escaped}$`, 'i'), '')
+    .trim()
+  return stripped || name.trim()
+}
+
+/**
  * 품목코드에 버전 접미사 적용.
  * - 비우면 base만
  * - `1` → BASE-V1 (기존 호환)

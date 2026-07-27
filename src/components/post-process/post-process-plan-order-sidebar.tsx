@@ -1,5 +1,6 @@
 'use client'
 
+import { MaterialInboundStatusBadge } from '@/components/materials/material-inbound-status-badge'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { POST_PROCESS_PLAN_DRAG_MIME } from '@/lib/post-process/plan/config'
 import type {
@@ -172,6 +173,9 @@ export function PostProcessPlanOrderSidebar({
                 <p className="mt-0.5 truncate text-sm font-bold text-slate-900">
                   {candidate.productSummary}
                 </p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <MaterialInboundStatusBadge status={candidate.materialStatus} />
+                </div>
                 <p className="mt-1 text-[13px] font-semibold tabular-nums text-sky-800">
                   수량 {candidate.unplannedRemaining.toLocaleString('ko-KR')}
                 </p>

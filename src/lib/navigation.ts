@@ -1,12 +1,14 @@
 import { canAccessPath } from '@/lib/auth/permissions'
 import type { AuthDepartment, AuthRole } from '@/lib/auth/types'
 import { normalizePostProcessTeam } from '@/lib/post-process/teams'
+import { resolveProductionPlanTab } from '@/lib/production-plan/tabs'
 
 export type NavChildItem = {
   label: string
   href: string
   /** true면 메뉴는 보이지만 접근 권한 없음 (클릭 시 /forbidden) */
   locked?: boolean
+  children?: NavChildItem[]
 }
 
 /** useSearchParams()의 ReadonlyURLSearchParams 호환 최소 타입 */
@@ -25,12 +27,6 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: '대시보드',
     href: '/',
-    children: [
-      { label: 'KPI', href: '/' },
-      { label: '주문별 현황', href: '/production/status' },
-      { label: '생산실적', href: '/reports/production' },
-      { label: '영업/매출', href: '/reports/sales' },
-    ],
   },
   {
     label: 'ERP 관리',
@@ -52,18 +48,52 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '주문서', href: '/orders' },
       { label: '출하', href: '/delivery/input' },
       { label: '출하이력', href: '/delivery/history' },
+      { label: '영업/매출', href: '/reports/sales' },
     ],
   },
   {
     label: '생산관리',
-    href: '/production/plan',
+    href: '/production/plan?tab=smt',
     children: [
-      { label: '생산계획', href: '/production/plan' },
-      { label: '생산1: SMT', href: '/smt' },
-      { label: '생산2: 후공정', href: '/post-process?team=생산2팀' },
-      { label: '생산3: 후공정', href: '/post-process?team=생산3팀' },
-      { label: '생산4: 후공정', href: '/post-process?team=생산4팀' },
-      { label: '생산이력', href: '/production/history' },
+      { label: '주문별 현황', href: '/production/status' },
+      {
+        label: '생산1: SMT',
+        href: '/smt/input',
+        children: [
+          { label: '생산계획', href: '/production/plan?tab=smt' },
+          { label: '생산등록', href: '/smt/input' },
+          { label: '메탈마스크&스퀴즈', href: '/smt/metal-masks' },
+          { label: '생산이력', href: '/production/history?team=생산1팀' },
+        ],
+      },
+      {
+        label: '생산2: 후공정',
+        href: '/post-process/input?team=생산2팀',
+        children: [
+          { label: '생산계획', href: '/production/plan?tab=생산2팀' },
+          { label: '생산등록', href: '/post-process/input?team=생산2팀' },
+          { label: '생산이력', href: '/production/history?team=생산2팀' },
+        ],
+      },
+      {
+        label: '생산3: 후공정',
+        href: '/post-process/input?team=생산3팀',
+        children: [
+          { label: '생산계획', href: '/production/plan?tab=생산3팀' },
+          { label: '생산등록', href: '/post-process/input?team=생산3팀' },
+          { label: '생산이력', href: '/production/history?team=생산3팀' },
+        ],
+      },
+      {
+        label: '생산4: 후공정',
+        href: '/post-process/input?team=생산4팀',
+        children: [
+          { label: '생산계획', href: '/production/plan?tab=생산4팀' },
+          { label: '생산등록', href: '/post-process/input?team=생산4팀' },
+          { label: '생산이력', href: '/production/history?team=생산4팀' },
+        ],
+      },
+      { label: '생산실적', href: '/reports/production' },
     ],
   },
   {
@@ -89,22 +119,30 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ]
 
-/** href를 경로와 team 쿼리로 분리 (예: /post-process?team=생산2팀) */
-function splitNavHref(href: string): { path: string; team: string | null } {
+/** href를 경로와 쿼리로 분리 (예: /post-process?team=생산2팀) */
+function splitNavHref(href: string): { path: string; team: string | null; tab: string | null } {
   const queryIndex = href.indexOf('?')
   if (queryIndex === -1) {
-    return { path: href, team: null }
+    return { path: href, team: null, tab: null }
   }
+  const params = new URLSearchParams(href.slice(queryIndex + 1))
   return {
     path: href.slice(0, queryIndex),
-    team: new URLSearchParams(href.slice(queryIndex + 1)).get('team'),
+    team: params.get('team'),
+    tab: params.get('tab'),
   }
 }
 
 function navSearchFromHref(href: string): NavSearch | null {
-  const { team } = splitNavHref(href)
-  if (!team) return null
-  return { get: (name: string) => (name === 'team' ? team : null) }
+  const { team, tab } = splitNavHref(href)
+  if (!team && !tab) return null
+  return {
+    get: (name: string) => {
+      if (name === 'team') return team
+      if (name === 'tab') return tab
+      return null
+    },
+  }
 }
 
 function canAccessNavHref(
@@ -115,18 +153,22 @@ function canAccessNavHref(
   return canAccessPath(profile, path, navSearchFromHref(href))
 }
 
-function matchesNavTeam(team: string | null, search?: NavSearch | null) {
-  if (!team) return true
-  return normalizePostProcessTeam(search?.get('team')) === team
+function matchesNavQuery(href: string, search?: NavSearch | null) {
+  const { team, tab } = splitNavHref(href)
+  if (team && normalizePostProcessTeam(search?.get('team')) !== team) return false
+  if (tab && resolveProductionPlanTab(search?.get('tab')) !== resolveProductionPlanTab(tab)) {
+    return false
+  }
+  return true
 }
 
 export function isNavLinkActive(pathname: string, href: string, search?: NavSearch | null) {
-  const { path, team } = splitNavHref(href)
+  const { path } = splitNavHref(href)
   if (path === '/') {
-    return pathname === '/' && matchesNavTeam(team, search)
+    return pathname === '/' && matchesNavQuery(href, search)
   }
   const pathActive = pathname === path || pathname.startsWith(`${path}/`)
-  return pathActive && matchesNavTeam(team, search)
+  return pathActive && matchesNavQuery(href, search)
 }
 
 const NAV_EXACT_CHILD_PATHS = [
@@ -135,21 +177,64 @@ const NAV_EXACT_CHILD_PATHS = [
   '/master/customers',
   '/materials/inventory',
   '/materials/product-inventory',
-  '/production/plan',
 ] as const
 
 export function isNavChildActive(pathname: string, href: string, search?: NavSearch | null) {
   if (NAV_EXACT_CHILD_PATHS.includes(href as (typeof NAV_EXACT_CHILD_PATHS)[number])) {
     return pathname === href
   }
+  // 메탈마스크·스퀴즈는 동일 메뉴로 취급
+  if (href === '/smt/metal-masks') {
+    return pathname === '/smt/metal-masks' || pathname.startsWith('/smt/metal-masks/')
+      || pathname === '/smt/squeegees' || pathname.startsWith('/smt/squeegees/')
+  }
   return isNavLinkActive(pathname, href, search)
+}
+
+export function isNavChildItemActive(
+  pathname: string,
+  child: NavChildItem,
+  search?: NavSearch | null,
+) {
+  if (child.children?.length) {
+    return child.children.some((grandchild) =>
+      isNavChildActive(pathname, grandchild.href, search),
+    )
+  }
+  return isNavChildActive(pathname, child.href, search)
 }
 
 export function isNavItemActive(pathname: string, item: NavItem, search?: NavSearch | null) {
   if (item.children?.length) {
-    return item.children.some((child) => isNavChildActive(pathname, child.href, search))
+    return item.children.some((child) => isNavChildItemActive(pathname, child, search))
   }
   return isNavLinkActive(pathname, item.href, search)
+}
+
+function mapVisibleNavChild(
+  profile: { role: AuthRole; department: AuthDepartment | null },
+  child: NavChildItem,
+): NavChildItem {
+  if (child.children?.length) {
+    const children = child.children.map((grandchild) => ({
+      ...grandchild,
+      locked: !canAccessNavHref(profile, grandchild.href),
+    }))
+    const firstUnlocked = children.find((grandchild) => !grandchild.locked)
+    const groupLocked = !canAccessNavHref(profile, child.href) && !firstUnlocked
+
+    return {
+      ...child,
+      href: firstUnlocked?.href ?? child.href,
+      locked: groupLocked,
+      children,
+    }
+  }
+
+  return {
+    ...child,
+    locked: !canAccessNavHref(profile, child.href),
+  }
 }
 
 /**
@@ -182,10 +267,7 @@ export function getVisibleNavItems(options: {
       continue
     }
 
-    const children = item.children.map((child) => ({
-      ...child,
-      locked: !canAccessNavHref(profile, child.href),
-    }))
+    const children = item.children.map((child) => mapVisibleNavChild(profile, child))
 
     const parentLocked = !canAccessNavHref(profile, item.href)
     const firstUnlocked = children.find((child) => !child.locked)
@@ -210,7 +292,7 @@ export type NavBreadcrumb = {
 }
 
 /**
- * 현재 경로의 사이드바 메뉴 기준 위치 (예: 대시보드 / 생산실적).
+ * 현재 경로의 사이드바 메뉴 기준 위치 (예: 생산관리 / 생산실적).
  * 하위 경로도 가장 긴 매칭 메뉴로 해석합니다.
  */
 export function resolveNavBreadcrumb(
@@ -220,11 +302,44 @@ export function resolveNavBreadcrumb(
   let best: { section: string; page: string; score: number } | null = null
 
   for (const item of NAV_ITEMS) {
-    if (!item.children?.length) continue
+    if (!item.children?.length) {
+      const { path } = splitNavHref(item.href)
+      if (path === '/') {
+        if (pathname === '/') {
+          return { section: item.label, page: '오늘 현황' }
+        }
+        continue
+      }
+      if (pathname === path || pathname.startsWith(`${path}/`)) {
+        const score = path.length
+        if (!best || score > best.score) {
+          best = { section: item.label, page: item.label, score }
+        }
+      }
+      continue
+    }
 
     for (const child of item.children) {
-      const { path, team } = splitNavHref(child.href)
-      if (!matchesNavTeam(team, search)) continue
+      if (child.children?.length) {
+        for (const grandchild of child.children) {
+          if (!matchesNavQuery(grandchild.href, search)) continue
+          if (!isNavChildActive(pathname, grandchild.href, search)) continue
+
+          const { path } = splitNavHref(grandchild.href)
+          const score = path.length + 100
+          if (!best || score > best.score) {
+            best = {
+              section: item.label,
+              page: `${child.label} · ${grandchild.label}`,
+              score,
+            }
+          }
+        }
+        continue
+      }
+
+      const { path } = splitNavHref(child.href)
+      if (!matchesNavQuery(child.href, search)) continue
 
       let matches = false
       let score = 0

@@ -1,5 +1,6 @@
 'use client'
 
+import { MaterialInboundStatusBadge } from '@/components/materials/material-inbound-status-badge'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { PRODUCTION_ORDER_PAGE_SIZE } from '@/lib/production-input/utils'
 import { SMT_PLAN_DRAG_MIME } from '@/lib/smt/plan/config'
@@ -153,6 +154,10 @@ export function SmtPlanOrderSidebar({
                   <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
                     {candidate.splitPcbSides ? '양면' : '단면'}
                   </span>
+                </div>
+
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <MaterialInboundStatusBadge status={candidate.materialStatus} />
                 </div>
 
                 <p className="mt-1.5 text-[13px] font-semibold tabular-nums text-slate-700">

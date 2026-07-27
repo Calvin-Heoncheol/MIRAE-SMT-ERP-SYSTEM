@@ -198,6 +198,7 @@ export function ProductCombobox({
       <input
         ref={inputRef}
         value={value}
+        lang={field === 'name' ? 'ko' : 'en'}
         onChange={(event) => {
           onValueChange(event.target.value)
           setOpen(true)
@@ -219,6 +220,7 @@ export function ProductCombobox({
         role="combobox"
         autoComplete="off"
         className={inputClassName}
+        style={{ imeMode: field === 'name' ? 'active' : 'inactive' }}
       />
 
       {dropdown && mounted ? createPortal(dropdown, document.body) : null}

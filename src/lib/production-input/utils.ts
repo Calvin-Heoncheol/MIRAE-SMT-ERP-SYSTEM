@@ -4,6 +4,7 @@ import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import type { SmtPcbSide } from '@/lib/smt/types'
 import type { OrderListGroup } from '@/lib/orders/types'
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
+import { parseItemVersionCode, stripTrailingVersionFromName } from '@/lib/items/version-code'
 import type {
   ProductionCounts,
   ProductionInputConfig,
@@ -71,6 +72,34 @@ function resolveProductPcbSideMode(
   return productById[id]?.pcbSideMode ?? 'single'
 }
 
+/** 주문 라인 스냅샷보다 품목 마스터(현재 등록)를 우선 */
+function resolveMasterProduct(
+  productId: string | null | undefined,
+  productCode: string | null | undefined,
+  productById: Record<string, Product>,
+): Product | undefined {
+  const id = String(productId || '').trim()
+  if (id && productById[id]) return productById[id]
+  const code = String(productCode || '').trim()
+  if (code && productById[code]) return productById[code]
+  return undefined
+}
+
+function resolveLineProductFields(
+  item: { productId?: string | null; productCode: string; productName: string },
+  productById: Record<string, Product>,
+) {
+  const snapshotCode = item.productCode.trim()
+  const snapshotName = item.productName.trim()
+  const product = resolveMasterProduct(item.productId, snapshotCode, productById)
+  return {
+    product,
+    productId: (product?.id || item.productId || snapshotCode).trim(),
+    productCode: (product?.productCode || snapshotCode).trim(),
+    productName: (product?.productName || snapshotName).trim(),
+  }
+}
+
 export function buildProductionCountKey(order: ProductionOrderLine, pcbSide: SmtPcbSide = 'SINGLE') {
   // 후공정·출하: assembly group id 가 카운트 키
   if (order.assemblyGroupId) {
@@ -90,14 +119,14 @@ export function buildProductionOrderLines(
 
   for (const order of orders) {
     order.items.forEach((item, index) => {
-      const productName = item.productName.trim()
-      const productCode = item.productCode.trim()
       const orderLineId = item.lineId?.trim() || ''
       if (!orderLineId) return
+
+      const resolved = resolveLineProductFields(item, productById)
+      const { product, productCode, productName } = resolved
       if (!productName && !productCode) return
 
-      const productId = (item.productId || productCode).trim()
-      const product = productById[productId]
+      const productId = resolved.productId
       const isDerivedLine = Boolean(item.derivedFromLineId)
 
       if (
@@ -165,11 +194,17 @@ export function buildPostProcessAssemblyLines(
     if (!order) continue
     if (!assemblyGroupIncludesPostProcess(group, productById)) continue
 
-    const productName = group.parentProductName.trim()
-    const productCode = group.parentProductCode.trim()
+    const parentProduct = resolveMasterProduct(
+      group.parentProductId,
+      group.parentProductCode,
+      productById,
+    )
+    const productName = (
+      parentProduct?.productName || group.parentProductName
+    ).trim()
+    const productCode = (parentProduct?.productCode || group.parentProductCode).trim()
     if (!productName && !productCode) continue
 
-    const parentProduct = productById[group.parentProductId]
     const isFinished = parentProduct?.productKind === 'assembly'
     const productKindLabel = isFinished ? '조립제품' : '반제품'
 
@@ -283,6 +318,27 @@ export function formatProductionProductName(order: ProductionOrderLine) {
   return order.productName.trim() || order.productCode.trim() || '—'
 }
 
+/** 품목코드 접미사(V1, REV2 등) — 없으면 null */
+export function resolveProductionProductVersion(order: ProductionOrderLine): string | null {
+  return parseItemVersionCode(order.productCode.trim() || order.productLabel.trim()).version
+}
+
+/**
+ * 카드 표시용 — 구 데이터(이름에 버전 포함)는 이름에서 버전을 떼고 오른쪽에만 표시
+ */
+export function formatProductionProductDisplay(order: ProductionOrderLine): {
+  name: string
+  version: string | null
+} {
+  const version = resolveProductionProductVersion(order)
+  const rawName = formatProductionProductName(order)
+  if (!version || rawName === '—') return { name: rawName, version }
+  return {
+    name: stripTrailingVersionFromName(rawName, version),
+    version,
+  }
+}
+
 export function formatProductionSideProgressLabel(order: ProductionOrderLine, counts: ProductionCounts) {
   if (!order.splitPcbSides) {
     const cumulative = resolveProductionSideCount(order, counts, 'SINGLE')
@@ -298,12 +354,14 @@ export function filterProductionOrders(orders: ProductionOrderLine[], query: str
   const q = query.trim().toLowerCase()
   if (!q) return orders
   return orders.filter((order) => {
+    const version = resolveProductionProductVersion(order)
     const haystack = [
       order.orderNumber,
       order.customer,
       order.productName,
       order.productCode,
       order.productLabel,
+      version || '',
       order.splitPcbSides ? '양면 top bot' : '',
     ]
       .join(' ')

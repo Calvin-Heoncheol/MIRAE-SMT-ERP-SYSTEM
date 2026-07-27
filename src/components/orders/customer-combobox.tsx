@@ -16,6 +16,7 @@ type CustomerComboboxProps = {
   placeholder?: string
   ariaLabel?: string
   inputClassName?: string
+  autoFocus?: boolean
   onValueChange: (value: string) => void
   onPartnerSelect: (partner: BusinessPartner) => void
 }
@@ -36,6 +37,7 @@ export function CustomerCombobox({
   placeholder = '거래처명 검색',
   ariaLabel = '고객사',
   inputClassName,
+  autoFocus = false,
   onValueChange,
   onPartnerSelect,
 }: CustomerComboboxProps) {
@@ -193,6 +195,8 @@ export function CustomerCombobox({
       <input
         ref={inputRef}
         value={value}
+        lang="ko"
+        autoFocus={autoFocus}
         onChange={(event) => {
           onValueChange(event.target.value)
           setOpen(true)
@@ -212,6 +216,7 @@ export function CustomerCombobox({
         role="combobox"
         autoComplete="off"
         className={inputClassName}
+        style={{ imeMode: 'active' }}
       />
 
       {dropdown && mounted ? createPortal(dropdown, document.body) : null}

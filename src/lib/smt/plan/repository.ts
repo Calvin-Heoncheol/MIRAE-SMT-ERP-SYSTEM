@@ -7,6 +7,13 @@ import {
 } from '@/lib/auth/created-by'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
+import { fetchPendingInboundByMaterialId } from '@/lib/materials/inventory/pending-inbound'
+import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
+import {
+  buildBomEdgesByParent,
+  resolveMaterialInboundStatus,
+} from '@/lib/materials/material-inbound-status'
+import { fetchBomEdges } from '@/lib/materials/outbound/repository'
 import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { fetchProducts } from '@/lib/products/repository'
@@ -17,6 +24,7 @@ import { fetchSmtCumulativeCounts, fetchSmtPlanProgressRange } from '@/lib/smt/r
 import { createSupabaseClient } from '@/lib/supabase'
 import { SMT_PLAN_LINE_NOS } from './config'
 import type {
+  SmtPlanOrderCandidate,
   SmtPlanPageData,
   SmtProductionPlan,
   UpsertSmtProductionPlanInput,
@@ -378,6 +386,18 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
     return deliveryCountsResult
   }
 
+  const [onHandResult, pendingResult, bomEdges] = await Promise.all([
+    fetchOnHandByMaterialId(),
+    fetchPendingInboundByMaterialId(),
+    fetchBomEdges().catch(() => [] as Awaited<ReturnType<typeof fetchBomEdges>>),
+  ])
+
+  const onHandByMaterialId = onHandResult.ok ? onHandResult.onHandByMaterialId : new Map<string, number>()
+  const pendingByMaterialId = pendingResult.ok
+    ? pendingResult.pendingByMaterialId
+    : new Map<string, number>()
+  const edgesByParent = buildBomEdgesByParent(bomEdges)
+
   const weekDates = getWeekDates(weekStart)
   const weekEnd = getWeekEndYmd(weekStart)
   const progressResult = await fetchSmtPlanProgressRange(weekStart, weekEnd)
@@ -401,6 +421,28 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
     (plan) => plan.plannedDate >= weekStart && plan.plannedDate <= weekEnd,
   )
 
+  const lineById = Object.fromEntries(productionOrders.map((line) => [line.orderLineId, line]))
+  const planCandidates: SmtPlanOrderCandidate[] = buildSmtPlanOrderCandidates(
+    ordersResult.orders,
+    productionOrders,
+    smtCountsResult.counts,
+    allPlansResult.plans,
+    { onlyUnplanned: false },
+  ).map((candidate) => {
+    const line = lineById[candidate.orderLineId]
+    const productId = (line?.productCode || '').trim()
+    return {
+      ...candidate,
+      materialStatus: resolveMaterialInboundStatus(
+        productId,
+        candidate.smtRemaining,
+        edgesByParent,
+        onHandByMaterialId,
+        pendingByMaterialId,
+      ),
+    }
+  })
+
   return {
     ok: true,
     data: {
@@ -410,14 +452,7 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
       plans: buildSmtPlanBlocks(weekPlans, ordersResult.orders, smtLines),
       productionOrders,
       counts: smtCountsResult.counts,
-      // 출하 완료된 주문은 계획 후보에서 제외
-      planCandidates: buildSmtPlanOrderCandidates(
-        ordersResult.orders,
-        productionOrders,
-        smtCountsResult.counts,
-        allPlansResult.plans,
-        { onlyUnplanned: false },
-      ),
+      planCandidates,
       planProgress: progressResult.progress,
     },
   }

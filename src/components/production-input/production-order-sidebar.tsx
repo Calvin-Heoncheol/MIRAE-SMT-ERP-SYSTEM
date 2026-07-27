@@ -6,7 +6,7 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { ProductionOrderLine, ProductionOrderState } from '@/lib/production-input/types'
 import {
-  formatProductionProductName,
+  formatProductionProductDisplay,
   getProductionOrderState,
   getProgressPercent,
   resolveProductionCount,
@@ -261,6 +261,8 @@ export function ProductionOrderSidebar({
             const botCount = order.splitPcbSides
               ? resolveProductionSideCount(order, counts, 'BOT')
               : 0
+            const { name: productName, version: productVersion } =
+              formatProductionProductDisplay(order)
 
             return (
               <button
@@ -315,7 +317,10 @@ export function ProductionOrderSidebar({
                 </div>
 
                 <p className="mt-1 truncate text-sm font-bold text-slate-900">
-                  {formatProductionProductName(order)}
+                  <span>{productName}</span>
+                  {productVersion ? (
+                    <span className="ml-1.5 font-semibold text-sky-600">{productVersion}</span>
+                  ) : null}
                 </p>
                 <p className="mt-0.5 truncate text-[11px] text-slate-500">
                   {order.customer || '—'} · {order.orderNumber}

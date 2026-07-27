@@ -10,8 +10,10 @@ import type { AuthProfile } from '@/lib/auth/types'
 import {
   getVisibleNavItems,
   isNavChildActive,
+  isNavChildItemActive,
   isNavItemActive,
   isNavLinkActive,
+  type NavChildItem,
   type NavItem,
   type NavSearch,
 } from '@/lib/navigation'
@@ -19,6 +21,109 @@ import {
 type SideNavProps = {
   profile?: AuthProfile | null
   authDisabled?: boolean
+}
+
+function NavChildLink({
+  child,
+  pathname,
+  search,
+  onNavigate,
+  nested = false,
+}: {
+  child: NavChildItem
+  pathname: string
+  search: NavSearch | null
+  onNavigate?: () => void
+  nested?: boolean
+}) {
+  const childActive = isNavChildActive(pathname, child.href, search)
+
+  return (
+    <Link
+      href={child.href}
+      onClick={onNavigate}
+      title={child.locked ? '접근 권한이 없습니다' : undefined}
+      className={[
+        'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-colors',
+        nested ? 'text-[12px]' : 'text-[13px]',
+        child.locked
+          ? 'text-slate-400 hover:bg-slate-50'
+          : childActive
+            ? 'bg-blue-50 font-semibold text-blue-700'
+            : nested
+              ? 'text-slate-400 hover:bg-slate-50 hover:text-slate-700'
+              : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
+      ].join(' ')}
+      aria-current={childActive && !child.locked ? 'page' : undefined}
+    >
+      <span className="min-w-0 flex-1 truncate">{child.label}</span>
+      {child.locked ? (
+        <span className="shrink-0 text-[10px] font-semibold text-slate-400">잠금</span>
+      ) : null}
+    </Link>
+  )
+}
+
+function NavChildSection({
+  child,
+  pathname,
+  search,
+  onNavigate,
+}: {
+  child: NavChildItem
+  pathname: string
+  search: NavSearch | null
+  onNavigate?: () => void
+}) {
+  const hasGrandchildren = Boolean(child.children?.length)
+  const childActive = isNavChildItemActive(pathname, child, search)
+  const [expanded, setExpanded] = useState(childActive)
+
+  useEffect(() => {
+    if (childActive) setExpanded(true)
+  }, [childActive, pathname])
+
+  if (!hasGrandchildren) {
+    return (
+      <NavChildLink
+        child={child}
+        pathname={pathname}
+        search={search}
+        onNavigate={onNavigate}
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-0.5">
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className={[
+          'flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left text-[13px] font-semibold transition-colors',
+          childActive ? 'text-blue-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800',
+        ].join(' ')}
+        aria-expanded={expanded}
+      >
+        <span className="min-w-0 truncate">{child.label}</span>
+        <span className="shrink-0 pl-2 text-[10px] opacity-70">{expanded ? '▾' : '▸'}</span>
+      </button>
+      {expanded ? (
+        <div className="space-y-0.5 pl-3">
+          {child.children!.map((grandchild) => (
+            <NavChildLink
+              key={grandchild.href}
+              child={grandchild}
+              pathname={pathname}
+              search={search}
+              onNavigate={onNavigate}
+              nested
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function NavSection({
@@ -82,31 +187,15 @@ function NavSection({
       </button>
       {expanded ? (
         <div className="mt-0.5 space-y-0.5 pl-3">
-          {item.children!.map((child) => {
-            const childActive = isNavChildActive(pathname, child.href, search)
-            return (
-              <Link
-                key={child.href}
-                href={child.href}
-                onClick={onNavigate}
-                title={child.locked ? '접근 권한이 없습니다' : undefined}
-                className={[
-                  'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors',
-                  child.locked
-                    ? 'text-slate-400 hover:bg-slate-50'
-                    : childActive
-                      ? 'bg-blue-50 font-semibold text-blue-700'
-                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
-                ].join(' ')}
-                aria-current={childActive && !child.locked ? 'page' : undefined}
-              >
-                <span className="min-w-0 flex-1 truncate">{child.label}</span>
-                {child.locked ? (
-                  <span className="shrink-0 text-[10px] font-semibold text-slate-400">잠금</span>
-                ) : null}
-              </Link>
-            )
-          })}
+          {item.children!.map((child) => (
+            <NavChildSection
+              key={child.children?.length ? child.label : child.href}
+              child={child}
+              pathname={pathname}
+              search={search}
+              onNavigate={onNavigate}
+            />
+          ))}
         </div>
       ) : null}
     </div>
@@ -293,7 +382,7 @@ export function SideNav({ profile = null, authDisabled = false }: SideNavProps) 
 
       {/* 데스크톱 사이드바 */}
       <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex xl:w-56">
-        <div className="border-b border-slate-200 px-3 py-4">
+        <div className="border-b border-slate-200 px-3 py-3">
           <SidebarBrand />
         </div>
         <SidebarNavBody pathname={pathname} profile={profile} authDisabled={authDisabled} />

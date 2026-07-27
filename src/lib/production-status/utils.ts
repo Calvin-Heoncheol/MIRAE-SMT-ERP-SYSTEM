@@ -8,6 +8,7 @@ import {
   resolveProductionCount,
   resolveProductionDefectCount,
 } from '@/lib/production-input/utils'
+import type { Product } from '@/lib/products/types'
 import type { ProductionStatusLine, ProductionStatusProductLine } from './types'
 
 function groupSmtLinesByOrderNumber(smtLines: ProductionOrderLine[]) {
@@ -51,6 +52,7 @@ function buildProductLinesForOrder(
   postCounts: ProductionCounts,
   postDefectCounts: ProductionCounts,
   deliveryCounts: ProductionCounts,
+  productById: Record<string, Product> = {},
 ): ProductionStatusProductLine[] {
   const smtByLineId = new Map(orderSmtLines.map((line) => [line.orderLineId, line]))
   const assemblyByChildLineId = new Map<string, OrderAssemblyGroup>()
@@ -109,10 +111,12 @@ function buildProductLinesForOrder(
     const smtStack = getStackedProgressWidths(smtProduced, smtDefected, smtTarget)
     const postStack = getStackedProgressWidths(postProduced, postDefected, postTarget)
 
+    const master = productId ? productById[productId] : undefined
     products.push({
       key: `item:${lineId || productId || item.productName}`,
-      productName: item.productName.trim() || '—',
-      productCode: item.productCode.trim(),
+      productName:
+        (smtLine?.productName || master?.productName || item.productName).trim() || '—',
+      productCode: (smtLine?.productCode || master?.productCode || item.productCode).trim(),
       quantity,
       smtTarget,
       smtProduced,
@@ -176,6 +180,7 @@ export function buildProductionStatusLines(
   deliveryCounts: ProductionCounts = {},
   smtDefectCounts: ProductionCounts = {},
   postDefectCounts: ProductionCounts = {},
+  productById: Record<string, Product> = {},
 ): ProductionStatusLine[] {
   const smtLinesByOrderNumber = groupSmtLinesByOrderNumber(smtLines)
   const assembliesByOrderId = groupAssemblyGroupsByOrderId(assemblyGroups)
@@ -218,6 +223,7 @@ export function buildProductionStatusLines(
       postCounts,
       postDefectCounts,
       deliveryCounts,
+      productById,
     )
 
     const productName =

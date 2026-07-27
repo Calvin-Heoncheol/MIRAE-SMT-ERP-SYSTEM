@@ -188,7 +188,7 @@ function OrderModalContent({
   return (
     <ErpModal
       open
-      size="xl"
+      size="lg"
       title={mode === 'edit' ? `주문서 수정 (${items.length}개 제품)` : '신규 주문서'}
       onClose={onClose}
       closeOnEscape={!busy}
@@ -227,6 +227,7 @@ function OrderModalContent({
         </div>
       }
     >
+      <div lang="ko">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>고객사</span>
@@ -235,6 +236,7 @@ function OrderModalContent({
             partners={salesPartners}
             placeholder="거래처명 검색 (예: 센서)"
             inputClassName={ERP_FIELD_INPUT_CLASS}
+            autoFocus={mode === 'create'}
             onValueChange={(value) => updateForm('customer', value)}
             onPartnerSelect={(partner) => updateForm('customer', partner.name)}
           />
@@ -260,9 +262,11 @@ function OrderModalContent({
                 value={form.orderCode}
                 onChange={(event) => updateForm('orderCode', event.target.value.toUpperCase())}
                 placeholder="주문서번호"
+                lang="en"
                 className={`${ERP_FIELD_INPUT_CLASS} font-mono uppercase placeholder:normal-case placeholder:text-slate-400`}
                 autoCapitalize="characters"
                 spellCheck={false}
+                style={{ imeMode: 'inactive' }}
               />
               <p className="mt-1 text-xs text-slate-500">
                 {form.customer.trim()
@@ -316,9 +320,12 @@ function OrderModalContent({
           onChange={(event) => updateForm('note', event.target.value)}
           rows={2}
           placeholder="주문서 비고"
+          lang="ko"
           className={ERP_FIELD_INPUT_CLASS}
+          style={{ imeMode: 'active' }}
         />
       </label>
+      </div>
     </ErpModal>
   )
 }

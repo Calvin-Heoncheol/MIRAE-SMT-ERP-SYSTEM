@@ -7,8 +7,13 @@ import {
 import { fetchOutboundPendingSummary } from '@/lib/materials/outbound/repository'
 import { fetchMaterialPurchaseOrders } from '@/lib/materials/purchase-orders/repository'
 import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
+import {
+  buildDeliveryDueNotifications,
+  buildNegativeStockNotification,
+  buildPendingPurchaseNotification,
+} from '@/lib/notifications/ops-alerts'
 import { fetchOrders } from '@/lib/orders/repository'
-import { formatInternalCodeLabel, todayYmdSeoul } from '@/lib/orders/utils'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 import { POST_PROCESS_TEAMS } from '@/lib/post-process/teams'
 import { fetchPostProcessTodayProduction } from '@/lib/post-process/repository'
 import { fetchPostProcessProductionPlansForDate } from '@/lib/post-process/plan/repository'
@@ -18,7 +23,6 @@ import { fetchSmtProductionPlansForDate } from '@/lib/smt/plan/repository'
 import {
   buildSmtPlanBlocks,
   daysUntilYmd,
-  formatDeliveryCountdown,
 } from '@/lib/smt/plan/utils'
 import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
 
@@ -38,50 +42,35 @@ export type HomeProductionTeam = {
   href: string
 }
 
-export type HomeAlert = {
+/** 주문→자재→생산→출하 흐름 한 칸 */
+export type HomePipelineStage = {
   key: string
   label: string
+  primary: string
+  secondary?: string
+  href: string
+  tone: 'default' | 'warn' | 'danger' | 'ok'
+}
+
+/** 조치가 필요한 항목 (목록 한 줄) */
+export type HomeAttentionItem = {
+  key: string
+  kind: 'delivery' | 'material' | 'quality'
+  title: string
   detail: string
   href: string
   tone: 'warn' | 'danger'
 }
 
-export type HomeDeptMetric = {
-  key: string
-  label: string
-  value: number | null
-  unit: '건' | 'EA' | '%'
-  href: string
-  tone: 'default' | 'warn' | 'danger'
-}
-
-export type HomeDeptSection = {
-  dept: string
-  href: string
-  metrics: HomeDeptMetric[]
-}
-
-export type HomeHeroMetric = {
-  key: string
-  label: string
-  value: number | null
-  unit: '건' | 'EA' | '%'
-  href: string
-  tone: 'default' | 'warn' | 'danger'
-  hint?: string
-}
-
 export type HomeDashboardData = {
   todayLabel: string
-  hero: HomeHeroMetric[]
-  departments: HomeDeptSection[]
+  pipeline: HomePipelineStage[]
+  attention: HomeAttentionItem[]
   smtLines: HomeSmtLine[]
   productionTeams: HomeProductionTeam[]
-  alerts: HomeAlert[]
 }
 
 const DUE_SOON_DAYS = 3
-const MAX_DELIVERY_ALERTS = 5
 
 function groupAssembliesByOrderId(groups: OrderAssemblyGroup[]) {
   const map = new Map<string, OrderAssemblyGroup[]>()
@@ -91,6 +80,11 @@ function groupAssembliesByOrderId(groups: OrderAssemblyGroup[]) {
     map.set(group.orderId, list)
   }
   return map
+}
+
+function formatCount(value: number | null, unit: string) {
+  if (value == null) return '—'
+  return `${value.toLocaleString('ko-KR')}${unit}`
 }
 
 export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
@@ -127,11 +121,11 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     : {}
   const assemblyResult = await fetchAssemblyGroups(productById)
 
-  // ── 출하 미완료 · 납기 임박 ─────────────────────────────────
+  // ── 출하 미완료 · 납기 임박 · 조치 목록 ─────────────────────
   let unshippedOrders: number | null = null
   let dueSoonOrders: number | null = null
   let todayDeliveryDue: number | null = null
-  const alerts: HomeAlert[] = []
+  const attention: HomeAttentionItem[] = []
 
   const todayNewOrders = ordersResult.ok
     ? ordersResult.orders.filter((order) => order.orderDate === today).length
@@ -169,13 +163,19 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     dueSoonOrders = dueSoon.length
     todayDeliveryDue = pendingOrders.filter((order) => order.deliveryDate === today).length
 
-    for (const { order, daysUntil } of dueSoon.slice(0, MAX_DELIVERY_ALERTS)) {
-      alerts.push({
-        key: `delivery:${order.orderId}`,
-        label: `${formatInternalCodeLabel(order.orderNumber)} · ${order.customer || '—'}`,
-        detail: `납기 ${order.deliveryDate} (${formatDeliveryCountdown(daysUntil)})`,
-        href: '/production/status',
-        tone: daysUntil < 0 ? 'danger' : 'warn',
+    for (const note of buildDeliveryDueNotifications({
+      today,
+      orders: ordersResult.orders,
+      assemblyGroups: assemblyResult.groups,
+      deliveryCounts,
+    })) {
+      attention.push({
+        key: note.key,
+        kind: 'delivery',
+        title: note.label,
+        detail: note.detail,
+        href: note.href,
+        tone: note.tone === 'danger' ? 'danger' : 'warn',
       })
     }
   }
@@ -193,15 +193,6 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     negativeStockMaterials = 0
     for (const onHand of onHandResult.onHandByMaterialId.values()) {
       if (onHand < 0) negativeStockMaterials += 1
-    }
-    if (negativeStockMaterials > 0) {
-      alerts.push({
-        key: 'stock:negative',
-        label: `재고 마이너스 자재 ${negativeStockMaterials.toLocaleString('ko-KR')}건`,
-        detail: '재고현황에서 입고·불출 내역을 확인하세요',
-        href: '/materials/inventory',
-        tone: 'danger',
-      })
     }
   }
 
@@ -298,168 +289,97 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
 
   const todayShipped = deliveryTodayResult.ok ? deliveryTodayResult.rows.length : null
 
-  const warnIfPositive = (value: number | null): 'default' | 'warn' =>
-    value != null && value > 0 ? 'warn' : 'default'
+  const stockAlert = buildNegativeStockNotification(negativeStockMaterials ?? 0)
+  if (stockAlert) {
+    attention.push({
+      key: stockAlert.key,
+      kind: 'material',
+      title: stockAlert.label,
+      detail: stockAlert.detail,
+      href: stockAlert.href,
+      tone: 'danger',
+    })
+  }
+  const purchaseAlert = buildPendingPurchaseNotification(pendingPurchaseOrders ?? 0)
+  if (purchaseAlert) {
+    attention.push({
+      key: purchaseAlert.key,
+      kind: 'material',
+      title: purchaseAlert.label,
+      detail: purchaseAlert.detail,
+      href: purchaseAlert.href,
+      tone: 'warn',
+    })
+  }
+  if (outboundPending != null && outboundPending > 0) {
+    attention.push({
+      key: 'material:outbound',
+      kind: 'material',
+      title: `불출 대기 ${outboundPending.toLocaleString('ko-KR')}건`,
+      detail: 'BOM 기준 미불출',
+      href: '/materials/outbound',
+      tone: 'warn',
+    })
+  }
+  if (todayDefectQuantity > 0) {
+    attention.push({
+      key: 'quality:defect',
+      kind: 'quality',
+      title: `오늘 불량 ${todayDefectQuantity.toLocaleString('ko-KR')}EA`,
+      detail: 'SMT·후공정 합산',
+      href: '/production/history',
+      tone: 'danger',
+    })
+  }
 
-  const departments: HomeDeptSection[] = [
-    {
-      dept: '영업',
-      href: '/orders',
-      metrics: [
-        {
-          key: 'sales:new-orders',
-          label: '오늘 신규 주문',
-          value: todayNewOrders,
-          unit: '건',
-          href: '/orders?filter=today',
-          tone: 'default',
-        },
-        {
-          key: 'sales:due-soon',
-          label: '납기 임박 (3일)',
-          value: dueSoonOrders,
-          unit: '건',
-          href: '/production/status',
-          tone: warnIfPositive(dueSoonOrders),
-        },
-      ],
-    },
-    {
-      dept: '자재',
-      href: '/materials/inventory',
-      metrics: [
-        {
-          key: 'materials:outbound-pending',
-          label: '불출 대기',
-          value: outboundPending,
-          unit: '건',
-          href: '/materials/outbound',
-          tone: warnIfPositive(outboundPending),
-        },
-        {
-          key: 'materials:pending-po',
-          label: '미입고 발주',
-          value: pendingPurchaseOrders,
-          unit: '건',
-          href: '/materials/purchase-orders',
-          tone: warnIfPositive(pendingPurchaseOrders),
-        },
-        {
-          key: 'materials:negative-stock',
-          label: '재고 마이너스',
-          value: negativeStockMaterials,
-          unit: '건',
-          href: '/materials/inventory',
-          tone: negativeStockMaterials != null && negativeStockMaterials > 0 ? 'danger' : 'default',
-        },
-      ],
-    },
-    {
-      dept: '생산',
-      href: '/smt',
-      metrics: [
-        {
-          key: 'production:planned',
-          label: '오늘 계획',
-          value: todayPlannedQuantity,
-          unit: 'EA',
-          href: '/smt/plan',
-          tone: 'default',
-        },
-        {
-          key: 'production:achievement',
-          label: '계획 달성률',
-          value: todayAchievementRate,
-          unit: '%',
-          href: '/production/status',
-          tone: 'default',
-        },
-        {
-          key: 'production:defect',
-          label: '오늘 불량',
-          value: todayDefectQuantity,
-          unit: 'EA',
-          href: '/production/history',
-          tone: todayDefectQuantity > 0 ? 'danger' : 'default',
-        },
-      ],
-    },
-    {
-      dept: '출하',
-      href: '/delivery/input',
-      metrics: [
-        {
-          key: 'delivery:today-due',
-          label: '오늘 출하 예정',
-          value: todayDeliveryDue,
-          unit: '건',
-          href: '/delivery/input',
-          tone: warnIfPositive(todayDeliveryDue),
-        },
-        {
-          key: 'delivery:today-shipped',
-          label: '오늘 출하 완료',
-          value: todayShipped,
-          unit: '건',
-          href: '/delivery/input',
-          tone: 'default',
-        },
-        {
-          key: 'delivery:unshipped',
-          label: '출하 미완료',
-          value: unshippedOrders,
-          unit: '건',
-          href: '/delivery/input',
-          tone: 'default',
-        },
-      ],
-    },
-  ]
+  const materialIssueCount =
+    (negativeStockMaterials ?? 0) + (pendingPurchaseOrders ?? 0) + (outboundPending ?? 0)
 
-  const hero: HomeHeroMetric[] = [
+  const pipeline: HomePipelineStage[] = [
     {
-      key: 'hero:new-orders',
-      label: '오늘 신규 주문',
-      value: todayNewOrders,
-      unit: '건',
+      key: 'order',
+      label: '주문',
+      primary: formatCount(todayNewOrders, '건'),
+      secondary:
+        dueSoonOrders != null
+          ? `납기임박 ${dueSoonOrders.toLocaleString('ko-KR')}`
+          : undefined,
       href: '/orders?filter=today',
-      tone: 'default',
+      tone: (dueSoonOrders ?? 0) > 0 ? 'warn' : 'default',
     },
     {
-      key: 'hero:achievement',
-      label: '계획 달성률',
-      value: todayAchievementRate,
-      unit: '%',
-      href: '/production/status',
-      tone: 'default',
-      hint:
+      key: 'material',
+      label: '자재',
+      primary: materialIssueCount > 0 ? `이슈 ${materialIssueCount.toLocaleString('ko-KR')}` : '정상',
+      secondary:
+        outboundPending != null
+          ? `불출대기 ${outboundPending.toLocaleString('ko-KR')}`
+          : undefined,
+      href: '/materials/inventory',
+      tone: (negativeStockMaterials ?? 0) > 0 ? 'danger' : materialIssueCount > 0 ? 'warn' : 'ok',
+    },
+    {
+      key: 'production',
+      label: '생산',
+      primary:
+        todayAchievementRate != null ? `${todayAchievementRate}%` : '계획 없음',
+      secondary:
         todayPlannedQuantity > 0
           ? `${todayProducedQuantity.toLocaleString('ko-KR')} / ${todayPlannedQuantity.toLocaleString('ko-KR')} EA`
-          : '오늘 계획 없음',
+          : undefined,
+      href: '/production/plan',
+      tone: 'default',
     },
     {
-      key: 'hero:shipped',
-      label: '오늘 출하',
-      value: todayShipped,
-      unit: '건',
+      key: 'delivery',
+      label: '출하',
+      primary: formatCount(todayShipped, '건'),
+      secondary:
+        unshippedOrders != null
+          ? `미완료 ${unshippedOrders.toLocaleString('ko-KR')} · 예정 ${todayDeliveryDue ?? 0}`
+          : undefined,
       href: '/delivery/input',
       tone: 'default',
-      hint:
-        todayDeliveryDue != null
-          ? `예정 ${todayDeliveryDue.toLocaleString('ko-KR')}건`
-          : undefined,
-    },
-    {
-      key: 'hero:alerts',
-      label: '주의 알림',
-      value: alerts.length,
-      unit: '건',
-      href: '/production/status',
-      tone: alerts.some((alert) => alert.tone === 'danger')
-        ? 'danger'
-        : alerts.length > 0
-          ? 'warn'
-          : 'default',
     },
   ]
 
@@ -473,10 +393,9 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
 
   return {
     todayLabel,
-    hero,
-    departments,
+    pipeline,
+    attention,
     smtLines,
     productionTeams,
-    alerts,
   }
 }

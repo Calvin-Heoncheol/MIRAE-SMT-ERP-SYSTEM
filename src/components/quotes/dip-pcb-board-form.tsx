@@ -2,7 +2,7 @@
 
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { DIP_UNIT } from '@/lib/quotes/constants'
-import { formatQuoteMoneyByDisplay } from '@/lib/quotes/format'
+import { formatQuoteMoneyRateByDisplay } from '@/lib/quotes/format'
 import type { DipBoardForm } from '@/lib/quotes/form-state'
 import type { QuoteDisplayCurrency, QuoteType } from '@/lib/quotes/types'
 
@@ -26,7 +26,7 @@ function UnitPreview({
 }) {
   return (
     <span className="mt-1 block text-[11px] text-slate-400">
-      {formatQuoteMoneyByDisplay(krw, quoteType, displayCurrency)}
+      {formatQuoteMoneyRateByDisplay(krw, quoteType, displayCurrency)}
     </span>
   )
 }

@@ -1,3 +1,4 @@
+import type { MaterialInboundStatus } from '@/lib/materials/material-inbound-status'
 import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-input/types'
 import type { PostProcessTeam } from '@/lib/post-process/teams'
 
@@ -40,6 +41,7 @@ export type PostProcessPlanOrderCandidate = {
   daysUntilDelivery: number | null
   /** SMT 공정이 없는 제품이면 null */
   smt?: CandidateSmtStatus | null
+  materialStatus?: MaterialInboundStatus
 }
 
 export type PostProcessPlanBlock = PostProcessProductionPlan & {

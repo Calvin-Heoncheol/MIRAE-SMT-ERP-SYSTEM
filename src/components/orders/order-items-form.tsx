@@ -4,7 +4,7 @@ import { type Dispatch, type SetStateAction } from 'react'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { ProductCombobox } from '@/components/orders/product-combobox'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
-import { formatItemVersionLabel, parseItemVersionCode } from '@/lib/items/version-code'
+import { parseItemVersionCode } from '@/lib/items/version-code'
 import { defaultOrderItemForm, type OrderItemForm } from '@/lib/orders/form-state'
 import { computeLineAmount } from '@/lib/orders/utils'
 import type { Product } from '@/lib/products/types'
@@ -26,8 +26,8 @@ function applyProductToItem(item: OrderItemForm, product: Product): OrderItemFor
   }
 }
 
-function formatProductVersionLabel(productCode: string) {
-  return formatItemVersionLabel(parseItemVersionCode(productCode.trim()).version)
+function productVersionLabel(productCode: string) {
+  return parseItemVersionCode(productCode.trim()).version
 }
 
 export function OrderItemsForm({
@@ -63,7 +63,7 @@ export function OrderItemsForm({
   }
 
   const inputClassName =
-    'w-full min-w-0 rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100'
+    'w-full min-w-0 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100'
 
   return (
     <div className="space-y-3">
@@ -72,103 +72,102 @@ export function OrderItemsForm({
         <ErpRowAddButton onClick={addRow} title="제품 추가" />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="min-w-[980px] w-full border-collapse text-sm">
+      <div className="overflow-hidden rounded-lg border border-slate-200">
+        <table className="w-full table-fixed border-collapse text-sm">
+          <colgroup>
+            <col className="w-[18%]" />
+            <col className="w-[26%]" />
+            <col className="w-[10%]" />
+            <col className="w-[12%]" />
+            <col className="w-[12%]" />
+            <col className="w-[16%]" />
+            <col className="w-10" />
+          </colgroup>
           <thead className="bg-slate-50">
             <tr>
-              <th className="min-w-[140px] px-3 py-2 text-left text-sm font-semibold text-slate-600">
-                제품코드
-              </th>
-              <th className="min-w-[220px] px-3 py-2 text-left text-sm font-semibold text-slate-600">
-                제품명
-              </th>
-              <th className="min-w-[64px] whitespace-nowrap px-3 py-2 text-left text-sm font-semibold text-slate-600">
-                버전
-              </th>
-              <th className="min-w-[72px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
-                수량
-              </th>
-              <th className="min-w-[96px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
-                단가 (원)
-              </th>
-              <th className="min-w-[104px] whitespace-nowrap px-3 py-2 text-right text-sm font-semibold text-slate-600">
-                금액 (원)
-              </th>
-              <th className="min-w-[132px] whitespace-nowrap px-3 py-2 text-left text-sm font-semibold text-slate-600">
-                납기일
-              </th>
-              <th className="w-10 px-2 py-2" />
+              <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600">제품코드</th>
+              <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600">제품명</th>
+              <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">수량</th>
+              <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">단가</th>
+              <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">금액</th>
+              <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600">납기일</th>
+              <th className="px-1 py-2" />
             </tr>
           </thead>
           <tbody>
             {items.map((item, index) => {
               const amount = computeLineAmount(Number(item.quantity), Number(item.unitPrice))
+              const version = productVersionLabel(item.productCode || item.productId)
               return (
                 <tr key={index} className="border-t border-slate-100">
-                  <td className="px-3 py-2 align-top">
+                  <td className="px-2 py-2 align-top">
                     <ProductCombobox
                       value={item.productCode}
                       products={products}
                       customer={customer}
                       field="code"
-                      placeholder="제품코드 검색"
+                      placeholder="코드 검색"
                       ariaLabel={`${index + 1}행 제품코드`}
-                      inputClassName={`${inputClassName} min-w-[140px]`}
+                      inputClassName={inputClassName}
                       onValueChange={(productCode) =>
                         patchItem(index, { productCode, productId: '', productName: '' })
                       }
                       onProductSelect={(product) => selectProduct(index, product)}
                     />
                   </td>
-                  <td className="px-3 py-2 align-top">
-                    <ProductCombobox
-                      value={item.productName}
-                      products={products}
-                      customer={customer}
-                      field="name"
-                      placeholder="제품명 입력 또는 검색"
-                      ariaLabel={`${index + 1}행 제품명`}
-                      inputClassName={`${inputClassName} min-w-[220px]`}
-                      onValueChange={(productName) =>
-                        patchItem(index, { productName, productId: '', productCode: '' })
-                      }
-                      onProductSelect={(product) => selectProduct(index, product)}
-                    />
-                  </td>
-                  <td className="px-3 py-2 align-top">
-                    <div className="flex h-[38px] min-w-[64px] items-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-sm font-medium tabular-nums text-slate-700">
-                      {formatProductVersionLabel(item.productCode || item.productId)}
+                  <td className="px-2 py-2 align-top">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <div className="min-w-0 flex-1">
+                        <ProductCombobox
+                          value={item.productName}
+                          products={products}
+                          customer={customer}
+                          field="name"
+                          placeholder="제품명"
+                          ariaLabel={`${index + 1}행 제품명`}
+                          inputClassName={inputClassName}
+                          onValueChange={(productName) =>
+                            patchItem(index, { productName, productId: '', productCode: '' })
+                          }
+                          onProductSelect={(product) => selectProduct(index, product)}
+                        />
+                      </div>
+                      {version ? (
+                        <span className="shrink-0 text-xs font-semibold text-sky-600">{version}</span>
+                      ) : null}
                     </div>
                   </td>
-                  <td className="px-3 py-2 align-top">
+                  <td className="px-2 py-2 align-top">
                     <QuoteNumericInput
                       min={0}
                       value={String(item.quantity)}
                       onChange={(quantity) => patchItem(index, { quantity })}
-                      className={`${inputClassName} min-w-[80px] text-right`}
+                      className={`${inputClassName} text-right`}
                     />
                   </td>
-                  <td className="px-3 py-2 align-top">
+                  <td className="px-2 py-2 align-top">
                     <QuoteNumericInput
                       min={0}
                       value={String(item.unitPrice)}
                       onChange={(unitPrice) => patchItem(index, { unitPrice })}
-                      className={`${inputClassName} min-w-[100px] text-right`}
+                      className={`${inputClassName} text-right`}
                     />
                   </td>
-                  <td className="px-3 py-2 text-right text-sm font-medium tabular-nums text-slate-800 align-top">
-                    {amount.toLocaleString('ko-KR')}
+                  <td className="px-2 py-2 text-right text-sm font-medium tabular-nums text-slate-800 align-top">
+                    <div className="flex h-[34px] items-center justify-end">
+                      {amount.toLocaleString('ko-KR')}
+                    </div>
                   </td>
-                  <td className="px-3 py-2 align-top">
+                  <td className="px-2 py-2 align-top">
                     <input
                       type="date"
                       value={item.deliveryDate || ''}
                       onChange={(event) => patchItem(index, { deliveryDate: event.target.value })}
                       aria-label={`${index + 1}행 납기일`}
-                      className={`${inputClassName} min-w-[132px]`}
+                      className={inputClassName}
                     />
                   </td>
-                  <td className="w-10 px-2 py-2 text-center align-top">
+                  <td className="px-1 py-2 text-center align-top">
                     <button
                       type="button"
                       onClick={() => removeRow(index)}
@@ -187,7 +186,7 @@ export function OrderItemsForm({
       </div>
       <p className="text-xs text-slate-500">
         제품코드 또는 제품명으로 등록 제품을 선택하세요. 선택 후 값을 수정·삭제하면 저장되지 않습니다.
-        버전은 제품코드 접미사(V1, REV2 등)에서 자동 표시됩니다. 납기일은 제품마다 다르게 입력할 수 있습니다.
+        버전은 제품코드 접미사에서 제품명 오른쪽에 표시됩니다. 납기일은 제품마다 다르게 입력할 수 있습니다.
       </p>
     </div>
   )

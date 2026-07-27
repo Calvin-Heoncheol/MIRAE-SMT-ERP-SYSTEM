@@ -26,14 +26,18 @@ import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type ProductionHistoryWorkspaceProps = {
   result: FetchProductionHistoryResult
+  initialTeamFilter?: ProductionHistoryTeamFilter
 }
 
 type ModalState = { open: false } | { open: true; row: ProductionHistoryRow }
 
-export function ProductionHistoryWorkspace({ result }: ProductionHistoryWorkspaceProps) {
+export function ProductionHistoryWorkspace({
+  result,
+  initialTeamFilter = 'all',
+}: ProductionHistoryWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const [teamFilter, setTeamFilter] = useState<ProductionHistoryTeamFilter>('all')
+  const [teamFilter, setTeamFilter] = useState<ProductionHistoryTeamFilter>(initialTeamFilter)
   const [modal, setModal] = useState<ModalState>({ open: false })
 
   const rows = result.ok ? result.rows : []

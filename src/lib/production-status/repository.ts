@@ -34,7 +34,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     smtOrdersResult,
   ] = await Promise.all([
     fetchOrders(),
-    fetchProducts(),
+    fetchProducts(false),
     fetchSmtCumulativeCounts(),
     fetchPostProcessCumulativeCounts(),
     fetchDeliveryCumulativeCounts(),
@@ -95,6 +95,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
         deliveryCountsResult.counts,
         smtCountsResult.defectCounts,
         postCountsResult.defectCounts,
+        productById,
       ),
       smtOrders,
       postOrders,

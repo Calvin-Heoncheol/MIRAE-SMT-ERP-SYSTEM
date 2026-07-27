@@ -49,6 +49,16 @@ export function formatQuoteKrw(krw: number) {
   })}`
 }
 
+/** 공정 단가(CHIP·BGA 등) — 소수 있으면 유지 (예: ₩2.5). 합계용 formatQuoteKrw 와 구분 */
+export function formatQuoteKrwRate(krw: number) {
+  const value = Number(krw) || 0
+  const isWhole = Math.abs(value - Math.round(value)) < 1e-9
+  return `₩${value.toLocaleString('ko-KR', {
+    minimumFractionDigits: isWhole ? 0 : 1,
+    maximumFractionDigits: 2,
+  })}`
+}
+
 export function roundUsd(usd: number) {
   const factor = 10 ** EXPORT_USD_FRACTION_DIGITS
   return Math.round(usd * factor) / factor
@@ -89,6 +99,17 @@ export function formatQuoteMoneyByDisplay(
   return resolveQuoteDisplayCurrency(quoteType, displayCurrency) === 'usd'
     ? formatQuoteUsd(krw)
     : formatQuoteKrw(krw)
+}
+
+/** 공정 단가 표시 — 국내 소수 단가(BGA 2.5 등) 유지 */
+export function formatQuoteMoneyRateByDisplay(
+  krw: number,
+  quoteType: QuoteType,
+  displayCurrency: QuoteDisplayCurrency = 'usd',
+) {
+  return resolveQuoteDisplayCurrency(quoteType, displayCurrency) === 'usd'
+    ? formatQuoteUsd(krw)
+    : formatQuoteKrwRate(krw)
 }
 
 export function formatQuoteMoneyTotal(krw: number, quoteType?: QuoteType) {

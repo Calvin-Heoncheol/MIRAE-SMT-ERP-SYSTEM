@@ -187,7 +187,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
   }
 
   const [productsResult, ordersResult, confirmResult, onHandResult] = await Promise.all([
-    fetchProducts(),
+    fetchProducts(false),
     fetchOrders({ includeDerivedLines: true }),
     fetchConfirmRows(),
     fetchOnHandByMaterialId(),

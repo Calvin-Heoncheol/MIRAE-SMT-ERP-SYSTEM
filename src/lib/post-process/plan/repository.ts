@@ -10,6 +10,13 @@ import {
 } from '@/lib/auth/created-by'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
+import { fetchPendingInboundByMaterialId } from '@/lib/materials/inventory/pending-inbound'
+import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
+import {
+  buildBomEdgesByParent,
+  resolveMaterialInboundStatus,
+} from '@/lib/materials/material-inbound-status'
+import { fetchBomEdges } from '@/lib/materials/outbound/repository'
 import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { fetchProducts } from '@/lib/products/repository'
@@ -387,6 +394,17 @@ export async function fetchPostProcessPlanPageData(
   )
   if (!assemblyResult.ok) return assemblyResult
 
+  const [onHandResult, pendingResult, bomEdges] = await Promise.all([
+    fetchOnHandByMaterialId(),
+    fetchPendingInboundByMaterialId(),
+    fetchBomEdges().catch(() => [] as Awaited<ReturnType<typeof fetchBomEdges>>),
+  ])
+  const onHandByMaterialId = onHandResult.ok ? onHandResult.onHandByMaterialId : new Map<string, number>()
+  const pendingByMaterialId = pendingResult.ok
+    ? pendingResult.pendingByMaterialId
+    : new Map<string, number>()
+  const edgesByParent = buildBomEdgesByParent(bomEdges)
+
   const weekDates = getWeekDates(weekStart)
   const weekEnd = getWeekEndYmd(weekStart)
   const progressResult = await fetchPostProcessPlanProgressRange(weekStart, weekEnd)
@@ -468,6 +486,10 @@ export async function fetchPostProcessPlanPageData(
     }
   }
 
+  const lineByGroupId = Object.fromEntries(
+    assemblyLines.map((line) => [line.assemblyGroupId || line.orderLineId, line]),
+  )
+
   return {
     ok: true,
     data: {
@@ -482,10 +504,21 @@ export async function fetchPostProcessPlanPageData(
         countsResult.counts,
         allPlansResult.plans,
         { onlyUnplanned: false },
-      ).map((candidate) => ({
-        ...candidate,
-        smt: smtStatusByGroupId.get(candidate.assemblyGroupId) ?? null,
-      })),
+      ).map((candidate) => {
+        const line = lineByGroupId[candidate.assemblyGroupId]
+        const productId = (line?.productCode || '').trim()
+        return {
+          ...candidate,
+          smt: smtStatusByGroupId.get(candidate.assemblyGroupId) ?? null,
+          materialStatus: resolveMaterialInboundStatus(
+            productId,
+            candidate.remaining,
+            edgesByParent,
+            onHandByMaterialId,
+            pendingByMaterialId,
+          ),
+        }
+      }),
       planProgress: progressResult.progress,
     },
   }

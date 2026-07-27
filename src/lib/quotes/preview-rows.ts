@@ -11,7 +11,7 @@ import {
   computeSmtPlacementScore,
   computeSmtSetupBillingBreakdown,
 } from './calculate-estimate'
-import { formatQuoteMoneyByDisplay, formatQuoteSetupMinutes } from './format'
+import { formatQuoteMoneyRateByDisplay, formatQuoteSetupMinutes } from './format'
 import { getPreviewLabels, resolveLabelQuoteType, type QuoteDocumentLanguage } from './preview-i18n'
 import type {
   DipBoardDetail,
@@ -87,7 +87,7 @@ export function formatPreviewRowUnit(
   displayCurrency: QuoteDisplayCurrency = 'usd',
 ) {
   if (row.unitLabel) return row.unitLabel
-  if (row.unit != null) return formatQuoteMoneyByDisplay(row.unit, quoteType, displayCurrency)
+  if (row.unit != null) return formatQuoteMoneyRateByDisplay(row.unit, quoteType, displayCurrency)
   return '-'
 }
 

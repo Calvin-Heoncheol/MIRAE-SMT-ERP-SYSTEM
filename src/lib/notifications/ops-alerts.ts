@@ -1,0 +1,93 @@
+import type { OrderAssemblyGroup } from '@/lib/assembly/types'
+import type { OrderListGroup } from '@/lib/orders/types'
+import { formatInternalCodeLabel } from '@/lib/orders/utils'
+import {
+  daysUntilYmd,
+  formatDeliveryCountdown,
+} from '@/lib/smt/plan/utils'
+import type { AppNotification } from './types'
+
+const DUE_SOON_DAYS = 3
+const MAX_DELIVERY_ALERTS = 8
+
+function groupAssembliesByOrderId(groups: OrderAssemblyGroup[]) {
+  const map = new Map<string, OrderAssemblyGroup[]>()
+  for (const group of groups) {
+    const list = map.get(group.orderId) ?? []
+    list.push(group)
+    map.set(group.orderId, list)
+  }
+  return map
+}
+
+export function buildDeliveryDueNotifications(input: {
+  today: string
+  orders: OrderListGroup[]
+  assemblyGroups: OrderAssemblyGroup[]
+  deliveryCounts: Record<string, number>
+}): AppNotification[] {
+  const assembliesByOrderId = groupAssembliesByOrderId(input.assemblyGroups)
+
+  const isFullyShipped = (orderId: string) => {
+    const groups = (assembliesByOrderId.get(orderId) ?? []).filter(
+      (group) => Math.floor(group.targetQuantity) > 0,
+    )
+    if (!groups.length) return false
+    return groups.every(
+      (group) =>
+        Math.max(0, Math.floor(Number(input.deliveryCounts[group.id]) || 0)) >=
+        Math.floor(group.targetQuantity),
+    )
+  }
+
+  const pendingOrders = input.orders.filter(
+    (order) => order.items.length > 0 && !isFullyShipped(order.orderId),
+  )
+
+  const dueSoon = pendingOrders
+    .filter((order) => order.deliveryDate)
+    .flatMap((order) => {
+      const daysUntil = daysUntilYmd(input.today, order.deliveryDate)
+      return daysUntil != null && daysUntil <= DUE_SOON_DAYS
+        ? [{ order, daysUntil }]
+        : []
+    })
+    .sort((a, b) => a.daysUntil - b.daysUntil)
+
+  return dueSoon.slice(0, MAX_DELIVERY_ALERTS).map(({ order, daysUntil }) => ({
+    key: `delivery:${order.orderId}`,
+    category: 'delivery' as const,
+    label: `${formatInternalCodeLabel(order.orderNumber)} · ${order.customer || '—'}`,
+    detail: `납기 ${order.deliveryDate} (${formatDeliveryCountdown(daysUntil)})`,
+    href: '/production/status',
+    tone: daysUntil < 0 ? ('danger' as const) : ('warn' as const),
+  }))
+}
+
+export function buildNegativeStockNotification(
+  negativeCount: number,
+): AppNotification | null {
+  if (negativeCount <= 0) return null
+  return {
+    key: 'stock:negative',
+    category: 'stock',
+    label: `재고 마이너스 자재 ${negativeCount.toLocaleString('ko-KR')}건`,
+    detail: '재고현황에서 입고·불출 내역을 확인하세요',
+    href: '/materials/inventory',
+    tone: 'danger',
+  }
+}
+
+export function buildPendingPurchaseNotification(
+  pendingCount: number,
+): AppNotification | null {
+  if (pendingCount <= 0) return null
+  return {
+    key: 'purchase:pending-inbound',
+    category: 'purchase',
+    label: `미입고 발주 ${pendingCount.toLocaleString('ko-KR')}건`,
+    detail: '발주서 입고 잔량을 확인하세요',
+    href: '/materials/purchase-orders',
+    tone: 'warn',
+  }
+}

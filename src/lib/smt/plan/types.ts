@@ -1,3 +1,4 @@
+import type { MaterialInboundStatus } from '@/lib/materials/material-inbound-status'
 import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-input/types'
 import type { SmtPcbSide } from '@/lib/smt/types'
 
@@ -30,6 +31,7 @@ export type SmtPlanOrderCandidate = {
   unplannedRemaining: number
   unplannedBySide: Partial<Record<SmtPcbSide, number>>
   daysUntilDelivery: number | null
+  materialStatus?: MaterialInboundStatus
 }
 
 export type SmtPlanBlock = SmtProductionPlan & {
