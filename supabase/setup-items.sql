@@ -7,6 +7,8 @@
 
 create table if not exists public.items (
   id text primary key,
+  base_code text not null default '',
+  version text not null default '',
   name text not null default '',
   specification text not null default '',
   mpn text not null default '',
@@ -27,6 +29,10 @@ create table if not exists public.items (
 );
 
 -- 기존 DB: 신규 컬럼 보강 (create table if not exists 는 기존 테이블에 컬럼을 추가하지 않음)
+alter table public.items
+  add column if not exists base_code text not null default '';
+alter table public.items
+  add column if not exists version text not null default '';
 alter table public.items
   add column if not exists specification text not null default '';
 alter table public.items
@@ -60,8 +66,10 @@ alter table public.items
 alter table public.items
   add column if not exists updated_at timestamptz not null default now();
 
-comment on table public.items is '품목 마스터 — 품목코드=id (직접 입력)';
-comment on column public.items.id is '품목코드 (PK, 필수, 수정 불가)';
+comment on table public.items is '품목 마스터 — 표시 코드=base_code, 버전=version, PK=id';
+comment on column public.items.id is '내부 품목 PK (버전 있으면 보통 {base_code}-{version})';
+comment on column public.items.base_code is '표시용 품목코드 (버전 제외)';
+comment on column public.items.version is '버전 라벨 (A1, V2 등). 원자재는 빈 문자열';
 comment on column public.items.name is '품목명 (필수)';
 comment on column public.items.specification is '규격';
 comment on column public.items.mpn is 'MPN';
@@ -78,12 +86,15 @@ comment on column public.items.item_category is '1=원자재, 2=부자재, 3=반
 comment on column public.items.is_active is '사용 여부';
 
 create index if not exists items_name_idx on public.items (name);
+create index if not exists items_base_code_idx on public.items (base_code);
 create index if not exists items_mpn_idx on public.items (mpn);
 create index if not exists items_material_type_idx on public.items (material_type);
 create index if not exists items_supplier_idx on public.items (supplier);
 create index if not exists items_process_type_idx on public.items (process_type) where process_type <> '';
 create index if not exists items_item_category_idx on public.items (item_category);
 create index if not exists items_is_active_idx on public.items (is_active);
+create unique index if not exists items_base_code_version_uidx
+  on public.items (lower(btrim(base_code)), lower(btrim(version)));
 
 alter table public.items enable row level security;
 

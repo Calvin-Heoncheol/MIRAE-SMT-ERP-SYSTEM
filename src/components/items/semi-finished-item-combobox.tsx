@@ -29,7 +29,10 @@ function filterSemiFinishedItems(items: Item[], query: string) {
   return items.filter((item) => {
     if (!item.isActive) return false
     if (!q) return true
-    return [item.id, item.name, item.specification].join(' ').toLowerCase().includes(q)
+    return [item.id, item.baseCode, item.version, item.name, item.specification]
+      .join(' ')
+      .toLowerCase()
+      .includes(q)
   })
 }
 
@@ -186,9 +189,11 @@ export function SemiFinishedItemCombobox({
                 index === activeIndex ? 'bg-sky-50 text-sky-900' : 'text-slate-700 hover:bg-slate-50',
               ].join(' ')}
             >
-              <span className="block font-semibold">{item.name || item.id}</span>
+              <span className="block font-semibold">{item.name || item.baseCode || item.id}</span>
               <span className="mt-0.5 block text-xs text-slate-400">
-                {[item.id, item.specification].filter(Boolean).join(' · ')}
+                {[item.baseCode || item.id, item.version, item.specification]
+                  .filter(Boolean)
+                  .join(' · ')}
               </span>
             </button>
           </li>

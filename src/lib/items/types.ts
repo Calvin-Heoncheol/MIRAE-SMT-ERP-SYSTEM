@@ -141,6 +141,10 @@ export const ITEM_CATEGORY_CODE_PREFIX: Record<ItemCategory, string | null> = {
 
 export type Item = {
   id: string
+  /** 표시용 품목코드 (버전 제외) */
+  baseCode: string
+  /** 버전 라벨 (A1, V2 등). 없으면 빈 문자열 */
+  version: string
   name: string
   specification: string
   mpn: string
@@ -162,6 +166,8 @@ export type Item = {
 
 export type ItemPayload = {
   id: string
+  baseCode: string
+  version: string
   name: string
   specification: string
   mpn: string
@@ -182,6 +188,8 @@ export type UpdateItemPayload = Omit<ItemPayload, 'id'>
 
 export const ITEM_COLUMN_LABELS = {
   id: '품목코드',
+  baseCode: '품목코드',
+  version: '버전',
   name: '품목명',
   specification: '규격',
   mpn: 'MPN',

@@ -31,7 +31,7 @@ import {
 import type { BomGroup } from '@/lib/bom/types'
 import type { Item } from '@/lib/items/types'
 import { ITEM_CATEGORY_LABELS, isSemiFinishedItemCategory } from '@/lib/items/types'
-import { suggestNextVersionItemCode } from '@/lib/items/version-code'
+import { suggestNextVersionForItem } from '@/lib/items/version-code'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type BomModalProps = {
@@ -89,13 +89,10 @@ function BomModalContent({
     return parents.filter((item) => !taken.has(item.id))
   }, [parents, existingParentIds, isCreate])
 
-  const suggestedVersionCode = useMemo(() => {
-    if (!group) return null
-    return suggestNextVersionItemCode(
-      group.parentProductId,
-      items.map((item) => item.id),
-    )
-  }, [group, items])
+  const suggestedVersion = useMemo(() => {
+    if (!group || !selectedParent) return null
+    return suggestNextVersionForItem(selectedParent, items)
+  }, [group, selectedParent, items])
 
   useEffect(() => {
     setForm(group ? bomGroupToForm(group) : emptyBomForm(initialParentProductId))
@@ -198,8 +195,8 @@ function BomModalContent({
 
   async function handleVersionUp() {
     if (!group || !selectedParent) return
-    if (!suggestedVersionCode) {
-      setSaveError('다음 버전 코드를 만들 수 없습니다.')
+    if (!suggestedVersion) {
+      setSaveError('다음 버전을 만들 수 없습니다.')
       return
     }
 
@@ -207,11 +204,12 @@ function BomModalContent({
       [
         'BOM 버전업을 진행할까요?',
         '',
-        `구버전: ${group.parentProductId}`,
-        `신버전: ${suggestedVersionCode}`,
+        `품목코드: ${suggestedVersion.baseCode}`,
+        `구버전: ${selectedParent.version || '—'}`,
+        `신버전: ${suggestedVersion.version}`,
         '',
-        '· 품목 속성과 BOM 구성을 복사합니다.',
-        '· 구버전 품목은 사용중지됩니다.',
+        '· 같은 품목코드로 새 버전 행을 만들고 BOM을 복사합니다.',
+        '· 구버전(A1 등)은 그대로 유지됩니다.',
         '· 완료 후 신버전 BOM을 바로 수정할 수 있습니다.',
       ].join('\n'),
     )
@@ -223,8 +221,8 @@ function BomModalContent({
     const result = await versionUpBomParent({
       sourceItem: selectedParent,
       group,
-      existingItemIds: items.map((item) => item.id),
-      deactivateSource: true,
+      existingItems: items,
+      deactivateSource: false,
     })
 
     setVersioning(false)
@@ -258,13 +256,13 @@ function BomModalContent({
                 </ErpButton>
                 <ErpButton
                   variant="secondary"
-                  disabled={busy || !suggestedVersionCode}
+                  disabled={busy || !suggestedVersion}
                   onClick={() => void handleVersionUp()}
                 >
                   {versioning
                     ? '버전업 중…'
-                    : suggestedVersionCode
-                      ? `버전업 (${suggestedVersionCode})`
+                    : suggestedVersion
+                      ? `버전업 → ${suggestedVersion.version}`
                       : '버전업'}
                 </ErpButton>
               </div>
@@ -308,10 +306,11 @@ function BomModalContent({
           {selectedParent ? (
             <p className="mt-1.5 text-xs text-slate-500">{describeBomRule(selectedParent.itemCategory)}</p>
           ) : null}
-          {!isCreate && suggestedVersionCode ? (
+          {!isCreate && suggestedVersion ? (
             <p className="mt-1.5 text-xs text-slate-500">
-              버전업 시 새 품목코드{' '}
-              <span className="font-mono font-semibold">{suggestedVersionCode}</span> 로 복사됩니다.
+              버전업 시 같은 품목코드에{' '}
+              <span className="font-mono font-semibold">{suggestedVersion.version}</span> 행을
+              추가하고 BOM을 복사합니다. 구버전은 유지됩니다.
             </p>
           ) : null}
         </label>

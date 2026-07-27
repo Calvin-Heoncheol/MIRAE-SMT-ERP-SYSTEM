@@ -66,6 +66,8 @@ export async function createProduct(payload: ProductPayload): Promise<SaveProduc
       .from('items')
       .insert({
         id: payload.productName.trim(),
+        base_code: payload.productName.trim(),
+        version: '',
         name: payload.productName.trim(),
         specification: '',
         mpn: '',

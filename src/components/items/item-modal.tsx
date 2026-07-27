@@ -307,13 +307,9 @@ function ItemModalContent({
   const displayItemCode = (() => {
     if (form.itemCategory === '') return ''
     if (isCreate && !canEditCode) {
-      return composeItemIdWithVersion(previewItemCode, form.version)
+      return previewItemCode
     }
-    if (showVersionField) {
-      const base = form.id.trim() || (isCreate ? previewItemCode : '')
-      return composeItemIdWithVersion(base, form.version)
-    }
-    return isCreate && !canEditCode ? previewItemCode : form.id
+    return form.id.trim() || (isCreate ? previewItemCode : '')
   })()
 
   async function handleSave() {
@@ -405,7 +401,15 @@ function ItemModalContent({
       open
       size="form"
       title={isCreate ? '품목 등록' : '품목 수정'}
-      description={!isCreate && item ? item.id : undefined}
+      description={
+        !isCreate && item
+          ? item.version
+            ? `${item.baseCode || item.id} · ${item.version}`
+            : item.baseCode || item.id
+          : showVersionField
+            ? '같은 품목코드에 버전을 나눠 여러 행으로 등록할 수 있습니다.'
+            : undefined
+      }
       onClose={onClose}
       closeOnEscape={!busy}
       footer={
@@ -498,19 +502,17 @@ function ItemModalContent({
           />
           {isCreate && form.itemCategory !== '' && isOptionalCode ? (
             <p className="mt-1 text-xs text-slate-500">
-              비워 두면 품목명
-              {normalizeVersionLabel(form.version)
-                ? ` + 버전(${normalizeVersionLabel(form.version)})`
-                : ''}
-              으로 품목코드가 만들어집니다. 직접 입력하면 그 값이 코드가 됩니다.
+              품목코드는 버전과 별개입니다. 비우면 품목명이 코드가 되고, 버전은 아래 칸에 따로 넣습니다.
             </p>
           ) : null}
           {isCreate && form.itemCategory !== '' && !canEditCode ? (
             <p className="mt-1 text-xs text-slate-500">저장 시 {displayItemCode || '품목명'} 로 생성됩니다.</p>
           ) : null}
-          {!isCreate && showVersionField && displayItemCode ? (
+          {showVersionField ? (
             <p className="mt-1 text-xs text-slate-500">
-              저장 시 품목코드: <span className="font-mono">{displayItemCode}</span>
+              예: 코드 <span className="font-mono">ABC</span> + 버전{' '}
+              <span className="font-mono">A1</span> / <span className="font-mono">A2</span> 를 각각
+              등록할 수 있습니다.
             </p>
           ) : null}
         </label>
@@ -531,14 +533,12 @@ function ItemModalContent({
               <input
                 value={form.version}
                 onChange={(event) => updateForm('version', event.target.value)}
-                placeholder="예: V1, REV2, 1"
+                placeholder="예: A1, V1, REV2"
                 autoComplete="off"
                 className={ERP_FIELD_INPUT_CLASS}
               />
               <p className="mt-1 text-[11px] text-slate-500">
-                {isCreate
-                  ? '숫자만 입력하면 -V1 형식, V1·REV2 등은 그대로 코드 뒤에 붙습니다.'
-                  : '숫자만 입력하면 -V1 형식, V1·REV2 등은 그대로 붙습니다. 저장 시 품목코드가 함께 바뀝니다.'}
+                품목코드와 별도로 저장됩니다. 같은 코드에 A1·A2처럼 버전 행을 추가할 수 있습니다.
               </p>
             </label>
           ) : null}

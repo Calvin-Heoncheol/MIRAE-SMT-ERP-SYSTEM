@@ -9,6 +9,7 @@ import {
   toItemInsertRow,
   toItemUpdateRow,
 } from './utils'
+import { normalizeVersionLabel, parseItemVersionCode } from './version-code'
 
 export type FetchItemsResult =
   | { ok: true; items: Item[] }
@@ -35,8 +36,12 @@ function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }
 }
 
 function mapDuplicateError(detail: string) {
-  if (detail.includes('items_pkey') || detail.includes('duplicate key')) {
-    return '이미 등록된 품목코드입니다. 품목명을 바꾸거나 품목코드를 직접 입력해 주세요.'
+  if (
+    detail.includes('items_pkey') ||
+    detail.includes('items_base_code_version_uidx') ||
+    detail.includes('duplicate key')
+  ) {
+    return '이미 등록된 품목코드·버전입니다. 품목코드나 버전을 바꿔 주세요.'
   }
   return detail
 }
@@ -241,7 +246,17 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
         return { ok: false, reason: 'validation', detail: resolved.detail }
       }
 
-      const insertPayload: ItemPayload = { ...payload, id: resolved.id }
+      const insertPayload: ItemPayload = {
+        ...payload,
+        id: resolved.id,
+        baseCode:
+          payload.baseCode.trim() ||
+          parseItemVersionCode(resolved.id).base ||
+          resolved.id,
+        version:
+          payload.version ||
+          normalizeVersionLabel(parseItemVersionCode(resolved.id).version || ''),
+      }
       const { data, error } = await supabase
         .from('items')
         .insert(toItemInsertRow(insertPayload))

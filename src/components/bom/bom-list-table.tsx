@@ -47,6 +47,9 @@ export function BomListTable({ rows, emptyMessage, onSelectRow }: BomListTablePr
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 부모코드
               </th>
+              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                버전
+              </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 부모명
               </th>
@@ -77,7 +80,10 @@ export function BomListTable({ rows, emptyMessage, onSelectRow }: BomListTablePr
                   }`}
                 >
                   <td className="whitespace-nowrap px-3 py-2.5 font-mono text-sm font-semibold text-slate-800">
-                    {cell(row.parentProductId)}
+                    {cell(row.parentBaseCode || row.parentProductId)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm font-medium text-slate-700">
+                    {cell(row.parentVersion || '')}
                   </td>
                   <td className="px-3 py-2.5 text-sm font-medium text-slate-900">
                     {cell(row.parentProductName)}

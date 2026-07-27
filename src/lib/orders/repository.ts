@@ -46,7 +46,7 @@ async function insertOrderLines(orderId: string, items: OrderRowPayload['items']
     order_id: orderId,
     line_seq: index,
     product_id: item.productId || null,
-    product_code: item.productId || item.productCode,
+    product_code: item.productCode || item.productId || '',
     product_name: item.productName,
     quantity: item.quantity,
     unit_price: item.unitPrice,

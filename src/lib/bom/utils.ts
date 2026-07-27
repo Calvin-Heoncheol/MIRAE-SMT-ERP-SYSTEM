@@ -48,13 +48,22 @@ export function buildBomListRows(items: Item[], bomGroups: BomGroup[]): BomListR
 
   return parentItemsForBom(items).map((item) => {
     const existing = bomByParent.get(item.id)
+    const baseCode = item.baseCode?.trim() || item.id
+    const version = item.version?.trim() || ''
     if (existing) {
-      return { ...existing, bomRegistered: true }
+      return {
+        ...existing,
+        parentBaseCode: baseCode,
+        parentVersion: version,
+        bomRegistered: true,
+      }
     }
     return {
       parentProductId: item.id,
       parentProductName: item.name,
       parentItemCategory: item.itemCategory,
+      parentBaseCode: baseCode,
+      parentVersion: version,
       lines: [],
       bomRegistered: false,
     }
@@ -71,6 +80,8 @@ export function filterBomListRows(rows: BomListRow[], query: string, parentFilte
     const statusLabel = row.bomRegistered ? '등록완료' : '미등록'
     const haystack = [
       row.parentProductId,
+      row.parentBaseCode,
+      row.parentVersion,
       row.parentProductName,
       ITEM_CATEGORY_LABELS[row.parentItemCategory],
       statusLabel,
@@ -114,8 +125,13 @@ export function childItemsForParent(items: Item[], parentCategory: ItemCategory)
     .sort((a, b) => a.id.localeCompare(b.id, 'ko'))
 }
 
-export function formatItemOptionLabel(item: Pick<Item, 'id' | 'name' | 'itemCategory'>) {
-  return `${item.id} · ${item.name || '—'} (${ITEM_CATEGORY_LABELS[item.itemCategory]})`
+export function formatItemOptionLabel(
+  item: Pick<Item, 'id' | 'baseCode' | 'version' | 'name' | 'itemCategory'>,
+) {
+  const code = item.baseCode?.trim() || item.id
+  const version = item.version?.trim()
+  const codeLabel = version ? `${code} · ${version}` : code
+  return `${codeLabel} · ${item.name || '—'} (${ITEM_CATEGORY_LABELS[item.itemCategory]})`
 }
 
 /** 구성 품목 단가 × 소요량 합산 (원 단위 반올림) */

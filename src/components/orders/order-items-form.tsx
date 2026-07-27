@@ -26,8 +26,21 @@ function applyProductToItem(item: OrderItemForm, product: Product): OrderItemFor
   }
 }
 
-function productVersionLabel(productCode: string) {
-  return parseItemVersionCode(productCode.trim()).version
+function productVersionLabel(item: OrderItemForm, products: Product[]) {
+  const byId = item.productId
+    ? products.find((product) => product.id === item.productId)
+    : null
+  if (byId?.version) return byId.version
+  const byCode = products.find(
+    (product) =>
+      product.productCode === item.productCode.trim() &&
+      (!item.productName.trim() || product.productName === item.productName.trim()),
+  )
+  if (byCode?.version) return byCode.version
+  return (
+    parseItemVersionCode(item.productId || '').version ||
+    parseItemVersionCode(item.productCode.trim()).version
+  )
 }
 
 export function OrderItemsForm({
@@ -97,7 +110,7 @@ export function OrderItemsForm({
           <tbody>
             {items.map((item, index) => {
               const amount = computeLineAmount(Number(item.quantity), Number(item.unitPrice))
-              const version = productVersionLabel(item.productCode || item.productId)
+              const version = productVersionLabel(item, products)
               return (
                 <tr key={index} className="border-t border-slate-100">
                   <td className="px-2 py-2 align-top">

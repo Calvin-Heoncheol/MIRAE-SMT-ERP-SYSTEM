@@ -17,6 +17,8 @@ export type ProductionOrderLine = {
   deliveryDate: string
   customer: string
   productCode: string
+  /** 버전 라벨 (마스터 기준, 표시용) */
+  productVersion: string | null
   productName: string
   productLabel: string
   quantity: number

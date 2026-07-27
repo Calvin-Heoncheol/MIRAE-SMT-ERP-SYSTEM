@@ -16,6 +16,9 @@ export type BomGroup = {
   parentProductId: string
   parentProductName: string
   parentItemCategory: ItemCategory
+  /** 표시용 품목코드 (버전 제외) */
+  parentBaseCode?: string
+  parentVersion?: string
   lines: BomLine[]
 }
 

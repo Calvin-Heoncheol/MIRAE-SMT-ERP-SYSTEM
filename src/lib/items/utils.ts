@@ -8,6 +8,7 @@ import type {
   ItemSupplyType,
 } from './types'
 import { deriveItemProcessType, ITEM_CATEGORY_CODE_PREFIX } from './types'
+import { normalizeVersionLabel, parseItemVersionCode } from './version-code'
 
 const LEGACY_CATEGORY_MAP: Record<string, ItemCategory> = {
   raw_material: 1,
@@ -46,7 +47,6 @@ function normalizeItemPcbSideMode(value: string | null | undefined): ItemPcbSide
   const mode = String(value || '').trim().toLowerCase()
   if (mode === 'single') return 'single'
   if (mode === 'duo') return 'duo'
-  // 레거시 dual = 양면 → double
   if (mode === 'double' || mode === 'dual') return 'double'
   return ''
 }
@@ -70,8 +70,27 @@ function normalizeItemProcessType(value: string | null | undefined): ItemProcess
   return ''
 }
 
+function resolveBaseCodeAndVersion(row: {
+  id: string
+  base_code?: string | null
+  version?: string | null
+}) {
+  const fromColumnBase = String(row.base_code || '').trim()
+  const fromColumnVersion = normalizeVersionLabel(row.version || '')
+  if (fromColumnBase) {
+    return { baseCode: fromColumnBase, version: fromColumnVersion }
+  }
+  const parsed = parseItemVersionCode(row.id || '')
+  return {
+    baseCode: parsed.base || row.id || '',
+    version: normalizeVersionLabel(parsed.version || ''),
+  }
+}
+
 export function mapItemRecord(row: {
   id: string
+  base_code?: string | null
+  version?: string | null
   name: string
   specification: string
   mpn: string
@@ -98,7 +117,6 @@ export function mapItemRecord(row: {
   const safetyStock = Math.max(0, Math.floor(Number(row.safety_stock) || 0))
   const isSemi = itemCategory === 3
   const hasBreakdown = smdUnitPrice > 0 || dipUnitPrice > 0 || materialUnitPrice > 0
-  // 마이그레이션 전 데이터: 세부 단가가 없으면 합계를 SMD(또는 DIP 공정이면 DIP)로 간주
   const resolvedSmd =
     isSemi && !hasBreakdown && unitPrice > 0
       ? row.process_type === 'post'
@@ -112,9 +130,12 @@ export function mapItemRecord(row: {
         : 0
       : dipUnitPrice
   const resolvedMaterial = isSemi ? materialUnitPrice : 0
+  const { baseCode, version } = resolveBaseCodeAndVersion(row)
 
   return {
     id: row.id || '',
+    baseCode,
+    version: itemCategory === 1 ? '' : version,
     name: row.name || '',
     specification: row.specification || '',
     mpn: row.mpn || '',
@@ -138,8 +159,13 @@ export function mapItemRecord(row: {
 }
 
 export function toItemInsertRow(payload: ItemPayload) {
+  const baseCode =
+    payload.baseCode.trim() || parseItemVersionCode(payload.id).base || payload.id.trim()
+  const version = normalizeVersionLabel(payload.version)
   return {
     id: payload.id.trim(),
+    base_code: baseCode,
+    version,
     name: payload.name.trim(),
     specification: payload.specification.trim(),
     mpn: payload.mpn.trim(),
@@ -159,6 +185,8 @@ export function toItemInsertRow(payload: ItemPayload) {
 
 export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
   return {
+    base_code: payload.baseCode.trim(),
+    version: normalizeVersionLabel(payload.version),
     name: payload.name.trim(),
     specification: payload.specification.trim(),
     mpn: payload.mpn.trim(),
@@ -187,6 +215,8 @@ export function formatItemUnitPrice(value: number) {
 export function itemSearchHaystack(item: Item) {
   return [
     item.id,
+    item.baseCode,
+    item.version,
     item.name,
     item.specification,
     item.mpn,
@@ -222,21 +252,33 @@ export function formatItemCode(prefix: string, sequence: number, padLength = 3) 
   return `${prefix}${String(sequence).padStart(padLength, '0')}`
 }
 
-export function findMaxItemCodeSequence(items: Pick<Item, 'id'>[], prefix: string) {
+export function findMaxItemCodeSequence(items: Pick<Item, 'id' | 'baseCode'>[], prefix: string) {
   let max = 0
   for (const item of items) {
-    const seq = parseItemCodeSequence(prefix, item.id)
+    const seq =
+      parseItemCodeSequence(prefix, item.baseCode) ?? parseItemCodeSequence(prefix, item.id)
     if (seq !== null && seq > max) max = seq
   }
   return max
 }
 
-export function nextItemCodeForCategory(items: Pick<Item, 'id'>[], category: ItemCategory) {
+export function nextItemCodeForCategory(
+  items: Pick<Item, 'id' | 'baseCode'>[],
+  category: ItemCategory,
+) {
   const prefix = ITEM_CATEGORY_CODE_PREFIX[category]
   if (!prefix) return null
   return formatItemCode(prefix, findMaxItemCodeSequence(items, prefix) + 1)
 }
 
 export function nextItemCodeFromIds(ids: string[], category: ItemCategory) {
-  return nextItemCodeForCategory(ids.map((id) => ({ id })), category)
+  return nextItemCodeForCategory(
+    ids.map((id) => ({ id, baseCode: parseItemVersionCode(id).base || id })),
+    category,
+  )
+}
+
+/** 목록·주문서에 보여줄 품목코드 (버전 제외) */
+export function formatItemDisplayCode(item: Pick<Item, 'id' | 'baseCode'>) {
+  return item.baseCode.trim() || parseItemVersionCode(item.id).base || item.id
 }

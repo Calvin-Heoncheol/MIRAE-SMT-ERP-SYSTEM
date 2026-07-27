@@ -15,8 +15,8 @@ import {
   type Item,
   type ItemCategory,
 } from '@/lib/items/types'
-import { formatItemUnitPrice } from '@/lib/items/utils'
-import { formatItemVersionLabel, parseItemVersionCode } from '@/lib/items/version-code'
+import { formatItemDisplayCode, formatItemUnitPrice } from '@/lib/items/utils'
+import { formatItemVersionLabel } from '@/lib/items/version-code'
 
 type ItemListTableProps = {
   items: Item[]
@@ -30,8 +30,8 @@ function cell(value: string) {
   return trimmed || '-'
 }
 
-function versionLabelFromItemId(itemId: string) {
-  return formatItemVersionLabel(parseItemVersionCode(itemId.trim()).version)
+function versionLabelFromItem(item: Item) {
+  return formatItemVersionLabel(item.version)
 }
 
 function getVisibleColumns(filter: ItemCategory) {
@@ -147,14 +147,14 @@ export function ItemListTable({
                 }`}
               >
                 <td className="truncate whitespace-nowrap px-3 py-2.5 font-mono text-sm font-semibold text-slate-800">
-                  {cell(item.id)}
+                  {cell(formatItemDisplayCode(item))}
                 </td>
                 <td className="truncate px-3 py-2.5 text-sm font-medium text-slate-900" title={item.name}>
                   {cell(item.name)}
                 </td>
                 {columns.version ? (
                   <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm font-medium tabular-nums text-slate-700">
-                    {versionLabelFromItemId(item.id)}
+                    {versionLabelFromItem(item)}
                   </td>
                 ) : null}
                 {columns.specification ? (

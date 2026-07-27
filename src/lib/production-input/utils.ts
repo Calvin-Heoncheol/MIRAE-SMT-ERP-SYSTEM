@@ -155,6 +155,12 @@ export function buildProductionOrderLines(
       const uiKey = `${order.orderNumber}\u001e${index}\u001e${orderLineId}`
       const countKey = orderLineId
 
+      const productVersion =
+        product?.version?.trim() ||
+        parseItemVersionCode(productId).version ||
+        parseItemVersionCode(productCode).version ||
+        null
+
       lines.push({
         uiKey,
         countKey,
@@ -165,6 +171,7 @@ export function buildProductionOrderLines(
         deliveryDate: item.deliveryDate || order.deliveryDate,
         customer: order.customer,
         productCode,
+        productVersion,
         productName,
         productLabel,
         quantity: item.quantity,
@@ -213,6 +220,12 @@ export function buildPostProcessAssemblyLines(
     if (productCode) labelParts.push(`[${productCode}]`)
     labelParts.push(`수량${group.targetQuantity}`)
 
+    const productVersion =
+      parentProduct?.version?.trim() ||
+      parseItemVersionCode(group.parentProductId).version ||
+      parseItemVersionCode(productCode).version ||
+      null
+
     lines.push({
       uiKey: `${order.orderNumber}\u001easm\u001e${group.id}`,
       countKey: group.id,
@@ -224,6 +237,7 @@ export function buildPostProcessAssemblyLines(
       deliveryDate: order.deliveryDate,
       customer: order.customer,
       productCode,
+      productVersion,
       productName,
       productLabel: labelParts.join(' · '),
       quantity: group.targetQuantity,
@@ -318,8 +332,9 @@ export function formatProductionProductName(order: ProductionOrderLine) {
   return order.productName.trim() || order.productCode.trim() || '—'
 }
 
-/** 품목코드 접미사(V1, REV2 등) — 없으면 null */
+/** 버전 라벨 — 마스터/스냅샷 기준 */
 export function resolveProductionProductVersion(order: ProductionOrderLine): string | null {
+  if (order.productVersion?.trim()) return order.productVersion.trim()
   return parseItemVersionCode(order.productCode.trim() || order.productLabel.trim()).version
 }
 
