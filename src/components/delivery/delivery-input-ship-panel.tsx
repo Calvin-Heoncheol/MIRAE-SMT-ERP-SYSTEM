@@ -144,9 +144,13 @@ export function DeliveryInputShipPanel({
   if (!order || !availability) {
     if (embedded) return null
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-6 py-8 text-center">
-        <p className="text-sm font-semibold text-slate-600">위 목록에서 출하할 주문을 선택하세요.</p>
-        <p className="mt-1 text-xs text-slate-400">선택 후 수량을 입력하고 출하를 등록할 수 있습니다.</p>
+      <div className="flex h-full min-h-[16rem] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+        <div>
+          <p className="text-sm font-semibold text-slate-600">주문서를 선택하세요</p>
+          <p className="mt-1 text-xs text-slate-400">
+            왼쪽 목록에서 주문을 고른 뒤 출하 수량을 등록할 수 있습니다.
+          </p>
+        </div>
       </div>
     )
   }

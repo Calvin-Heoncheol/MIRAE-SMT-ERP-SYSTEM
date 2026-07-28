@@ -18,6 +18,16 @@ export type PreviewLabels = {
   colUnit: string
   colQty: string
   colPerUnitTotal: string
+  /** SET-UP 섹션 전용 — 단가 자리 */
+  colSetupBasis: string
+  /** SET-UP 섹션 전용 — 수량 자리 */
+  colSetupMinutes: string
+  /** SMD 섹션 — 부품·핀 등 작업 단위 */
+  colSmdWorkQty: string
+  /** 후공정 섹션 — 핀수·작업분 등 */
+  colPostWorkQty: string
+  /** SMD·후공정 — 생산수량 */
+  colProductionQty: string
   issueDate: string
   customer: string
   validity: string
@@ -42,9 +52,6 @@ export type PreviewLabels = {
   assembly: string
   test: string
   packing: string
-  assemblyDesc: string
-  testDesc: string
-  packingDesc: string
   materials: string
   other: string
   rawMaterial: string
@@ -53,6 +60,7 @@ export type PreviewLabels = {
   subMaterial: string
   metalMask: string
   sampleCost: string
+  moqMinLaborCost: string
   productionKind: string
   productionKindSample: string
   productionKindMass: string
@@ -82,9 +90,14 @@ export type PreviewLabels = {
 const DOMESTIC_LABELS: PreviewLabels = {
   title: '견 적 서',
   colItem: '항목',
-  colUnit: '단가',
+  colUnit: '대당 단가',
   colQty: '수량',
-  colPerUnitTotal: '대당 합계',
+  colPerUnitTotal: '합계',
+  colSetupBasis: '산출 근거',
+  colSetupMinutes: '시간(분)',
+  colSmdWorkQty: '부품수',
+  colPostWorkQty: '작업량',
+  colProductionQty: '생산수량',
   issueDate: '발행일자',
   customer: '고객사',
   validity: '유효기간',
@@ -109,9 +122,6 @@ const DOMESTIC_LABELS: PreviewLabels = {
   assembly: '조립',
   test: '테스트',
   packing: '포장',
-  assemblyDesc: 'Base · Illumination · Top · Bottom',
-  testDesc: '경사도 · 화이트밸런스 · MSR',
-  packingDesc: '액세서리 · 제품',
   materials: '자재',
   other: '기타',
   rawMaterial: '원자재 비용',
@@ -120,6 +130,7 @@ const DOMESTIC_LABELS: PreviewLabels = {
   subMaterial: '메탈마스크 비용 (일회성)',
   metalMask: '메탈마스크 비용 (일회성)',
   sampleCost: '샘플 비용',
+  moqMinLaborCost: 'MOQ 최소공임',
   productionKind: '구분',
   productionKindSample: '샘플',
   productionKindMass: '양산',
@@ -149,9 +160,14 @@ const DOMESTIC_LABELS: PreviewLabels = {
 const EXPORT_LABELS: PreviewLabels = {
   title: 'QUOTATION',
   colItem: 'Item',
-  colUnit: 'Unit Price',
+  colUnit: 'Per-Unit Price',
   colQty: 'Qty',
-  colPerUnitTotal: 'Per Unit Total',
+  colPerUnitTotal: 'Total',
+  colSetupBasis: 'Basis',
+  colSetupMinutes: 'Time (min)',
+  colSmdWorkQty: 'Parts',
+  colPostWorkQty: 'Work Qty',
+  colProductionQty: 'Prod. Qty',
   issueDate: 'Issue Date',
   customer: 'Customer',
   validity: 'Valid Until',
@@ -176,9 +192,6 @@ const EXPORT_LABELS: PreviewLabels = {
   assembly: 'Assembly',
   test: 'Test',
   packing: 'Packing',
-  assemblyDesc: 'Base · Illumination · Top · Bottom',
-  testDesc: 'Slope · White Balance · MSR',
-  packingDesc: 'Accessories · Product',
   materials: 'Materials',
   other: 'Other',
   rawMaterial: 'Raw Material Cost',
@@ -187,6 +200,7 @@ const EXPORT_LABELS: PreviewLabels = {
   subMaterial: 'Metal Mask Cost (one-time)',
   metalMask: 'Metal Mask Cost (one-time)',
   sampleCost: 'Sample Fee',
+  moqMinLaborCost: 'MOQ Minimum Labor',
   productionKind: 'Type',
   productionKindSample: 'Sample',
   productionKindMass: 'Production',

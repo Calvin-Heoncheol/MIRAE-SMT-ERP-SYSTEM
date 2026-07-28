@@ -1,10 +1,11 @@
 'use client'
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
-
+import { CategoryBadge } from '@/components/ui/category-badge'
 import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
-
 import {
+  ITEM_CATEGORY_BADGE_CLASS,
+  ITEM_CATEGORY_LABELS,
   ITEM_MATERIAL_TYPE_LABELS,
   ITEM_PCB_SIDE_MODE_LABELS,
   ITEM_PROCESS_TYPE_LABELS,
@@ -18,10 +19,12 @@ import {
 import { formatItemDisplayCode, formatItemUnitPrice } from '@/lib/items/utils'
 import { formatItemVersionLabel } from '@/lib/items/version-code'
 
+type ItemCategoryFilter = ItemCategory | 'all'
+
 type ItemListTableProps = {
   items: Item[]
   emptyMessage: string
-  categoryFilter: ItemCategory
+  categoryFilter: ItemCategoryFilter
   onSelectItem?: (item: Item) => void
 }
 
@@ -34,8 +37,23 @@ function versionLabelFromItem(item: Item) {
   return formatItemVersionLabel(item.version)
 }
 
-function getVisibleColumns(filter: ItemCategory) {
+function getVisibleColumns(filter: ItemCategoryFilter) {
+  if (filter === 'all') {
+    return {
+      category: true,
+      version: true,
+      specification: false,
+      mpn: false,
+      materialType: false,
+      supplyType: false,
+      supplier: false,
+      pcbSideMode: false,
+      processType: false,
+    }
+  }
+
   return {
+    category: false,
     version: !isRawMaterialItemCategory(filter),
     specification: isMaterialItemCategory(filter),
     mpn: isRawMaterialItemCategory(filter),
@@ -61,11 +79,14 @@ export function ItemListTable({
     )
   }
 
-  const minWidth = isMaterialItemCategory(categoryFilter)
-    ? 'min-w-[960px]'
-    : isSemiFinishedItemCategory(categoryFilter)
-      ? 'min-w-[780px]'
-      : 'min-w-[700px]'
+  const minWidth =
+    categoryFilter === 'all'
+      ? 'min-w-[720px]'
+      : isMaterialItemCategory(categoryFilter)
+        ? 'min-w-[960px]'
+        : isSemiFinishedItemCategory(categoryFilter)
+          ? 'min-w-[780px]'
+          : 'min-w-[700px]'
 
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
@@ -74,6 +95,7 @@ export function ItemListTable({
           <colgroup>
             <col className="w-[120px]" />
             <col className="w-[180px]" />
+            {columns.category ? <col className="w-[88px]" /> : null}
             {columns.version ? <col className="w-[64px]" /> : null}
             {columns.specification ? <col className="w-[160px]" /> : null}
             {columns.mpn ? <col className="w-[140px]" /> : null}
@@ -92,6 +114,11 @@ export function ItemListTable({
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목명
               </th>
+              {columns.category ? (
+                <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                  구분
+                </th>
+              ) : null}
               {columns.version ? (
                 <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                   버전
@@ -152,6 +179,14 @@ export function ItemListTable({
                 <td className="truncate px-3 py-2.5 text-sm font-medium text-slate-900" title={item.name}>
                   {cell(item.name)}
                 </td>
+                {columns.category ? (
+                  <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                    <CategoryBadge
+                      label={ITEM_CATEGORY_LABELS[item.itemCategory]}
+                      className={ITEM_CATEGORY_BADGE_CLASS[item.itemCategory]}
+                    />
+                  </td>
+                ) : null}
                 {columns.version ? (
                   <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm font-medium tabular-nums text-slate-700">
                     {versionLabelFromItem(item)}

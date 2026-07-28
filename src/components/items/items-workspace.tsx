@@ -26,31 +26,37 @@ type ItemsWorkspaceProps = {
   result: FetchItemsResult
 }
 
+type ItemCategoryFilter = ItemCategory | 'all'
+
 type ModalState =
   | { open: false }
-  | { open: true; mode: 'create'; initialCategory: ItemCategory }
+  | { open: true; mode: 'create'; initialCategory: ItemCategory | null }
   | { open: true; mode: 'edit'; item: Item }
-  | { open: true; mode: 'bulk'; initialCategory: ItemCategory }
+  | { open: true; mode: 'bulk'; initialCategory: ItemCategory | null }
 
 export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState<ItemCategory>(1)
+  const [categoryFilter, setCategoryFilter] = useState<ItemCategoryFilter>('all')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
   const items = result.ok ? result.items : []
   const query = search.trim()
-  const hasActiveFilter = Boolean(query)
+  const hasActiveFilter = Boolean(query) || categoryFilter !== 'all'
 
   const filtered = useMemo(() => {
     const searched = filterItemsForSearch(items, query)
+    if (categoryFilter === 'all') return searched
     return searched.filter((item) => item.itemCategory === categoryFilter)
   }, [items, query, categoryFilter])
 
   const categoryCounts = useMemo(() => {
     const searched = filterItemsForSearch(items, query)
-    const counts = { 1: 0, 2: 0, 3: 0, 4: 0 } as Record<ItemCategory, number>
+    const counts = { all: searched.length, 1: 0, 2: 0, 3: 0, 4: 0 } as Record<
+      ItemCategoryFilter,
+      number
+    >
     for (const item of searched) {
       counts[item.itemCategory] += 1
     }
@@ -58,13 +64,15 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
   }, [items, query])
 
   const categoryFilterOptions = useMemo(
-    () =>
-      ITEM_CATEGORIES.map((category) => ({
+    () => [
+      { value: 'all' as const, label: '전체', count: categoryCounts.all },
+      ...ITEM_CATEGORIES.map((category) => ({
         value: category,
         label: ITEM_CATEGORY_LABELS[category],
         count: categoryCounts[category],
         tone: { idleClassName: ITEM_CATEGORY_FILTER_IDLE_CLASS[category] },
       })),
+    ],
     [categoryCounts],
   )
 
@@ -75,7 +83,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     setModal({
       open: true,
       mode: 'create',
-      initialCategory: categoryFilter,
+      initialCategory: categoryFilter === 'all' ? null : categoryFilter,
     })
   }
 
@@ -84,7 +92,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     setModal({
       open: true,
       mode: 'bulk',
-      initialCategory: categoryFilter,
+      initialCategory: categoryFilter === 'all' ? null : categoryFilter,
     })
   }
 

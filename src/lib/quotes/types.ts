@@ -52,6 +52,8 @@ export type QuoteDetailAmounts = {
   subMaterialCost: number
   /** 샘플 비용 (일회성, 구분=샘플일 때) */
   sampleCost?: number
+  /** MOQ 최소공임 (일회성, 생산수량 300대 미만) */
+  moqMinLaborCost?: number
   /** 부자재 비용 총액 (대당 × 수량) */
   auxiliaryMaterialCost?: number
 }
@@ -193,6 +195,8 @@ export type EstimateResult = {
     subMaterial: number
     /** 샘플 비용 총액 (일회성) */
     sampleCost: number
+    /** MOQ 최소공임 총액 (일회성, 생산수량 300대 미만) */
+    moqMinLaborCost: number
     /** 부자재 비용 총액 (대당 × 수량) */
     auxiliaryMaterial: number
     materialManagement: number

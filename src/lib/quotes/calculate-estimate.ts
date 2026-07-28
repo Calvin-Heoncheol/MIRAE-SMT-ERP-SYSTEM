@@ -14,6 +14,7 @@ import {
   normalizeSmtSide,
   RAW_MATERIAL_MANAGEMENT_RATE,
   computeAuxiliaryMaterialPerUnit,
+  computeMoqMinLaborCostTotal,
   computeSampleCostTotal,
   toBillingSmtSide,
 } from './constants'
@@ -390,6 +391,7 @@ export function calculateEstimate(
   const matUnit = Number(data.materialCost) || 0
   const metalMaskTotal = Math.max(0, Number(data.metalMaskCost) || 0)
   const sampleCostTotal = computeSampleCostTotal(data.productionKind)
+  const moqMinLaborCostTotal = computeMoqMinLaborCostTotal(qty)
 
   const matTotalRaw = matUnit * qty
   const smtLaborAndInspectionTotal = smtUnit * qty + smtInspectionPerUnit * qty
@@ -413,6 +415,7 @@ export function calculateEstimate(
     materialManagementTotal +
     metalMaskTotal +
     sampleCostTotal +
+    moqMinLaborCostTotal +
     auxiliaryMaterialTotal
   let specialDiscount = Math.max(0, Number(data.specialDiscount) || 0)
   if (specialDiscount > subtotalBeforeDiscount) specialDiscount = subtotalBeforeDiscount
@@ -446,6 +449,7 @@ export function calculateEstimate(
       dipBoardDetails: dipAgg.boardDetails,
       subMaterial: metalMaskTotal,
       sampleCost: sampleCostTotal,
+      moqMinLaborCost: moqMinLaborCostTotal,
       auxiliaryMaterial: auxiliaryMaterialTotal,
       materialManagement: materialManagementTotal,
       specialDiscount,

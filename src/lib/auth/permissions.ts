@@ -51,6 +51,17 @@ const DEPARTMENT_MODULES: Record<AuthDepartment, AuthAccessModule[]> = {
     'approvals',
     'reports_production',
   ],
+  quality: [
+    'dashboard',
+    'production_smt',
+    'production_post_2',
+    'production_post_3',
+    'production_post_4',
+    'production_history',
+    'production_plan',
+    'approvals',
+    'reports_production',
+  ],
   office: ['dashboard', 'approvals'],
 }
 

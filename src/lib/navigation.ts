@@ -46,7 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '문의업체', href: '/new-companies' },
       { label: '견적서', href: '/quotations' },
       { label: '주문서', href: '/orders' },
-      { label: '출하', href: '/delivery/input' },
+      { label: '출하등록', href: '/delivery/input' },
       { label: '출하이력', href: '/delivery/history' },
       { label: '영업/매출', href: '/reports/sales' },
     ],

@@ -11,10 +11,13 @@ import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import { ErpButton } from '@/components/ui/erp-button'
 import {
   computeMetalMaskCostTotal,
+  computeMoqMinLaborCostTotal,
   computeSampleCostTotal,
   getPostRate,
   METAL_MASK_COST_DOUBLE,
   METAL_MASK_COST_SINGLE,
+  MOQ_MIN_LABOR_COST,
+  MOQ_QTY_THRESHOLD,
   SAMPLE_COST,
 } from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
@@ -558,7 +561,9 @@ function QuoteModalContent({
     (result?.common.materialManagement || 0) +
     (result?.common.auxiliaryMaterial || 0)
   const otherSectionTotal =
-    (Number(form.metalMaskCost) || 0) + computeSampleCostTotal(form.productionKind)
+    (Number(form.metalMaskCost) || 0) +
+    computeSampleCostTotal(form.productionKind) +
+    computeMoqMinLaborCostTotal(form.boardQty)
   const auxiliaryMaterialPerUnit =
     qty > 0 ? (result?.common.auxiliaryMaterial || 0) / qty : 0
   const boardCount = Number(clampPcbCount(form.pcbBoardCount))
@@ -975,6 +980,20 @@ function QuoteModalContent({
                         />
                         <p className="mt-1 text-[11px] text-slate-500">
                           일회성 · 구분 샘플 시 {formatAmount(SAMPLE_COST)} 고정
+                        </p>
+                      </label>
+                    ) : null}
+                    {computeMoqMinLaborCostTotal(form.boardQty) > 0 ? (
+                      <label className="block text-sm">
+                        <span className="mb-1 block font-medium text-slate-600">MOQ 최소공임</span>
+                        <input
+                          readOnly
+                          value={String(MOQ_MIN_LABOR_COST)}
+                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700"
+                        />
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          일회성 · 생산수량 {MOQ_QTY_THRESHOLD.toLocaleString('ko-KR')}대 미만 시{' '}
+                          {formatAmount(MOQ_MIN_LABOR_COST)} 고정
                         </p>
                       </label>
                     ) : null}

@@ -90,6 +90,7 @@ function buildSummaryBreakdownLineRowHtml(line: PdfSummaryBreakdownLine, quoteTy
   const cellStyle = `background:${bg};`
   return `<tr class="summary-breakdown-line-row summary-breakdown-line-${line.section}">
     <td class="summary-breakdown-item" style="${cellStyle}">${escapeHtml(line.label)}</td>
+    <td class="summary-breakdown-unit" style="${cellStyle}">${formatBoardDetailCellAmount(line.unitTotal, quoteType)}</td>
     <td class="summary-breakdown-amount" style="${cellStyle}">${formatBoardDetailCellAmount(line.total, quoteType)}</td>
   </tr>`
 }
@@ -101,18 +102,22 @@ function buildSummaryBreakdownTableHtml(quote: QuoteListItem, language?: QuoteDo
 
   const isKorean = labelType === 'domestic'
   const itemLabel = isKorean ? '항목' : 'ITEM'
-  const amountLabel = isKorean ? '대당 합계' : 'PER UNIT'
-  const totalLabel = isKorean ? '합계' : 'TOTAL'
+  const unitLabel = isKorean ? '대당합계' : 'UNIT TOTAL'
+  const amountLabel = isKorean ? '합계' : 'TOTAL'
+  const totalLabel = isKorean ? '총합계' : 'GRAND TOTAL'
+  const grandUnitTotal = lines.reduce((sum, line) => sum + line.unitTotal, 0)
   const grandTotal = lines.reduce((sum, line) => sum + line.total, 0)
 
   return `<table class="quote-table board-details-table board-summary-table summary-breakdown-table">
     <colgroup>
       <col class="summary-breakdown-col-item" />
+      <col class="summary-breakdown-col-unit" />
       <col class="summary-breakdown-col-amount" />
     </colgroup>
     <thead>
       <tr>
         <th>${itemLabel}</th>
+        <th>${unitLabel}</th>
         <th>${amountLabel}</th>
       </tr>
     </thead>
@@ -120,6 +125,7 @@ function buildSummaryBreakdownTableHtml(quote: QuoteListItem, language?: QuoteDo
       ${lines.map((line) => buildSummaryBreakdownLineRowHtml(line, quote.quoteType)).join('')}
       <tr class="summary-breakdown-total-row">
         <td class="summary-breakdown-item">${totalLabel}</td>
+        <td class="summary-breakdown-unit">${formatBoardDetailCellAmount(grandUnitTotal, quote.quoteType)}</td>
         <td class="summary-breakdown-amount">${formatBoardDetailCellAmount(grandTotal, quote.quoteType)}</td>
       </tr>
     </tbody>
@@ -153,9 +159,19 @@ function splitPreviewRowsIntoGroups(rows: PreviewRow[]) {
 function buildPreviewRowHtml(
   row: PreviewRow,
   quoteType: QuoteType,
-  options: { showBoardColumn?: boolean; boardRowSpan?: number; boardGroupStart?: boolean } = {},
+  options: {
+    showBoardColumn?: boolean
+    showProductionQty?: boolean
+    boardRowSpan?: number
+    boardGroupStart?: boolean
+  } = {},
 ) {
-  const { showBoardColumn = false, boardRowSpan, boardGroupStart = false } = options
+  const {
+    showBoardColumn = false,
+    showProductionQty = false,
+    boardRowSpan,
+    boardGroupStart = false,
+  } = options
   const isBoardTotal = Boolean(row.boardTotal)
   const isBoardSubtotal = Boolean(row.boardSubtotal)
   const isSectionTotal = Boolean(row.sectionTotal)
@@ -189,7 +205,15 @@ function buildPreviewRowHtml(
     ? `<br><span style="font-size:11px;color:#64748b;">${escapeHtml(description)}</span>`
     : ''
   const unit = isBoardSubtotal ? '' : formatPreviewRowUnit(row, quoteType)
+  const unitAlign = row.unitLabel ? 'left' : 'right'
   const count = isBoardSubtotal ? '' : row.count != null ? escapeHtml(String(row.count)) : '-'
+  const productionQty = isBoardSubtotal
+    ? ''
+    : row.productionQty != null
+      ? escapeHtml(String(row.productionQty))
+      : showProductionQty
+        ? '-'
+        : ''
   const amount = isBoardSubtotal ? '' : row.amount != null ? formatQuoteMoneyTotal(row.amount, quoteType) : '-'
   const borderTop = boardGroupStart
     ? '2px solid #94a3b8'
@@ -204,12 +228,16 @@ function buildPreviewRowHtml(
     const boardCellBg = row.boardName || isBoardSubtotal ? 'background:#e2e8f0;' : cellBg
     boardCell = `<td class="breakdown-col-board"${rowspanAttr} style="padding:8px 12px;white-space:nowrap;vertical-align:middle;${boardCellBg}${cellBorder}${boardBorderRight}font-size:13px;font-weight:600;color:#1e293b;">${row.boardName ? escapeHtml(row.boardName) : ''}</td>`
   }
+  const productionQtyCell = showProductionQty
+    ? `<td style="padding:8px 12px;text-align:center;white-space:nowrap;${cellBg}${cellBorder}font-size:13px;color:#475569;">${productionQty}</td>`
+    : ''
 
   return `<tr class="${rowClass}" style="border-top:${borderTop};">
     ${boardCell}
     <td class="breakdown-col-item" style="padding:8px 12px;${indent}${labelStyle}${cellBg}${cellBorder}">${escapeHtml(row.label)}${descriptionHtml}</td>
-    <td style="padding:8px 12px;text-align:right;${cellBg}${cellBorder}font-size:13px;color:#475569;">${unit}</td>
+    <td style="padding:8px 12px;text-align:${unitAlign};${cellBg}${cellBorder}font-size:13px;color:#475569;">${unit}</td>
     <td style="padding:8px 12px;text-align:center;white-space:nowrap;${cellBg}${cellBorder}font-size:13px;color:#475569;">${count}</td>
+    ${productionQtyCell}
     <td style="padding:8px 12px;text-align:right;${amountStyle}${cellBg}${cellBorder}">${amount}</td>
   </tr>`
 }
@@ -222,21 +250,44 @@ function buildQuoteBreakdownTableHtml(
     continuous?: boolean
     showBoardColumn?: boolean
     labelType?: QuoteType
+    sectionKey?: PreviewSection
   } = {},
 ) {
-  const { variant = 'default', continuous = false, showBoardColumn = false, labelType = quoteType } = options
+  const {
+    variant = 'default',
+    continuous = false,
+    showBoardColumn = false,
+    labelType = quoteType,
+    sectionKey,
+  } = options
   const labels = getPreviewLabels(labelType)
+  const isSetupSection = sectionKey === 'setup'
+  const showProductionQty = sectionKey === 'smt' || sectionKey === 'post'
+  const unitHeader = isSetupSection ? labels.colSetupBasis : labels.colUnit
+  const qtyHeader = isSetupSection
+    ? labels.colSetupMinutes
+    : sectionKey === 'smt'
+      ? labels.colSmdWorkQty
+      : sectionKey === 'post'
+        ? labels.colPostWorkQty
+        : sectionKey === 'material'
+          ? labels.colProductionQty
+          : labels.colQty
   const tableClass =
     variant === 'board-summary'
       ? 'quote-table line-items-table board-summary-table'
       : 'quote-table line-items-table'
   const boardHeader = showBoardColumn ? `<th class="breakdown-col-board">${breakdownBoardColLabel(labelType)}</th>` : ''
+  const productionQtyHeader = showProductionQty
+    ? `<th style="text-align:center;">${labels.colProductionQty}</th>`
+    : ''
   const tableHead = `<thead>
       <tr>
         ${boardHeader}
         <th>${labels.colItem}</th>
-        <th>${labels.colUnit}</th>
-        <th>${labels.colQty}</th>
+        <th>${unitHeader}</th>
+        <th style="text-align:center;">${qtyHeader}</th>
+        ${productionQtyHeader}
         <th>${labels.colPerUnitTotal}</th>
       </tr>
     </thead>`
@@ -247,6 +298,7 @@ function buildQuoteBreakdownTableHtml(
       .map((row, index) =>
         buildPreviewRowHtml(row, quoteType, {
           showBoardColumn,
+          showProductionQty,
           boardRowSpan: showBoardColumn ? boardSpans[index] : undefined,
           boardGroupStart: showBoardColumn && isBreakdownBoardGroupStart(rows, index),
         }),
@@ -268,6 +320,7 @@ function buildQuoteBreakdownTableHtml(
         .map((row, index) =>
           buildPreviewRowHtml(row, quoteType, {
             showBoardColumn,
+            showProductionQty,
             boardRowSpan: showBoardColumn ? boardSpans[index] : undefined,
             boardGroupStart: showBoardColumn && isBreakdownBoardGroupStart(group, index),
           }),
@@ -302,7 +355,12 @@ function buildBreakdownSectionHtml(
   return `<div class="breakdown-section ${sectionClass} ${modifier}">
     <div class="breakdown-section-inner">
       <h3 class="breakdown-section-title">${escapeHtml(title)}</h3>
-      ${buildQuoteBreakdownTableHtml(tableRows, quoteType, { continuous: true, showBoardColumn, labelType })}
+      ${buildQuoteBreakdownTableHtml(tableRows, quoteType, {
+        continuous: true,
+        showBoardColumn,
+        labelType,
+        sectionKey,
+      })}
     </div>
   </div>`
 }
@@ -473,8 +531,8 @@ function buildQuoteDetailHeaderHtml(
   const isKorean = pdfLabelType(quote, language) === 'domestic'
   const title = isKorean ? '항목별 요약' : 'Summary Breakdown'
   const note = isKorean
-    ? 'SET-UP·SMD·후공정·자재·기타 대당 합계입니다.'
-    : 'Per-unit totals for SET-UP, SMD, post-process, materials, and other.'
+    ? 'SET-UP·SMD·후공정·자재·기타 대당합계와 생산수량 기준 합계입니다.'
+    : 'Unit totals and quantity totals for SET-UP, SMD, post-process, materials, and other.'
 
   return `${buildSectionPageHeaderHtml(quote, estimate, title, note)}`
 }
@@ -580,17 +638,17 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
   const pages = quotes.map((quote) => buildQuotePages(quote, language)).join('')
   const isEnglish = language === 'en' || quotes.every((q) => q.quoteType === 'export')
   const docLang = isEnglish ? 'en' : 'ko'
-  const docTitle = buildQuotePdfDocumentTitle(quotes)
   const printHint = isEnglish
-    ? 'In the print dialog, choose “Save as PDF”.'
-    : '인쇄 대화상자에서 「PDF로 저장」을 선택하세요.'
+    ? 'In the print dialog: turn off “Headers and footers”, then choose “Save as PDF”.'
+    : '인쇄 설정에서 「머리글 및 바닥글」 체크를 해제한 뒤 「PDF로 저장」을 선택하세요.'
   const printButton = isEnglish ? 'Save as PDF' : 'PDF로 저장'
 
   return `<!DOCTYPE html>
 <html lang="${docLang}">
 <head>
   <meta charset="utf-8" />
-  <title>${escapeHtml(docTitle)}</title>
+  <!-- 브라우저 인쇄 머리글에 파일명이 찍히지 않도록 비움 (저장 파일명은 부모 document.title 사용) -->
+  <title></title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -997,10 +1055,13 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       vertical-align: middle;
     }
     .summary-breakdown-table .summary-breakdown-col-item {
-      width: 62%;
+      width: 40%;
+    }
+    .summary-breakdown-table .summary-breakdown-col-unit {
+      width: 30%;
     }
     .summary-breakdown-table .summary-breakdown-col-amount {
-      width: 38%;
+      width: 30%;
     }
     .summary-breakdown-table td.summary-breakdown-item {
       text-align: left;
@@ -1008,6 +1069,7 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       font-weight: 600;
       color: #1e293b;
     }
+    .summary-breakdown-table td.summary-breakdown-unit,
     .summary-breakdown-table td.summary-breakdown-amount {
       text-align: center;
       font-size: 13px;
@@ -1022,6 +1084,7 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       border-top: 2px solid #94a3b8;
     }
     .board-details-groups .board-summary-table th:last-child,
+    .board-details-groups .board-summary-table td.summary-breakdown-unit,
     .board-details-groups .board-summary-table td.summary-breakdown-amount,
     .board-details-groups .board-summary-table td.matrix-total {
       text-align: center;
@@ -1385,6 +1448,12 @@ export function exportQuotesToPdf(quotes: QuoteListItem[], options?: ExportQuote
   doc.open()
   doc.write(html)
   doc.close()
+  // 인쇄 머리글에 견적번호·품명이 나오지 않도록 iframe 문서 제목은 비움
+  try {
+    doc.title = ''
+  } catch {
+    /* ignore */
+  }
 
   // Chrome 등: iframe print 시 부모 document.title 이 「다른 이름으로 저장」기본명으로 쓰임
   const previousTitle = document.title

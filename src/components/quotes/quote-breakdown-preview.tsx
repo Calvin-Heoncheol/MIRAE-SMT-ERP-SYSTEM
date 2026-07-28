@@ -44,8 +44,8 @@ function breakdownPageTitle(quoteType: QuoteType) {
 
 function breakdownPageNote(quoteType: QuoteType) {
   return quoteType === 'domestic'
-    ? 'SET-UP·SMD·후공정(납땜 포함)·자재·기타 항목별 단가·수량 기준 산정식입니다.'
-    : 'Itemized calculation for SET-UP, SMD, post-process (incl. soldering), materials, and other.'
+    ? 'SET-UP·SMD·후공정(납땜 포함)·자재·기타 항목별 단가·부품수(작업량)·생산수량 기준 합계입니다.'
+    : 'Itemized totals for SET-UP, SMD, post-process (incl. soldering), materials, and other.'
 }
 
 function formatAmount(
@@ -67,6 +67,7 @@ function BreakdownTableRow({
   quoteType,
   displayCurrency,
   showBoardColumn,
+  showProductionQty,
   boardRowSpan,
   boardGroupStart,
 }: {
@@ -74,6 +75,7 @@ function BreakdownTableRow({
   quoteType: QuoteType
   displayCurrency: QuoteDisplayCurrency
   showBoardColumn: boolean
+  showProductionQty: boolean
   boardRowSpan?: number
   boardGroupStart: boolean
 }) {
@@ -85,11 +87,14 @@ function BreakdownTableRow({
 
   const unitText = isBoardSubtotal ? '' : formatPreviewRowUnit(row, quoteType, displayCurrency)
   const countText = isBoardSubtotal ? '' : row.count != null ? String(row.count) : '-'
+  const productionQtyText =
+    isBoardSubtotal || row.productionQty == null ? '' : String(row.productionQty)
   const amountText =
     isBoardSubtotal || row.amount == null ? (isBoardSubtotal ? '' : '-') : formatAmount(row.amount, quoteType, displayCurrency)
 
   const labelClass = row.emphasize || row.sectionFooter ? 'font-bold text-slate-900' : 'text-slate-700'
   const amountClass = row.amountEmphasize || row.sectionFooter ? 'font-bold text-slate-900' : 'text-xs text-slate-600'
+  const unitAlignClass = row.unitLabel ? 'text-left text-xs text-slate-600' : 'text-right text-xs text-slate-600'
 
   return (
     <tr className={borderTopClass} style={rowStyle}>
@@ -108,10 +113,15 @@ function BreakdownTableRow({
           <span className="mt-0.5 block text-[11px] text-slate-500">{formatPreviewRowDescription(row)}</span>
         ) : null}
       </td>
-      <td className="px-2 py-1.5 text-right text-xs text-slate-600 lg:px-3 lg:py-2">{unitText}</td>
+      <td className={`px-2 py-1.5 lg:px-3 lg:py-2 ${unitAlignClass}`}>{unitText}</td>
       <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs tabular-nums text-slate-600 lg:px-3 lg:py-2">
         {countText}
       </td>
+      {showProductionQty ? (
+        <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs tabular-nums text-slate-600 lg:px-3 lg:py-2">
+          {productionQtyText || (isBoardSubtotal ? '' : '-')}
+        </td>
+      ) : null}
       <td className={`px-2 py-1.5 text-right lg:px-3 lg:py-2 ${amountClass}`}>{amountText}</td>
     </tr>
   )
@@ -129,6 +139,18 @@ function BreakdownSectionTable({
   const labels = getPreviewLabels(quoteType)
   const showBoardColumn = section.rows.some((row) => row.boardName)
   const boardSpans = showBoardColumn ? computeBreakdownBoardRowSpans(section.rows) : []
+  const isSetupSection = section.key === 'setup'
+  const showProductionQty = section.key === 'smt' || section.key === 'post'
+  const unitHeader = isSetupSection ? labels.colSetupBasis : labels.colUnit
+  const qtyHeader = isSetupSection
+    ? labels.colSetupMinutes
+    : section.key === 'smt'
+      ? labels.colSmdWorkQty
+      : section.key === 'post'
+        ? labels.colPostWorkQty
+        : section.key === 'material'
+          ? labels.colProductionQty
+          : labels.colQty
 
   return (
     <div className={`breakdown-section-${section.key}`}>
@@ -145,12 +167,17 @@ function BreakdownSectionTable({
               <th className="border border-slate-400 px-2 py-1.5 text-left text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
                 {labels.colItem}
               </th>
-              <th className="border border-slate-400 px-2 py-1.5 text-right text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
-                {labels.colUnit}
+              <th className="border border-slate-400 px-2 py-1.5 text-left text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
+                {unitHeader}
               </th>
               <th className="border border-slate-400 px-2 py-1.5 text-center text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
-                {labels.colQty}
+                {qtyHeader}
               </th>
+              {showProductionQty ? (
+                <th className="border border-slate-400 px-2 py-1.5 text-center text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
+                  {labels.colProductionQty}
+                </th>
+              ) : null}
               <th className="border border-slate-400 px-2 py-1.5 text-right text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
                 {labels.colPerUnitTotal}
               </th>
@@ -164,6 +191,7 @@ function BreakdownSectionTable({
                 quoteType={quoteType}
                 displayCurrency={displayCurrency}
                 showBoardColumn={showBoardColumn}
+                showProductionQty={showProductionQty}
                 boardRowSpan={showBoardColumn ? boardSpans[index] : undefined}
                 boardGroupStart={showBoardColumn && isBreakdownBoardGroupStart(section.rows, index)}
               />

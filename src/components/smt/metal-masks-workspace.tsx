@@ -7,9 +7,7 @@ import { ListPagination } from '@/components/ui/list-pagination'
 import type { Item } from '@/lib/items/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import {
-  applyMetalMaskUsage,
   createMetalMaskAsset,
-  findMetalMaskByBarcode,
   isMissingMetalMasksTable,
   retireMetalMaskAsset,
   type FetchMetalMasksResult,
@@ -248,13 +246,6 @@ export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWor
   const [showRetired, setShowRetired] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
 
-  const [usageBarcode, setUsageBarcode] = useState('')
-  const [usageQty, setUsageQty] = useState('')
-  const [usagePreview, setUsagePreview] = useState<MetalMaskAsset | null>(null)
-  const [usageHint, setUsageHint] = useState<string | null>(null)
-  const [usageSaving, setUsageSaving] = useState(false)
-  const [usageMessage, setUsageMessage] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null)
-
   const [retiringId, setRetiringId] = useState<string | null>(null)
   const [listMessage, setListMessage] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null)
 
@@ -273,103 +264,6 @@ export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWor
   }, [assets, query, showRetired])
 
   const pagination = useClientPagination(filtered)
-
-  useEffect(() => {
-    const code = usageBarcode.trim()
-    if (!code) {
-      setUsagePreview(null)
-      setUsageHint(null)
-      return
-    }
-
-    let cancelled = false
-    const timer = setTimeout(() => {
-      void findMetalMaskByBarcode(code).then((found) => {
-        if (cancelled) return
-        if (!found.ok) {
-          setUsagePreview(null)
-          setUsageHint(found.detail)
-          return
-        }
-        if (!found.asset) {
-          setUsagePreview(null)
-          setUsageHint('미등록 바코드입니다. 목록 위 「마스크 등록」에서 등록해 주세요.')
-          return
-        }
-        if (found.asset.status !== 'active') {
-          setUsagePreview(found.asset)
-          setUsageHint('교체완료된 마스크입니다.')
-          return
-        }
-        setUsagePreview(found.asset)
-        const remaining = metalMaskRemaining(found.asset)
-        setUsageHint(
-          isMetalMaskNearLimit(found.asset)
-            ? `교체 임박 · ${METAL_MASK_PCB_SIDE_LABELS[found.asset.pcbSide]} · 잔여 ${remaining.toLocaleString('ko-KR')}회`
-            : `${METAL_MASK_PCB_SIDE_LABELS[found.asset.pcbSide]} · 잔여 ${remaining.toLocaleString('ko-KR')}회 / ${found.asset.useLimit.toLocaleString('ko-KR')}`,
-        )
-      })
-    }, 250)
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [usageBarcode])
-
-  async function handleUsage(event: React.FormEvent) {
-    event.preventDefault()
-    const code = usageBarcode.trim()
-    const delta = Math.floor(Number(usageQty) || 0)
-    if (!code) {
-      setUsageMessage({ text: '바코드를 스캔해 주세요.', kind: 'err' })
-      return
-    }
-    if (delta < 1) {
-      setUsageMessage({ text: '사용 횟수는 1 이상이어야 합니다.', kind: 'err' })
-      return
-    }
-
-    setUsageSaving(true)
-    setUsageMessage(null)
-
-    const found = await findMetalMaskByBarcode(code)
-    if (!found.ok) {
-      setUsageSaving(false)
-      setUsageMessage({ text: found.detail, kind: 'err' })
-      return
-    }
-    if (!found.asset) {
-      setUsageSaving(false)
-      setUsageMessage({ text: '등록되지 않은 마스크 바코드입니다.', kind: 'err' })
-      return
-    }
-
-    const applied = await applyMetalMaskUsage({
-      barcode: code,
-      pcbSide: found.asset.pcbSide,
-      deltaQty: delta,
-    })
-
-    setUsageSaving(false)
-
-    if (!applied.ok) {
-      setUsageMessage({ text: applied.detail, kind: 'err' })
-      return
-    }
-
-    const remaining = metalMaskRemaining(applied.asset)
-    setUsagePreview(applied.asset)
-    setUsageQty('')
-    setUsageHint(
-      `잔여 ${remaining.toLocaleString('ko-KR')}회 / ${applied.asset.useLimit.toLocaleString('ko-KR')}`,
-    )
-    setUsageMessage({
-      text: `${delta.toLocaleString('ko-KR')}회 가산 · 잔여 ${remaining.toLocaleString('ko-KR')}회`,
-      kind: 'ok',
-    })
-    router.refresh()
-  }
 
   async function handleRetire(asset: MetalMaskAsset) {
     if (!window.confirm(`${asset.barcode} 마스크를 교체완료로 처리할까요?`)) return
@@ -407,90 +301,9 @@ export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWor
     )
   }
 
-  const usageOk =
-    usagePreview &&
-    usagePreview.status === 'active' &&
-    usageBarcode.trim() === usagePreview.barcode
-
   return (
-    <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[minmax(16rem,20rem)_minmax(0,1fr)] lg:items-stretch">
-      <form
-        onSubmit={(event) => void handleUsage(event)}
-        className="flex h-fit flex-col rounded-xl border border-sky-200 bg-sky-50/40 p-3.5 shadow-sm lg:sticky lg:top-0"
-      >
-        <div>
-          <h2 className="text-sm font-bold text-slate-900">사용횟수 입력</h2>
-          <p className="mt-0.5 text-xs text-slate-500">스캔 후 가산 · 초과 차단</p>
-        </div>
-
-        <div className="mt-3 space-y-2">
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-600">바코드 *</span>
-            <input
-              type="text"
-              value={usageBarcode}
-              onChange={(event) => {
-                setUsageBarcode(event.target.value)
-                setUsageMessage(null)
-              }}
-              placeholder="바코드 스캔"
-              autoComplete="off"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-600">가산 횟수 *</span>
-            <input
-              type="number"
-              min={1}
-              step={1}
-              value={usageQty}
-              onChange={(event) => {
-                setUsageQty(event.target.value)
-                setUsageMessage(null)
-              }}
-              placeholder="0"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-            />
-          </label>
-        </div>
-
-        {usageHint ? (
-          <p
-            className={`mt-2 text-xs font-medium ${
-              usageOk
-                ? isMetalMaskNearLimit(usagePreview)
-                  ? 'text-amber-700'
-                  : 'text-slate-600'
-                : 'text-red-600'
-            }`}
-          >
-            {usageHint}
-          </p>
-        ) : null}
-
-        <div className="mt-3 flex flex-col gap-2">
-          <button
-            type="submit"
-            disabled={usageSaving || !usageBarcode.trim() || Math.floor(Number(usageQty) || 0) < 1}
-            className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            {usageSaving ? '등록 중…' : '횟수 등록'}
-          </button>
-          {usageMessage ? (
-            <p
-              className={`text-sm font-medium ${
-                usageMessage.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'
-              }`}
-            >
-              {usageMessage.text}
-            </p>
-          ) : null}
-        </div>
-      </form>
-
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
             <input
               type="search"
@@ -634,7 +447,6 @@ export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWor
             />
           </div>
         </div>
-      </div>
 
       <MetalMaskCreateModal
         open={createOpen}

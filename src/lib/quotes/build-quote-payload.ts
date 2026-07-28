@@ -55,6 +55,7 @@ export function buildQuoteDetailInfo(
   const materialCostPerUnit = Number(form.materialCost) || 0
   const metalMaskCost = Number(form.metalMaskCost) || 0
   const sampleCost = result.common.sampleCost || 0
+  const moqMinLaborCost = result.common.moqMinLaborCost || 0
   const auxiliaryMaterialCostPerUnit =
     result.qty > 0 ? result.common.auxiliaryMaterial / result.qty : 0
   const assemblyLines: PostProcessLine[] = form.assemblyLines
@@ -86,6 +87,7 @@ export function buildQuoteDetailInfo(
       setupCost: result.common.smtSetup,
       subMaterialCost: metalMaskCost,
       sampleCost,
+      moqMinLaborCost,
       auxiliaryMaterialCost: result.common.auxiliaryMaterial,
     },
     inputs: {

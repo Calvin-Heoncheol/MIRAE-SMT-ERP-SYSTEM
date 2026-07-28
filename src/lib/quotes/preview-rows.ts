@@ -1,9 +1,11 @@
 import {
   DIP_UNIT,
   SMT_PLACEMENT_MIN_SCORE,
+  computeMoqMinLaborCostTotal,
   computeSampleCostTotal,
   getPostRate,
   getSmtPlacementMinFee,
+  getSmtSetupRate,
   getSmtUnitRates,
 } from './constants'
 import {
@@ -11,7 +13,7 @@ import {
   computeSmtPlacementScore,
   computeSmtSetupBillingBreakdown,
 } from './calculate-estimate'
-import { formatQuoteMoneyRateByDisplay, formatQuoteSetupMinutes } from './format'
+import { formatQuoteMoneyRateByDisplay } from './format'
 import { getPreviewLabels, resolveLabelQuoteType, type QuoteDocumentLanguage } from './preview-i18n'
 import type {
   DipBoardDetail,
@@ -32,6 +34,8 @@ export type PreviewRow = {
   unit?: number | null
   unitLabel?: string
   count?: number | string | null
+  /** SMD·후공정 세부 행 — 생산수량 표시용 */
+  productionQty?: number | string | null
   amount?: number | null
   indent?: number
   emphasize?: boolean
@@ -243,6 +247,27 @@ function quotePerUnitTotal(total: number, qty: number) {
   return total / (qty || 1)
 }
 
+/** 대당 금액을 생산수량 합계로 환산 */
+function scaleAmountByQty(amount: number | null | undefined, qty: number) {
+  if (amount == null) return amount ?? null
+  return amount * (qty || 1)
+}
+
+function scalePreviewRowAmountsByQty(rows: PreviewRow[], qty: number): PreviewRow[] {
+  const safeQty = qty || 1
+  return rows.map((row) =>
+    row.amount == null ? row : { ...row, amount: scaleAmountByQty(row.amount, safeQty) },
+  )
+}
+
+function withProductionQty(
+  row: Omit<PreviewRow, 'productionQty'>,
+  qty: number,
+  labels: ReturnType<typeof getPreviewLabels>,
+): PreviewRow {
+  return { ...row, productionQty: labels.formatQty(qty || 1) }
+}
+
 function smtSetupPerUnit(setupAmount: number, qty: number) {
   return setupAmount / (qty || 1)
 }
@@ -295,64 +320,101 @@ function smtDetailRowsForBoard(
 ): PreviewRow[] {
   const labels = getPreviewLabels(labelType)
   const rates = getSmtUnitRates(quoteType)
+  const qty = result.qty || 1
   const rows: PreviewRow[] = []
   const useMinPlacementFee = board.laborMinApplied && board.laborMinAdjustment > 0
   const placementScore = computeSmtPlacementScore(board)
 
   if (useMinPlacementFee) {
-    rows.push({
-      label: labels.minPlacement,
-      description: labels.minPlacementDesc(placementScore, SMT_PLACEMENT_MIN_SCORE),
-      unit: getSmtPlacementMinFee(quoteType),
-      count: labels.onePcb,
-      amount: board.laborMinAdjustment,
-      indent: 2,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.minPlacement,
+          description: labels.minPlacementDesc(placementScore, SMT_PLACEMENT_MIN_SCORE),
+          unit: getSmtPlacementMinFee(quoteType),
+          count: labels.onePcb,
+          amount: board.laborMinAdjustment,
+          indent: 2,
+        },
+        qty,
+        labels,
+      ),
+    )
   } else {
     if (board.chip > 0) {
-      rows.push({
-        label: 'CHIP',
-        unit: rates.chip,
-        count: labels.partsCount(board.chip),
-        amount: board.chip * rates.chip,
-        indent: 2,
-      })
+      rows.push(
+        withProductionQty(
+          {
+            label: 'CHIP',
+            unit: rates.chip,
+            count: labels.partsCount(board.chip),
+            amount: board.chip * rates.chip,
+            indent: 2,
+          },
+          qty,
+          labels,
+        ),
+      )
     }
     if (board.smtOdd > 0) {
-      rows.push({
-        label: labels.oddParts,
-        unit: rates.odd,
-        count: labels.partsCount(board.smtOdd),
-        amount: board.smtOdd * rates.odd,
-        indent: 2,
-      })
+      rows.push(
+        withProductionQty(
+          {
+            label: labels.oddParts,
+            unit: rates.odd,
+            count: labels.partsCount(board.smtOdd),
+            amount: board.smtOdd * rates.odd,
+            indent: 2,
+          },
+          qty,
+          labels,
+        ),
+      )
     }
     if (board.smtSpecial > 0) {
-      rows.push({
-        label: labels.specialParts,
-        unit: rates.special,
-        count: labels.partsCount(board.smtSpecial),
-        amount: board.smtSpecial * rates.special,
-        indent: 2,
-      })
+      rows.push(
+        withProductionQty(
+          {
+            label: labels.specialParts,
+            unit: rates.special,
+            count: labels.partsCount(board.smtSpecial),
+            amount: board.smtSpecial * rates.special,
+            indent: 2,
+          },
+          qty,
+          labels,
+        ),
+      )
     }
     if (board.icPin > 0) {
-      rows.push({
-        label: 'IC PIN',
-        unit: rates.icPin,
-        count: `${board.icPin} PIN`,
-        amount: board.icPin * rates.icPin,
-        indent: 2,
-      })
+      rows.push(
+        withProductionQty(
+          {
+            label: 'IC PIN',
+            unit: rates.icPin,
+            count: `${board.icPin} PIN`,
+            amount: board.icPin * rates.icPin,
+            indent: 2,
+          },
+          qty,
+          labels,
+        ),
+      )
     }
     if (board.bga > 0) {
-      rows.push({
-        label: 'BGA BALL',
-        unit: rates.bgaBall,
-        count: `${board.bga} BALL`,
-        amount: board.bga * rates.bgaBall,
-        indent: 2,
-      })
+      rows.push(
+        withProductionQty(
+          {
+            label: 'BGA BALL',
+            unit: rates.bgaBall,
+            count: `${board.bga} BALL`,
+            amount: board.bga * rates.bgaBall,
+            indent: 2,
+          },
+          qty,
+          labels,
+        ),
+      )
     }
   }
 
@@ -363,6 +425,7 @@ function inspectionDetailRowsForBoard(
   board: SmtBoardDetail,
   quoteType: QuoteType,
   labelType: QuoteType = quoteType,
+  qty = 1,
 ): PreviewRow[] {
   if (board.inspectionUnit <= 0) return []
 
@@ -376,24 +439,36 @@ function inspectionDetailRowsForBoard(
   const rows: PreviewRow[] = []
 
   if (board.aoiInspectionUnit > 0) {
-    rows.push({
-      label: labels.aoi,
-      description: sideLabel,
-      unit: board.aoiInspectionUnit,
-      count: labels.onePcb,
-      amount: board.aoiInspectionUnit,
-      indent: 2,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.aoi,
+          description: sideLabel,
+          unit: board.aoiInspectionUnit,
+          count: labels.onePcb,
+          amount: board.aoiInspectionUnit,
+          indent: 2,
+        },
+        qty,
+        labels,
+      ),
+    )
   }
 
   if (quoteType === 'domestic' && board.pcbWashUnit > 0) {
-    rows.push({
-      label: labels.pcbWash,
-      unit: board.pcbWashUnit,
-      count: labels.onePcb,
-      amount: board.pcbWashUnit,
-      indent: 2,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.pcbWash,
+          unit: board.pcbWashUnit,
+          count: labels.onePcb,
+          amount: board.pcbWashUnit,
+          indent: 2,
+        },
+        qty,
+        labels,
+      ),
+    )
   }
 
   return rows
@@ -409,42 +484,57 @@ function smtSetupDetailRowsForBoard(
 
   const labels = getPreviewLabels(labelType)
   const qty = result.qty || 1
-  const smtSide = board.smtSide
-  const breakdown = computeSmtSetupBillingBreakdown(board.setupPartCount, smtSide, quoteType)
+  const breakdown = computeSmtSetupBillingBreakdown(board.setupPartCount, board.smtSide, quoteType)
+  const setupRate = getSmtSetupRate(quoteType)
+  const isKorean = labelType === 'domestic'
+  const rateLabel = isKorean
+    ? `분당 ${setupRate.toLocaleString('ko-KR')}원`
+    : `${setupRate.toLocaleString('en-US')}/min`
+
+  function setupMinutesValue(minutes: number) {
+    const rounded = Math.round(minutes * 10) / 10
+    const value = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+    return labels.minutesCount(value)
+  }
 
   function setupDetailRow(
     label: string,
     description: string,
+    basis: string,
     minutes: number,
-    count: string,
   ): PreviewRow {
     return {
       label,
-      description,
-      count,
+      description: `${description} · ${rateLabel}`,
+      unitLabel: basis,
+      count: setupMinutesValue(minutes),
       amount: setupComponentPerUnit(minutes, board.setupRate, qty),
       indent: 2,
     }
   }
 
+  const partCountLabel = isKorean
+    ? `${breakdown.partCount.toLocaleString('ko-KR')}종`
+    : `${breakdown.partCount.toLocaleString('en-US')} parts`
+
   return [
     setupDetailRow(
       labels.setupBaseTime,
       labels.setupBaseDesc,
+      isKorean ? '고정' : 'Fixed',
       breakdown.baseMinutes,
-      formatQuoteSetupMinutes(breakdown.baseMinutes, labelType),
     ),
     setupDetailRow(
       labels.firstArticle,
       labels.setupFirstArticleDesc,
+      partCountLabel,
       breakdown.firstArticleMinutes,
-      formatQuoteSetupMinutes(breakdown.firstArticleMinutes, labelType),
     ),
     setupDetailRow(
       'SETTING',
       labels.setupSettingDesc,
+      partCountLabel,
       breakdown.settingMinutes,
-      formatQuoteSetupMinutes(breakdown.settingMinutes, labelType),
     ),
   ]
 }
@@ -453,74 +543,110 @@ function dipDetailRowsForBoard(
   board: DipBoardDetail,
   quoteType: QuoteType,
   labelType: QuoteType = quoteType,
+  qty = 1,
 ): PreviewRow[] {
   const labels = getPreviewLabels(labelType)
   const rows: PreviewRow[] = []
   if (board.dipGeneral > 0) {
-    rows.push({
-      label: labels.dipGeneral,
-      unit: DIP_UNIT.dipGeneral,
-      count: board.dipGeneral,
-      amount: board.dipGeneral * DIP_UNIT.dipGeneral,
-      indent: 2,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.dipGeneral,
+          unit: DIP_UNIT.dipGeneral,
+          count: board.dipGeneral,
+          amount: board.dipGeneral * DIP_UNIT.dipGeneral,
+          indent: 2,
+        },
+        qty,
+        labels,
+      ),
+    )
   }
   if (board.dipConnector > 0) {
-    rows.push({
-      label: labels.dipConnector,
-      unit: DIP_UNIT.dipConnector,
-      count: board.dipConnector,
-      amount: board.dipConnector * DIP_UNIT.dipConnector,
-      indent: 2,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.dipConnector,
+          unit: DIP_UNIT.dipConnector,
+          count: board.dipConnector,
+          amount: board.dipConnector * DIP_UNIT.dipConnector,
+          indent: 2,
+        },
+        qty,
+        labels,
+      ),
+    )
   }
   if (board.dipWire > 0) {
-    rows.push({
-      label: labels.dipWire,
-      unit: DIP_UNIT.dipWire,
-      count: board.dipWire,
-      amount: board.dipWire * DIP_UNIT.dipWire,
-      indent: 2,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.dipWire,
+          unit: DIP_UNIT.dipWire,
+          count: board.dipWire,
+          amount: board.dipWire * DIP_UNIT.dipWire,
+          indent: 2,
+        },
+        qty,
+        labels,
+      ),
+    )
   }
   if (board.waveGeneral > 0) {
-    rows.push({
-      label: labels.waveGeneral,
-      unit: DIP_UNIT.waveGeneral,
-      count: board.waveGeneral,
-      amount: board.waveGeneral * DIP_UNIT.waveGeneral,
-      indent: 2,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.waveGeneral,
+          unit: DIP_UNIT.waveGeneral,
+          count: board.waveGeneral,
+          amount: board.waveGeneral * DIP_UNIT.waveGeneral,
+          indent: 2,
+        },
+        qty,
+        labels,
+      ),
+    )
   }
   if (board.waveConnector > 0) {
-    rows.push({
-      label: labels.waveConnector,
-      unit: DIP_UNIT.waveConnector,
-      count: board.waveConnector,
-      amount: board.waveConnector * DIP_UNIT.waveConnector,
-      indent: 2,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.waveConnector,
+          unit: DIP_UNIT.waveConnector,
+          count: board.waveConnector,
+          amount: board.waveConnector * DIP_UNIT.waveConnector,
+          indent: 2,
+        },
+        qty,
+        labels,
+      ),
+    )
   }
   if (board.waveWire > 0) {
-    rows.push({
-      label: labels.waveWire,
-      unit: DIP_UNIT.waveWire,
-      count: board.waveWire,
-      amount: board.waveWire * DIP_UNIT.waveWire,
-      indent: 2,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.waveWire,
+          unit: DIP_UNIT.waveWire,
+          count: board.waveWire,
+          amount: board.waveWire * DIP_UNIT.waveWire,
+          indent: 2,
+        },
+        qty,
+        labels,
+      ),
+    )
   }
   return rows
 }
 
 function postProcessDetailDescription(
   lines: PreviewPostProcessLine[] | PostProcessLine[] | undefined,
-  fallback: string,
 ) {
   const names = (lines ?? [])
     .map((line) => (line.name || '').trim())
     .filter(Boolean)
-  return names.length > 0 ? names.join(' · ') : fallback
+  return names.length > 0 ? names.join(' · ') : undefined
 }
 
 function postDetailRows(
@@ -528,39 +654,58 @@ function postDetailRows(
   indent: number,
   quoteType: QuoteType,
   labelType: QuoteType = quoteType,
+  qty = 1,
 ): PreviewRow[] {
   const labels = getPreviewLabels(labelType)
   const postRate = getPostRate(quoteType)
   const rows: PreviewRow[] = []
   if (Number(form.postAssembly) > 0) {
-    rows.push({
-      label: labels.assembly,
-      description: postProcessDetailDescription(form.assemblyLines, labels.assemblyDesc),
-      unit: postRate,
-      count: labels.minutesCount(form.postAssembly),
-      amount: Number(form.postAssembly) * postRate,
-      indent,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.assembly,
+          description: postProcessDetailDescription(form.assemblyLines),
+          unit: postRate,
+          count: labels.minutesCount(form.postAssembly),
+          amount: Number(form.postAssembly) * postRate,
+          indent,
+        },
+        qty,
+        labels,
+      ),
+    )
   }
   if (Number(form.postTest) > 0) {
-    rows.push({
-      label: labels.test,
-      description: postProcessDetailDescription(form.testLines, labels.testDesc),
-      unit: postRate,
-      count: labels.minutesCount(form.postTest),
-      amount: Number(form.postTest) * postRate,
-      indent,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.test,
+          description: postProcessDetailDescription(form.testLines),
+          unit: postRate,
+          count: labels.minutesCount(form.postTest),
+          amount: Number(form.postTest) * postRate,
+          indent,
+        },
+        qty,
+        labels,
+      ),
+    )
   }
   if (Number(form.postPacking) > 0) {
-    rows.push({
-      label: labels.packing,
-      description: postProcessDetailDescription(form.packingLines, labels.packingDesc),
-      unit: postRate,
-      count: labels.minutesCount(form.postPacking),
-      amount: Number(form.postPacking) * postRate,
-      indent,
-    })
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.packing,
+          description: postProcessDetailDescription(form.packingLines),
+          unit: postRate,
+          count: labels.minutesCount(form.postPacking),
+          amount: Number(form.postPacking) * postRate,
+          indent,
+        },
+        qty,
+        labels,
+      ),
+    )
   }
   return rows
 }
@@ -595,7 +740,7 @@ function previewMaterialRows(
   rows.push({
     label: labels.rawMaterial,
     unit: materialPerUnit,
-    count: labels.oneUnit,
+    count: labels.formatQty(qty),
     amount: materialPerUnit,
     indent: 1,
   })
@@ -605,7 +750,7 @@ function previewMaterialRows(
     description:
       labelType === 'domestic' ? 'SMD·DIP 합계의 5%' : '5% of SMD + DIP totals',
     unit: auxiliaryPerUnit,
-    count: labels.oneUnit,
+    count: labels.formatQty(qty),
     amount: auxiliaryPerUnit,
     indent: 1,
   })
@@ -613,7 +758,7 @@ function previewMaterialRows(
   rows.push({
     label: labels.managementFee,
     unit: materialMgmtPerUnit,
-    count: labels.oneUnit,
+    count: labels.formatQty(qty),
     amount: materialMgmtPerUnit,
     indent: 1,
   })
@@ -638,7 +783,12 @@ function previewOtherRows(
     ? result.common.sampleCost || computeSampleCostTotal('샘플')
     : 0
   const samplePerUnit = quotePerUnitTotal(sampleTotal, qty)
-  const totalPerUnit = metalMaskPerUnit + samplePerUnit
+  const moqTotal =
+    (result.common.moqMinLaborCost || 0) > 0
+      ? result.common.moqMinLaborCost
+      : computeMoqMinLaborCostTotal(qty)
+  const moqPerUnit = quotePerUnitTotal(moqTotal, qty)
+  const totalPerUnit = metalMaskPerUnit + samplePerUnit + moqPerUnit
   if (totalPerUnit <= 0) return []
 
   const rows: PreviewRow[] = [
@@ -673,6 +823,20 @@ function previewOtherRows(
     })
   }
 
+  if (moqTotal > 0) {
+    rows.push({
+      label: labels.moqMinLaborCost,
+      description:
+        labelType === 'domestic'
+          ? '일회성 · 생산수량 300대 미만'
+          : 'One-time · qty under 300',
+      unit: moqTotal,
+      count: labels.oneTime,
+      amount: moqPerUnit,
+      indent: 1,
+    })
+  }
+
   return rows
 }
 
@@ -699,8 +863,8 @@ function buildBoardCentricPreviewRows(
     const boardPost = singlePcb ? postPerUnit : 0
     const smtDetails = smtDetailRowsForBoard(smtBoard, result, quoteType, labelType)
     const setupDetails = smtSetupDetailRowsForBoard(smtBoard, result, quoteType, labelType)
-    const inspectionDetails = inspectionDetailRowsForBoard(smtBoard, quoteType, labelType)
-    const dipDetails = dipBoard ? dipDetailRowsForBoard(dipBoard, quoteType, labelType) : []
+    const inspectionDetails = inspectionDetailRowsForBoard(smtBoard, quoteType, labelType, qty)
+    const dipDetails = dipBoard ? dipDetailRowsForBoard(dipBoard, quoteType, labelType, qty) : []
 
     rows.push({
       label: `■ ${smtBoard.pcbName}`,
@@ -758,7 +922,7 @@ function buildBoardCentricPreviewRows(
         rows.push(...dipDetails.map((row) => ({ ...row, indent: 3 })))
       }
       if (hasBoardPost) {
-        rows.push(...postDetailRows(form, 2, quoteType, labelType))
+        rows.push(...postDetailRows(form, 2, quoteType, labelType, qty))
       }
     }
   }
@@ -779,7 +943,7 @@ function buildBoardCentricPreviewRows(
         const dipBoard = result.common.dipBoardDetails[index]
         if (!dipBoard) continue
         const dip = dipBoard.boardUnit ?? 0
-        const dipDetails = dipDetailRowsForBoard(dipBoard, quoteType, labelType)
+        const dipDetails = dipDetailRowsForBoard(dipBoard, quoteType, labelType, qty)
         if (dip <= 0 && !dipDetails.length) continue
         rows.push({
           label: labels.soldering,
@@ -793,14 +957,14 @@ function buildBoardCentricPreviewRows(
         rows.push(...dipDetails)
       }
       if (hasSharedPost) {
-        rows.push(...postDetailRows(form, 1, quoteType, labelType))
+        rows.push(...postDetailRows(form, 1, quoteType, labelType, qty))
       }
     }
   }
 
   rows.push(...previewMaterialRows(result, form, quoteType, labelType))
   rows.push(...previewOtherRows(result, form, quoteType, labelType))
-  return rows
+  return scalePreviewRowAmountsByQty(rows, qty)
 }
 
 function withBoardName(rows: PreviewRow[], pcbName: string): PreviewRow[] {
@@ -876,7 +1040,7 @@ export function buildProcessCentricPdfBreakdownRows(
       const smtLabor = smtBoardLaborPerUnit(smtBoard)
       const inspectionPerUnit = smtBoardInspectionPerUnit(smtBoard)
       const smtDetails = smtDetailRowsForBoard(smtBoard, result, quoteType, labelType)
-      const inspectionDetails = inspectionDetailRowsForBoard(smtBoard, quoteType, labelType)
+      const inspectionDetails = inspectionDetailRowsForBoard(smtBoard, quoteType, labelType, qty)
       const hasSmdContent =
         smtLabor > 0 || smtDetails.length > 0 || inspectionPerUnit > 0 || inspectionDetails.length > 0
       if (!hasSmdContent) continue
@@ -934,7 +1098,7 @@ export function buildProcessCentricPdfBreakdownRows(
 
         const boardName = multiBoard ? smtBoard.pcbName : undefined
         const dip = dipBoard.boardUnit ?? 0
-        const dipDetails = dipDetailRowsForBoard(dipBoard, quoteType, labelType)
+        const dipDetails = dipDetailRowsForBoard(dipBoard, quoteType, labelType, qty)
         if (dip <= 0 && !dipDetails.length) continue
 
         if (multiBoard && !dipDetails.length) {
@@ -960,7 +1124,7 @@ export function buildProcessCentricPdfBreakdownRows(
     }
 
     if (postPerUnit > 0 || hasPostInputs(form)) {
-      rows.push(...postDetailRows(form, 1, quoteType, labelType))
+      rows.push(...postDetailRows(form, 1, quoteType, labelType, qty))
     }
   }
 
@@ -984,7 +1148,7 @@ export function buildProcessCentricPdfBreakdownRows(
     rows.push(...otherDetails)
   }
 
-  return rows
+  return scalePreviewRowAmountsByQty(rows, qty)
 }
 
 export function buildPreviewRows(
@@ -998,6 +1162,9 @@ export function buildPreviewRows(
 
 export type PdfSummaryBreakdownLine = {
   label: string
+  /** 대당합계 */
+  unitTotal: number
+  /** 생산수량 기준 합계 */
   total: number
   section: PreviewSection
 }
@@ -1039,49 +1206,60 @@ export function buildPdfSummaryBreakdownLines(
   labelType: QuoteType = quoteType,
 ): PdfSummaryBreakdownLine[] {
   const labels = getPreviewLabels(labelType)
+  const qty = result.qty || 1
   const lines: PdfSummaryBreakdownLine[] = []
 
   const setup = pdfSetupSectionTotal(result)
-  if (setup > 0) lines.push({ label: 'SET-UP', total: setup, section: 'setup' })
+  if (setup > 0) lines.push({ label: 'SET-UP', unitTotal: setup, total: setup * qty, section: 'setup' })
 
   const smt = pdfSmtSectionTotal(result)
-  if (smt > 0) lines.push({ label: pdfSummarySectionLabel('SMD', labelType), total: smt, section: 'smt' })
+  if (smt > 0) {
+    lines.push({
+      label: pdfSummarySectionLabel('SMD', labelType),
+      unitTotal: smt,
+      total: smt * qty,
+      section: 'smt',
+    })
+  }
 
   const soldering = pdfSolderingSectionTotal(result)
-  const postPerUnit = quotePerUnitTotal(result.values.postProcess, result.qty || 1)
+  const postPerUnit = quotePerUnitTotal(result.values.postProcess, qty)
   const postTotal = postPerUnit + soldering
   if (postTotal > 0 || hasPostInputs(form) || soldering > 0) {
     lines.push({
       label: pdfSummarySectionLabel(labels.postProcess, labelType),
-      total: postTotal,
+      unitTotal: postTotal,
+      total: postTotal * qty,
       section: 'post',
     })
   }
 
   const materialPerUnit = Number(form.materialCost) || 0
-  const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, result.qty || 1)
-  const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, result.qty || 1)
+  const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, qty)
+  const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, qty)
   const materials = materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
   lines.push({
     label: pdfSummarySectionLabel(labels.materials, labelType),
-    total: materials,
+    unitTotal: materials,
+    total: materials * qty,
     section: 'material',
   })
 
-  const metalMaskPerUnit = quotePerUnitTotal(
-    Number(form.metalMaskCost) || result.common.subMaterial || 0,
-    result.qty || 1,
-  )
+  const metalMaskTotal = Number(form.metalMaskCost) || result.common.subMaterial || 0
   const isSample =
     form.productionKind === '샘플' || (result.common.sampleCost || 0) > 0
-  const samplePerUnit = quotePerUnitTotal(
-    isSample ? result.common.sampleCost || computeSampleCostTotal('샘플') : 0,
-    result.qty || 1,
-  )
-  const otherTotal = metalMaskPerUnit + samplePerUnit
+  const sampleTotal = isSample
+    ? result.common.sampleCost || computeSampleCostTotal('샘플')
+    : 0
+  const moqTotal =
+    (result.common.moqMinLaborCost || 0) > 0
+      ? result.common.moqMinLaborCost
+      : computeMoqMinLaborCostTotal(result.qty)
+  const otherTotal = metalMaskTotal + sampleTotal + moqTotal
   if (otherTotal > 0) {
     lines.push({
       label: pdfSummarySectionLabel(labels.other, labelType),
+      unitTotal: quotePerUnitTotal(otherTotal, qty),
       total: otherTotal,
       section: 'other',
     })
@@ -1096,7 +1274,7 @@ export function buildPdfSmtBoardSummaryRows(
   _productName: string,
 ): PdfSummaryBreakdownLine[] {
   const total = pdfSmtSectionTotal(result)
-  return total > 0 ? [{ label: 'SMD', total, section: 'smt' as const }] : []
+  return total > 0 ? [{ label: 'SMD', unitTotal: total, total, section: 'smt' as const }] : []
 }
 
 /** @deprecated Use buildPdfSummaryBreakdownLines */
@@ -1105,7 +1283,7 @@ export function buildPdfSolderingBoardSummaryRows(
   _productName: string,
 ): PdfSummaryBreakdownLine[] {
   const total = pdfSolderingSectionTotal(result)
-  return total > 0 ? [{ label: 'Soldering', total, section: 'dip' as const }] : []
+  return total > 0 ? [{ label: 'Soldering', unitTotal: total, total, section: 'dip' as const }] : []
 }
 
 /** @deprecated Use buildPdfSummaryBreakdownLines */
@@ -1118,7 +1296,7 @@ export function buildPdfPostProcessBoardSummaryRows(
   const postPerUnit = quotePerUnitTotal(result.values.postProcess, result.qty || 1)
   const total = soldering + postPerUnit
   if (total <= 0 && !hasPostInputs(form)) return []
-  return [{ label: 'Post-Process', total, section: 'post' as const }]
+  return [{ label: 'Post-Process', unitTotal: total, total, section: 'post' as const }]
 }
 
 /** @deprecated Use buildPdfSummaryBreakdownLines */
@@ -1131,7 +1309,7 @@ export function buildPdfMaterialsBoardSummaryRows(
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, result.qty || 1)
   const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, result.qty || 1)
   const total = materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
-  return [{ label: 'Materials', total, section: 'material' as const }]
+  return [{ label: 'Materials', unitTotal: total, total, section: 'material' as const }]
 }
 
 /** @deprecated Use buildPdfSummaryBreakdownLines */
@@ -1211,6 +1389,12 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
     isSample ? result.common.sampleCost || computeSampleCostTotal('샘플') : 0,
     qty,
   )
+  const moqPerUnit = quotePerUnitTotal(
+    (result.common.moqMinLaborCost || 0) > 0
+      ? result.common.moqMinLaborCost
+      : computeMoqMinLaborCostTotal(qty),
+    qty,
+  )
   const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, qty)
   const materialRows: PreviewMatrixMaterialRow[] = [
     { label: '원자재 비용', amountPerUnit: materialPerUnit },
@@ -1222,6 +1406,9 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
   ]
   if (samplePerUnit > 0) {
     otherRows.push({ label: '샘플 비용', amountPerUnit: samplePerUnit })
+  }
+  if (moqPerUnit > 0) {
+    otherRows.push({ label: 'MOQ 최소공임', amountPerUnit: moqPerUnit })
   }
 
   return {
@@ -1236,7 +1423,7 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
     materialRows,
     materialTotalPerUnit: materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit,
     otherRows,
-    otherTotalPerUnit: metalMaskPerUnit + samplePerUnit,
+    otherTotalPerUnit: metalMaskPerUnit + samplePerUnit + moqPerUnit,
     grandPerUnit: result.values.grandTotal / qty,
   }
 }

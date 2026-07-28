@@ -8,6 +8,7 @@ export const AUTH_DEPARTMENTS = [
   'production2',
   'production3',
   'production4',
+  'quality',
   'office',
 ] as const
 export type AuthDepartment = (typeof AUTH_DEPARTMENTS)[number]
@@ -53,6 +54,7 @@ export function formatAuthDepartmentLabel(department: AuthDepartment | null) {
     production2: '생산2팀',
     production3: '생산3팀',
     production4: '생산4팀',
+    quality: '품질',
     office: '관리',
   }
   return labels[department]

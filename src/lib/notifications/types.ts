@@ -43,6 +43,8 @@ export function notificationCategoriesForProfile(input: {
     case 'production3':
     case 'production4':
       return ['delivery', 'stock']
+    case 'quality':
+      return ['delivery', 'stock', 'approval']
     case 'office':
       return ['approval', 'expense', 'leave']
     default:

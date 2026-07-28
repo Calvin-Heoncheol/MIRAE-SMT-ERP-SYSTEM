@@ -23,6 +23,7 @@ function departmentBadgeClass(department: AuthProfile['department']) {
   if (!department) return 'bg-slate-50 text-slate-500 ring-1 ring-slate-200/80'
   if (department === 'sales') return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
   if (department === 'materials') return 'bg-amber-50 text-amber-800 ring-1 ring-amber-100'
+  if (department === 'quality') return 'bg-teal-50 text-teal-800 ring-1 ring-teal-100'
   if (department.startsWith('production')) return 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100'
   if (department === 'office') return 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'
   return 'bg-slate-50 text-slate-600 ring-1 ring-slate-200/80'

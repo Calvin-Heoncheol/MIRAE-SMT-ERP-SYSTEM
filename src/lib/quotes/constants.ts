@@ -118,8 +118,19 @@ export const METAL_MASK_COST_DOUBLE = 220_000
 /** 샘플 비용 (일회성) — 구분이 샘플일 때 기타에 고정 반영 */
 export const SAMPLE_COST = 200_000
 
+/** MOQ 최소공임 (일회성) — 생산수량 300대 미만일 때 기타에 고정 반영 */
+export const MOQ_MIN_LABOR_COST = 200_000
+/** MOQ 최소공임 적용 기준 수량 (미만) */
+export const MOQ_QTY_THRESHOLD = 300
+
 export function computeSampleCostTotal(productionKind?: string | null) {
   return productionKind === '샘플' ? SAMPLE_COST : 0
+}
+
+/** 생산수량 300대 미만이면 MOQ 최소공임 20만원 */
+export function computeMoqMinLaborCostTotal(qty?: number | string | null) {
+  const safeQty = Math.floor(Number(qty) || 0)
+  return safeQty > 0 && safeQty < MOQ_QTY_THRESHOLD ? MOQ_MIN_LABOR_COST : 0
 }
 
 export function metalMaskCostForSide(side: SmtSide | string | undefined) {

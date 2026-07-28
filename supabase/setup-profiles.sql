@@ -18,7 +18,7 @@ create table if not exists public.profiles (
 comment on table public.profiles is 'ERP 사용자 프로필 — auth.users 와 1:1';
 comment on column public.profiles.role is 'admin | manager | operator';
 comment on column public.profiles.department is
-  'sales | materials | production1 | production2 | production3 | production4 | office';
+  'sales | materials | production1 | production2 | production3 | production4 | quality | office';
 comment on column public.profiles.must_change_password is
   'true 이면 로그인 후 새 비밀번호로 변경해야 함 (초기 비밀번호 등)';
 
@@ -44,6 +44,7 @@ alter table public.profiles
       'production2',
       'production3',
       'production4',
+      'quality',
       'office'
     )
   );
