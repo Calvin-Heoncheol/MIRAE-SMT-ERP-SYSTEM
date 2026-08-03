@@ -224,7 +224,7 @@ async function fetchSourceRows(
     .limit(PER_SOURCE_LIMIT)
 
   if (!primary.error) {
-    return (primary.data || []) as Record<string, unknown>[]
+    return (primary.data || []) as unknown as Record<string, unknown>[]
   }
 
   // created_by 컬럼 없는 DB 호환
@@ -242,7 +242,7 @@ async function fetchSourceRows(
     .limit(PER_SOURCE_LIMIT)
 
   if (legacy.error) return []
-  return (legacy.data || []) as Record<string, unknown>[]
+  return (legacy.data || []) as unknown as Record<string, unknown>[]
 }
 
 export async function fetchActivityNotificationFeed(
