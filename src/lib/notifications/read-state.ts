@@ -1,7 +1,5 @@
-const STORAGE_PREFIX = 'mirae-erp-notif-reads:'
-
 export function notificationReadsStorageKey(userId: string | null | undefined) {
-  return `${STORAGE_PREFIX}${userId?.trim() || 'anonymous'}`
+  return `mirae.notificationReads.${userId || 'anon'}`
 }
 
 export function loadReadNotificationKeys(userId: string | null | undefined): Set<string> {
@@ -23,19 +21,17 @@ export function saveReadNotificationKeys(
 ) {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(
-      notificationReadsStorageKey(userId),
-      JSON.stringify([...keys]),
-    )
+    const list = Array.from(keys).slice(-200)
+    window.localStorage.setItem(notificationReadsStorageKey(userId), JSON.stringify(list))
   } catch {
-    // ignore quota / private mode
+    // localStorage 차단 시 무시
   }
 }
 
 export function markNotificationsRead(
   userId: string | null | undefined,
   keys: string[],
-) {
+): Set<string> {
   const next = loadReadNotificationKeys(userId)
   for (const key of keys) next.add(key)
   saveReadNotificationKeys(userId, next)

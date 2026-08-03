@@ -5,7 +5,15 @@ import {
   daysUntilYmd,
   formatDeliveryCountdown,
 } from '@/lib/smt/plan/utils'
-import type { AppNotification } from './types'
+
+/** 홈 대시보드 주의 항목용 (알림 벨과 무관) */
+export type OpsAlert = {
+  key: string
+  label: string
+  detail: string
+  href: string
+  tone: 'warn' | 'danger' | 'info'
+}
 
 const DUE_SOON_DAYS = 3
 const MAX_DELIVERY_ALERTS = 8
@@ -25,7 +33,7 @@ export function buildDeliveryDueNotifications(input: {
   orders: OrderListGroup[]
   assemblyGroups: OrderAssemblyGroup[]
   deliveryCounts: Record<string, number>
-}): AppNotification[] {
+}): OpsAlert[] {
   const assembliesByOrderId = groupAssembliesByOrderId(input.assemblyGroups)
 
   const isFullyShipped = (orderId: string) => {
@@ -56,7 +64,6 @@ export function buildDeliveryDueNotifications(input: {
 
   return dueSoon.slice(0, MAX_DELIVERY_ALERTS).map(({ order, daysUntil }) => ({
     key: `delivery:${order.orderId}`,
-    category: 'delivery' as const,
     label: `${formatInternalCodeLabel(order.orderNumber)} · ${order.customer || '—'}`,
     detail: `납기 ${order.deliveryDate} (${formatDeliveryCountdown(daysUntil)})`,
     href: '/production/status',
@@ -64,13 +71,10 @@ export function buildDeliveryDueNotifications(input: {
   }))
 }
 
-export function buildNegativeStockNotification(
-  negativeCount: number,
-): AppNotification | null {
+export function buildNegativeStockNotification(negativeCount: number): OpsAlert | null {
   if (negativeCount <= 0) return null
   return {
     key: 'stock:negative',
-    category: 'stock',
     label: `재고 마이너스 자재 ${negativeCount.toLocaleString('ko-KR')}건`,
     detail: '재고현황에서 입고·불출 내역을 확인하세요',
     href: '/materials/inventory',
@@ -78,13 +82,10 @@ export function buildNegativeStockNotification(
   }
 }
 
-export function buildPendingPurchaseNotification(
-  pendingCount: number,
-): AppNotification | null {
+export function buildPendingPurchaseNotification(pendingCount: number): OpsAlert | null {
   if (pendingCount <= 0) return null
   return {
     key: 'purchase:pending-inbound',
-    category: 'purchase',
     label: `미입고 발주 ${pendingCount.toLocaleString('ko-KR')}건`,
     detail: '발주서 입고 잔량을 확인하세요',
     href: '/materials/purchase-orders',

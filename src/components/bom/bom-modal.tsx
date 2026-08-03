@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { BomChildItemCombobox } from '@/components/bom/bom-child-item-combobox'
+import { useBusy } from '@/components/ui/busy-provider'
 import { ErpButton } from '@/components/ui/erp-button'
-import { ErpModal } from '@/components/ui/erp-modal'
+import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import {
   BOM_PASTE_COLUMNS,
@@ -31,7 +33,11 @@ import {
 import type { BomGroup } from '@/lib/bom/types'
 import type { Item } from '@/lib/items/types'
 import { ITEM_CATEGORY_LABELS, isSemiFinishedItemCategory } from '@/lib/items/types'
-import { suggestNextVersionForItem } from '@/lib/items/version-code'
+import {
+  composeItemIdWithVersion,
+  normalizeVersionLabel,
+  suggestNextVersionForItem,
+} from '@/lib/items/version-code'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type BomModalProps = {
@@ -47,6 +53,15 @@ type BomModalProps = {
   onDeleted?: () => void
   /** 버전업 성공 시 새 BOM 편집으로 전환 */
   onVersioned?: (group: BomGroup) => void
+}
+
+function CancelButton({ disabled }: { disabled?: boolean }) {
+  const requestClose = useErpModalRequestClose()
+  return (
+    <ErpButton variant="secondary" disabled={disabled} onClick={() => requestClose?.()}>
+      취소
+    </ErpButton>
+  )
 }
 
 function BomModalContent({
@@ -71,6 +86,10 @@ function BomModalContent({
   const [pasteText, setPasteText] = useState('')
   const [pasteHint, setPasteHint] = useState<string | null>(null)
   const [pasteUnresolved, setPasteUnresolved] = useState<string[]>([])
+  const [versionUpInput, setVersionUpInput] = useState('')
+
+  const busyUi = useBusy()
+  const { notifyAuthOrFailure } = useWriteFailureToast()
 
   const parents = useMemo(() => parentItemsForBom(items), [items])
   const selectedParent = parents.find((item) => item.id === form.parentProductId) || null
@@ -94,13 +113,29 @@ function BomModalContent({
     return suggestNextVersionForItem(selectedParent, items)
   }, [group, selectedParent, items])
 
+  const normalizedVersionInput = normalizeVersionLabel(versionUpInput)
+  const previewNewId =
+    selectedParent && normalizedVersionInput
+      ? composeItemIdWithVersion(selectedParent.baseCode || selectedParent.id, normalizedVersionInput)
+      : ''
+
   useEffect(() => {
     setForm(group ? bomGroupToForm(group) : emptyBomForm(initialParentProductId))
     setSaveError(null)
     setPasteText('')
     setPasteHint(null)
     setPasteUnresolved([])
-  }, [group, mode, initialParentProductId])
+
+    if (group) {
+      const parent = items.find((item) => item.id === group.parentProductId)
+      const suggested = parent ? suggestNextVersionForItem(parent, items) : null
+      setVersionUpInput(suggested?.version || '')
+    } else {
+      setVersionUpInput('')
+    }
+    // 모달을 열거나 대상 BOM이 바뀔 때만 신버전 입력을 초기화
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- items는 열 당시 스냅샷만 사용
+  }, [group?.parentProductId, mode, initialParentProductId])
 
   function updateLine(key: string, patch: Partial<BomFormState['lines'][number]>) {
     setForm((current) => ({
@@ -165,11 +200,13 @@ function BomModalContent({
     setSaving(true)
     setSaveError(null)
 
-    const result = await saveBomForParent(form.parentProductId, formToBomLinePayloads(form))
+    const result = await busyUi.run(() =>
+      saveBomForParent(form.parentProductId, formToBomLinePayloads(form)),
+    )
     setSaving(false)
 
     if (!result.ok) {
-      setSaveError(result.detail)
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
     }
 
@@ -182,11 +219,11 @@ function BomModalContent({
 
     setDeleting(true)
     setSaveError(null)
-    const result = await deleteBomForParent(group.parentProductId)
+    const result = await busyUi.run(() => deleteBomForParent(group.parentProductId))
     setDeleting(false)
 
     if (!result.ok) {
-      setSaveError(result.detail)
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
     }
 
@@ -195,8 +232,10 @@ function BomModalContent({
 
   async function handleVersionUp() {
     if (!group || !selectedParent) return
-    if (!suggestedVersion) {
-      setSaveError('다음 버전을 만들 수 없습니다.')
+
+    const versionLabel = normalizeVersionLabel(versionUpInput)
+    if (!versionLabel) {
+      setSaveError('신버전을 입력해 주세요. (예: A2, V2, REV3)')
       return
     }
 
@@ -204,12 +243,12 @@ function BomModalContent({
       [
         'BOM 버전업을 진행할까요?',
         '',
-        `품목코드: ${suggestedVersion.baseCode}`,
+        `품목코드: ${selectedParent.baseCode || selectedParent.id}`,
         `구버전: ${selectedParent.version || '—'}`,
-        `신버전: ${suggestedVersion.version}`,
+        `신버전: ${versionLabel}`,
         '',
         '· 같은 품목코드로 새 버전 행을 만들고 BOM을 복사합니다.',
-        '· 구버전(A1 등)은 그대로 유지됩니다.',
+        '· 구버전은 그대로 유지됩니다.',
         '· 완료 후 신버전 BOM을 바로 수정할 수 있습니다.',
       ].join('\n'),
     )
@@ -218,17 +257,20 @@ function BomModalContent({
     setVersioning(true)
     setSaveError(null)
 
-    const result = await versionUpBomParent({
-      sourceItem: selectedParent,
-      group,
-      existingItems: items,
-      deactivateSource: false,
-    })
+    const result = await busyUi.run(() =>
+      versionUpBomParent({
+        sourceItem: selectedParent,
+        group,
+        existingItems: items,
+        newVersion: versionLabel,
+        deactivateSource: false,
+      }),
+    )
 
     setVersioning(false)
 
     if (!result.ok) {
-      setSaveError(result.detail)
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
     }
 
@@ -251,30 +293,30 @@ function BomModalContent({
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             {!isCreate ? (
               <div className="flex flex-wrap gap-2">
-                <ErpButton variant="danger" disabled={busy} onClick={() => void handleDelete()}>
-                  {deleting ? '삭제 중…' : 'BOM 삭제'}
+                <ErpButton
+                  variant="danger"
+                  disabled={busy}
+                  loading={deleting}
+                  onClick={() => void handleDelete()}
+                >
+                  BOM 삭제
                 </ErpButton>
                 <ErpButton
                   variant="secondary"
-                  disabled={busy || !suggestedVersion}
+                  disabled={busy || !normalizedVersionInput}
+                  loading={versioning}
                   onClick={() => void handleVersionUp()}
                 >
-                  {versioning
-                    ? '버전업 중…'
-                    : suggestedVersion
-                      ? `버전업 → ${suggestedVersion.version}`
-                      : '버전업'}
+                  {normalizedVersionInput ? `버전업 → ${normalizedVersionInput}` : '버전업'}
                 </ErpButton>
               </div>
             ) : (
               <span />
             )}
             <div className="flex gap-2">
-              <ErpButton variant="secondary" onClick={onClose} disabled={busy}>
-                취소
-              </ErpButton>
-              <ErpButton disabled={busy} onClick={() => void handleSave()}>
-                {saving ? '저장 중…' : '저장'}
+              <CancelButton disabled={busy} />
+              <ErpButton disabled={busy} loading={saving} onClick={() => void handleSave()}>
+                저장
               </ErpButton>
             </div>
           </div>
@@ -282,38 +324,66 @@ function BomModalContent({
       }
     >
       <div className="space-y-4">
-        <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>부모 품목</span>
-          <select
-            value={form.parentProductId}
-            disabled={!isCreate}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                parentProductId: event.target.value,
-                lines: [createBomFormLine()],
-              }))
-            }
-            className={ERP_FIELD_INPUT_CLASS}
-          >
-            <option value="">부모 품목 선택</option>
-            {availableParents.map((item) => (
-              <option key={item.id} value={item.id}>
-                {formatItemOptionLabel(item)}
-              </option>
-            ))}
-          </select>
-          {selectedParent ? (
-            <p className="mt-1.5 text-xs text-slate-500">{describeBomRule(selectedParent.itemCategory)}</p>
+        <div className="space-y-3">
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>부모 품목</span>
+            <select
+              value={form.parentProductId}
+              disabled={!isCreate}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  parentProductId: event.target.value,
+                  lines: [createBomFormLine()],
+                }))
+              }
+              className={ERP_FIELD_INPUT_CLASS}
+            >
+              <option value="">부모 품목 선택</option>
+              {availableParents.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {formatItemOptionLabel(item)}
+                </option>
+              ))}
+            </select>
+            {selectedParent ? (
+              <p className="mt-1.5 text-xs text-slate-500">{describeBomRule(selectedParent.itemCategory)}</p>
+            ) : null}
+          </label>
+          {!isCreate && selectedParent ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>신버전</span>
+                <input
+                  type="text"
+                  value={versionUpInput}
+                  disabled={busy}
+                  placeholder={suggestedVersion?.version || '예: A2, V2, REV3'}
+                  onChange={(event) => setVersionUpInput(event.target.value)}
+                  className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
+                />
+              </label>
+              <p className="mt-1.5 text-xs text-slate-500">
+                같은 품목코드(
+                <span className="font-mono">{selectedParent.baseCode || selectedParent.id}</span>
+                )에 입력한 버전 행을 만들고 BOM을 복사합니다. 구버전(
+                <span className="font-mono">{selectedParent.version || '—'}</span>
+                )은 유지됩니다.
+                {suggestedVersion ? (
+                  <>
+                    {' '}
+                    제안: <span className="font-mono font-semibold">{suggestedVersion.version}</span>
+                  </>
+                ) : null}
+              </p>
+              {previewNewId ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  생성 예정 ID: <span className="font-mono font-semibold">{previewNewId}</span>
+                </p>
+              ) : null}
+            </div>
           ) : null}
-          {!isCreate && suggestedVersion ? (
-            <p className="mt-1.5 text-xs text-slate-500">
-              버전업 시 같은 품목코드에{' '}
-              <span className="font-mono font-semibold">{suggestedVersion.version}</span> 행을
-              추가하고 BOM을 복사합니다. 구버전은 유지됩니다.
-            </p>
-          ) : null}
-        </label>
+        </div>
 
         {showExcelPaste ? (
           <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-3">

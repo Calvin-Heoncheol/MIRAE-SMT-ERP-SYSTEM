@@ -11,6 +11,7 @@ import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchExpenseReportsResult } from '@/lib/expense-reports/repository'
 import type { ExpenseReportListItem } from '@/lib/expense-reports/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type ExpenseReportsWorkspaceProps = {
@@ -41,6 +42,7 @@ function matchesExpenseSearch(item: ExpenseReportListItem, query: string) {
 
 export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps) {
   const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
@@ -66,9 +68,12 @@ export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '지출결의서가 저장되었습니다.', { close: closeModal })
+  }
+
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '지출결의서가 삭제되었습니다.', { close: closeModal })
   }
 
   function handleSignoffComplete() {
@@ -124,7 +129,7 @@ export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps
           report={modal.mode === 'edit' ? modal.report : null}
           onClose={closeModal}
           onSaved={handleSaved}
-          onDeleted={handleSaved}
+          onDeleted={handleDeleted}
           onSignoffComplete={handleSignoffComplete}
         />
       ) : null}

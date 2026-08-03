@@ -3,8 +3,10 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { Suspense, useEffect, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useState, type MouseEvent, type ReactNode } from 'react'
 import { SideNavUserMenu } from '@/components/auth/side-nav-user-menu'
+import { NotificationBell } from '@/components/notifications/notification-bell'
+import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { APP_SHORT_NAME } from '@/lib/app-config'
 import type { AuthProfile } from '@/lib/auth/types'
 import {
@@ -140,17 +142,27 @@ function NavChildLink({
   nested?: boolean
 }) {
   const childActive = isNavChildActive(pathname, child.href, search)
+  const { notifyForbidden } = useWriteFailureToast()
+
+  function handleClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (child.locked) {
+      event.preventDefault()
+      notifyForbidden(`「${child.label}」메뉴에 대한 접근 권한이 없습니다.`)
+      return
+    }
+    onNavigate?.()
+  }
 
   return (
     <Link
-      href={child.href}
-      onClick={onNavigate}
+      href={child.locked ? '#' : child.href}
+      onClick={handleClick}
       title={child.locked ? '접근 권한이 없습니다' : undefined}
       className={[
         'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-colors',
         nested ? 'text-[12px]' : 'text-[13px]',
         child.locked
-          ? 'text-slate-400 hover:bg-slate-50'
+          ? 'cursor-not-allowed text-slate-400 hover:bg-slate-50'
           : childActive
             ? 'bg-blue-50 font-semibold text-blue-700'
             : nested
@@ -158,6 +170,7 @@ function NavChildLink({
               : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
       ].join(' ')}
       aria-current={childActive && !child.locked ? 'page' : undefined}
+      aria-disabled={child.locked || undefined}
     >
       <span className="min-w-0 flex-1 truncate">{child.label}</span>
       {child.locked ? (
@@ -229,6 +242,48 @@ function NavChildSection({
   )
 }
 
+function LockedAwareNavLink({
+  href,
+  locked,
+  label,
+  active,
+  onNavigate,
+  className,
+  children,
+}: {
+  href: string
+  locked: boolean
+  label: string
+  active: boolean
+  onNavigate?: () => void
+  className: string
+  children: ReactNode
+}) {
+  const { notifyForbidden } = useWriteFailureToast()
+
+  function handleClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (locked) {
+      event.preventDefault()
+      notifyForbidden(`「${label}」메뉴에 대한 접근 권한이 없습니다.`)
+      return
+    }
+    onNavigate?.()
+  }
+
+  return (
+    <Link
+      href={locked ? '#' : href}
+      onClick={handleClick}
+      title={locked ? '접근 권한이 없습니다' : undefined}
+      className={className}
+      aria-current={active && !locked ? 'page' : undefined}
+      aria-disabled={locked || undefined}
+    >
+      {children}
+    </Link>
+  )
+}
+
 function NavSection({
   item,
   pathname,
@@ -252,26 +307,27 @@ function NavSection({
 
   if (!hasChildren) {
     return (
-      <Link
+      <LockedAwareNavLink
         href={item.href}
-        onClick={onNavigate}
-        title={item.locked ? '접근 권한이 없습니다' : undefined}
+        locked={Boolean(item.locked)}
+        label={item.label}
+        active={sectionActive}
+        onNavigate={onNavigate}
         className={[
           'mb-0.5 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-bold transition-colors',
           item.locked
-            ? 'text-slate-400 hover:bg-slate-50'
+            ? 'cursor-not-allowed text-slate-400 hover:bg-slate-50'
             : sectionActive
               ? 'bg-blue-50 text-blue-700'
               : 'text-slate-800 hover:bg-slate-50 hover:text-slate-900',
         ].join(' ')}
-        aria-current={sectionActive && !item.locked ? 'page' : undefined}
       >
         <NavSectionIcon href={item.href} />
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
         {item.locked ? (
           <span className="shrink-0 text-[10px] font-semibold text-slate-400">잠금</span>
         ) : null}
-      </Link>
+      </LockedAwareNavLink>
     )
   }
 
@@ -482,13 +538,17 @@ export function SideNav({ profile = null, authDisabled = false }: SideNavProps) 
             <span className="block h-0.5 w-4 rounded bg-slate-700" />
           </span>
         </button>
-        <SidebarBrand />
+        <div className="min-w-0 flex-1">
+          <SidebarBrand />
+        </div>
+        <NotificationBell userId={profile?.id} variant="icon" />
       </header>
 
       {/* 데스크톱 사이드바 */}
       <aside className="sticky top-0 hidden h-dvh w-52 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex xl:w-56">
-        <div className="border-b border-slate-200 px-3 py-3">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-3">
           <SidebarBrand />
+          <NotificationBell userId={profile?.id} variant="icon" />
         </div>
         <SidebarNavBody pathname={pathname} profile={profile} authDisabled={authDisabled} />
         <SideNavUserMenu profile={profile} authDisabled={authDisabled} />

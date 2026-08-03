@@ -14,6 +14,7 @@ import type { MaterialInboundListGroup } from '@/lib/materials/inbound/types'
 import { filterPurchaseOrdersWithRemaining, getInboundTypeLabel } from '@/lib/materials/inbound/utils'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type InboundWorkspaceProps = {
@@ -56,6 +57,7 @@ function matchesPurchaseOrderQuery(order: MaterialPurchaseOrderListGroup, query:
 
 export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
   const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
@@ -94,14 +96,12 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '입고 내역이 저장되었습니다.', { close: closeModal })
   }
 
-  function handleDeleted() {
-    closeModal()
-    router.refresh()
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '입고 내역이 삭제되었습니다.', { close: closeModal })
   }
 
   if (!result.ok) {

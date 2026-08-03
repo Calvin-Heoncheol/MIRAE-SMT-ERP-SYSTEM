@@ -1,6 +1,5 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { MaterialPurchaseOrderFetchError } from '@/components/materials/purchase-orders/material-purchase-order-fetch-error'
 import { MaterialPurchaseOrderListTable } from '@/components/materials/purchase-orders/material-purchase-order-list-table'
@@ -9,6 +8,7 @@ import { MaterialPurchaseSuggestionTable } from '@/components/materials/purchase
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
@@ -62,7 +62,7 @@ function matchesPurchaseOrder(order: MaterialPurchaseOrderListGroup, query: stri
 }
 
 export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWorkspaceProps) {
-  const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [createModal, setCreateModal] = useState<CreateModalState>({ open: false })
   const [editModal, setEditModal] = useState<EditModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
@@ -129,15 +129,19 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
     openCreate({ items, supplier })
   }
 
-  function handleSaved() {
+  function closeModals() {
     setCreateModal({ open: false })
     setEditModal({ open: false })
-    router.refresh()
   }
 
-  function handleDeleted() {
-    setEditModal({ open: false })
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '자재 발주가 저장되었습니다.', { close: closeModals })
+  }
+
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '자재 발주가 삭제되었습니다.', {
+      close: () => setEditModal({ open: false }),
+    })
   }
 
   if (!props.result.ok) {

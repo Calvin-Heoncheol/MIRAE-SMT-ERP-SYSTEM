@@ -18,6 +18,7 @@ import {
   resolveProductionSideCount,
 } from '@/lib/production-input/utils'
 import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
+import { useToast } from '@/components/ui/toast-provider'
 
 function formatSmtPlanChipLabel(plan: SmtPlanBlock) {
   const side = plan.pcbSide === 'TOP' || plan.pcbSide === 'BOT' ? plan.pcbSide : '단면'
@@ -78,6 +79,7 @@ export function ProductionInputPanel({
   planProduced = 0,
   onPlanProgressUpdated,
 }: ProductionInputPanelProps) {
+  const toast = useToast()
   const [activeSide, setActiveSide] = useState<SmtPcbSide>('SINGLE')
   const [qtyMode, setQtyMode] = useState<'good' | 'defect'>('good')
   const [qty, setQty] = useState('')
@@ -222,6 +224,11 @@ export function ProductionInputPanel({
       return `${qtyModeLabel} ${value.toLocaleString('ko-KR')}개 등록 · ${cumulativeOrPlanText}`
     }
 
+    function showRegisterOk(text: string) {
+      setMessage({ text, kind: 'ok' })
+      toast.success('생산 등록 완료', text)
+    }
+
     if (isPostProcess) {
       const result = await createPostProcessProductionRecord({
         assemblyGroupId,
@@ -252,14 +259,13 @@ export function ProductionInputPanel({
 
       setQty('')
       setDefectReason('')
-      setMessage({
-        text: formatRegisterOk(
+      showRegisterOk(
+        formatRegisterOk(
           lockToPlan
             ? `${Math.min(planTarget, planDone + goodQuantity).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
             : `누적 ${result.cumulative.toLocaleString('ko-KR')}`,
         ),
-        kind: 'ok',
-      })
+      )
       return
     }
 
@@ -302,14 +308,13 @@ export function ProductionInputPanel({
 
     setQty('')
     setDefectReason('')
-    setMessage({
-      text: formatRegisterOk(
+    showRegisterOk(
+      formatRegisterOk(
         lockToPlan
           ? `${Math.min(planTarget, planDone + goodQuantity).toLocaleString('ko-KR')}/${planTarget.toLocaleString('ko-KR')}`
           : `누적 ${result.cumulative.toLocaleString('ko-KR')}`,
       ),
-      kind: 'ok',
-    })
+    )
   }
 
   const progressLabel = lockToPlan ? '계획 진행' : isDual ? `${pcbSide} 진행` : '진행'

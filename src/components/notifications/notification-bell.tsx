@@ -3,31 +3,26 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
-import { loadNotificationFeedAction } from '@/lib/notifications/actions'
+import { loadActivityNotificationFeedAction } from '@/lib/notifications/actions'
 import {
   loadReadNotificationKeys,
   markNotificationsRead,
 } from '@/lib/notifications/read-state'
 import {
-  NOTIFICATION_CATEGORY_LABELS,
-  type AppNotification,
-  type NotificationFeed,
+  ACTIVITY_KIND_LABELS,
+  type ActivityNotification,
+  type ActivityNotificationFeed,
 } from '@/lib/notifications/types'
+import { playToastSound } from '@/lib/ui/toast-sound'
 
 type NotificationBellProps = {
   userId?: string | null
-  /** compact: 아이콘만 / bar: 텍스트 포함 */
   variant?: 'icon' | 'bar'
   className?: string
 }
 
-const PANEL_WIDTH = 352
-
-function toneClass(tone: AppNotification['tone']) {
-  if (tone === 'danger') return 'bg-rose-50 text-rose-700 ring-rose-200'
-  if (tone === 'warn') return 'bg-amber-50 text-amber-800 ring-amber-200'
-  return 'bg-sky-50 text-sky-700 ring-sky-200'
-}
+const PANEL_WIDTH = 360
+const POLL_INTERVAL_MS = 60_000
 
 function BellIcon({ className }: { className?: string }) {
   return (
@@ -54,7 +49,7 @@ export function NotificationBell({
   className = '',
 }: NotificationBellProps) {
   const [open, setOpen] = useState(false)
-  const [feed, setFeed] = useState<NotificationFeed | null>(null)
+  const [feed, setFeed] = useState<ActivityNotificationFeed | null>(null)
   const [readKeys, setReadKeys] = useState<Set<string>>(() => new Set())
   const [error, setError] = useState('')
   const [pending, startTransition] = useTransition()
@@ -63,11 +58,12 @@ export function NotificationBell({
   const buttonRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const panelId = useId()
+  const prevUnreadRef = useRef<number | null>(null)
 
   const refresh = useCallback(() => {
     startTransition(async () => {
       try {
-        const next = await loadNotificationFeedAction()
+        const next = await loadActivityNotificationFeedAction()
         setFeed(next)
         setError('')
         setReadKeys(loadReadNotificationKeys(userId))
@@ -82,7 +78,6 @@ export function NotificationBell({
     if (!button) return
     const rect = button.getBoundingClientRect()
     const width = Math.min(PANEL_WIDTH, window.innerWidth - 24)
-    // 왼쪽 내비에서는 본문(오른쪽)으로 펼치고, 공간이 없으면 왼쪽으로 보정
     let left = rect.left
     if (left + width > window.innerWidth - 12) {
       left = Math.max(12, rect.right - width)
@@ -98,13 +93,38 @@ export function NotificationBell({
 
   useEffect(() => {
     setReadKeys(loadReadNotificationKeys(userId))
+    prevUnreadRef.current = null
     refresh()
   }, [userId, refresh])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return
+      refresh()
+    }, POLL_INTERVAL_MS)
+    return () => window.clearInterval(timer)
+  }, [refresh])
 
   useEffect(() => {
     if (!open || !feed?.items.length) return
     setReadKeys(markNotificationsRead(userId, feed.items.map((item) => item.key)))
   }, [open, feed, userId])
+
+  const items = feed?.items ?? []
+  const unreadCount = items.filter((item) => !readKeys.has(item.key)).length
+
+  useEffect(() => {
+    if (feed == null) return
+    const previous = prevUnreadRef.current
+    if (previous == null) {
+      prevUnreadRef.current = unreadCount
+      return
+    }
+    prevUnreadRef.current = unreadCount
+    if (unreadCount > previous) {
+      playToastSound('info')
+    }
+  }, [feed, unreadCount])
 
   useLayoutEffect(() => {
     if (!open) {
@@ -142,17 +162,14 @@ export function NotificationBell({
     }
   }, [open])
 
-  const items = feed?.items ?? []
-  const unreadCount = items.filter((item) => !readKeys.has(item.key)).length
-
   function handleOpenToggle() {
     const next = !open
     setOpen(next)
     if (next) refresh()
   }
 
-  function handleItemClick(_item: AppNotification) {
-    setReadKeys(markNotificationsRead(userId, [_item.key]))
+  function handleItemClick(item: ActivityNotification) {
+    setReadKeys(markNotificationsRead(userId, [item.key]))
     setOpen(false)
   }
 
@@ -163,16 +180,22 @@ export function NotificationBell({
             ref={panelRef}
             id={panelId}
             role="dialog"
-            aria-label="알림 목록"
+            aria-label="활동 알림"
             style={{
               top: panelPos.top,
               left: panelPos.left,
-              width: Math.min(PANEL_WIDTH, typeof window !== 'undefined' ? window.innerWidth - 24 : PANEL_WIDTH),
+              width: Math.min(
+                PANEL_WIDTH,
+                typeof window !== 'undefined' ? window.innerWidth - 24 : PANEL_WIDTH,
+              ),
             }}
             className="fixed z-[80] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
           >
             <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">
-              <p className="text-sm font-bold text-slate-900">알림</p>
+              <div>
+                <p className="text-sm font-bold text-slate-900">활동 알림</p>
+                <p className="text-[11px] text-slate-400">최근 7일 · 다른 사용자 등록</p>
+              </div>
               <button
                 type="button"
                 onClick={refresh}
@@ -187,7 +210,9 @@ export function NotificationBell({
               {error ? (
                 <p className="px-3 py-6 text-center text-sm text-rose-600">{error}</p>
               ) : !items.length ? (
-                <p className="px-3 py-8 text-center text-sm text-slate-400">새 알림이 없습니다</p>
+                <p className="px-3 py-8 text-center text-sm text-slate-400">
+                  최근 등록 알림이 없습니다
+                </p>
               ) : (
                 <ul className="divide-y divide-slate-100">
                   {items.map((item) => {
@@ -203,16 +228,28 @@ export function NotificationBell({
                           ].join(' ')}
                         >
                           <div className="flex items-start gap-2">
-                            <span
-                              className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ring-1 ${toneClass(item.tone)}`}
-                            >
-                              {NOTIFICATION_CATEGORY_LABELS[item.category]}
+                            <span className="mt-0.5 shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">
+                              {ACTIVITY_KIND_LABELS[item.kind]}
                             </span>
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-semibold text-slate-900">
-                                {item.label}
-                              </p>
+                              <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                               <p className="mt-0.5 text-xs text-slate-500">{item.detail}</p>
+                              <div className="mt-1.5 flex items-end justify-between gap-2">
+                                <span className="text-[10px] text-slate-400">
+                                  {new Date(item.createdAt).toLocaleString('ko-KR', {
+                                    month: 'numeric',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: false,
+                                  })}
+                                </span>
+                                {item.actorName && item.actorName !== '누군가' ? (
+                                  <span className="truncate text-[10px] text-slate-400">
+                                    {item.actorName}
+                                  </span>
+                                ) : null}
+                              </div>
                             </div>
                             {unread ? (
                               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />
@@ -238,7 +275,7 @@ export function NotificationBell({
         onClick={handleOpenToggle}
         aria-expanded={open}
         aria-controls={panelId}
-        aria-label={unreadCount > 0 ? `알림 ${unreadCount}건` : '알림'}
+        aria-label={unreadCount > 0 ? `활동 알림 ${unreadCount}건` : '활동 알림'}
         className={[
           'inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50',
           variant === 'bar' ? 'h-9 px-2.5 text-xs font-semibold' : 'h-9 w-9',

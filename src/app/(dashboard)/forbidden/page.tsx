@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ForbiddenAccessToast } from '@/components/auth/forbidden-access-toast'
 import { PageShell } from '@/components/ui/page-shell'
 
 type ForbiddenPageProps = {
@@ -12,6 +13,7 @@ export default async function ForbiddenPage({ searchParams }: ForbiddenPageProps
 
   return (
     <PageShell>
+      <ForbiddenAccessToast fromPath={from || undefined} />
       <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center px-4 py-16 text-center">
         <p className="text-sm font-bold tracking-wide text-rose-600 uppercase">Access denied</p>
         <h1 className="mt-2 text-2xl font-bold text-slate-900">접근 권한이 없습니다</h1>

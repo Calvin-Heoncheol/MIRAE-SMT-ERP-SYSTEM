@@ -1,164 +1,300 @@
-import { fetchAssemblyGroups } from '@/lib/assembly/repository'
-import { fetchApprovals } from '@/lib/approvals/repository'
-import { getApprovalCategory } from '@/lib/approvals/categories'
-import { getSignoffProgress, getSignoffStatusLabel } from '@/lib/approvals/signoffs'
 import type { AuthProfile } from '@/lib/auth/types'
-import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
-import { fetchExpenseReports } from '@/lib/expense-reports/repository'
-import { fetchLeaveRequests } from '@/lib/leave-requests/repository'
-import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
-import { fetchMaterialPurchaseOrders } from '@/lib/materials/purchase-orders/repository'
-import { fetchOrders } from '@/lib/orders/repository'
-import { todayYmdSeoul } from '@/lib/orders/utils'
-import { fetchProducts } from '@/lib/products/repository'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
 import {
-  buildDeliveryDueNotifications,
-  buildNegativeStockNotification,
-  buildPendingPurchaseNotification,
-} from './ops-alerts'
-import {
-  notificationCategoriesForProfile,
-  type AppNotification,
-  type NotificationFeed,
+  ACTIVITY_KIND_LABELS,
+  type ActivityNotification,
+  type ActivityNotificationFeed,
+  type ActivityNotificationKind,
 } from './types'
 
-const MAX_DOC_ALERTS = 6
+const LOOKBACK_DAYS = 7
+const PER_SOURCE_LIMIT = 12
+const FEED_LIMIT = 30
 
-function sortNotifications(items: AppNotification[]) {
-  const toneRank = { danger: 0, warn: 1, info: 2 }
-  return [...items].sort((a, b) => {
-    const toneDiff = toneRank[a.tone] - toneRank[b.tone]
-    if (toneDiff !== 0) return toneDiff
-    return a.key.localeCompare(b.key)
-  })
+type ActivitySource = {
+  kind: ActivityNotificationKind
+  table: string
+  href: string
+  /** select 컬럼 — id, created_at 필수. created_by* 있으면 사용 */
+  select: string
+  build: (row: Record<string, unknown>) => { title: string; detail: string } | null
 }
 
-export async function fetchNotificationFeed(
+function sinceIso() {
+  const date = new Date()
+  date.setDate(date.getDate() - LOOKBACK_DAYS)
+  return date.toISOString()
+}
+
+function actorLabel(row: Record<string, unknown>) {
+  const name = String(row.created_by_name || '').trim()
+  return name || '누군가'
+}
+
+const SOURCES: ActivitySource[] = [
+  {
+    kind: 'order',
+    table: 'orders',
+    href: '/orders',
+    select: 'id, customer, created_at, created_by, created_by_name',
+    build: (row) => {
+      const id = String(row.id || '').trim()
+      if (!id) return null
+      const customer = String(row.customer || '').trim() || '—'
+      return {
+        title: '주문서 등록',
+        detail: `${id} · ${customer}`,
+      }
+    },
+  },
+  {
+    kind: 'quote',
+    table: 'quotations',
+    href: '/quotations',
+    select: 'id, customer, product_name, created_at, created_by, created_by_name',
+    build: (row) => {
+      const id = String(row.id || '').trim()
+      if (!id) return null
+      const customer = String(row.customer || '').trim() || '—'
+      const product = String(row.product_name || '').trim()
+      return {
+        title: '견적서 등록',
+        detail: product ? `${id} · ${customer} · ${product}` : `${id} · ${customer}`,
+      }
+    },
+  },
+  {
+    kind: 'delivery',
+    table: 'delivery_records',
+    href: '/delivery/history',
+    select: 'id, quantity, record_date, created_at, created_by, created_by_name',
+    build: (row) => {
+      const id = String(row.id || '').trim()
+      if (!id) return null
+      const qty = Number(row.quantity) || 0
+      const date = String(row.record_date || '').trim()
+      return {
+        title: '출하 등록',
+        detail: `${id} · ${qty.toLocaleString('ko-KR')}EA${date ? ` · ${date}` : ''}`,
+      }
+    },
+  },
+  {
+    kind: 'purchase',
+    table: 'material_purchase_orders',
+    href: '/materials/purchase-orders',
+    select: 'id, supplier, created_at, created_by, created_by_name',
+    build: (row) => {
+      const id = String(row.id || '').trim()
+      if (!id) return null
+      const supplier = String(row.supplier || '').trim() || '—'
+      return {
+        title: '발주서 등록',
+        detail: `${id} · ${supplier}`,
+      }
+    },
+  },
+  {
+    kind: 'inbound',
+    table: 'material_inbound_records',
+    href: '/materials/inbound',
+    select: 'id, inbound_date, inbound_type, created_at, created_by, created_by_name',
+    build: (row) => {
+      const id = String(row.id || '').trim()
+      if (!id) return null
+      const date = String(row.inbound_date || '').trim()
+      const type = String(row.inbound_type || '').trim()
+      return {
+        title: '입고 등록',
+        detail: [id, type, date].filter(Boolean).join(' · '),
+      }
+    },
+  },
+  {
+    kind: 'outbound',
+    table: 'material_outbound_records',
+    href: '/materials/outbound',
+    select: 'id, outbound_date, outbound_type, order_id, created_at, created_by, created_by_name',
+    build: (row) => {
+      const id = String(row.id || '').trim()
+      if (!id) return null
+      const orderId = String(row.order_id || '').trim()
+      const date = String(row.outbound_date || '').trim()
+      return {
+        title: '불출 등록',
+        detail: [id, orderId, date].filter(Boolean).join(' · '),
+      }
+    },
+  },
+  {
+    kind: 'approval',
+    table: 'approvals',
+    href: '/approvals',
+    select: 'id, doc_number, subject, created_at, created_by, created_by_name',
+    build: (row) => {
+      const no = String(row.doc_number || row.id || '').trim()
+      const subject = String(row.subject || '').trim() || '품의서'
+      return {
+        title: '품의서 등록',
+        detail: `${no} · ${subject}`,
+      }
+    },
+  },
+  {
+    kind: 'leave',
+    table: 'leave_requests',
+    href: '/leave-requests',
+    select: 'id, doc_number, author, created_at, created_by, created_by_name',
+    build: (row) => {
+      const no = String(row.doc_number || row.id || '').trim()
+      const author = String(row.author || '').trim()
+      return {
+        title: '휴가원 등록',
+        detail: author ? `${no} · ${author}` : no,
+      }
+    },
+  },
+  {
+    kind: 'expense',
+    table: 'expense_reports',
+    href: '/expense-reports',
+    select: 'id, doc_number, account_category, created_at, created_by, created_by_name',
+    build: (row) => {
+      const no = String(row.doc_number || row.id || '').trim()
+      const category = String(row.account_category || '').trim()
+      return {
+        title: '지출결의 등록',
+        detail: category ? `${no} · ${category}` : no,
+      }
+    },
+  },
+  {
+    kind: 'smt_production',
+    table: 'smt_production_records',
+    href: '/smt',
+    select: 'id, quantity, record_date, created_at, created_by, created_by_name',
+    build: (row) => {
+      const qty = Number(row.quantity) || 0
+      const date = String(row.record_date || '').trim()
+      return {
+        title: 'SMT 생산 등록',
+        detail: `${qty.toLocaleString('ko-KR')}EA${date ? ` · ${date}` : ''}`,
+      }
+    },
+  },
+  {
+    kind: 'post_production',
+    table: 'post_process_production_records',
+    href: '/post-process',
+    select: 'id, quantity, record_date, team, created_at, created_by, created_by_name',
+    build: (row) => {
+      const qty = Number(row.quantity) || 0
+      const team = String(row.team || '').trim()
+      return {
+        title: '후공정 생산 등록',
+        detail: `${qty.toLocaleString('ko-KR')}EA${team ? ` · ${team}` : ''}`,
+      }
+    },
+  },
+  {
+    kind: 'new_company',
+    table: 'new_company_inquiries',
+    href: '/new-companies',
+    select: 'id, company_name, created_at, created_by, created_by_name',
+    build: (row) => {
+      const name = String(row.company_name || '').trim() || '신규업체'
+      return {
+        title: '신규업체 등록',
+        detail: name,
+      }
+    },
+  },
+]
+
+async function fetchSourceRows(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  source: ActivitySource,
+  since: string,
+) {
+  const primary = await supabase
+    .from(source.table)
+    .select(source.select)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(PER_SOURCE_LIMIT)
+
+  if (!primary.error) {
+    return (primary.data || []) as Record<string, unknown>[]
+  }
+
+  // created_by 컬럼 없는 DB 호환
+  const legacySelect = source.select
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part !== 'created_by' && part !== 'created_by_name')
+    .join(', ')
+
+  const legacy = await supabase
+    .from(source.table)
+    .select(legacySelect)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(PER_SOURCE_LIMIT)
+
+  if (legacy.error) return []
+  return (legacy.data || []) as Record<string, unknown>[]
+}
+
+export async function fetchActivityNotificationFeed(
   profile: AuthProfile | null,
-): Promise<NotificationFeed> {
-  const categories = new Set(
-    notificationCategoriesForProfile({
-      role: profile?.role ?? 'operator',
-      department: profile?.department ?? null,
+): Promise<ActivityNotificationFeed> {
+  const supabase = await createSupabaseServerClient()
+  const since = sinceIso()
+  const viewerId = profile?.id && profile.id !== 'dev' ? profile.id : null
+
+  const batches = await Promise.all(
+    SOURCES.map(async (source) => {
+      const rows = await fetchSourceRows(supabase, source, since)
+      const items: ActivityNotification[] = []
+
+      for (const row of rows) {
+        const createdBy = row.created_by == null ? null : String(row.created_by)
+        // 본인이 등록한 건은 알림에서 제외
+        if (viewerId && createdBy && createdBy === viewerId) continue
+
+        const built = source.build(row)
+        if (!built) continue
+
+        const createdAt = String(row.created_at || '').trim()
+        if (!createdAt) continue
+
+        const rowId = String(row.id || createdAt)
+        items.push({
+          key: `${source.kind}:${rowId}`,
+          kind: source.kind,
+          title: built.title,
+          detail: built.detail,
+          href: source.href,
+          actorName: actorLabel(row),
+          createdAt,
+        })
+      }
+
+      return items
     }),
   )
 
-  const today = todayYmdSeoul()
-  const needOps =
-    categories.has('delivery') || categories.has('stock') || categories.has('purchase')
-  const needApprovals = categories.has('approval')
-  const needExpense = categories.has('expense')
-  const needLeave = categories.has('leave')
-
-  const [
-    ordersResult,
-    productsResult,
-    deliveryCountsResult,
-    purchaseOrdersResult,
-    onHandResult,
-    approvalsResult,
-    expenseResult,
-    leaveResult,
-  ] = await Promise.all([
-    needOps ? fetchOrders() : Promise.resolve(null),
-    needOps && categories.has('delivery') ? fetchProducts() : Promise.resolve(null),
-    needOps && categories.has('delivery')
-      ? fetchDeliveryCumulativeCounts()
-      : Promise.resolve(null),
-    categories.has('purchase') ? fetchMaterialPurchaseOrders() : Promise.resolve(null),
-    categories.has('stock') ? fetchOnHandByMaterialId() : Promise.resolve(null),
-    needApprovals ? fetchApprovals() : Promise.resolve(null),
-    needExpense ? fetchExpenseReports() : Promise.resolve(null),
-    needLeave ? fetchLeaveRequests() : Promise.resolve(null),
-  ])
-
-  const items: AppNotification[] = []
-
-  if (categories.has('delivery') && ordersResult?.ok && deliveryCountsResult?.ok) {
-    const productById = productsResult?.ok
-      ? Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
-      : {}
-    const assemblyResult = await fetchAssemblyGroups(productById)
-    if (assemblyResult.ok) {
-      items.push(
-        ...buildDeliveryDueNotifications({
-          today,
-          orders: ordersResult.orders,
-          assemblyGroups: assemblyResult.groups,
-          deliveryCounts: deliveryCountsResult.counts,
-        }),
-      )
-    }
-  }
-
-  if (categories.has('stock') && onHandResult?.ok) {
-    let negative = 0
-    for (const onHand of onHandResult.onHandByMaterialId.values()) {
-      if (onHand < 0) negative += 1
-    }
-    const stockAlert = buildNegativeStockNotification(negative)
-    if (stockAlert) items.push(stockAlert)
-  }
-
-  if (categories.has('purchase') && purchaseOrdersResult?.ok) {
-    const pending = purchaseOrdersResult.orders.filter((order) =>
-      order.items.some((item) => item.inboundQuantity < item.quantity),
-    ).length
-    const purchaseAlert = buildPendingPurchaseNotification(pending)
-    if (purchaseAlert) items.push(purchaseAlert)
-  }
-
-  if (categories.has('approval') && approvalsResult?.ok) {
-    const pending = approvalsResult.approvals
-      .filter((doc) => !getSignoffProgress(doc.detailInfo.signoffs).isComplete)
-      .slice(0, MAX_DOC_ALERTS)
-    for (const doc of pending) {
-      const category = getApprovalCategory(doc.category)
-      items.push({
-        key: `approval:${doc.id}`,
-        category: 'approval',
-        label: doc.subject.trim() || doc.docNumber,
-        detail: `품의 · ${getSignoffStatusLabel(doc.detailInfo.signoffs)}`,
-        href: category?.href ?? '/approvals',
-        tone: 'warn',
-      })
-    }
-  }
-
-  if (categories.has('expense') && expenseResult?.ok) {
-    const pending = expenseResult.reports
-      .filter((doc) => !getSignoffProgress(doc.detailInfo.signoffs).isComplete)
-      .slice(0, MAX_DOC_ALERTS)
-    for (const doc of pending) {
-      items.push({
-        key: `expense:${doc.id}`,
-        category: 'expense',
-        label: (doc.processingDetails || doc.accountCategory || doc.docNumber).trim(),
-        detail: `지출결의 · ${getSignoffStatusLabel(doc.detailInfo.signoffs)}`,
-        href: '/expense-reports',
-        tone: 'warn',
-      })
-    }
-  }
-
-  if (categories.has('leave') && leaveResult?.ok) {
-    const pending = leaveResult.requests
-      .filter((doc) => !getSignoffProgress(doc.detailInfo.signoffs).isComplete)
-      .slice(0, MAX_DOC_ALERTS)
-    for (const doc of pending) {
-      items.push({
-        key: `leave:${doc.id}`,
-        category: 'leave',
-        label: `${doc.author || '신청자'} · ${doc.docNumber}`,
-        detail: `휴가원 · ${getSignoffStatusLabel(doc.detailInfo.signoffs)}`,
-        href: '/leave-requests',
-        tone: 'info',
-      })
-    }
-  }
+  const items = batches
+    .flat()
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, FEED_LIMIT)
 
   return {
-    items: sortNotifications(items),
+    items,
     fetchedAt: new Date().toISOString(),
   }
+}
+
+export function activityKindLabel(kind: ActivityNotificationKind) {
+  return ACTIVITY_KIND_LABELS[kind]
 }

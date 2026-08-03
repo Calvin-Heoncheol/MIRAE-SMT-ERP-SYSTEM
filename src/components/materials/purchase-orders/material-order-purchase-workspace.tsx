@@ -1,6 +1,5 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { MaterialOrderPartialPurchaseModal } from '@/components/materials/purchase-orders/material-order-partial-purchase-modal'
 import { MaterialOrderPurchaseCards } from '@/components/materials/purchase-orders/material-order-purchase-cards'
@@ -9,6 +8,7 @@ import { MaterialPurchaseOrderModal } from '@/components/materials/purchase-orde
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
 import { buildOrderPurchaseMaterialPreview } from '@/lib/materials/purchase-orders/need-utils'
@@ -65,7 +65,7 @@ function cardMatchesFilter(card: OrderPurchaseCard, filter: StatusFilter) {
 }
 
 export function MaterialOrderPurchaseWorkspace({ result }: MaterialOrderPurchaseWorkspaceProps) {
-  const router = useRouter()
+  const { afterSave } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
   const [partialModal, setPartialModal] = useState<PartialModalState>({ open: false })
@@ -151,9 +151,10 @@ export function MaterialOrderPurchaseWorkspace({ result }: MaterialOrderPurchase
     })
   }
 
-  function handleSaved() {
-    setCreateModal({ open: false })
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '자재 발주가 저장되었습니다.', {
+      close: () => setCreateModal({ open: false }),
+    })
   }
 
   if (!result.ok) {

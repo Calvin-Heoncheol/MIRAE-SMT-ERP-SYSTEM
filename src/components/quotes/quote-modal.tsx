@@ -9,6 +9,8 @@ import { QuoteCurrencyToggle } from '@/components/quotes/quote-currency-toggle'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import { ErpButton } from '@/components/ui/erp-button'
+import { useBusy } from '@/components/ui/busy-provider'
+import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
   computeMetalMaskCostTotal,
   computeMoqMinLaborCostTotal,
@@ -300,6 +302,14 @@ function QuoteModalContent({
     other: mode !== 'edit',
   })
 
+  const busyUi = useBusy()
+  const { notifyAuthOrFailure } = useWriteFailureToast()
+  const busy = saving || deleting || converting
+
+  function requestClose() {
+    onClose()
+  }
+
   const isDomestic = quoteType === 'domestic'
   const title =
     mode === 'edit'
@@ -308,7 +318,9 @@ function QuoteModalContent({
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape' && !busy) {
+        onClose()
+      }
     }
     document.addEventListener('keydown', handleKeyDown)
     document.body.style.overflow = 'hidden'
@@ -316,7 +328,30 @@ function QuoteModalContent({
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = ''
     }
-  }, [onClose])
+  }, [busy, onClose])
+
+  useEffect(() => {
+    const next = createInitialState(mode, quote)
+    setForm(next.form)
+    setSmtForms(next.smtForms)
+    setDipForms(next.dipForms)
+    setResult(
+      computeEstimate(next.form, next.smtForms, next.dipForms, quoteType, {
+        mode,
+        quote,
+        existingQuoteNumbers,
+      }),
+    )
+    setSaveError(null)
+    setOpenSections({
+      setup: mode !== 'edit',
+      smt: mode !== 'edit',
+      dip: mode !== 'edit',
+      material: mode !== 'edit',
+      other: mode !== 'edit',
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 모달 대상 변경 시 폼 리셋
+  }, [mode, quote?.quoteNumber, quoteType])
 
   // SMT 단면/양면·PCB 수에 따라 메탈마스크 비용 자동 반영
   useEffect(() => {
@@ -408,15 +443,16 @@ function QuoteModalContent({
     setSaving(true)
     setSaveError(null)
 
-    const saveResult =
+    const saveResult = await busyUi.run(() =>
       mode === 'edit' && quote
-        ? await updateQuote(quote.quoteNumber, payload)
-        : await createQuote(payload, quoteType)
+        ? updateQuote(quote.quoteNumber, payload)
+        : createQuote(payload, quoteType),
+    )
 
     setSaving(false)
 
     if (!saveResult.ok) {
-      setSaveError(saveResult.detail)
+      if (!notifyAuthOrFailure(saveResult)) setSaveError(saveResult.detail)
       return
     }
 
@@ -437,11 +473,11 @@ function QuoteModalContent({
     setDeleting(true)
     setSaveError(null)
 
-    const deleteResult = await deleteQuotes([quote.quoteNumber])
+    const deleteResult = await busyUi.run(() => deleteQuotes([quote.quoteNumber]))
     setDeleting(false)
 
     if (!deleteResult.ok) {
-      setSaveError(deleteResult.detail)
+      if (!notifyAuthOrFailure(deleteResult)) setSaveError(deleteResult.detail)
       return
     }
 
@@ -466,10 +502,10 @@ function QuoteModalContent({
     setConverting(true)
     setSaveError(null)
 
-    const existing = await findOrderNumberBySourceQuoteId(quote.quoteId)
+    const existing = await busyUi.run(() => findOrderNumberBySourceQuoteId(quote.quoteId))
     if (!existing.ok) {
       setConverting(false)
-      setSaveError(existing.detail)
+      if (!notifyAuthOrFailure(existing)) setSaveError(existing.detail)
       return
     }
     if (existing.orderNumber) {
@@ -482,19 +518,18 @@ function QuoteModalContent({
       }
     }
 
-    const [productsResult, partnersResult] = await Promise.all([
-      fetchProducts(),
-      fetchSalesBusinessPartners(),
-    ])
+    const [productsResult, partnersResult] = await busyUi.run(() =>
+      Promise.all([fetchProducts(), fetchSalesBusinessPartners()]),
+    )
 
     if (!productsResult.ok) {
       setConverting(false)
-      setSaveError(productsResult.detail)
+      if (!notifyAuthOrFailure(productsResult)) setSaveError(productsResult.detail)
       return
     }
     if (!partnersResult.ok) {
       setConverting(false)
-      setSaveError(partnersResult.detail)
+      if (!notifyAuthOrFailure(partnersResult)) setSaveError(partnersResult.detail)
       return
     }
 
@@ -518,11 +553,11 @@ function QuoteModalContent({
       return
     }
 
-    const createResult = await createOrder(built.payload)
+    const createResult = await busyUi.run(() => createOrder(built.payload))
     setConverting(false)
 
     if (!createResult.ok) {
-      setSaveError(createResult.detail)
+      if (!notifyAuthOrFailure(createResult)) setSaveError(createResult.detail)
       return
     }
 
@@ -604,7 +639,7 @@ function QuoteModalContent({
                 <button
                   type="button"
                   onClick={() => void handleConvertToOrder()}
-                  disabled={converting || deleting || saving}
+                  disabled={busy}
                   className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {converting ? '전환 중…' : '주문서로 전환'}
@@ -628,8 +663,8 @@ function QuoteModalContent({
                 {canDelete ? (
                   <button
                     type="button"
-                    onClick={handleDelete}
-                    disabled={deleting || converting}
+                    onClick={() => void handleDelete()}
+                    disabled={busy}
                     className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {deleting ? '삭제 중...' : '삭제'}
@@ -639,8 +674,8 @@ function QuoteModalContent({
             ) : null}
             <button
               type="button"
-              onClick={onClose}
-              disabled={deleting || converting}
+              onClick={requestClose}
+              disabled={busy}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
               aria-label="닫기"
             >
@@ -1019,10 +1054,11 @@ function QuoteModalContent({
               </div>
               <ErpButton
                 className="w-full"
-                onClick={handleSave}
-                disabled={saving || deleting}
+                onClick={() => void handleSave()}
+                disabled={busy}
+                loading={saving}
               >
-                {saving ? '저장 중...' : mode === 'edit' ? '견적서 수정 저장' : '견적서 저장'}
+                {mode === 'edit' ? '견적서 수정 저장' : '견적서 저장'}
               </ErpButton>
               {saveError ? <p className="mt-2 text-sm text-red-600">{saveError}</p> : null}
             </div>

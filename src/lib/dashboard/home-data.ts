@@ -11,7 +11,7 @@ import {
   buildDeliveryDueNotifications,
   buildNegativeStockNotification,
   buildPendingPurchaseNotification,
-} from '@/lib/notifications/ops-alerts'
+} from '@/lib/dashboard/ops-alerts'
 import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { POST_PROCESS_TEAMS } from '@/lib/post-process/teams'

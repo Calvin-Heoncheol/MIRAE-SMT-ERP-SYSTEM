@@ -39,8 +39,8 @@ export type InboundFormProps = {
   materials: Material[]
   purchaseOrders: MaterialPurchaseOrderListGroup[]
   onCancel?: () => void
-  onSaved?: () => void
-  onDeleted?: () => void
+  onSaved?: (message?: string) => void
+  onDeleted?: (message?: string) => void
   onMaterialsChanged?: () => void
 }
 
@@ -191,13 +191,14 @@ export function InboundForm({
     }
 
     if (isPage && !isEdit) {
-      setSaveOk(`${result.inboundNumber} 입고가 등록되었습니다.`)
+      const message = `${result.inboundNumber} 입고가 등록되었습니다.`
+      setSaveOk(message)
       resetCreateForm()
-      onSaved?.()
+      onSaved?.(message)
       return
     }
 
-    onSaved?.()
+    onSaved?.(isEdit ? '입고가 수정되었습니다.' : '입고가 등록되었습니다.')
     onCancel?.()
   }
 
@@ -222,7 +223,7 @@ export function InboundForm({
       return
     }
 
-    onDeleted?.()
+    onDeleted?.('입고가 삭제되었습니다.')
   }
 
   const body = (

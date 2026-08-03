@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { NewCompanyFetchError } from '@/components/new-companies/new-company-fetch-error'
 import { NewCompanyListTable } from '@/components/new-companies/new-company-list-table'
 import { NewCompanyModal } from '@/components/new-companies/new-company-modal'
@@ -17,6 +16,7 @@ import {
   NEW_COMPANY_STATUSES,
 } from '@/lib/new-companies/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type NewCompaniesWorkspaceProps = {
@@ -50,7 +50,7 @@ function matchesQuery(inquiry: NewCompanyInquiry, query: string) {
 }
 
 export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
-  const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [modal, setModal] = useState<ModalState>({ open: false })
@@ -101,14 +101,12 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '신규업체가 저장되었습니다.', { close: closeModal })
   }
 
-  function handleDeleted() {
-    closeModal()
-    router.refresh()
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '신규업체가 삭제되었습니다.', { close: closeModal })
   }
 
   if (!result.ok) {

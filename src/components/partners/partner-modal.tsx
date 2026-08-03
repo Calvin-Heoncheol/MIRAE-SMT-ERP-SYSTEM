@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useBusy } from '@/components/ui/busy-provider'
 import { ErpButton } from '@/components/ui/erp-button'
-import { ErpModal } from '@/components/ui/erp-modal'
+import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
   createBusinessPartner,
   deleteBusinessPartner,
@@ -31,6 +33,15 @@ type PartnerModalProps = {
   onDeleted?: () => void
 }
 
+function CancelButton({ disabled }: { disabled?: boolean }) {
+  const requestClose = useErpModalRequestClose()
+  return (
+    <ErpButton variant="secondary" disabled={disabled} onClick={() => requestClose?.()}>
+      취소
+    </ErpButton>
+  )
+}
+
 function PartnerModalContent({
   mode,
   partner,
@@ -46,6 +57,9 @@ function PartnerModalContent({
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  const busyUi = useBusy()
+  const { notifyAuthOrFailure } = useWriteFailureToast()
+
   useEffect(() => {
     setForm(partner ? partnerToForm(partner) : emptyPartnerForm())
     setSaveError(null)
@@ -59,14 +73,16 @@ function PartnerModalContent({
     setSaving(true)
     setSaveError(null)
 
-    const result = isCreate
-      ? await createBusinessPartner(formToPartnerPayload(form))
-      : await updateBusinessPartner(partner!.businessRegNo, formToPartnerPayload(form))
+    const result = await busyUi.run(() =>
+      isCreate
+        ? createBusinessPartner(formToPartnerPayload(form))
+        : updateBusinessPartner(partner!.businessRegNo, formToPartnerPayload(form)),
+    )
 
     setSaving(false)
 
     if (!result.ok) {
-      setSaveError(result.detail)
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
     }
 
@@ -80,11 +96,11 @@ function PartnerModalContent({
     setDeleting(true)
     setSaveError(null)
 
-    const result = await deleteBusinessPartner(partner.businessRegNo)
+    const result = await busyUi.run(() => deleteBusinessPartner(partner.businessRegNo))
     setDeleting(false)
 
     if (!result.ok) {
-      setSaveError(result.detail)
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
     }
 
@@ -108,18 +124,21 @@ function PartnerModalContent({
           {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
           <div className="flex justify-between gap-2">
             {!isCreate ? (
-              <ErpButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>
-                {deleting ? '삭제 중…' : '삭제'}
+              <ErpButton
+                variant="danger"
+                onClick={() => void handleDelete()}
+                disabled={busy}
+                loading={deleting}
+              >
+                삭제
               </ErpButton>
             ) : (
               <span />
             )}
             <div className="flex gap-2">
-              <ErpButton variant="secondary" onClick={onClose} disabled={busy}>
-                취소
-              </ErpButton>
-              <ErpButton onClick={() => void handleSave()} disabled={busy}>
-                {saving ? '저장 중…' : '저장'}
+              <CancelButton disabled={busy} />
+              <ErpButton onClick={() => void handleSave()} disabled={busy} loading={saving}>
+                저장
               </ErpButton>
             </div>
           </div>

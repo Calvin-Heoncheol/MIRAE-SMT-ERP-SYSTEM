@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { SemiFinishedItemCombobox } from '@/components/items/semi-finished-item-combobox'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import type { Item } from '@/lib/items/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import {
@@ -241,7 +241,7 @@ function MetalMaskCreateModal({
 }
 
 export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWorkspaceProps) {
-  const router = useRouter()
+  const { afterCreate, afterSave } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [showRetired, setShowRetired] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -279,7 +279,7 @@ export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWor
     }
 
     setListMessage({ text: `${retired.asset.barcode} 교체완료 처리됨`, kind: 'ok' })
-    router.refresh()
+    afterSave('메탈마스크가 교체완료 처리되었습니다.')
   }
 
   if (!result.ok) {
@@ -451,7 +451,7 @@ export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWor
       <MetalMaskCreateModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onSaved={() => router.refresh()}
+        onSaved={() => afterCreate('메탈마스크가 등록되었습니다.')}
         semiFinishedItems={semiFinishedItems}
       />
     </div>

@@ -1,9 +1,8 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ApprovalFormDocument } from '@/components/approvals/approval-form-document'
-import { DocumentPrintActions } from '@/components/documents/document-print-actions'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import type { ApprovalCategory } from '@/lib/approvals/categories'
@@ -19,6 +18,7 @@ import {
   formToDetailInfo,
   type ApprovalFormState,
 } from '@/lib/approvals/form-state'
+import { printApproval } from '@/lib/approvals/print-approval'
 import { createApproval, deleteApprovals, updateApproval } from '@/lib/approvals/repository'
 import { toggleSignoff, type ApprovalSignoffRole } from '@/lib/approvals/signoffs'
 import type { ApprovalListItem, ApprovalRowPayload } from '@/lib/approvals/types'
@@ -162,6 +162,14 @@ export function ApprovalModal({
 
   const busy = saving || signing
 
+  function handlePrint() {
+    if (mode === 'create') {
+      window.alert('문서를 저장한 후에 인쇄할 수 있습니다.')
+      return
+    }
+    printApproval({ category: selectedCategory, form })
+  }
+
   return (
     <ErpModal
       open
@@ -177,10 +185,15 @@ export function ApprovalModal({
       zIndexClassName="z-[80]"
       contentClassName="min-h-0 flex-1 overflow-y-auto bg-slate-100 px-5 py-4"
       headerActions={
-        <DocumentPrintActions
-          title={`품의서 ${form.docNumber || approval?.docNumber || approval?.id || ''}`}
+        <button
+          type="button"
+          onClick={handlePrint}
           disabled={mode === 'create'}
-        />
+          title={mode === 'create' ? '문서를 저장한 후에 인쇄할 수 있습니다.' : undefined}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          인쇄
+        </button>
       }
       footer={
         <div className="no-print flex w-full flex-col gap-2">

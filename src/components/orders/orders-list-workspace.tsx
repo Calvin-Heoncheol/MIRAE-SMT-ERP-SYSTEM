@@ -13,6 +13,7 @@ import type { FetchOrdersResult } from '@/lib/orders/repository'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { filterOrdersForSearch, todayYmdSeoul } from '@/lib/orders/utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type OrdersListWorkspaceProps = {
@@ -41,6 +42,7 @@ export function OrdersListWorkspace({
   initialFilter = '',
 }: OrdersListWorkspaceProps) {
   const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   /** KPI 카드로 진입했을 때만 오늘 주문일 필터 (칩 UI 없음) */
   const [kpiTodayOnly, setKpiTodayOnly] = useState(initialFilter === 'today')
@@ -112,14 +114,12 @@ export function OrdersListWorkspace({
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '주문서가 저장되었습니다.', { close: closeModal })
   }
 
-  function handleDeleted() {
-    closeModal()
-    router.refresh()
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '주문서가 삭제되었습니다.', { close: closeModal })
   }
 
   if (!result.ok) {

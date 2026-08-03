@@ -138,12 +138,18 @@ function applyPasteValue(
   }
 }
 
+function splitPasteLines(text: string) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  while (lines.length > 0 && !lines[lines.length - 1].trim()) {
+    lines.pop()
+  }
+  return lines
+}
+
 /** Excel 등에서 복사한 행을 품목구분별 열 순서에 맞춰 파싱 */
 export function parseItemBulkPaste(text: string, category: ItemCategory): ItemFormState[] {
   const columns = itemBulkColumns(category)
-  const lines = text
-    .trim()
-    .split(/\r?\n/)
+  const lines = splitPasteLines(text)
     .map((line) => line.trim())
     .filter(Boolean)
 
@@ -164,6 +170,36 @@ export function parseItemBulkPaste(text: string, category: ItemCategory): ItemFo
   }
 
   return rows.length ? rows : [defaultItemBulkRow(category)]
+}
+
+/**
+ * 등록 품목 테이블에서 특정 열에 세로 붙여넣기.
+ * - 탭이 있으면(여러 열) null → 전체 일괄 파싱으로 처리
+ * - 한 줄만이면 null → 브라우저 기본 붙여넣기
+ * - 여러 줄·단일 열이면 해당 컬럼에 위에서 아래로 채움 (행 부족 시 추가)
+ */
+export function applyItemBulkColumnPaste(input: {
+  rows: ItemFormState[]
+  category: ItemCategory
+  startRowIndex: number
+  columnKey: keyof ItemFormState
+  text: string
+}): ItemFormState[] | null {
+  const lines = splitPasteLines(input.text)
+  if (lines.length <= 1) return null
+  if (lines.some((line) => line.includes('\t'))) return null
+
+  const next = input.rows.map((row) => ({ ...row }))
+  while (next.length < input.startRowIndex + lines.length) {
+    next.push(defaultItemBulkRow(input.category))
+  }
+
+  lines.forEach((line, offset) => {
+    const index = input.startRowIndex + offset
+    next[index] = applyPasteValue(next[index], input.columnKey, line)
+  })
+
+  return next
 }
 
 export function isEmptyItemBulkRow(row: ItemFormState) {

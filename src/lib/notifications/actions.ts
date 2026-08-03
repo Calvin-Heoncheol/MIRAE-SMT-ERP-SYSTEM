@@ -1,10 +1,10 @@
 'use server'
 
 import { getAuthProfile } from '@/lib/auth/session'
-import { fetchNotificationFeed } from '@/lib/notifications/repository'
-import type { NotificationFeed } from '@/lib/notifications/types'
+import { fetchActivityNotificationFeed } from '@/lib/notifications/repository'
+import type { ActivityNotificationFeed } from '@/lib/notifications/types'
 
-export async function loadNotificationFeedAction(): Promise<NotificationFeed> {
+export async function loadActivityNotificationFeedAction(): Promise<ActivityNotificationFeed> {
   const profile = await getAuthProfile()
-  return fetchNotificationFeed(profile)
+  return fetchActivityNotificationFeed(profile)
 }

@@ -151,6 +151,20 @@ export function suggestNextVersionItemCode(
   return firstFreeCandidate(base, taken, (n) => `V${n}`)
 }
 
+function collectExistingItemIds(
+  existingItems: Pick<Item, 'id' | 'baseCode' | 'version'>[],
+): string[] {
+  const existingIds = existingItems.map((row) => {
+    const resolved = resolveItemBaseAndVersion(row)
+    if (resolved.version) return composeItemIdWithVersion(resolved.base, resolved.version)
+    return row.id
+  })
+  for (const row of existingItems) {
+    if (row.id) existingIds.push(row.id)
+  }
+  return existingIds
+}
+
 /** base_code 기준으로 다음 버전 행 제안 */
 export function suggestNextVersionForItem(
   item: Pick<Item, 'id' | 'baseCode' | 'version'>,
@@ -159,22 +173,50 @@ export function suggestNextVersionForItem(
   const { base, version } = resolveItemBaseAndVersion(item)
   if (!base) return null
 
-  const existingIds = existingItems.map((row) => {
-    const resolved = resolveItemBaseAndVersion(row)
-    if (resolved.version) return composeItemIdWithVersion(resolved.base, resolved.version)
-    return row.id
-  })
-  // id 목록도 함께 넣어 충돌 방지
-  for (const row of existingItems) {
-    if (row.id) existingIds.push(row.id)
-  }
-
+  const existingIds = collectExistingItemIds(existingItems)
   const currentId = version ? composeItemIdWithVersion(base, version) : item.id
   const newId = suggestNextVersionItemCode(currentId || `${base}-V0`, existingIds)
   if (!newId) return null
   const parsed = parseItemVersionCode(newId)
   if (!parsed.version) return null
   return { newId, baseCode: base, version: parsed.version }
+}
+
+/**
+ * 사용자가 입력한 버전으로 새 품목 id 구성.
+ * 이미 같은 base+version 이 있으면 null.
+ */
+export function resolveManualVersionForItem(
+  item: Pick<Item, 'id' | 'baseCode' | 'version'>,
+  versionInput: string,
+  existingItems: Pick<Item, 'id' | 'baseCode' | 'version'>[],
+):
+  | { ok: true; newId: string; baseCode: string; version: string }
+  | { ok: false; detail: string } {
+  const { base } = resolveItemBaseAndVersion(item)
+  if (!base) return { ok: false, detail: '품목코드를 확인할 수 없습니다.' }
+
+  const version = normalizeVersionLabel(versionInput)
+  if (!version) return { ok: false, detail: '신버전을 입력해 주세요.' }
+
+  const current = resolveItemBaseAndVersion(item)
+  if (
+    current.version &&
+    normalizeVersionLabel(current.version).toUpperCase() === version.toUpperCase()
+  ) {
+    return { ok: false, detail: '구버전과 같은 버전입니다. 다른 버전을 입력해 주세요.' }
+  }
+
+  const newId = composeItemIdWithVersion(base, version)
+  const taken = takenIdSet(collectExistingItemIds(existingItems))
+  if (taken.has(newId.toUpperCase())) {
+    return {
+      ok: false,
+      detail: `이미 존재하는 버전입니다: ${base} / ${version}`,
+    }
+  }
+
+  return { ok: true, newId, baseCode: base, version }
 }
 
 export function itemToVersionUpPayload(
@@ -202,6 +244,6 @@ export function itemToVersionUpPayload(
     dipUnitPrice: item.dipUnitPrice,
     materialUnitPrice: item.materialUnitPrice,
     itemCategory: item.itemCategory,
-    safetyStock: item.safetyStock,
+    safetyStock: 0,
   }
 }

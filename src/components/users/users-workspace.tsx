@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { UsersModal } from '@/components/users/users-modal'
 import { UsersTable } from '@/components/users/users-table'
 import { ErpButton } from '@/components/ui/erp-button'
@@ -14,6 +13,7 @@ import {
 import type { FetchErpUsersResult } from '@/lib/users/actions'
 import type { ErpUserRow } from '@/lib/users/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type UsersWorkspaceProps = {
@@ -41,7 +41,7 @@ function matchesQuery(user: ErpUserRow, query: string) {
 }
 
 export function UsersWorkspace({ result }: UsersWorkspaceProps) {
-  const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
@@ -68,9 +68,12 @@ export function UsersWorkspace({ result }: UsersWorkspaceProps) {
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '사용자가 저장되었습니다.', { close: closeModal })
+  }
+
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '사용자가 삭제되었습니다.', { close: closeModal })
   }
 
   if (!result.ok) {
@@ -133,7 +136,7 @@ export function UsersWorkspace({ result }: UsersWorkspaceProps) {
         user={modal.open && modal.mode === 'edit' ? modal.user : null}
         onClose={closeModal}
         onSaved={handleSaved}
-        onDeleted={handleSaved}
+        onDeleted={handleDeleted}
       />
     </>
   )

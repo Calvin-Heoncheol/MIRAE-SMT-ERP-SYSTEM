@@ -1,6 +1,12 @@
 'use client'
 
-import { useEffect, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  type ReactNode,
+} from 'react'
 
 type ErpModalProps = {
   open: boolean
@@ -30,6 +36,13 @@ const SIZE_CLASS = {
   wide: 'max-w-[min(1680px,98vw)]',
 } as const
 
+const ErpModalCloseContext = createContext<(() => void) | null>(null)
+
+/** footer 취소 버튼 등 — 모달 닫기 */
+export function useErpModalRequestClose() {
+  return useContext(ErpModalCloseContext)
+}
+
 export function ErpModal({
   open,
   title,
@@ -44,10 +57,14 @@ export function ErpModal({
   headerActions,
   zIndexClassName = 'z-50',
 }: ErpModalProps) {
+  const requestClose = useCallback(() => {
+    onClose()
+  }, [onClose])
+
   useEffect(() => {
     if (!open || !closeOnEscape) return
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') requestClose()
     }
     document.addEventListener('keydown', handleKeyDown)
     document.body.style.overflow = 'hidden'
@@ -55,48 +72,52 @@ export function ErpModal({
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = ''
     }
-  }, [open, closeOnEscape, onClose])
+  }, [open, closeOnEscape, requestClose])
 
   if (!open) return null
 
   return (
-    <div className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center bg-slate-900/45 p-3 sm:p-4`}>
+    <ErpModalCloseContext.Provider value={requestClose}>
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="erp-modal-title"
-        className={`flex max-h-[94dvh] w-full ${SIZE_CLASS[size]} flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl`}
+        className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center bg-slate-900/45 p-3 sm:p-4`}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
-          <div className="min-w-0">
-            <h2 id="erp-modal-title" className="text-lg font-bold text-slate-900">
-              {title}
-            </h2>
-            {description ? <p className="mt-0.5 text-xs text-slate-500">{description}</p> : null}
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="erp-modal-title"
+          className={`flex max-h-[94dvh] w-full ${SIZE_CLASS[size]} flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl`}
+        >
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+            <div className="min-w-0">
+              <h2 id="erp-modal-title" className="text-lg font-bold text-slate-900">
+                {title}
+              </h2>
+              {description ? (
+                <p className="mt-1 text-sm text-slate-500">{description}</p>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {headerActions}
+              {showCloseButton ? (
+                <button
+                  type="button"
+                  onClick={requestClose}
+                  className="rounded-lg px-2 py-1 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                  aria-label="닫기"
+                >
+                  ✕
+                </button>
+              ) : null}
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {headerActions}
-            {showCloseButton ? (
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-lg px-2 py-1 text-2xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                aria-label="닫기"
-              >
-                ×
-              </button>
-            ) : null}
-          </div>
+          <div className={contentClassName}>{children}</div>
+          {footer ? (
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+              {footer}
+            </div>
+          ) : null}
         </div>
-
-        <div className={contentClassName}>{children}</div>
-
-        {footer ? (
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/80 px-5 py-3">
-            {footer}
-          </div>
-        ) : null}
       </div>
-    </div>
+    </ErpModalCloseContext.Provider>
   )
 }

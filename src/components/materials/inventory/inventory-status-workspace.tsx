@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { DirectStockModal } from '@/components/materials/inventory/direct-stock-modal'
 import { InventoryFetchError } from '@/components/materials/inventory/inventory-fetch-error'
 import { InventoryStatusTable } from '@/components/materials/inventory/inventory-status-table'
@@ -9,6 +8,7 @@ import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { downloadExcel } from '@/lib/excel/export'
 import type { FetchMaterialInventoryResult } from '@/lib/materials/inventory/repository'
 import type { InventoryFilterMode, MaterialInventoryRow } from '@/lib/materials/inventory/types'
@@ -23,12 +23,11 @@ type InventoryStatusWorkspaceProps = {
 const FILTER_OPTIONS: { value: InventoryFilterMode; label: string }[] = [
   { value: 'all', label: '전체' },
   { value: 'pending', label: '입고예정 있음' },
-  { value: 'below', label: '안전재고 미달' },
   { value: 'negative', label: '현재고 마이너스' },
 ]
 
 export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspaceProps) {
-  const router = useRouter()
+  const { afterSave } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [filterMode, setFilterMode] = useState<InventoryFilterMode>('all')
   const [directStockRow, setDirectStockRow] = useState<MaterialInventoryRow | null>(null)
@@ -55,13 +54,6 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
         tone:
           option.value === 'pending'
             ? STATUS_FILTER_TONES.progress
-            : option.value === 'below'
-              ? {
-                  idleClassName:
-                    'border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100',
-                  activeClassName: 'bg-amber-700 text-white shadow-sm',
-                  activeCountClassName: 'text-amber-100',
-                }
             : option.value === 'negative'
               ? {
                   idleClassName:
@@ -88,7 +80,6 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
         { header: '도급/사급', value: (row) => row.supplyType, width: 10 },
         { header: '입고예정', value: (row) => row.expectedInboundQuantity, width: 10 },
         { header: '현재고', value: (row) => row.onHandQuantity, width: 10 },
-        { header: '안전재고', value: (row) => row.safetyStock, width: 10 },
       ],
     })
   }
@@ -149,7 +140,7 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
           onClose={() => setDirectStockRow(null)}
           onSaved={() => {
             setDirectStockRow(null)
-            router.refresh()
+            afterSave('현재고가 반영되었습니다.')
           }}
         />
       ) : null}

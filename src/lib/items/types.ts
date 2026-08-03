@@ -203,5 +203,4 @@ export const ITEM_COLUMN_LABELS = {
   dipUnitPrice: 'DIP 단가',
   materialUnitPrice: '자재 단가',
   itemCategory: '품목구분',
-  safetyStock: '안전재고',
 } as const

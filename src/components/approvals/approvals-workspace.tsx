@@ -23,6 +23,7 @@ import type { FetchApprovalsResult } from '@/lib/approvals/repository'
 import type { ApprovalListItem } from '@/lib/approvals/types'
 import { filterApprovalsByCategory } from '@/lib/approvals/utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type ApprovalsWorkspaceProps = {
@@ -52,6 +53,7 @@ function matchesApprovalSearch(item: ApprovalListItem, query: string) {
 
 export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps) {
   const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const pathname = usePathname()
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
@@ -90,9 +92,12 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '품의서가 저장되었습니다.', { close: closeModal })
+  }
+
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '품의서가 삭제되었습니다.', { close: closeModal })
   }
 
   function handleSignoffComplete() {
@@ -172,7 +177,7 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
           approval={modal.mode === 'edit' ? modal.approval : null}
           onClose={closeModal}
           onSaved={handleSaved}
-          onDeleted={handleSaved}
+          onDeleted={handleDeleted}
           onSignoffComplete={handleSignoffComplete}
         />
       ) : null}

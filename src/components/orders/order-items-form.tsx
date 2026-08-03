@@ -13,6 +13,8 @@ type OrderItemsFormProps = {
   items: OrderItemForm[]
   customer: string
   products: Product[]
+  /** 제품 행 추가 시 기본 납기일 (상단 공통 납기일) */
+  defaultDeliveryDate?: string
   onChange: Dispatch<SetStateAction<OrderItemForm[]>>
 }
 
@@ -47,6 +49,7 @@ export function OrderItemsForm({
   items,
   customer,
   products,
+  defaultDeliveryDate = '',
   onChange,
 }: OrderItemsFormProps) {
   function patchItem(index: number, patch: Partial<OrderItemForm>) {
@@ -57,6 +60,7 @@ export function OrderItemsForm({
 
   function addRow() {
     const fallback =
+      String(defaultDeliveryDate || '').trim() ||
       [...items].reverse().find((item) => String(item.deliveryDate || '').trim())?.deliveryDate ||
       ''
     onChange([...items, defaultOrderItemForm(String(fallback))])
@@ -88,18 +92,20 @@ export function OrderItemsForm({
       <div className="overflow-hidden rounded-lg border border-slate-200">
         <table className="w-full table-fixed border-collapse text-sm">
           <colgroup>
-            <col className="w-[18%]" />
-            <col className="w-[26%]" />
-            <col className="w-[10%]" />
-            <col className="w-[12%]" />
-            <col className="w-[12%]" />
             <col className="w-[16%]" />
+            <col className="w-[22%]" />
+            <col className="w-[8%]" />
+            <col className="w-[10%]" />
+            <col className="w-[11%]" />
+            <col className="w-[11%]" />
+            <col className="w-[15%]" />
             <col className="w-10" />
           </colgroup>
           <thead className="bg-slate-50">
             <tr>
               <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600">제품코드</th>
               <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600">제품명</th>
+              <th className="px-2 py-2 text-center text-xs font-semibold text-slate-600">버전</th>
               <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">수량</th>
               <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">단가</th>
               <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">금액</th>
@@ -129,25 +135,27 @@ export function OrderItemsForm({
                     />
                   </td>
                   <td className="px-2 py-2 align-top">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <div className="min-w-0 flex-1">
-                        <ProductCombobox
-                          value={item.productName}
-                          products={products}
-                          customer={customer}
-                          field="name"
-                          placeholder="제품명"
-                          ariaLabel={`${index + 1}행 제품명`}
-                          inputClassName={inputClassName}
-                          onValueChange={(productName) =>
-                            patchItem(index, { productName, productId: '', productCode: '' })
-                          }
-                          onProductSelect={(product) => selectProduct(index, product)}
-                        />
-                      </div>
+                    <ProductCombobox
+                      value={item.productName}
+                      products={products}
+                      customer={customer}
+                      field="name"
+                      placeholder="제품명"
+                      ariaLabel={`${index + 1}행 제품명`}
+                      inputClassName={inputClassName}
+                      onValueChange={(productName) =>
+                        patchItem(index, { productName, productId: '', productCode: '' })
+                      }
+                      onProductSelect={(product) => selectProduct(index, product)}
+                    />
+                  </td>
+                  <td className="px-2 py-2 align-top text-center">
+                    <div className="flex h-[34px] items-center justify-center">
                       {version ? (
-                        <span className="shrink-0 text-xs font-semibold text-sky-600">{version}</span>
-                      ) : null}
+                        <span className="text-xs font-semibold text-sky-700">{version}</span>
+                      ) : (
+                        <span className="text-xs text-slate-300">—</span>
+                      )}
                     </div>
                   </td>
                   <td className="px-2 py-2 align-top">
@@ -198,8 +206,8 @@ export function OrderItemsForm({
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        제품코드 또는 제품명으로 등록 제품을 선택하세요. 선택 후 값을 수정·삭제하면 저장되지 않습니다.
-        버전은 제품코드 접미사에서 제품명 오른쪽에 표시됩니다. 납기일은 제품마다 다르게 입력할 수 있습니다.
+        제품코드·제품명이 하나뿐이면 자동으로 채워집니다. 버전이 여러 개면 드롭다운에서 버전을 선택해야
+        합니다. 상단 납기일로 일괄 입력한 뒤, 행마다 다르게 바꿀 수도 있습니다.
       </p>
     </div>
   )

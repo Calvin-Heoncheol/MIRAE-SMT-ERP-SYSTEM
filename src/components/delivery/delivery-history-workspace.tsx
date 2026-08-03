@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { DeliveryHistoryFetchError } from '@/components/delivery/delivery-history-fetch-error'
 import { DeliveryHistoryModal } from '@/components/delivery/delivery-history-modal'
 import { DeliveryHistoryTable } from '@/components/delivery/delivery-history-table'
@@ -17,6 +16,7 @@ import {
   sumDeliveryHistoryQuantity,
 } from '@/lib/delivery/history-utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type DeliveryHistoryWorkspaceProps = {
@@ -28,7 +28,7 @@ type ModalState =
   | { open: true; row: DeliveryHistoryRow }
 
 export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspaceProps) {
-  const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
@@ -47,14 +47,12 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '출하 이력이 저장되었습니다.', { close: closeModal })
   }
 
-  function handleDeleted() {
-    closeModal()
-    router.refresh()
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '출하 이력이 삭제되었습니다.', { close: closeModal })
   }
 
   async function handleExcelDownload() {

@@ -1,8 +1,8 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import {
   createSqueegeeAsset,
   isMissingSqueegeesTable,
@@ -186,7 +186,7 @@ function SqueegeeCreateModal({
 }
 
 export function SqueegeesWorkspace({ result }: SqueegeesWorkspaceProps) {
-  const router = useRouter()
+  const { afterCreate, afterSave } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [showRetired, setShowRetired] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -222,7 +222,7 @@ export function SqueegeesWorkspace({ result }: SqueegeesWorkspaceProps) {
     }
 
     setListMessage({ text: `${retired.asset.barcode} 교체완료 처리됨`, kind: 'ok' })
-    router.refresh()
+    afterSave('스퀴즈가 교체완료 처리되었습니다.')
   }
 
   if (!result.ok) {
@@ -390,7 +390,7 @@ export function SqueegeesWorkspace({ result }: SqueegeesWorkspaceProps) {
       <SqueegeeCreateModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onSaved={() => router.refresh()}
+        onSaved={() => afterCreate('스퀴즈가 등록되었습니다.')}
       />
     </div>
   )

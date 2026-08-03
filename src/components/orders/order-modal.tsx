@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { OrderItemsForm } from '@/components/orders/order-items-form'
+import { useBusy } from '@/components/ui/busy-provider'
 import { ErpButton } from '@/components/ui/erp-button'
-import { ErpModal } from '@/components/ui/erp-modal'
+import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { validateOrderItems } from '@/lib/orders/build-order-payload'
 import {
   defaultOrderItemForm,
@@ -35,12 +37,22 @@ type OrderModalProps = {
   onDeleted?: () => void
 }
 
+function CancelButton({ disabled }: { disabled?: boolean }) {
+  const requestClose = useErpModalRequestClose()
+  return (
+    <ErpButton variant="secondary" disabled={disabled} onClick={() => requestClose?.()}>
+      취소
+    </ErpButton>
+  )
+}
+
 function createInitialForm(order?: OrderListGroup | null): OrderFormState {
   const today = todayYmdSeoul()
   if (order) {
     return {
       orderCode: order.orderNumber,
       orderDate: order.orderDate || today,
+      deliveryDate: order.deliveryDate || '',
       customer: order.customer || '',
       category: order.category,
       note: order.note || '',
@@ -49,6 +61,7 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
   return {
     orderCode: '',
     orderDate: today,
+    deliveryDate: '',
     customer: '',
     category: '양산',
     note: '',
@@ -75,6 +88,17 @@ function OrderModalContent({
   const [products, setProducts] = useState<Product[]>([])
   const [salesPartners, setSalesPartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(true)
+
+  const busyUi = useBusy()
+  const { notifyAuthOrFailure } = useWriteFailureToast()
+
+  useEffect(() => {
+    setForm(createInitialForm(order))
+    setItems(
+      order ? orderItemsFromDetail(order.items, order.deliveryDate) : [defaultOrderItemForm()],
+    )
+    setSaveError(null)
+  }, [order, mode])
 
   useEffect(() => {
     let cancelled = false
@@ -105,6 +129,11 @@ function OrderModalContent({
 
   function updateForm<K extends keyof OrderFormState>(key: K, value: OrderFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  function applyBulkDeliveryDate(deliveryDate: string) {
+    setForm((current) => ({ ...current, deliveryDate }))
+    setItems((current) => current.map((item) => ({ ...item, deliveryDate })))
   }
 
   async function handleSave() {
@@ -148,15 +177,14 @@ function OrderModalContent({
     setSaving(true)
     setSaveError(null)
 
-    const result =
-      mode === 'edit' && order
-        ? await updateOrder(order.orderId, payload)
-        : await createOrder(payload)
+    const result = await busyUi.run(() =>
+      mode === 'edit' && order ? updateOrder(order.orderId, payload) : createOrder(payload),
+    )
 
     setSaving(false)
 
     if (!result.ok) {
-      setSaveError(result.detail)
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
     }
 
@@ -172,11 +200,11 @@ function OrderModalContent({
     setDeleting(true)
     setSaveError(null)
 
-    const result = await deleteOrder(order.orderId)
+    const result = await busyUi.run(() => deleteOrder(order.orderId))
     setDeleting(false)
 
     if (!result.ok) {
-      setSaveError(result.detail)
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
     }
 
@@ -197,8 +225,13 @@ function OrderModalContent({
           {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             {mode === 'edit' && canDelete ? (
-              <ErpButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>
-                {deleting ? '삭제 중…' : '삭제'}
+              <ErpButton
+                variant="danger"
+                onClick={() => void handleDelete()}
+                disabled={busy}
+                loading={deleting}
+              >
+                삭제
               </ErpButton>
             ) : (
               <span />
@@ -216,11 +249,9 @@ function OrderModalContent({
                   주문서 인쇄
                 </ErpButton>
               ) : null}
-              <ErpButton variant="secondary" onClick={onClose} disabled={busy}>
-                취소
-              </ErpButton>
-              <ErpButton onClick={() => void handleSave()} disabled={busy}>
-                {saving ? '저장 중…' : '저장'}
+              <CancelButton disabled={busy} />
+              <ErpButton onClick={() => void handleSave()} disabled={busy} loading={saving}>
+                저장
               </ErpButton>
             </div>
           </div>
@@ -278,7 +309,7 @@ function OrderModalContent({
         </label>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>구분</span>
           <select
@@ -302,6 +333,16 @@ function OrderModalContent({
             className={ERP_FIELD_INPUT_CLASS}
           />
         </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>납기일</span>
+          <input
+            type="date"
+            value={form.deliveryDate}
+            onChange={(event) => applyBulkDeliveryDate(event.target.value)}
+            className={ERP_FIELD_INPUT_CLASS}
+          />
+          <p className="mt-1 text-xs text-slate-500">입력 시 아래 제품 행 납기일에 일괄 반영됩니다.</p>
+        </label>
       </div>
 
       <div className="mt-6">
@@ -309,6 +350,7 @@ function OrderModalContent({
           items={items}
           customer={resolvePartnerFromInput(salesPartners, form.customer)?.name ?? form.customer}
           products={products}
+          defaultDeliveryDate={form.deliveryDate}
           onChange={setItems}
         />
       </div>

@@ -10,6 +10,7 @@ import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-or
 import type { Material } from '@/lib/materials/types'
 import { resolveMaterialByInventoryCode } from '@/lib/materials/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
+import { useToast } from '@/components/ui/toast-provider'
 
 type InboundScanPanelProps = {
   materials: Material[]
@@ -93,6 +94,7 @@ export function InboundScanPanel({
   onSaved,
   onMaterialsChanged,
 }: InboundScanPanelProps) {
+  const toast = useToast()
   const [scanCode, setScanCode] = useState('')
   const [lines, setLines] = useState<ScanLine[]>([])
   const [draft, setDraft] = useState<DraftState | null>(null)
@@ -374,12 +376,15 @@ export function InboundScanPanel({
 
     if (errors.length) {
       setMessage({ tone: 'error', text: errors.join(' / ') })
+      toast.error('입고 처리 실패', errors.join(' / '))
     } else {
       const totalQty = [...savedKeys].length
+      const text = `입고 처리 완료 (${totalQty.toLocaleString('ko-KR')}개 라인)`
       setMessage({
         tone: 'success',
-        text: `입고 처리 완료 (${totalQty.toLocaleString('ko-KR')}개 라인)`,
+        text,
       })
+      toast.success('입고 등록 완료', text)
       setNote('')
     }
     onSaved()

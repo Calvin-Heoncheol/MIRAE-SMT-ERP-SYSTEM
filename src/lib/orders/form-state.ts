@@ -11,6 +11,8 @@ export type OrderItemForm = {
 export type OrderFormState = {
   orderCode: string
   orderDate: string
+  /** 공통 납기일 — 제품 행에 일괄 반영용 */
+  deliveryDate: string
   customer: string
   category: '양산' | '샘플' | '자재'
   note: string

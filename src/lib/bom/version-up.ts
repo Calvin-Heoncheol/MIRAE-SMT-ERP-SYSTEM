@@ -2,7 +2,11 @@ import { saveBomForParent } from '@/lib/bom/repository'
 import type { BomGroup, BomLinePayload } from '@/lib/bom/types'
 import { createItem, setItemActive } from '@/lib/items/repository'
 import type { Item } from '@/lib/items/types'
-import { suggestNextVersionForItem, itemToVersionUpPayload } from '@/lib/items/version-code'
+import {
+  itemToVersionUpPayload,
+  resolveManualVersionForItem,
+  suggestNextVersionForItem,
+} from '@/lib/items/version-code'
 
 export type VersionUpBomResult =
   | {
@@ -32,6 +36,8 @@ export async function versionUpBomParent(input: {
   sourceItem: Item
   group: BomGroup
   existingItems: Item[]
+  /** 사용자가 지정한 신버전 (비우면 자동 제안) */
+  newVersion?: string
   /** @deprecated existingItemIds — existingItems 권장 */
   existingItemIds?: string[]
   deactivateSource?: boolean
@@ -40,6 +46,7 @@ export async function versionUpBomParent(input: {
     sourceItem,
     group,
     existingItems,
+    newVersion,
     existingItemIds,
     deactivateSource = false,
   } = input
@@ -65,11 +72,26 @@ export async function versionUpBomParent(input: {
             }) as Item,
         )
 
-  const next = suggestNextVersionForItem(sourceItem, legacyItems)
-  if (!next) {
-    return {
-      ok: false,
-      detail: '다음 버전을 만들 수 없습니다. (버전 번호 소진)',
+  const manualVersion = String(newVersion || '').trim()
+  let next: { newId: string; baseCode: string; version: string } | null = null
+
+  if (manualVersion) {
+    const resolved = resolveManualVersionForItem(sourceItem, manualVersion, legacyItems)
+    if (!resolved.ok) {
+      return { ok: false, detail: resolved.detail }
+    }
+    next = {
+      newId: resolved.newId,
+      baseCode: resolved.baseCode,
+      version: resolved.version,
+    }
+  } else {
+    next = suggestNextVersionForItem(sourceItem, legacyItems)
+    if (!next) {
+      return {
+        ok: false,
+        detail: '다음 버전을 만들 수 없습니다. (버전 번호 소진)',
+      }
     }
   }
 

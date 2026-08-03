@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { BomFetchError } from '@/components/bom/bom-fetch-error'
 import { BomListTable } from '@/components/bom/bom-list-table'
 import { BomModal } from '@/components/bom/bom-modal'
@@ -14,6 +13,7 @@ import { buildBomListRows, filterBomListRows, groupBomLines } from '@/lib/bom/ut
 import type { FetchItemsResult } from '@/lib/items/repository'
 import { ITEM_CATEGORY_FILTER_IDLE_CLASS, ITEM_CATEGORY_LABELS } from '@/lib/items/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type BomWorkspaceProps = {
@@ -27,7 +27,7 @@ type ModalState =
   | { open: true; mode: 'edit'; group: BomGroup }
 
 export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
-  const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [parentFilter, setParentFilter] = useState<BomParentFilter>('all')
   const [modal, setModal] = useState<ModalState>({ open: false })
@@ -98,20 +98,18 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? 'BOM이 저장되었습니다.', { close: closeModal })
   }
 
-  function handleDeleted() {
-    closeModal()
-    router.refresh()
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? 'BOM이 삭제되었습니다.', { close: closeModal })
   }
 
   function handleVersioned(newGroup: BomGroup) {
     setModalSession((value) => value + 1)
     setModal({ open: true, mode: 'edit', group: newGroup })
-    router.refresh()
+    afterSave('BOM이 버전업되었습니다.')
   }
 
   if (!bomResult.ok) {

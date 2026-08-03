@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { PartnerFetchError } from '@/components/partners/partner-fetch-error'
 import { PartnerListTable } from '@/components/partners/partner-list-table'
 import { PartnerModal } from '@/components/partners/partner-modal'
@@ -13,6 +12,7 @@ import { PARTNER_TRADE_ROLE_LABELS } from '@/lib/partners/types'
 import { formatBusinessRegNo } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type PartnersWorkspaceProps = {
@@ -41,7 +41,7 @@ function matchesQuery(partner: BusinessPartner, query: string) {
 }
 
 export function PartnersWorkspace({ result }: PartnersWorkspaceProps) {
-  const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
@@ -70,14 +70,12 @@ export function PartnersWorkspace({ result }: PartnersWorkspaceProps) {
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '거래처가 저장되었습니다.', { close: closeModal })
   }
 
-  function handleDeleted() {
-    closeModal()
-    router.refresh()
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '거래처가 삭제되었습니다.', { close: closeModal })
   }
 
   if (!result.ok) {

@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
+import { useBusy } from '@/components/ui/busy-provider'
 import { ErpButton } from '@/components/ui/erp-button'
-import { ErpModal } from '@/components/ui/erp-modal'
-import { createItem, deleteItem, updateItem } from '@/lib/items/repository'
+import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
+import { createItem, deleteItem, setItemActive, updateItem } from '@/lib/items/repository'
 import { calcParentUnitPriceFromBom } from '@/lib/bom/repository'
 import {
   emptyItemForm,
@@ -54,8 +56,17 @@ type ItemModalProps = {
   existingItems?: Item[]
   initialCategory?: ItemCategory | null
   onClose: () => void
-  onSaved?: () => void
-  onDeleted?: () => void
+  onSaved?: (message?: string) => void
+  onDeleted?: (message?: string) => void
+}
+
+function CancelButton({ disabled }: { disabled?: boolean }) {
+  const requestClose = useErpModalRequestClose()
+  return (
+    <ErpButton variant="secondary" disabled={disabled} onClick={() => requestClose?.()}>
+      취소
+    </ErpButton>
+  )
 }
 
 function resolvePreviewItemCode(
@@ -118,10 +129,14 @@ function ItemModalContent({
   )
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deactivating, setDeactivating] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [purchasePartners, setPurchasePartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(true)
   const [bomPriceLoading, setBomPriceLoading] = useState(false)
+
+  const busyUi = useBusy()
+  const { notifyAuthOrFailure } = useWriteFailureToast()
 
   const isRequiredManualCode =
     form.itemCategory !== '' && isManualItemCodeCategory(form.itemCategory)
@@ -322,58 +337,61 @@ function ItemModalContent({
     setSaving(true)
     setSaveError(null)
 
-    let saveForm = form
-    if (
-      isCreate &&
-      form.itemCategory !== '' &&
-      !isRawMaterialItemCategory(form.itemCategory) &&
-      !form.id.trim()
-    ) {
-      const base = form.name.trim()
-      if (base) {
-        saveForm = { ...saveForm, id: base }
-      }
-    }
-    if (form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)) {
-      const finishedId = (
-        isCreate
-          ? composeItemIdWithVersion(saveForm.id.trim() || previewItemCode, saveForm.version)
-          : item?.id || form.id
-      ).trim()
-      if (finishedId) {
-        const calc = await calcParentUnitPriceFromBom(finishedId)
-        if (calc.ok) {
-          saveForm = {
-            ...saveForm,
-            unitPrice: calc.unitPrice > 0 ? String(calc.unitPrice) : '',
-          }
-          setForm(saveForm)
-        }
-      }
-    }
-
     let result
-    if (isCreate) {
-      result = await createItem(formToItemPayload(saveForm))
-    } else {
-      const baseId = saveForm.id.trim() || saveForm.name.trim()
-      const nextId =
-        saveForm.itemCategory !== '' && !isRawMaterialItemCategory(saveForm.itemCategory)
-          ? composeItemIdWithVersion(baseId, saveForm.version)
-          : baseId
-      result = await updateItem(item!.id, formToItemUpdatePayload(saveForm), {
-        nextId: nextId && nextId !== item!.id ? nextId : undefined,
-      })
-    }
+    try {
+      result = await busyUi.run(async () => {
+        let saveForm = form
+        if (
+          isCreate &&
+          form.itemCategory !== '' &&
+          !isRawMaterialItemCategory(form.itemCategory) &&
+          !form.id.trim()
+        ) {
+          const base = form.name.trim()
+          if (base) {
+            saveForm = { ...saveForm, id: base }
+          }
+        }
+        if (form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)) {
+          const finishedId = (
+            isCreate
+              ? composeItemIdWithVersion(saveForm.id.trim() || previewItemCode, saveForm.version)
+              : item?.id || form.id
+          ).trim()
+          if (finishedId) {
+            const calc = await calcParentUnitPriceFromBom(finishedId)
+            if (calc.ok) {
+              saveForm = {
+                ...saveForm,
+                unitPrice: calc.unitPrice > 0 ? String(calc.unitPrice) : '',
+              }
+              setForm(saveForm)
+            }
+          }
+        }
 
-    setSaving(false)
+        if (isCreate) {
+          return createItem(formToItemPayload(saveForm))
+        }
+        const baseId = saveForm.id.trim() || saveForm.name.trim()
+        const nextId =
+          saveForm.itemCategory !== '' && !isRawMaterialItemCategory(saveForm.itemCategory)
+            ? composeItemIdWithVersion(baseId, saveForm.version)
+            : baseId
+        return updateItem(item!.id, formToItemUpdatePayload(saveForm), {
+          nextId: nextId && nextId !== item!.id ? nextId : undefined,
+        })
+      })
+    } finally {
+      setSaving(false)
+    }
 
     if (!result.ok) {
-      setSaveError(result.detail)
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
     }
 
-    onSaved?.()
+    onSaved?.(isCreate ? '품목이 등록되었습니다.' : '품목이 수정되었습니다.')
   }
 
   async function handleDelete() {
@@ -383,18 +401,47 @@ function ItemModalContent({
     setDeleting(true)
     setSaveError(null)
 
-    const result = await deleteItem(item.id)
+    const result = await busyUi.run(() => deleteItem(item.id))
     setDeleting(false)
 
     if (!result.ok) {
-      setSaveError(result.detail)
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
     }
 
-    onDeleted?.()
+    onDeleted?.('품목이 삭제되었습니다.')
   }
 
-  const busy = saving || deleting
+  async function handleDeactivate() {
+    if (!item) return
+    if (
+      !window.confirm(
+        [
+          `${item.name} (${item.id}) 을(를) 사용중지할까요?`,
+          '',
+          '· 주문·생산 이력은 그대로 유지됩니다.',
+          '· 품목·BOM 목록에서는 기본적으로 숨겨집니다.',
+          '· 실수로 만든 버전을 없애고 싶을 때 삭제 대신 이 방법을 권장합니다.',
+        ].join('\n'),
+      )
+    ) {
+      return
+    }
+
+    setDeactivating(true)
+    setSaveError(null)
+    const result = await busyUi.run(() => setItemActive(item.id, false))
+    setDeactivating(false)
+
+    if (!result.ok) {
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
+      return
+    }
+
+    onSaved?.('품목이 사용중지되었습니다.')
+  }
+
+  const busy = saving || deleting || deactivating
 
   return (
     <ErpModal
@@ -417,18 +464,33 @@ function ItemModalContent({
           {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
           <div className="flex justify-between gap-2">
             {!isCreate ? (
-              <ErpButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>
-                {deleting ? '삭제 중…' : '삭제'}
-              </ErpButton>
+              <div className="flex flex-wrap gap-2">
+                <ErpButton
+                  variant="danger"
+                  onClick={() => void handleDelete()}
+                  disabled={busy}
+                  loading={deleting}
+                >
+                  삭제
+                </ErpButton>
+                {item?.isActive !== false ? (
+                  <ErpButton
+                    variant="secondary"
+                    onClick={() => void handleDeactivate()}
+                    disabled={busy}
+                    loading={deactivating}
+                  >
+                    사용중지
+                  </ErpButton>
+                ) : null}
+              </div>
             ) : (
               <span />
             )}
             <div className="flex gap-2">
-              <ErpButton variant="secondary" onClick={onClose} disabled={busy}>
-                취소
-              </ErpButton>
-              <ErpButton onClick={() => void handleSave()} disabled={busy}>
-                {saving ? '저장 중…' : '저장'}
+              <CancelButton disabled={busy} />
+              <ErpButton onClick={() => void handleSave()} disabled={busy} loading={saving}>
+                저장
               </ErpButton>
             </div>
           </div>
@@ -713,23 +775,6 @@ function ItemModalContent({
               />
             </label>
           </div>
-        ) : null}
-        {showMaterialFields ? (
-          <label className="block text-sm sm:col-span-2">
-            <span className={ERP_FIELD_LABEL_CLASS}>안전재고</span>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={form.safetyStock}
-              onChange={(event) => updateForm('safetyStock', event.target.value)}
-              placeholder="0"
-              className={`${ERP_FIELD_INPUT_CLASS} max-w-xs tabular-nums`}
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              현재고가 이 수량보다 적으면 자재 재고현황에서 미달로 표시됩니다.
-            </p>
-          </label>
         ) : null}
       </div>
     </ErpModal>

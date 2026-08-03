@@ -15,6 +15,7 @@ import type {
 } from '@/lib/materials/outbound/types'
 import { buildOutboundOrderCards, getOutboundTypeLabel } from '@/lib/materials/outbound/utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type OutboundWorkspaceProps = {
@@ -56,6 +57,7 @@ function matchesOrderCardQuery(card: MaterialOutboundOrderCard, query: string) {
 
 export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
   const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
@@ -90,14 +92,12 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '불출 내역이 저장되었습니다.', { close: closeModal })
   }
 
-  function handleDeleted() {
-    closeModal()
-    router.refresh()
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '불출 내역이 삭제되었습니다.', { close: closeModal })
   }
 
   if (!result.ok) {

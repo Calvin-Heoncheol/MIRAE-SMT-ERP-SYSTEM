@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
+  applyItemBulkColumnPaste,
   defaultItemBulkRow,
   isEmptyItemBulkRow,
   itemBulkColumns,
@@ -119,11 +120,33 @@ function ItemBulkModalContent({
     if (pasteRef.current) pasteRef.current.value = ''
   }
 
-  function handleTablePaste(event: React.ClipboardEvent<HTMLTableElement>) {
+  function handleColumnPaste(
+    startRowIndex: number,
+    columnKey: keyof ItemFormState,
+    event: React.ClipboardEvent<HTMLInputElement>,
+  ) {
     const text = event.clipboardData.getData('text')
-    if (!text.includes('\n') && !text.includes('\t')) return
+    if (!text.trim()) return
+
+    // 여러 열(탭) → 기존처럼 전체 일괄 파싱
+    if (text.includes('\t')) {
+      event.preventDefault()
+      applyPasteText(text)
+      return
+    }
+
+    const next = applyItemBulkColumnPaste({
+      rows,
+      category,
+      startRowIndex,
+      columnKey,
+      text,
+    })
+    if (!next) return
+
     event.preventDefault()
-    applyPasteText(text)
+    setRows(next)
+    setSaveError(null)
   }
 
   async function handleSave() {
@@ -168,7 +191,7 @@ function ItemBulkModalContent({
       return
     }
 
-    onSaved?.()
+    onSaved?.(`${payloads.length}건 품목이 등록되었습니다.`)
   }
 
   return (
@@ -290,7 +313,7 @@ function ItemBulkModalContent({
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="min-w-full border-collapse text-sm" onPaste={handleTablePaste}>
+            <table className="min-w-full border-collapse text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   {columns.map((column) => (
@@ -367,6 +390,7 @@ function ItemBulkModalContent({
                             onChange={(event) =>
                               patchRow(index, { [column.key]: event.target.value } as Partial<ItemFormState>)
                             }
+                            onPaste={(event) => handleColumnPaste(index, column.key, event)}
                             className={`${inputClassName}${column.key === 'id' ? ' font-mono' : ''}${
                               column.key === 'unitPrice' ||
                               column.key === 'smdUnitPrice' ||
@@ -395,6 +419,10 @@ function ItemBulkModalContent({
               </tbody>
             </table>
           </div>
+          <p className="text-xs text-slate-500">
+            품목코드·품목명·규격·MPN 등 입력칸에 Excel 한 열을 붙여넣으면 해당 열에 세로로 채워집니다. 행이
+            부족하면 자동으로 추가됩니다.
+          </p>
 
           {saveError ? (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">

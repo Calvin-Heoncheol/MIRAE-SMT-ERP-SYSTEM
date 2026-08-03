@@ -6,7 +6,8 @@ import type { Product } from '@/lib/products/types'
 import {
   filterProductsForOrder,
   formatProductOptionLabel,
-  resolveProductFromInput,
+  formatProductVersionChoiceLabel,
+  resolveProductInput,
 } from '@/lib/products/utils'
 
 type ProductComboboxProps = {
@@ -50,11 +51,17 @@ export function ProductCombobox({
   const [activeIndex, setActiveIndex] = useState(0)
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
   const [mounted, setMounted] = useState(false)
+  /** 버전이 여러 개라 목록에서 고르라는 상태 */
+  const [versionPickRequired, setVersionPickRequired] = useState(false)
+  const [versionChoices, setVersionChoices] = useState<Product[]>([])
 
-  const options = useMemo(
+  const searchOptions = useMemo(
     () => filterProductsForOrder(products, customer, value).slice(0, MAX_OPTIONS),
     [products, customer, value],
   )
+
+  const options = versionPickRequired && versionChoices.length > 0 ? versionChoices : searchOptions
+  const showVersionChoiceUi = versionPickRequired && versionChoices.length > 1
 
   useEffect(() => {
     setMounted(true)
@@ -62,7 +69,7 @@ export function ProductCombobox({
 
   useEffect(() => {
     setActiveIndex(0)
-  }, [value, options.length])
+  }, [value, options.length, versionPickRequired])
 
   function updateMenuPosition() {
     const input = inputRef.current
@@ -79,7 +86,7 @@ export function ProductCombobox({
     setMenuPosition({
       top: openUp ? rect.top - gap : rect.bottom + gap,
       left: rect.left,
-      width: Math.max(rect.width, 280),
+      width: Math.max(rect.width, showVersionChoiceUi ? 320 : 280),
       maxHeight,
       placement: openUp ? 'above' : 'below',
     })
@@ -98,7 +105,7 @@ export function ProductCombobox({
       window.removeEventListener('resize', updateMenuPosition)
       window.removeEventListener('scroll', updateMenuPosition, true)
     }
-  }, [open, value, options.length])
+  }, [open, value, options.length, showVersionChoiceUi])
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -107,6 +114,8 @@ export function ProductCombobox({
         return
       }
       setOpen(false)
+      setVersionPickRequired(false)
+      setVersionChoices([])
     }
 
     document.addEventListener('mousedown', handlePointerDown)
@@ -115,16 +124,36 @@ export function ProductCombobox({
 
   function selectProduct(product: Product) {
     onProductSelect(product)
+    setVersionPickRequired(false)
+    setVersionChoices([])
     setOpen(false)
   }
 
   function tryResolveOnBlur() {
     const codeRaw = field === 'code' ? value : ''
     const nameRaw = field === 'name' ? value : ''
-    const resolved = resolveProductFromInput(products, customer, codeRaw, nameRaw)
-    if (resolved) {
-      onProductSelect(resolved)
+    const result = resolveProductInput(products, customer, codeRaw, nameRaw)
+
+    if (result.status === 'resolved') {
+      onProductSelect(result.product)
+      setVersionPickRequired(false)
+      setVersionChoices([])
+      setOpen(false)
+      return
     }
+
+    if (result.status === 'ambiguous') {
+      setVersionChoices(result.products)
+      setVersionPickRequired(true)
+      setOpen(true)
+      setActiveIndex(0)
+      inputRef.current?.focus()
+      return
+    }
+
+    setVersionPickRequired(false)
+    setVersionChoices([])
+    setOpen(false)
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -153,6 +182,8 @@ export function ProductCombobox({
 
     if (event.key === 'Escape') {
       setOpen(false)
+      setVersionPickRequired(false)
+      setVersionChoices([])
     }
   }
 
@@ -171,6 +202,11 @@ export function ProductCombobox({
           transform: menuPosition.placement === 'above' ? 'translateY(-100%)' : undefined,
         }}
       >
+        {showVersionChoiceUi ? (
+          <li className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-amber-800">
+            버전이 {versionChoices.length}개입니다. 목록에서 선택하세요.
+          </li>
+        ) : null}
         {options.map((product, index) => (
           <li key={product.id} role="option" aria-selected={index === activeIndex}>
             <button
@@ -183,9 +219,18 @@ export function ProductCombobox({
                 index === activeIndex ? 'bg-sky-50 text-sky-900' : 'text-slate-700 hover:bg-slate-50',
               ].join(' ')}
             >
-              <span className="block font-semibold">{formatProductOptionLabel(product)}</span>
-              {product.customer ? (
+              <span className="block font-semibold">
+                {showVersionChoiceUi
+                  ? formatProductVersionChoiceLabel(product)
+                  : formatProductOptionLabel(product)}
+              </span>
+              {!showVersionChoiceUi && product.customer ? (
                 <span className="mt-0.5 block text-xs text-slate-400">{product.customer}</span>
+              ) : null}
+              {showVersionChoiceUi ? (
+                <span className="mt-0.5 block text-xs font-medium text-sky-700">
+                  {product.version.trim() || '버전 없음'}
+                </span>
               ) : null}
             </button>
           </li>
@@ -201,15 +246,16 @@ export function ProductCombobox({
         lang={field === 'name' ? 'ko' : 'en'}
         onChange={(event) => {
           onValueChange(event.target.value)
+          setVersionPickRequired(false)
+          setVersionChoices([])
           setOpen(true)
         }}
         onFocus={() => {
-          if (value.trim()) setOpen(true)
+          if (value.trim() || versionPickRequired) setOpen(true)
         }}
         onBlur={() => {
           window.setTimeout(() => {
             tryResolveOnBlur()
-            setOpen(false)
           }, 120)
         }}
         onKeyDown={handleKeyDown}

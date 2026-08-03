@@ -1,5 +1,5 @@
 import type { OrderItemForm } from './form-state'
-import { resolveOrderLineProduct } from '@/lib/products/utils'
+import { findProductsByName, resolveOrderLineProduct } from '@/lib/products/utils'
 import type { Product } from '@/lib/products/types'
 import { computeLineAmount } from './utils'
 
@@ -65,6 +65,13 @@ export function validateOrderItems(
         return {
           ok: false as const,
           message: `${index + 1}행 제품명이 등록 정보와 다릅니다. 목록에서 다시 선택하세요.`,
+        }
+      }
+      const sameNameVersions = findProductsByName(products, item.productName, customer)
+      if (sameNameVersions.length > 1) {
+        return {
+          ok: false as const,
+          message: `${index + 1}행 같은 제품명에 버전이 ${sameNameVersions.length}개 있습니다. 드롭다운에서 버전을 선택하세요.`,
         }
       }
       return {

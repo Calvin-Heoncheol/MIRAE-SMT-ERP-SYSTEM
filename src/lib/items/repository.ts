@@ -21,7 +21,7 @@ export type SaveItemResult =
 
 export type DeleteItemResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth' | 'in_use'; detail: string }
 
 export function isMissingItemsTable(detail: string) {
   return detail.includes('items') || detail.includes('schema cache')
@@ -44,6 +44,125 @@ function mapDuplicateError(detail: string) {
     return '이미 등록된 품목코드·버전입니다. 품목코드나 버전을 바꿔 주세요.'
   }
   return detail
+}
+
+function isIgnorableSchemaError(message: string) {
+  return (
+    message.includes('schema cache') ||
+    message.includes('does not exist') ||
+    message.includes('Could not find')
+  )
+}
+
+function mapItemDeleteFkError(detail: string) {
+  if (detail.includes('order_assembly_groups')) {
+    return '이 품목은 주문 조립 그룹에서 사용 중이라 삭제할 수 없습니다. 삭제 대신 「사용중지」를 이용해 주세요.'
+  }
+  if (detail.includes('order_assembly_group_lines')) {
+    return '이 품목은 주문 BOM 구성(조립 그룹 라인)에서 사용 중이라 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.'
+  }
+  if (detail.includes('bom_items')) {
+    return '이 품목은 다른 BOM의 구성품으로 등록되어 있어 삭제할 수 없습니다. 먼저 해당 BOM에서 제거하거나 「사용중지」해 주세요.'
+  }
+  if (detail.includes('material_inbound') || detail.includes('material_outbound')) {
+    return '이 품목은 자재 입·출고 이력이 있어 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.'
+  }
+  if (detail.includes('foreign key') || detail.includes('violates foreign key')) {
+    return '다른 자료에서 참조 중이라 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.'
+  }
+  return detail
+}
+
+async function countRows(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  table: string,
+  column: string,
+  value: string,
+) {
+  const { count, error } = await supabase
+    .from(table)
+    .select(column, { count: 'exact', head: true })
+    .eq(column, value)
+
+  if (error) {
+    if (isIgnorableSchemaError(error.message)) return 0
+    throw new Error(error.message)
+  }
+  return count || 0
+}
+
+async function countRowsIn(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  table: string,
+  column: string,
+  values: string[],
+) {
+  if (!values.length) return 0
+  const { count, error } = await supabase
+    .from(table)
+    .select(column, { count: 'exact', head: true })
+    .in(column, values)
+
+  if (error) {
+    if (isIgnorableSchemaError(error.message)) return 0
+    throw new Error(error.message)
+  }
+  return count || 0
+}
+
+/**
+ * 실적·출하가 없는 주문 조립 그룹만 정리한 뒤 품목 삭제가 가능한지 확인.
+ * 실적이 있으면 삭제하지 않고 안내 메시지를 반환.
+ */
+async function clearUnusedAssemblyGroupsForItem(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  itemId: string,
+): Promise<{ ok: true } | { ok: false; detail: string }> {
+  const { data: groups, error: groupsError } = await supabase
+    .from('order_assembly_groups')
+    .select('id, order_id')
+    .eq('parent_product_id', itemId)
+
+  if (groupsError) {
+    if (isIgnorableSchemaError(groupsError.message)) return { ok: true }
+    return { ok: false, detail: groupsError.message }
+  }
+
+  const groupRows = groups || []
+  if (!groupRows.length) return { ok: true }
+
+  const groupIds = groupRows.map((row) => String(row.id))
+
+  const usageTables = [
+    'post_process_production_records',
+    'delivery_records',
+    'post_process_production_plans',
+    'production_plan_board_items',
+  ] as const
+
+  for (const table of usageTables) {
+    const used = await countRowsIn(supabase, table, 'assembly_group_id', groupIds)
+    if (used > 0) {
+      return {
+        ok: false,
+        detail: `이 품목은 주문(${groupRows.map((row) => row.order_id).join(', ')})의 조립 그룹에서 사용 중이며 생산·출하 이력이 있어 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.`,
+      }
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from('order_assembly_groups')
+    .delete()
+    .in('id', groupIds)
+
+  if (deleteError) {
+    return {
+      ok: false,
+      detail: mapItemDeleteFkError(deleteError.message),
+    }
+  }
+
+  return { ok: true }
 }
 
 /** 품목코드(PK) 변경 시 참조 테이블도 함께 갱신 */
@@ -419,10 +538,52 @@ export async function deleteItem(id: string): Promise<DeleteItemResult> {
 
   try {
     const supabase = createSupabaseClient()
+
+    const childBomCount = await countRows(supabase, 'bom_items', 'child_product_id', key)
+    if (childBomCount > 0) {
+      return {
+        ok: false,
+        reason: 'in_use',
+        detail:
+          '이 품목은 다른 BOM의 구성품으로 등록되어 있어 삭제할 수 없습니다. 먼저 해당 BOM에서 제거하거나 「사용중지」해 주세요.',
+      }
+    }
+
+    const inboundCount = await countRows(supabase, 'material_inbound_lines', 'material_id', key)
+    const outboundCount = await countRows(supabase, 'material_outbound_lines', 'material_id', key)
+    if (inboundCount > 0 || outboundCount > 0) {
+      return {
+        ok: false,
+        reason: 'in_use',
+        detail:
+          '이 품목은 자재 입·출고 이력이 있어 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.',
+      }
+    }
+
+    const childLineCount = await countRows(
+      supabase,
+      'order_assembly_group_lines',
+      'child_product_id',
+      key,
+    )
+    if (childLineCount > 0) {
+      return {
+        ok: false,
+        reason: 'in_use',
+        detail:
+          '이 품목은 주문 조립 구성에서 사용 중이라 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.',
+      }
+    }
+
+    const cleared = await clearUnusedAssemblyGroupsForItem(supabase, key)
+    if (!cleared.ok) {
+      return { ok: false, reason: 'in_use', detail: cleared.detail }
+    }
+
     const { error } = await supabase.from('items').delete().eq('id', key)
 
     if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
+      return { ok: false, reason: 'query', detail: mapItemDeleteFkError(error.message) }
     }
 
     return { ok: true }
@@ -430,7 +591,7 @@ export async function deleteItem(id: string): Promise<DeleteItemResult> {
     return {
       ok: false,
       reason: 'query',
-      detail: error instanceof Error ? error.message : String(error),
+      detail: mapItemDeleteFkError(error instanceof Error ? error.message : String(error)),
     }
   }
 }

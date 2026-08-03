@@ -62,7 +62,7 @@ export function InventoryStatusTable({ rows, emptyMessage, onSelectRow }: Invent
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[920px] table-fixed border-collapse">
+        <table className="w-full min-w-[840px] table-fixed border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -89,9 +89,6 @@ export function InventoryStatusTable({ rows, emptyMessage, onSelectRow }: Invent
               <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 현재고
               </th>
-              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                안전재고
-              </th>
             </tr>
           </thead>
           <tbody>
@@ -100,7 +97,6 @@ export function InventoryStatusTable({ rows, emptyMessage, onSelectRow }: Invent
                 key={row.id}
                 className={[
                   'border-t border-slate-100',
-                  row.belowSafetyStock ? 'bg-amber-50/70' : '',
                   onSelectRow
                     ? 'cursor-pointer hover:bg-blue-50/70'
                     : 'hover:bg-slate-50/60',
@@ -145,17 +141,9 @@ export function InventoryStatusTable({ rows, emptyMessage, onSelectRow }: Invent
                   {formatInventoryQuantity(row.expectedInboundQuantity)}
                 </td>
                 <td
-                  className={`px-3 py-2.5 text-right text-sm tabular-nums ${quantityClass(row.onHandQuantity, 'onHand')}${
-                    row.belowSafetyStock && row.onHandQuantity >= 0 ? ' text-amber-800 font-semibold' : ''
-                  }`}
+                  className={`px-3 py-2.5 text-right text-sm tabular-nums ${quantityClass(row.onHandQuantity, 'onHand')}`}
                 >
                   {formatInventoryQuantity(row.onHandQuantity)}
-                  {row.belowSafetyStock ? (
-                    <span className="ml-1 text-[10px] font-bold text-amber-700">미달</span>
-                  ) : null}
-                </td>
-                <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-600">
-                  {formatInventoryQuantity(row.safetyStock)}
                 </td>
               </tr>
             ))}

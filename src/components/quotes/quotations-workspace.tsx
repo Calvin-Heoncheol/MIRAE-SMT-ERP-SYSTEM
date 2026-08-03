@@ -11,6 +11,7 @@ import type { FetchQuotesResult } from '@/lib/quotes/repository'
 import type { QuoteListItem, QuoteType } from '@/lib/quotes/types'
 import { filterQuotesForSearch } from '@/lib/quotes/utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type QuotationsWorkspaceProps = {
@@ -24,6 +25,7 @@ type ModalState =
 
 export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
   const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
@@ -48,14 +50,12 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '견적서가 저장되었습니다.', { close: closeModal })
   }
 
-  function handleDeleted() {
-    closeModal()
-    router.refresh()
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '견적서가 삭제되었습니다.', { close: closeModal })
   }
 
   function handleConvertedToOrder(orderNumber: string) {

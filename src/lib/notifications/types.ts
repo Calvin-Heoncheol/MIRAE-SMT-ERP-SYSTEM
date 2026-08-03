@@ -1,62 +1,43 @@
-import type { AuthDepartment, AuthRole } from '@/lib/auth/types'
-
-export type NotificationCategory =
+export type ActivityNotificationKind =
+  | 'order'
+  | 'quote'
   | 'delivery'
-  | 'stock'
   | 'purchase'
+  | 'inbound'
+  | 'outbound'
   | 'approval'
-  | 'expense'
   | 'leave'
+  | 'expense'
+  | 'smt_production'
+  | 'post_production'
+  | 'new_company'
 
-export type NotificationTone = 'warn' | 'danger' | 'info'
-
-export type AppNotification = {
+export type ActivityNotification = {
   key: string
-  category: NotificationCategory
-  label: string
+  kind: ActivityNotificationKind
+  title: string
   detail: string
   href: string
-  tone: NotificationTone
+  actorName: string
+  createdAt: string
 }
 
-export type NotificationFeed = {
-  items: AppNotification[]
+export type ActivityNotificationFeed = {
+  items: ActivityNotification[]
   fetchedAt: string
 }
 
-/** 부서·역할별 알림 카테고리 (admin/manager는 전체) */
-export function notificationCategoriesForProfile(input: {
-  role: AuthRole
-  department: AuthDepartment | null
-}): NotificationCategory[] {
-  if (input.role === 'admin' || input.role === 'manager') {
-    return ['delivery', 'stock', 'purchase', 'approval', 'expense', 'leave']
-  }
-
-  switch (input.department) {
-    case 'sales':
-      return ['delivery']
-    case 'materials':
-      return ['stock', 'purchase']
-    case 'production1':
-    case 'production2':
-    case 'production3':
-    case 'production4':
-      return ['delivery', 'stock']
-    case 'quality':
-      return ['delivery', 'stock', 'approval']
-    case 'office':
-      return ['approval', 'expense', 'leave']
-    default:
-      return ['delivery', 'stock', 'purchase', 'approval', 'expense', 'leave']
-  }
-}
-
-export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> = {
-  delivery: '납기',
-  stock: '재고',
+export const ACTIVITY_KIND_LABELS: Record<ActivityNotificationKind, string> = {
+  order: '주문',
+  quote: '견적',
+  delivery: '출하',
   purchase: '발주',
+  inbound: '입고',
+  outbound: '불출',
   approval: '품의',
-  expense: '지출',
   leave: '휴가',
+  expense: '지출',
+  smt_production: 'SMT',
+  post_production: '후공정',
+  new_company: '신규업체',
 }

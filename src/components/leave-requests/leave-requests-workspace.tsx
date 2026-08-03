@@ -11,6 +11,7 @@ import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchLeaveRequestsResult } from '@/lib/leave-requests/repository'
 import type { LeaveRequestListItem } from '@/lib/leave-requests/types'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type LeaveRequestsWorkspaceProps = {
@@ -43,6 +44,7 @@ function matchesLeaveSearch(item: LeaveRequestListItem, query: string) {
 
 export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) {
   const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
@@ -68,9 +70,12 @@ export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) 
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '휴가원이 저장되었습니다.', { close: closeModal })
+  }
+
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '휴가원이 삭제되었습니다.', { close: closeModal })
   }
 
   function handleSignoffComplete() {
@@ -126,7 +131,7 @@ export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) 
           request={modal.mode === 'edit' ? modal.request : null}
           onClose={closeModal}
           onSaved={handleSaved}
-          onDeleted={handleSaved}
+          onDeleted={handleDeleted}
           onSignoffComplete={handleSignoffComplete}
         />
       ) : null}

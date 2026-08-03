@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { ItemBulkModal } from '@/components/items/item-bulk-modal'
 import { ItemFetchError } from '@/components/items/item-fetch-error'
 import { ItemListTable } from '@/components/items/item-list-table'
@@ -10,6 +9,7 @@ import { ItemNewMenu } from '@/components/items/item-new-menu'
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
+import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import type { FetchItemsResult } from '@/lib/items/repository'
 import { filterItemsForSearch } from '@/lib/items/utils'
 import {
@@ -35,7 +35,7 @@ type ModalState =
   | { open: true; mode: 'bulk'; initialCategory: ItemCategory | null }
 
 export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
-  const router = useRouter()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<ItemCategoryFilter>('all')
   const [modal, setModal] = useState<ModalState>({ open: false })
@@ -105,14 +105,12 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     setModal({ open: false })
   }
 
-  function handleSaved() {
-    closeModal()
-    router.refresh()
+  function handleSaved(message?: string) {
+    afterSave(message ?? '품목이 저장되었습니다.', { close: closeModal })
   }
 
-  function handleDeleted() {
-    closeModal()
-    router.refresh()
+  function handleDeleted(message?: string) {
+    afterDelete(message ?? '품목이 삭제되었습니다.', { close: closeModal })
   }
 
   if (!result.ok) {

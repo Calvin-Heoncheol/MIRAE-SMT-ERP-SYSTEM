@@ -11,6 +11,7 @@ import { describeDeliveryBlockReason } from '@/lib/delivery/utils'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionProductName } from '@/lib/production-input/utils'
 import type { DeliveryRecord } from '@/lib/delivery/types'
+import { useToast } from '@/components/ui/toast-provider'
 
 type DeliveryInputShipPanelProps = {
   order: ProductionOrderLine | null
@@ -31,6 +32,7 @@ export function DeliveryInputShipPanel({
   embedded = false,
   onShipped,
 }: DeliveryInputShipPanelProps) {
+  const toast = useToast()
   const [qty, setQty] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -125,10 +127,12 @@ export function DeliveryInputShipPanel({
     onShipped(assemblyGroupId, result.cumulative, nextAvailability)
     setLastRecord(result.record)
     setQty(presetQuantity(nextAvailability))
+    const okText = `출하번호 ${result.record.id} · ${value.toLocaleString('ko-KR')}개 등록 (누적 ${result.cumulative.toLocaleString('ko-KR')}개)`
     setMessage({
-      text: `출하번호 ${result.record.id} · ${value.toLocaleString('ko-KR')}개 등록 (누적 ${result.cumulative.toLocaleString('ko-KR')}개)`,
+      text: okText,
       kind: 'ok',
     })
+    toast.success('출하 등록 완료', okText)
 
     if (printAfter) {
       const printed = await handlePrintStatement(result.record, value)
@@ -137,6 +141,7 @@ export function DeliveryInputShipPanel({
           text: '출하는 등록됐지만 거래명세서를 열 수 없습니다. 팝업 차단을 해제해 주세요.',
           kind: 'err',
         })
+        toast.error('거래명세서 인쇄 실패', '출하는 등록됐습니다. 팝업 차단을 확인해 주세요.')
       }
     }
   }
