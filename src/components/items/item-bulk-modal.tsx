@@ -32,7 +32,7 @@ type ItemBulkModalProps = {
   open: boolean
   initialCategory?: ItemCategory | null
   onClose: () => void
-  onSaved?: () => void
+  onSaved?: (message?: string) => void
 }
 
 export function ItemBulkModal({
@@ -59,7 +59,7 @@ function ItemBulkModalContent({
 }: {
   initialCategory: ItemCategory | null
   onClose: () => void
-  onSaved?: () => void
+  onSaved?: (message?: string) => void
 }) {
   const pasteRef = useRef<HTMLTextAreaElement>(null)
   const [category, setCategory] = useState<ItemCategory>(initialCategory ?? 1)
