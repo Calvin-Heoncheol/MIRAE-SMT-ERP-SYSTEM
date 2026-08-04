@@ -10,7 +10,7 @@ import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
-import { downloadExcelSheets } from '@/lib/excel/export'
+import { downloadExcelSheets, type ExcelColumn } from '@/lib/excel/export'
 import type { FetchOrdersResult } from '@/lib/orders/repository'
 import type { OrderLineItem, OrderListGroup } from '@/lib/orders/types'
 import {
@@ -140,65 +140,69 @@ export function OrdersListWorkspace({
       order.items.map((item) => ({ order, item })),
     )
 
+    const orderColumns: ExcelColumn<OrderListGroup>[] = [
+      { header: '주문일', value: (row) => row.orderDate, width: 12 },
+      {
+        header: '납기일',
+        value: (row) => formatOrderDeliverySummary(row),
+        width: 14,
+      },
+      {
+        header: '주문서번호',
+        value: (row) => formatInternalCodeLabel(row.orderNumber),
+        width: 18,
+      },
+      { header: '고객사', value: (row) => row.customer, width: 18 },
+      {
+        header: '제품',
+        value: (row) => formatProductSummary(row),
+        width: 28,
+      },
+      { header: '수량합계', value: (row) => row.totalQuantity, width: 10 },
+      { header: '주문금액', value: (row) => row.totalAmount, width: 12 },
+      { header: '구분', value: (row) => row.category, width: 8 },
+      {
+        header: '상태',
+        value: (row) => (completedSet.has(row.orderId) ? '완료' : '진행중'),
+        width: 8,
+      },
+      { header: '등록자', value: (row) => row.createdByName, width: 12 },
+      { header: '비고', value: (row) => row.note, width: 24 },
+    ]
+
+    const lineColumns: ExcelColumn<OrderLineExcelRow>[] = [
+      {
+        header: '주문서번호',
+        value: (row) => formatInternalCodeLabel(row.order.orderNumber),
+        width: 18,
+      },
+      { header: '고객사', value: (row) => row.order.customer, width: 16 },
+      { header: '주문일', value: (row) => row.order.orderDate, width: 12 },
+      { header: '구분', value: (row) => row.order.category, width: 8 },
+      { header: '품목코드', value: (row) => row.item.productCode, width: 16 },
+      { header: '품목명', value: (row) => row.item.productName, width: 26 },
+      { header: '수량', value: (row) => row.item.quantity, width: 10 },
+      { header: '단가', value: (row) => row.item.unitPrice, width: 12 },
+      { header: '금액', value: (row) => row.item.orderAmount, width: 12 },
+      {
+        header: '납기일',
+        value: (row) => row.item.deliveryDate || row.order.deliveryDate,
+        width: 12,
+      },
+    ]
+
     await downloadExcelSheets({
       fileName: '주문서',
       sheets: [
         {
           sheetName: '주문서',
-          rows: filtered,
-          columns: [
-            { header: '주문일', value: (row) => row.orderDate, width: 12 },
-            {
-              header: '납기일',
-              value: (row) => formatOrderDeliverySummary(row),
-              width: 14,
-            },
-            {
-              header: '주문서번호',
-              value: (row) => formatInternalCodeLabel(row.orderNumber),
-              width: 18,
-            },
-            { header: '고객사', value: (row) => row.customer, width: 18 },
-            {
-              header: '제품',
-              value: (row) => formatProductSummary(row),
-              width: 28,
-            },
-            { header: '수량합계', value: (row) => row.totalQuantity, width: 10 },
-            { header: '주문금액', value: (row) => row.totalAmount, width: 12 },
-            { header: '구분', value: (row) => row.category, width: 8 },
-            {
-              header: '상태',
-              value: (row) => (completedSet.has(row.orderId) ? '완료' : '진행중'),
-              width: 8,
-            },
-            { header: '등록자', value: (row) => row.createdByName, width: 12 },
-            { header: '비고', value: (row) => row.note, width: 24 },
-          ],
+          columns: orderColumns as ExcelColumn<unknown>[],
+          rows: filtered as unknown[],
         },
         {
           sheetName: '품목',
-          rows: lineRows,
-          columns: [
-            {
-              header: '주문서번호',
-              value: (row) => formatInternalCodeLabel(row.order.orderNumber),
-              width: 18,
-            },
-            { header: '고객사', value: (row) => row.order.customer, width: 16 },
-            { header: '주문일', value: (row) => row.order.orderDate, width: 12 },
-            { header: '구분', value: (row) => row.order.category, width: 8 },
-            { header: '품목코드', value: (row) => row.item.productCode, width: 16 },
-            { header: '품목명', value: (row) => row.item.productName, width: 26 },
-            { header: '수량', value: (row) => row.item.quantity, width: 10 },
-            { header: '단가', value: (row) => row.item.unitPrice, width: 12 },
-            { header: '금액', value: (row) => row.item.orderAmount, width: 12 },
-            {
-              header: '납기일',
-              value: (row) => row.item.deliveryDate || row.order.deliveryDate,
-              width: 12,
-            },
-          ],
+          columns: lineColumns as ExcelColumn<unknown>[],
+          rows: lineRows as unknown[],
         },
       ],
     })
