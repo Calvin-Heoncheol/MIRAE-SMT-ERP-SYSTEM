@@ -144,7 +144,7 @@ export function OrdersListWorkspace({
       fileName: '주문서',
       sheets: [
         {
-          name: '주문서',
+          sheetName: '주문서',
           rows: filtered,
           columns: [
             { header: '주문일', value: (row) => row.orderDate, width: 12 },
@@ -177,7 +177,7 @@ export function OrdersListWorkspace({
           ],
         },
         {
-          name: '품목',
+          sheetName: '품목',
           rows: lineRows,
           columns: [
             {
