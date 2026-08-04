@@ -420,7 +420,7 @@ export function ProductionInputPanel({
 
       {order ? (
         <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto overscroll-contain p-3 sm:p-4">
-          <section className="mx-auto w-full max-w-3xl shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <section className="mx-auto w-full max-w-5xl shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:max-w-6xl">
             {planControls ? (
               <div className="border-b border-slate-100 pb-3">{planControls}</div>
             ) : null}
@@ -746,11 +746,11 @@ export function ProductionInputPanel({
       ) : (
         <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto overscroll-contain p-3 sm:p-4">
           {showEmptyPlanControls && planControls ? (
-            <section className="mx-auto mb-3 w-full max-w-3xl shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <section className="mx-auto mb-3 w-full max-w-5xl shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm xl:max-w-6xl">
               {planControls}
             </section>
           ) : null}
-          <div className="flex w-full max-w-3xl flex-1 items-center justify-center px-4 py-8 text-center">
+          <div className="flex w-full max-w-5xl flex-1 items-center justify-center px-4 py-8 text-center xl:max-w-6xl">
             <div>
               <p className="text-sm font-semibold text-slate-600 sm:text-base">
                 {emptyPlanHint ||

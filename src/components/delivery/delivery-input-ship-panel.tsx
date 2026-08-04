@@ -11,6 +11,7 @@ import { describeDeliveryBlockReason } from '@/lib/delivery/utils'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionProductName } from '@/lib/production-input/utils'
 import type { DeliveryRecord } from '@/lib/delivery/types'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 import { useToast } from '@/components/ui/toast-provider'
 
 type DeliveryInputShipPanelProps = {
@@ -34,6 +35,7 @@ export function DeliveryInputShipPanel({
   onShipped,
 }: DeliveryInputShipPanelProps) {
   const toast = useToast()
+  const [recordDate, setRecordDate] = useState(todayYmdSeoul)
   const [qty, setQty] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -50,10 +52,14 @@ export function DeliveryInputShipPanel({
   const canRegister = Boolean(order && assemblyGroupId && registerMax > 0)
 
   useEffect(() => {
-    setQty(availability ? presetQuantity(availability) : '')
+    setRecordDate(todayYmdSeoul())
     setNote('')
     setLastRecord(null)
     setMessage(null)
+  }, [order?.uiKey])
+
+  useEffect(() => {
+    setQty(availability ? presetQuantity(availability) : '')
   }, [order?.uiKey, availability])
 
   function applyFullQuantity() {
@@ -87,6 +93,12 @@ export function DeliveryInputShipPanel({
   async function handleSubmit(printAfter = false) {
     if (!order || !availability) return
 
+    const shipDate = recordDate.trim()
+    if (!shipDate) {
+      setMessage({ text: '출하일을 선택하세요.', kind: 'err' })
+      return
+    }
+
     const value = Math.floor(Number(qty))
     if (!value || value < 1) {
       setMessage({ text: '출하 수량을 입력하세요.', kind: 'err' })
@@ -110,6 +122,7 @@ export function DeliveryInputShipPanel({
       assemblyGroupId,
       quantity: value,
       note: note.trim(),
+      recordDate: shipDate,
     })
 
     setSaving(false)
@@ -160,7 +173,7 @@ export function DeliveryInputShipPanel({
 
   const shellClass = embedded
     ? 'space-y-4'
-    : 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
+    : 'mx-auto w-full max-w-5xl rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 xl:max-w-6xl'
 
   return (
     <div className={shellClass}>
@@ -218,6 +231,17 @@ export function DeliveryInputShipPanel({
 
       <div className={embedded ? 'space-y-4' : 'mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end'}>
         <div className="space-y-3">
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-slate-600">출하일</span>
+            <input
+              id="delivery-date-input"
+              type="date"
+              value={recordDate}
+              disabled={saving}
+              onChange={(event) => setRecordDate(event.target.value)}
+              className="w-full max-w-sm rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50 disabled:text-slate-400"
+            />
+          </label>
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <label htmlFor="delivery-qty-input" className="text-sm font-bold text-slate-700">
@@ -244,7 +268,7 @@ export function DeliveryInputShipPanel({
                 if (event.key === 'Enter') void handleSubmit(false)
               }}
               placeholder="0"
-              className="w-full max-w-xs rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-2xl font-bold tabular-nums text-slate-900 outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-100 disabled:bg-slate-50 disabled:text-slate-400"
+              className="w-full max-w-sm rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-2xl font-bold tabular-nums text-slate-900 outline-none focus:border-slate-400 focus:ring-4 focus:ring-slate-100 disabled:bg-slate-50 disabled:text-slate-400"
             />
           </div>
           <label className="block text-sm">

@@ -4,17 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { ProductionFetchError } from '@/components/production-input/production-fetch-error'
 import { ProductionInputPanel } from '@/components/production-input/production-input-panel'
 import { ProductionOrderSidebar } from '@/components/production-input/production-order-sidebar'
-import { ErpModal } from '@/components/ui/erp-modal'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import type { PostProcessPlanBlock } from '@/lib/post-process/plan/types'
 import { DEFAULT_POST_PROCESS_TEAM, type PostProcessTeam } from '@/lib/post-process/teams'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { FetchProductionInputPageResult } from '@/lib/production-input/repository'
 import type { ProductionInputConfig, ProductionOrderLine } from '@/lib/production-input/types'
-import {
-  filterProductionOrders,
-  formatProductionProductDisplay,
-} from '@/lib/production-input/utils'
+import { filterProductionOrders } from '@/lib/production-input/utils'
 import { buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
 import type { SmtPlanBlock } from '@/lib/smt/plan/types'
 
@@ -79,7 +75,6 @@ export function ProductionInputWorkspace({
 }: ProductionInputWorkspaceProps) {
   const [search, setSearch] = useState('')
   const [selectedKey, setSelectedKey] = useState(initialUiKey)
-  const [inputModalOpen, setInputModalOpen] = useState(Boolean(initialUiKey))
   const [selectedLineNo, setSelectedLineNo] = useState<number | null>(null)
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
   const selectedTeam = postProcessTeam
@@ -95,7 +90,6 @@ export function ProductionInputWorkspace({
 
   useEffect(() => {
     setSelectedKey(initialUiKey)
-    if (initialUiKey) setInputModalOpen(true)
   }, [initialUiKey])
 
   const data = result.ok ? result.data : null
@@ -185,19 +179,6 @@ export function ProductionInputWorkspace({
     showOrderSidebar,
     isPostProcess,
   ])
-
-  function handleSearchChange(value: string) {
-    setSearch(value)
-  }
-
-  function handleSelect(uiKey: string) {
-    setSelectedKey(uiKey)
-    setInputModalOpen(true)
-  }
-
-  function closeInputModal() {
-    setInputModalOpen(false)
-  }
 
   function handleSelectLine(lineNo: number | null) {
     setSelectedLineNo(lineNo)
@@ -308,62 +289,36 @@ export function ProductionInputWorkspace({
     )
   }
 
-  const modalProduct = selectedOrder
-    ? formatProductionProductDisplay(selectedOrder)
-    : null
-  const modalDescription = selectedOrder
-    ? [
-        selectedOrder.orderNumber,
-        selectedOrder.customer,
-        selectedOrder.productCode,
-        modalProduct?.name,
-      ]
-        .filter(Boolean)
-        .join(' · ')
-    : undefined
-
   return (
-    <>
-      <div className={flushShellClass}>
-        <ProductionOrderSidebar
-          variant="board"
-          orders={filtered}
+    <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white lg:flex-row">
+      <ProductionOrderSidebar
+        variant="rail"
+        orders={filtered}
+        counts={counts}
+        selectedKey={selectedKey}
+        search={search}
+        onSearchChange={setSearch}
+        onSelect={setSelectedKey}
+      />
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
+        <ProductionInputPanel
+          order={selectedOrder}
           counts={counts}
-          selectedKey={selectedKey}
-          search={search}
-          onSearchChange={handleSearchChange}
-          onSelect={handleSelect}
+          defectCounts={defectCounts}
+          config={config}
+          showLineSelector={!isPostProcess}
+          lineNo={!isPostProcess ? selectedLineNo : null}
+          onLineNoChange={!isPostProcess ? handleSelectLine : undefined}
+          postProcessTeam={isPostProcess ? selectedTeam : undefined}
+          onCountUpdated={(countKey, cumulative, defectCumulative) => {
+            setCounts((current) => ({ ...current, [countKey]: cumulative }))
+            if (defectCumulative != null) {
+              setDefectCounts((current) => ({ ...current, [countKey]: defectCumulative }))
+            }
+          }}
         />
       </div>
-
-      <ErpModal
-        open={inputModalOpen && Boolean(selectedOrder)}
-        title="생산 등록"
-        description={modalDescription}
-        size="lg"
-        onClose={closeInputModal}
-        contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
-      >
-        <div className="flex min-h-[min(70dvh,640px)] min-w-0 flex-1 flex-col overflow-hidden bg-slate-100">
-          <ProductionInputPanel
-            order={selectedOrder}
-            counts={counts}
-            defectCounts={defectCounts}
-            config={config}
-            embedded
-            showLineSelector={!isPostProcess}
-            lineNo={!isPostProcess ? selectedLineNo : null}
-            onLineNoChange={!isPostProcess ? handleSelectLine : undefined}
-            postProcessTeam={isPostProcess ? selectedTeam : undefined}
-            onCountUpdated={(countKey, cumulative, defectCumulative) => {
-              setCounts((current) => ({ ...current, [countKey]: cumulative }))
-              if (defectCumulative != null) {
-                setDefectCounts((current) => ({ ...current, [countKey]: defectCumulative }))
-              }
-            }}
-          />
-        </div>
-      </ErpModal>
-    </>
+    </div>
   )
 }
