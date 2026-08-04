@@ -489,7 +489,12 @@ export async function createItems(payloads: ItemPayload[]): Promise<CreateItemsR
   }
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return { ...missingEnvResult<SaveItemResult>(), savedCount: 0 }
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+      savedCount: 0,
+    }
   }
 
   const gate = await assertCanWrite({ module: 'master', action: 'create' })
