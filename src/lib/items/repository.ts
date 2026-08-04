@@ -35,12 +35,16 @@ function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }
   } as T
 }
 
-function mapDuplicateError(detail: string) {
+function mapDuplicateError(detail: string, itemCode?: string) {
   if (
     detail.includes('items_pkey') ||
     detail.includes('items_base_code_version_uidx') ||
     detail.includes('duplicate key')
   ) {
+    const code = itemCode?.trim()
+    if (code) {
+      return `이미 등록된 품목코드입니다: ${code}`
+    }
     return '이미 등록된 품목코드·버전입니다. 품목코드나 버전을 바꿔 주세요.'
   }
   return detail
@@ -259,7 +263,7 @@ async function replaceItemId(
   })
 
   if (insertError) {
-    return { ok: false, reason: 'query', detail: mapDuplicateError(insertError.message) }
+    return { ok: false, reason: 'query', detail: mapDuplicateError(insertError.message, newId) }
   }
 
   const rekey = await rekeyItemReferences(supabase, oldId, newId)
@@ -387,9 +391,15 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
       }
 
       const isDuplicate =
-        error.message.includes('items_pkey') || error.message.includes('duplicate key')
+        error.message.includes('items_pkey') ||
+        error.message.includes('items_base_code_version_uidx') ||
+        error.message.includes('duplicate key')
       if (!isDuplicate || attempt === 2) {
-        return { ok: false, reason: 'query', detail: mapDuplicateError(error.message) }
+        return {
+          ok: false,
+          reason: 'query',
+          detail: mapDuplicateError(error.message, insertPayload.id),
+        }
       }
     }
 
@@ -407,27 +417,168 @@ export type CreateItemsResult =
   | { ok: true; ids: string[] }
   | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string; savedCount: number }
 
-/** 일괄 등록 — 행 단위로 순차 저장 (중간 실패 시 이미 저장된 건수 포함) */
+function formatDuplicateItemCodesDetail(codes: string[], prefix: string) {
+  const unique = [...new Set(codes.map((code) => code.trim()).filter(Boolean))]
+  if (!unique.length) return prefix
+  return `${prefix}: ${unique.join(', ')} (총 ${unique.length}개)`
+}
+
+function buildCreateInsertPayload(
+  payload: ItemPayload,
+): { ok: true; payload: ItemPayload } | { ok: false; detail: string } {
+  if (!payload.id.trim() && isManualItemCodeCategory(payload.itemCategory)) {
+    return { ok: false, detail: '품목코드를 입력해 주세요.' }
+  }
+  if (!payload.name.trim()) {
+    return { ok: false, detail: '품목명을 입력해 주세요.' }
+  }
+  if (!normalizeItemCategory(payload.itemCategory)) {
+    return { ok: false, detail: '품목구분을 선택해 주세요.' }
+  }
+
+  const resolved = resolveCreateItemId(payload)
+  if (!resolved.ok) {
+    return { ok: false, detail: resolved.detail }
+  }
+
+  return {
+    ok: true,
+    payload: {
+      ...payload,
+      id: resolved.id,
+      baseCode:
+        payload.baseCode.trim() ||
+        parseItemVersionCode(resolved.id).base ||
+        resolved.id,
+      version:
+        payload.version ||
+        normalizeVersionLabel(parseItemVersionCode(resolved.id).version || ''),
+    },
+  }
+}
+
+async function fetchExistingItemIds(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  ids: string[],
+): Promise<{ ok: true; existingIds: Set<string> } | { ok: false; detail: string }> {
+  const existingIds = new Set<string>()
+  const chunkSize = 200
+
+  for (let offset = 0; offset < ids.length; offset += chunkSize) {
+    const chunk = ids.slice(offset, offset + chunkSize)
+    const { data, error } = await supabase.from('items').select('id').in('id', chunk)
+    if (error) {
+      return { ok: false, detail: error.message }
+    }
+    for (const row of data || []) {
+      const id = String((row as { id?: string }).id || '').trim()
+      if (id) existingIds.add(id)
+    }
+  }
+
+  return { ok: true, existingIds }
+}
+
+/**
+ * 일괄 등록 — 저장 전 중복을 전부 검사하고, 하나라도 있으면 저장하지 않는다.
+ * (그 외 행 단위 오류는 기존처럼 중단 · savedCount 포함)
+ */
 export async function createItems(payloads: ItemPayload[]): Promise<CreateItemsResult> {
   if (!payloads.length) {
     return { ok: false, reason: 'validation', detail: '등록할 품목이 없습니다.', savedCount: 0 }
   }
 
-  const ids: string[] = []
-  for (let index = 0; index < payloads.length; index += 1) {
-    const result = await createItem(payloads[index])
-    if (!result.ok) {
-      return {
-        ok: false,
-        reason: result.reason,
-        detail: `${index + 1}행: ${result.detail}`,
-        savedCount: ids.length,
-      }
-    }
-    ids.push(result.id)
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return { ...missingEnvResult<SaveItemResult>(), savedCount: 0 }
   }
 
-  return { ok: true, ids }
+  const gate = await assertCanWrite({ module: 'master', action: 'create' })
+  if (!gate.ok) {
+    return { ok: false, reason: gate.reason, detail: gate.detail, savedCount: 0 }
+  }
+
+  const prepared: ItemPayload[] = []
+  for (let index = 0; index < payloads.length; index += 1) {
+    const built = buildCreateInsertPayload(payloads[index])
+    if (!built.ok) {
+      return {
+        ok: false,
+        reason: 'validation',
+        detail: `${index + 1}행: ${built.detail}`,
+        savedCount: 0,
+      }
+    }
+    prepared.push(built.payload)
+  }
+
+  const idCounts = new Map<string, number>()
+  for (const row of prepared) {
+    const id = row.id.trim()
+    idCounts.set(id, (idCounts.get(id) ?? 0) + 1)
+  }
+  const batchDuplicates = [...idCounts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([id]) => id)
+  if (batchDuplicates.length) {
+    return {
+      ok: false,
+      reason: 'validation',
+      detail: formatDuplicateItemCodesDetail(
+        batchDuplicates,
+        '붙여넣기 목록에 중복 품목코드가 있습니다',
+      ),
+      savedCount: 0,
+    }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const existingResult = await fetchExistingItemIds(
+      supabase,
+      prepared.map((row) => row.id.trim()),
+    )
+    if (!existingResult.ok) {
+      return { ok: false, reason: 'query', detail: existingResult.detail, savedCount: 0 }
+    }
+
+    const alreadyRegistered = prepared
+      .map((row) => row.id.trim())
+      .filter((id) => existingResult.existingIds.has(id))
+    if (alreadyRegistered.length) {
+      return {
+        ok: false,
+        reason: 'validation',
+        detail: formatDuplicateItemCodesDetail(
+          alreadyRegistered,
+          '이미 등록된 품목코드입니다',
+        ),
+        savedCount: 0,
+      }
+    }
+
+    const ids: string[] = []
+    for (let index = 0; index < prepared.length; index += 1) {
+      const result = await createItem(prepared[index])
+      if (!result.ok) {
+        return {
+          ok: false,
+          reason: result.reason,
+          detail: `${index + 1}행: ${result.detail}`,
+          savedCount: ids.length,
+        }
+      }
+      ids.push(result.id)
+    }
+
+    return { ok: true, ids }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+      savedCount: 0,
+    }
+  }
 }
 
 export async function updateItem(

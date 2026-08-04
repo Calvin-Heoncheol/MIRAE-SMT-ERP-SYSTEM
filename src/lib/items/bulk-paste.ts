@@ -73,14 +73,180 @@ export function defaultItemBulkRow(category: ItemCategory): ItemFormState {
   return form
 }
 
-function splitPasteColumns(line: string): string[] {
-  if (line.includes('\t')) return line.split('\t')
-  if (line.includes(',')) return line.split(',')
-  return line.split(/\s{2,}/)
+function normalizePasteRawText(text: string) {
+  return text
+    .replace(/\uFEFF/g, '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\u3000/g, ' ')
 }
 
-function isHeaderLine(line: string, category: ItemCategory) {
-  const first = (splitPasteColumns(line)[0] || '').trim()
+function normalizePasteCell(value: string) {
+  return normalizePasteRawText(value).trim()
+}
+
+function splitPasteLines(text: string) {
+  const lines = normalizePasteRawText(text)
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .split('\n')
+  while (lines.length > 0 && !lines[lines.length - 1].trim()) {
+    lines.pop()
+  }
+  return lines
+}
+
+type PasteDelimiter = 'tab' | 'comma' | 'multispace' | 'none'
+
+function splitByDelimiter(line: string, delimiter: PasteDelimiter): string[] {
+  if (delimiter === 'tab') return line.split('\t')
+  if (delimiter === 'comma') return line.split(/[,，]/)
+  if (delimiter === 'multispace') return line.split(/\s{2,}/)
+  return [line]
+}
+
+function scoreDelimiter(lines: string[], delimiter: PasteDelimiter, expectedCols: number) {
+  if (!lines.length) return Number.POSITIVE_INFINITY
+  let total = 0
+  for (const line of lines) {
+    const count = splitByDelimiter(line, delimiter).length
+    // 열 수가 기대보다 많이 쪼개지면(이름 안 공백 등) 강하게 감점
+    const over = Math.max(0, count - expectedCols)
+    const under = Math.max(0, expectedCols - count)
+    total += under + over * 3
+  }
+  return total / lines.length
+}
+
+/**
+ * 붙여넣기 전체에서 구분자 1회 결정.
+ * - 탭이 있으면 무조건 탭(엑셀 기본)
+ * - 없으면 쉼표 / 연속공백 중 기대 열 수에 더 가까운 쪽
+ * - 둘 다 크게 어긋나면 분할하지 않음(한 칸에 넣고 수동 수정 유도)
+ */
+function detectPasteDelimiter(lines: string[], expectedCols: number): PasteDelimiter {
+  const dataLines = lines.map((line) => line.trim()).filter(Boolean)
+  if (!dataLines.length) return 'none'
+  if (dataLines.some((line) => line.includes('\t'))) return 'tab'
+
+  const commaScore = scoreDelimiter(dataLines, 'comma', expectedCols)
+  const spaceScore = scoreDelimiter(dataLines, 'multispace', expectedCols)
+  const noneScore = scoreDelimiter(dataLines, 'none', expectedCols)
+
+  const best = Math.min(commaScore, spaceScore, noneScore)
+  if (best === noneScore) return 'none'
+  if (commaScore <= spaceScore) return 'comma'
+  return 'multispace'
+}
+
+function packFields(parts: string[], fieldCount: number): string[] {
+  if (fieldCount <= 0) return []
+  if (fieldCount === 1) return [parts.filter(Boolean).join(' ')]
+  if (parts.length <= fieldCount) {
+    return [...parts, ...Array.from({ length: fieldCount - parts.length }, () => '')]
+  }
+  if (fieldCount === 2) {
+    return [parts[0] || '', parts.slice(1).filter(Boolean).join(' ')]
+  }
+  const head = parts[0] || ''
+  const tailCount = fieldCount - 2
+  const tail = parts.slice(-tailCount)
+  const middle = parts.slice(1, parts.length - tailCount).filter(Boolean).join(' ')
+  return [head, middle, ...tail]
+}
+
+/** 원자재: SMD/DIP·도급/사급 앵커로 열 밀림 복구 */
+function realignRawMaterialColumns(cols: string[]): string[] | null {
+  let supplyIdx = -1
+  for (let index = cols.length - 1; index >= 0; index -= 1) {
+    if (cols[index] === '도급' || cols[index] === '사급') {
+      supplyIdx = index
+      break
+    }
+  }
+  if (supplyIdx < 1) return null
+
+  let materialIdx = -1
+  for (let index = supplyIdx - 1; index >= 0; index -= 1) {
+    const upper = cols[index].toUpperCase()
+    if (upper === 'SMD' || upper === 'DIP') {
+      materialIdx = index
+      break
+    }
+  }
+  if (materialIdx < 1) return null
+
+  const left = cols.slice(0, materialIdx)
+  const right = cols.slice(supplyIdx + 1)
+  const [id, name, specification, mpn] = packFields(left, 4)
+  const [supplier, unitPrice] = packFields(right, 2)
+
+  return [
+    id,
+    name,
+    specification,
+    mpn,
+    cols[materialIdx],
+    cols[supplyIdx],
+    supplier,
+    unitPrice,
+  ]
+}
+
+/** 반제품: 면구분 앵커로 열 밀림 복구 */
+function realignSemiFinishedColumns(cols: string[]): string[] | null {
+  let sideIdx = -1
+  for (let index = 0; index < cols.length; index += 1) {
+    const mode = normalizePastePcbSideMode(cols[index])
+    if (mode) {
+      sideIdx = index
+      break
+    }
+  }
+  if (sideIdx < 1) return null
+
+  const left = cols.slice(0, sideIdx)
+  const right = cols.slice(sideIdx + 1)
+  const [id, name] = packFields(left, 2)
+  const prices = packFields(right, 3)
+  return [id, name, cols[sideIdx], prices[0], prices[1], prices[2]]
+}
+
+function realignOverSplitColumns(
+  cols: string[],
+  delimiter: PasteDelimiter,
+  expectedCols: number,
+  category: ItemCategory,
+): string[] {
+  if (cols.length <= expectedCols) return cols
+  if (delimiter !== 'multispace' && delimiter !== 'comma') return cols
+
+  if (category === 1) {
+    const aligned = realignRawMaterialColumns(cols)
+    if (aligned) return aligned
+  }
+  if (category === 3) {
+    const aligned = realignSemiFinishedColumns(cols)
+    if (aligned) return aligned
+  }
+
+  const head = cols.slice(0, expectedCols - 1)
+  const tail = cols.slice(expectedCols - 1).filter(Boolean).join(' ')
+  return [...head, tail]
+}
+
+function splitPasteColumns(
+  line: string,
+  delimiter: PasteDelimiter,
+  expectedCols: number,
+  category: ItemCategory,
+): string[] {
+  const cols = splitByDelimiter(line, delimiter).map(normalizePasteCell)
+  return realignOverSplitColumns(cols, delimiter, expectedCols, category)
+}
+
+function isHeaderLine(line: string, category: ItemCategory, delimiter: PasteDelimiter) {
+  const expectedCols = itemBulkColumns(category).length
+  const first = splitPasteColumns(line, delimiter, expectedCols, category)[0] || ''
   if (!first) return false
   if (/^품목(코드|명)$/i.test(first)) return true
   return itemBulkColumns(category).some((column) => column.label === first)
@@ -115,7 +281,7 @@ function applyPasteValue(
   key: keyof ItemFormState,
   raw: string,
 ): ItemFormState {
-  const value = raw.trim()
+  const value = normalizePasteCell(raw)
   switch (key) {
     case 'materialType':
       return { ...form, materialType: normalizePasteMaterialType(value) }
@@ -138,27 +304,19 @@ function applyPasteValue(
   }
 }
 
-function splitPasteLines(text: string) {
-  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-  while (lines.length > 0 && !lines[lines.length - 1].trim()) {
-    lines.pop()
-  }
-  return lines
-}
-
 /** Excel 등에서 복사한 행을 품목구분별 열 순서에 맞춰 파싱 */
 export function parseItemBulkPaste(text: string, category: ItemCategory): ItemFormState[] {
   const columns = itemBulkColumns(category)
-  const lines = splitPasteLines(text)
-    .map((line) => line.trim())
-    .filter(Boolean)
+  const expectedCols = columns.length
+  const lines = splitPasteLines(text).map((line) => line.trimEnd()).filter((line) => line.trim())
+  const delimiter = detectPasteDelimiter(lines, expectedCols)
 
   const rows: ItemFormState[] = []
 
   for (const line of lines) {
-    if (isHeaderLine(line, category)) continue
+    if (isHeaderLine(line, category, delimiter)) continue
 
-    const cols = splitPasteColumns(line).map((col) => col.trim())
+    const cols = splitPasteColumns(line, delimiter, expectedCols, category)
     if (!cols.some(Boolean)) continue
 
     let form = defaultItemBulkRow(category)

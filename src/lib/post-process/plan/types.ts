@@ -42,6 +42,8 @@ export type PostProcessPlanOrderCandidate = {
   /** SMT 공정이 없는 제품이면 null */
   smt?: CandidateSmtStatus | null
   materialStatus?: MaterialInboundStatus
+  /** 입고예정일 때 병목 납기 (YYYY-MM-DD) */
+  materialExpectedReadyDate?: string | null
 }
 
 export type PostProcessPlanBlock = PostProcessProductionPlan & {

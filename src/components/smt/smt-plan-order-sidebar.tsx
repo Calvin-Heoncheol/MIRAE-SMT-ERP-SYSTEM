@@ -157,7 +157,10 @@ export function SmtPlanOrderSidebar({
                 </div>
 
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <MaterialInboundStatusBadge status={candidate.materialStatus} />
+                  <MaterialInboundStatusBadge
+                    status={candidate.materialStatus}
+                    expectedReadyDate={candidate.materialExpectedReadyDate}
+                  />
                 </div>
 
                 <p className="mt-1.5 text-[13px] font-semibold tabular-nums text-slate-700">

@@ -167,15 +167,6 @@ function ItemBulkModalContent({
       payloads.push(formToItemPayload(form))
     }
 
-    const duplicateIds = payloads
-      .map((payload) => payload.id.trim())
-      .filter(Boolean)
-      .filter((id, index, list) => list.indexOf(id) !== index)
-    if (duplicateIds.length) {
-      setSaveError(`붙여넣기 목록에 중복 품목코드가 있습니다: ${duplicateIds[0]}`)
-      return
-    }
-
     setSaving(true)
     setSaveError(null)
 

@@ -8,7 +8,7 @@ import { SideNavUserMenu } from '@/components/auth/side-nav-user-menu'
 import { NotificationBell } from '@/components/notifications/notification-bell'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { APP_SHORT_NAME } from '@/lib/app-config'
-import type { AuthProfile } from '@/lib/auth/types'
+import type { AuthDepartment, AuthProfile } from '@/lib/auth/types'
 import {
   getVisibleNavItems,
   isNavChildActive,
@@ -23,6 +23,33 @@ import {
 type SideNavProps = {
   profile?: AuthProfile | null
   authDisabled?: boolean
+}
+
+/** 생산팀 사용자는 본인 팀 하위 메뉴만 기본 펼침 */
+function shouldExpandMyProductionTeam(
+  label: string,
+  department: AuthDepartment | null | undefined,
+) {
+  if (!department) return false
+  if (department === 'production1') return label.includes('생산1')
+  if (department === 'production2') return label.includes('생산2')
+  if (department === 'production3') return label.includes('생산3')
+  if (department === 'production4') return label.includes('생산4')
+  return false
+}
+
+function shouldExpandProductionSection(
+  label: string,
+  department: AuthDepartment | null | undefined,
+) {
+  if (label !== '생산관리' || !department) return false
+  return (
+    department === 'production1' ||
+    department === 'production2' ||
+    department === 'production3' ||
+    department === 'production4' ||
+    department === 'quality'
+  )
 }
 
 function NavIcon({
@@ -184,16 +211,19 @@ function NavChildSection({
   child,
   pathname,
   search,
+  department,
   onNavigate,
 }: {
   child: NavChildItem
   pathname: string
   search: NavSearch | null
+  department?: AuthDepartment | null
   onNavigate?: () => void
 }) {
   const hasGrandchildren = Boolean(child.children?.length)
   const childActive = isNavChildItemActive(pathname, child, search)
-  const [expanded, setExpanded] = useState(childActive)
+  const preferMyTeam = shouldExpandMyProductionTeam(child.label, department)
+  const [expanded, setExpanded] = useState(childActive || preferMyTeam)
 
   useEffect(() => {
     if (childActive) setExpanded(true)
@@ -288,18 +318,22 @@ function NavSection({
   item,
   pathname,
   search,
+  department,
   onNavigate,
 }: {
   item: NavItem
   pathname: string
   search: NavSearch | null
+  department?: AuthDepartment | null
   onNavigate?: () => void
 }) {
   const hasChildren = Boolean(item.children?.length)
   const sectionActive = hasChildren
     ? isNavItemActive(pathname, item, search)
     : isNavLinkActive(pathname, item.href, search)
-  const [expanded, setExpanded] = useState(sectionActive)
+  const preferOpen =
+    sectionActive || shouldExpandProductionSection(item.label, department)
+  const [expanded, setExpanded] = useState(preferOpen)
 
   useEffect(() => {
     if (sectionActive) setExpanded(true)
@@ -354,6 +388,7 @@ function NavSection({
               child={child}
               pathname={pathname}
               search={search}
+              department={department}
               onNavigate={onNavigate}
             />
           ))}
@@ -393,11 +428,13 @@ function SidebarNavList({
   search,
   onNavigate,
   items,
+  department,
 }: {
   pathname: string
   search: NavSearch | null
   onNavigate?: () => void
   items: NavItem[]
+  department?: AuthDepartment | null
 }) {
   return (
     <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="주 메뉴">
@@ -407,6 +444,7 @@ function SidebarNavList({
           item={item}
           pathname={pathname}
           search={search}
+          department={department}
           onNavigate={onNavigate}
         />
       ))}
@@ -418,14 +456,22 @@ function SidebarNavListWithSearch({
   pathname,
   onNavigate,
   items,
+  department,
 }: {
   pathname: string
   onNavigate?: () => void
   items: NavItem[]
+  department?: AuthDepartment | null
 }) {
   const search = useSearchParams()
   return (
-    <SidebarNavList pathname={pathname} search={search} onNavigate={onNavigate} items={items} />
+    <SidebarNavList
+      pathname={pathname}
+      search={search}
+      onNavigate={onNavigate}
+      items={items}
+      department={department}
+    />
   )
 }
 
@@ -450,10 +496,21 @@ function SidebarNavBody({
   return (
     <Suspense
       fallback={
-        <SidebarNavList pathname={pathname} search={null} onNavigate={onNavigate} items={items} />
+        <SidebarNavList
+          pathname={pathname}
+          search={null}
+          onNavigate={onNavigate}
+          items={items}
+          department={profile?.department}
+        />
       }
     >
-      <SidebarNavListWithSearch pathname={pathname} onNavigate={onNavigate} items={items} />
+      <SidebarNavListWithSearch
+        pathname={pathname}
+        onNavigate={onNavigate}
+        items={items}
+        department={profile?.department}
+      />
     </Suspense>
   )
 }

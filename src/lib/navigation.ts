@@ -225,32 +225,29 @@ export function isNavItemActive(pathname: string, item: NavItem, search?: NavSea
 function mapVisibleNavChild(
   profile: { role: AuthRole; department: AuthDepartment | null },
   child: NavChildItem,
-): NavChildItem {
+): NavChildItem | null {
   if (child.children?.length) {
-    const children = child.children.map((grandchild) => ({
-      ...grandchild,
-      locked: !canAccessNavHref(profile, grandchild.href),
-    }))
-    const firstUnlocked = children.find((grandchild) => !grandchild.locked)
-    const groupLocked = !canAccessNavHref(profile, child.href) && !firstUnlocked
+    const children = child.children
+      .filter((grandchild) => canAccessNavHref(profile, grandchild.href))
+      .map((grandchild) => ({ ...grandchild, locked: false }))
+
+    if (!children.length) return null
 
     return {
       ...child,
-      href: firstUnlocked?.href ?? child.href,
-      locked: groupLocked,
+      href: children[0]?.href ?? child.href,
+      locked: false,
       children,
     }
   }
 
-  return {
-    ...child,
-    locked: !canAccessNavHref(profile, child.href),
-  }
+  if (!canAccessNavHref(profile, child.href)) return null
+  return { ...child, locked: false }
 }
 
 /**
- * 사이드바용 — 메뉴는 모두 보이되, 권한 없는 항목은 locked.
- * ERP 관리(adminOnly)만 비관리자에게 숨김.
+ * 사이드바용 — 권한 없는 메뉴는 숨김.
+ * ERP 관리(adminOnly)는 비관리자에게 숨김.
  * 인증 꺼짐(개발)이면 전체 노출.
  */
 export function getVisibleNavItems(options: {
@@ -271,25 +268,26 @@ export function getVisibleNavItems(options: {
     if (item.adminOnly && profile.role !== 'admin') continue
 
     if (!item.children?.length) {
-      visible.push({
-        ...item,
-        locked: !canAccessNavHref(profile, item.href),
-      })
+      if (!canAccessNavHref(profile, item.href)) continue
+      visible.push({ ...item, locked: false })
       continue
     }
 
-    const children = item.children.map((child) => mapVisibleNavChild(profile, child))
+    const children = item.children
+      .map((child) => mapVisibleNavChild(profile, child))
+      .filter((child): child is NavChildItem => child != null)
 
-    const parentLocked = !canAccessNavHref(profile, item.href)
-    const firstUnlocked = children.find((child) => !child.locked)
-    const parentHref = parentLocked
-      ? (firstUnlocked?.href ?? item.href)
-      : item.href
+    if (!children.length) continue
+
+    const parentAccessible = canAccessNavHref(profile, item.href)
+    const parentHref = parentAccessible
+      ? item.href
+      : (children[0]?.href ?? item.href)
 
     visible.push({
       ...item,
       href: parentHref,
-      locked: parentLocked && !firstUnlocked,
+      locked: false,
       children,
     })
   }

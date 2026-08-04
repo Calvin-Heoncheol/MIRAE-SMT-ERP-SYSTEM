@@ -16,6 +16,7 @@ import { useToast } from '@/components/ui/toast-provider'
 type DeliveryInputShipPanelProps = {
   order: ProductionOrderLine | null
   availability: DeliveryAvailability | null
+  /** 모달 등 — 헤더/제목 중복 줄이고 통계·폼만 표시 */
   embedded?: boolean
   onShipped: (assemblyGroupId: string, cumulative: number, availability: DeliveryAvailability) => void
 }
@@ -115,6 +116,7 @@ export function DeliveryInputShipPanel({
 
     if (!result.ok) {
       setMessage({ text: result.detail, kind: 'err' })
+      toast.error('출하 등록 실패', result.detail)
       return
     }
 
@@ -128,10 +130,6 @@ export function DeliveryInputShipPanel({
     setLastRecord(result.record)
     setQty(presetQuantity(nextAvailability))
     const okText = `출하번호 ${result.record.id} · ${value.toLocaleString('ko-KR')}개 등록 (누적 ${result.cumulative.toLocaleString('ko-KR')}개)`
-    setMessage({
-      text: okText,
-      kind: 'ok',
-    })
     toast.success('출하 등록 완료', okText)
 
     if (printAfter) {
@@ -153,7 +151,7 @@ export function DeliveryInputShipPanel({
         <div>
           <p className="text-sm font-semibold text-slate-600">주문서를 선택하세요</p>
           <p className="mt-1 text-xs text-slate-400">
-            왼쪽 목록에서 주문을 고른 뒤 출하 수량을 등록할 수 있습니다.
+            주문 카드를 선택한 뒤 출하 수량을 등록할 수 있습니다.
           </p>
         </div>
       </div>
@@ -292,12 +290,8 @@ export function DeliveryInputShipPanel({
         </div>
       </div>
 
-      {message ? (
-        <p
-          className={`text-sm font-medium ${message.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}
-        >
-          {message.text}
-        </p>
+      {message?.kind === 'err' ? (
+        <p className="text-sm font-medium text-red-700">{message.text}</p>
       ) : null}
     </div>
   )

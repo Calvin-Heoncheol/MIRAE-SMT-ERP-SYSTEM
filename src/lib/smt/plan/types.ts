@@ -32,6 +32,8 @@ export type SmtPlanOrderCandidate = {
   unplannedBySide: Partial<Record<SmtPcbSide, number>>
   daysUntilDelivery: number | null
   materialStatus?: MaterialInboundStatus
+  /** 입고예정일 때 병목 납기 (YYYY-MM-DD) */
+  materialExpectedReadyDate?: string | null
 }
 
 export type SmtPlanBlock = SmtProductionPlan & {

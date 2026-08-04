@@ -403,6 +403,9 @@ export async function fetchPostProcessPlanPageData(
   const pendingByMaterialId = pendingResult.ok
     ? pendingResult.pendingByMaterialId
     : new Map<string, number>()
+  const latestDeliveryDateByMaterialId = pendingResult.ok
+    ? pendingResult.latestDeliveryDateByMaterialId
+    : new Map<string, string>()
   const edgesByParent = buildBomEdgesByParent(bomEdges)
 
   const weekDates = getWeekDates(weekStart)
@@ -507,16 +510,19 @@ export async function fetchPostProcessPlanPageData(
       ).map((candidate) => {
         const line = lineByGroupId[candidate.assemblyGroupId]
         const productId = (line?.productCode || '').trim()
+        const materialInbound = resolveMaterialInboundStatus(
+          productId,
+          candidate.remaining,
+          edgesByParent,
+          onHandByMaterialId,
+          pendingByMaterialId,
+          latestDeliveryDateByMaterialId,
+        )
         return {
           ...candidate,
           smt: smtStatusByGroupId.get(candidate.assemblyGroupId) ?? null,
-          materialStatus: resolveMaterialInboundStatus(
-            productId,
-            candidate.remaining,
-            edgesByParent,
-            onHandByMaterialId,
-            pendingByMaterialId,
-          ),
+          materialStatus: materialInbound.status,
+          materialExpectedReadyDate: materialInbound.expectedReadyDate,
         }
       }),
       planProgress: progressResult.progress,

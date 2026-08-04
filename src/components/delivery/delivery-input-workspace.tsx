@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { DeliveryInputShipPanel } from '@/components/delivery/delivery-input-ship-panel'
 import { DeliveryOrderSidebar } from '@/components/delivery/delivery-order-sidebar'
 import { ProductionFetchError } from '@/components/production-input/production-fetch-error'
+import { ErpModal } from '@/components/ui/erp-modal'
 import type { FetchDeliveryInputPageResult } from '@/lib/delivery/repository'
 import { DELIVERY_INPUT_CONFIG } from '@/lib/delivery/config'
 import type { DeliveryAvailability } from '@/lib/delivery/utils'
@@ -11,6 +12,7 @@ import {
   filterDeliveryOrders,
   resolveDeliveryAvailabilityForOrder,
 } from '@/lib/delivery/utils'
+import { formatProductionProductDisplay } from '@/lib/production-input/utils'
 
 type DeliveryInputWorkspaceProps = {
   result: FetchDeliveryInputPageResult
@@ -23,12 +25,14 @@ export function DeliveryInputWorkspace({
 }: DeliveryInputWorkspaceProps) {
   const [search, setSearch] = useState('')
   const [selectedKey, setSelectedKey] = useState(initialUiKey)
+  const [inputModalOpen, setInputModalOpen] = useState(Boolean(initialUiKey))
   const [availabilityByGroupId, setAvailabilityByGroupId] = useState<
     Record<string, DeliveryAvailability>
   >(() => (result.ok ? result.data.availabilityByGroupId : {}))
 
   useEffect(() => {
     setSelectedKey(initialUiKey)
+    if (initialUiKey) setInputModalOpen(true)
   }, [initialUiKey])
 
   const orders = result.ok ? result.data.orders : []
@@ -53,6 +57,11 @@ export function DeliveryInputWorkspace({
 
   function handleSelect(uiKey: string) {
     setSelectedKey(uiKey)
+    setInputModalOpen(true)
+  }
+
+  function closeInputModal() {
+    setInputModalOpen(false)
   }
 
   function handleShipped(
@@ -68,27 +77,55 @@ export function DeliveryInputWorkspace({
   }
 
   const flushShellClass =
-    'flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white lg:flex-row'
+    'flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white'
+
+  const modalProduct = selectedOrder
+    ? formatProductionProductDisplay(selectedOrder)
+    : null
+  const modalDescription = selectedOrder
+    ? [
+        selectedOrder.orderNumber,
+        selectedOrder.customer,
+        selectedOrder.productCode,
+        modalProduct?.name,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : undefined
 
   return (
-    <div className={flushShellClass}>
-      <DeliveryOrderSidebar
-        orders={filtered}
-        availabilityByGroupId={availabilityByGroupId}
-        selectedKey={selectedKey}
-        search={search}
-        onSearchChange={handleSearchChange}
-        onSelect={handleSelect}
-      />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-t border-slate-200 bg-slate-100 lg:border-t-0">
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <DeliveryInputShipPanel
-            order={selectedOrder}
-            availability={selectedAvailability}
-            onShipped={handleShipped}
-          />
-        </div>
+    <>
+      <div className={flushShellClass}>
+        <DeliveryOrderSidebar
+          variant="board"
+          orders={filtered}
+          availabilityByGroupId={availabilityByGroupId}
+          selectedKey={selectedKey}
+          search={search}
+          onSearchChange={handleSearchChange}
+          onSelect={handleSelect}
+        />
       </div>
-    </div>
+
+      <ErpModal
+        open={inputModalOpen && Boolean(selectedOrder)}
+        title="출하 등록"
+        description={modalDescription}
+        size="lg"
+        onClose={closeInputModal}
+        contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+      >
+        <div className="flex min-h-[min(70dvh,640px)] min-w-0 flex-1 flex-col overflow-hidden bg-slate-100">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <DeliveryInputShipPanel
+              order={selectedOrder}
+              availability={selectedAvailability}
+              embedded
+              onShipped={handleShipped}
+            />
+          </div>
+        </div>
+      </ErpModal>
+    </>
   )
 }

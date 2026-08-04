@@ -131,11 +131,6 @@ function OrderModalContent({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
-  function applyBulkDeliveryDate(deliveryDate: string) {
-    setForm((current) => ({ ...current, deliveryDate }))
-    setItems((current) => current.map((item) => ({ ...item, deliveryDate })))
-  }
-
   async function handleSave() {
     const resolvedPartner = resolvePartnerFromInput(salesPartners, form.customer)
     if (!resolvedPartner) {
@@ -143,8 +138,14 @@ function OrderModalContent({
       return
     }
 
+    const headerDeliveryDate = String(form.deliveryDate || '').trim()
+    if (!headerDeliveryDate) {
+      setSaveError('납기일을 입력하세요.')
+      return
+    }
+
     const customerName = resolvedPartner.name
-    const validation = validateOrderItems(items, products, customerName)
+    const validation = validateOrderItems(items, products, customerName, headerDeliveryDate)
     if (!validation.ok) {
       setSaveError(validation.message)
       return
@@ -155,12 +156,6 @@ function OrderModalContent({
       setSaveError(orderCodeResult.message)
       return
     }
-
-    const lineDeliveryDates = validation.items
-      .map((item) => item.deliveryDate)
-      .filter(Boolean)
-      .sort()
-    const headerDeliveryDate = lineDeliveryDates[0] || ''
 
     const payload = {
       order_date: form.orderDate || todayYmdSeoul(),
@@ -338,10 +333,9 @@ function OrderModalContent({
           <input
             type="date"
             value={form.deliveryDate}
-            onChange={(event) => applyBulkDeliveryDate(event.target.value)}
+            onChange={(event) => updateForm('deliveryDate', event.target.value)}
             className={ERP_FIELD_INPUT_CLASS}
           />
-          <p className="mt-1 text-xs text-slate-500">입력 시 아래 제품 행 납기일에 일괄 반영됩니다.</p>
         </label>
       </div>
 
@@ -350,7 +344,6 @@ function OrderModalContent({
           items={items}
           customer={resolvePartnerFromInput(salesPartners, form.customer)?.name ?? form.customer}
           products={products}
-          defaultDeliveryDate={form.deliveryDate}
           onChange={setItems}
         />
       </div>

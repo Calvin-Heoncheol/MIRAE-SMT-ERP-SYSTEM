@@ -195,10 +195,10 @@ export function ProductionStatusTable({ lines, onStageClick }: ProductionStatusT
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="overflow-x-auto">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="min-h-0 flex-1 overflow-auto">
         <table className="min-w-[1080px] w-full border-collapse">
-          <thead className="bg-slate-50/90">
+          <thead className="sticky top-0 z-[1] bg-slate-50/95 backdrop-blur-sm">
             <tr>
               <th className="w-10 px-2 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <span className="sr-only">펼치기</span>

@@ -5,7 +5,6 @@ import { useMemo, useState, useTransition } from 'react'
 import { ProductionStatusQuickInputModal } from '@/components/production-status/production-status-quick-input-modal'
 import { ProductionStatusTable } from '@/components/production-status/production-status-table'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
-import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
@@ -33,12 +32,6 @@ function isLineDeliveryComplete(line: ProductionStatusLine) {
   return line.deliveryTarget > 0 && line.deliveryProduced >= line.deliveryTarget
 }
 
-function averagePercent(lines: ProductionStatusLine[], pick: (line: ProductionStatusLine) => number) {
-  if (!lines.length) return 0
-  const sum = lines.reduce((acc, line) => acc + Math.max(0, pick(line)), 0)
-  return Math.round(sum / lines.length)
-}
-
 export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -52,13 +45,6 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
 
   const doneCount = useMemo(() => lines.filter(isLineDeliveryComplete).length, [lines])
   const activeCount = lines.length - doneCount
-
-  const avgSmt = useMemo(() => averagePercent(lines, (line) => line.smtPercent), [lines])
-  const avgPost = useMemo(() => averagePercent(lines, (line) => line.postPercent), [lines])
-  const avgDelivery = useMemo(
-    () => averagePercent(lines, (line) => line.deliveryPercent),
-    [lines],
-  )
 
   const statusFilteredLines = useMemo(() => {
     if (statusFilter === 'all') return lines
@@ -132,16 +118,9 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
         }
       />
 
-      <section className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-6">
-        <KpiStatCard label="진행중" value={activeCount} unit="건" />
-        <KpiStatCard label="완료" value={doneCount} unit="건" tone="emerald" />
-        <KpiStatCard label="전체" value={lines.length} unit="건" tone="slate" />
-        <KpiStatCard label="평균 SMT" value={avgSmt} unit="%" tone="sky" />
-        <KpiStatCard label="평균 후공정" value={avgPost} unit="%" tone="emerald" />
-        <KpiStatCard label="평균 출하" value={avgDelivery} unit="%" tone="slate" />
-      </section>
-
-      <ProductionStatusTable lines={pagination.pageItems} onStageClick={handleStageClick} />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <ProductionStatusTable lines={pagination.pageItems} onStageClick={handleStageClick} />
+      </div>
 
       <ListPagination
         page={pagination.page}
@@ -152,7 +131,7 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
         totalCount={pagination.totalCount}
       />
 
-      <p className="text-xs text-slate-400">
+      <p className="shrink-0 text-xs text-slate-400">
         SMT·후공정·출하 칸을 클릭하면 생산실사(관리자) 입력을 할 수 있습니다. 등록 시 이력 비고에
         「생산실사(관리자)」또는 「직접출하(관리자)」가 남습니다.
       </p>

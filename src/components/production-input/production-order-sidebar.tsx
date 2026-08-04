@@ -26,17 +26,26 @@ type ProductionOrderSidebarProps = {
   search: string
   onSearchChange: (value: string) => void
   onSelect: (uiKey: string) => void
+  /** rail: 좁은 사이드 / board: 전체폭 카드 그리드(등록 모달용) */
+  variant?: 'rail' | 'board'
   /** SMT 생산계획 — 캘린더로 드래그 */
   enableDrag?: boolean
   onDragOrder?: (orderId: string) => void
   footerHint?: string
 }
 
-/** 카드 + gap 대략 높이 — 2줄 메타 카드 기준 */
+/** 카드 + gap 대략 높이 — 2줄 메타 카드 기준 (rail) */
 const ORDER_CARD_SLOT_PX = 124
 const MIN_ORDER_PAGE_SIZE = 3
 const MAX_ORDER_PAGE_SIZE = 10
 const DEFAULT_ORDER_PAGE_SIZE = 6
+/** board: 큰 카드 + gap-3, 2열 */
+const BOARD_CARD_SLOT_PX = 156
+const BOARD_MIN_PAGE_SIZE = 2
+const BOARD_MAX_PAGE_SIZE = 15
+const BOARD_DEFAULT_PAGE_SIZE = 6
+const BOARD_SM_BREAKPOINT_PX = 640
+const BOARD_LG_BREAKPOINT_PX = 1024
 
 type StatusFilter = 'all' | ProductionOrderState
 
@@ -79,6 +88,22 @@ function computePageSize(containerHeight: number) {
   )
 }
 
+function boardColumnCount(containerWidth: number) {
+  if (containerWidth >= BOARD_LG_BREAKPOINT_PX) return 3
+  if (containerWidth >= BOARD_SM_BREAKPOINT_PX) return 2
+  return 1
+}
+
+function computeBoardPageSize(containerHeight: number, containerWidth: number) {
+  if (containerHeight <= 0) return BOARD_DEFAULT_PAGE_SIZE
+  const columns = boardColumnCount(containerWidth)
+  const rows = Math.max(1, Math.floor(containerHeight / BOARD_CARD_SLOT_PX))
+  return Math.min(
+    BOARD_MAX_PAGE_SIZE,
+    Math.max(BOARD_MIN_PAGE_SIZE, rows * columns),
+  )
+}
+
 export function ProductionOrderSidebar({
   orders,
   counts,
@@ -86,12 +111,16 @@ export function ProductionOrderSidebar({
   search,
   onSearchChange,
   onSelect,
+  variant = 'rail',
   enableDrag = false,
   onDragOrder,
   footerHint,
 }: ProductionOrderSidebarProps) {
+  const isBoard = variant === 'board'
   const listRef = useRef<HTMLDivElement>(null)
-  const [pageSize, setPageSize] = useState(DEFAULT_ORDER_PAGE_SIZE)
+  const [pageSize, setPageSize] = useState(
+    isBoard ? BOARD_DEFAULT_PAGE_SIZE : DEFAULT_ORDER_PAGE_SIZE,
+  )
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
@@ -99,18 +128,22 @@ export function ProductionOrderSidebar({
     const el = listRef.current
     if (!el || typeof ResizeObserver === 'undefined') return
 
-    const update = (height: number) => {
-      setPageSize(computePageSize(height))
+    const update = (height: number, width: number) => {
+      setPageSize(
+        isBoard ? computeBoardPageSize(height, width) : computePageSize(height),
+      )
     }
 
-    update(el.clientHeight)
+    update(el.clientHeight, el.clientWidth)
     const observer = new ResizeObserver((entries) => {
-      const height = entries[0]?.contentRect.height ?? el.clientHeight
-      update(height)
+      const entry = entries[0]
+      const height = entry?.contentRect.height ?? el.clientHeight
+      const width = entry?.contentRect.width ?? el.clientWidth
+      update(height, width)
     })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [isBoard])
 
   const statusCounts = useMemo(() => {
     let none = 0
@@ -208,16 +241,24 @@ export function ProductionOrderSidebar({
   ]
 
   return (
-    <aside className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-b border-slate-200 bg-white lg:w-[360px] lg:flex-none lg:shrink-0 lg:border-b-0 lg:border-r">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-3 py-2.5">
-        <h4 className="text-sm font-bold text-slate-900">주문 선택</h4>
+    <aside
+      className={
+        isBoard
+          ? 'flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-white'
+          : 'flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden border-b border-slate-200 bg-white lg:w-[360px] lg:flex-none lg:shrink-0 lg:border-b-0 lg:border-r'
+      }
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-3 py-2.5 sm:px-4">
+        <h4 className="text-sm font-bold text-slate-900">
+          {isBoard ? '주문 선택 · 카드를 누르면 생산 등록' : '주문 선택'}
+        </h4>
         <span className="text-xs font-medium text-slate-400 tabular-nums">
           {filteredOrders.length.toLocaleString('ko-KR')}건
           {statusFilter !== 'all' ? ` / ${orders.length.toLocaleString('ko-KR')}` : ''}
         </span>
       </div>
 
-      <div className="shrink-0 space-y-2 border-b border-slate-100 px-3 py-2">
+      <div className="shrink-0 space-y-2 border-b border-slate-100 px-3 py-2 sm:px-4">
         <FilterChipBar
           options={statusChips}
           value={statusFilter}
@@ -234,7 +275,11 @@ export function ProductionOrderSidebar({
 
       <div
         ref={listRef}
-        className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden px-2 py-2"
+        className={
+          isBoard
+            ? 'min-h-0 flex-1 overflow-hidden px-3 py-3 sm:px-4'
+            : 'flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden px-2 py-2'
+        }
       >
         {!filteredOrders.length ? (
           <p className="py-8 text-center text-sm text-slate-400">
@@ -243,7 +288,14 @@ export function ProductionOrderSidebar({
               : '표시할 주문이 없습니다'}
           </p>
         ) : (
-          pageItems.map((order) => {
+          <div
+            className={
+              isBoard
+                ? 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3'
+                : 'flex flex-col gap-1.5'
+            }
+          >
+            {pageItems.map((order) => {
             const state = getProductionOrderState(order, counts)
             const selected = selectedKey === order.uiKey
             const cumulative = resolveProductionCount(order, counts)
@@ -283,7 +335,8 @@ export function ProductionOrderSidebar({
                 onClick={() => onSelect(order.uiKey)}
                 aria-pressed={selected}
                 className={[
-                  'w-full shrink-0 rounded-lg border border-transparent border-l-4 px-3 py-2 text-left transition',
+                  'w-full rounded-lg border border-transparent border-l-4 text-left transition',
+                  isBoard ? 'px-4 py-3.5 shadow-sm' : 'shrink-0 px-3 py-2',
                   enableDrag ? 'cursor-grab active:cursor-grabbing' : '',
                   selected
                     ? 'border-sky-500 border-l-sky-500 bg-sky-50 ring-1 ring-sky-200'
@@ -318,21 +371,41 @@ export function ProductionOrderSidebar({
 
                 <div className="mt-1.5 min-w-0">
                   <div className="flex items-baseline justify-between gap-2">
-                    <p className="min-w-0 truncate text-sm font-bold leading-snug text-slate-900">
+                    <p
+                      className={[
+                        'min-w-0 truncate font-bold leading-snug text-slate-900',
+                        isBoard ? 'text-base' : 'text-sm',
+                      ].join(' ')}
+                    >
                       <span>{productName}</span>
                       {productVersion ? (
-                        <span className="ml-1.5 text-[12px] font-semibold text-sky-600">
+                        <span
+                          className={[
+                            'ml-1.5 font-semibold text-sky-600',
+                            isBoard ? 'text-sm' : 'text-[12px]',
+                          ].join(' ')}
+                        >
                           {productVersion}
                         </span>
                       ) : null}
                     </p>
                     {order.customer ? (
-                      <span className="max-w-[40%] shrink-0 truncate text-[11px] font-medium text-slate-500">
+                      <span
+                        className={[
+                          'max-w-[40%] shrink-0 truncate font-medium text-slate-500',
+                          isBoard ? 'text-xs' : 'text-[11px]',
+                        ].join(' ')}
+                      >
                         {order.customer}
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-0.5 truncate text-[11px] leading-snug text-slate-600">
+                  <p
+                    className={[
+                      'mt-1 truncate leading-snug text-slate-600',
+                      isBoard ? 'text-xs' : 'text-[11px]',
+                    ].join(' ')}
+                  >
                     <span className="font-semibold tabular-nums text-slate-700">
                       {order.productCode || '—'}
                     </span>
@@ -343,8 +416,13 @@ export function ProductionOrderSidebar({
                   </p>
                 </div>
 
-                <div className="mt-1.5">
-                  <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-medium text-slate-500">
+                <div className={isBoard ? 'mt-2.5' : 'mt-1.5'}>
+                  <div
+                    className={[
+                      'mb-1 flex items-center justify-between gap-2 font-medium text-slate-500',
+                      isBoard ? 'text-xs' : 'text-[11px]',
+                    ].join(' ')}
+                  >
                     <span className="tabular-nums">
                       {order.splitPcbSides ? (
                         <>
@@ -366,7 +444,12 @@ export function ProductionOrderSidebar({
                       </span>
                     </span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={[
+                      'overflow-hidden rounded-full bg-slate-100',
+                      isBoard ? 'h-2' : 'h-1.5',
+                    ].join(' ')}
+                  >
                     <div
                       className={`h-full rounded-full transition-all ${progressBarClass(state, complete)}`}
                       style={{ width: `${progress}%` }}
@@ -375,7 +458,8 @@ export function ProductionOrderSidebar({
                 </div>
               </button>
             )
-          })
+          })}
+          </div>
         )}
       </div>
 

@@ -396,6 +396,9 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
   const pendingByMaterialId = pendingResult.ok
     ? pendingResult.pendingByMaterialId
     : new Map<string, number>()
+  const latestDeliveryDateByMaterialId = pendingResult.ok
+    ? pendingResult.latestDeliveryDateByMaterialId
+    : new Map<string, string>()
   const edgesByParent = buildBomEdgesByParent(bomEdges)
 
   const weekDates = getWeekDates(weekStart)
@@ -431,15 +434,18 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
   ).map((candidate) => {
     const line = lineById[candidate.orderLineId]
     const productId = (line?.productCode || '').trim()
+    const materialInbound = resolveMaterialInboundStatus(
+      productId,
+      candidate.smtRemaining,
+      edgesByParent,
+      onHandByMaterialId,
+      pendingByMaterialId,
+      latestDeliveryDateByMaterialId,
+    )
     return {
       ...candidate,
-      materialStatus: resolveMaterialInboundStatus(
-        productId,
-        candidate.smtRemaining,
-        edgesByParent,
-        onHandByMaterialId,
-        pendingByMaterialId,
-      ),
+      materialStatus: materialInbound.status,
+      materialExpectedReadyDate: materialInbound.expectedReadyDate,
     }
   })
 

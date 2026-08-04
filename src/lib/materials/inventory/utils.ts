@@ -1,15 +1,27 @@
 import type { Material } from '@/lib/materials/types'
 import { computePurchaseOrderRemainingQuantity } from '@/lib/materials/purchase-orders/utils'
-import type { InventoryFilterMode, MaterialInventoryRow, MaterialPurchaseOrderLineAggregateRecord } from './types'
+import type {
+  InventoryFilterMode,
+  MaterialInventoryRow,
+  MaterialPurchaseOrderLineAggregateRecord,
+  PendingInboundAggregate,
+} from './types'
 
 export function computePendingInboundQuantity(quantity: number, inboundQuantity: number) {
   return computePurchaseOrderRemainingQuantity(quantity, inboundQuantity)
 }
 
+function normalizeDeliveryYmd(value: string | null | undefined) {
+  if (!value) return null
+  const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null
+}
+
 export function aggregatePendingInboundByMaterialId(
   lines: MaterialPurchaseOrderLineAggregateRecord[],
-): Map<string, number> {
-  const totals = new Map<string, number>()
+): PendingInboundAggregate {
+  const pendingByMaterialId = new Map<string, number>()
+  const latestDeliveryDateByMaterialId = new Map<string, string>()
 
   for (const line of lines) {
     const materialId = line.material_id?.trim()
@@ -18,10 +30,17 @@ export function aggregatePendingInboundByMaterialId(
     const pending = computePendingInboundQuantity(line.quantity, line.inbound_quantity)
     if (pending <= 0) continue
 
-    totals.set(materialId, (totals.get(materialId) ?? 0) + pending)
+    pendingByMaterialId.set(materialId, (pendingByMaterialId.get(materialId) ?? 0) + pending)
+
+    const deliveryDate = normalizeDeliveryYmd(line.delivery_date)
+    if (!deliveryDate) continue
+    const prev = latestDeliveryDateByMaterialId.get(materialId)
+    if (!prev || deliveryDate > prev) {
+      latestDeliveryDateByMaterialId.set(materialId, deliveryDate)
+    }
   }
 
-  return totals
+  return { pendingByMaterialId, latestDeliveryDateByMaterialId }
 }
 
 export function mergeMaterialInventoryRows(

@@ -174,7 +174,10 @@ export function PostProcessPlanOrderSidebar({
                   {candidate.productSummary}
                 </p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <MaterialInboundStatusBadge status={candidate.materialStatus} />
+                  <MaterialInboundStatusBadge
+                    status={candidate.materialStatus}
+                    expectedReadyDate={candidate.materialExpectedReadyDate}
+                  />
                 </div>
                 <p className="mt-1 text-[13px] font-semibold tabular-nums text-sky-800">
                   수량 {candidate.unplannedRemaining.toLocaleString('ko-KR')}

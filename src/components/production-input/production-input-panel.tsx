@@ -56,6 +56,8 @@ type ProductionInputPanelProps = {
   /** 오늘 해당 계획에 이미 등록한 수량 */
   planProduced?: number
   onPlanProgressUpdated?: (progressKey: string, produced: number) => void
+  /** 모달 등 — 주문 정보 중복 헤더 축소 */
+  embedded?: boolean
 }
 
 export function ProductionInputPanel({
@@ -78,6 +80,7 @@ export function ProductionInputPanel({
   plan = null,
   planProduced = 0,
   onPlanProgressUpdated,
+  embedded = false,
 }: ProductionInputPanelProps) {
   const toast = useToast()
   const [activeSide, setActiveSide] = useState<SmtPcbSide>('SINGLE')
@@ -225,7 +228,6 @@ export function ProductionInputPanel({
     }
 
     function showRegisterOk(text: string) {
-      setMessage({ text, kind: 'ok' })
       toast.success('생산 등록 완료', text)
     }
 
@@ -243,6 +245,7 @@ export function ProductionInputPanel({
 
       if (!result.ok) {
         setMessage({ text: result.detail, kind: 'err' })
+        toast.error('생산 등록 실패', result.detail)
         return
       }
 
@@ -290,6 +293,7 @@ export function ProductionInputPanel({
 
     if (!result.ok) {
       setMessage({ text: result.detail, kind: 'err' })
+      toast.error('생산 등록 실패', result.detail)
       return
     }
 
@@ -327,7 +331,7 @@ export function ProductionInputPanel({
   const showEmptyPlanControls = Boolean(planSetupHref) || showPostProcessPlanSelector
   /** SMT=생산1팀, 후공정=생산2/3/4팀 — 주문서 미선택 empty state에서도 표시 */
   const headerTeamBadge = isPostProcess ? (postProcessTeam ?? null) : '생산1팀'
-  const showPanelHeader = Boolean(headerTeamBadge || order)
+  const showPanelHeader = Boolean(headerTeamBadge || (order && !embedded))
   const headerTeamBadgeClass = isPostProcess
     ? 'rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200'
     : 'rounded-lg bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-800 ring-1 ring-sky-200'
@@ -408,7 +412,7 @@ export function ProductionInputPanel({
           ) : (
             <span className="min-w-0" aria-hidden />
           )}
-          {order ? (
+          {order && !embedded ? (
             <span className="truncate text-xs font-medium text-slate-400">{order.orderNumber}</span>
           ) : null}
         </div>
@@ -422,12 +426,14 @@ export function ProductionInputPanel({
             ) : null}
 
             <div className={planControls ? 'mt-4' : undefined}>
-              <p className="text-sm text-slate-500">
-                <span className="font-medium text-slate-700">{order.customer || '—'}</span>
-                <span className="mx-2 text-slate-300">·</span>
-                <span className="font-mono text-slate-600">{order.orderNumber}</span>
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
+              {!embedded ? (
+                <p className="text-sm text-slate-500">
+                  <span className="font-medium text-slate-700">{order.customer || '—'}</span>
+                  <span className="mx-2 text-slate-300">·</span>
+                  <span className="font-mono text-slate-600">{order.orderNumber}</span>
+                </p>
+              ) : null}
+              <div className={[embedded ? 'mt-0' : 'mt-2', 'flex flex-wrap items-center gap-2'].join(' ')}>
                 <h2 className="text-xl font-bold leading-snug text-slate-900 break-keep sm:text-2xl">
                   {formatProductionProductName(order)}
                 </h2>
@@ -496,9 +502,7 @@ export function ProductionInputPanel({
                             {sideStacked.goodPercent > 0 ? (
                               <div
                                 className={`h-full transition-all ${
-                                  sideComplete && sideStacked.defectPercent <= 0
-                                    ? 'bg-emerald-500'
-                                    : 'bg-sky-500'
+                                  sideComplete ? 'bg-emerald-500' : 'bg-amber-500'
                                 }`}
                                 style={{ width: `${sideStacked.goodPercent}%` }}
                               />
@@ -551,9 +555,7 @@ export function ProductionInputPanel({
                         {stacked.goodPercent > 0 ? (
                           <div
                             className={`h-full transition-all ${
-                              progressComplete && stacked.defectPercent <= 0
-                                ? 'bg-emerald-500'
-                                : 'bg-sky-500'
+                              progressComplete ? 'bg-emerald-500' : 'bg-amber-500'
                             }`}
                             style={{ width: `${stacked.goodPercent}%` }}
                           />
@@ -733,14 +735,8 @@ export function ProductionInputPanel({
                 {saving ? '등록 중…' : `${qtyModeLabel} 등록`}
               </button>
 
-              {message ? (
-                <p
-                  className={`mt-3 rounded-lg px-3 py-2.5 text-center text-sm font-medium ${
-                    message.kind === 'ok'
-                      ? 'bg-emerald-50 text-emerald-800'
-                      : 'bg-red-50 text-red-700'
-                  }`}
-                >
+              {message?.kind === 'err' ? (
+                <p className="mt-3 rounded-lg bg-red-50 px-3 py-2.5 text-center text-sm font-medium text-red-700">
                   {message.text}
                 </p>
               ) : null}
@@ -773,7 +769,7 @@ export function ProductionInputPanel({
                     ? '위에서 SMT 라인을 고른 뒤 오늘 배정된 계획을 등록합니다.'
                     : showEmptyPlanControls && showLineSelector
                       ? '오늘 이 라인에 배정된 생산계획이 없습니다. 생산계획에서 일정을 먼저 배치해 주세요.'
-                      : '왼쪽 목록에서 작업할 주문서를 선택합니다.'}
+                      : '주문 카드를 선택한 뒤 생산 수량을 등록합니다.'}
               </p>
               {(showPostProcessPlanSelector ||
                 (showEmptyPlanControls && showLineSelector && lineNo != null)) &&

@@ -63,7 +63,7 @@ export async function fetchMaterialInventoryStatus(): Promise<FetchMaterialInven
     }
 
     const materials = (materialsResult.data || []).map((row) => mapItemRowToMaterial(row))
-    const pendingByMaterialId = aggregatePendingInboundByMaterialId(
+    const { pendingByMaterialId } = aggregatePendingInboundByMaterialId(
       (linesResult.data || []) as MaterialPurchaseOrderLineAggregateRecord[],
     )
 
