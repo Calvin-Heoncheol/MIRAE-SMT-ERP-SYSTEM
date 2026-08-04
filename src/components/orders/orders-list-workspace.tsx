@@ -6,12 +6,20 @@ import { OrderListTable } from '@/components/orders/order-list-table'
 import { OrderModal } from '@/components/orders/order-modal'
 import { OrderFetchError } from '@/components/orders/order-fetch-error'
 import { ErpButton } from '@/components/ui/erp-button'
+import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
+import { downloadExcelSheets } from '@/lib/excel/export'
 import type { FetchOrdersResult } from '@/lib/orders/repository'
-import type { OrderListGroup } from '@/lib/orders/types'
-import { filterOrdersForSearch, todayYmdSeoul } from '@/lib/orders/utils'
+import type { OrderLineItem, OrderListGroup } from '@/lib/orders/types'
+import {
+  filterOrdersForSearch,
+  formatInternalCodeLabel,
+  formatOrderDeliverySummary,
+  formatProductSummary,
+  todayYmdSeoul,
+} from '@/lib/orders/utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
@@ -30,6 +38,11 @@ type ModalState =
   | { open: false }
   | { open: true; mode: 'create' }
   | { open: true; mode: 'edit'; order: OrderListGroup }
+
+type OrderLineExcelRow = {
+  order: OrderListGroup
+  item: OrderLineItem
+}
 
 function resolveStatusFilter(value: string | undefined): OrderStatusFilter {
   if (value === 'active' || value === 'done' || value === 'all') return value
@@ -122,6 +135,75 @@ export function OrdersListWorkspace({
     afterDelete(message ?? '주문서가 삭제되었습니다.', { close: closeModal })
   }
 
+  async function handleExcelDownload() {
+    const lineRows: OrderLineExcelRow[] = filtered.flatMap((order) =>
+      order.items.map((item) => ({ order, item })),
+    )
+
+    await downloadExcelSheets({
+      fileName: '주문서',
+      sheets: [
+        {
+          name: '주문서',
+          rows: filtered,
+          columns: [
+            { header: '주문일', value: (row) => row.orderDate, width: 12 },
+            {
+              header: '납기일',
+              value: (row) => formatOrderDeliverySummary(row),
+              width: 14,
+            },
+            {
+              header: '주문서번호',
+              value: (row) => formatInternalCodeLabel(row.orderNumber),
+              width: 18,
+            },
+            { header: '고객사', value: (row) => row.customer, width: 18 },
+            {
+              header: '제품',
+              value: (row) => formatProductSummary(row),
+              width: 28,
+            },
+            { header: '수량합계', value: (row) => row.totalQuantity, width: 10 },
+            { header: '주문금액', value: (row) => row.totalAmount, width: 12 },
+            { header: '구분', value: (row) => row.category, width: 8 },
+            {
+              header: '상태',
+              value: (row) => (completedSet.has(row.orderId) ? '완료' : '진행중'),
+              width: 8,
+            },
+            { header: '등록자', value: (row) => row.createdByName, width: 12 },
+            { header: '비고', value: (row) => row.note, width: 24 },
+          ],
+        },
+        {
+          name: '품목',
+          rows: lineRows,
+          columns: [
+            {
+              header: '주문서번호',
+              value: (row) => formatInternalCodeLabel(row.order.orderNumber),
+              width: 18,
+            },
+            { header: '고객사', value: (row) => row.order.customer, width: 16 },
+            { header: '주문일', value: (row) => row.order.orderDate, width: 12 },
+            { header: '구분', value: (row) => row.order.category, width: 8 },
+            { header: '품목코드', value: (row) => row.item.productCode, width: 16 },
+            { header: '품목명', value: (row) => row.item.productName, width: 26 },
+            { header: '수량', value: (row) => row.item.quantity, width: 10 },
+            { header: '단가', value: (row) => row.item.unitPrice, width: 12 },
+            { header: '금액', value: (row) => row.item.orderAmount, width: 12 },
+            {
+              header: '납기일',
+              value: (row) => row.item.deliveryDate || row.order.deliveryDate,
+              width: 12,
+            },
+          ],
+        },
+      ],
+    })
+  }
+
   if (!result.ok) {
     return <OrderFetchError result={result} />
   }
@@ -145,7 +227,15 @@ export function OrdersListWorkspace({
               onChange={changeStatusFilter}
             />
           }
-          actions={<ErpButton onClick={openCreate}>주문서 등록</ErpButton>}
+          actions={
+            <div className="flex items-center gap-2">
+              <ExcelDownloadButton
+                onDownload={handleExcelDownload}
+                disabled={!filtered.length}
+              />
+              <ErpButton onClick={openCreate}>주문서 등록</ErpButton>
+            </div>
+          }
         />
 
         <OrderListTable

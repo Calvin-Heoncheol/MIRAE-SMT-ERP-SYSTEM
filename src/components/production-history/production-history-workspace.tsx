@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { ProductionHistoryModal } from '@/components/production-history/production-history-modal'
 import { ProductionHistoryTable } from '@/components/production-history/production-history-table'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
@@ -36,9 +36,21 @@ export function ProductionHistoryWorkspace({
   initialTeamFilter = 'all',
 }: ProductionHistoryWorkspaceProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState<ProductionHistoryTeamFilter>(initialTeamFilter)
   const [modal, setModal] = useState<ModalState>({ open: false })
+
+  // 내비에서 ?team=생산3팀 등으로 같은 페이지 이동 시 필터 동기화
+  useEffect(() => {
+    setTeamFilter(initialTeamFilter)
+  }, [initialTeamFilter])
+
+  function handleTeamFilterChange(next: ProductionHistoryTeamFilter) {
+    setTeamFilter(next)
+    const query = next === 'all' ? '' : `?team=${encodeURIComponent(next)}`
+    router.replace(`${pathname}${query}`, { scroll: false })
+  }
 
   const rows = result.ok ? result.rows : []
   const filtered = useMemo(
@@ -136,7 +148,7 @@ export function ProductionHistoryWorkspace({
             <FilterChipBar
               options={teamFilterOptions}
               value={teamFilter}
-              onChange={setTeamFilter}
+              onChange={handleTeamFilterChange}
             />
           }
           actions={

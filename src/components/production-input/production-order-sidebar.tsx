@@ -32,8 +32,8 @@ type ProductionOrderSidebarProps = {
   footerHint?: string
 }
 
-/** 카드 + gap 대략 높이 — 관리자(모니터·마우스)용 밀도 */
-const ORDER_CARD_SLOT_PX = 112
+/** 카드 + gap 대략 높이 — 2줄 메타 카드 기준 */
+const ORDER_CARD_SLOT_PX = 124
 const MIN_ORDER_PAGE_SIZE = 3
 const MAX_ORDER_PAGE_SIZE = 10
 const DEFAULT_ORDER_PAGE_SIZE = 6
@@ -227,7 +227,7 @@ export function ProductionOrderSidebar({
           type="search"
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="주문번호 · 고객사 · 제품명 검색"
+          placeholder="주문서번호 · 품목코드 · 품목명 · 고객사 검색"
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
         />
       </div>
@@ -316,15 +316,32 @@ export function ProductionOrderSidebar({
                   </span>
                 </div>
 
-                <p className="mt-1 truncate text-sm font-bold text-slate-900">
-                  <span>{productName}</span>
-                  {productVersion ? (
-                    <span className="ml-1.5 font-semibold text-sky-600">{productVersion}</span>
-                  ) : null}
-                </p>
-                <p className="mt-0.5 truncate text-[11px] text-slate-500">
-                  {order.customer || '—'} · {order.orderNumber}
-                </p>
+                <div className="mt-1.5 min-w-0">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="min-w-0 truncate text-sm font-bold leading-snug text-slate-900">
+                      <span>{productName}</span>
+                      {productVersion ? (
+                        <span className="ml-1.5 text-[12px] font-semibold text-sky-600">
+                          {productVersion}
+                        </span>
+                      ) : null}
+                    </p>
+                    {order.customer ? (
+                      <span className="max-w-[40%] shrink-0 truncate text-[11px] font-medium text-slate-500">
+                        {order.customer}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-0.5 truncate text-[11px] leading-snug text-slate-600">
+                    <span className="font-semibold tabular-nums text-slate-700">
+                      {order.productCode || '—'}
+                    </span>
+                    <span className="mx-1.5 text-slate-300">·</span>
+                    <span className="font-semibold text-slate-700">
+                      {order.orderNumber || '—'}
+                    </span>
+                  </p>
+                </div>
 
                 <div className="mt-1.5">
                   <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-medium text-slate-500">

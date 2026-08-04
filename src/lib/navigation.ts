@@ -154,8 +154,19 @@ function canAccessNavHref(
 }
 
 function matchesNavQuery(href: string, search?: NavSearch | null) {
-  const { team, tab } = splitNavHref(href)
-  if (team && normalizePostProcessTeam(search?.get('team')) !== team) return false
+  const { path, team, tab } = splitNavHref(href)
+  if (team) {
+    const current = String(search?.get('team') || '').trim()
+    if (current) {
+      // 생산이력 `생산1팀` 등을 후공정 normalize로 바꾸면 생산2팀 메뉴가 잘못 활성됨
+      if (current !== team) return false
+    } else if (path.startsWith('/post-process')) {
+      // 후공정은 team 생략 시 기본 팀(생산2팀)으로 간주
+      if (normalizePostProcessTeam(null) !== team) return false
+    } else {
+      return false
+    }
+  }
   if (tab && resolveProductionPlanTab(search?.get('tab')) !== resolveProductionPlanTab(tab)) {
     return false
   }
