@@ -1,5 +1,9 @@
-import { redirect } from 'next/navigation'
+import { OrdersStatusWorkspace } from '@/components/orders/orders-status-workspace'
+import { fetchProductionStatusPageData } from '@/lib/production-status/repository'
 
-export default function OrdersStatusPage() {
-  redirect('/production/status')
+export const dynamic = 'force-dynamic'
+
+export default async function OrdersStatusPage() {
+  const result = await fetchProductionStatusPageData()
+  return <OrdersStatusWorkspace result={result} />
 }

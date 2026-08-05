@@ -313,6 +313,8 @@ function resolveCreateItemId(
   return { ok: true, id: nameAsId }
 }
 
+const ITEMS_PAGE_SIZE = 1000
+
 export async function fetchItems(activeOnly = true): Promise<FetchItemsResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
@@ -320,19 +322,37 @@ export async function fetchItems(activeOnly = true): Promise<FetchItemsResult> {
 
   try {
     const supabase = createSupabaseClient()
-    let query = supabase.from('items').select('*').order('name', { ascending: true })
+    const items: Item[] = []
+    let from = 0
 
-    if (activeOnly) {
-      query = query.eq('is_active', true)
+    for (;;) {
+      const to = from + ITEMS_PAGE_SIZE - 1
+      let query = supabase
+        .from('items')
+        .select('*')
+        .order('name', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+
+      if (activeOnly) {
+        query = query.eq('is_active', true)
+      }
+
+      const { data, error } = await query
+      if (error) {
+        return { ok: false, reason: 'query', detail: error.message }
+      }
+
+      const rows = data || []
+      for (const row of rows) {
+        items.push(mapItemRecord(row))
+      }
+
+      if (rows.length < ITEMS_PAGE_SIZE) break
+      from += ITEMS_PAGE_SIZE
     }
 
-    const { data, error } = await query
-
-    if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
-    }
-
-    return { ok: true, items: (data || []).map((row) => mapItemRecord(row)) }
+    return { ok: true, items }
   } catch (error) {
     return {
       ok: false,
@@ -414,8 +434,17 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
 }
 
 export type CreateItemsResult =
-  | { ok: true; ids: string[] }
-  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string; savedCount: number }
+  | { ok: true; ids: string[]; skippedCount?: number }
+  | {
+      ok: false
+      reason: 'env' | 'query' | 'validation' | 'auth'
+      detail: string
+      savedCount: number
+      /** DB에 이미 있거나, 붙여넣기 목록 안에서 중복인 품목코드 */
+      duplicateCodes?: string[]
+      /** true면 「이미 등록된 것 제외하고 등록」 가능 */
+      canSkipExisting?: boolean
+    }
 
 function formatDuplicateItemCodesDetail(codes: string[], prefix: string) {
   const unique = [...new Set(codes.map((code) => code.trim()).filter(Boolean))]
@@ -480,10 +509,13 @@ async function fetchExistingItemIds(
 }
 
 /**
- * 일괄 등록 — 저장 전 중복을 전부 검사하고, 하나라도 있으면 저장하지 않는다.
- * (그 외 행 단위 오류는 기존처럼 중단 · savedCount 포함)
+ * 일괄 등록 — 저장 전 중복을 전부 검사한다.
+ * skipExisting이면 DB에 이미 있는 코드는 건너뛰고 나머지만 등록한다.
  */
-export async function createItems(payloads: ItemPayload[]): Promise<CreateItemsResult> {
+export async function createItems(
+  payloads: ItemPayload[],
+  options?: { skipExisting?: boolean },
+): Promise<CreateItemsResult> {
   if (!payloads.length) {
     return { ok: false, reason: 'validation', detail: '등록할 품목이 없습니다.', savedCount: 0 }
   }
@@ -533,6 +565,7 @@ export async function createItems(payloads: ItemPayload[]): Promise<CreateItemsR
         '붙여넣기 목록에 중복 품목코드가 있습니다',
       ),
       savedCount: 0,
+      duplicateCodes: batchDuplicates,
     }
   }
 
@@ -546,24 +579,48 @@ export async function createItems(payloads: ItemPayload[]): Promise<CreateItemsR
       return { ok: false, reason: 'query', detail: existingResult.detail, savedCount: 0 }
     }
 
-    const alreadyRegistered = prepared
-      .map((row) => row.id.trim())
-      .filter((id) => existingResult.existingIds.has(id))
+    const alreadyRegistered = [
+      ...new Set(
+        prepared
+          .map((row) => row.id.trim())
+          .filter((id) => existingResult.existingIds.has(id)),
+      ),
+    ]
+
+    let toInsert = prepared
     if (alreadyRegistered.length) {
-      return {
-        ok: false,
-        reason: 'validation',
-        detail: formatDuplicateItemCodesDetail(
-          alreadyRegistered,
-          '이미 등록된 품목코드입니다',
-        ),
-        savedCount: 0,
+      if (!options?.skipExisting) {
+        return {
+          ok: false,
+          reason: 'validation',
+          detail: formatDuplicateItemCodesDetail(
+            alreadyRegistered,
+            '이미 등록된 품목코드입니다',
+          ),
+          savedCount: 0,
+          duplicateCodes: alreadyRegistered,
+          canSkipExisting: true,
+        }
+      }
+
+      toInsert = prepared.filter((row) => !existingResult.existingIds.has(row.id.trim()))
+      if (!toInsert.length) {
+        return {
+          ok: false,
+          reason: 'validation',
+          detail: formatDuplicateItemCodesDetail(
+            alreadyRegistered,
+            '이미 등록된 품목만 있어 등록할 항목이 없습니다',
+          ),
+          savedCount: 0,
+          duplicateCodes: alreadyRegistered,
+        }
       }
     }
 
     const ids: string[] = []
-    for (let index = 0; index < prepared.length; index += 1) {
-      const result = await createItem(prepared[index])
+    for (let index = 0; index < toInsert.length; index += 1) {
+      const result = await createItem(toInsert[index])
       if (!result.ok) {
         return {
           ok: false,
@@ -575,7 +632,11 @@ export async function createItems(payloads: ItemPayload[]): Promise<CreateItemsR
       ids.push(result.id)
     }
 
-    return { ok: true, ids }
+    return {
+      ok: true,
+      ids,
+      skippedCount: alreadyRegistered.length || undefined,
+    }
   } catch (error) {
     return {
       ok: false,

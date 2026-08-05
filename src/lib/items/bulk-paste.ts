@@ -81,25 +81,103 @@ function normalizePasteRawText(text: string) {
 }
 
 function normalizePasteCell(value: string) {
-  return normalizePasteRawText(value).trim()
+  return normalizePasteRawText(value)
+    .replace(/\r?\n/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .trim()
+}
+
+/**
+ * 엑셀 등 CSV/TSV 붙여넣기 — 따옴표로 감싼 필드 안의 줄바꿈·구분자는 행/열로 쪼개지 않음.
+ * fieldDelimiter 가 null 이면 논리 행만 분리(행당 필드 1개).
+ */
+function parseQuotedRecords(text: string, fieldDelimiter: string | null): string[][] {
+  const input = normalizePasteRawText(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ''
+  let inQuotes = false
+  let i = 0
+
+  const flushField = () => {
+    row.push(field)
+    field = ''
+  }
+
+  const flushRow = () => {
+    flushField()
+    if (row.some((cell) => cell.trim())) {
+      rows.push(row)
+    }
+    row = []
+  }
+
+  while (i < input.length) {
+    const char = input[i]!
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (input[i + 1] === '"') {
+          field += '"'
+          i += 2
+          continue
+        }
+        inQuotes = false
+        i += 1
+        continue
+      }
+      field += char
+      i += 1
+      continue
+    }
+
+    if (char === '"' && field.length === 0) {
+      inQuotes = true
+      i += 1
+      continue
+    }
+
+    if (fieldDelimiter && char === fieldDelimiter) {
+      flushField()
+      i += 1
+      continue
+    }
+
+    if (char === '\n') {
+      flushRow()
+      i += 1
+      continue
+    }
+
+    field += char
+    i += 1
+  }
+
+  if (field.length > 0 || row.length > 0) {
+    flushField()
+    if (row.some((cell) => cell.trim())) {
+      rows.push(row)
+    }
+  }
+
+  return rows
 }
 
 function splitPasteLines(text: string) {
-  const lines = normalizePasteRawText(text)
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .split('\n')
-  while (lines.length > 0 && !lines[lines.length - 1].trim()) {
-    lines.pop()
-  }
-  return lines
+  return parseQuotedRecords(text, null).map((row) => row[0] ?? '')
 }
 
 type PasteDelimiter = 'tab' | 'comma' | 'multispace' | 'none'
 
 function splitByDelimiter(line: string, delimiter: PasteDelimiter): string[] {
-  if (delimiter === 'tab') return line.split('\t')
-  if (delimiter === 'comma') return line.split(/[,，]/)
+  if (delimiter === 'tab') {
+    return parseQuotedRecords(line, '\t')[0] ?? []
+  }
+  if (delimiter === 'comma') {
+    const cols = parseQuotedRecords(line, ',')[0] ?? []
+    if (cols.length) return cols
+    return line.split(/[,，]/)
+  }
   if (delimiter === 'multispace') return line.split(/\s{2,}/)
   return [line]
 }
@@ -244,9 +322,8 @@ function splitPasteColumns(
   return realignOverSplitColumns(cols, delimiter, expectedCols, category)
 }
 
-function isHeaderLine(line: string, category: ItemCategory, delimiter: PasteDelimiter) {
-  const expectedCols = itemBulkColumns(category).length
-  const first = splitPasteColumns(line, delimiter, expectedCols, category)[0] || ''
+function isHeaderColumns(cols: string[], category: ItemCategory) {
+  const first = normalizePasteCell(cols[0] || '')
   if (!first) return false
   if (/^품목(코드|명)$/i.test(first)) return true
   return itemBulkColumns(category).some((column) => column.label === first)
@@ -304,19 +381,81 @@ function applyPasteValue(
   }
 }
 
+function looksLikeNewItemRow(firstCell: string, category: ItemCategory) {
+  const value = firstCell.trim()
+  if (!value) return false
+  // 규격 이어쓰기(대치품 등)는 보통 공백·한글이 있음
+  if (/\s/.test(value) || /[가-힣]/.test(value)) return false
+  if (category === 2) return false
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{2,}$/.test(value)
+}
+
+/** 따옴표 없이 줄바꿈된 규격 셀 등으로 쪼개진 행을 다시 합침 */
+function mergeContinuationRecords(
+  records: string[][],
+  expectedCols: number,
+  category: ItemCategory,
+): string[][] {
+  const out: string[][] = []
+  for (const cols of records) {
+    if (!out.length) {
+      out.push([...cols])
+      continue
+    }
+
+    const prev = out[out.length - 1]!
+    const first = cols[0] || ''
+    const shouldMerge =
+      prev.length > 0 &&
+      prev.length < expectedCols &&
+      cols.length < expectedCols &&
+      !looksLikeNewItemRow(first, category)
+
+    if (!shouldMerge) {
+      out.push([...cols])
+      continue
+    }
+
+    const merged = [...prev]
+    merged[merged.length - 1] = `${merged[merged.length - 1] || ''} ${first}`.trim()
+    merged.push(...cols.slice(1))
+    out[out.length - 1] = merged
+  }
+  return out
+}
+
 /** Excel 등에서 복사한 행을 품목구분별 열 순서에 맞춰 파싱 */
 export function parseItemBulkPaste(text: string, category: ItemCategory): ItemFormState[] {
   const columns = itemBulkColumns(category)
   const expectedCols = columns.length
-  const lines = splitPasteLines(text).map((line) => line.trimEnd()).filter((line) => line.trim())
+  const lines = splitPasteLines(text)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim())
   const delimiter = detectPasteDelimiter(lines, expectedCols)
+
+  // 엑셀은 탭+따옴표가 기본 — 전체 텍스트를 한 번에 파싱해야 규격 셀 줄바꿈이 깨지지 않음
+  const rawRecords =
+    delimiter === 'tab'
+      ? parseQuotedRecords(text, '\t')
+      : delimiter === 'comma'
+        ? parseQuotedRecords(text, ',')
+        : lines.map((line) => splitPasteColumns(line, delimiter, expectedCols, category))
+  const records = mergeContinuationRecords(rawRecords, expectedCols, category)
 
   const rows: ItemFormState[] = []
 
-  for (const line of lines) {
-    if (isHeaderLine(line, category, delimiter)) continue
+  for (const rawCols of records) {
+    if (isHeaderColumns(rawCols, category)) continue
 
-    const cols = splitPasteColumns(line, delimiter, expectedCols, category)
+    const cols =
+      delimiter === 'tab' || delimiter === 'comma'
+        ? realignOverSplitColumns(
+            rawCols.map(normalizePasteCell),
+            delimiter,
+            expectedCols,
+            category,
+          )
+        : rawCols
     if (!cols.some(Boolean)) continue
 
     let form = defaultItemBulkRow(category)

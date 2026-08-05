@@ -73,7 +73,7 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
     <>
       <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
-          title="견적서"
+          title="견적서 등록"
           totalCount={quotes.length}
           filteredCount={filtered.length}
           hasQuery={Boolean(query)}

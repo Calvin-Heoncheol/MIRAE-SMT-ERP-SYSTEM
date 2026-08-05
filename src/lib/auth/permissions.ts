@@ -90,7 +90,7 @@ export function resolveAccessModule(
 ): AuthAccessModule | null {
   if (pathname === '/') return 'dashboard'
   if (pathname.startsWith('/production/plan')) return 'production_plan'
-  // 주문별 현황은 전 부서 공용 조회 (생산관리 메뉴에 두되 권한은 dashboard)
+  // 생산현황은 전 부서 공용 조회 (생산관리 메뉴에 두되 권한은 dashboard)
   if (pathname.startsWith('/production/status')) return 'dashboard'
   if (pathname.startsWith('/reports/production')) return 'reports_production'
   if (pathname.startsWith('/reports/sales')) return 'reports_sales'

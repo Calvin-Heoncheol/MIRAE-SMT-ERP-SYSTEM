@@ -16,7 +16,7 @@ const VALUE_TONE: Record<NonNullable<KpiStatCardProps['tone']>, string> = {
   rose: 'text-rose-700',
 }
 
-/** 홈 KPI / 주문별 현황 공통 통계 카드 밀도 */
+/** 홈 KPI / 생산현황 공통 통계 카드 밀도 */
 export function KpiStatCard({
   label,
   value,

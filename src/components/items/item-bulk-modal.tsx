@@ -12,7 +12,9 @@ import {
 } from '@/lib/items/bulk-paste'
 import { formToItemPayload, validateItemForm, type ItemFormState } from '@/lib/items/form-state'
 import { createItems } from '@/lib/items/repository'
+import type { ItemPayload } from '@/lib/items/types'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
+import { useToast } from '@/components/ui/toast-provider'
 import {
   ITEM_CATEGORIES,
   ITEM_CATEGORY_LABELS,
@@ -62,12 +64,16 @@ function ItemBulkModalContent({
   onSaved?: (message?: string) => void
 }) {
   const pasteRef = useRef<HTMLTextAreaElement>(null)
+  const toast = useToast()
   const [category, setCategory] = useState<ItemCategory>(initialCategory ?? 1)
   const [rows, setRows] = useState<ItemFormState[]>(() => [
     defaultItemBulkRow(initialCategory ?? 1),
   ])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [duplicateCodes, setDuplicateCodes] = useState<string[]>([])
+  const [canSkipExisting, setCanSkipExisting] = useState(false)
+  const pendingPayloadsRef = useRef<ItemPayload[] | null>(null)
 
   const columns = itemBulkColumns(category)
   const inputClassName =
@@ -81,10 +87,17 @@ function ItemBulkModalContent({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose, saving])
 
+  function clearDuplicateState() {
+    setDuplicateCodes([])
+    setCanSkipExisting(false)
+    pendingPayloadsRef.current = null
+  }
+
   function changeCategory(next: ItemCategory) {
     setCategory(next)
     setRows([defaultItemBulkRow(next)])
     setSaveError(null)
+    clearDuplicateState()
     if (pasteRef.current) pasteRef.current.value = ''
   }
 
@@ -92,6 +105,7 @@ function ItemBulkModalContent({
     setRows((current) =>
       current.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
     )
+    clearDuplicateState()
   }
 
   function addRow() {
@@ -103,6 +117,7 @@ function ItemBulkModalContent({
       if (current.length <= 1) return [defaultItemBulkRow(category)]
       return current.filter((_, rowIndex) => rowIndex !== index)
     })
+    clearDuplicateState()
   }
 
   function applyPasteText(text: string) {
@@ -110,6 +125,7 @@ function ItemBulkModalContent({
     if (!parsed.length) return
     setRows(parsed)
     setSaveError(null)
+    clearDuplicateState()
   }
 
   function handleBulkPaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
@@ -147,30 +163,36 @@ function ItemBulkModalContent({
     event.preventDefault()
     setRows(next)
     setSaveError(null)
+    clearDuplicateState()
   }
 
-  async function handleSave() {
+  function buildPayloads(): ItemPayload[] | null {
     const filled = rows.filter((row) => !isEmptyItemBulkRow(row))
     if (!filled.length) {
       setSaveError('등록할 품목을 입력하거나 붙여넣어 주세요.')
-      return
+      clearDuplicateState()
+      return null
     }
 
-    const payloads = []
+    const payloads: ItemPayload[] = []
     for (let index = 0; index < filled.length; index += 1) {
       const form = { ...filled[index], itemCategory: category }
       const validationError = validateItemForm(form, { isCreate: true })
       if (validationError) {
         setSaveError(`${index + 1}행: ${validationError}`)
-        return
+        clearDuplicateState()
+        return null
       }
       payloads.push(formToItemPayload(form))
     }
+    return payloads
+  }
 
+  async function runCreate(payloads: ItemPayload[], skipExisting: boolean) {
     setSaving(true)
     setSaveError(null)
 
-    const result = await createItems(payloads)
+    const result = await createItems(payloads, { skipExisting })
     setSaving(false)
 
     if (!result.ok) {
@@ -178,11 +200,49 @@ function ItemBulkModalContent({
         result.savedCount > 0
           ? `${result.savedCount}건까지 저장되었습니다. `
           : ''
-      setSaveError(`${prefix}${result.detail}`)
+      const detail = `${prefix}${result.detail}`
+      setSaveError(detail)
+
+      if (result.duplicateCodes?.length) {
+        setDuplicateCodes(result.duplicateCodes)
+        setCanSkipExisting(Boolean(result.canSkipExisting))
+        pendingPayloadsRef.current = result.canSkipExisting ? payloads : null
+        toast.push({
+          title: result.canSkipExisting
+            ? '이미 등록된 품목코드입니다'
+            : '중복 품목코드가 있습니다',
+          description: result.canSkipExisting
+            ? `${result.duplicateCodes.length}개 코드가 이미 있습니다. 모달에서 「제외하고 등록」할 수 있습니다.`
+            : `${result.duplicateCodes.length}개 코드가 붙여넣기 목록에서 중복됩니다.`,
+          kind: 'error',
+          durationMs: 7000,
+        })
+      } else {
+        clearDuplicateState()
+        toast.error('품목 일괄 등록 실패', result.detail)
+      }
       return
     }
 
-    onSaved?.(`${payloads.length}건 품목이 등록되었습니다.`)
+    clearDuplicateState()
+    const skipped = result.skippedCount ?? 0
+    const message =
+      skipped > 0
+        ? `${result.ids.length}건 등록 · 기존 ${skipped}건 제외`
+        : `${result.ids.length}건 품목이 등록되었습니다.`
+    onSaved?.(message)
+  }
+
+  async function handleSave() {
+    const payloads = buildPayloads()
+    if (!payloads) return
+    await runCreate(payloads, false)
+  }
+
+  async function handleSaveSkippingExisting() {
+    const payloads = pendingPayloadsRef.current ?? buildPayloads()
+    if (!payloads) return
+    await runCreate(payloads, true)
   }
 
   return (
@@ -415,7 +475,38 @@ function ItemBulkModalContent({
             부족하면 자동으로 추가됩니다.
           </p>
 
-          {saveError ? (
+          {duplicateCodes.length ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+              <p className="font-semibold">
+                {canSkipExisting
+                  ? `이미 등록된 품목코드 ${duplicateCodes.length}개`
+                  : `중복 품목코드 ${duplicateCodes.length}개`}
+              </p>
+              <p className="mt-1 break-all text-amber-900/90">{duplicateCodes.join(', ')}</p>
+              {canSkipExisting ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void handleSaveSkippingExisting()}
+                    className="rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                  >
+                    {saving ? '등록 중…' : '이미 등록된 항목 제외하고 등록'}
+                  </button>
+                  <p className="text-xs text-amber-800/80">
+                    중복을 빼고 나머지 신규 품목만 저장합니다.
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-amber-800/80">
+                  붙여넣기 목록 안에서 같은 코드가 여러 번 있습니다. 중복 행을 정리한 뒤 다시 등록해
+                  주세요.
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          {saveError && !duplicateCodes.length ? (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {saveError}
             </p>
@@ -431,6 +522,16 @@ function ItemBulkModalContent({
           >
             취소
           </button>
+          {canSkipExisting ? (
+            <button
+              type="button"
+              onClick={() => void handleSaveSkippingExisting()}
+              disabled={saving}
+              className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+            >
+              {saving ? '등록 중…' : '제외하고 등록'}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void handleSave()}

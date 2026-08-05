@@ -44,8 +44,9 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/quotations',
     children: [
       { label: '문의업체', href: '/new-companies' },
-      { label: '견적서', href: '/quotations' },
-      { label: '주문서', href: '/orders' },
+      { label: '견적서 등록', href: '/quotations' },
+      { label: '주문서 등록', href: '/orders' },
+      { label: '주문현황', href: '/orders/status' },
       { label: '출하등록', href: '/delivery/input' },
       { label: '출하이력', href: '/delivery/history' },
       { label: '영업/매출', href: '/reports/sales' },
@@ -55,7 +56,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: '생산관리',
     href: '/production/plan?tab=smt',
     children: [
-      { label: '주문별 현황', href: '/production/status' },
+      { label: '생산현황', href: '/production/status' },
       {
         label: '생산1: SMT',
         href: '/smt/input',
@@ -101,7 +102,6 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/materials/inventory',
     children: [
       { label: '재고현황', href: '/materials/inventory' },
-      { label: '제품재고', href: '/materials/product-inventory' },
       { label: '발주', href: '/materials/purchase-orders' },
       { label: '입고', href: '/materials/inbound' },
       { label: '불출', href: '/materials/outbound' },

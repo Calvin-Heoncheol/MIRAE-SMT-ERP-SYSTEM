@@ -1,13 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { OrderListTable } from '@/components/orders/order-list-table'
 import { OrderModal } from '@/components/orders/order-modal'
 import { OrderFetchError } from '@/components/orders/order-fetch-error'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
-import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { downloadExcelSheets, type ExcelColumn } from '@/lib/excel/export'
@@ -32,8 +30,6 @@ type OrdersListWorkspaceProps = {
   initialFilter?: string
 }
 
-type OrderStatusFilter = 'active' | 'done' | 'all'
-
 type ModalState =
   | { open: false }
   | { open: true; mode: 'create' }
@@ -44,24 +40,15 @@ type OrderLineExcelRow = {
   item: OrderLineItem
 }
 
-function resolveStatusFilter(value: string | undefined): OrderStatusFilter {
-  if (value === 'active' || value === 'done' || value === 'all') return value
-  return 'active'
-}
-
 export function OrdersListWorkspace({
   result,
   completedOrderIds,
   initialFilter = '',
 }: OrdersListWorkspaceProps) {
-  const router = useRouter()
   const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   /** KPI 카드로 진입했을 때만 오늘 주문일 필터 (칩 UI 없음) */
-  const [kpiTodayOnly, setKpiTodayOnly] = useState(initialFilter === 'today')
-  const [statusFilter, setStatusFilter] = useState<OrderStatusFilter>(() =>
-    resolveStatusFilter(initialFilter === 'today' ? 'all' : initialFilter),
-  )
+  const [kpiTodayOnly] = useState(initialFilter === 'today')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
@@ -69,49 +56,17 @@ export function OrdersListWorkspace({
   const completedSet = useMemo(() => new Set(completedOrderIds), [completedOrderIds])
   const today = todayYmdSeoul()
 
-  const statusFiltered = useMemo(() => {
-    if (kpiTodayOnly) {
-      return orders.filter((order) => order.orderDate === today)
-    }
-    if (statusFilter === 'all') return orders
-    if (statusFilter === 'done') return orders.filter((order) => completedSet.has(order.orderId))
-    return orders.filter((order) => !completedSet.has(order.orderId))
-  }, [orders, completedSet, statusFilter, kpiTodayOnly, today])
+  const scopedOrders = useMemo(() => {
+    if (!kpiTodayOnly) return orders
+    return orders.filter((order) => order.orderDate === today)
+  }, [orders, kpiTodayOnly, today])
 
   const query = search.trim()
   const filtered = useMemo(
-    () => filterOrdersForSearch(statusFiltered, query),
-    [statusFiltered, query],
+    () => filterOrdersForSearch(scopedOrders, query),
+    [scopedOrders, query],
   )
   const pagination = useClientPagination(filtered)
-
-  const doneCount = useMemo(
-    () => orders.filter((order) => completedSet.has(order.orderId)).length,
-    [orders, completedSet],
-  )
-
-  const statusChips: {
-    value: OrderStatusFilter
-    label: string
-    count: number
-    tone?: (typeof STATUS_FILTER_TONES)[keyof typeof STATUS_FILTER_TONES]
-  }[] = [
-    {
-      value: 'active',
-      label: '진행중',
-      count: orders.length - doneCount,
-      tone: STATUS_FILTER_TONES.progress,
-    },
-    { value: 'done', label: '완료', count: doneCount, tone: STATUS_FILTER_TONES.done },
-    { value: 'all', label: '전체', count: orders.length },
-  ]
-
-  function changeStatusFilter(next: OrderStatusFilter) {
-    setKpiTodayOnly(false)
-    setStatusFilter(next)
-    const url = next === 'active' ? '/orders' : `/orders?filter=${next}`
-    router.replace(url, { scroll: false })
-  }
 
   function openCreate() {
     setModalSession((value) => value + 1)
@@ -216,7 +171,7 @@ export function OrdersListWorkspace({
     <>
       <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
         <WorkspaceHeader
-          title="주문서"
+          title="주문서 등록"
           totalCount={orders.length}
           filteredCount={filtered.length}
           hasQuery={Boolean(query) || kpiTodayOnly}
@@ -224,13 +179,6 @@ export function OrdersListWorkspace({
           onSearchChange={setSearch}
           searchPlaceholder="주문번호, 고객사, 제품명, 주문일 검색…"
           accent="slate"
-          filters={
-            <FilterChipBar
-              options={statusChips}
-              value={kpiTodayOnly ? null : statusFilter}
-              onChange={changeStatusFilter}
-            />
-          }
           actions={
             <div className="flex items-center gap-2">
               <ExcelDownloadButton
@@ -248,9 +196,7 @@ export function OrdersListWorkspace({
             hasQuery: Boolean(query) || kpiTodayOnly,
             emptyLabel: kpiTodayOnly
               ? '오늘 등록된 주문서가 없습니다'
-              : statusFilter === 'done'
-                ? '출하 완료된 주문서가 없습니다'
-                : '등록된 주문서가 없습니다',
+              : '등록된 주문서가 없습니다',
             actionHint: '오른쪽 상단에서 등록하세요',
           })}
           onSelectOrder={openEdit}

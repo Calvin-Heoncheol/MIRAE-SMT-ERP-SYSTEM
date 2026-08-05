@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { DeliveryDueBadge } from '@/components/ui/delivery-due-badge'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import type {
@@ -106,6 +105,35 @@ function stageDetail(produced: number, defected: number, target: number) {
   return `${base} · 불량 ${defected.toLocaleString('ko-KR')}`
 }
 
+/** 분할생산이므로 공정 단계가 아니라 출하 완료 여부만 표시 */
+function ProductionLineStatusBadge({
+  deliveryProduced,
+  deliveryTarget,
+}: {
+  deliveryProduced: number
+  deliveryTarget: number
+}) {
+  if (deliveryTarget <= 0) {
+    return (
+      <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
+        대상없음
+      </span>
+    )
+  }
+  if (deliveryProduced >= deliveryTarget) {
+    return (
+      <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+        완료
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-800 ring-1 ring-amber-200">
+      진행중
+    </span>
+  )
+}
+
 function StageCells({
   smtPercent,
   smtDefectPercent,
@@ -174,17 +202,6 @@ function StageCells({
 }
 
 export function ProductionStatusTable({ lines, onStageClick }: ProductionStatusTableProps) {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
-
-  function toggleExpanded(orderId: string) {
-    setExpandedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(orderId)) next.delete(orderId)
-      else next.add(orderId)
-      return next
-    })
-  }
-
   if (!lines.length) {
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
@@ -197,12 +214,9 @@ export function ProductionStatusTable({ lines, onStageClick }: ProductionStatusT
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="min-h-0 flex-1 overflow-auto">
-        <table className="min-w-[1080px] w-full border-collapse">
+        <table className="min-w-[1120px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50/95 backdrop-blur-sm">
             <tr>
-              <th className="w-10 px-2 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                <span className="sr-only">펼치기</span>
-              </th>
               <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 주문서
               </th>
@@ -227,25 +241,15 @@ export function ProductionStatusTable({ lines, onStageClick }: ProductionStatusT
               <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 출하
               </th>
+              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                상태
+              </th>
             </tr>
           </thead>
           <tbody>
-            {lines.map((line) => {
-              // 제품 2개 이상만 펼침 — 1개면 요약 행만으로 충분
-              const canExpand = line.products.length > 1
-              const expanded = canExpand && expandedIds.has(line.orderId)
-
-              return (
-                <OrderStatusRows
-                  key={line.orderId}
-                  line={line}
-                  expanded={expanded}
-                  canExpand={canExpand}
-                  onToggle={() => toggleExpanded(line.orderId)}
-                  onStageClick={onStageClick}
-                />
-              )
-            })}
+            {lines.map((line) => (
+              <OrderStatusRows key={line.orderId} line={line} onStageClick={onStageClick} />
+            ))}
           </tbody>
         </table>
       </div>
@@ -255,59 +259,19 @@ export function ProductionStatusTable({ lines, onStageClick }: ProductionStatusT
 
 function OrderStatusRows({
   line,
-  expanded,
-  canExpand,
-  onToggle,
   onStageClick,
 }: {
   line: ProductionStatusLine
-  expanded: boolean
-  canExpand: boolean
-  onToggle: () => void
   onStageClick?: ProductionStatusTableProps['onStageClick']
 }) {
-  return (
-    <>
-      <tr
-        className={[
-          'border-t border-slate-200',
-          canExpand ? 'cursor-pointer hover:bg-slate-50' : 'hover:bg-slate-50/70',
-          expanded ? 'bg-slate-100/90' : 'bg-white',
-        ].join(' ')}
-        onClick={canExpand ? onToggle : undefined}
-      >
-        <td className="px-2 py-3">
-          {canExpand ? (
-            <button
-              type="button"
-              aria-expanded={expanded}
-              aria-label={expanded ? '제품 목록 접기' : '제품 목록 펼치기'}
-              onClick={(event) => {
-                event.stopPropagation()
-                onToggle()
-              }}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800"
-            >
-              <span className="text-[11px] leading-none" aria-hidden>
-                {expanded ? '▾' : '▸'}
-              </span>
-            </button>
-          ) : (
-            <span className="block w-7" />
-          )}
-        </td>
+  if (line.products.length === 0) {
+    return (
+      <tr className="border-t border-slate-200 bg-white hover:bg-slate-50/70">
         <td className="px-4 py-3.5 font-mono text-sm font-bold text-slate-900" title={line.orderNumber}>
           {formatInternalCodeLabel(line.orderNumber)}
         </td>
         <td className="px-4 py-3.5 text-sm font-semibold text-slate-800">{line.customer || '—'}</td>
-        <td className="px-4 py-3.5 text-sm font-medium text-slate-900">
-          <span>{line.productName || '—'}</span>
-          {line.productCount > 1 ? (
-            <span className="ml-1.5 text-xs font-normal text-slate-400">
-              ({line.productCount.toLocaleString('ko-KR')}개)
-            </span>
-          ) : null}
-        </td>
+        <td className="px-4 py-3.5 text-sm font-medium text-slate-900">{line.productName || '—'}</td>
         <td className="whitespace-nowrap px-4 py-3">
           <DeliveryDueBadge
             deliveryDate={line.deliveryDate}
@@ -335,62 +299,80 @@ function OrderStatusRows({
           onPostClick={onStageClick ? () => onStageClick(line, 'post_process') : undefined}
           onDeliveryClick={onStageClick ? () => onStageClick(line, 'delivery') : undefined}
         />
+        <td className="px-4 py-3.5">
+          <ProductionLineStatusBadge
+            deliveryProduced={line.deliveryProduced}
+            deliveryTarget={line.deliveryTarget}
+          />
+        </td>
       </tr>
+    )
+  }
 
-      {expanded
-        ? line.products.map((product) => (
-            <tr
-              key={`${line.orderId}:${product.key}`}
-              className="border-t border-sky-100/80 bg-sky-50/60 hover:bg-sky-50"
-            >
-              <td className="border-l-2 border-sky-300 px-2 py-2" />
-              <td className="px-4 py-2.5 pl-6 text-xs text-slate-400">└</td>
-              <td className="px-4 py-2.5 text-xs text-slate-400">—</td>
-              <td className="px-4 py-2.5 pl-6 text-sm text-slate-700">
-                <span className="font-medium">{product.productName}</span>
-                {product.productCode ? (
-                  <span className="ml-1.5 font-mono text-[11px] text-slate-400">
-                    [{product.productCode}]
-                  </span>
-                ) : null}
-              </td>
-              <td className="px-4 py-2.5 text-xs text-slate-400">—</td>
-              <td className="px-4 py-2.5 pr-10 text-right text-sm tabular-nums text-slate-600">
-                {product.quantity.toLocaleString('ko-KR')}
-              </td>
-              <StageCells
-                smtPercent={product.smtPercent}
-                smtDefectPercent={product.smtDefectPercent}
-                smtProduced={product.smtProduced}
-                smtDefected={product.smtDefected}
-                smtTarget={product.smtTarget}
-                postPercent={product.postPercent}
-                postDefectPercent={product.postDefectPercent}
-                postProduced={product.postProduced}
-                postDefected={product.postDefected}
-                postTarget={product.postTarget}
-                deliveryPercent={product.deliveryPercent}
-                deliveryProduced={product.deliveryProduced}
-                deliveryTarget={product.deliveryTarget}
-                onSmtClick={
-                  onStageClick && product.smtTarget > 0
-                    ? () => onStageClick(line, 'smt', product)
-                    : undefined
-                }
-                onPostClick={
-                  onStageClick && product.postTarget > 0
-                    ? () => onStageClick(line, 'post_process', product)
-                    : undefined
-                }
-                onDeliveryClick={
-                  onStageClick && product.deliveryTarget > 0
-                    ? () => onStageClick(line, 'delivery', product)
-                    : undefined
-                }
-              />
-            </tr>
-          ))
-        : null}
+  return (
+    <>
+      {line.products.map((product) => (
+        <tr
+          key={`${line.orderId}:${product.key}`}
+          className="border-t border-slate-200 bg-white hover:bg-slate-50/70"
+        >
+          <td className="px-4 py-3.5 font-mono text-sm font-bold text-slate-900" title={line.orderNumber}>
+            {formatInternalCodeLabel(line.orderNumber)}
+          </td>
+          <td className="px-4 py-3.5 text-sm font-semibold text-slate-800">{line.customer || '—'}</td>
+          <td className="px-4 py-3.5 text-sm text-slate-900">
+            <span className="font-medium">{product.productName || '—'}</span>
+            {product.productCode ? (
+              <span className="ml-1.5 font-mono text-[11px] text-slate-400">[{product.productCode}]</span>
+            ) : null}
+          </td>
+          <td className="whitespace-nowrap px-4 py-3">
+            <DeliveryDueBadge
+              deliveryDate={line.deliveryDate}
+              done={product.deliveryTarget > 0 && product.deliveryProduced >= product.deliveryTarget}
+            />
+          </td>
+          <td className="px-4 py-3 pr-10 text-right text-sm tabular-nums text-slate-700">
+            {product.quantity.toLocaleString('ko-KR')}
+          </td>
+          <StageCells
+            smtPercent={product.smtPercent}
+            smtDefectPercent={product.smtDefectPercent}
+            smtProduced={product.smtProduced}
+            smtDefected={product.smtDefected}
+            smtTarget={product.smtTarget}
+            postPercent={product.postPercent}
+            postDefectPercent={product.postDefectPercent}
+            postProduced={product.postProduced}
+            postDefected={product.postDefected}
+            postTarget={product.postTarget}
+            deliveryPercent={product.deliveryPercent}
+            deliveryProduced={product.deliveryProduced}
+            deliveryTarget={product.deliveryTarget}
+            onSmtClick={
+              onStageClick && product.smtTarget > 0
+                ? () => onStageClick(line, 'smt', product)
+                : undefined
+            }
+            onPostClick={
+              onStageClick && product.postTarget > 0
+                ? () => onStageClick(line, 'post_process', product)
+                : undefined
+            }
+            onDeliveryClick={
+              onStageClick && product.deliveryTarget > 0
+                ? () => onStageClick(line, 'delivery', product)
+                : undefined
+            }
+          />
+          <td className="px-4 py-3.5">
+            <ProductionLineStatusBadge
+              deliveryProduced={product.deliveryProduced}
+              deliveryTarget={product.deliveryTarget}
+            />
+          </td>
+        </tr>
+      ))}
     </>
   )
 }

@@ -5,7 +5,6 @@ import { useMemo, useState, useTransition } from 'react'
 import { ProductionStatusQuickInputModal } from '@/components/production-status/production-status-quick-input-modal'
 import { ProductionStatusTable } from '@/components/production-status/production-status-table'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
-import { ListPagination } from '@/components/ui/list-pagination'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchProductionStatusResult } from '@/lib/production-status/repository'
@@ -14,7 +13,6 @@ import type {
   ProductionStatusProductLine,
   ProductionStatusStage,
 } from '@/lib/production-status/types'
-import { useClientPagination } from '@/lib/ui/use-client-pagination'
 
 type ProductionStatusWorkspaceProps = {
   result: FetchProductionStatusResult
@@ -64,7 +62,6 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
         .includes(q)
     })
   }, [statusFilteredLines, query])
-  const pagination = useClientPagination(filteredLines)
 
   const statusChips = [
     {
@@ -119,22 +116,8 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
       />
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        <ProductionStatusTable lines={pagination.pageItems} onStageClick={handleStageClick} />
+        <ProductionStatusTable lines={filteredLines} onStageClick={handleStageClick} />
       </div>
-
-      <ListPagination
-        page={pagination.page}
-        totalPages={pagination.totalPages}
-        onPageChange={pagination.setPage}
-        rangeStart={pagination.rangeStart}
-        rangeEnd={pagination.rangeEnd}
-        totalCount={pagination.totalCount}
-      />
-
-      <p className="shrink-0 text-xs text-slate-400">
-        SMT·후공정·출하 칸을 클릭하면 생산실사(관리자) 입력을 할 수 있습니다. 등록 시 이력 비고에
-        「생산실사(관리자)」또는 「직접출하(관리자)」가 남습니다.
-      </p>
 
       <ProductionStatusQuickInputModal
         open={Boolean(quickInput)}
