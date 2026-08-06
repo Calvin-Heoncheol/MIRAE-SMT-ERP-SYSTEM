@@ -94,7 +94,6 @@ export const NAV_ITEMS: NavItem[] = [
           { label: '생산이력', href: '/production/history?team=생산4팀' },
         ],
       },
-      { label: '생산실적', href: '/reports/production' },
     ],
   },
   {

@@ -1,10 +1,14 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
+import type { DeliveryAvailability } from '@/lib/delivery/utils'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import {
   daysUntilYmd,
   formatDeliveryCountdown,
 } from '@/lib/smt/plan/utils'
+
+/** 관심 필요 알림의 담당 부서 */
+export type OpsAlertDepartment = 'production' | 'material' | 'sales'
 
 /** 홈 대시보드 주의 항목용 (알림 벨과 무관) */
 export type OpsAlert = {
@@ -13,6 +17,7 @@ export type OpsAlert = {
   detail: string
   href: string
   tone: 'warn' | 'danger' | 'info'
+  department: OpsAlertDepartment
 }
 
 const DUE_SOON_DAYS = 3
@@ -28,11 +33,17 @@ function groupAssembliesByOrderId(groups: OrderAssemblyGroup[]) {
   return map
 }
 
+/**
+ * 납기 임박·지연 미출하 주문.
+ * - 출하가능 수량 있음 → 영업 (생산은 됐고 출하 대기)
+ * - 아니면 → 생산 (아직 생산이 막혀 납기 위험)
+ */
 export function buildDeliveryDueNotifications(input: {
   today: string
   orders: OrderListGroup[]
   assemblyGroups: OrderAssemblyGroup[]
   deliveryCounts: Record<string, number>
+  availabilityByGroupId: Record<string, DeliveryAvailability>
 }): OpsAlert[] {
   const assembliesByOrderId = groupAssembliesByOrderId(input.assemblyGroups)
 
@@ -46,6 +57,17 @@ export function buildDeliveryDueNotifications(input: {
         Math.max(0, Math.floor(Number(input.deliveryCounts[group.id]) || 0)) >=
         Math.floor(group.targetQuantity),
     )
+  }
+
+  const orderShippable = (orderId: string) => {
+    const groups = (assembliesByOrderId.get(orderId) ?? []).filter(
+      (group) => Math.floor(group.targetQuantity) > 0,
+    )
+    let shippable = 0
+    for (const group of groups) {
+      shippable += Math.max(0, Math.floor(input.availabilityByGroupId[group.id]?.shippable || 0))
+    }
+    return shippable
   }
 
   const pendingOrders = input.orders.filter(
@@ -62,13 +84,31 @@ export function buildDeliveryDueNotifications(input: {
     })
     .sort((a, b) => a.daysUntil - b.daysUntil)
 
-  return dueSoon.slice(0, MAX_DELIVERY_ALERTS).map(({ order, daysUntil }) => ({
-    key: `delivery:${order.orderId}`,
-    label: `${formatInternalCodeLabel(order.orderNumber)} · ${order.customer || '—'}`,
-    detail: `납기 ${order.deliveryDate} (${formatDeliveryCountdown(daysUntil)})`,
-    href: '/production/status',
-    tone: daysUntil < 0 ? ('danger' as const) : ('warn' as const),
-  }))
+  return dueSoon.slice(0, MAX_DELIVERY_ALERTS).map(({ order, daysUntil }) => {
+    const shippable = orderShippable(order.orderId)
+    const readyToShip = shippable > 0
+    const countdown = formatDeliveryCountdown(daysUntil)
+
+    if (readyToShip) {
+      return {
+        key: `sales:ship:${order.orderId}`,
+        label: `${formatInternalCodeLabel(order.orderNumber)} · ${order.customer || '—'}`,
+        detail: `출하 가능 ${shippable.toLocaleString('ko-KR')}대 · 납기 ${order.deliveryDate} (${countdown})`,
+        href: '/delivery/input',
+        tone: daysUntil < 0 ? ('danger' as const) : ('warn' as const),
+        department: 'sales' as const,
+      }
+    }
+
+    return {
+      key: `production:due:${order.orderId}`,
+      label: `${formatInternalCodeLabel(order.orderNumber)} · ${order.customer || '—'}`,
+      detail: `납기 ${order.deliveryDate} (${countdown}) · 생산 진행 필요`,
+      href: '/production/status',
+      tone: daysUntil < 0 ? ('danger' as const) : ('warn' as const),
+      department: 'production' as const,
+    }
+  })
 }
 
 export function buildNegativeStockNotification(negativeCount: number): OpsAlert | null {
@@ -79,6 +119,7 @@ export function buildNegativeStockNotification(negativeCount: number): OpsAlert 
     detail: '재고현황에서 입고·불출 내역을 확인하세요',
     href: '/materials/inventory',
     tone: 'danger',
+    department: 'material',
   }
 }
 
@@ -90,5 +131,6 @@ export function buildPendingPurchaseNotification(pendingCount: number): OpsAlert
     detail: '발주서 입고 잔량을 확인하세요',
     href: '/materials/purchase-orders',
     tone: 'warn',
+    department: 'material',
   }
 }
