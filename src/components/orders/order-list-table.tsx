@@ -1,9 +1,6 @@
 'use client'
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
-
-import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
-
 import { OrderCategoryBadge } from '@/components/orders/order-category-badge'
 import {
   formatInternalCodeLabel,
@@ -12,6 +9,11 @@ import {
   formatProductSummary,
 } from '@/lib/orders/utils'
 import type { OrderListGroup } from '@/lib/orders/types'
+import {
+  ERP_TABLE_TD_FIXED_CLASS,
+  ERP_TABLE_TD_WRAP_CLASS,
+  ERP_TABLE_WRAP_CLASS,
+} from '@/lib/ui/tokens'
 
 type OrderListTableProps = {
   orders: OrderListGroup[]
@@ -22,7 +24,7 @@ type OrderListTableProps = {
 export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderListTableProps) {
   if (!orders.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="신규 주문 버튼으로 등록하거나, 견적서에서 「주문서로 전환」을 사용하세요." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 
@@ -68,25 +70,38 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
                 className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
                 onClick={() => onSelectOrder?.(order)}
               >
-                <td className="px-3 py-2.5 text-sm text-slate-700">{order.orderDate || '-'}</td>
-                <td className="px-3 py-2.5 text-sm text-slate-700">
+                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
+                  {order.orderDate || '-'}
+                </td>
+                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
                   {formatOrderDeliverySummary(order)}
                 </td>
-                <td className="px-3 py-2.5 font-mono text-xs text-emerald-800" title={order.orderNumber}>
+                <td
+                  className={`px-3 py-2.5 font-mono text-xs text-emerald-800 ${ERP_TABLE_TD_FIXED_CLASS}`}
+                  title={order.orderNumber}
+                >
                   {formatInternalCodeLabel(order.orderNumber)}
                 </td>
-                <td className="px-3 py-2.5 text-sm text-slate-700">{order.customer || '-'}</td>
-                <td className="px-3 py-2.5 text-sm text-slate-700">{formatProductSummary(order)}</td>
-                <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-700">
+                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  {order.customer || '-'}
+                </td>
+                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  {formatProductSummary(order)}
+                </td>
+                <td
+                  className={`px-3 py-2.5 text-right text-sm tabular-nums text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}
+                >
                   {order.totalQuantity.toLocaleString('ko-KR')}
                 </td>
-                <td className="px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900">
+                <td
+                  className={`px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900 ${ERP_TABLE_TD_FIXED_CLASS}`}
+                >
                   {formatOrderMoney(order.totalAmount)}
                 </td>
-                <td className="px-3 py-2.5 text-center">
+                <td className={`px-3 py-2.5 text-center ${ERP_TABLE_TD_FIXED_CLASS}`}>
                   <OrderCategoryBadge category={order.category} />
                 </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
+                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
                   {order.createdByName || '-'}
                 </td>
               </tr>

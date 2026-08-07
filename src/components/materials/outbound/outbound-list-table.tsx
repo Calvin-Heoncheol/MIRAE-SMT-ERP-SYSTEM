@@ -2,7 +2,7 @@
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
 
-import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_TABLE_TD_WRAP_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 import { getOutboundTypeLabel, formatOutboundMaterialSummary } from '@/lib/materials/outbound/utils'
 import type { MaterialOutboundListGroup } from '@/lib/materials/outbound/types'
@@ -20,7 +20,7 @@ export function OutboundListTable({
 }: OutboundListTableProps) {
   if (!outbounds.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="불출 등록 내역이 여기에 표시됩니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 
@@ -30,28 +30,28 @@ export function OutboundListTable({
         <table className="w-full min-w-[1000px] table-fixed border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[12%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 불출번호
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[10%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 불출일
               </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[8%] px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 유형
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[12%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 주문번호
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[22%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목
               </th>
-              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[10%] px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 총 수량
               </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[10%] whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 등록자
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[16%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
               </th>
             </tr>
@@ -73,10 +73,8 @@ export function OutboundListTable({
                 <td className="px-3 py-2.5 font-mono text-sm text-slate-600">
                   {outbound.orderNumber || '-'}
                 </td>
-                <td className="px-3 py-2.5 text-sm text-slate-700">
-                  <span className="block truncate" title={formatOutboundMaterialSummary(outbound)}>
-                    {formatOutboundMaterialSummary(outbound)}
-                  </span>
+                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  {formatOutboundMaterialSummary(outbound)}
                 </td>
                 <td className="px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900">
                   {outbound.totalQuantity.toLocaleString('ko-KR')}
@@ -84,10 +82,8 @@ export function OutboundListTable({
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
                   {outbound.createdByName || '-'}
                 </td>
-                <td className="px-3 py-2.5 text-sm text-slate-500">
-                  <span className="block truncate" title={outbound.note || '-'}>
-                    {outbound.note.trim() || '-'}
-                  </span>
+                <td className={`px-3 py-2.5 text-sm text-slate-500 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  {outbound.note.trim() || '-'}
                 </td>
               </tr>
             ))}

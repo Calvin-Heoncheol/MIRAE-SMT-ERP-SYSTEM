@@ -7,6 +7,7 @@ import { OrderFetchError } from '@/components/orders/order-fetch-error'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { downloadExcelSheets, type ExcelColumn } from '@/lib/excel/export'
 import type { FetchOrdersResult } from '@/lib/orders/repository'
@@ -169,7 +170,7 @@ export function OrdersListWorkspace({
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           title="주문서 등록"
           totalCount={orders.length}
@@ -210,7 +211,7 @@ export function OrdersListWorkspace({
           rangeEnd={pagination.rangeEnd}
           totalCount={pagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       {modal.open ? (
         <OrderModal

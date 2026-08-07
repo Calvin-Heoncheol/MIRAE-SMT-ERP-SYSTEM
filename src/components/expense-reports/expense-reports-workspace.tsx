@@ -7,6 +7,7 @@ import { ExpenseReportListTable } from '@/components/expense-reports/expense-rep
 import { ExpenseReportModal } from '@/components/expense-reports/expense-report-modal'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchExpenseReportsResult } from '@/lib/expense-reports/repository'
 import type { ExpenseReportListItem } from '@/lib/expense-reports/types'
@@ -82,7 +83,7 @@ export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
@@ -115,7 +116,7 @@ export function ExpenseReportsWorkspace({ result }: ExpenseReportsWorkspaceProps
             />
           </>
         )}
-      </div>
+      </PageShell>
 
       {modal.open ? (
         <ExpenseReportModal

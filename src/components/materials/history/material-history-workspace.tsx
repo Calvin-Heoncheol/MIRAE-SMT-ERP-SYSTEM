@@ -12,7 +12,9 @@ import { OutboundFetchError } from '@/components/materials/outbound/outbound-fet
 import { OutboundListTable } from '@/components/materials/outbound/outbound-list-table'
 import { OutboundModal } from '@/components/materials/outbound/outbound-modal'
 import { FilterChipBar } from '@/components/ui/filter-chip'
+import { DateRangeFilter } from '@/components/ui/date-range-filter'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { type MaterialHistoryCategory } from '@/lib/materials/history/category'
 import { getInboundTypeLabel } from '@/lib/materials/inbound/utils'
@@ -23,6 +25,7 @@ import type { FetchMaterialOutboundPageResult } from '@/lib/materials/outbound/r
 import type { MaterialOutboundListGroup } from '@/lib/materials/outbound/types'
 import type { FetchMaterialPurchaseHistoryResult } from '@/lib/materials/purchase-orders/repository'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
+import { hasDateRangeFilter, matchesDateRange } from '@/lib/ui/date-range'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
@@ -106,6 +109,8 @@ export function MaterialHistoryWorkspace({
   const pathname = usePathname()
   const [category, setCategory] = useState<MaterialHistoryCategory>(initialCategory)
   const [search, setSearch] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [purchaseModal, setPurchaseModal] = useState<PurchaseModalState>({ open: false })
   const [inboundModal, setInboundModal] = useState<InboundModalState>({ open: false })
   const [outboundModal, setOutboundModal] = useState<OutboundModalState>({ open: false })
@@ -119,18 +124,31 @@ export function MaterialHistoryWorkspace({
   const inbounds = inboundResult.ok ? inboundResult.inbounds : []
   const outbounds = outboundResult.ok ? outboundResult.outbounds : []
   const query = search.trim().toLowerCase()
+  const dateRange = useMemo(() => ({ startDate, endDate }), [startDate, endDate])
 
   const filteredPurchaseOrders = useMemo(
-    () => purchaseOrders.filter((order) => matchesPurchaseOrder(order, query)),
-    [purchaseOrders, query],
+    () =>
+      purchaseOrders.filter(
+        (order) =>
+          matchesDateRange(order.orderDate, dateRange) && matchesPurchaseOrder(order, query),
+      ),
+    [purchaseOrders, query, dateRange],
   )
   const filteredInbounds = useMemo(
-    () => inbounds.filter((inbound) => matchesInbound(inbound, query)),
-    [inbounds, query],
+    () =>
+      inbounds.filter(
+        (inbound) =>
+          matchesDateRange(inbound.inboundDate, dateRange) && matchesInbound(inbound, query),
+      ),
+    [inbounds, query, dateRange],
   )
   const filteredOutbounds = useMemo(
-    () => outbounds.filter((outbound) => matchesOutbound(outbound, query)),
-    [outbounds, query],
+    () =>
+      outbounds.filter(
+        (outbound) =>
+          matchesDateRange(outbound.outboundDate, dateRange) && matchesOutbound(outbound, query),
+      ),
+    [outbounds, query, dateRange],
   )
 
   const stacked = category === 'all'
@@ -152,13 +170,14 @@ export function MaterialHistoryWorkspace({
       {
         value: 'all' as const,
         label: '전체',
-        count: purchaseOrders.length + inbounds.length + outbounds.length,
+        count:
+          filteredPurchaseOrders.length + filteredInbounds.length + filteredOutbounds.length,
       },
-      { value: 'purchase' as const, label: '발주', count: purchaseOrders.length },
-      { value: 'inbound' as const, label: '입고', count: inbounds.length },
-      { value: 'outbound' as const, label: '불출', count: outbounds.length },
+      { value: 'purchase' as const, label: '발주', count: filteredPurchaseOrders.length },
+      { value: 'inbound' as const, label: '입고', count: filteredInbounds.length },
+      { value: 'outbound' as const, label: '불출', count: filteredOutbounds.length },
     ],
-    [purchaseOrders.length, inbounds.length, outbounds.length],
+    [filteredPurchaseOrders.length, filteredInbounds.length, filteredOutbounds.length],
   )
 
   function changeCategory(next: MaterialHistoryCategory) {
@@ -166,8 +185,14 @@ export function MaterialHistoryWorkspace({
     const params = new URLSearchParams()
     if (next !== 'all') params.set('category', next)
     const queryString = params.toString()
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false })
+    window.history.replaceState(
+      window.history.state,
+      '',
+      queryString ? `${pathname}?${queryString}` : pathname,
+    )
   }
+
+  const hasActiveFilter = Boolean(query) || hasDateRangeFilter(dateRange)
 
   function refresh() {
     router.refresh()
@@ -210,7 +235,7 @@ export function MaterialHistoryWorkspace({
           <MaterialPurchaseOrderListTable
             orders={purchasePagination.pageItems}
             emptyMessage={formatEmptyListMessage({
-              hasQuery: Boolean(query),
+              hasQuery: hasActiveFilter,
               emptyLabel: '등록된 자재 발주가 없습니다',
               actionHint: '발주 메뉴에서 등록하세요',
             })}
@@ -247,7 +272,7 @@ export function MaterialHistoryWorkspace({
           <InboundListTable
             inbounds={inboundPagination.pageItems}
             emptyMessage={formatEmptyListMessage({
-              hasQuery: Boolean(query),
+              hasQuery: hasActiveFilter,
               emptyLabel: '등록된 입고 내역이 없습니다',
               actionHint: '입고 메뉴에서 등록하세요',
             })}
@@ -284,7 +309,7 @@ export function MaterialHistoryWorkspace({
           <OutboundListTable
             outbounds={outboundPagination.pageItems}
             emptyMessage={formatEmptyListMessage({
-              hasQuery: Boolean(query),
+              hasQuery: hasActiveFilter,
               emptyLabel: '등록된 불출 내역이 없습니다',
               actionHint: '불출 메뉴에서 등록하세요',
             })}
@@ -305,12 +330,21 @@ export function MaterialHistoryWorkspace({
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder={searchPlaceholderFor(category)}
           accent="slate"
+          inlineFilters={
+            <DateRangeFilter
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              label="기준일"
+            />
+          }
           filters={
             <FilterChipBar options={categoryChips} value={category} onChange={changeCategory} />
           }
@@ -327,7 +361,7 @@ export function MaterialHistoryWorkspace({
           {inboundSection}
           {outboundSection}
         </div>
-      </div>
+      </PageShell>
 
       {purchaseModal.open ? (
         <MaterialPurchaseOrderModal

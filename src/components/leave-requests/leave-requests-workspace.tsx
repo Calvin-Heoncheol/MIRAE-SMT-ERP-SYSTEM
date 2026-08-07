@@ -7,6 +7,7 @@ import { LeaveRequestListTable } from '@/components/leave-requests/leave-request
 import { LeaveRequestModal } from '@/components/leave-requests/leave-request-modal'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchLeaveRequestsResult } from '@/lib/leave-requests/repository'
 import type { LeaveRequestListItem } from '@/lib/leave-requests/types'
@@ -84,7 +85,7 @@ export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) 
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
@@ -117,7 +118,7 @@ export function LeaveRequestsWorkspace({ result }: LeaveRequestsWorkspaceProps) 
             />
           </>
         )}
-      </div>
+      </PageShell>
 
       {modal.open ? (
         <LeaveRequestModal

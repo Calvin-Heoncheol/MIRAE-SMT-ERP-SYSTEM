@@ -19,7 +19,7 @@ function cell(value: string) {
 export function PostProcessHistoryTable({ rows, emptyMessage, onRowClick }: PostProcessHistoryTableProps) {
   if (!rows.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="생산입력 탭에서 등록한 후공정 실적이 여기에 표시됩니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 

@@ -39,6 +39,8 @@ export type DeliveryHistoryRow = {
   productCode: string
   targetQuantity: number
   quantity: number
+  /** 동일 조립그룹 기준 출하 차수 (1차, 2차…) */
+  shipmentRound: number
   source: DeliverySource
   note: string
   createdBy?: string | null

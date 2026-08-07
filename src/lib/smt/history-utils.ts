@@ -1,4 +1,5 @@
 import type { SmtPcbSide, SmtProductionHistoryRow, SmtProductionSource } from './types'
+import { matchesDateRange, type DateRangeFilterValue } from '@/lib/ui/date-range'
 
 export const SMT_HISTORY_PAGE_SIZE = 20
 
@@ -28,11 +29,17 @@ export function formatSmtHistoryDateTime(iso: string) {
   }).format(date)
 }
 
-export function filterSmtProductionHistory(rows: SmtProductionHistoryRow[], query: string) {
+export function filterSmtProductionHistory(
+  rows: SmtProductionHistoryRow[],
+  query: string,
+  dateRange: DateRangeFilterValue = {},
+) {
   const q = query.trim().toLowerCase()
-  if (!q) return rows
 
   return rows.filter((row) => {
+    if (!matchesDateRange(row.recordDate, dateRange)) return false
+    if (!q) return true
+
     const haystack = [
       row.recordDate,
       row.orderNumber,

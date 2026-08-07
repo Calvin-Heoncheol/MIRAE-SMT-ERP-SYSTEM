@@ -22,6 +22,8 @@ export type ProductionStatusProductLine = {
   deliveryTarget: number
   deliveryProduced: number
   deliveryPercent: number
+  /** 조립그룹별 출하 등록 횟수 합 (N차) */
+  deliveryShipmentCount: number
   /** 모달 SMT 필터 */
   smtOrderLineIds: string[]
   /** 모달 후공정·출하 필터 */
@@ -51,6 +53,8 @@ export type ProductionStatusLine = {
   deliveryTarget: number
   deliveryProduced: number
   deliveryPercent: number
+  /** 해당 주문에서 가장 높은 출하 차수 (제품별 등록 횟수 중 max) */
+  deliveryShipmentCount: number
   products: ProductionStatusProductLine[]
 }
 

@@ -8,6 +8,7 @@ import { ItemModal } from '@/components/items/item-modal'
 import { ItemNewMenu } from '@/components/items/item-new-menu'
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import type { FetchItemsResult } from '@/lib/items/repository'
@@ -119,7 +120,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           title="품목등록"
           totalCount={items.length}
@@ -158,7 +159,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
           rangeEnd={pagination.rangeEnd}
           totalCount={pagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       {modal.open && modal.mode !== 'bulk' ? (
         <ItemModal

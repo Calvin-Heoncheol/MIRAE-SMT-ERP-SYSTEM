@@ -4,14 +4,30 @@ import type { ChangeLogEntityType, ChangeLogRecord, InsertChangeLogInput } from 
 
 export type FetchChangeLogsResult =
   | { ok: true; rows: ChangeLogRecord[] }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'missing_table'; detail: string }
 
-function isMissingChangeLogsTable(detail: string) {
+export type InsertChangeLogResult =
+  | { ok: true }
+  | { ok: false; reason: 'env' | 'query' | 'missing_table' | 'skipped'; detail: string }
+
+export function isMissingChangeLogsTable(detail: string) {
   return (
     detail.includes('entity_change_logs') ||
     detail.includes('schema cache') ||
     detail.includes('does not exist')
   )
+}
+
+/** 저장은 성공했으나 이력 기록 실패 시 사용자 안내 문구 */
+export function formatChangeLogWarning(result: InsertChangeLogResult): string | undefined {
+  if (result.ok || result.reason === 'skipped') return undefined
+  if (result.reason === 'missing_table') {
+    return '저장은 완료됐지만 변경이력이 기록되지 않았습니다. Supabase에서 migrate-entity-change-logs.sql 을 실행하세요.'
+  }
+  if (result.reason === 'env') {
+    return '저장은 완료됐지만 변경이력이 기록되지 않았습니다. Supabase 환경변수를 확인하세요.'
+  }
+  return `저장은 완료됐지만 변경이력 기록에 실패했습니다. (${result.detail})`
 }
 
 function mapRow(row: {
@@ -54,7 +70,11 @@ export async function fetchRecentChangeLogs(limit = 30): Promise<FetchChangeLogs
 
     if (error) {
       if (isMissingChangeLogsTable(error.message)) {
-        return { ok: true, rows: [] }
+        return {
+          ok: false,
+          reason: 'missing_table',
+          detail: 'entity_change_logs 테이블이 없습니다. migrate-entity-change-logs.sql 을 실행하세요.',
+        }
       }
       return { ok: false, reason: 'query', detail: error.message }
     }
@@ -98,7 +118,11 @@ export async function fetchChangeLogsForEntity(
 
     if (error) {
       if (isMissingChangeLogsTable(error.message)) {
-        return { ok: true, rows: [] }
+        return {
+          ok: false,
+          reason: 'missing_table',
+          detail: 'entity_change_logs 테이블이 없습니다. migrate-entity-change-logs.sql 을 실행하세요.',
+        }
       }
       return { ok: false, reason: 'query', detail: error.message }
     }
@@ -114,16 +138,23 @@ export async function fetchChangeLogsForEntity(
 }
 
 /**
- * 변경 이력 기록. 실패해도 호출부 저장은 막지 않음 (테이블 미적용 포함).
+ * 변경 이력 기록.
+ * 실패해도 호출부 저장을 막지 않으며, 결과를 반환해 토스트·배지에 쓸 수 있게 한다.
  */
-export async function insertChangeLog(input: InsertChangeLogInput): Promise<void> {
+export async function insertChangeLog(input: InsertChangeLogInput): Promise<InsertChangeLogResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
   }
 
   const entityId = String(input.entityId || '').trim()
   const title = String(input.title || '').trim()
-  if (!entityId || !title) return
+  if (!entityId || !title) {
+    return { ok: false, reason: 'skipped', detail: 'entityId/title 없음' }
+  }
 
   try {
     const snapshot = await resolveCreatedBySnapshot()
@@ -150,13 +181,25 @@ export async function insertChangeLog(input: InsertChangeLogInput): Promise<void
       changed_by_name: snapshot.createdByName,
     })
 
-    if (error && !isMissingChangeLogsTable(error.message)) {
+    if (error) {
+      if (isMissingChangeLogsTable(error.message)) {
+        return {
+          ok: false,
+          reason: 'missing_table',
+          detail: error.message,
+        }
+      }
       console.warn('[change-logs] insert failed:', error.message)
+      return { ok: false, reason: 'query', detail: error.message }
     }
+
+    return { ok: true }
   } catch (error) {
-    console.warn(
-      '[change-logs] insert failed:',
-      error instanceof Error ? error.message : String(error),
-    )
+    const detail = error instanceof Error ? error.message : String(error)
+    console.warn('[change-logs] insert failed:', detail)
+    if (isMissingChangeLogsTable(detail)) {
+      return { ok: false, reason: 'missing_table', detail }
+    }
+    return { ok: false, reason: 'query', detail }
   }
 }

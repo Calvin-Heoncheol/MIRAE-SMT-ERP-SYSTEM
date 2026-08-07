@@ -12,7 +12,7 @@ import type {
 } from '@/lib/dashboard/home-data'
 import type { ChangeLogRecord } from '@/lib/change-logs/types'
 import { ChangeLogDetailText } from '@/components/change-logs/change-log-detail-text'
-import { ERP_SECONDARY_BUTTON_CLASS } from '@/lib/ui/tokens'
+import { ERP_BADGE_COMPACT_CLASS, ERP_SECONDARY_BUTTON_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 const DEPARTMENT_LABEL = {
   production: '생산',
@@ -98,17 +98,54 @@ function changeEntityChip(entityType: ChangeLogRecord['entityType']) {
   return 'bg-emerald-50 text-emerald-800 ring-emerald-200'
 }
 
-function ChangesPanel({ rows }: { rows: ChangeLogRecord[] }) {
+function ChangesPanel({
+  rows,
+  status,
+  message,
+}: {
+  rows: ChangeLogRecord[]
+  status: HomeDashboardData['changeLogsStatus']
+  message?: string
+}) {
+  const badge =
+    status === 'missing_table'
+      ? {
+          text: '이력 테이블 미적용',
+          className: 'bg-amber-50 text-amber-800 ring-amber-200',
+          body: '변경사항이 기록되지 않습니다. Supabase에서 migrate-entity-change-logs.sql 을 실행하세요.',
+        }
+      : status === 'error' || status === 'env'
+        ? {
+            text: '이력 조회 실패',
+            className: 'bg-rose-50 text-rose-800 ring-rose-200',
+            body: message || '변경사항을 불러오지 못했습니다.',
+          }
+        : null
+
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <header className="shrink-0 border-b border-slate-100 px-4 py-3">
-        <h2 className="text-base font-bold text-slate-900">변경사항</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-base font-bold text-slate-900">변경사항</h2>
+          {badge ? (
+            <span
+              className={`${ERP_BADGE_COMPACT_CLASS} ring-inset ${badge.className}`}
+            >
+              {badge.text}
+            </span>
+          ) : null}
+        </div>
         <p className="mt-0.5 text-xs text-slate-500">주문서 · 품목 · 견적서 수정 이력</p>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        {badge ? (
+          <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 text-xs text-amber-900">
+            {badge.body}
+          </p>
+        ) : null}
         {rows.length === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-            아직 기록된 변경사항이 없습니다.
+            {badge ? '이력을 표시할 수 없습니다.' : '아직 기록된 변경사항이 없습니다.'}
           </p>
         ) : (
           <ul className="space-y-2">
@@ -121,7 +158,7 @@ function ChangesPanel({ rows }: { rows: ChangeLogRecord[] }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span
-                        className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset ${changeEntityChip(row.entityType)}`}
+                        className={`${ERP_BADGE_COMPACT_CLASS} ring-inset ${changeEntityChip(row.entityType)}`}
                       >
                         {changeEntityLabel(row.entityType)}
                       </span>
@@ -165,7 +202,7 @@ function AttentionPanel({ items }: { items: HomeAttentionItem[] }) {
                   className={`flex items-start gap-3 rounded-xl border border-slate-200 border-l-4 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-50/80 ${attentionToneClass(item.tone)}`}
                 >
                   <span
-                    className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset ${DEPARTMENT_CHIP[item.department]}`}
+                    className={`mt-0.5 shrink-0 ${ERP_BADGE_COMPACT_CLASS} ring-inset ${DEPARTMENT_CHIP[item.department]}`}
                   >
                     {DEPARTMENT_LABEL[item.department]}
                   </span>
@@ -249,12 +286,14 @@ function TeamProductionModal({
                   <td className="whitespace-nowrap px-3 py-2.5 font-medium text-slate-800">
                     {row.orderNumber || '—'}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">
+                  <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {row.customer || '—'}
                   </td>
-                  <td className="px-3 py-2.5 text-slate-800">
-                    <p className="font-medium">{row.productName || '—'}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                  <td className="min-w-0 px-3 py-2.5 text-slate-800">
+                    <p className={`font-medium ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                      {row.productName || '—'}
+                    </p>
+                    <p className={`mt-0.5 text-xs text-slate-500 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                       {[row.productCode, row.detail].filter(Boolean).join(' · ') || '—'}
                     </p>
                   </td>
@@ -342,7 +381,11 @@ export function HomeDashboard({ data }: { data: HomeDashboardData }) {
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden xl:flex-row">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden md:flex-row">
           <AttentionPanel items={data.attention} />
-          <ChangesPanel rows={data.changeLogs} />
+          <ChangesPanel
+            rows={data.changeLogs}
+            status={data.changeLogsStatus}
+            message={data.changeLogsMessage}
+          />
         </div>
         <TeamProduction teams={data.productionTeams} todayLabel={data.todayLabel} />
       </div>

@@ -40,6 +40,7 @@ export function EntityChangeHistoryButton({
   const [open, setOpen] = useState(false)
   const [rows, setRows] = useState<ChangeLogRecord[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const id = String(entityId || '').trim()
 
   useEffect(() => {
@@ -47,10 +48,20 @@ export function EntityChangeHistoryButton({
 
     let cancelled = false
     setLoading(true)
+    setLoadError(null)
     void fetchChangeLogsForEntity(entityType, id).then((result) => {
       if (cancelled) return
       setLoading(false)
-      setRows(result.ok ? result.rows : [])
+      if (!result.ok) {
+        setRows([])
+        setLoadError(
+          result.reason === 'missing_table'
+            ? '변경이력 테이블이 없습니다. migrate-entity-change-logs.sql 을 실행하세요.'
+            : result.detail,
+        )
+        return
+      }
+      setRows(result.rows)
     })
 
     return () => {
@@ -91,6 +102,10 @@ export function EntityChangeHistoryButton({
       >
         {loading ? (
           <p className="text-sm text-slate-500">불러오는 중…</p>
+        ) : loadError ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-8 text-center text-sm text-amber-900">
+            {loadError}
+          </p>
         ) : rows.length === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
             아직 기록된 변경이력이 없습니다.

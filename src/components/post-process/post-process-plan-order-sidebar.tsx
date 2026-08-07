@@ -13,6 +13,7 @@ import {
   getDeliveryUrgencyTone,
 } from '@/lib/post-process/plan/utils'
 import { PRODUCTION_ORDER_PAGE_SIZE } from '@/lib/production-input/utils'
+import { ERP_BADGE_COMPACT_CLASS } from '@/lib/ui/tokens'
 
 type PostProcessPlanOrderSidebarProps = {
   candidates: PostProcessPlanOrderCandidate[]
@@ -40,23 +41,22 @@ function urgencyBorderClass(daysUntilDelivery: number | null) {
 }
 
 function SmtStatusBadge({ smt }: { smt: CandidateSmtStatus }) {
+  const base = ERP_BADGE_COMPACT_CLASS
   if (smt.status === 'done') {
     return (
-      <span className="inline-flex items-center rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
-        SMT 완료
-      </span>
+      <span className={`${base} bg-emerald-50 text-emerald-700 ring-emerald-200`}>SMT 완료</span>
     )
   }
   if (smt.status === 'planned') {
     return (
-      <span className="inline-flex items-center rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold text-sky-700 ring-1 ring-sky-200">
+      <span className={`${base} bg-sky-50 text-sky-700 ring-sky-200`}>
         SMT {smt.lastPlannedDate ? `${formatCalendarDayLabel(smt.lastPlannedDate)} ` : ''}완료예정
       </span>
     )
   }
   if (smt.status === 'partial') {
     return (
-      <span className="inline-flex items-center rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-amber-200 tabular-nums">
+      <span className={`${base} bg-amber-50 text-amber-800 ring-amber-200 tabular-nums`}>
         SMT 일부계획 {smt.coveredQuantity.toLocaleString('ko-KR')}/
         {smt.targetQuantity.toLocaleString('ko-KR')}
         {smt.lastPlannedDate ? ` · ~${formatCalendarDayLabel(smt.lastPlannedDate)}` : ''}
@@ -64,9 +64,7 @@ function SmtStatusBadge({ smt }: { smt: CandidateSmtStatus }) {
     )
   }
   return (
-    <span className="inline-flex items-center rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200">
-      SMT 미계획
-    </span>
+    <span className={`${base} bg-rose-50 text-rose-700 ring-rose-200`}>SMT 미계획</span>
   )
 }
 

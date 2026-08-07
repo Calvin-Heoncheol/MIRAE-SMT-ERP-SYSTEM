@@ -5,6 +5,7 @@ import { ReportPeriodControls } from '@/components/reports/report-period-control
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
+import { PageShell } from '@/components/ui/page-shell'
 import {
   ERP_TABLE_CLASS,
   ERP_TABLE_HEAD_CLASS,
@@ -233,7 +234,7 @@ export function ProductionReportWorkspace({
   }
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+    <PageShell>
       <ReportPeriodControls
         period={period}
         rangeLabel={rangeLabel}
@@ -376,6 +377,6 @@ export function ProductionReportWorkspace({
           </div>
         </div>
       ) : null}
-    </div>
+    </PageShell>
   )
 }

@@ -544,8 +544,8 @@ body {
 
   body.document-printing #document-print-root th,
   body.document-printing #document-print-root td {
-    word-break: break-word;
-    overflow-wrap: anywhere;
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
 
   body.document-printing #document-print-root input:not([type='checkbox']):not([type='radio']),

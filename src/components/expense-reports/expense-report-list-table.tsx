@@ -18,7 +18,7 @@ type ExpenseReportListTableProps = {
 export function ExpenseReportListTable({ reports, emptyMessage, onSelectReport }: ExpenseReportListTableProps) {
   if (!reports.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="새 지출결의서 버튼으로 작성할 수 있습니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 

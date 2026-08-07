@@ -2,7 +2,7 @@
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { CategoryBadge } from '@/components/ui/category-badge'
-import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_TABLE_TD_WRAP_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 import {
   ITEM_CATEGORY_BADGE_CLASS,
   ITEM_CATEGORY_LABELS,
@@ -75,7 +75,7 @@ export function ItemListTable({
 
   if (!items.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="품목을 등록하면 여기에 표시됩니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 
@@ -173,10 +173,10 @@ export function ItemListTable({
                   onSelectItem ? 'cursor-pointer' : ''
                 }`}
               >
-                <td className="truncate whitespace-nowrap px-3 py-2.5 font-mono text-sm font-semibold text-slate-800">
+                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-sm font-semibold text-slate-800">
                   {cell(formatItemDisplayCode(item))}
                 </td>
-                <td className="truncate px-3 py-2.5 text-sm font-medium text-slate-900" title={item.name}>
+                <td className={`px-3 py-2.5 text-sm font-medium text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                   {cell(item.name)}
                 </td>
                 {columns.category ? (
@@ -193,15 +193,12 @@ export function ItemListTable({
                   </td>
                 ) : null}
                 {columns.specification ? (
-                  <td
-                    className="truncate px-3 py-2.5 text-sm text-slate-700"
-                    title={item.specification.trim() || undefined}
-                  >
+                  <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {cell(item.specification)}
                   </td>
                 ) : null}
                 {columns.mpn ? (
-                  <td className="truncate px-3 py-2.5 font-mono text-sm text-slate-700" title={item.mpn}>
+                  <td className={`px-3 py-2.5 font-mono text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {cell(item.mpn)}
                   </td>
                 ) : null}
@@ -216,7 +213,7 @@ export function ItemListTable({
                   </td>
                 ) : null}
                 {columns.supplier ? (
-                  <td className="truncate px-3 py-2.5 text-sm text-slate-700" title={item.supplier}>
+                  <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {cell(item.supplier)}
                   </td>
                 ) : null}

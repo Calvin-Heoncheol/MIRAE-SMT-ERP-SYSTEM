@@ -53,6 +53,7 @@ function buildProductLinesForOrder(
   postCounts: ProductionCounts,
   postDefectCounts: ProductionCounts,
   deliveryCounts: ProductionCounts,
+  shipmentCounts: ProductionCounts = {},
   productById: Record<string, Product> = {},
 ): ProductionStatusProductLine[] {
   const smtByLineId = new Map(orderSmtLines.map((line) => [line.orderLineId, line]))
@@ -99,12 +100,14 @@ function buildProductLinesForOrder(
     let postDefected = 0
     let deliveryTarget = 0
     let deliveryProduced = 0
+    let deliveryShipmentCount = 0
     const assemblyGroupIds: string[] = []
 
     if (assembly) {
       const assemblyTarget = Math.max(0, Math.floor(assembly.targetQuantity))
       deliveryTarget = assemblyTarget
       deliveryProduced = Math.max(0, Math.floor(Number(deliveryCounts[assembly.id]) || 0))
+      deliveryShipmentCount = Math.max(0, Math.floor(Number(shipmentCounts[assembly.id]) || 0))
       assemblyGroupIds.push(assembly.id)
 
       if (assemblyGroupIncludesPostProcess(assembly, productById)) {
@@ -138,6 +141,7 @@ function buildProductLinesForOrder(
       deliveryTarget,
       deliveryProduced,
       deliveryPercent: getProgressPercent(deliveryProduced, deliveryTarget),
+      deliveryShipmentCount,
       smtOrderLineIds,
       assemblyGroupIds,
     })
@@ -170,6 +174,7 @@ function buildProductLinesForOrder(
       deliveryTarget: 0,
       deliveryProduced: 0,
       deliveryPercent: 0,
+      deliveryShipmentCount: 0,
       smtOrderLineIds: [smtLine.orderLineId],
       assemblyGroupIds: [],
     })
@@ -188,6 +193,7 @@ export function buildProductionStatusLines(
   smtDefectCounts: ProductionCounts = {},
   postDefectCounts: ProductionCounts = {},
   productById: Record<string, Product> = {},
+  shipmentCounts: ProductionCounts = {},
 ): ProductionStatusLine[] {
   const smtLinesByOrderNumber = groupSmtLinesByOrderNumber(smtLines)
   const assembliesByOrderId = groupAssemblyGroupsByOrderId(assemblyGroups)
@@ -213,11 +219,16 @@ export function buildProductionStatusLines(
     let postDefected = 0
     let deliveryTarget = 0
     let deliveryProduced = 0
+    let deliveryShipmentCount = 0
 
     for (const assembly of orderAssemblies) {
       const assemblyTarget = Math.max(0, Math.floor(assembly.targetQuantity))
       deliveryTarget += assemblyTarget
       deliveryProduced += Math.max(0, Math.floor(Number(deliveryCounts[assembly.id]) || 0))
+      deliveryShipmentCount = Math.max(
+        deliveryShipmentCount,
+        Math.max(0, Math.floor(Number(shipmentCounts[assembly.id]) || 0)),
+      )
       if (!assemblyGroupIncludesPostProcess(assembly, productById)) continue
       postTarget += assemblyTarget
       postProduced += Math.max(0, Math.floor(Number(postCounts[assembly.id]) || 0))
@@ -233,6 +244,7 @@ export function buildProductionStatusLines(
       postCounts,
       postDefectCounts,
       deliveryCounts,
+      shipmentCounts,
       productById,
     )
 
@@ -267,6 +279,7 @@ export function buildProductionStatusLines(
       deliveryTarget,
       deliveryProduced,
       deliveryPercent: getProgressPercent(deliveryProduced, deliveryTarget),
+      deliveryShipmentCount,
       products,
     }
   })

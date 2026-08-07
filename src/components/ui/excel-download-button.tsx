@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { ERP_EXCEL_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 type ExcelDownloadButtonProps = {
   onDownload: () => Promise<void>
   disabled?: boolean
 }
 
+/** 전 페이지 공통 Excel 내보내기 — 초록 */
 export function ExcelDownloadButton({ onDownload, disabled = false }: ExcelDownloadButtonProps) {
   const [busy, setBusy] = useState(false)
 
@@ -25,7 +27,7 @@ export function ExcelDownloadButton({ onDownload, disabled = false }: ExcelDownl
       type="button"
       onClick={handleClick}
       disabled={disabled || busy}
-      className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+      className={ERP_EXCEL_BUTTON_CLASS}
     >
       {busy ? '내보내는 중…' : 'EXCEL'}
     </button>

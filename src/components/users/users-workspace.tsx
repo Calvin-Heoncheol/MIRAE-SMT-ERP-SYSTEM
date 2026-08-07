@@ -5,6 +5,7 @@ import { UsersModal } from '@/components/users/users-modal'
 import { UsersTable } from '@/components/users/users-table'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import {
   formatAuthDepartmentLabel,
@@ -96,7 +97,7 @@ export function UsersWorkspace({ result }: UsersWorkspaceProps) {
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           title="사용자등록"
           totalCount={users.length}
@@ -127,7 +128,7 @@ export function UsersWorkspace({ result }: UsersWorkspaceProps) {
           rangeEnd={pagination.rangeEnd}
           totalCount={pagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       <UsersModal
         key={modalSession}

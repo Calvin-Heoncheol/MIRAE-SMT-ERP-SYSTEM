@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { ProductionHistoryModal } from '@/components/production-history/production-history-modal'
 import { ProductionHistoryTable } from '@/components/production-history/production-history-table'
+import { DateRangeFilter } from '@/components/ui/date-range-filter'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
@@ -19,7 +20,6 @@ import {
 import {
   filterProductionHistory,
   formatProductionHistoryRecordAt,
-  sumProductionHistoryQuantity,
 } from '@/lib/production-history/utils'
 import { formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
@@ -40,6 +40,8 @@ export function ProductionHistoryWorkspace({
   const pathname = usePathname()
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState<ProductionHistoryTeamFilter>(initialTeamFilter)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
 
   // 내비에서 ?team=생산3팀 등으로 같은 페이지 이동 시 필터 동기화
@@ -49,22 +51,24 @@ export function ProductionHistoryWorkspace({
 
   function handleTeamFilterChange(next: ProductionHistoryTeamFilter) {
     setTeamFilter(next)
+    // App Router soft navigation(RSC fetch) 없이 URL만 맞춰 딥링크 유지
     const query = next === 'all' ? '' : `?team=${encodeURIComponent(next)}`
-    router.replace(`${pathname}${query}`, { scroll: false })
+    window.history.replaceState(window.history.state, '', `${pathname}${query}`)
   }
 
   const rows = result.ok ? result.rows : []
+  const dateRange = useMemo(() => ({ startDate, endDate }), [startDate, endDate])
   const filtered = useMemo(
-    () => filterProductionHistory(rows, search, teamFilter),
-    [rows, search, teamFilter],
+    () => filterProductionHistory(rows, search, teamFilter, dateRange),
+    [rows, search, teamFilter, dateRange],
   )
-  const totalQuantity = useMemo(() => sumProductionHistoryQuantity(filtered), [filtered])
   const pagination = useClientPagination(filtered)
-  const hasActiveFilter = Boolean(search.trim()) || teamFilter !== 'all'
+  const hasActiveFilter =
+    Boolean(search.trim()) || teamFilter !== 'all' || Boolean(startDate || endDate)
   const showSmtColumns = teamFilter === 'all' || teamFilter === '생산1팀'
 
   const teamFilterOptions = useMemo(() => {
-    const searched = filterProductionHistory(rows, search, 'all')
+    const searched = filterProductionHistory(rows, search, 'all', dateRange)
     return [
       { value: 'all' as const, label: '전체', count: searched.length },
       ...PRODUCTION_HISTORY_TEAMS.map((team) => ({
@@ -73,7 +77,7 @@ export function ProductionHistoryWorkspace({
         count: searched.filter((row) => row.team === team).length,
       })),
     ]
-  }, [rows, search])
+  }, [rows, search, dateRange])
 
   function openDetail(row: ProductionHistoryRow) {
     setModal({ open: true, row })
@@ -145,6 +149,15 @@ export function ProductionHistoryWorkspace({
           onSearchChange={setSearch}
           searchPlaceholder="주문서번호, 고객사, 제품명, 팀, 기록일 검색…"
           accent="slate"
+          inlineFilters={
+            <DateRangeFilter
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              label="기록일"
+            />
+          }
           filters={
             <FilterChipBar
               options={teamFilterOptions}
@@ -154,14 +167,6 @@ export function ProductionHistoryWorkspace({
           }
           actions={
             <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!filtered.length} />
-          }
-          meta={
-            <p className="mt-0.5 text-slate-500">
-              양품 합계{' '}
-              <span className="tabular-nums font-semibold text-slate-800">
-                {totalQuantity.toLocaleString('ko-KR')}
-              </span>
-            </p>
           }
         />
 

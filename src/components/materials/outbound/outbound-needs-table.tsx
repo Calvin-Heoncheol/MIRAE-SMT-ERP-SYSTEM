@@ -19,6 +19,7 @@ import type {
 import { OUTBOUND_MATERIAL_BUCKET_LABELS } from '@/lib/materials/outbound/types'
 import type { Material } from '@/lib/materials/types'
 import { todayYmdSeoul } from '@/lib/orders/utils'
+import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type OutboundNeedsTableProps = {
   cards: MaterialOutboundOrderCard[]
@@ -279,7 +280,9 @@ export function OutboundNeedsTable({ cards, bomEdges, materials, onIssued }: Out
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-mono text-sm font-bold text-slate-900">{card.orderNumber}</p>
-                  <p className="mt-1 truncate text-sm text-slate-600">{card.customer || '—'}</p>
+                  <p className={`mt-1 text-sm text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                    {card.customer || '—'}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <StatusBadge
@@ -315,7 +318,7 @@ export function OutboundNeedsTable({ cards, bomEdges, materials, onIssued }: Out
               <p className="mt-2 text-[11px] text-slate-400">납기 {card.deliveryDate || '—'}</p>
 
               <div className="mt-2.5 min-h-[2.75rem]">
-                <p className="truncate text-sm font-medium text-slate-800" title={card.productLabel}>
+                <p className={`text-sm font-medium text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                   {card.productLabel}
                 </p>
                 <p className="mt-1 text-[11px] font-medium text-slate-500">
@@ -333,10 +336,7 @@ export function OutboundNeedsTable({ cards, bomEdges, materials, onIssued }: Out
                 {productGroups.map((group) => (
                   <div key={group.productId} className="space-y-2">
                     <div className="min-w-0">
-                      <p
-                        className="truncate text-sm font-semibold text-slate-900"
-                        title={group.productName}
-                      >
+                      <p className={`text-sm font-semibold text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                         {group.productName}
                       </p>
                       <p className="mt-0.5 text-[11px] text-slate-500">

@@ -2,6 +2,7 @@ import { EmptyListState } from '@/components/ui/empty-list-state'
 
 import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
+import { formatShipmentRound } from '@/lib/delivery/history-utils'
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 
 type DeliveryHistoryTableProps = {
@@ -18,18 +19,21 @@ function cell(value: string) {
 export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: DeliveryHistoryTableProps) {
   if (!rows.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="출하에서 등록한 출하 실적이 여기에 표시됩니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className="overflow-x-auto">
-        <table className="min-w-[960px] w-full border-collapse">
+        <table className="min-w-[1020px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 출하번호
+              </th>
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                차수
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 기록일
@@ -68,6 +72,9 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
               >
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm font-semibold tabular-nums text-slate-800">
                   {cell(row.id)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-sm font-semibold text-sky-800">
+                  {formatShipmentRound(row.shipmentRound)}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">{cell(row.recordDate)}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm font-medium text-slate-900">

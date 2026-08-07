@@ -1,4 +1,5 @@
 import { formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
+import { matchesDateRange, type DateRangeFilterValue } from '@/lib/ui/date-range'
 import type {
   ProductionHistoryRow,
   ProductionHistoryTeamFilter,
@@ -20,21 +21,27 @@ export function formatProductionHistoryDateTime(iso: string) {
 }
 
 /** 기록일 표시 — 등록 시각(createdAt)이 있으면 날짜+시간, 없으면 기록일 */
-export function formatProductionHistoryRecordAt(row: Pick<ProductionHistoryRow, 'recordDate' | 'createdAt'>) {
+export function formatProductionHistoryRecordAt(
+  row: Pick<ProductionHistoryRow, 'recordDate' | 'createdAt'>,
+) {
   const withTime = formatProductionHistoryDateTime(row.createdAt)
   if (withTime !== '-') return withTime
   return row.recordDate.trim() || '-'
 }
 
+export type ProductionHistoryDateRange = DateRangeFilterValue
+
 export function filterProductionHistory(
   rows: ProductionHistoryRow[],
   query: string,
   teamFilter: ProductionHistoryTeamFilter,
+  dateRange: ProductionHistoryDateRange = {},
 ) {
   const q = query.trim().toLowerCase()
 
   return rows.filter((row) => {
     if (teamFilter !== 'all' && row.team !== teamFilter) return false
+    if (!matchesDateRange(row.recordDate, dateRange)) return false
     if (!q) return true
 
     const haystack = [

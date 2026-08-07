@@ -2,7 +2,7 @@
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
 
-import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_TABLE_TD_FIXED_CLASS, ERP_TABLE_TD_WRAP_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 import { formatInventoryQuantity } from '@/lib/materials/inventory/utils'
 import type { MaterialInventoryRow } from '@/lib/materials/inventory/types'
@@ -19,27 +19,21 @@ function cell(value: string) {
 }
 
 const codeCellClass =
-  'whitespace-nowrap text-sm tabular-nums [word-break:keep-all] [overflow-wrap:normal]'
+  `${ERP_TABLE_TD_FIXED_CLASS} text-sm tabular-nums [word-break:keep-all] [overflow-wrap:normal]`
 
-function TruncatedText({
+function CellText({
   value,
   className = '',
-  maxWidthClass = 'max-w-48',
 }: {
   value: string
   className?: string
-  maxWidthClass?: string
 }) {
   const text = cell(value)
   if (text === '-') {
     return <span className={`text-sm text-slate-400 ${className}`}>-</span>
   }
 
-  return (
-    <span className={`block truncate text-sm ${maxWidthClass} ${className}`} title={text}>
-      {text}
-    </span>
-  )
+  return <span className={`block text-sm ${ERP_TABLE_TD_WRAP_CLASS} ${className}`}>{text}</span>
 }
 
 function quantityClass(value: number, variant: 'onHand' | 'expected') {
@@ -55,7 +49,7 @@ function quantityClass(value: number, variant: 'onHand' | 'expected') {
 export function InventoryStatusTable({ rows, emptyMessage, onSelectRow }: InventoryStatusTableProps) {
   if (!rows.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="자재별 입고예정·현재고가 여기에 표시됩니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 
@@ -116,22 +110,14 @@ export function InventoryStatusTable({ rows, emptyMessage, onSelectRow }: Invent
                 title={onSelectRow ? '클릭하여 현재고 설정' : undefined}
               >
                 <td className={`px-3 py-2.5 font-medium text-blue-800 ${codeCellClass}`}>{row.id}</td>
-                <td className="px-3 py-2.5">
-                  <TruncatedText
-                    value={row.materialName}
-                    className="font-medium text-slate-900"
-                    maxWidthClass="max-w-36"
-                  />
+                <td className={`px-3 py-2.5 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  <CellText value={row.materialName} className="font-medium text-slate-900" />
                 </td>
-                <td className="px-3 py-2.5">
-                  <TruncatedText value={row.specification} maxWidthClass="max-w-44" />
+                <td className={`px-3 py-2.5 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  <CellText value={row.specification} />
                 </td>
-                <td className="max-w-0 overflow-hidden px-3 py-2.5">
-                  <TruncatedText
-                    value={row.mpn}
-                    className="text-slate-700"
-                    maxWidthClass="max-w-full"
-                  />
+                <td className={`px-3 py-2.5 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  <CellText value={row.mpn} className="text-slate-700" />
                 </td>
                 <td className="px-3 py-2.5 text-center text-sm text-slate-700">{cell(row.type)}</td>
                 <td className="px-3 py-2.5 text-center text-sm text-slate-700">{cell(row.supplyType)}</td>

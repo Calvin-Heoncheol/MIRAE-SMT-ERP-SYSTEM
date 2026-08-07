@@ -5,6 +5,7 @@ import { EmptyListState } from '@/components/ui/empty-list-state'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { MaterialPurchaseNeedCard } from '@/lib/materials/purchase-orders/types'
+import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type MaterialPurchaseNeedDetailModalProps = {
   open: boolean
@@ -191,19 +192,16 @@ export function MaterialPurchaseNeedDetailModal({
                           }
                         />
                       </td>
-                      <td className="truncate whitespace-nowrap px-3 py-2.5 font-mono text-xs text-slate-700">
+                      <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-slate-700">
                         {line.materialCode}
                       </td>
-                      <td className="truncate px-3 py-2.5 text-slate-800" title={line.materialName}>
+                      <td className={`px-3 py-2.5 text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                         {line.materialName}
                       </td>
-                      <td
-                        className="truncate px-3 py-2.5 text-slate-600"
-                        title={line.specification || undefined}
-                      >
+                      <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                         {line.specification || '—'}
                       </td>
-                      <td className="truncate whitespace-nowrap px-3 py-2.5 text-slate-600">
+                      <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                         {line.supplier || '—'}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-slate-800">

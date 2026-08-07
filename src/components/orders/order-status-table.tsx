@@ -1,42 +1,59 @@
 'use client'
 
 import { DeliveryDueBadge } from '@/components/ui/delivery-due-badge'
+import { EmptyListState } from '@/components/ui/empty-list-state'
+import { formatShipmentRound } from '@/lib/delivery/history-utils'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import type { ProductionStatusLine } from '@/lib/production-status/types'
+import { ERP_BADGE_COMPACT_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type OrderStatusTableProps = {
   lines: ProductionStatusLine[]
 }
 
-function OrderStatusBadge({ done, hasTarget }: { done: boolean; hasTarget: boolean }) {
+function OrderStatusBadge({
+  done,
+  hasTarget,
+  shipped,
+  shipmentCount,
+}: {
+  done: boolean
+  hasTarget: boolean
+  shipped: number
+  shipmentCount: number
+}) {
+  const base = ERP_BADGE_COMPACT_CLASS
   if (!hasTarget) {
-    return (
-      <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
-        대상없음
-      </span>
-    )
+    return <span className={`${base} bg-slate-100 text-slate-500 ring-slate-200`}>대상없음</span>
   }
   if (done) {
     return (
-      <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+      <span className={`${base} bg-emerald-50 text-emerald-700 ring-emerald-200`}>
         완료
+        {shipmentCount > 0 ? ` · ${formatShipmentRound(shipmentCount)}` : ''}
+      </span>
+    )
+  }
+  if (shipped > 0) {
+    return (
+      <span className={`${base} bg-amber-50 text-amber-800 ring-amber-200`}>
+        부분출하
+        {shipmentCount > 0 ? ` · ${formatShipmentRound(shipmentCount)}` : ''}
       </span>
     )
   }
   return (
-    <span className="inline-flex rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-800 ring-1 ring-amber-200">
-      진행중
-    </span>
+    <span className={`${base} bg-slate-100 text-slate-600 ring-slate-200`}>미출하</span>
   )
 }
 
 export function OrderStatusTable({ lines }: OrderStatusTableProps) {
   if (!lines.length) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
-        <p className="text-base font-semibold text-slate-700">표시할 주문서가 없습니다</p>
-        <p className="mt-2 text-sm text-slate-500">주문서를 등록하면 주문 현황이 여기에 표시됩니다.</p>
-      </div>
+      <EmptyListState
+        message="표시할 주문서가 없습니다"
+        hint="주문서를 등록하면 주문 현황이 여기에 표시됩니다."
+      />
     )
   }
 
@@ -78,6 +95,7 @@ export function OrderStatusTable({ lines }: OrderStatusTableProps) {
               const shipped = Math.max(0, line.deliveryProduced)
               const remaining = Math.max(0, target - shipped)
               const done = target > 0 && shipped >= target
+              const shipmentCount = Math.max(0, Math.floor(Number(line.deliveryShipmentCount) || 0))
 
               return (
                 <tr
@@ -85,18 +103,18 @@ export function OrderStatusTable({ lines }: OrderStatusTableProps) {
                   className="border-t border-slate-200 bg-white hover:bg-slate-50/70"
                 >
                   <td
-                    className="px-4 py-3.5 font-mono text-sm font-bold text-slate-900"
+                    className="px-4 py-3.5 font-mono text-sm font-bold whitespace-nowrap text-slate-900"
                     title={line.orderNumber}
                   >
                     {formatInternalCodeLabel(line.orderNumber)}
                   </td>
-                  <td className="px-4 py-3.5 text-sm font-semibold text-slate-800">
+                  <td className={`px-4 py-3.5 text-sm font-semibold text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {line.customer || '—'}
                   </td>
-                  <td className="px-4 py-3.5 text-sm font-medium text-slate-900">
+                  <td className={`px-4 py-3.5 text-sm font-medium text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     <span>{line.productName || '—'}</span>
                     {line.productCount > 1 ? (
-                      <span className="ml-1.5 text-xs font-normal text-slate-400">
+                      <span className="ml-1.5 text-xs font-normal whitespace-nowrap text-slate-400">
                         ({line.productCount.toLocaleString('ko-KR')}개)
                       </span>
                     ) : null}
@@ -108,13 +126,23 @@ export function OrderStatusTable({ lines }: OrderStatusTableProps) {
                     {target.toLocaleString('ko-KR')}
                   </td>
                   <td className="px-4 py-3.5 text-right text-sm font-semibold tabular-nums text-slate-900">
-                    {shipped.toLocaleString('ko-KR')}
+                    <div>{shipped.toLocaleString('ko-KR')}</div>
+                    {shipmentCount > 0 ? (
+                      <div className="mt-0.5 text-xs font-medium text-sky-700">
+                        {formatShipmentRound(shipmentCount)}까지
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3.5 text-right text-sm tabular-nums text-slate-700">
                     {remaining.toLocaleString('ko-KR')}
                   </td>
-                  <td className="px-4 py-3.5">
-                    <OrderStatusBadge done={done} hasTarget={target > 0} />
+                  <td className="whitespace-nowrap px-4 py-3.5">
+                    <OrderStatusBadge
+                      done={done}
+                      hasTarget={target > 0}
+                      shipped={shipped}
+                      shipmentCount={shipmentCount}
+                    />
                   </td>
                 </tr>
               )

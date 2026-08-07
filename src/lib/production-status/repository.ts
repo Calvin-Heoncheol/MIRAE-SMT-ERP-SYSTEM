@@ -101,6 +101,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
         smtCountsResult.defectCounts,
         postCountsResult.defectCounts,
         productById,
+        deliveryCountsResult.shipmentCounts,
       ),
       smtOrders,
       postOrders,

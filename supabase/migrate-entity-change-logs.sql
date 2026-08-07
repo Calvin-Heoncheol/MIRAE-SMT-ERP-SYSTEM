@@ -31,9 +31,19 @@ create index if not exists entity_change_logs_entity_idx
 alter table public.entity_change_logs enable row level security;
 
 drop policy if exists "entity_change_logs public read" on public.entity_change_logs;
-create policy "entity_change_logs public read"
-  on public.entity_change_logs for select using (true);
-
 drop policy if exists "entity_change_logs public insert" on public.entity_change_logs;
-create policy "entity_change_logs public insert"
-  on public.entity_change_logs for insert with check (true);
+drop policy if exists entity_change_logs_select_auth on public.entity_change_logs;
+drop policy if exists entity_change_logs_insert_auth on public.entity_change_logs;
+
+-- SELECT 는 RSC 홈 피드 호환을 위해 공개 유지
+create policy "entity_change_logs public read"
+  on public.entity_change_logs
+  for select
+  using (true);
+
+-- INSERT 는 로그인 사용자만 (anon 위조 차단)
+create policy entity_change_logs_insert_auth
+  on public.entity_change_logs
+  for insert
+  to authenticated
+  with check (auth.uid() is not null);

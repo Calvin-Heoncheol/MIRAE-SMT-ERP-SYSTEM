@@ -29,7 +29,7 @@ export function ApprovalListTable({
 }: ApprovalListTableProps) {
   if (!approvals.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="새 품의서 버튼으로 작성할 수 있습니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 

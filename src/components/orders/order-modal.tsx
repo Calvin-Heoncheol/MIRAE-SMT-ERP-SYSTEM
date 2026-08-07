@@ -95,7 +95,7 @@ function OrderModalContent({
   const [reasonOpen, setReasonOpen] = useState(false)
 
   const busyUi = useBusy()
-  const { notifyAuthOrFailure } = useWriteFailureToast()
+  const { notifyAuthOrFailure, toast } = useWriteFailureToast()
 
   useEffect(() => {
     setForm(createInitialForm(order))
@@ -151,6 +151,10 @@ function OrderModalContent({
     if (!result.ok) {
       if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
+    }
+
+    if (result.changeLogWarning) {
+      toast.info('변경이력 미기록', result.changeLogWarning)
     }
 
     setReasonOpen(false)

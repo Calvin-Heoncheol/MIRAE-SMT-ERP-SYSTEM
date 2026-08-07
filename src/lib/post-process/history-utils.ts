@@ -1,22 +1,27 @@
+import { matchesDateRange, type DateRangeFilterValue } from '@/lib/ui/date-range'
+
 export const POST_PROCESS_HISTORY_PAGE_SIZE = 20
 
-export function filterPostProcessProductionHistory<T extends {
-  orderNumber: string
-  customer: string
-  productName: string
-  productCode: string
-  recordDate: string
-  note: string
-}>(rows: T[], query: string) {
+export function filterPostProcessProductionHistory<
+  T extends {
+    orderNumber: string
+    customer: string
+    productName: string
+    productCode: string
+    recordDate: string
+    note: string
+  },
+>(rows: T[], query: string, dateRange: DateRangeFilterValue = {}) {
   const q = query.trim().toLowerCase()
-  if (!q) return rows
 
-  return rows.filter((row) =>
-    [row.orderNumber, row.customer, row.productName, row.productCode, row.recordDate, row.note]
+  return rows.filter((row) => {
+    if (!matchesDateRange(row.recordDate, dateRange)) return false
+    if (!q) return true
+    return [row.orderNumber, row.customer, row.productName, row.productCode, row.recordDate, row.note]
       .join(' ')
       .toLowerCase()
-      .includes(q),
-  )
+      .includes(q)
+  })
 }
 
 export function sumPostProcessHistoryQuantity<T extends { quantity: number }>(rows: T[]) {

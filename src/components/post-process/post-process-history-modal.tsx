@@ -9,6 +9,7 @@ import {
 } from '@/lib/post-process/history-utils'
 import { deletePostProcessProductionRecord } from '@/lib/post-process/repository'
 import type { PostProcessProductionHistoryRow } from '@/lib/post-process/types'
+import { ERP_TEXT_WRAP_CLASS } from '@/lib/ui/tokens'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 
@@ -23,7 +24,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-b border-slate-100 py-2.5 last:border-b-0">
       <dt className="text-sm font-medium text-slate-500">{label}</dt>
-      <dd className="min-w-0 break-words text-sm font-semibold text-slate-900">{value}</dd>
+      <dd className={`${ERP_TEXT_WRAP_CLASS} text-sm font-semibold text-slate-900`}>{value}</dd>
     </div>
   )
 }

@@ -19,7 +19,7 @@ export function QuoteCurrencyToggle({ value, onChange }: QuoteCurrencyToggleProp
         onClick={() => onChange('usd')}
         className={`rounded-md px-3 py-2 text-xs font-semibold transition ${
           value === 'usd'
-            ? 'bg-blue-600 text-white shadow-sm'
+            ? 'bg-slate-800 text-white shadow-sm'
             : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
         }`}
       >
@@ -30,7 +30,7 @@ export function QuoteCurrencyToggle({ value, onChange }: QuoteCurrencyToggleProp
         onClick={() => onChange('krw')}
         className={`rounded-md px-3 py-2 text-xs font-semibold transition ${
           value === 'krw'
-            ? 'bg-blue-600 text-white shadow-sm'
+            ? 'bg-slate-800 text-white shadow-sm'
             : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
         }`}
       >

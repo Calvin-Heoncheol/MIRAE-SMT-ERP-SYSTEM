@@ -2,7 +2,7 @@
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
 
-import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_TABLE_TD_WRAP_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 import { getInboundTypeLabel } from '@/lib/materials/inbound/utils'
 import type { MaterialInboundListGroup } from '@/lib/materials/inbound/types'
@@ -17,7 +17,7 @@ type InboundListTableProps = {
 export function InboundListTable({ inbounds, emptyMessage, onSelectInbound }: InboundListTableProps) {
   if (!inbounds.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="입고 등록 내역이 여기에 표시됩니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 
@@ -27,28 +27,28 @@ export function InboundListTable({ inbounds, emptyMessage, onSelectInbound }: In
         <table className="w-full min-w-[1000px] table-fixed border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[12%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 입고번호
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[10%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 입고일
               </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[8%] px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 유형
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[12%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 발주번호
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[22%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목
               </th>
-              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[10%] px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 총 수량
               </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[10%] whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 등록자
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="w-[16%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 비고
               </th>
             </tr>
@@ -68,10 +68,8 @@ export function InboundListTable({ inbounds, emptyMessage, onSelectInbound }: In
                 <td className="px-3 py-2.5 font-mono text-sm text-slate-600">
                   {inbound.purchaseOrderNumber || '-'}
                 </td>
-                <td className="px-3 py-2.5 text-sm text-slate-700">
-                  <span className="block truncate" title={formatInboundMaterialSummary(inbound)}>
-                    {formatInboundMaterialSummary(inbound)}
-                  </span>
+                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  {formatInboundMaterialSummary(inbound)}
                 </td>
                 <td className="px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900">
                   {inbound.totalQuantity.toLocaleString('ko-KR')}
@@ -79,10 +77,8 @@ export function InboundListTable({ inbounds, emptyMessage, onSelectInbound }: In
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
                   {inbound.createdByName || '-'}
                 </td>
-                <td className="px-3 py-2.5 text-sm text-slate-500">
-                  <span className="block truncate" title={inbound.note || '-'}>
-                    {inbound.note.trim() || '-'}
-                  </span>
+                <td className={`px-3 py-2.5 text-sm text-slate-500 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  {inbound.note.trim() || '-'}
                 </td>
               </tr>
             ))}

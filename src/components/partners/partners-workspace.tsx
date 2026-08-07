@@ -6,6 +6,7 @@ import { PartnerListTable } from '@/components/partners/partner-list-table'
 import { PartnerModal } from '@/components/partners/partner-modal'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchBusinessPartnersResult } from '@/lib/partners/repository'
 import { PARTNER_TRADE_ROLE_LABELS } from '@/lib/partners/types'
@@ -84,7 +85,7 @@ export function PartnersWorkspace({ result }: PartnersWorkspaceProps) {
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           title="거래처등록"
           totalCount={partners.length}
@@ -115,7 +116,7 @@ export function PartnersWorkspace({ result }: PartnersWorkspaceProps) {
           rangeEnd={pagination.rangeEnd}
           totalCount={pagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       {modal.open ? (
         <PartnerModal

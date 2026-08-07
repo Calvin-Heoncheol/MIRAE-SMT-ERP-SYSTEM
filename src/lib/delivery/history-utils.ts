@@ -1,3 +1,5 @@
+import { matchesDateRange, type DateRangeFilterValue } from '@/lib/ui/date-range'
+
 export const DELIVERY_HISTORY_PAGE_SIZE = 20
 
 export function filterDeliveryHistory<
@@ -10,16 +12,17 @@ export function filterDeliveryHistory<
     recordDate: string
     note: string
   },
->(rows: T[], query: string) {
+>(rows: T[], query: string, dateRange: DateRangeFilterValue = {}) {
   const q = query.trim().toLowerCase()
-  if (!q) return rows
 
-  return rows.filter((row) =>
-    [row.id, row.orderNumber, row.customer, row.productName, row.productCode, row.recordDate, row.note]
+  return rows.filter((row) => {
+    if (!matchesDateRange(row.recordDate, dateRange)) return false
+    if (!q) return true
+    return [row.id, row.orderNumber, row.customer, row.productName, row.productCode, row.recordDate, row.note]
       .join(' ')
       .toLowerCase()
-      .includes(q),
-  )
+      .includes(q)
+  })
 }
 
 export function sumDeliveryHistoryQuantity<T extends { quantity: number }>(rows: T[]) {
@@ -40,4 +43,46 @@ export function formatDeliveryHistoryDateTime(value: string) {
 
 export function formatDeliverySourceLabel(source: string) {
   return source === 'manual' ? '수동' : source
+}
+
+/** 조립그룹별 출하 차수 라벨 (1 → 1차) */
+export function formatShipmentRound(round: number) {
+  const n = Math.max(0, Math.floor(Number(round) || 0))
+  if (n < 1) return '—'
+  return `${n}차`
+}
+
+/**
+ * 같은 조립그룹 안에서는 created_at → recordDate → id 오름차순으로 1차, 2차…
+ * (목록은 최신순이어도 차수는 등록 순서를 유지)
+ */
+export function assignShipmentRounds<
+  T extends { id: string; assemblyGroupId: string; createdAt: string; recordDate: string },
+>(rows: T[]): Array<T & { shipmentRound: number }> {
+  const byGroup = new Map<string, T[]>()
+  for (const row of rows) {
+    const key = String(row.assemblyGroupId || '').trim() || '__none__'
+    const list = byGroup.get(key) ?? []
+    list.push(row)
+    byGroup.set(key, list)
+  }
+
+  const roundById = new Map<string, number>()
+  for (const list of byGroup.values()) {
+    const sorted = [...list].sort((a, b) => {
+      const byCreated = String(a.createdAt || '').localeCompare(String(b.createdAt || ''))
+      if (byCreated !== 0) return byCreated
+      const byDate = String(a.recordDate || '').localeCompare(String(b.recordDate || ''))
+      if (byDate !== 0) return byDate
+      return String(a.id || '').localeCompare(String(b.id || ''))
+    })
+    sorted.forEach((row, index) => {
+      roundById.set(row.id, index + 1)
+    })
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    shipmentRound: roundById.get(row.id) ?? 1,
+  }))
 }

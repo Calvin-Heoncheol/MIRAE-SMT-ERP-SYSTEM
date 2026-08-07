@@ -1,6 +1,6 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { isMissingCreatedByColumn, withCreatedByFields } from '@/lib/auth/created-by'
-import { insertChangeLog } from '@/lib/change-logs/repository'
+import { insertChangeLog, formatChangeLogWarning } from '@/lib/change-logs/repository'
 import { buildQuoteChangeDetail } from '@/lib/change-logs/utils'
 import { createSupabaseClient } from '@/lib/supabase'
 import type { QuoteRowPayload } from './build-quote-payload'
@@ -12,7 +12,7 @@ export type FetchQuotesResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type SaveQuoteResult =
-  | { ok: true; quoteId: string; quoteNumber: string }
+  | { ok: true; quoteId: string; quoteNumber: string; changeLogWarning?: string }
   | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 export type DeleteQuotesResult =
@@ -150,6 +150,7 @@ export async function updateQuote(
       return { ok: false, reason: 'query', detail: error.message }
     }
 
+    let changeLogWarning: string | undefined
     if (beforeRow) {
       const before = mapQuoteRecord(beforeRow as QuoteRecord)
       const detail = buildQuoteChangeDetail({
@@ -166,7 +167,7 @@ export async function updateQuote(
           totalAmount: payload.total_amount,
         },
       })
-      void insertChangeLog({
+      const changeLogResult = await insertChangeLog({
         entityType: 'quote',
         entityId: quoteId,
         title: `견적서 ${quoteId} 수정`,
@@ -175,9 +176,10 @@ export async function updateQuote(
         beforeData: { totalAmount: before.totalAmount, customer: before.customer },
         afterData: { totalAmount: payload.total_amount, customer: payload.customer },
       })
+      changeLogWarning = formatChangeLogWarning(changeLogResult)
     }
 
-    return { ok: true, quoteId, quoteNumber: quoteId }
+    return { ok: true, quoteId, quoteNumber: quoteId, changeLogWarning }
   } catch (error) {
     return {
       ok: false,

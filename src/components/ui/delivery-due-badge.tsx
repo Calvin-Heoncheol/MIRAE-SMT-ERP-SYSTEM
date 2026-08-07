@@ -4,6 +4,7 @@ import {
   formatDeliveryCountdown,
   getDeliveryUrgencyTone,
 } from '@/lib/smt/plan/utils'
+import { ERP_BADGE_CLASS } from '@/lib/ui/tokens'
 
 type DeliveryDueBadgeProps = {
   deliveryDate: string
@@ -28,7 +29,7 @@ export function DeliveryDueBadge({ deliveryDate, done = false }: DeliveryDueBadg
     return (
       <span className="inline-flex items-center gap-1.5">
         <span className="text-sm tabular-nums font-medium text-rose-700">{deliveryDate}</span>
-        <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+        <span className={`${ERP_BADGE_CLASS} !px-1.5 !py-0.5 !text-[10px] bg-rose-100 text-rose-700`}>
           {formatDeliveryCountdown(daysUntil)}
         </span>
       </span>
@@ -39,7 +40,7 @@ export function DeliveryDueBadge({ deliveryDate, done = false }: DeliveryDueBadg
     return (
       <span className="inline-flex items-center gap-1.5">
         <span className="text-sm tabular-nums font-medium text-amber-800">{deliveryDate}</span>
-        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+        <span className={`${ERP_BADGE_CLASS} !px-1.5 !py-0.5 !text-[10px] bg-amber-100 text-amber-800`}>
           {formatDeliveryCountdown(daysUntil)}
         </span>
       </span>

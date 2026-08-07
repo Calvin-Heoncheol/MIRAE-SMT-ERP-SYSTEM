@@ -7,6 +7,7 @@ import {
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import {
   isMissingCreatedByColumn,
+  resolveCreatedBySnapshot,
   stripCreatedByFields,
   withCreatedByFields,
 } from '@/lib/auth/created-by'
@@ -16,6 +17,8 @@ import { fetchPostProcessCumulativeCounts } from '@/lib/post-process/repository'
 import { fetchProducts } from '@/lib/products/repository'
 import { fetchSmtCumulativeCounts } from '@/lib/smt/repository'
 import { createSupabaseClient } from '@/lib/supabase'
+import { isMissingRpcFunction } from '@/lib/supabase/rpc'
+import { assignShipmentRounds } from './history-utils'
 import type {
   CreateDeliveryRecordInput,
   DeliveryHistoryRow,
@@ -36,7 +39,7 @@ export type FetchDeliveryInputPageResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type FetchDeliveryCumulativeCountsResult =
-  | { ok: true; counts: Record<string, number> }
+  | { ok: true; counts: Record<string, number>; shipmentCounts: Record<string, number> }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type CreateDeliveryRecordResult =
@@ -163,23 +166,37 @@ export async function fetchDeliveryCumulativeCounts(): Promise<FetchDeliveryCumu
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase.from('delivery_totals').select('assembly_group_id, total_quantity')
+    const [totalsResult, recordsResult] = await Promise.all([
+      supabase.from('delivery_totals').select('assembly_group_id, total_quantity'),
+      supabase.from('delivery_records').select('assembly_group_id'),
+    ])
 
-    if (error) {
-      if (isMissingDeliveryTable(error.message)) {
-        return { ok: true, counts: {} }
+    if (totalsResult.error) {
+      if (isMissingDeliveryTable(totalsResult.error.message)) {
+        return { ok: true, counts: {}, shipmentCounts: {} }
       }
-      return { ok: false, reason: 'query', detail: error.message }
+      return { ok: false, reason: 'query', detail: totalsResult.error.message }
+    }
+
+    if (recordsResult.error && !isMissingDeliveryTable(recordsResult.error.message)) {
+      return { ok: false, reason: 'query', detail: recordsResult.error.message }
     }
 
     const counts: Record<string, number> = {}
-    for (const row of data || []) {
+    for (const row of totalsResult.data || []) {
       const assemblyGroupId = String(row.assembly_group_id || '').trim()
       if (!assemblyGroupId) continue
       counts[assemblyGroupId] = Math.max(0, Math.floor(Number(row.total_quantity) || 0))
     }
 
-    return { ok: true, counts }
+    const shipmentCounts: Record<string, number> = {}
+    for (const row of recordsResult.data || []) {
+      const assemblyGroupId = String(row.assembly_group_id || '').trim()
+      if (!assemblyGroupId) continue
+      shipmentCounts[assemblyGroupId] = (shipmentCounts[assemblyGroupId] || 0) + 1
+    }
+
+    return { ok: true, counts, shipmentCounts }
   } catch (error) {
     return {
       ok: false,
@@ -311,6 +328,44 @@ export async function createDeliveryRecord(
         reason: 'validation',
         detail: '출하번호 형식이 올바르지 않습니다. (예: MRS-0001)',
       }
+    }
+
+    const createdBy = await resolveCreatedBySnapshot()
+    const { data: rpcData, error: rpcError } = await supabase.rpc('insert_delivery_record_atomic', {
+      p_assembly_group_id: assemblyGroupId,
+      p_quantity: quantity,
+      p_max_shippable: availability.shippable,
+      p_record_date: recordDate,
+      p_source: source,
+      p_note: input.note?.trim() || '',
+      p_shipment_id: shipmentNumber || null,
+      p_created_by: createdBy.createdBy,
+      p_created_by_name: createdBy.createdByName,
+    })
+
+    if (!rpcError) {
+      const payload = rpcData as { record?: Record<string, unknown>; cumulative?: number } | null
+      if (!payload?.record) {
+        return { ok: false, reason: 'query', detail: '출하 기록 저장에 실패했습니다.' }
+      }
+      return {
+        ok: true,
+        record: mapDeliveryRecord(payload.record as Parameters<typeof mapDeliveryRecord>[0]),
+        cumulative: Math.max(0, Math.floor(Number(payload.cumulative) || currentTotal + quantity)),
+      }
+    }
+
+    if (rpcError.message.includes('DELIVERY_EXCEEDED')) {
+      const cap = rpcError.message.split(':').slice(1).join(':') || '0'
+      return {
+        ok: false,
+        reason: 'validation',
+        detail: `출하가능 수량(${Number(cap).toLocaleString('ko-KR')}대)을 초과할 수 없습니다.`,
+      }
+    }
+
+    if (!isMissingRpcFunction(rpcError.message)) {
+      return { ok: false, reason: 'query', detail: rpcError.message }
     }
 
     const basePayload: {
@@ -722,6 +777,7 @@ function mapDeliveryHistoryRow(row: DeliveryHistoryRecordRow): DeliveryHistoryRo
     productCode: product?.id || assemblyGroup.parent_product_id || '',
     targetQuantity: Math.max(0, Math.floor(Number(assemblyGroup.target_quantity) || 0)),
     quantity: record.quantity,
+    shipmentRound: 0,
     source: record.source,
     note: record.note,
     createdBy: record.createdBy,
@@ -745,12 +801,32 @@ async function fetchDeliveryRecords(options?: {
     return missingEnvResult()
   }
 
-  try {
-    const supabase = createSupabaseClient()
-    let query = supabase
-      .from('delivery_records')
-      .select(
-        `
+  const selectWithCreatedBy = `
+        id,
+        record_date,
+        assembly_group_id,
+        quantity,
+        source,
+        note,
+        created_by,
+        created_by_name,
+        created_at,
+        order_assembly_groups (
+          target_quantity,
+          parent_product_id,
+          order_id,
+          items!order_assembly_groups_parent_product_id_fkey (
+            id,
+            name
+          ),
+          orders (
+            id,
+            customer
+          )
+        )
+      `
+
+  const selectLegacy = `
         id,
         record_date,
         assembly_group_id,
@@ -771,8 +847,13 @@ async function fetchDeliveryRecords(options?: {
             customer
           )
         )
-      `,
-      )
+      `
+
+  try {
+    const supabase = createSupabaseClient()
+    let query = supabase
+      .from('delivery_records')
+      .select(selectWithCreatedBy)
       .order('created_at', { ascending: false })
       .limit(options?.limit ?? 1000)
 
@@ -780,7 +861,19 @@ async function fetchDeliveryRecords(options?: {
       query = query.eq('record_date', options.recordDate)
     }
 
-    const { data, error } = await query
+    let { data, error } = await query
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      let legacyQuery = supabase
+        .from('delivery_records')
+        .select(selectLegacy)
+        .order('created_at', { ascending: false })
+        .limit(options?.limit ?? 1000)
+      if (options?.recordDate) {
+        legacyQuery = legacyQuery.eq('record_date', options.recordDate)
+      }
+      ;({ data, error } = await legacyQuery)
+    }
 
     if (error) {
       if (isMissingDeliveryTable(error.message)) {
@@ -795,7 +888,7 @@ async function fetchDeliveryRecords(options?: {
       if (mapped) rows.push(mapped)
     }
 
-    return { ok: true, rows }
+    return { ok: true, rows: assignShipmentRounds(rows) }
   } catch (error) {
     return {
       ok: false,

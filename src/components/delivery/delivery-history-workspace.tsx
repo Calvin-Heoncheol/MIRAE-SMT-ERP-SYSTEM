@@ -4,8 +4,10 @@ import { useMemo, useState } from 'react'
 import { DeliveryHistoryFetchError } from '@/components/delivery/delivery-history-fetch-error'
 import { DeliveryHistoryModal } from '@/components/delivery/delivery-history-modal'
 import { DeliveryHistoryTable } from '@/components/delivery/delivery-history-table'
+import { DateRangeFilter } from '@/components/ui/date-range-filter'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { downloadExcel } from '@/lib/excel/export'
 import type { FetchDeliveryHistoryResult } from '@/lib/delivery/repository'
@@ -13,8 +15,9 @@ import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 import {
   filterDeliveryHistory,
   formatDeliveryHistoryDateTime,
-  sumDeliveryHistoryQuantity,
+  formatShipmentRound,
 } from '@/lib/delivery/history-utils'
+import { hasDateRangeFilter } from '@/lib/ui/date-range'
 import { useClientPagination } from '@/lib/ui/use-client-pagination'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
@@ -30,13 +33,19 @@ type ModalState =
 export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspaceProps) {
   const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
   const rows = result.ok ? result.rows : []
-  const filtered = useMemo(() => filterDeliveryHistory(rows, search), [rows, search])
-  const totalQuantity = useMemo(() => sumDeliveryHistoryQuantity(filtered), [filtered])
+  const dateRange = useMemo(() => ({ startDate, endDate }), [startDate, endDate])
+  const filtered = useMemo(
+    () => filterDeliveryHistory(rows, search, dateRange),
+    [rows, search, dateRange],
+  )
   const pagination = useClientPagination(filtered)
+  const hasActiveFilter = Boolean(search.trim()) || hasDateRangeFilter(dateRange)
 
   function openEdit(row: DeliveryHistoryRow) {
     setModalSession((value) => value + 1)
@@ -62,6 +71,7 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
       rows: filtered,
       columns: [
         { header: '출하번호', value: (row) => row.id, width: 18 },
+        { header: '차수', value: (row) => formatShipmentRound(row.shipmentRound), width: 8 },
         { header: '출하일', value: (row) => row.recordDate, width: 12 },
         {
           header: '등록시각',
@@ -86,33 +96,34 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
-          subtitle="출하에서 등록된 납품 실적을 최신순으로 보여줍니다. 행을 클릭하면 수정·거래명세서 출력이 가능합니다."
+          subtitle="출하에서 등록된 납품 실적을 최신순으로 보여줍니다. 같은 제품은 등록 순으로 1차·2차로 표시되며, 행을 클릭하면 수정·거래명세서 출력이 가능합니다."
           totalCount={rows.length}
           filteredCount={filtered.length}
-          hasQuery={Boolean(search.trim())}
+          hasQuery={hasActiveFilter}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="출하번호, 주문서번호, 고객사, 조립제품명, 기록일 검색…"
           accent="sky"
+          inlineFilters={
+            <DateRangeFilter
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              label="출하일"
+            />
+          }
           actions={
             <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!filtered.length} />
-          }
-          meta={
-            <p className="mt-0.5 text-slate-500">
-              수량 합계{' '}
-              <span className="tabular-nums font-semibold text-sky-800">
-                {totalQuantity.toLocaleString('ko-KR')}
-              </span>
-            </p>
           }
         />
 
         <DeliveryHistoryTable
           rows={pagination.pageItems}
           emptyMessage={formatEmptyListMessage({
-            hasQuery: Boolean(search.trim()),
+            hasQuery: hasActiveFilter,
             emptyLabel: '등록된 출하 이력이 없습니다',
             actionHint: '출하 메뉴에서 등록하세요',
           })}
@@ -127,7 +138,7 @@ export function DeliveryHistoryWorkspace({ result }: DeliveryHistoryWorkspacePro
           rangeEnd={pagination.rangeEnd}
           totalCount={pagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       {modal.open ? (
         <DeliveryHistoryModal

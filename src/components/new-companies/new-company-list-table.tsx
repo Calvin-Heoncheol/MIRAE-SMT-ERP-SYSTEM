@@ -8,7 +8,7 @@ import {
   NEW_COMPANY_STATUS_BADGE_CLASS,
   NEW_COMPANY_STATUS_LABELS,
 } from '@/lib/new-companies/types'
-import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_TD_WRAP_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type NewCompanyListTableProps = {
   inquiries: NewCompanyInquiry[]
@@ -41,12 +41,12 @@ export function NewCompanyListTable({
               <th className="px-3 py-2.5">등록일</th>
               <th className="px-3 py-2.5">상태</th>
               <th className="px-3 py-2.5">회사명</th>
-              <th className="max-w-[6rem] px-3 py-2.5">지역</th>
-              <th className="max-w-[5.5rem] px-3 py-2.5">담당자</th>
+              <th className="px-3 py-2.5">지역</th>
+              <th className="px-3 py-2.5">담당자</th>
               <th className="px-3 py-2.5">이메일</th>
               <th className="px-3 py-2.5">연락처</th>
               <th className="px-3 py-2.5">유입경로</th>
-              <th className="max-w-[5.5rem] px-3 py-2.5">등록자</th>
+              <th className="px-3 py-2.5">등록자</th>
             </tr>
           </thead>
           <tbody>
@@ -73,31 +73,25 @@ export function NewCompanyListTable({
                       className={`ring-1 ${NEW_COMPANY_STATUS_BADGE_CLASS[inquiry.status]}`}
                     />
                   </td>
-                  <td className="px-3 py-2.5 font-medium text-slate-900">{cell(inquiry.companyName)}</td>
-                  <td
-                    className="max-w-[6rem] truncate px-3 py-2.5 text-slate-600"
-                    title={regionLabel !== '-' ? regionLabel : undefined}
-                  >
+                  <td className={`px-3 py-2.5 font-medium text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                    {cell(inquiry.companyName)}
+                  </td>
+                  <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {regionLabel}
                   </td>
-                  <td
-                    className="max-w-[5.5rem] truncate px-3 py-2.5 text-slate-800"
-                    title={contactLabel !== '-' ? contactLabel : undefined}
-                  >
+                  <td className={`px-3 py-2.5 text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {contactLabel}
                   </td>
-                  <td
-                    className="max-w-[12rem] truncate px-3 py-2.5 text-slate-600"
-                    title={emailLabel !== '-' ? emailLabel : undefined}
-                  >
+                  <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {emailLabel}
                   </td>
-                  <td className="px-3 py-2.5 tabular-nums text-slate-600">{cell(inquiry.phone)}</td>
-                  <td className="px-3 py-2.5 text-slate-600">{cell(inquiry.sourceChannel)}</td>
-                  <td
-                    className="max-w-[5.5rem] truncate px-3 py-2.5 text-slate-600"
-                    title={registrantLabel !== '-' ? registrantLabel : undefined}
-                  >
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-600">
+                    {cell(inquiry.phone)}
+                  </td>
+                  <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                    {cell(inquiry.sourceChannel)}
+                  </td>
+                  <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {registrantLabel}
                   </td>
                 </tr>

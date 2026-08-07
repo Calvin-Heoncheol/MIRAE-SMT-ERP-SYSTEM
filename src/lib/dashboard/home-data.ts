@@ -71,6 +71,9 @@ export type HomeDashboardData = {
   headline: HomeHeadlineMetric[]
   attention: HomeAttentionItem[]
   changeLogs: ChangeLogRecord[]
+  /** 변경이력 피드 상태 — 테이블 미적용·조회 실패 배지용 */
+  changeLogsStatus: 'ok' | 'missing_table' | 'error' | 'env'
+  changeLogsMessage?: string
   productionTeams: HomeProductionTeam[]
 }
 
@@ -376,11 +379,21 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     weekday: 'short',
   }).format(new Date(`${today}T12:00:00+09:00`))
 
+  const changeLogsStatus = !changeLogsResult.ok
+    ? changeLogsResult.reason === 'missing_table'
+      ? ('missing_table' as const)
+      : changeLogsResult.reason === 'env'
+        ? ('env' as const)
+        : ('error' as const)
+    : ('ok' as const)
+
   return {
     todayLabel,
     headline,
     attention: sortAttention(attention),
     changeLogs: changeLogsResult.ok ? changeLogsResult.rows : [],
+    changeLogsStatus,
+    changeLogsMessage: changeLogsResult.ok ? undefined : changeLogsResult.detail,
     productionTeams,
   }
 }

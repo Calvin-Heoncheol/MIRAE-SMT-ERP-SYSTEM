@@ -6,6 +6,7 @@ import { OutboundFetchError } from '@/components/materials/outbound/outbound-fet
 import { OutboundListTable } from '@/components/materials/outbound/outbound-list-table'
 import { OutboundModal } from '@/components/materials/outbound/outbound-modal'
 import { OutboundNeedsTable } from '@/components/materials/outbound/outbound-needs-table'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { ListPagination } from '@/components/ui/list-pagination'
 import type { FetchMaterialOutboundPageResult } from '@/lib/materials/outbound/repository'
@@ -106,7 +107,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
 
   if (view === 'register') {
     return (
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           subtitle="주문·BOM 기준 미불출 필요 수량입니다"
           totalCount={orderCards.length}
@@ -133,13 +134,13 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
           rangeEnd={needsPagination.rangeEnd}
           totalCount={needsPagination.totalCount}
         />
-      </div>
+      </PageShell>
     )
   }
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           totalCount={outbounds.length}
           filteredCount={filtered.length}
@@ -168,7 +169,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
           rangeEnd={historyPagination.rangeEnd}
           totalCount={historyPagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       {modal.open ? (
         <OutboundModal

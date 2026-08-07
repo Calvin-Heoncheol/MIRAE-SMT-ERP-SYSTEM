@@ -1,4 +1,5 @@
 import type { OrderCategory } from '@/lib/orders/types'
+import { ERP_BADGE_CLASS } from '@/lib/ui/tokens'
 
 const STYLES: Record<OrderCategory, string> = {
   양산: 'bg-blue-100 text-blue-800',
@@ -9,7 +10,7 @@ const STYLES: Record<OrderCategory, string> = {
 export function OrderCategoryBadge({ category }: { category: OrderCategory }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STYLES[category] || 'bg-slate-100 text-slate-600'}`}
+      className={`${ERP_BADGE_CLASS} ${STYLES[category] || 'bg-slate-100 text-slate-600'}`}
     >
       {category}
     </span>

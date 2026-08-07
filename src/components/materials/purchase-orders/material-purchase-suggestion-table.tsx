@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
 import type { MaterialPurchaseSuggestionLine } from '@/lib/materials/purchase-orders/types'
+import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type MaterialPurchaseSuggestionTableProps = {
   lines: MaterialPurchaseSuggestionLine[]
@@ -161,19 +162,16 @@ export function MaterialPurchaseSuggestionTable({
                       className="size-4 accent-violet-600"
                     />
                   </td>
-                  <td className="truncate whitespace-nowrap px-3 py-2 font-mono text-xs text-slate-700">
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-slate-700">
                     {line.materialId}
                   </td>
-                  <td className="truncate px-3 py-2 text-slate-800" title={line.materialName}>
+                  <td className={`px-3 py-2 text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {line.materialName}
                   </td>
-                  <td
-                    className="truncate px-3 py-2 text-slate-600"
-                    title={line.specification || undefined}
-                  >
+                  <td className={`px-3 py-2 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {line.specification || '—'}
                   </td>
-                  <td className="truncate whitespace-nowrap px-3 py-2 text-slate-600">
+                  <td className={`px-3 py-2 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {line.supplier || '—'}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-800">

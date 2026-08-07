@@ -1,5 +1,6 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
+import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { normalizeProductPcbSideMode } from '@/lib/products/utils'
@@ -411,6 +412,52 @@ export async function createSmtProductionRecord(
     }
 
     const createdBy = await resolveCreatedBySnapshot()
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc('insert_smt_production_atomic', {
+      p_order_line_id: orderLineId,
+      p_pcb_side: pcbSide,
+      p_quantity: quantity,
+      p_defect_quantity: defectQuantity,
+      p_record_date: recordDate,
+      p_line_no: lineNo,
+      p_source: input.source || 'manual',
+      p_note: input.note?.trim() || '',
+      p_created_by: createdBy.createdBy,
+      p_created_by_name: createdBy.createdByName,
+    })
+
+    if (!rpcError) {
+      const payload = rpcData as {
+        record?: Record<string, unknown>
+        cumulative?: number
+        defectCumulative?: number
+      } | null
+      if (!payload?.record) {
+        return { ok: false, reason: 'query', detail: 'SMT 생산 기록 저장에 실패했습니다.' }
+      }
+      return {
+        ok: true,
+        record: mapSmtProductionRecord(payload.record as Parameters<typeof mapSmtProductionRecord>[0]),
+        cumulative: Math.max(0, Math.floor(Number(payload.cumulative) || currentTotal + quantity)),
+        defectCumulative: Math.max(
+          0,
+          Math.floor(Number(payload.defectCumulative) || currentDefectTotal + defectQuantity),
+        ),
+      }
+    }
+
+    if (rpcError.message.includes('SMT_EXCEEDED')) {
+      const remaining = rpcError.message.split(':').slice(1).join(':') || '0'
+      return {
+        ok: false,
+        reason: 'validation',
+        detail: `${pcbSide} 면 남은 수량(${Number(remaining).toLocaleString('ko-KR')})을 초과할 수 없습니다.`,
+      }
+    }
+
+    if (!isMissingRpcFunction(rpcError.message)) {
+      return { ok: false, reason: 'query', detail: rpcError.message }
+    }
 
     const insertPayload = {
       record_date: recordDate,

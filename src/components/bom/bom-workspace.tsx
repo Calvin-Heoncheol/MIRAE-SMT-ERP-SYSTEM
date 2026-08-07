@@ -6,6 +6,7 @@ import { BomListTable } from '@/components/bom/bom-list-table'
 import { BomModal } from '@/components/bom/bom-modal'
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchBomResult } from '@/lib/bom/repository'
 import type { BomGroup, BomListRow, BomParentFilter } from '@/lib/bom/types'
@@ -130,7 +131,7 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           title="BOM등록"
           totalCount={listRows.length}
@@ -167,7 +168,7 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
           rangeEnd={pagination.rangeEnd}
           totalCount={pagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       {modal.open ? (
         <BomModal

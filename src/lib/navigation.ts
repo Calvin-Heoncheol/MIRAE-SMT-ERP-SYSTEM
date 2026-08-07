@@ -57,6 +57,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/production/plan?tab=smt',
     children: [
       { label: '생산현황', href: '/production/status' },
+      { label: '생산이력', href: '/production/history' },
       {
         label: '생산1: SMT',
         href: '/smt/input',
@@ -64,7 +65,6 @@ export const NAV_ITEMS: NavItem[] = [
           { label: '생산계획', href: '/production/plan?tab=smt' },
           { label: '생산등록', href: '/smt/input' },
           { label: '메탈마스크&스퀴즈', href: '/smt/metal-masks' },
-          { label: '생산이력', href: '/production/history?team=생산1팀' },
         ],
       },
       {
@@ -73,7 +73,6 @@ export const NAV_ITEMS: NavItem[] = [
         children: [
           { label: '생산계획', href: '/production/plan?tab=생산2팀' },
           { label: '생산등록', href: '/post-process/input?team=생산2팀' },
-          { label: '생산이력', href: '/production/history?team=생산2팀' },
         ],
       },
       {
@@ -82,7 +81,6 @@ export const NAV_ITEMS: NavItem[] = [
         children: [
           { label: '생산계획', href: '/production/plan?tab=생산3팀' },
           { label: '생산등록', href: '/post-process/input?team=생산3팀' },
-          { label: '생산이력', href: '/production/history?team=생산3팀' },
         ],
       },
       {
@@ -91,7 +89,6 @@ export const NAV_ITEMS: NavItem[] = [
         children: [
           { label: '생산계획', href: '/production/plan?tab=생산4팀' },
           { label: '생산등록', href: '/post-process/input?team=생산4팀' },
-          { label: '생산이력', href: '/production/history?team=생산4팀' },
         ],
       },
     ],

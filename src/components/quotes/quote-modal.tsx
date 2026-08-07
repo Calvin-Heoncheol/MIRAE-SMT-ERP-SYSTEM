@@ -11,6 +11,7 @@ import { EntityChangeHistoryButton } from '@/components/change-logs/entity-chang
 import { ChangeReasonModal } from '@/components/change-logs/change-reason-modal'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import { ErpButton } from '@/components/ui/erp-button'
+import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { useBusy } from '@/components/ui/busy-provider'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
@@ -287,15 +288,15 @@ function QuoteModalContent({
   const [reasonOpen, setReasonOpen] = useState(false)
   const [pendingQuotePayload, setPendingQuotePayload] = useState<QuoteRowPayload | null>(null)
   const [openSections, setOpenSections] = useState({
-    setup: mode !== 'edit',
-    smt: mode !== 'edit',
-    dip: mode !== 'edit',
-    material: mode !== 'edit',
-    other: mode !== 'edit',
+    setup: true,
+    smt: false,
+    dip: false,
+    material: false,
+    other: false,
   })
 
   const busyUi = useBusy()
-  const { notifyAuthOrFailure } = useWriteFailureToast()
+  const { notifyAuthOrFailure, toast } = useWriteFailureToast()
   const busy = saving || deleting || converting
 
   function requestClose() {
@@ -430,6 +431,10 @@ function QuoteModalContent({
     if (!saveResult.ok) {
       if (!notifyAuthOrFailure(saveResult)) setSaveError(saveResult.detail)
       return
+    }
+
+    if (saveResult.changeLogWarning) {
+      toast.info('변경이력 미기록', saveResult.changeLogWarning)
     }
 
     setReasonOpen(false)
@@ -648,32 +653,24 @@ function QuoteModalContent({
                   type="button"
                   onClick={() => void handleConvertToOrder()}
                   disabled={busy}
-                  className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {converting ? '전환 중…' : '주문서로 전환'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadPdf()}
-                  className="inline-flex items-center rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:brightness-105"
-                >
-                  PDF
-                </button>
+                <PdfDownloadButton onDownload={() => handleDownloadPdf()} disabled={busy} />
                 {isDomestic ? (
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadPdf('en')}
-                    className="inline-flex items-center rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50"
-                  >
-                    영문 PDF
-                  </button>
+                  <PdfDownloadButton
+                    label="영문 PDF"
+                    onDownload={() => handleDownloadPdf('en')}
+                    disabled={busy}
+                  />
                 ) : null}
                 {canDelete ? (
                   <button
                     type="button"
                     onClick={() => void handleDelete()}
                     disabled={busy}
-                    className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {deleting ? '삭제 중...' : '삭제'}
                   </button>

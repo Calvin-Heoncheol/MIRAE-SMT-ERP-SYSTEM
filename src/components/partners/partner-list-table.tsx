@@ -22,7 +22,7 @@ function cell(value: string) {
 export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: PartnerListTableProps) {
   if (!partners.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="거래처를 등록하면 여기에 표시됩니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 

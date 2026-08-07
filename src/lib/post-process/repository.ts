@@ -3,6 +3,7 @@ import {
   postProcessTeamToAccessModule,
 } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
+import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
@@ -355,6 +356,56 @@ export async function createPostProcessProductionRecord(
     const recordDate = input.recordDate?.trim() || todayYmdSeoul()
     const source: PostProcessProductionSource = input.source || 'manual'
     const createdBy = await resolveCreatedBySnapshot()
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      'insert_post_process_production_atomic',
+      {
+        p_assembly_group_id: assemblyGroupId,
+        p_quantity: quantity,
+        p_defect_quantity: defectQuantity,
+        p_record_date: recordDate,
+        p_source: source,
+        p_team: input.team?.trim() || '',
+        p_note: input.note?.trim() || '',
+        p_created_by: createdBy.createdBy,
+        p_created_by_name: createdBy.createdByName,
+      },
+    )
+
+    if (!rpcError) {
+      const payload = rpcData as {
+        record?: Record<string, unknown>
+        cumulative?: number
+        defectCumulative?: number
+      } | null
+      if (!payload?.record) {
+        return { ok: false, reason: 'query', detail: '후공정 생산 기록 저장에 실패했습니다.' }
+      }
+      return {
+        ok: true,
+        record: mapPostProcessProductionRecord(
+          payload.record as Parameters<typeof mapPostProcessProductionRecord>[0],
+        ),
+        cumulative: Math.max(0, Math.floor(Number(payload.cumulative) || currentTotal + quantity)),
+        defectCumulative: Math.max(
+          0,
+          Math.floor(Number(payload.defectCumulative) || currentDefectTotal + defectQuantity),
+        ),
+      }
+    }
+
+    if (rpcError.message.includes('POST_EXCEEDED')) {
+      const remaining = rpcError.message.split(':').slice(1).join(':') || '0'
+      return {
+        ok: false,
+        reason: 'validation',
+        detail: `남은 수량(${Number(remaining).toLocaleString('ko-KR')})을 초과할 수 없습니다.`,
+      }
+    }
+
+    if (!isMissingRpcFunction(rpcError.message)) {
+      return { ok: false, reason: 'query', detail: rpcError.message }
+    }
 
     const insertPayload = {
       record_date: recordDate,

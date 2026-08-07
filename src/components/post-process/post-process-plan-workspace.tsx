@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { PageShell } from '@/components/ui/page-shell'
 import { PostProcessPlanCalendar } from '@/components/post-process/post-process-plan-calendar'
 import { PostProcessPlanFetchError } from '@/components/post-process/post-process-plan-fetch-error'
 import {
@@ -266,7 +267,7 @@ export function PostProcessPlanWorkspace({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <PageShell>
       {error ? (
         <PostProcessPlanFetchError result={{ ok: false, reason: 'query', detail: error }} />
       ) : null}
@@ -385,6 +386,6 @@ export function PostProcessPlanWorkspace({
             : undefined
         }
       />
-    </div>
+    </PageShell>
   )
 }

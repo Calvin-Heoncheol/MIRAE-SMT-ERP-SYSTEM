@@ -10,6 +10,8 @@ import {
   ERP_TABLE_CLASS,
   ERP_TABLE_HEAD_CLASS,
   ERP_TABLE_TD_CLASS,
+  ERP_TABLE_TD_FIXED_CLASS,
+  ERP_TABLE_TD_WRAP_CLASS,
   ERP_TABLE_TH_CLASS,
   ERP_TABLE_WRAP_CLASS,
 } from '@/lib/ui/tokens'
@@ -45,16 +47,16 @@ export function UsersTable({ users, emptyMessage, onSelectUser }: UsersTableProp
                 className="cursor-pointer border-t border-slate-100 hover:bg-slate-50/80"
                 title="클릭하여 수정"
               >
-                <td className={`${ERP_TABLE_TD_CLASS} whitespace-nowrap font-semibold text-slate-900`}>
+                <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-semibold text-slate-900`}>
                   {user.displayName || '-'}
                 </td>
-                <td className={`${ERP_TABLE_TD_CLASS} whitespace-nowrap text-slate-700`}>
+                <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} text-slate-700`}>
                   {user.email || '-'}
                 </td>
-                <td className={`${ERP_TABLE_TD_CLASS} whitespace-nowrap text-slate-700`}>
+                <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-700`}>
                   {formatAuthRoleLabel(user.role)}
                 </td>
-                <td className={`${ERP_TABLE_TD_CLASS} whitespace-nowrap text-slate-700`}>
+                <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-700`}>
                   {formatAuthDepartmentLabel(user.department)}
                 </td>
               </tr>

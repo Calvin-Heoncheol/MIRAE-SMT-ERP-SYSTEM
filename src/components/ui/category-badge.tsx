@@ -1,5 +1,4 @@
-const BADGE_BASE =
-  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold'
+import { ERP_BADGE_CLASS } from '@/lib/ui/tokens'
 
 type CategoryBadgeProps = {
   label: string
@@ -8,7 +7,7 @@ type CategoryBadgeProps = {
 
 export function CategoryBadge({ label, className }: CategoryBadgeProps) {
   return (
-    <span className={`${BADGE_BASE} ${className || 'bg-slate-100 text-slate-700'}`}>
+    <span className={`${ERP_BADGE_CLASS} ${className || 'bg-slate-100 text-slate-700'}`}>
       {label}
     </span>
   )

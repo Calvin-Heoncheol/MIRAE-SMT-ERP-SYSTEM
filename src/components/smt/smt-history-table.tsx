@@ -19,7 +19,7 @@ function cell(value: string) {
 export function SmtHistoryTable({ rows, emptyMessage, onRowClick }: SmtHistoryTableProps) {
   if (!rows.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="생산입력 탭에서 등록한 SMT 실적이 여기에 표시됩니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 

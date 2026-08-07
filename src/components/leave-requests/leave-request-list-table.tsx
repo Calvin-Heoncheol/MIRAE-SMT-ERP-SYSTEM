@@ -23,7 +23,7 @@ export function LeaveRequestListTable({
 }: LeaveRequestListTableProps) {
   if (!requests.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="새 휴가원 버튼으로 작성할 수 있습니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 

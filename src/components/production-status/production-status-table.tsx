@@ -1,12 +1,14 @@
 'use client'
 
 import { DeliveryDueBadge } from '@/components/ui/delivery-due-badge'
+import { EmptyListState } from '@/components/ui/empty-list-state'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import type {
   ProductionStatusLine,
   ProductionStatusProductLine,
   ProductionStatusStage,
 } from '@/lib/production-status/types'
+import { ERP_BADGE_COMPACT_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type ProductionStatusTableProps = {
   lines: ProductionStatusLine[]
@@ -113,24 +115,17 @@ function ProductionLineStatusBadge({
   deliveryProduced: number
   deliveryTarget: number
 }) {
+  const base = ERP_BADGE_COMPACT_CLASS
   if (deliveryTarget <= 0) {
-    return (
-      <span className="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
-        대상없음
-      </span>
-    )
+    return <span className={`${base} bg-slate-100 text-slate-500 ring-slate-200`}>대상없음</span>
   }
   if (deliveryProduced >= deliveryTarget) {
     return (
-      <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200">
-        완료
-      </span>
+      <span className={`${base} bg-emerald-50 text-emerald-700 ring-emerald-200`}>완료</span>
     )
   }
   return (
-    <span className="inline-flex rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-800 ring-1 ring-amber-200">
-      진행중
-    </span>
+    <span className={`${base} bg-amber-50 text-amber-800 ring-amber-200`}>진행중</span>
   )
 }
 
@@ -204,10 +199,10 @@ function StageCells({
 export function ProductionStatusTable({ lines, onStageClick }: ProductionStatusTableProps) {
   if (!lines.length) {
     return (
-      <div className="rounded-xl border border-dashed border-slate-300 bg-white/80 px-6 py-16 text-center">
-        <p className="text-base font-semibold text-slate-700">표시할 주문서가 없습니다</p>
-        <p className="mt-2 text-sm text-slate-500">주문서를 등록하면 생산 현황이 여기에 표시됩니다.</p>
-      </div>
+      <EmptyListState
+        message="표시할 주문서가 없습니다"
+        hint="주문서를 등록하면 생산 현황이 여기에 표시됩니다."
+      />
     )
   }
 
@@ -241,7 +236,7 @@ export function ProductionStatusTable({ lines, onStageClick }: ProductionStatusT
               <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 출하
               </th>
-              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <th className="whitespace-nowrap px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                 상태
               </th>
             </tr>
@@ -267,11 +262,15 @@ function OrderStatusRows({
   if (line.products.length === 0) {
     return (
       <tr className="border-t border-slate-200 bg-white hover:bg-slate-50/70">
-        <td className="px-4 py-3.5 font-mono text-sm font-bold text-slate-900" title={line.orderNumber}>
+        <td className="px-4 py-3.5 font-mono text-sm font-bold whitespace-nowrap text-slate-900" title={line.orderNumber}>
           {formatInternalCodeLabel(line.orderNumber)}
         </td>
-        <td className="px-4 py-3.5 text-sm font-semibold text-slate-800">{line.customer || '—'}</td>
-        <td className="px-4 py-3.5 text-sm font-medium text-slate-900">{line.productName || '—'}</td>
+        <td className={`px-4 py-3.5 text-sm font-semibold text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+          {line.customer || '—'}
+        </td>
+        <td className={`px-4 py-3.5 text-sm font-medium text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+          {line.productName || '—'}
+        </td>
         <td className="whitespace-nowrap px-4 py-3">
           <DeliveryDueBadge
             deliveryDate={line.deliveryDate}
@@ -299,7 +298,7 @@ function OrderStatusRows({
           onPostClick={onStageClick ? () => onStageClick(line, 'post_process') : undefined}
           onDeliveryClick={onStageClick ? () => onStageClick(line, 'delivery') : undefined}
         />
-        <td className="px-4 py-3.5">
+        <td className="whitespace-nowrap px-4 py-3.5">
           <ProductionLineStatusBadge
             deliveryProduced={line.deliveryProduced}
             deliveryTarget={line.deliveryTarget}
@@ -316,14 +315,18 @@ function OrderStatusRows({
           key={`${line.orderId}:${product.key}`}
           className="border-t border-slate-200 bg-white hover:bg-slate-50/70"
         >
-          <td className="px-4 py-3.5 font-mono text-sm font-bold text-slate-900" title={line.orderNumber}>
+          <td className="px-4 py-3.5 font-mono text-sm font-bold whitespace-nowrap text-slate-900" title={line.orderNumber}>
             {formatInternalCodeLabel(line.orderNumber)}
           </td>
-          <td className="px-4 py-3.5 text-sm font-semibold text-slate-800">{line.customer || '—'}</td>
-          <td className="px-4 py-3.5 text-sm text-slate-900">
+          <td className={`px-4 py-3.5 text-sm font-semibold text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+            {line.customer || '—'}
+          </td>
+          <td className={`px-4 py-3.5 text-sm text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
             <span className="font-medium">{product.productName || '—'}</span>
             {product.productCode ? (
-              <span className="ml-1.5 font-mono text-[11px] text-slate-400">[{product.productCode}]</span>
+              <span className="ml-1.5 font-mono text-[11px] whitespace-nowrap text-slate-400">
+                [{product.productCode}]
+              </span>
             ) : null}
           </td>
           <td className="whitespace-nowrap px-4 py-3">

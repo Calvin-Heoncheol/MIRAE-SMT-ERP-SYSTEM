@@ -6,6 +6,7 @@ import { MaterialPurchaseOrderListTable } from '@/components/materials/purchase-
 import { MaterialPurchaseOrderModal } from '@/components/materials/purchase-orders/material-purchase-order-modal'
 import { MaterialPurchaseSuggestionTable } from '@/components/materials/purchase-orders/material-purchase-suggestion-table'
 import { FilterChipBar } from '@/components/ui/filter-chip'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
@@ -151,7 +152,7 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
   if (props.view === 'register') {
     return (
       <>
-        <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+        <PageShell>
           <WorkspaceHeader
             totalCount={suggestionLines.length}
             filteredCount={filteredSuggestions.length}
@@ -186,7 +187,7 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
             rangeEnd={suggestionsPagination.rangeEnd}
             totalCount={suggestionsPagination.totalCount}
           />
-        </div>
+        </PageShell>
 
         {createModal.open ? (
           <MaterialPurchaseOrderModal
@@ -205,7 +206,7 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           totalCount={purchaseOrders.length}
           filteredCount={filteredPurchaseOrders.length}
@@ -241,7 +242,7 @@ export function MaterialPurchaseOrdersWorkspace(props: MaterialPurchaseOrdersWor
           rangeEnd={ordersPagination.rangeEnd}
           totalCount={ordersPagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       {editModal.open ? (
         <MaterialPurchaseOrderModal

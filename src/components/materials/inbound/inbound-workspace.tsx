@@ -7,6 +7,7 @@ import { InboundListTable } from '@/components/materials/inbound/inbound-list-ta
 import { InboundModal } from '@/components/materials/inbound/inbound-modal'
 import { InboundPendingOrdersTable } from '@/components/materials/inbound/inbound-pending-orders-table'
 import { InboundScanPanel } from '@/components/materials/inbound/inbound-scan-panel'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { ListPagination } from '@/components/ui/list-pagination'
 import type { FetchMaterialInboundPageResult } from '@/lib/materials/inbound/repository'
@@ -131,7 +132,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
   if (view === 'register') {
     return (
       <>
-        <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+        <PageShell>
           <InboundScanPanel
             materials={result.materials}
             purchaseOrders={result.purchaseOrders}
@@ -139,22 +140,21 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
             onMaterialsChanged={() => router.refresh()}
           />
 
-          <div className="flex flex-wrap items-center gap-3">
-            <h3 className="text-sm font-bold text-slate-800">
-              입고 대기 발주{' '}
-              <span className="tabular-nums font-semibold text-slate-800">
-                {pendingOrders.length.toLocaleString('ko-KR')}
-              </span>
-              건
-            </h3>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="발주번호, 공급사, 자재명, MPN 검색…"
-              className="ml-auto w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-            />
-          </div>
+          <WorkspaceHeader
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="발주번호, 공급사, 자재명, MPN 검색…"
+            accent="slate"
+            meta={
+              <>
+                입고 대기 발주{' '}
+                <span className="tabular-nums font-semibold text-slate-800">
+                  {pendingOrders.length.toLocaleString('ko-KR')}
+                </span>
+                건
+              </>
+            }
+          />
 
           <InboundPendingOrdersTable
             orders={cardsPagination.pageItems}
@@ -174,7 +174,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
             rangeEnd={cardsPagination.rangeEnd}
             totalCount={cardsPagination.totalCount}
           />
-        </div>
+        </PageShell>
 
         {modalNode}
       </>
@@ -183,7 +183,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           totalCount={inbounds.length}
           filteredCount={filtered.length}
@@ -191,7 +191,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="입고번호, 발주번호, 자재명, 자재코드 검색…"
-          accent="blue"
+          accent="slate"
         />
 
         <InboundListTable
@@ -212,7 +212,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
           rangeEnd={pagination.rangeEnd}
           totalCount={pagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       {modalNode}
     </>

@@ -34,6 +34,14 @@ export const ERP_SECONDARY_BUTTON_CLASS =
 export const ERP_DANGER_BUTTON_CLASS =
   'rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50'
 
+/** 내보내기 — Excel (전 페이지 통일) */
+export const ERP_EXCEL_BUTTON_CLASS =
+  'rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300'
+
+/** 내보내기 — PDF (전 페이지 통일) */
+export const ERP_PDF_BUTTON_CLASS =
+  'rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300'
+
 /** 필터 칩 활성 — Primary와 동일 톤 */
 export const ERP_FILTER_CHIP_ACTIVE_CLASS = 'bg-slate-800 text-white'
 export const ERP_FILTER_CHIP_IDLE_CLASS =
@@ -81,6 +89,25 @@ export const ERP_TABLE_HEAD_CLASS =
 /** 목록 표 공통 밀도 */
 export const ERP_TABLE_TH_CLASS = 'px-3 py-2.5'
 export const ERP_TABLE_TD_CLASS = 'px-3 py-2.5'
+
+/** 긴 텍스트(품명·고객·비고 등) — 줄바꿈 허용, 한글 한 글자씩 끊김 방지 */
+export const ERP_TABLE_TD_WRAP_CLASS =
+  'min-w-0 whitespace-normal break-keep [overflow-wrap:break-word]'
+
+/** 날짜·코드·수량·금액·짧은 칩 — 한 줄 유지 */
+export const ERP_TABLE_TD_FIXED_CLASS = 'whitespace-nowrap'
+
+/** 뱃지·상태 라벨 — 절대 줄바꿈 금지 */
+export const ERP_BADGE_CLASS =
+  'inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold'
+
+/** 사이드바·현황용 소형 뱃지 */
+export const ERP_BADGE_COMPACT_CLASS =
+  'inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-bold ring-1'
+
+/** 테이블 밖 긴 한글 텍스트(모달·카드) */
+export const ERP_TEXT_WRAP_CLASS =
+  'min-w-0 whitespace-normal break-keep [overflow-wrap:break-word]'
 
 export const ERP_TABLE_ROW_CLASS = 'border-t border-slate-100 hover:bg-slate-50/80'
 

@@ -12,6 +12,7 @@ import {
   filterChipCountClassName,
 } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import {
   APPROVAL_CATEGORIES,
@@ -106,7 +107,7 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
@@ -162,7 +163,7 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
             />
           </>
         )}
-      </div>
+      </PageShell>
 
       {modal.open ? (
         <ApprovalModal

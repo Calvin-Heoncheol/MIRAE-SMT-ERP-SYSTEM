@@ -29,7 +29,7 @@ export function ProductionHistoryTable({
 }: ProductionHistoryTableProps) {
   if (!rows.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="각 팀 생산입력에서 등록한 실적이 여기에 모입니다." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 

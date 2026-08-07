@@ -19,6 +19,9 @@ anon 키만으로 전 테이블 CRUD 되던 정책을 막습니다.
 1. `setup-profiles.sql` (또는 `migrate-profiles-rls-fix.sql`) 적용
 2. 앱에서 `AUTH_ENABLED=true` + 관리자 계정 로그인 확인
 3. SQL Editor에서 **`migrate-rls-authenticated-writes.sql`** 실행
+4. (감사) **`migrate-entity-change-logs-auth-insert.sql`** — 변경이력 INSERT만 authenticated
+5. (무결성) **`migrate-save-order-rpc.sql`** — 주문서 헤더+라인 원자 저장
+6. (무결성) **`migrate-atomic-quantity-inserts.sql`** — 생산·출하 동시 등록 레이스 방지
 
 적용 후:
 
@@ -26,6 +29,7 @@ anon 키만으로 전 테이블 CRUD 되던 정책을 막습니다.
 - **등록/수정**: 로그인 사용자만
 - **삭제**: 팀장(manager) 이상
 - **기초등록**(품목·거래처·BOM): 관리자(admin)만
+- **변경이력 INSERT**: 로그인만 (SELECT는 공개 유지)
 
 `AUTH_ENABLED=false` 개발 모드에서는 JWT가 없어 쓰기가 막힐 수 있습니다. RLS 적용 환경에서는 로그인을 켜 주세요.
 

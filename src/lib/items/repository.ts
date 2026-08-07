@@ -1,7 +1,7 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import { syncFinishedParentsUsingChild } from '@/lib/bom/repository'
-import { insertChangeLog } from '@/lib/change-logs/repository'
+import { insertChangeLog, formatChangeLogWarning } from '@/lib/change-logs/repository'
 import {
   buildItemChangeDataPayload,
   buildItemChangeDetail,
@@ -22,7 +22,7 @@ export type FetchItemsResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type SaveItemResult =
-  | { ok: true; id: string }
+  | { ok: true; id: string; changeLogWarning?: string }
   | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type DeleteItemResult =
@@ -694,6 +694,7 @@ export async function updateItem(
         }
       }
 
+      let changeLogWarning: string | undefined
       if (beforeItem) {
         const prices = {
           before: {
@@ -712,7 +713,7 @@ export async function updateItem(
           },
         }
         const { beforeData, afterData } = buildItemChangeDataPayload(prices)
-        void insertChangeLog({
+        const changeLogResult = await insertChangeLog({
           entityType: 'item',
           entityId: replaced.id,
           title: buildItemChangeTitle(payload.itemCategory, replaced.id),
@@ -721,9 +722,10 @@ export async function updateItem(
           beforeData,
           afterData,
         })
+        changeLogWarning = formatChangeLogWarning(changeLogResult)
       }
 
-      return replaced
+      return changeLogWarning ? { ...replaced, changeLogWarning } : replaced
     }
 
     const { error } = await supabase.from('items').update(toItemUpdateRow(payload)).eq('id', key)
@@ -740,6 +742,7 @@ export async function updateItem(
       }
     }
 
+    let changeLogWarning: string | undefined
     if (beforeItem) {
       const prices = {
         before: {
@@ -758,7 +761,7 @@ export async function updateItem(
         },
       }
       const { beforeData, afterData } = buildItemChangeDataPayload(prices)
-      void insertChangeLog({
+      const changeLogResult = await insertChangeLog({
         entityType: 'item',
         entityId: key,
         title: buildItemChangeTitle(payload.itemCategory, key),
@@ -767,9 +770,10 @@ export async function updateItem(
         beforeData,
         afterData,
       })
+      changeLogWarning = formatChangeLogWarning(changeLogResult)
     }
 
-    return { ok: true, id: key }
+    return { ok: true, id: key, changeLogWarning }
   } catch (error) {
     return {
       ok: false,

@@ -5,6 +5,8 @@ import {
   ERP_TABLE_CLASS,
   ERP_TABLE_HEAD_CLASS,
   ERP_TABLE_TD_CLASS,
+  ERP_TABLE_TD_FIXED_CLASS,
+  ERP_TABLE_TD_WRAP_CLASS,
   ERP_TABLE_TH_CLASS,
   ERP_TABLE_WRAP_CLASS,
 } from '@/lib/ui/tokens'
@@ -52,15 +54,21 @@ export function ErpTableTd({
   children,
   className = '',
   align = 'left',
+  /** 긴 텍스트는 wrap, 날짜·수량 등은 fixed(기본) */
+  text = 'fixed',
 }: {
   children: ReactNode
   className?: string
   align?: 'left' | 'right' | 'center'
+  text?: 'wrap' | 'fixed'
 }) {
   const alignClass =
     align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : ''
+  const textClass = text === 'wrap' ? ERP_TABLE_TD_WRAP_CLASS : ERP_TABLE_TD_FIXED_CLASS
   return (
-    <td className={[ERP_TABLE_TD_CLASS, alignClass, className].filter(Boolean).join(' ')}>
+    <td
+      className={[ERP_TABLE_TD_CLASS, textClass, alignClass, className].filter(Boolean).join(' ')}
+    >
       {children}
     </td>
   )

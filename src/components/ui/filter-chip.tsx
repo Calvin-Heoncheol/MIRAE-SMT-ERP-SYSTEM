@@ -12,7 +12,13 @@ export type FilterChipTone = {
 }
 
 export const FILTER_CHIP_BASE_CLASS =
-  'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors'
+  'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors'
+
+/**
+ * 필터 칩 톤 규칙:
+ * - 기본(전체·팀·카테고리): ERP_FILTER_CHIP_* (slate)
+ * - 진행상태(대기/진행/완료): STATUS_FILTER_TONES (색상 idle, 활성은 해당 강조색)
+ */
 
 export function filterChipClassName(active: boolean, tone?: FilterChipTone) {
   const idle = tone?.idleClassName ?? ERP_FILTER_CHIP_IDLE_CLASS

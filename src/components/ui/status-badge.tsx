@@ -1,5 +1,4 @@
-const BADGE_BASE =
-  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold'
+import { ERP_BADGE_CLASS } from '@/lib/ui/tokens'
 
 type StatusBadgeProps = {
   label: string
@@ -8,7 +7,7 @@ type StatusBadgeProps = {
 }
 
 export function StatusBadge({ label, className }: StatusBadgeProps) {
-  return <span className={`${BADGE_BASE} ${className}`}>{label}</span>
+  return <span className={`${ERP_BADGE_CLASS} ${className}`}>{label}</span>
 }
 
 /** 결재 상태 공통 */

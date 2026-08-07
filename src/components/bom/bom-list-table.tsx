@@ -104,7 +104,7 @@ function renderBomListCell(
 export function BomListTable({ rows, emptyMessage, onSelectRow }: BomListTableProps) {
   if (!rows.length) {
     return (
-      <EmptyListState message={emptyMessage} hint="품목등록에서 반제품·조립제품을 먼저 등록해 주세요." />
+      <EmptyListState message={emptyMessage} />
     )
   }
 

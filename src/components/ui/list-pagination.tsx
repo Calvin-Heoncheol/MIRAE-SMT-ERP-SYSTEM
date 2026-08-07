@@ -1,5 +1,7 @@
 'use client'
 
+import { ERP_SECONDARY_BUTTON_CLASS } from '@/lib/ui/tokens'
+
 type ListPaginationProps = {
   page: number
   totalPages: number
@@ -8,6 +10,8 @@ type ListPaginationProps = {
   rangeEnd: number
   totalCount: number
 }
+
+const PAGE_BUTTON_CLASS = `${ERP_SECONDARY_BUTTON_CLASS} !px-3 !py-1.5 disabled:cursor-not-allowed disabled:opacity-40`
 
 export function ListPagination({
   page,
@@ -20,7 +24,7 @@ export function ListPagination({
   if (totalCount === 0) return null
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
       <p className="text-sm text-slate-500">
         <span className="tabular-nums font-medium text-slate-700">
           {rangeStart.toLocaleString('ko-KR')}–{rangeEnd.toLocaleString('ko-KR')}
@@ -32,7 +36,7 @@ export function ListPagination({
           type="button"
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className={PAGE_BUTTON_CLASS}
         >
           이전
         </button>
@@ -43,7 +47,7 @@ export function ListPagination({
           type="button"
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className={PAGE_BUTTON_CLASS}
         >
           다음
         </button>

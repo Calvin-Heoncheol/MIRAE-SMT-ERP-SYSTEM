@@ -24,6 +24,7 @@ import {
   type PreviewRow,
 } from '@/lib/quotes/preview-rows'
 import type { EstimateResult, QuoteDisplayCurrency, QuoteType } from '@/lib/quotes/types'
+import { ERP_TEXT_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type QuoteBreakdownPreviewProps = {
   quoteType: QuoteType
@@ -251,11 +252,11 @@ export function QuoteBreakdownPreview({
           <dl className="space-y-2 text-sm">
             <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
               <dt className="text-slate-500">{previewLabels.customer}</dt>
-              <dd className="min-w-0 break-words font-semibold text-slate-900">{customer}</dd>
+              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold text-slate-900`}>{customer}</dd>
             </div>
             <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
               <dt className="text-slate-500">{previewLabels.product}</dt>
-              <dd className="min-w-0 break-words font-semibold text-slate-900">{productName}</dd>
+              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold text-slate-900`}>{productName}</dd>
             </div>
             <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
               <dt className="text-slate-500">{previewLabels.productionKind}</dt>
@@ -278,13 +279,13 @@ export function QuoteBreakdownPreview({
             </div>
             <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
               <dt className="text-slate-500">{isDomestic ? '주소' : 'Address'}</dt>
-              <dd className="min-w-0 break-words font-semibold leading-snug text-slate-900">
+              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold leading-snug text-slate-900`}>
                 {isDomestic ? COMPANY_ADDRESS_DOMESTIC : COMPANY_ADDRESS_EXPORT}
               </dd>
             </div>
             <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
               <dt className="text-slate-500">E-mail</dt>
-              <dd className="min-w-0 break-all font-semibold text-blue-700">
+              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold text-blue-700`}>
                 {isDomestic ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT}
               </dd>
             </div>

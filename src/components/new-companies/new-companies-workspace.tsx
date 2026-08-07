@@ -7,6 +7,7 @@ import { NewCompanyModal } from '@/components/new-companies/new-company-modal'
 import { ErpButton } from '@/components/ui/erp-button'
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchNewCompanyInquiriesResult } from '@/lib/new-companies/repository'
 import type { NewCompanyInquiry, NewCompanyStatus } from '@/lib/new-companies/types'
@@ -115,7 +116,7 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
@@ -149,7 +150,7 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
           rangeEnd={pagination.rangeEnd}
           totalCount={pagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       {modal.open ? (
         <NewCompanyModal

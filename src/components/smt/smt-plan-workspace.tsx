@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { PageShell } from '@/components/ui/page-shell'
 import { SmtPlanCalendar } from '@/components/smt/smt-plan-calendar'
 import { SmtPlanFetchError } from '@/components/smt/smt-plan-fetch-error'
 import { SmtPlanFormModal, type SmtPlanFormValues } from '@/components/smt/smt-plan-form-modal'
@@ -251,7 +252,7 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <PageShell>
       {error ? <SmtPlanFetchError result={{ ok: false, reason: 'query', detail: error }} /> : null}
       {statusMessage ? (
         <div className="shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -369,6 +370,6 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
             : undefined
         }
       />
-    </div>
+    </PageShell>
   )
 }

@@ -7,6 +7,7 @@ import { InventoryStatusTable } from '@/components/materials/inventory/inventory
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { downloadExcel } from '@/lib/excel/export'
@@ -85,7 +86,7 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
   }
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+    <PageShell>
       {result.ok ? (
         <WorkspaceHeader
           totalCount={rows.length}
@@ -144,6 +145,6 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
           }}
         />
       ) : null}
-    </div>
+    </PageShell>
   )
 }

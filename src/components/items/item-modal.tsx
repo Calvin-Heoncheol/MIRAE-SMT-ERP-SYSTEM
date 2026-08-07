@@ -144,7 +144,7 @@ function ItemModalContent({
   const [bomPriceLoading, setBomPriceLoading] = useState(false)
 
   const busyUi = useBusy()
-  const { notifyAuthOrFailure } = useWriteFailureToast()
+  const { notifyAuthOrFailure, toast } = useWriteFailureToast()
 
   const isRequiredManualCode =
     form.itemCategory !== '' && isManualItemCodeCategory(form.itemCategory)
@@ -393,6 +393,10 @@ function ItemModalContent({
     if (!result.ok) {
       if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
+    }
+
+    if (result.changeLogWarning) {
+      toast.info('변경이력 미기록', result.changeLogWarning)
     }
 
     setReasonOpen(false)

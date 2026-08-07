@@ -6,6 +6,7 @@ import { MaterialOrderPurchaseCards } from '@/components/materials/purchase-orde
 import { MaterialPurchaseOrderFetchError } from '@/components/materials/purchase-orders/material-purchase-order-fetch-error'
 import { MaterialPurchaseOrderModal } from '@/components/materials/purchase-orders/material-purchase-order-modal'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { ListPagination } from '@/components/ui/list-pagination'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
@@ -163,7 +164,7 @@ export function MaterialOrderPurchaseWorkspace({ result }: MaterialOrderPurchase
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
@@ -191,7 +192,7 @@ export function MaterialOrderPurchaseWorkspace({ result }: MaterialOrderPurchase
           rangeEnd={pagination.rangeEnd}
           totalCount={pagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       {partialModal.open ? (
         <MaterialOrderPartialPurchaseModal

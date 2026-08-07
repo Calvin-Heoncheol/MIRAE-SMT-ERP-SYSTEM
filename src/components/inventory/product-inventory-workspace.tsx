@@ -5,6 +5,7 @@ import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { downloadExcel } from '@/lib/excel/export'
 import type { FetchProductStockResult, ProductStockRow } from '@/lib/inventory/product-stock'
@@ -90,7 +91,7 @@ export function ProductInventoryWorkspace({ result }: ProductInventoryWorkspaceP
   }
 
   return (
-    <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+    <PageShell>
       <WorkspaceHeader
         subtitle="생산 − 출하(조립제품 출하 시 반제품 BOM 차감 포함) = 현재고"
         totalCount={rows.length}
@@ -123,7 +124,7 @@ export function ProductInventoryWorkspace({ result }: ProductInventoryWorkspaceP
         rangeEnd={pagination.rangeEnd}
         totalCount={pagination.totalCount}
       />
-    </div>
+    </PageShell>
   )
 }
 
@@ -135,7 +136,7 @@ function ProductInventoryTable({
   emptyMessage: string
 }) {
   if (!rows.length) {
-    return <EmptyListState message={emptyMessage} hint="생산·출하 실적이 반영된 재고가 여기에 표시됩니다." />
+    return <EmptyListState message={emptyMessage} />
   }
 
   return (

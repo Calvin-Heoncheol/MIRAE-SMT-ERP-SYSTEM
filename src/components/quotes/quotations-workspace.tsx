@@ -6,6 +6,7 @@ import { QuoteListTable } from '@/components/quotes/quote-list-table'
 import { QuoteModal } from '@/components/quotes/quote-modal'
 import { QuoteNewMenu } from '@/components/quotes/quote-toolbar'
 import { ListPagination } from '@/components/ui/list-pagination'
+import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchQuotesResult } from '@/lib/quotes/repository'
 import type { QuoteListItem, QuoteType } from '@/lib/quotes/types'
@@ -71,7 +72,7 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
 
   return (
     <>
-      <div className="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-hidden">
+      <PageShell>
         <WorkspaceHeader
           title="견적서 등록"
           totalCount={quotes.length}
@@ -102,7 +103,7 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
           rangeEnd={pagination.rangeEnd}
           totalCount={pagination.totalCount}
         />
-      </div>
+      </PageShell>
 
       {modal.open ? (
         <QuoteModal

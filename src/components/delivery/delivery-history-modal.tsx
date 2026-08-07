@@ -166,7 +166,13 @@ export function DeliveryHistoryModal({
               출하 수정
             </h2>
             <p className="mt-1 font-mono text-xs text-slate-700">
-              출하번호 {row.id} <span className="text-slate-400">(수정 불가)</span>
+              출하번호 {row.id}
+              {row.shipmentRound > 0 ? (
+                <span className="ml-2 font-sans font-semibold text-sky-800">
+                  {row.shipmentRound}차
+                </span>
+              ) : null}{' '}
+              <span className="text-slate-400">(수정 불가)</span>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
