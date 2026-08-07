@@ -872,7 +872,9 @@ async function fetchDeliveryRecords(options?: {
       if (options?.recordDate) {
         legacyQuery = legacyQuery.eq('record_date', options.recordDate)
       }
-      ;({ data, error } = await legacyQuery)
+      const legacy = await legacyQuery
+      data = (legacy.data || null) as typeof data
+      error = legacy.error
     }
 
     if (error) {
