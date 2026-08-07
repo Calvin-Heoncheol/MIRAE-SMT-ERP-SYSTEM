@@ -6,6 +6,8 @@ export type OrderItemForm = {
   unitPrice: string | number
   /** 제품(라인)별 납기일 YYYY-MM-DD */
   deliveryDate: string
+  /** 품목마스터에 없는 일회성 행 (주문에만 존재) */
+  isAdhoc?: boolean
 }
 
 export type OrderFormState = {
@@ -26,6 +28,19 @@ export function defaultOrderItemForm(deliveryDate = ''): OrderItemForm {
     quantity: '0',
     unitPrice: '0',
     deliveryDate,
+    isAdhoc: false,
+  }
+}
+
+export function defaultAdhocOrderItemForm(deliveryDate = ''): OrderItemForm {
+  return {
+    productId: '',
+    productCode: '',
+    productName: '',
+    quantity: '1',
+    unitPrice: '0',
+    deliveryDate,
+    isAdhoc: true,
   }
 }
 
@@ -48,5 +63,7 @@ export function orderItemsFromDetail(
     quantity: String(item.quantity || 0),
     unitPrice: String(item.unitPrice || 0),
     deliveryDate: String(item.deliveryDate || fallbackDeliveryDate || '').trim(),
+    // product_id 없으면 마스터 미연결 일회성 행으로 간주
+    isAdhoc: !String(item.productId || '').trim(),
   }))
 }

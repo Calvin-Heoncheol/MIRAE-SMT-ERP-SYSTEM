@@ -18,6 +18,7 @@ import {
 } from '@/lib/production-history/types'
 import {
   filterProductionHistory,
+  formatProductionHistoryRecordAt,
   sumProductionHistoryQuantity,
 } from '@/lib/production-history/utils'
 import { formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
@@ -93,7 +94,7 @@ export function ProductionHistoryWorkspace({
       sheetName: '생산이력',
       rows: filtered,
       columns: [
-        { header: '기록일', value: (row) => row.recordDate, width: 12 },
+        { header: '기록일', value: (row) => formatProductionHistoryRecordAt(row), width: 18 },
         { header: '팀', value: (row) => row.team, width: 10 },
         { header: '주문서번호', value: (row) => row.orderNumber, width: 22 },
         { header: '고객사', value: (row) => row.customer, width: 18 },

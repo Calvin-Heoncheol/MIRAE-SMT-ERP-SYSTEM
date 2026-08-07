@@ -3,7 +3,13 @@ import type { Product, ProductPcbSideMode } from '@/lib/products/types'
 import { isSplitProductPcbSideMode } from '@/lib/products/utils'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
-import { buildPostProcessAssemblyLines } from '@/lib/production-input/utils'
+import {
+  assemblyGroupIncludesPostProcess,
+  assemblyGroupIncludesSmt,
+  buildDeliveryAssemblyLines,
+  processTypeIncludesSmt,
+  resolveAssemblyProductionCap,
+} from '@/lib/production-input/utils'
 
 export type DeliveryAvailability = {
   targetQuantity: number
@@ -12,6 +18,8 @@ export type DeliveryAvailability = {
   shipped: number
   productionCap: number
   shippable: number
+  needsSmt: boolean
+  needsPost: boolean
 }
 
 export type DeliveryInputPageData = {
@@ -42,15 +50,21 @@ export function computeAssemblySmtSets(
   if (!group.lines.length) return 0
 
   let minSets = Number.POSITIVE_INFINITY
+  let counted = 0
 
   for (const line of group.lines) {
     const product = productById[line.childProductId]
+    // DIP만 있는 구성품은 SMT 세트 계산에서 제외
+    if (!processTypeIncludesSmt(product?.processType)) continue
+
     const pcbSideMode = product?.pcbSideMode ?? 'single'
     const produced = resolveSmtProducedForLine(line.orderLineId, pcbSideMode, smtCounts)
     const quantityPer = Math.max(1, Math.floor(Number(line.quantityPer) || 1))
     minSets = Math.min(minSets, Math.floor(produced / quantityPer))
+    counted += 1
   }
 
+  if (!counted) return 0
   return Number.isFinite(minSets) ? Math.max(0, minSets) : 0
 }
 
@@ -61,10 +75,17 @@ export function computeDeliveryAvailability(
   deliveryCounts: Record<string, number>,
   productById: Record<string, Product>,
 ): DeliveryAvailability {
+  const needsSmt = assemblyGroupIncludesSmt(group, productById)
+  const needsPost = assemblyGroupIncludesPostProcess(group, productById)
   const smtSets = computeAssemblySmtSets(group, smtCounts, productById)
   const postProduced = Math.max(0, Math.floor(Number(postCounts[group.id]) || 0))
   const shipped = Math.max(0, Math.floor(Number(deliveryCounts[group.id]) || 0))
-  const productionCap = Math.min(smtSets, postProduced)
+  const productionCap = resolveAssemblyProductionCap({
+    group,
+    smtSets,
+    postProduced,
+    productById,
+  })
   const shippable = Math.max(0, productionCap - shipped)
 
   return {
@@ -74,6 +95,8 @@ export function computeDeliveryAvailability(
     shipped,
     productionCap,
     shippable,
+    needsSmt,
+    needsPost,
   }
 }
 
@@ -93,10 +116,10 @@ export function buildDeliveryAvailabilityMap(
 
 export function buildDeliveryInputOrders(
   groups: OrderAssemblyGroup[],
-  orders: Parameters<typeof buildPostProcessAssemblyLines>[1],
+  orders: Parameters<typeof buildDeliveryAssemblyLines>[1],
   productById: Record<string, Product>,
 ) {
-  return buildPostProcessAssemblyLines(groups, orders, productById)
+  return buildDeliveryAssemblyLines(groups, orders, productById)
 }
 
 export type DeliveryOrderState = 'none' | 'progress' | 'full'
@@ -116,7 +139,8 @@ export function getDeliveryOrderPrefix(state: DeliveryOrderState) {
 }
 
 export function describeDeliveryBlockReason(availability: DeliveryAvailability) {
-  const { smtSets, postProduced, shipped, productionCap, shippable, targetQuantity } = availability
+  const { smtSets, postProduced, shipped, productionCap, shippable, targetQuantity, needsSmt, needsPost } =
+    availability
 
   if (shippable > 0) {
     return `최대 ${shippable.toLocaleString('ko-KR')}대까지 출하할 수 있습니다.`
@@ -130,16 +154,28 @@ export function describeDeliveryBlockReason(availability: DeliveryAvailability) 
     return '생산 완료분은 모두 출하되었습니다.'
   }
 
-  if (smtSets <= 0 && postProduced <= 0) {
-    return 'SMT·후공정 생산 입력이 필요합니다.'
-  }
-
-  if (smtSets < postProduced) {
-    return `SMT 생산이 부족합니다. (SMT ${smtSets.toLocaleString('ko-KR')}대 · 후공정 ${postProduced.toLocaleString('ko-KR')}대)`
-  }
-
-  if (postProduced < smtSets) {
-    return `후공정 생산이 부족합니다. (SMT ${smtSets.toLocaleString('ko-KR')}대 · 후공정 ${postProduced.toLocaleString('ko-KR')}대)`
+  if (needsSmt && needsPost) {
+    if (smtSets <= 0 && postProduced <= 0) {
+      return 'SMT·후공정 생산 입력이 필요합니다.'
+    }
+    if (smtSets <= 0) {
+      return `SMT 생산이 필요합니다. (후공정 ${postProduced.toLocaleString('ko-KR')}대)`
+    }
+    if (postProduced <= 0) {
+      return `후공정 생산이 필요합니다. (SMT ${smtSets.toLocaleString('ko-KR')}대)`
+    }
+    if (smtSets < postProduced) {
+      return `SMT 생산이 부족합니다. (SMT ${smtSets.toLocaleString('ko-KR')}대 · 후공정 ${postProduced.toLocaleString('ko-KR')}대)`
+    }
+    if (postProduced < smtSets) {
+      return `후공정 생산이 부족합니다. (SMT ${smtSets.toLocaleString('ko-KR')}대 · 후공정 ${postProduced.toLocaleString('ko-KR')}대)`
+    }
+  } else if (needsSmt) {
+    if (smtSets <= 0) return 'SMT 생산 입력이 필요합니다.'
+  } else if (needsPost) {
+    if (postProduced <= 0) return '후공정 생산 입력이 필요합니다.'
+  } else {
+    return '출하 대상 공정이 없는 품목입니다.'
   }
 
   return '출하 가능한 수량이 없습니다.'
@@ -174,6 +210,8 @@ export function resolveDeliveryAvailabilityForOrder(
       shipped: 0,
       productionCap: 0,
       shippable: 0,
+      needsSmt: true,
+      needsPost: true,
     }
   )
 }

@@ -6,6 +6,7 @@ import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import type { ProductionHistoryRow } from '@/lib/production-history/types'
+import { formatProductionHistoryRecordAt } from '@/lib/production-history/utils'
 import { deletePostProcessProductionRecord } from '@/lib/post-process/repository'
 import { formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
 import { deleteSmtProductionRecord } from '@/lib/smt/repository'
@@ -97,7 +98,7 @@ export function ProductionHistoryModal({
     >
       <dl>
         <DetailRow label="팀" value={row.team} />
-        <DetailRow label="기록일" value={row.recordDate || '-'} />
+        <DetailRow label="기록일" value={formatProductionHistoryRecordAt(row)} />
         <DetailRow label="주문서번호" value={formatInternalCodeLabel(row.orderNumber)} />
         <DetailRow label="고객사" value={row.customer || '-'} />
         <DetailRow label="제품명" value={row.productName || '-'} />

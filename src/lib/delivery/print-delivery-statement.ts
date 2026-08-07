@@ -5,10 +5,11 @@ import {
   COMPANY_CEO_NAME,
   COMPANY_TEL,
 } from '@/lib/app-config'
-import type { DeliveryStatementData } from './types'
+import { fetchOrderById } from '@/lib/orders/repository'
+import type { DeliveryStatementData, DeliveryStatementLine } from './types'
 
 /** 1장에 고객용·내부용 2부 → 빈 행은 적게 */
-const ITEM_ROW_COUNT = 5
+const MIN_ITEM_ROW_COUNT = 5
 
 function escapeHtml(value: string) {
   return value
@@ -67,24 +68,47 @@ export function formatAmountInKorean(amount: number): string {
   return `${parts.join('')}원 정`
 }
 
-function buildItemRows(data: DeliveryStatementData) {
-  const qty = Math.max(0, Math.floor(Number(data.qty) || 0))
-  const unitPrice = Math.max(0, Math.round(Number(data.unitPrice) || 0))
-  const supply = Math.max(0, Math.round(Number(data.supplyAmount) || qty * unitPrice))
-  const code = escapeHtml(data.productCode || '')
-  const name = escapeHtml(data.productName || '')
+function normalizeStatementLine(line: DeliveryStatementLine): DeliveryStatementLine {
+  const qty = Math.max(0, Math.floor(Number(line.qty) || 0))
+  const unitPrice = Math.max(0, Math.round(Number(line.unitPrice) || 0))
+  const supplyAmount =
+    line.supplyAmount != null && Number.isFinite(Number(line.supplyAmount))
+      ? Math.max(0, Math.round(Number(line.supplyAmount) || 0))
+      : Math.round(qty * unitPrice)
+  return {
+    productCode: String(line.productCode || '').trim(),
+    productName: String(line.productName || '').trim(),
+    qty,
+    unitPrice,
+    supplyAmount,
+  }
+}
 
-  const rows: string[] = [
-    `<tr>
+function sumStatementTotals(items: DeliveryStatementLine[]) {
+  let qty = 0
+  let supply = 0
+  for (const item of items) {
+    qty += item.qty
+    supply += item.supplyAmount
+  }
+  return { qty, supply }
+}
+
+function buildItemRows(items: DeliveryStatementLine[]) {
+  const rows: string[] = items.map((item) => {
+    const code = escapeHtml(item.productCode || '')
+    const name = escapeHtml(item.productName || '')
+    return `<tr>
       <td class="code">${code}</td>
       <td class="name">${name}</td>
-      <td class="num">${formatNumber(qty)}</td>
-      <td class="num">₩${formatNumber(unitPrice)}</td>
-      <td class="num amt">₩${formatNumber(supply)}</td>
-    </tr>`,
-  ]
+      <td class="num">${formatNumber(item.qty)}</td>
+      <td class="num">₩${formatNumber(item.unitPrice)}</td>
+      <td class="num amt">₩${formatNumber(item.supplyAmount)}</td>
+    </tr>`
+  })
 
-  for (let i = 1; i < ITEM_ROW_COUNT; i += 1) {
+  const padTo = Math.max(MIN_ITEM_ROW_COUNT, items.length)
+  for (let i = items.length; i < padTo; i += 1) {
     rows.push(
       `<tr class="empty">
         <td class="code">&nbsp;</td>
@@ -102,11 +126,8 @@ function buildItemRows(data: DeliveryStatementData) {
 function buildStatementCopyHtml(data: DeliveryStatementData) {
   const shipDateSlash = formatSlashDate(data.shipDate)
   const customer = escapeHtml(data.customer.trim() || '—')
-  const qty = Math.max(0, Math.floor(Number(data.qty) || 0))
-  const supply = Math.max(
-    0,
-    Math.round(Number(data.supplyAmount) || qty * Math.round(Number(data.unitPrice) || 0)),
-  )
+  const items = (data.items || []).map(normalizeStatementLine)
+  const { qty, supply } = sumStatementTotals(items)
   const vat = 0
   const total = supply + vat
   const koreanAmount = escapeHtml(formatAmountInKorean(total))
@@ -157,7 +178,7 @@ function buildStatementCopyHtml(data: DeliveryStatementData) {
       </tr>
     </thead>
     <tbody>
-      ${buildItemRows(data)}
+      ${buildItemRows(items)}
     </tbody>
   </table>
 
@@ -489,19 +510,86 @@ export function printDeliveryStatement(data: DeliveryStatementData) {
   }
 
   if (frameDoc.readyState === 'complete') {
-    window.setTimeout(triggerPrint, 300)
+    window.setTimeout(triggerPrint, 50)
   } else {
-    iframe.addEventListener('load', () => window.setTimeout(triggerPrint, 300), { once: true })
+    iframe.onload = () => window.setTimeout(triggerPrint, 50)
   }
 
   return true
 }
 
+/**
+ * 거래명세서 품목 = 해당 주문서의 사용자 입력 라인 전체
+ * (임시 품목 포함, BOM 전개 파생 라인 제외, 주문 수량·단가·금액)
+ */
+export async function buildDeliveryStatementDataFromOrder(input: {
+  docNo: string
+  shipDate: string
+  orderNumber: string
+  customer?: string
+  note?: string
+}): Promise<
+  | { ok: true; data: DeliveryStatementData }
+  | { ok: false; detail: string }
+> {
+  const orderNumber = String(input.orderNumber || '').trim()
+  if (!orderNumber) {
+    return { ok: false, detail: '주문번호가 없습니다.' }
+  }
+
+  const order = await fetchOrderById(orderNumber)
+  if (!order) {
+    return { ok: false, detail: `주문서(${orderNumber})를 찾을 수 없습니다.` }
+  }
+
+  const items: DeliveryStatementLine[] = order.items
+    .filter((item) => !item.derivedFromLineId)
+    .map((item) => {
+      const qty = Math.max(0, Math.floor(Number(item.quantity) || 0))
+      const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+      const supplyAmount =
+        item.orderAmount > 0
+          ? Math.max(0, Math.round(Number(item.orderAmount) || 0))
+          : Math.round(qty * unitPrice)
+      return {
+        productCode: String(item.productCode || '').trim(),
+        productName: String(item.productName || '').trim(),
+        qty,
+        unitPrice,
+        supplyAmount,
+      }
+    })
+    .filter((item) => item.productName || item.productCode || item.qty > 0 || item.supplyAmount > 0)
+
+  if (!items.length) {
+    return { ok: false, detail: '주문서에 출력할 품목이 없습니다.' }
+  }
+
+  return {
+    ok: true,
+    data: {
+      docNo: String(input.docNo || '').trim(),
+      shipDate: String(input.shipDate || '').trim(),
+      orderNumber: order.orderNumber,
+      customer: String(input.customer || order.customer || '').trim(),
+      note: String(input.note || '').trim(),
+      items,
+    },
+  }
+}
+
+/** @deprecated 단일 품목용 — 주문서 기준 buildDeliveryStatementDataFromOrder 를 사용하세요 */
 export function buildDeliveryStatementData(input: {
-  row: Pick<
-    DeliveryStatementData,
-    'docNo' | 'shipDate' | 'orderNumber' | 'customer' | 'productName' | 'productCode' | 'qty' | 'note'
-  >
+  row: {
+    docNo: string
+    shipDate: string
+    orderNumber: string
+    customer: string
+    productName: string
+    productCode: string
+    qty: number
+    note: string
+  }
   unitPrice: number
   supplyAmount?: number
 }): DeliveryStatementData {
@@ -513,9 +601,19 @@ export function buildDeliveryStatementData(input: {
       : Math.round(qty * unitPrice)
 
   return {
-    ...input.row,
-    qty,
-    unitPrice,
-    supplyAmount,
+    docNo: input.row.docNo,
+    shipDate: input.row.shipDate,
+    orderNumber: input.row.orderNumber,
+    customer: input.row.customer,
+    note: input.row.note,
+    items: [
+      {
+        productCode: input.row.productCode,
+        productName: input.row.productName,
+        qty,
+        unitPrice,
+        supplyAmount,
+      },
+    ],
   }
 }

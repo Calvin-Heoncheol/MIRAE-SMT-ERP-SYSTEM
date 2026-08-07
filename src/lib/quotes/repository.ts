@@ -1,5 +1,7 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { isMissingCreatedByColumn, withCreatedByFields } from '@/lib/auth/created-by'
+import { insertChangeLog } from '@/lib/change-logs/repository'
+import { buildQuoteChangeDetail } from '@/lib/change-logs/utils'
 import { createSupabaseClient } from '@/lib/supabase'
 import type { QuoteRowPayload } from './build-quote-payload'
 import type { QuoteRecord, QuoteType } from './types'
@@ -111,7 +113,11 @@ export async function createQuote(payload: QuoteRowPayload, _quoteType: QuoteTyp
   }
 }
 
-export async function updateQuote(quoteId: string, payload: QuoteRowPayload): Promise<SaveQuoteResult> {
+export async function updateQuote(
+  quoteId: string,
+  payload: QuoteRowPayload,
+  options?: { reason?: string },
+): Promise<SaveQuoteResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
@@ -121,6 +127,12 @@ export async function updateQuote(quoteId: string, payload: QuoteRowPayload): Pr
 
   try {
     const supabase = createSupabaseClient()
+    const { data: beforeRow } = await supabase
+      .from('quotations')
+      .select('*')
+      .eq('id', quoteId)
+      .maybeSingle()
+
     const { error } = await supabase
       .from('quotations')
       .update({
@@ -136,6 +148,33 @@ export async function updateQuote(quoteId: string, payload: QuoteRowPayload): Pr
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    if (beforeRow) {
+      const before = mapQuoteRecord(beforeRow as QuoteRecord)
+      const detail = buildQuoteChangeDetail({
+        before: {
+          customer: before.customer,
+          productName: before.productName,
+          boardQty: before.boardQty,
+          totalAmount: before.totalAmount,
+        },
+        after: {
+          customer: payload.customer,
+          productName: payload.product_name,
+          boardQty: payload.board_qty,
+          totalAmount: payload.total_amount,
+        },
+      })
+      void insertChangeLog({
+        entityType: 'quote',
+        entityId: quoteId,
+        title: `견적서 ${quoteId} 수정`,
+        detail,
+        reason: options?.reason,
+        beforeData: { totalAmount: before.totalAmount, customer: before.customer },
+        afterData: { totalAmount: payload.total_amount, customer: payload.customer },
+      })
     }
 
     return { ok: true, quoteId, quoteNumber: quoteId }

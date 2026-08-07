@@ -5,7 +5,11 @@ import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { ProductCombobox } from '@/components/orders/product-combobox'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { parseItemVersionCode } from '@/lib/items/version-code'
-import { defaultOrderItemForm, type OrderItemForm } from '@/lib/orders/form-state'
+import {
+  defaultAdhocOrderItemForm,
+  defaultOrderItemForm,
+  type OrderItemForm,
+} from '@/lib/orders/form-state'
 import { computeLineAmount } from '@/lib/orders/utils'
 import type { Product } from '@/lib/products/types'
 
@@ -23,10 +27,12 @@ function applyProductToItem(item: OrderItemForm, product: Product): OrderItemFor
     productCode: product.productCode,
     productName: product.productName,
     unitPrice: String(product.defaultUnitPrice),
+    isAdhoc: false,
   }
 }
 
 function productVersionLabel(item: OrderItemForm, products: Product[]) {
+  if (item.isAdhoc) return null
   const byId = item.productId
     ? products.find((product) => product.id === item.productId)
     : null
@@ -59,6 +65,10 @@ export function OrderItemsForm({
     onChange([...items, defaultOrderItemForm()])
   }
 
+  function addAdhocRow() {
+    onChange([...items, defaultAdhocOrderItemForm()])
+  }
+
   function removeRow(index: number) {
     if (items.length <= 1) return
     onChange(items.filter((_, itemIndex) => itemIndex !== index))
@@ -79,7 +89,17 @@ export function OrderItemsForm({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-bold text-slate-900">제품</h3>
-        <ErpRowAddButton onClick={addRow} title="제품 추가" />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={addAdhocRow}
+            className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+            title="품목등록에 없는 일회성 금액·품목"
+          >
+            + 임시 품목
+          </button>
+          <ErpRowAddButton onClick={addRow} title="제품 추가" />
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200">
@@ -108,37 +128,73 @@ export function OrderItemsForm({
             {items.map((item, index) => {
               const amount = computeLineAmount(Number(item.quantity), Number(item.unitPrice))
               const version = productVersionLabel(item, products)
+              const isAdhoc = Boolean(item.isAdhoc)
               return (
-                <tr key={index} className="border-t border-slate-100">
+                <tr
+                  key={index}
+                  className={[
+                    'border-t border-slate-100',
+                    isAdhoc ? 'bg-amber-50/40' : '',
+                  ].join(' ')}
+                >
                   <td className="px-2 py-2 align-top">
-                    <ProductCombobox
-                      value={item.productCode}
-                      products={products}
-                      customer={customer}
-                      field="code"
-                      placeholder="코드 검색"
-                      ariaLabel={`${index + 1}행 제품코드`}
-                      inputClassName={inputClassName}
-                      onValueChange={(productCode) =>
-                        patchItem(index, { productCode, productId: '', productName: '' })
-                      }
-                      onProductSelect={(product) => selectProduct(index, product)}
-                    />
+                    {isAdhoc ? (
+                      <input
+                        value={item.productCode}
+                        onChange={(event) =>
+                          patchItem(index, { productCode: event.target.value, productId: '' })
+                        }
+                        placeholder="선택 (예: TEMP)"
+                        aria-label={`${index + 1}행 임시 제품코드`}
+                        className={inputClassName}
+                      />
+                    ) : (
+                      <ProductCombobox
+                        value={item.productCode}
+                        products={products}
+                        customer={customer}
+                        field="code"
+                        placeholder="코드 검색"
+                        ariaLabel={`${index + 1}행 제품코드`}
+                        inputClassName={inputClassName}
+                        onValueChange={(productCode) =>
+                          patchItem(index, { productCode, productId: '', productName: '' })
+                        }
+                        onProductSelect={(product) => selectProduct(index, product)}
+                      />
+                    )}
                   </td>
                   <td className="px-2 py-2 align-top">
-                    <ProductCombobox
-                      value={item.productName}
-                      products={products}
-                      customer={customer}
-                      field="name"
-                      placeholder="제품명"
-                      ariaLabel={`${index + 1}행 제품명`}
-                      inputClassName={inputClassName}
-                      onValueChange={(productName) =>
-                        patchItem(index, { productName, productId: '', productCode: '' })
-                      }
-                      onProductSelect={(product) => selectProduct(index, product)}
-                    />
+                    {isAdhoc ? (
+                      <div className="space-y-1">
+                        <input
+                          value={item.productName}
+                          onChange={(event) =>
+                            patchItem(index, { productName: event.target.value, productId: '' })
+                          }
+                          placeholder="예: 특별할증, 추가가공비"
+                          aria-label={`${index + 1}행 임시 제품명`}
+                          className={inputClassName}
+                        />
+                        <span className="inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                          임시
+                        </span>
+                      </div>
+                    ) : (
+                      <ProductCombobox
+                        value={item.productName}
+                        products={products}
+                        customer={customer}
+                        field="name"
+                        placeholder="제품명"
+                        ariaLabel={`${index + 1}행 제품명`}
+                        inputClassName={inputClassName}
+                        onValueChange={(productName) =>
+                          patchItem(index, { productName, productId: '', productCode: '' })
+                        }
+                        onProductSelect={(product) => selectProduct(index, product)}
+                      />
+                    )}
                   </td>
                   <td className="px-2 py-2 align-top text-center">
                     <div className="flex h-[34px] items-center justify-center">
@@ -188,8 +244,8 @@ export function OrderItemsForm({
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        제품코드·제품명이 하나뿐이면 자동으로 채워집니다. 버전이 여러 개면 드롭다운에서 버전을 선택해야
-        합니다. 납기일은 상단에서 주문 전체에 적용됩니다.
+        등록 제품은 목록에서 선택하세요. 특별할증·추가비용 등 마스터에 없는 항목은 「임시 품목」으로
+        추가하면 이 주문에만 금액이 반영됩니다. 생산현황·생산계획·SMT/후공정에는 잡히지 않습니다.
       </p>
     </div>
   )

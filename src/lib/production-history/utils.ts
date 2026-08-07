@@ -19,6 +19,13 @@ export function formatProductionHistoryDateTime(iso: string) {
   }).format(date)
 }
 
+/** 기록일 표시 — 등록 시각(createdAt)이 있으면 날짜+시간, 없으면 기록일 */
+export function formatProductionHistoryRecordAt(row: Pick<ProductionHistoryRow, 'recordDate' | 'createdAt'>) {
+  const withTime = formatProductionHistoryDateTime(row.createdAt)
+  if (withTime !== '-') return withTime
+  return row.recordDate.trim() || '-'
+}
+
 export function filterProductionHistory(
   rows: ProductionHistoryRow[],
   query: string,
@@ -33,6 +40,7 @@ export function filterProductionHistory(
     const haystack = [
       row.team,
       row.recordDate,
+      formatProductionHistoryRecordAt(row),
       row.orderNumber,
       row.customer,
       row.productName,

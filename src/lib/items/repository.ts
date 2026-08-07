@@ -1,6 +1,12 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import { syncFinishedParentsUsingChild } from '@/lib/bom/repository'
+import { insertChangeLog } from '@/lib/change-logs/repository'
+import {
+  buildItemChangeDataPayload,
+  buildItemChangeDetail,
+  buildItemChangeTitle,
+} from '@/lib/change-logs/utils'
 import type { Item, ItemPayload, UpdateItemPayload } from './types'
 import { isManualItemCodeCategory } from './types'
 import {
@@ -650,7 +656,7 @@ export async function createItems(
 export async function updateItem(
   id: string,
   payload: UpdateItemPayload,
-  options?: { nextId?: string },
+  options?: { nextId?: string; reason?: string },
 ): Promise<SaveItemResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
@@ -674,6 +680,8 @@ export async function updateItem(
 
   try {
     const supabase = createSupabaseClient()
+    const { data: beforeRow } = await supabase.from('items').select('*').eq('id', key).maybeSingle()
+    const beforeItem = beforeRow ? mapItemRecord(beforeRow) : null
 
     if (nextId && nextId !== key) {
       const replaced = await replaceItemId(supabase, key, nextId, payload)
@@ -685,6 +693,36 @@ export async function updateItem(
           return { ok: false, reason: 'query', detail: syncResult.detail }
         }
       }
+
+      if (beforeItem) {
+        const prices = {
+          before: {
+            name: beforeItem.name,
+            unitPrice: beforeItem.unitPrice,
+            smdUnitPrice: beforeItem.smdUnitPrice,
+            dipUnitPrice: beforeItem.dipUnitPrice,
+            materialUnitPrice: beforeItem.materialUnitPrice,
+          },
+          after: {
+            name: payload.name,
+            unitPrice: payload.unitPrice,
+            smdUnitPrice: payload.smdUnitPrice,
+            dipUnitPrice: payload.dipUnitPrice,
+            materialUnitPrice: payload.materialUnitPrice,
+          },
+        }
+        const { beforeData, afterData } = buildItemChangeDataPayload(prices)
+        void insertChangeLog({
+          entityType: 'item',
+          entityId: replaced.id,
+          title: buildItemChangeTitle(payload.itemCategory, replaced.id),
+          detail: buildItemChangeDetail(prices),
+          reason: options?.reason,
+          beforeData,
+          afterData,
+        })
+      }
+
       return replaced
     }
 
@@ -700,6 +738,35 @@ export async function updateItem(
       if (!syncResult.ok) {
         return { ok: false, reason: 'query', detail: syncResult.detail }
       }
+    }
+
+    if (beforeItem) {
+      const prices = {
+        before: {
+          name: beforeItem.name,
+          unitPrice: beforeItem.unitPrice,
+          smdUnitPrice: beforeItem.smdUnitPrice,
+          dipUnitPrice: beforeItem.dipUnitPrice,
+          materialUnitPrice: beforeItem.materialUnitPrice,
+        },
+        after: {
+          name: payload.name,
+          unitPrice: payload.unitPrice,
+          smdUnitPrice: payload.smdUnitPrice,
+          dipUnitPrice: payload.dipUnitPrice,
+          materialUnitPrice: payload.materialUnitPrice,
+        },
+      }
+      const { beforeData, afterData } = buildItemChangeDataPayload(prices)
+      void insertChangeLog({
+        entityType: 'item',
+        entityId: key,
+        title: buildItemChangeTitle(payload.itemCategory, key),
+        detail: buildItemChangeDetail(prices),
+        reason: options?.reason,
+        beforeData,
+        afterData,
+      })
     }
 
     return { ok: true, id: key }

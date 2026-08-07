@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createDeliveryRecord, fetchOrderLineUnitPrice } from '@/lib/delivery/repository'
+import { createDeliveryRecord } from '@/lib/delivery/repository'
 import {
-  buildDeliveryStatementData,
+  buildDeliveryStatementDataFromOrder,
   printDeliveryStatement,
 } from '@/lib/delivery/print-delivery-statement'
 import type { DeliveryAvailability } from '@/lib/delivery/utils'
@@ -67,27 +67,23 @@ export function DeliveryInputShipPanel({
     setQty(String(registerMax))
   }
 
-  async function handlePrintStatement(record: DeliveryRecord, quantity: number) {
+  async function handlePrintStatement(record: DeliveryRecord, _quantity: number) {
     if (!order) return false
 
-    const priceResult = await fetchOrderLineUnitPrice(order.orderNumber, order.productCode)
-    const unitPrice = priceResult.ok ? priceResult.unitPrice : 0
+    const built = await buildDeliveryStatementDataFromOrder({
+      docNo: record.id,
+      shipDate: record.recordDate,
+      orderNumber: order.orderNumber,
+      customer: order.customer,
+      note,
+    })
+    if (!built.ok) {
+      setMessage({ text: built.detail, kind: 'err' })
+      toast.error('거래명세서 생성 실패', built.detail)
+      return false
+    }
 
-    return printDeliveryStatement(
-      buildDeliveryStatementData({
-        row: {
-          docNo: record.id,
-          shipDate: record.recordDate,
-          orderNumber: order.orderNumber,
-          customer: order.customer,
-          productName: order.productName,
-          productCode: order.productCode,
-          qty: quantity,
-          note,
-        },
-        unitPrice,
-      }),
-    )
+    return printDeliveryStatement(built.data)
   }
 
   async function handleSubmit(printAfter = false) {

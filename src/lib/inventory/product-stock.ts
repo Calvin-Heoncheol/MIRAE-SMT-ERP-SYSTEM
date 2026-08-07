@@ -14,6 +14,7 @@ import {
   type ItemCategory,
 } from '@/lib/items/types'
 import { fetchPostProcessCumulativeCounts } from '@/lib/post-process/repository'
+import { resolveAssemblyProductionCap } from '@/lib/production-input/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
 import { fetchSmtCumulativeCounts } from '@/lib/smt/repository'
@@ -39,21 +40,21 @@ function addQty(map: Map<string, number>, key: string, qty: number) {
   map.set(key, (map.get(key) ?? 0) + qty)
 }
 
-/** 조립그룹 생산완료 수량 — 부모 품목 공정에 맞춤 */
+/** 조립그룹 생산완료 수량 — SMD/DIP 공정(단가) 기준으로 상한 */
 function computeGroupProductionCap(
   group: OrderAssemblyGroup,
   smtCounts: Record<string, number>,
   postCounts: Record<string, number>,
   productById: Record<string, Product>,
 ) {
-  const parent = productById[group.parentProductId]
-  const processType = parent?.processType || ''
   const smtSets = computeAssemblySmtSets(group, smtCounts, productById)
   const postProduced = Math.max(0, Math.floor(Number(postCounts[group.id]) || 0))
-
-  if (processType === 'smt') return smtSets
-  if (processType === 'post') return postProduced
-  return Math.min(smtSets, postProduced)
+  return resolveAssemblyProductionCap({
+    group,
+    smtSets,
+    postProduced,
+    productById,
+  })
 }
 
 /** FG 자식 라인의 창고 입고(주로 SMT). 부모=자식 1:1 그룹은 부모 cap으로만 가산 */

@@ -2,7 +2,7 @@ export type ProductPcbSideMode = 'single' | 'duo' | 'double'
 
 export type ProductKind = 'pcb' | 'assembly'
 
-/** 반제품 공정 — smt / post / smt_post (빈 값은 미설정) */
+/** 반제품 공정 — SMD/DIP 단가로 유도 (smt / post / smt_post, 빈 값=생산공정 없음) */
 export type ProductProcessType = '' | 'smt' | 'post' | 'smt_post'
 
 export type Product = {

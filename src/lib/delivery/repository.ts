@@ -2,6 +2,7 @@ import {
   ensureAssemblyGroupsForOrders,
   fetchAssemblyGroups,
   repairChildrenOnlyAssemblyGroups,
+  repairOrphanAssemblyGroups,
 } from '@/lib/assembly/repository'
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import {
@@ -126,11 +127,14 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
   if (!postCountsResult.ok) return postCountsResult
   if (!deliveryCountsResult.ok) return deliveryCountsResult
 
-  const assemblyResult = await repairChildrenOnlyAssemblyGroups(
+  let assemblyResult = await repairChildrenOnlyAssemblyGroups(
     assemblyFetchResult.groups,
     ordersResult.orders,
     productById,
   )
+  if (!assemblyResult.ok) return assemblyResult
+
+  assemblyResult = await repairOrphanAssemblyGroups(assemblyResult.groups, productById)
   if (!assemblyResult.ok) return assemblyResult
 
   const deliveryCounts = deliveryCountsResult.counts

@@ -94,7 +94,7 @@ export function isSplitItemPcbSideMode(mode: string | null | undefined) {
   return mode === 'double'
 }
 
-/** 반제품 공정 — smt=SMD, post=DIP, smt_post=SMD+DIP */
+/** 반제품 공정 — SMD/DIP 단가 > 0 여부로 판별 (smt=SMD, post=DIP, smt_post=SMD+DIP) */
 export type ItemProcessType = '' | 'smt' | 'post' | 'smt_post'
 
 export const ITEM_PROCESS_TYPES = ['smt', 'post', 'smt_post'] as const

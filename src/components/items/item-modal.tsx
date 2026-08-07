@@ -2,11 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
+import { EntityChangeHistoryButton } from '@/components/change-logs/entity-change-history-button'
+import { ChangeReasonModal } from '@/components/change-logs/change-reason-modal'
 import { useBusy } from '@/components/ui/busy-provider'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { createItem, deleteItem, setItemActive, updateItem } from '@/lib/items/repository'
+import { hasItemUnitPriceChange } from '@/lib/change-logs/utils'
 import { calcParentUnitPriceFromBom } from '@/lib/bom/repository'
 import {
   emptyItemForm,
@@ -131,6 +134,11 @@ function ItemModalContent({
   const [deleting, setDeleting] = useState(false)
   const [deactivating, setDeactivating] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [reasonOpen, setReasonOpen] = useState(false)
+  const [pendingItemUpdate, setPendingItemUpdate] = useState<{
+    saveForm: ItemFormState
+    nextId?: string
+  } | null>(null)
   const [purchasePartners, setPurchasePartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(true)
   const [bomPriceLoading, setBomPriceLoading] = useState(false)
@@ -327,59 +335,55 @@ function ItemModalContent({
     return form.id.trim() || (isCreate ? previewItemCode : '')
   })()
 
-  async function handleSave() {
-    const validationError = validateItemForm(form, { isCreate })
-    if (validationError) {
-      setSaveError(validationError)
-      return
+  async function prepareSaveForm() {
+    let saveForm = form
+    if (
+      isCreate &&
+      form.itemCategory !== '' &&
+      !isRawMaterialItemCategory(form.itemCategory) &&
+      !form.id.trim()
+    ) {
+      const base = form.name.trim()
+      if (base) {
+        saveForm = { ...saveForm, id: base }
+      }
     }
+    if (form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)) {
+      const finishedId = (
+        isCreate
+          ? composeItemIdWithVersion(saveForm.id.trim() || previewItemCode, saveForm.version)
+          : item?.id || form.id
+      ).trim()
+      if (finishedId) {
+        const calc = await calcParentUnitPriceFromBom(finishedId)
+        if (calc.ok) {
+          saveForm = {
+            ...saveForm,
+            unitPrice: calc.unitPrice > 0 ? String(calc.unitPrice) : '',
+          }
+          setForm(saveForm)
+        }
+      }
+    }
+    return saveForm
+  }
 
+  async function commitItemSave(
+    saveForm: ItemFormState,
+    options?: { nextId?: string; reason?: string },
+  ) {
     setSaving(true)
     setSaveError(null)
 
     let result
     try {
       result = await busyUi.run(async () => {
-        let saveForm = form
-        if (
-          isCreate &&
-          form.itemCategory !== '' &&
-          !isRawMaterialItemCategory(form.itemCategory) &&
-          !form.id.trim()
-        ) {
-          const base = form.name.trim()
-          if (base) {
-            saveForm = { ...saveForm, id: base }
-          }
-        }
-        if (form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)) {
-          const finishedId = (
-            isCreate
-              ? composeItemIdWithVersion(saveForm.id.trim() || previewItemCode, saveForm.version)
-              : item?.id || form.id
-          ).trim()
-          if (finishedId) {
-            const calc = await calcParentUnitPriceFromBom(finishedId)
-            if (calc.ok) {
-              saveForm = {
-                ...saveForm,
-                unitPrice: calc.unitPrice > 0 ? String(calc.unitPrice) : '',
-              }
-              setForm(saveForm)
-            }
-          }
-        }
-
         if (isCreate) {
           return createItem(formToItemPayload(saveForm))
         }
-        const baseId = saveForm.id.trim() || saveForm.name.trim()
-        const nextId =
-          saveForm.itemCategory !== '' && !isRawMaterialItemCategory(saveForm.itemCategory)
-            ? composeItemIdWithVersion(baseId, saveForm.version)
-            : baseId
         return updateItem(item!.id, formToItemUpdatePayload(saveForm), {
-          nextId: nextId && nextId !== item!.id ? nextId : undefined,
+          nextId: options?.nextId,
+          reason: options?.reason,
         })
       })
     } finally {
@@ -391,7 +395,70 @@ function ItemModalContent({
       return
     }
 
+    setReasonOpen(false)
+    setPendingItemUpdate(null)
     onSaved?.(isCreate ? '품목이 등록되었습니다.' : '품목이 수정되었습니다.')
+  }
+
+  async function handleSave() {
+    const validationError = validateItemForm(form, { isCreate })
+    if (validationError) {
+      setSaveError(validationError)
+      return
+    }
+
+    setSaving(true)
+    setSaveError(null)
+    let saveForm: ItemFormState
+    try {
+      saveForm = await prepareSaveForm()
+    } catch (error) {
+      setSaving(false)
+      setSaveError(error instanceof Error ? error.message : String(error))
+      return
+    }
+    setSaving(false)
+
+    if (isCreate) {
+      await commitItemSave(saveForm)
+      return
+    }
+
+    const baseId = saveForm.id.trim() || saveForm.name.trim()
+    const nextId =
+      saveForm.itemCategory !== '' && !isRawMaterialItemCategory(saveForm.itemCategory)
+        ? composeItemIdWithVersion(baseId, saveForm.version)
+        : baseId
+    const updatePayload = formToItemUpdatePayload(saveForm)
+    const priceChanged =
+      item &&
+      hasItemUnitPriceChange(
+        {
+          unitPrice: item.unitPrice,
+          smdUnitPrice: item.smdUnitPrice,
+          dipUnitPrice: item.dipUnitPrice,
+          materialUnitPrice: item.materialUnitPrice,
+        },
+        {
+          unitPrice: updatePayload.unitPrice,
+          smdUnitPrice: updatePayload.smdUnitPrice,
+          dipUnitPrice: updatePayload.dipUnitPrice,
+          materialUnitPrice: updatePayload.materialUnitPrice,
+        },
+      )
+
+    if (priceChanged) {
+      setPendingItemUpdate({
+        saveForm,
+        nextId: nextId && nextId !== item!.id ? nextId : undefined,
+      })
+      setReasonOpen(true)
+      return
+    }
+
+    await commitItemSave(saveForm, {
+      nextId: nextId && nextId !== item!.id ? nextId : undefined,
+    })
   }
 
   async function handleDelete() {
@@ -482,6 +549,9 @@ function ItemModalContent({
                   >
                     사용중지
                   </ErpButton>
+                ) : null}
+                {item ? (
+                  <EntityChangeHistoryButton entityType="item" entityId={item.id} disabled={busy} />
                 ) : null}
               </div>
             ) : (
@@ -777,6 +847,23 @@ function ItemModalContent({
           </div>
         ) : null}
       </div>
+
+      <ChangeReasonModal
+        open={reasonOpen}
+        saving={saving}
+        onCancel={() => {
+          if (saving) return
+          setReasonOpen(false)
+          setPendingItemUpdate(null)
+        }}
+        onConfirm={(reason) => {
+          if (!pendingItemUpdate) return
+          void commitItemSave(pendingItemUpdate.saveForm, {
+            nextId: pendingItemUpdate.nextId,
+            reason,
+          })
+        }}
+      />
     </ErpModal>
   )
 }

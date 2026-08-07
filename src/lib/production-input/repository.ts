@@ -1,4 +1,4 @@
-import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups, repairOrphanAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
@@ -93,11 +93,16 @@ export async function fetchProductionInputPageData(
       return deliveryCountsResult
     }
 
-    const assemblyResult = await repairChildrenOnlyAssemblyGroups(
+    let assemblyResult = await repairChildrenOnlyAssemblyGroups(
       assemblyFetchResult.groups,
       ordersResult.orders,
       productById,
     )
+    if (!assemblyResult.ok) {
+      return assemblyResult
+    }
+
+    assemblyResult = await repairOrphanAssemblyGroups(assemblyResult.groups, productById)
     if (!assemblyResult.ok) {
       return assemblyResult
     }

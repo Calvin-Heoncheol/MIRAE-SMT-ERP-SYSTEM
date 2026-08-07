@@ -4,6 +4,7 @@ import { EmptyListState } from '@/components/ui/empty-list-state'
 
 import { ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
+import { formatProductionHistoryRecordAt } from '@/lib/production-history/utils'
 import { formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
 import type { ProductionHistoryRow } from '@/lib/production-history/types'
 
@@ -93,8 +94,8 @@ export function ProductionHistoryTable({
                 ].join(' ')}
                 title={onRowClick ? '클릭하여 상세·삭제' : undefined}
               >
-                <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
-                  {cell(row.recordDate)}
+                <td className="whitespace-nowrap px-3 py-2.5 text-sm tabular-nums text-slate-700">
+                  {formatProductionHistoryRecordAt(row)}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm font-semibold text-slate-800">
                   {row.team}

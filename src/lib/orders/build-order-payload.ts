@@ -7,14 +7,16 @@ export function orderItemFormToModel(item: OrderItemForm) {
   const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
   const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
   const productId = String(item.productId || '').trim()
+  const isAdhoc = Boolean(item.isAdhoc)
   return {
-    productId: productId || null,
+    productId: isAdhoc ? null : productId || null,
     productCode: String(item.productCode || '').trim(),
     productName: String(item.productName || '').trim(),
     quantity,
     unitPrice,
     orderAmount: computeLineAmount(quantity, unitPrice),
     deliveryDate: String(item.deliveryDate || '').trim(),
+    isAdhoc,
   }
 }
 
@@ -52,6 +54,20 @@ export function validateOrderItems(
       return { ok: false as const, message: `${index + 1}행 단가는 0 이상이어야 합니다.` }
     }
 
+    if (item.isAdhoc) {
+      validated.push({
+        productId: null,
+        productCode: item.productCode || 'TEMP',
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        orderAmount: item.orderAmount,
+        deliveryDate: headerDeliveryDate || item.deliveryDate,
+        isAdhoc: true,
+      })
+      continue
+    }
+
     const matched = resolveOrderLineProduct(products, customer, {
       productId: item.productId,
       productName: item.productName,
@@ -73,7 +89,7 @@ export function validateOrderItems(
       }
       return {
         ok: false as const,
-        message: `${index + 1}행 해당 제품은 등록되어 있지 않습니다. 제품명을 다시 확인해 주시기 바랍니다.`,
+        message: `${index + 1}행 해당 제품은 등록되어 있지 않습니다. 임시 품목으로 추가하거나 제품명을 확인해 주세요.`,
       }
     }
 
@@ -82,6 +98,7 @@ export function validateOrderItems(
       productId: matched.id,
       productCode: matched.productCode,
       productName: matched.productName,
+      isAdhoc: false,
       deliveryDate: headerDeliveryDate || item.deliveryDate,
     })
   }

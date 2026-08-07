@@ -8,7 +8,8 @@ import type {
 } from './types'
 
 export function resolveLineProductId(line: Pick<OrderLineRecord, 'product_id' | 'product_code'>) {
-  return (line.product_id || line.product_code || '').trim()
+  // 임시 품목(TEMP 등)은 product_code 만 있으므로 조립·생산 키로 쓰지 않는다
+  return String(line.product_id || '').trim()
 }
 
 export function isUserOrderLine(line: Pick<OrderLineRecord, 'derived_from_line_id'>) {

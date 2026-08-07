@@ -1,12 +1,18 @@
 'use client'
 
 import Link from 'next/link'
+import { useMemo, useState } from 'react'
+import { ErpModal } from '@/components/ui/erp-modal'
 import type {
   HomeAttentionItem,
   HomeDashboardData,
   HomeHeadlineMetric,
   HomeProductionTeam,
+  HomeTeamProductionRow,
 } from '@/lib/dashboard/home-data'
+import type { ChangeLogRecord } from '@/lib/change-logs/types'
+import { ChangeLogDetailText } from '@/components/change-logs/change-log-detail-text'
+import { ERP_SECONDARY_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 const DEPARTMENT_LABEL = {
   production: '생산',
@@ -33,6 +39,17 @@ function attentionToneClass(tone: HomeAttentionItem['tone']) {
   return 'border-l-amber-500 bg-amber-50/40'
 }
 
+function formatProductionTime(iso: string) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
 function HeadlineCards({ metrics }: { metrics: HomeHeadlineMetric[] }) {
   return (
     <section className="grid shrink-0 grid-cols-2 gap-3 xl:grid-cols-4">
@@ -48,11 +65,7 @@ function HeadlineCards({ metrics }: { metrics: HomeHeadlineMetric[] }) {
             <p className="text-xs font-semibold text-slate-500">{metric.label}</p>
             <p className={`mt-1.5 text-3xl font-bold tabular-nums ${VALUE_TONE[metric.tone]}`}>
               {display}
-              <span className="ml-1 text-sm font-semibold text-slate-400">{metric.unit}</span>
             </p>
-            {metric.hint ? (
-              <p className="mt-1 truncate text-xs font-medium text-slate-500">{metric.hint}</p>
-            ) : null}
           </Link>
         )
       })}
@@ -60,39 +73,99 @@ function HeadlineCards({ metrics }: { metrics: HomeHeadlineMetric[] }) {
   )
 }
 
-function AttentionPanel({ items }: { items: HomeAttentionItem[] }) {
+function formatChangeTime(iso: string) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '—'
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
+function changeEntityLabel(entityType: ChangeLogRecord['entityType']) {
+  if (entityType === 'order') return '주문'
+  if (entityType === 'item') return '품목'
+  return '견적'
+}
+
+function changeEntityChip(entityType: ChangeLogRecord['entityType']) {
+  if (entityType === 'order') return 'bg-sky-50 text-sky-800 ring-sky-200'
+  if (entityType === 'item') return 'bg-violet-50 text-violet-800 ring-violet-200'
+  return 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+}
+
+function ChangesPanel({ rows }: { rows: ChangeLogRecord[] }) {
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
-        <div>
-          <h2 className="text-base font-bold text-slate-900">관심 필요</h2>
-          <p className="mt-0.5 text-xs text-slate-500">생산 · 자재 · 영업</p>
-        </div>
-        <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold tabular-nums text-slate-700">
-          {items.length}건
-        </span>
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <header className="shrink-0 border-b border-slate-100 px-4 py-3">
+        <h2 className="text-base font-bold text-slate-900">변경사항</h2>
+        <p className="mt-0.5 text-xs text-slate-500">주문서 · 품목 · 견적서 수정 이력</p>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {!items.length ? (
-          <p className="flex h-full min-h-[12rem] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 text-center text-sm text-slate-500">
-            지금 당장 볼 이슈가 없습니다
+        {rows.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+            아직 기록된 변경사항이 없습니다.
           </p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className="space-y-2">
+            {rows.map((row) => (
+              <li
+                key={row.id}
+                className="rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset ${changeEntityChip(row.entityType)}`}
+                      >
+                        {changeEntityLabel(row.entityType)}
+                      </span>
+                      <p className="text-sm font-semibold text-slate-900">{row.title}</p>
+                    </div>
+                    {row.detail ? <ChangeLogDetailText detail={row.detail} /> : null}
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {[formatChangeTime(row.changedAt), row.changedByName || null]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function AttentionPanel({ items }: { items: HomeAttentionItem[] }) {
+  return (
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <header className="shrink-0 border-b border-slate-100 px-4 py-3">
+        <h2 className="text-base font-bold text-slate-900">관심 필요</h2>
+        <p className="mt-0.5 text-xs text-slate-500">바로 조치가 필요한 항목</p>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        {items.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+            현재 관심 필요 항목이 없습니다.
+          </p>
+        ) : (
+          <ul className="space-y-2">
             {items.map((item) => (
               <li key={item.key}>
                 <Link
                   href={item.href}
-                  className={[
-                    'flex items-start gap-3 rounded-xl border border-transparent border-l-4 px-3.5 py-3 transition hover:border-slate-200 hover:bg-white hover:shadow-sm',
-                    attentionToneClass(item.tone),
-                  ].join(' ')}
+                  className={`flex items-start gap-3 rounded-xl border border-slate-200 border-l-4 px-3 py-2.5 transition hover:border-slate-300 hover:bg-slate-50/80 ${attentionToneClass(item.tone)}`}
                 >
                   <span
-                    className={[
-                      'mt-0.5 shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold ring-1',
-                      DEPARTMENT_CHIP[item.department],
-                    ].join(' ')}
+                    className={`mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset ${DEPARTMENT_CHIP[item.department]}`}
                   >
                     {DEPARTMENT_LABEL[item.department]}
                   </span>
@@ -110,6 +183,94 @@ function AttentionPanel({ items }: { items: HomeAttentionItem[] }) {
   )
 }
 
+function TeamProductionModal({
+  team,
+  todayLabel,
+  onClose,
+}: {
+  team: HomeProductionTeam | null
+  todayLabel: string
+  onClose: () => void
+}) {
+  const rows = useMemo(() => {
+    if (!team) return [] as HomeTeamProductionRow[]
+    return [...team.rows].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }, [team])
+
+  return (
+    <ErpModal
+      open={Boolean(team)}
+      size="md"
+      title={team ? `${team.team} · 오늘 생산` : '오늘 생산'}
+      description={
+        team
+          ? `${todayLabel} · 합계 ${team.todayQuantity.toLocaleString('ko-KR')} EA · ${rows.length}건`
+          : undefined
+      }
+      onClose={onClose}
+      footer={
+        team ? (
+          <div className="flex items-center justify-between gap-2">
+            <Link
+              href={team.href}
+              className={`${ERP_SECONDARY_BUTTON_CLASS} inline-flex items-center justify-center no-underline`}
+            >
+              생산이력 보기
+            </Link>
+            <button type="button" onClick={onClose} className={ERP_SECONDARY_BUTTON_CLASS}>
+              닫기
+            </button>
+          </div>
+        ) : null
+      }
+    >
+      {!team || rows.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+          오늘 등록된 생산이 없습니다.
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-slate-200">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
+              <tr>
+                <th className="whitespace-nowrap px-3 py-2.5">시간</th>
+                <th className="whitespace-nowrap px-3 py-2.5">주문번호</th>
+                <th className="whitespace-nowrap px-3 py-2.5">고객</th>
+                <th className="px-3 py-2.5">품목</th>
+                <th className="whitespace-nowrap px-3 py-2.5 text-right">수량</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((row) => (
+                <tr key={row.id} className="bg-white">
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-600">
+                    {formatProductionTime(row.createdAt)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 font-medium text-slate-800">
+                    {row.orderNumber || '—'}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">
+                    {row.customer || '—'}
+                  </td>
+                  <td className="px-3 py-2.5 text-slate-800">
+                    <p className="font-medium">{row.productName || '—'}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {[row.productCode, row.detail].filter(Boolean).join(' · ') || '—'}
+                    </p>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold tabular-nums text-slate-900">
+                    {row.quantity.toLocaleString('ko-KR')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ErpModal>
+  )
+}
+
 function TeamProduction({
   teams,
   todayLabel,
@@ -117,43 +278,53 @@ function TeamProduction({
   teams: HomeProductionTeam[]
   todayLabel: string
 }) {
+  const [selectedTeam, setSelectedTeam] = useState<HomeProductionTeam | null>(null)
   const total = teams.reduce((sum, team) => sum + team.todayQuantity, 0)
   const max = Math.max(...teams.map((team) => team.todayQuantity), 1)
 
   return (
-    <aside className="flex min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:w-[22rem] xl:shrink-0">
-      <header className="shrink-0 border-b border-slate-100 px-4 py-3">
-        <p className="text-xs font-semibold text-slate-500">{todayLabel}</p>
-        <div className="mt-1.5 flex items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-slate-900">팀별 생산</h2>
-          <p className="text-xs font-bold tabular-nums text-slate-600">
-            합계 {total.toLocaleString('ko-KR')} EA
-          </p>
+    <>
+      <aside className="flex min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:w-[22rem] xl:shrink-0">
+        <header className="shrink-0 border-b border-slate-100 px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-base font-bold text-slate-900">팀별 생산</h2>
+            <p className="text-xs font-bold tabular-nums text-slate-600">
+              합계 {total.toLocaleString('ko-KR')} EA
+            </p>
+          </div>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{todayLabel}</p>
+        </header>
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
+          {teams.map((team) => {
+            const width = total <= 0 ? 0 : Math.round((team.todayQuantity / max) * 100)
+            return (
+              <button
+                key={team.team}
+                type="button"
+                onClick={() => setSelectedTeam(team)}
+                className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-left transition hover:border-sky-300 hover:bg-white"
+              >
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-slate-700">{team.team}</span>
+                  <span className="text-sm font-bold tabular-nums text-slate-900">
+                    {team.todayQuantity.toLocaleString('ko-KR')}
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-full rounded-full bg-sky-500" style={{ width: `${width}%` }} />
+                </div>
+              </button>
+            )
+          })}
         </div>
-      </header>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
-        {teams.map((team) => {
-          const width = total <= 0 ? 0 : Math.round((team.todayQuantity / max) * 100)
-          return (
-            <Link
-              key={team.team}
-              href={team.href}
-              className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 transition hover:border-slate-300 hover:bg-white"
-            >
-              <div className="mb-1.5 flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-slate-700">{team.team}</span>
-                <span className="text-sm font-bold tabular-nums text-slate-900">
-                  {team.todayQuantity.toLocaleString('ko-KR')}
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                <div className="h-full rounded-full bg-sky-500" style={{ width: `${width}%` }} />
-              </div>
-            </Link>
-          )
-        })}
-      </div>
-    </aside>
+      </aside>
+
+      <TeamProductionModal
+        team={selectedTeam}
+        todayLabel={todayLabel}
+        onClose={() => setSelectedTeam(null)}
+      />
+    </>
   )
 }
 
@@ -169,7 +340,10 @@ export function HomeDashboard({ data }: { data: HomeDashboardData }) {
       <HeadlineCards metrics={data.headline} />
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden xl:flex-row">
-        <AttentionPanel items={data.attention} />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden md:flex-row">
+          <AttentionPanel items={data.attention} />
+          <ChangesPanel rows={data.changeLogs} />
+        </div>
         <TeamProduction teams={data.productionTeams} todayLabel={data.todayLabel} />
       </div>
     </div>

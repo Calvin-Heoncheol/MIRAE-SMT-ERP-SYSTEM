@@ -1,4 +1,10 @@
-import { APP_SHORT_NAME, COMPANY_ADDRESS_DOMESTIC, COMPANY_QUOTE_EMAIL_DOMESTIC } from '@/lib/app-config'
+﻿import {
+  COMPANY_ADDRESS_STATEMENT,
+  COMPANY_BIZ_NO,
+  COMPANY_CEO_NAME,
+  COMPANY_QUOTE_EMAIL_DOMESTIC,
+  COMPANY_TEL,
+} from '@/lib/app-config'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { formatOrderDate, formatOrderMoney } from '@/lib/orders/utils'
 
@@ -22,6 +28,12 @@ export type OrderPrintData = {
   note?: string
 }
 
+const ORDER_PRINT_LOGO_PATH = '/branding/logo.png'
+/** 브랜드 틸 — 로고 악센트와 맞춤 */
+const BRAND_TEAL = '#0f766e'
+const BRAND_TEAL_SOFT = '#ecfdf5'
+const COMPANY_NAME_ZH = '未来SMT'
+
 function escapeHtml(value: string) {
   return value
     .replaceAll('&', '&amp;')
@@ -34,11 +46,27 @@ function formatNumber(value: number) {
   return Math.max(0, Math.round(Number(value) || 0)).toLocaleString('ko-KR')
 }
 
-export function buildOrderHtml(data: OrderPrintData) {
+function resolvePrintLogoSrc() {
+  if (typeof window === 'undefined') return ORDER_PRINT_LOGO_PATH
+  return `${window.location.origin}${ORDER_PRINT_LOGO_PATH}`
+}
+
+function formatTel(value: string) {
+  const digits = value.replace(/\D/g, '')
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+  }
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`
+  }
+  return value
+}
+
+export function buildOrderHtml(data: OrderPrintData, logoSrc = ORDER_PRINT_LOGO_PATH) {
   const orderNumber = escapeHtml(data.orderNumber)
   const sourceQuote = String(data.sourceQuoteNumber || '').trim()
   const sourceQuoteHtml = sourceQuote
-    ? `<div class="source-no">견적번호 ${escapeHtml(sourceQuote)}</div>`
+    ? `<div class="meta-chip">报价单号 <strong>${escapeHtml(sourceQuote)}</strong></div>`
     : ''
   const orderDate = escapeHtml(formatOrderDate(data.orderDate) || data.orderDate)
   const deliveryDate = escapeHtml(formatOrderDate(data.deliveryDate) || data.deliveryDate || '—')
@@ -46,6 +74,8 @@ export function buildOrderHtml(data: OrderPrintData) {
   const category = escapeHtml(data.category.trim() || '—')
   const noteRaw = String(data.note || '').trim()
   const note = escapeHtml(noteRaw)
+  const logo = escapeHtml(logoSrc)
+  const companyNameZh = escapeHtml(COMPANY_NAME_ZH)
 
   const totalQuantity = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0)
   const totalAmount = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.orderAmount) || 0), 0)
@@ -57,146 +87,353 @@ export function buildOrderHtml(data: OrderPrintData) {
       const qty = formatNumber(item.quantity)
       const unitPrice = formatNumber(item.unitPrice)
       const amount = formatNumber(item.orderAmount)
-      const lineDelivery = escapeHtml(
-        formatOrderDate(item.deliveryDate) || item.deliveryDate || deliveryDate || '—',
-      )
       return `<tr>
         <td class="c-no">${index + 1}</td>
         <td class="mono">${code}</td>
-        <td>${name}</td>
+        <td class="name">${name}</td>
         <td class="num">${qty}</td>
         <td class="num">₩${unitPrice}</td>
         <td class="num amt">₩${amount}</td>
-        <td class="num">${lineDelivery}</td>
       </tr>`
     })
     .join('')
 
   const notesHtml = noteRaw
-    ? `<div class="notes"><strong>비고</strong> ${note}</div>`
-    : `<div class="notes"><strong>안내</strong> 납기일 ${deliveryDate} · 품목 ${formatNumber(data.items.length)}종 · 수량합계 ${formatNumber(totalQuantity)}</div>`
+    ? `<div class="notes"><div class="notes-label">备注</div><div class="notes-body">${note}</div></div>`
+    : `<div class="notes notes-muted"><div class="notes-label">说明</div><div class="notes-body">交期 ${deliveryDate} · 品目 ${formatNumber(data.items.length)}种 · 数量合计 ${formatNumber(totalQuantity)}</div></div>`
 
-  return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
-<title>주문서 ${orderNumber}</title><style>
-@page { size: A4 portrait; margin: 10mm; }
+  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<title>采购订单 ${orderNumber}</title><style>
+@page { size: A4 portrait; margin: 12mm; }
 html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+* { box-sizing: border-box; }
 body {
   margin: 0;
   padding: 0;
-  color: #1e293b;
+  color: #0f172a;
   background: #fff;
-  font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", "Microsoft YaHei", sans-serif;
   font-size: 10px;
+  line-height: 1.45;
+}
+.sheet { padding: 0; background: #fff; }
+.brand-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+}
+.brand-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.brand-logo {
+  display: block;
+  height: 46px;
+  width: auto;
+  max-width: 150px;
+  object-fit: contain;
+}
+.brand-text { min-width: 0; }
+.brand-text .name {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+.brand-text .en {
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: ${BRAND_TEAL};
+}
+.brand-text .contact {
+  margin-top: 4px;
+  font-size: 8.5px;
+  color: #64748b;
+  line-height: 1.35;
+}
+.doc-badge { text-align: right; flex-shrink: 0; }
+.doc-badge .en {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: ${BRAND_TEAL};
+}
+.doc-badge h1 {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  color: #0f172a;
+}
+.doc-badge .order-no {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+}
+.accent-line {
+  height: 3px;
+  margin: -8px 0 14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, ${BRAND_TEAL} 0%, #14b8a6 55%, #99f6e4 100%);
+}
+.party-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.party-box {
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+}
+.party-box.supplier {
+  border-color: #99f6e4;
+  background: ${BRAND_TEAL_SOFT};
+}
+.party-box .label {
+  margin-bottom: 5px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+.party-box .name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.party-box .detail {
+  margin-top: 4px;
+  font-size: 9px;
+  color: #475569;
   line-height: 1.4;
 }
-.sheet { padding: 2mm; background: #fff; }
-.letterhead {
+.meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  font-size: 10px;
+  color: #475569;
+}
+.meta-chip strong { color: #0f172a; font-weight: 800; }
+table.items {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+table.items th,
+table.items td {
+  border: 1px solid #cbd5e1;
+  padding: 7px 8px;
+  vertical-align: middle;
+}
+table.items th {
+  background: ${BRAND_TEAL};
+  color: #ecfdf5;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+table.items td.c-no { width: 32px; text-align: center; color: #64748b; }
+table.items td.mono {
+  width: 18%;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 9px;
+  color: #334155;
+}
+table.items td.name { word-break: break-word; font-weight: 600; color: #0f172a; }
+table.items td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+table.items td.amt { font-weight: 800; color: #0f172a; }
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 10px;
+  margin-top: 12px;
+  align-items: start;
+}
+.totals {
+  padding: 12px 14px;
+  border: 1px solid #99f6e4;
+  border-radius: 6px;
+  background: ${BRAND_TEAL_SOFT};
+}
+.totals .row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
   gap: 12px;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1.5px solid #cbd5e1;
-}
-.issuer .brand { font-size: 15px; font-weight: 800; color: #1e293b; }
-.issuer .sub { margin-top: 2px; font-size: 9px; color: #64748b; }
-.doc-title { text-align: right; }
-.doc-title .en { font-size: 8px; font-weight: 700; color: #64748b; letter-spacing: 0.1em; }
-.doc-title h1 { margin: 2px 0 0; font-size: 18px; font-weight: 800; color: #334155; letter-spacing: 0.28em; }
-.doc-title .source-no { margin-top: 6px; font-size: 10px; font-weight: 700; color: #0f172a; }
-.doc-title .no { margin-top: 2px; font-size: 10px; font-weight: 700; color: #475569; }
-.party-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-.party-box { padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 4px; background: #f8fafc; }
-.party-box-buyer { background: #fff; }
-.party-box .label { margin-bottom: 4px; font-size: 8px; font-weight: 700; color: #64748b; letter-spacing: 0.06em; }
-.party-box .name { font-size: 12px; font-weight: 700; color: #0f172a; }
-.meta { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 8px; font-size: 10px; color: #475569; }
-.meta strong { color: #0f172a; }
-table { width: 100%; border-collapse: collapse; }
-th, td { border: 1px solid #cbd5e1; padding: 5px 6px; vertical-align: middle; }
-th { background: #f1f5f9; font-size: 9px; font-weight: 700; color: #475569; text-align: center; }
-td.c-no { width: 28px; text-align: center; color: #64748b; }
-td.mono { font-family: ui-monospace, monospace; font-size: 9px; }
-td.num { text-align: right; font-variant-numeric: tabular-nums; }
-td.amt { font-weight: 700; }
-.totals {
-  display: flex;
-  justify-content: flex-end;
-  gap: 18px;
-  margin-top: 8px;
-  padding: 8px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  background: #f8fafc;
+  padding: 4px 0;
   font-size: 11px;
 }
-.totals .label { color: #64748b; font-weight: 600; }
-.totals .value { font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
-.notes { margin-top: 10px; padding: 8px 10px; border: 1px dashed #cbd5e1; border-radius: 4px; color: #475569; }
+.totals .row + .row { border-top: 1px dashed #99f6e4; }
+.totals .label { color: #0f766e; font-weight: 700; }
+.totals .value {
+  font-weight: 900;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.totals .grand .value { font-size: 14px; color: ${BRAND_TEAL}; }
+.sign {
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  min-height: 88px;
+}
+.sign .label {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+.sign .body {
+  margin-top: 10px;
+  font-size: 10px;
+  color: #475569;
+  line-height: 1.5;
+}
+.sign .stamp {
+  margin-top: 18px;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.notes {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+.notes-muted { background: #fff; }
+.notes-label {
+  margin-bottom: 4px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+.notes-body { color: #334155; white-space: pre-wrap; }
 .footer {
-  margin-top: 14px;
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
+  gap: 12px;
   font-size: 8px;
   color: #94a3b8;
 }
 </style></head><body><div class="sheet">
-  <div class="letterhead">
-    <div class="issuer">
-      <div class="brand">${escapeHtml(APP_SHORT_NAME)}</div>
-      <div class="sub">${escapeHtml(COMPANY_ADDRESS_DOMESTIC)}</div>
-      <div class="sub">${escapeHtml(COMPANY_QUOTE_EMAIL_DOMESTIC)}</div>
+  <div class="brand-bar">
+    <div class="brand-left">
+      <img class="brand-logo" src="${logo}" alt="${companyNameZh}" />
+      <div class="brand-text">
+        <div class="name">${companyNameZh}</div>
+        <div class="en">MIRAE SMT</div>
+        <div class="contact">
+          ${escapeHtml(COMPANY_ADDRESS_STATEMENT)}<br />
+          Tel ${escapeHtml(formatTel(COMPANY_TEL))} · ${escapeHtml(COMPANY_QUOTE_EMAIL_DOMESTIC)}
+        </div>
+      </div>
     </div>
-    <div class="doc-title">
-      <div class="en">SALES ORDER</div>
-      <h1>주문서</h1>
-      ${sourceQuoteHtml}
-      <div class="no">주문번호 ${orderNumber}</div>
+    <div class="doc-badge">
+      <div class="en">PURCHASE ORDER</div>
+      <h1>采购订单</h1>
+      <div class="order-no">${orderNumber}</div>
     </div>
   </div>
+  <div class="accent-line" aria-hidden="true"></div>
 
   <div class="party-grid">
-    <div class="party-box party-box-buyer">
-      <div class="label">발주처 (Customer)</div>
-      <div class="name">${customer}</div>
-    </div>
     <div class="party-box">
-      <div class="label">수주처 (Supplier)</div>
-      <div class="name">${escapeHtml(APP_SHORT_NAME)}</div>
+      <div class="label">订货方 · Customer</div>
+      <div class="name">${customer}</div>
+      <div class="detail">订单日期 ${orderDate} · 分类 ${category}</div>
+    </div>
+    <div class="party-box supplier">
+      <div class="label">接单方 · Supplier</div>
+      <div class="name">${companyNameZh}</div>
+      <div class="detail">
+        营业执照号 ${escapeHtml(COMPANY_BIZ_NO)} · 代表人 ${escapeHtml(COMPANY_CEO_NAME)}
+      </div>
     </div>
   </div>
 
-  <div class="meta">
-    <div>주문일 <strong>${orderDate}</strong></div>
-    <div>납기(최초) <strong>${deliveryDate}</strong></div>
-    <div>구분 <strong>${category}</strong></div>
+  <div class="meta-row">
+    <div class="meta-chip">交期(首次) <strong>${deliveryDate}</strong></div>
+    <div class="meta-chip">品目 <strong>${formatNumber(data.items.length)}种</strong></div>
+    ${sourceQuoteHtml}
   </div>
 
-  <table>
+  <table class="items">
     <thead>
       <tr>
         <th>No</th>
-        <th>품목코드</th>
-        <th>품명</th>
-        <th>수량</th>
-        <th>단가</th>
-        <th>금액</th>
-        <th>납기일</th>
+        <th>物料编码</th>
+        <th>品名</th>
+        <th>数量</th>
+        <th>单价</th>
+        <th>金额</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
   </table>
 
-  <div class="totals">
-    <div><span class="label">수량 합계</span> <span class="value">${formatNumber(totalQuantity)}</span></div>
-    <div><span class="label">금액 합계</span> <span class="value">${escapeHtml(formatOrderMoney(totalAmount))}</span></div>
+  <div class="bottom-grid">
+    <div class="sign">
+      <div class="label">确认 · Confirmation</div>
+      <div class="body">确认以上订单内容。</div>
+      <div class="stamp">${companyNameZh}</div>
+    </div>
+    <div class="totals">
+      <div class="row">
+        <span class="label">数量合计</span>
+        <span class="value">${formatNumber(totalQuantity)}</span>
+      </div>
+      <div class="row grand">
+        <span class="label">金额合计</span>
+        <span class="value">${escapeHtml(formatOrderMoney(totalAmount))}</span>
+      </div>
+    </div>
   </div>
 
   ${notesHtml}
 
   <div class="footer">
-    <span>${escapeHtml(APP_SHORT_NAME)} 주문서</span>
+    <span>${companyNameZh} · 正式采购订单</span>
     <span>${orderNumber}</span>
   </div>
 </div></body></html>`
@@ -205,7 +442,7 @@ td.amt { font-weight: 700; }
 export function printOrder(data: OrderPrintData) {
   if (typeof document === 'undefined') return false
 
-  const html = buildOrderHtml(data)
+  const html = buildOrderHtml(data, resolvePrintLogoSrc())
   const iframe = document.createElement('iframe')
   iframe.setAttribute('title', '주문서 인쇄')
   iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
@@ -224,16 +461,36 @@ export function printOrder(data: OrderPrintData) {
 
   const cleanup = () => iframe.remove()
 
+  const waitForImages = () => {
+    const images = Array.from(frameDoc.images || [])
+    if (!images.length) return Promise.resolve()
+    return Promise.all(
+      images.map(
+        (image) =>
+          new Promise<void>((resolve) => {
+            if (image.complete) {
+              resolve()
+              return
+            }
+            image.addEventListener('load', () => resolve(), { once: true })
+            image.addEventListener('error', () => resolve(), { once: true })
+          }),
+      ),
+    )
+  }
+
   const triggerPrint = () => {
-    frameWindow.focus()
-    frameWindow.print()
-    window.setTimeout(cleanup, 120_000)
+    void waitForImages().then(() => {
+      frameWindow.focus()
+      frameWindow.print()
+      window.setTimeout(cleanup, 120_000)
+    })
   }
 
   if (frameDoc.readyState === 'complete') {
-    window.setTimeout(triggerPrint, 300)
+    window.setTimeout(triggerPrint, 80)
   } else {
-    iframe.addEventListener('load', () => window.setTimeout(triggerPrint, 300), { once: true })
+    iframe.addEventListener('load', () => window.setTimeout(triggerPrint, 80), { once: true })
   }
 
   return true

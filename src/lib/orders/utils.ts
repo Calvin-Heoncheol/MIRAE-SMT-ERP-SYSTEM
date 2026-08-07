@@ -31,6 +31,22 @@ export function formatOrderMoney(amount: number) {
   return `₩${Math.round(Number(amount) || 0).toLocaleString('ko-KR')}`
 }
 
+/**
+ * 품목마스터에 없는 임시(금액 전용) 라인.
+ * product_id 가 없으면 생산·조립·실적에 올리지 않는다.
+ */
+export function isBillingOnlyOrderItem(item: {
+  productId?: string | null
+}) {
+  return !String(item.productId || '').trim()
+}
+
+export function isBillingOnlyOrderLine(line: {
+  product_id?: string | null
+}) {
+  return !String(line.product_id || '').trim()
+}
+
 export function formatOrderDate(value: string | null | undefined) {
   if (!value) return ''
   const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/)

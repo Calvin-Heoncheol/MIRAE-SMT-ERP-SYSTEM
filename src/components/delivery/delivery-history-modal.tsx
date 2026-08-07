@@ -8,7 +8,7 @@ import {
   updateDeliveryRecord,
 } from '@/lib/delivery/repository'
 import {
-  buildDeliveryStatementData,
+  buildDeliveryStatementDataFromOrder,
   printDeliveryStatement,
 } from '@/lib/delivery/print-delivery-statement'
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
@@ -82,23 +82,20 @@ export function DeliveryHistoryModal({
   const unitPriceNumber = parseMoneyInput(unitPrice)
   const supplyAmount = Math.round(qtyNumber * unitPriceNumber)
 
-  function handlePrintStatement() {
-    const ok = printDeliveryStatement(
-      buildDeliveryStatementData({
-        row: {
-          docNo: row!.id,
-          shipDate: recordDate || row!.recordDate,
-          orderNumber: row!.orderNumber,
-          customer: row!.customer,
-          productName: row!.productName,
-          productCode: row!.productCode,
-          qty: qtyNumber,
-          note,
-        },
-        unitPrice: unitPriceNumber,
-      }),
-    )
+  async function handlePrintStatement() {
+    const built = await buildDeliveryStatementDataFromOrder({
+      docNo: row!.id,
+      shipDate: recordDate || row!.recordDate,
+      orderNumber: row!.orderNumber,
+      customer: row!.customer,
+      note,
+    })
+    if (!built.ok) {
+      setSaveError(built.detail)
+      return
+    }
 
+    const ok = printDeliveryStatement(built.data)
     if (!ok) {
       setSaveError('거래명세서를 열 수 없습니다. 브라우저 팝업 차단을 해제한 뒤 다시 시도해 주세요.')
     }

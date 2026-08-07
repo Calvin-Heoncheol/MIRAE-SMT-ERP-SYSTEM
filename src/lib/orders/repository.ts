@@ -4,6 +4,8 @@ import {
   stripCreatedByFields,
   withCreatedByFields,
 } from '@/lib/auth/created-by'
+import { insertChangeLog } from '@/lib/change-logs/repository'
+import { buildOrderChangeDetail } from '@/lib/change-logs/utils'
 import { createSupabaseClient } from '@/lib/supabase'
 import { syncAssemblyGroupsForOrder } from '@/lib/assembly/repository'
 import type { OrderListGroup, OrderRecord, OrderRowPayload } from './types'
@@ -227,7 +229,11 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
   }
 }
 
-export async function updateOrder(orderId: string, payload: OrderRowPayload): Promise<SaveOrderResult> {
+export async function updateOrder(
+  orderId: string,
+  payload: OrderRowPayload,
+  options?: { reason?: string },
+): Promise<SaveOrderResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
@@ -239,7 +245,7 @@ export async function updateOrder(orderId: string, payload: OrderRowPayload): Pr
     const supabase = createSupabaseClient()
     const { data: existing, error: fetchError } = await supabase
       .from('orders')
-      .select('id')
+      .select('*, order_lines(*)')
       .eq('id', orderId)
       .maybeSingle()
 
@@ -247,6 +253,8 @@ export async function updateOrder(orderId: string, payload: OrderRowPayload): Pr
     if (!existing?.id) {
       return { ok: false, reason: 'query', detail: `주문서를 찾을 수 없습니다: ${orderId}` }
     }
+
+    const beforeGroup = groupOrdersFromRecords([existing as OrderRecord])[0]
 
     const { error: updateError } = await supabase
       .from('orders')
@@ -267,6 +275,56 @@ export async function updateOrder(orderId: string, payload: OrderRowPayload): Pr
 
     await insertOrderLines(existing.id, payload.items)
     await syncAssemblyGroupsForOrder(existing.id)
+
+    const afterTotalAmount = payload.items.reduce(
+      (sum, item) => sum + Math.max(0, Math.round(Number(item.orderAmount) || 0)),
+      0,
+    )
+    const afterTotalQuantity = payload.items.reduce(
+      (sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity) || 0)),
+      0,
+    )
+    const detail = buildOrderChangeDetail({
+      before: {
+        customer: beforeGroup?.customer || '',
+        category: beforeGroup?.category || '',
+        note: beforeGroup?.note || '',
+        orderDate: beforeGroup?.orderDate || '',
+        deliveryDate: beforeGroup?.deliveryDate || '',
+        lineCount: beforeGroup?.items.length || 0,
+        totalAmount: beforeGroup?.totalAmount || 0,
+        totalQuantity: beforeGroup?.totalQuantity || 0,
+      },
+      after: {
+        customer: payload.customer,
+        category: payload.category,
+        note: payload.note?.trim() || '',
+        orderDate: payload.order_date,
+        deliveryDate: payload.delivery_date || '',
+        lineCount: payload.items.length,
+        totalAmount: afterTotalAmount,
+        totalQuantity: afterTotalQuantity,
+      },
+    })
+
+    void insertChangeLog({
+      entityType: 'order',
+      entityId: existing.id,
+      title: `주문서 ${existing.id} 수정`,
+      detail,
+      reason: options?.reason,
+      beforeData: {
+        customer: beforeGroup?.customer,
+        totalAmount: beforeGroup?.totalAmount,
+        totalQuantity: beforeGroup?.totalQuantity,
+      },
+      afterData: {
+        customer: payload.customer,
+        totalAmount: afterTotalAmount,
+        totalQuantity: afterTotalQuantity,
+      },
+    })
+
     return { ok: true, orderId: existing.id, orderNumber: existing.id }
   } catch (error) {
     return {

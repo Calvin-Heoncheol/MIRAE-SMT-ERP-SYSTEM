@@ -473,10 +473,40 @@ export async function repairChildrenOnlyAssemblyGroups(
     if (!order) continue
     const orderProductIds = new Set(
       order.items
-        .map((item) => (item.productId || item.productCode || '').trim())
+        .map((item) => String(item.productId || '').trim())
         .filter(Boolean),
     )
     if (isChildrenOnlyAssemblyGroup(group, orderProductIds)) {
+      orderIdsToRepair.add(group.orderId)
+    }
+  }
+
+  if (!orderIdsToRepair.size) {
+    return { ok: true, groups }
+  }
+
+  const orderIdList = [...orderIdsToRepair]
+  const batchSize = 3
+  for (let index = 0; index < orderIdList.length; index += batchSize) {
+    const batch = orderIdList.slice(index, index + batchSize)
+    await Promise.all(batch.map((orderId) => syncAssemblyGroupsForOrder(orderId)))
+  }
+
+  return fetchAssemblyGroups(productById)
+}
+
+/**
+ * TEMP 등 품목마스터에 없는 parent_product_id 로 생긴 조립 그룹을 삭제하도록
+ * 해당 주문을 다시 동기화한다.
+ */
+export async function repairOrphanAssemblyGroups(
+  groups: OrderAssemblyGroup[],
+  productById: Record<string, Product>,
+): Promise<FetchAssemblyGroupsResult> {
+  const orderIdsToRepair = new Set<string>()
+
+  for (const group of groups) {
+    if (!productById[group.parentProductId]) {
       orderIdsToRepair.add(group.orderId)
     }
   }

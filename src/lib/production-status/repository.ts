@@ -1,4 +1,4 @@
-import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups, repairOrphanAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import {
   buildDeliveryAvailabilityMap,
@@ -61,6 +61,11 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     ordersResult.orders,
     productById,
   )
+  if (!assemblyResult.ok) {
+    return assemblyResult
+  }
+
+  assemblyResult = await repairOrphanAssemblyGroups(assemblyResult.groups, productById)
   if (!assemblyResult.ok) {
     return assemblyResult
   }

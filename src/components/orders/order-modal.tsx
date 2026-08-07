@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { OrderItemsForm } from '@/components/orders/order-items-form'
+import { EntityChangeHistoryButton } from '@/components/change-logs/entity-change-history-button'
+import { ChangeReasonModal } from '@/components/change-logs/change-reason-modal'
 import { useBusy } from '@/components/ui/busy-provider'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
@@ -18,8 +20,9 @@ import {
 import { buildOrderPrintData, printOrder } from '@/lib/orders/print-order'
 import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
 import { ORDER_CATEGORIES } from '@/lib/orders/types'
-import type { OrderListGroup } from '@/lib/orders/types'
+import type { OrderListGroup, OrderRowPayload } from '@/lib/orders/types'
 import { todayYmdSeoul, validateOrderCodeInput } from '@/lib/orders/utils'
+import { hasOrderUnitPriceChange } from '@/lib/change-logs/utils'
 import { formatAutoOrderCodeExample } from '@/lib/orders/order-code-prefix'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
@@ -88,6 +91,8 @@ function OrderModalContent({
   const [products, setProducts] = useState<Product[]>([])
   const [salesPartners, setSalesPartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(true)
+  const [pendingPayload, setPendingPayload] = useState<OrderRowPayload | null>(null)
+  const [reasonOpen, setReasonOpen] = useState(false)
 
   const busyUi = useBusy()
   const { notifyAuthOrFailure } = useWriteFailureToast()
@@ -131,6 +136,28 @@ function OrderModalContent({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  async function commitSave(payload: OrderRowPayload, reason?: string) {
+    setSaving(true)
+    setSaveError(null)
+
+    const result = await busyUi.run(() =>
+      mode === 'edit' && order
+        ? updateOrder(order.orderId, payload, reason ? { reason } : undefined)
+        : createOrder(payload),
+    )
+
+    setSaving(false)
+
+    if (!result.ok) {
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
+      return
+    }
+
+    setReasonOpen(false)
+    setPendingPayload(null)
+    onSaved?.()
+  }
+
   async function handleSave() {
     const resolvedPartner = resolvePartnerFromInput(salesPartners, form.customer)
     if (!resolvedPartner) {
@@ -157,7 +184,7 @@ function OrderModalContent({
       return
     }
 
-    const payload = {
+    const payload: OrderRowPayload = {
       order_date: form.orderDate || todayYmdSeoul(),
       delivery_date: headerDeliveryDate,
       customer: customerName,
@@ -165,25 +192,31 @@ function OrderModalContent({
       note: form.note,
       source: order?.source || 'manual',
       source_quote_id: order?.sourceQuoteId || null,
-      items: validation.items,
+      items: validation.items.map(
+        ({ productId, productCode, productName, quantity, unitPrice, orderAmount, deliveryDate }) => ({
+          productId,
+          productCode,
+          productName,
+          quantity,
+          unitPrice,
+          orderAmount,
+          deliveryDate,
+        }),
+      ),
       ...(mode === 'create' && orderCodeResult.code ? { id: orderCodeResult.code } : {}),
     }
 
-    setSaving(true)
-    setSaveError(null)
-
-    const result = await busyUi.run(() =>
-      mode === 'edit' && order ? updateOrder(order.orderId, payload) : createOrder(payload),
-    )
-
-    setSaving(false)
-
-    if (!result.ok) {
-      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
+    if (
+      mode === 'edit' &&
+      order &&
+      hasOrderUnitPriceChange(order.items, payload.items)
+    ) {
+      setPendingPayload(payload)
+      setReasonOpen(true)
       return
     }
 
-    onSaved?.()
+    await commitSave(payload)
   }
 
   async function handleDelete() {
@@ -220,14 +253,21 @@ function OrderModalContent({
           {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             {mode === 'edit' && canDelete ? (
-              <ErpButton
-                variant="danger"
-                onClick={() => void handleDelete()}
-                disabled={busy}
-                loading={deleting}
-              >
-                삭제
-              </ErpButton>
+              <div className="flex flex-wrap gap-2">
+                <ErpButton
+                  variant="danger"
+                  onClick={() => void handleDelete()}
+                  disabled={busy}
+                  loading={deleting}
+                >
+                  삭제
+                </ErpButton>
+                {order ? (
+                  <EntityChangeHistoryButton entityType="order" entityId={order.orderId} disabled={busy} />
+                ) : null}
+              </div>
+            ) : mode === 'edit' && order ? (
+              <EntityChangeHistoryButton entityType="order" entityId={order.orderId} disabled={busy} />
             ) : (
               <span />
             )}
@@ -361,6 +401,20 @@ function OrderModalContent({
         />
       </label>
       </div>
+
+      <ChangeReasonModal
+        open={reasonOpen}
+        saving={saving}
+        onCancel={() => {
+          if (saving) return
+          setReasonOpen(false)
+          setPendingPayload(null)
+        }}
+        onConfirm={(reason) => {
+          if (!pendingPayload) return
+          void commitSave(pendingPayload, reason)
+        }}
+      />
     </ErpModal>
   )
 }

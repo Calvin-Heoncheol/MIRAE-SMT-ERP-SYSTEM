@@ -3,6 +3,7 @@ import { isSplitProductPcbSideMode, normalizeProductPcbSideMode } from '@/lib/pr
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import type { SmtPcbSide } from '@/lib/smt/types'
 import type { OrderListGroup } from '@/lib/orders/types'
+import { isBillingOnlyOrderItem } from '@/lib/orders/utils'
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import { parseItemVersionCode, stripTrailingVersionFromName } from '@/lib/items/version-code'
 import type {
@@ -14,15 +15,15 @@ import type {
 
 export const PRODUCTION_ORDER_PAGE_SIZE = 5
 
-/** 미설정('')은 기존 데이터 호환 — SMT·후공정 모두 노출 */
+/** 미설정('')은 생산 공정 없음 (자재단가만 있는 경우 등) */
 export function processTypeIncludesSmt(processType: ProductProcessType | null | undefined) {
   const value = processType || ''
-  return value === '' || value === 'smt' || value === 'smt_post'
+  return value === 'smt' || value === 'smt_post'
 }
 
 export function processTypeIncludesPostProcess(processType: ProductProcessType | null | undefined) {
   const value = processType || ''
-  return value === '' || value === 'post' || value === 'smt_post'
+  return value === 'post' || value === 'smt_post'
 }
 
 /** 조립제품 구성 판정용 — 명시적으로 후공정이 있는 경우만 */
@@ -42,10 +43,10 @@ function resolveProductProcessType(
 /**
  * 후공정 후보 여부.
  * 조립제품(조립 그룹): 구성 반제품 중 공정이 후공정 / SMD+후공정인 것이 하나라도 있을 때만 노출.
- * (SMD만인 반제품으로만 구성된 조립제품은 후공정에 안 보임. 미설정 반제품은 후공정 필요로 보지 않음.)
+ * (SMD만인 반제품으로만 구성된 조립제품은 후공정에 안 보임.)
  * 주문에 반제품만 있는 경우 조립제품으로 합치지 않고 반제품 단독 그룹으로 노출한다.
  */
-function assemblyGroupIncludesPostProcess(
+export function assemblyGroupIncludesPostProcess(
   group: OrderAssemblyGroup,
   productById: Record<string, Product>,
 ): boolean {
@@ -61,6 +62,59 @@ function assemblyGroupIncludesPostProcess(
   }
 
   return processTypeIncludesPostProcess(resolveProductProcessType(group.parentProductId, productById))
+}
+
+/** SMT(SMD) 공정이 필요한 조립 그룹인지 */
+export function assemblyGroupIncludesSmt(
+  group: OrderAssemblyGroup,
+  productById: Record<string, Product>,
+): boolean {
+  if (group.lines.length > 0) {
+    return group.lines.some((line) =>
+      processTypeIncludesSmt(resolveProductProcessType(line.childProductId, productById)),
+    )
+  }
+
+  const parent = productById[group.parentProductId]
+  if (parent?.productKind === 'assembly') {
+    return false
+  }
+
+  return processTypeIncludesSmt(resolveProductProcessType(group.parentProductId, productById))
+}
+
+/** 출하 대상: SMD·DIP 공정이 하나라도 있는 그룹 */
+export function assemblyGroupIsDeliveryEligible(
+  group: OrderAssemblyGroup,
+  productById: Record<string, Product>,
+): boolean {
+  return (
+    assemblyGroupIncludesSmt(group, productById) ||
+    assemblyGroupIncludesPostProcess(group, productById)
+  )
+}
+
+/**
+ * 출하·재고용 생산완료 상한.
+ * - SMD만 → SMT 수량
+ * - DIP만 → 후공정 수량
+ * - SMD+DIP → min(SMT, 후공정)
+ */
+export function resolveAssemblyProductionCap(input: {
+  group: OrderAssemblyGroup
+  smtSets: number
+  postProduced: number
+  productById: Record<string, Product>
+}) {
+  const needsSmt = assemblyGroupIncludesSmt(input.group, input.productById)
+  const needsPost = assemblyGroupIncludesPostProcess(input.group, input.productById)
+  const smtSets = Math.max(0, Math.floor(input.smtSets))
+  const postProduced = Math.max(0, Math.floor(input.postProduced))
+
+  if (needsSmt && needsPost) return Math.min(smtSets, postProduced)
+  if (needsSmt) return smtSets
+  if (needsPost) return postProduced
+  return 0
 }
 
 function resolveProductPcbSideMode(
@@ -91,10 +145,12 @@ function resolveLineProductFields(
 ) {
   const snapshotCode = item.productCode.trim()
   const snapshotName = item.productName.trim()
-  const product = resolveMasterProduct(item.productId, snapshotCode, productById)
+  const linkedId = String(item.productId || '').trim()
+  const product = resolveMasterProduct(linkedId, snapshotCode, productById)
   return {
     product,
-    productId: (product?.id || item.productId || snapshotCode).trim(),
+    // 임시 품목: product_id 없으면 코드(TEMP)를 생산 키로 쓰지 않음
+    productId: (product?.id || linkedId).trim(),
     productCode: (product?.productCode || snapshotCode).trim(),
     productName: (product?.productName || snapshotName).trim(),
   }
@@ -121,12 +177,15 @@ export function buildProductionOrderLines(
     order.items.forEach((item, index) => {
       const orderLineId = item.lineId?.trim() || ''
       if (!orderLineId) return
+      // 임시 품목(금액 전용)은 SMT·생산실적 라인에서 제외
+      if (isBillingOnlyOrderItem(item)) return
 
       const resolved = resolveLineProductFields(item, productById)
       const { product, productCode, productName } = resolved
       if (!productName && !productCode) return
 
       const productId = resolved.productId
+      if (!productId) return
       const isDerivedLine = Boolean(item.derivedFromLineId)
 
       if (
@@ -193,13 +252,34 @@ export function buildPostProcessAssemblyLines(
   orders: OrderListGroup[],
   productById: Record<string, Product> = {},
 ): ProductionOrderLine[] {
+  return buildAssemblyGroupProductionLines(assemblyGroups, orders, productById, 'post')
+}
+
+/** 출하 입력용 — SMD·DIP 중 하나라도 있는 조립 그룹 */
+export function buildDeliveryAssemblyLines(
+  assemblyGroups: OrderAssemblyGroup[],
+  orders: OrderListGroup[],
+  productById: Record<string, Product> = {},
+): ProductionOrderLine[] {
+  return buildAssemblyGroupProductionLines(assemblyGroups, orders, productById, 'delivery')
+}
+
+function buildAssemblyGroupProductionLines(
+  assemblyGroups: OrderAssemblyGroup[],
+  orders: OrderListGroup[],
+  productById: Record<string, Product>,
+  mode: 'post' | 'delivery',
+): ProductionOrderLine[] {
   const orderById = Object.fromEntries(orders.map((order) => [order.orderId, order]))
   const lines: ProductionOrderLine[] = []
 
   for (const group of assemblyGroups) {
     const order = orderById[group.orderId]
     if (!order) continue
-    if (!assemblyGroupIncludesPostProcess(group, productById)) continue
+    // parent 가 마스터에 없으면 TEMP 등으로 잘못 생긴 그룹
+    if (!productById[group.parentProductId]) continue
+    if (mode === 'post' && !assemblyGroupIncludesPostProcess(group, productById)) continue
+    if (mode === 'delivery' && !assemblyGroupIsDeliveryEligible(group, productById)) continue
 
     const parentProduct = resolveMasterProduct(
       group.parentProductId,

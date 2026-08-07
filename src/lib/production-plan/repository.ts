@@ -1,6 +1,6 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
-import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups, repairOrphanAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
@@ -239,11 +239,14 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
   if (!deliveryCountsResult.ok) return deliveryCountsResult
   if (!postCountsResult.ok) return postCountsResult
 
-  const assemblyResult = await repairChildrenOnlyAssemblyGroups(
+  let assemblyResult = await repairChildrenOnlyAssemblyGroups(
     assemblyFetch.groups,
     ordersResult.orders,
     productById,
   )
+  if (!assemblyResult.ok) return assemblyResult
+
+  assemblyResult = await repairOrphanAssemblyGroups(assemblyResult.groups, productById)
   if (!assemblyResult.ok) return assemblyResult
 
   const smtOrders = excludeDeliveryCompleteProductionOrders(
@@ -263,7 +266,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     for (const item of order.items || []) {
       const lineId = String(item.lineId || '').trim()
       if (!lineId) continue
-      const productId = String(item.productId || item.productCode || '').trim()
+      const productId = String(item.productId || '').trim()
       if (productId) productIdByOrderLine.set(lineId, productId)
     }
   }

@@ -1,8 +1,9 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import type { OrderListGroup } from '@/lib/orders/types'
-import { formatProductSummary } from '@/lib/orders/utils'
+import { formatProductSummary, isBillingOnlyOrderItem } from '@/lib/orders/utils'
 import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-input/types'
 import {
+  assemblyGroupIncludesPostProcess,
   getProgressPercent,
   getStackedProgressWidths,
   resolveProductionCount,
@@ -36,7 +37,7 @@ function groupAssemblyGroupsByOrderId(assemblyGroups: OrderAssemblyGroup[]) {
 }
 
 function resolveItemProductId(item: OrderListGroup['items'][number]) {
-  return (item.productId || item.productCode || '').trim()
+  return String(item.productId || '').trim()
 }
 
 /**
@@ -69,6 +70,9 @@ function buildProductLinesForOrder(
   const coveredSmtLineIds = new Set<string>()
 
   for (const item of order.items) {
+    // 임시 품목(금액 전용)은 생산현황 행으로 펼치지 않음
+    if (isBillingOnlyOrderItem(item)) continue
+
     const lineId = item.lineId?.trim() || ''
     const productId = resolveItemProductId(item)
     const smtLine = lineId ? smtByLineId.get(lineId) : undefined
@@ -99,12 +103,15 @@ function buildProductLinesForOrder(
 
     if (assembly) {
       const assemblyTarget = Math.max(0, Math.floor(assembly.targetQuantity))
-      postTarget = assemblyTarget
-      postProduced = Math.max(0, Math.floor(Number(postCounts[assembly.id]) || 0))
-      postDefected = Math.max(0, Math.floor(Number(postDefectCounts[assembly.id]) || 0))
       deliveryTarget = assemblyTarget
       deliveryProduced = Math.max(0, Math.floor(Number(deliveryCounts[assembly.id]) || 0))
       assemblyGroupIds.push(assembly.id)
+
+      if (assemblyGroupIncludesPostProcess(assembly, productById)) {
+        postTarget = assemblyTarget
+        postProduced = Math.max(0, Math.floor(Number(postCounts[assembly.id]) || 0))
+        postDefected = Math.max(0, Math.floor(Number(postDefectCounts[assembly.id]) || 0))
+      }
     }
 
     const quantity = Math.max(0, Math.floor(item.quantity))
@@ -198,7 +205,9 @@ export function buildProductionStatusLines(
       smtDefected += resolveProductionDefectCount(smtLine, smtDefectCounts)
     }
 
-    const orderAssemblies = assembliesByOrderId.get(order.orderId) ?? []
+    const orderAssemblies = (assembliesByOrderId.get(order.orderId) ?? []).filter((assembly) =>
+      Boolean(productById[assembly.parentProductId]),
+    )
     let postTarget = 0
     let postProduced = 0
     let postDefected = 0
@@ -207,11 +216,12 @@ export function buildProductionStatusLines(
 
     for (const assembly of orderAssemblies) {
       const assemblyTarget = Math.max(0, Math.floor(assembly.targetQuantity))
+      deliveryTarget += assemblyTarget
+      deliveryProduced += Math.max(0, Math.floor(Number(deliveryCounts[assembly.id]) || 0))
+      if (!assemblyGroupIncludesPostProcess(assembly, productById)) continue
       postTarget += assemblyTarget
       postProduced += Math.max(0, Math.floor(Number(postCounts[assembly.id]) || 0))
       postDefected += Math.max(0, Math.floor(Number(postDefectCounts[assembly.id]) || 0))
-      deliveryTarget += assemblyTarget
-      deliveryProduced += Math.max(0, Math.floor(Number(deliveryCounts[assembly.id]) || 0))
     }
 
     const products = buildProductLinesForOrder(

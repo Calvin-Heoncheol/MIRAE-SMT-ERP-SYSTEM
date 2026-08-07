@@ -45,15 +45,20 @@ export type DeliveryHistoryRow = {
   createdByName: string
 }
 
+export type DeliveryStatementLine = {
+  productCode: string
+  productName: string
+  qty: number
+  unitPrice: number
+  supplyAmount: number
+}
+
 export type DeliveryStatementData = {
   docNo: string
   shipDate: string
   orderNumber: string
   customer: string
-  productName: string
-  productCode: string
-  qty: number
-  unitPrice: number
-  supplyAmount: number
   note: string
+  /** 주문서 라인 전체 (임시 품목 포함, 주문 수량·단가·금액) */
+  items: DeliveryStatementLine[]
 }

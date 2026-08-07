@@ -276,7 +276,7 @@ export async function createSmtProductionRecord(
     }
 
     const requestedPcbSide: SmtPcbSide = input.pcbSide || 'SINGLE'
-    const itemId = String(orderLine.product_id || orderLine.product_code || '').trim()
+    const itemId = String(orderLine.product_id || '').trim()
 
     let pcbSideMode = normalizeProductPcbSideMode('single')
     if (itemId) {

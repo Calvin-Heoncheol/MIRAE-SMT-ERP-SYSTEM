@@ -1,4 +1,5 @@
 import type { Product, ProductKind, ProductPcbSideMode, ProductProcessType } from './types'
+import { deriveItemProcessType } from '@/lib/items/types'
 import { normalizeVersionLabel, parseItemVersionCode } from '@/lib/items/version-code'
 
 export function normalizeProductKind(value: string | null | undefined): ProductKind {
@@ -75,6 +76,9 @@ export function mapItemRowToProduct(row: {
   pcb_side_mode?: string | null
   process_type?: string | null
   unit_price?: number | null
+  smd_unit_price?: number | null
+  dip_unit_price?: number | null
+  material_unit_price?: number | null
   item_category: number | string
   is_active: boolean | null
 }): Product {
@@ -82,6 +86,22 @@ export function mapItemRowToProduct(row: {
   const parsed = parseItemVersionCode(row.id)
   const baseCode = String(row.base_code || '').trim() || parsed.base || row.id
   const version = normalizeVersionLabel(row.version || parsed.version || '')
+
+  let processType: ProductProcessType = ''
+  if (itemCategory === 3) {
+    const smdUnitPrice = Number(row.smd_unit_price) || 0
+    const dipUnitPrice = Number(row.dip_unit_price) || 0
+    const materialUnitPrice = Number(row.material_unit_price) || 0
+    const unitPrice = Number(row.unit_price) || 0
+    const hasBreakdown = smdUnitPrice > 0 || dipUnitPrice > 0 || materialUnitPrice > 0
+    // 레거시: 세부 단가 없으면 unit_price 를 공정 컬럼 기준으로 배분
+    const resolvedSmd =
+      !hasBreakdown && unitPrice > 0 ? (row.process_type === 'post' ? 0 : unitPrice) : smdUnitPrice
+    const resolvedDip =
+      !hasBreakdown && unitPrice > 0 ? (row.process_type === 'post' ? unitPrice : 0) : dipUnitPrice
+    processType = deriveItemProcessType(resolvedSmd, resolvedDip)
+  }
+
   return {
     id: row.id,
     customer: '',
@@ -90,7 +110,7 @@ export function mapItemRowToProduct(row: {
     productName: row.name || '',
     defaultUnitPrice: Number(row.unit_price) || 0,
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
-    processType: itemCategory === 3 ? normalizeProductProcessType(row.process_type) : '',
+    processType,
     productKind: itemCategory === 4 ? 'assembly' : 'pcb',
     isActive: row.is_active !== false,
   }

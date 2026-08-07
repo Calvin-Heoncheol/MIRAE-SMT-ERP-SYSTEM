@@ -7,6 +7,8 @@ import { PostProcessLinesEditor } from '@/components/quotes/post-process-lines-e
 import { QuoteBreakdownPreview } from '@/components/quotes/quote-breakdown-preview'
 import { QuoteCurrencyToggle } from '@/components/quotes/quote-currency-toggle'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
+import { EntityChangeHistoryButton } from '@/components/change-logs/entity-change-history-button'
+import { ChangeReasonModal } from '@/components/change-logs/change-reason-modal'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import { ErpButton } from '@/components/ui/erp-button'
 import { useBusy } from '@/components/ui/busy-provider'
@@ -24,6 +26,8 @@ import {
 } from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
+import type { QuoteRowPayload } from '@/lib/quotes/build-quote-payload'
+import { hasQuoteAmountChange } from '@/lib/change-logs/utils'
 import { formatQuoteMoneyByDisplay, formatQuotePreviewSummary } from '@/lib/quotes/format'
 import {
   defaultDipBoardForm,
@@ -93,21 +97,7 @@ const INITIAL_FORM: FormState = {
   metalMaskCost: '0',
   specialDiscount: '0',
   includeSmd: true,
-  includeDip: false,
-}
-
-type ProcessKind = 'smd' | 'dip' | 'smd_dip'
-
-function processKindFromFlags(includeSmd: boolean, includeDip: boolean): ProcessKind {
-  if (includeSmd && includeDip) return 'smd_dip'
-  if (includeDip) return 'dip'
-  return 'smd'
-}
-
-function flagsFromProcessKind(kind: ProcessKind): Pick<FormState, 'includeSmd' | 'includeDip'> {
-  if (kind === 'dip') return { includeSmd: false, includeDip: true }
-  if (kind === 'smd_dip') return { includeSmd: true, includeDip: true }
-  return { includeSmd: true, includeDip: false }
+  includeDip: true,
 }
 
 function inferIncludeFlags(quote: QuoteListItem): { includeSmd: boolean; includeDip: boolean } {
@@ -294,6 +284,8 @@ function QuoteModalContent({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [displayCurrency, setDisplayCurrency] = useState<QuoteDisplayCurrency>('usd')
   const [dipTab, setDipTab] = useState<'solder' | 'post'>('solder')
+  const [reasonOpen, setReasonOpen] = useState(false)
+  const [pendingQuotePayload, setPendingQuotePayload] = useState<QuoteRowPayload | null>(null)
   const [openSections, setOpenSections] = useState({
     setup: mode !== 'edit',
     smt: mode !== 'edit',
@@ -423,6 +415,28 @@ function QuoteModalContent({
     setOpenSections((current) => ({ ...current, [key]: !current[key] }))
   }
 
+  async function commitQuoteSave(payload: QuoteRowPayload, reason?: string) {
+    setSaving(true)
+    setSaveError(null)
+
+    const saveResult = await busyUi.run(() =>
+      mode === 'edit' && quote
+        ? updateQuote(quote.quoteNumber, payload, reason ? { reason } : undefined)
+        : createQuote(payload, quoteType),
+    )
+
+    setSaving(false)
+
+    if (!saveResult.ok) {
+      if (!notifyAuthOrFailure(saveResult)) setSaveError(saveResult.detail)
+      return
+    }
+
+    setReasonOpen(false)
+    setPendingQuotePayload(null)
+    onSaved?.()
+  }
+
   async function handleSave() {
     if (!form.customer.trim() || !form.productName.trim()) {
       setSaveError('고객사와 제품명을 입력해 주세요.')
@@ -440,23 +454,17 @@ function QuoteModalContent({
     const { pcbBoards, dipBoards } = collectBoardModels()
     const payload = buildQuoteRowPayload(form, pcbBoards, dipBoards, estimate, quoteType)
 
-    setSaving(true)
-    setSaveError(null)
-
-    const saveResult = await busyUi.run(() =>
-      mode === 'edit' && quote
-        ? updateQuote(quote.quoteNumber, payload)
-        : createQuote(payload, quoteType),
-    )
-
-    setSaving(false)
-
-    if (!saveResult.ok) {
-      if (!notifyAuthOrFailure(saveResult)) setSaveError(saveResult.detail)
+    if (
+      mode === 'edit' &&
+      quote &&
+      hasQuoteAmountChange(quote.totalAmount, payload.total_amount)
+    ) {
+      setPendingQuotePayload(payload)
+      setReasonOpen(true)
       return
     }
 
-    onSaved?.()
+    await commitQuoteSave(payload)
   }
 
   function handleDownloadPdf(language?: 'ko' | 'en') {
@@ -710,7 +718,7 @@ function QuoteModalContent({
                   </label>
                 </div>
 
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <label className="block text-sm">
                     <span className="mb-1 block font-medium text-slate-600">생산 수량</span>
                     <QuoteNumericInput
@@ -731,22 +739,6 @@ function QuoteModalContent({
                     >
                       <option value="양산">양산</option>
                       <option value="샘플">샘플</option>
-                    </select>
-                  </label>
-                  <label className="block text-sm">
-                    <span className="mb-1 block font-medium text-slate-600">공정</span>
-                    <select
-                      value={processKindFromFlags(form.includeSmd, form.includeDip)}
-                      onChange={(event) => {
-                        const kind = event.target.value as ProcessKind
-                        const flags = flagsFromProcessKind(kind)
-                        setForm((current) => ({ ...current, ...flags }))
-                      }}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800"
-                    >
-                      <option value="smd">SMD</option>
-                      <option value="dip">DIP</option>
-                      <option value="smd_dip">SMD+DIP</option>
                     </select>
                   </label>
                 </div>
@@ -1052,14 +1044,24 @@ function QuoteModalContent({
                   </p>
                 </div>
               </div>
-              <ErpButton
-                className="w-full"
-                onClick={() => void handleSave()}
-                disabled={busy}
-                loading={saving}
-              >
-                {mode === 'edit' ? '견적서 수정 저장' : '견적서 저장'}
-              </ErpButton>
+              <div className="flex gap-2">
+                {mode === 'edit' && quote ? (
+                  <EntityChangeHistoryButton
+                    entityType="quote"
+                    entityId={quote.quoteId || quote.quoteNumber}
+                    disabled={busy}
+                    className="shrink-0"
+                  />
+                ) : null}
+                <ErpButton
+                  className="min-w-0 flex-1"
+                  onClick={() => void handleSave()}
+                  disabled={busy}
+                  loading={saving}
+                >
+                  {mode === 'edit' ? '견적서 수정 저장' : '견적서 저장'}
+                </ErpButton>
+              </div>
               {saveError ? <p className="mt-2 text-sm text-red-600">{saveError}</p> : null}
             </div>
           </div>
@@ -1079,6 +1081,20 @@ function QuoteModalContent({
           </div>
         </div>
       </div>
+
+      <ChangeReasonModal
+        open={reasonOpen}
+        saving={saving}
+        onCancel={() => {
+          if (saving) return
+          setReasonOpen(false)
+          setPendingQuotePayload(null)
+        }}
+        onConfirm={(reason) => {
+          if (!pendingQuotePayload) return
+          void commitQuoteSave(pendingQuotePayload, reason)
+        }}
+      />
     </div>
   )
 }
