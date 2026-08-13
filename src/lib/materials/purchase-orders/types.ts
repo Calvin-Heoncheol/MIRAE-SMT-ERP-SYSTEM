@@ -1,4 +1,4 @@
-/** 자재 기준 발주 제안 — 주문(미커버) 소요를 자재별로 합산한 라인 */
+/** 자재 기준 구매발주 제안 — 주문(미커버) 소요를 자재별로 합산한 라인 */
 export type MaterialPurchaseSuggestionLine = {
   materialId: string
   materialName: string
@@ -10,15 +10,15 @@ export type MaterialPurchaseSuggestionLine = {
   totalRequiredQuantity: number
   /** 창고 현재고 (물리적 수량) */
   onHandQuantity: number
-  /** 전체 발주서의 미입고 잔량 합계 */
+  /** 전체 구매발주서의 미입고 잔량 합계 */
   pendingInboundQuantity: number
-  /** 발주필요 = 총소요 − 현재고 − 입고예정 */
+  /** 구매발주필요 = 총소요 − 현재고 − 입고예정 */
   suggestedQuantity: number
 }
 
 export type OrderPurchaseStatus = 'none' | 'partial' | 'done'
 
-/** 주문서 발주 — 제품(주문 라인) 단위 부분 발주 현황 */
+/** 발주서 구매발주 — 제품(주문 라인) 단위 부분 구매발주 현황 */
 export type OrderPurchaseProductLine = {
   orderLineId: string
   productId: string
@@ -26,11 +26,11 @@ export type OrderPurchaseProductLine = {
   productName: string
   /** 주문 제품대수 (목표) */
   orderQuantity: number
-  /** 이 라인에 연결된 발주서들의 covered_product_quantity 합 */
+  /** 이 라인에 연결된 구매발주서들의 covered_product_quantity 합 */
   coveredQuantity: number
   remainingQuantity: number
   purchaseStatus: OrderPurchaseStatus
-  /** 해당 제품 BOM(구성) 등록 여부 — 없으면 발주 불가 */
+  /** 해당 제품 BOM(구성) 등록 여부 — 없으면 구매발주 불가 */
   hasBom: boolean
 }
 
@@ -45,7 +45,7 @@ export type OrderPurchaseCard = {
   purchaseStatus: OrderPurchaseStatus
 }
 
-/** 부분 발주 시 BOM 전개 미리보기 라인 */
+/** 부분 구매발주 시 BOM 전개 미리보기 라인 */
 export type OrderPurchaseMaterialPreview = {
   materialId: string
   materialCode: string
@@ -56,13 +56,13 @@ export type OrderPurchaseMaterialPreview = {
   unitPrice: number
   requiredQuantity: number
   onHandQuantity: number
-  /** 발주수량 = max(0, 소요 − 현재고) */
+  /** 구매발주수량 = max(0, 소요 − 현재고) */
   suggestedQuantity: number
   /** 품목등록(원자재·부자재)에 존재하는 코드인지 */
   registered: boolean
 }
 
-/** @deprecated 구 주문서 카드 UI 호환용 — 신규는 OrderPurchaseCard 사용 */
+/** @deprecated 구 발주서 카드 UI 호환용 — 신규는 OrderPurchaseCard 사용 */
 export type MaterialPurchaseNeedLine = {
   materialId: string
   materialCode: string
@@ -77,7 +77,7 @@ export type MaterialPurchaseNeedLine = {
   status: '부족' | '충분'
 }
 
-/** @deprecated 구 주문서 카드 UI 호환용 */
+/** @deprecated 구 발주서 카드 UI 호환용 */
 export type MaterialPurchaseNeedCard = {
   key: string
   orderId: string
@@ -118,11 +118,11 @@ export type MaterialPurchaseOrderListGroup = {
   orderDate: string
   deliveryDate: string
   supplier: string
-  /** 연결된 고객 주문서(orders.id) — 주문서 카드에서 발주 시 자동 연결 */
+  /** 연결된 고객 발주서(orders.id) — 발주서 카드에서 구매발주 시 자동 연결 */
   sourceOrderId: string | null
-  /** 부분 발주 시 커버한 주문 라인 */
+  /** 부분 구매발주 시 커버한 주문 라인 */
   coveredOrderLineId: string | null
-  /** 부분 발주 시 커버한 제품 수량 */
+  /** 부분 구매발주 시 커버한 제품 수량 */
   coveredProductQuantity: number
   items: MaterialPurchaseOrderLineItem[]
   totalQuantity: number
@@ -168,9 +168,9 @@ export type MaterialPurchaseOrderRowPayload = {
   order_date: string
   delivery_date: string
   supplier: string
-  /** 연결된 고객 주문서 — 신규 발주 시에만 설정 */
+  /** 연결된 고객 발주서 — 신규 구매발주 시에만 설정 */
   source_order_id?: string | null
-  /** 부분 발주 — 커버한 주문 라인 / 제품 수량 */
+  /** 부분 구매발주 — 커버한 주문 라인 / 제품 수량 */
   covered_order_line_id?: string | null
   covered_product_quantity?: number | null
   items: MaterialPurchaseOrderLineItem[]

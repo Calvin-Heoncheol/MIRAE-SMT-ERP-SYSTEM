@@ -8,16 +8,6 @@ import {
 } from '@/lib/ui/tokens'
 
 type WorkspaceHeaderProps = {
-  /** @deprecated 사이드바 도입 후 미표시 — 호출부 호환용 */
-  title?: string
-  /** @deprecated 사이드바 도입 후 미표시 — 호출부 호환용 */
-  subtitle?: string
-  /** @deprecated 건수 미표시 — 호출부 호환용 */
-  totalCount?: number
-  /** @deprecated 건수 미표시 — 호출부 호환용 */
-  filteredCount?: number
-  /** @deprecated 건수 미표시 — 호출부 호환용 */
-  hasQuery?: boolean
   search?: string
   onSearchChange?: (value: string) => void
   searchPlaceholder?: string

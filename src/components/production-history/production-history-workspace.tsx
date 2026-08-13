@@ -5,6 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { ProductionHistoryModal } from '@/components/production-history/production-history-modal'
 import { ProductionHistoryTable } from '@/components/production-history/production-history-table'
 import { DateRangeFilter } from '@/components/ui/date-range-filter'
+import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
+import { DATE_RANGE_FILTER_LABEL } from '@/lib/ui/date-range'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { PageShell } from '@/components/ui/page-shell'
@@ -127,10 +129,7 @@ export function ProductionHistoryWorkspace({
   if (!result.ok) {
     return (
       <PageShell>
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-6 text-sm text-rose-800">
-          <p className="font-semibold">생산이력을 불러오지 못했습니다.</p>
-          <p className="mt-2 text-rose-700">{result.detail}</p>
-        </div>
+        <FetchErrorBanner title="생산이력을 불러오지 못했습니다" detail={result.detail} />
       </PageShell>
     )
   }
@@ -139,12 +138,9 @@ export function ProductionHistoryWorkspace({
     <>
       <PageShell>
         <WorkspaceHeader
-          totalCount={rows.length}
-          filteredCount={filtered.length}
-          hasQuery={hasActiveFilter}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="발주ID, 고객사, 제품명, 팀, 기록일 검색…"
+          searchPlaceholder="출하번호, LOT, 발주ID, 고객사, 제품명 검색…"
           accent="slate"
           inlineFilters={
             <DateRangeFilter
@@ -152,7 +148,7 @@ export function ProductionHistoryWorkspace({
               endDate={endDate}
               onStartDateChange={setStartDate}
               onEndDateChange={setEndDate}
-              label="기록일"
+              label={DATE_RANGE_FILTER_LABEL.record}
             />
           }
           filters={

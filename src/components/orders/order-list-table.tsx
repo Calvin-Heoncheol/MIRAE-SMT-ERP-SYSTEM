@@ -38,7 +38,7 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                주문일
+                발주일
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 납기일
@@ -56,7 +56,7 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
                 수량
               </th>
               <th className="min-w-[96px] whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                주문금액
+                발주금액
               </th>
               <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 구분

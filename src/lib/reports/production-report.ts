@@ -20,7 +20,7 @@ export type ProductionReportTeamSummary = {
   amount: number
   /** 생산 기록이 있는 날 수 */
   activeDays: number
-  /** 납기 경과 + 미출하 주문 중 이 팀 잔량이 남은 건수 */
+  /** 납기 경과 + 미출하 발주 중 이 팀 잔량이 남은 건수 */
   overdueOrders: number
   /** 기간 내 원계획 수량 (지난 날짜 기준, 마감 로그로 원계획 복원) */
   plannedQuantity: number

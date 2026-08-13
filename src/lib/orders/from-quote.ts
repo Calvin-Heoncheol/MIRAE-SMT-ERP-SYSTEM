@@ -1,3 +1,7 @@
+import {
+  snapshotFromPartner,
+  type PaymentTermSnapshot,
+} from '@/lib/partners/payment-term-snapshot'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import type { Product } from '@/lib/products/types'
@@ -13,10 +17,11 @@ export type BuildOrderFromQuoteInput = {
   boardQty: number
   totalAmount: number
   category?: OrderCategory
+  paymentTerms?: PaymentTermSnapshot
 }
 
 /**
- * 견적 1건 → 주문서 1라인 페이로드.
+ * 견적 1건 → 발주서 1라인 페이로드.
  * 고객사·제품명이 기초등록과 일치해야 합니다.
  */
 export function buildOrderPayloadFromQuote(
@@ -28,7 +33,7 @@ export function buildOrderPayloadFromQuote(
   if (!partner) {
     return {
       ok: false,
-      detail: '거래처등록에 등록된 매출 고객사만 주문서로 전환할 수 있습니다.',
+      detail: '거래처등록에 등록된 매출 고객사만 발주서로 전환할 수 있습니다.',
     }
   }
 
@@ -66,6 +71,7 @@ export function buildOrderPayloadFromQuote(
       note: `견적 ${input.quoteNumber} 전환`,
       source: 'quote',
       source_quote_id: input.quoteId,
+      paymentTerms: input.paymentTerms || snapshotFromPartner(partner),
       items: [
         {
           productId: matched.id,

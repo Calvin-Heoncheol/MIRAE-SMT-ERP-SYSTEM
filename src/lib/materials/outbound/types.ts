@@ -117,7 +117,7 @@ export type MaterialOutboundNeedCard = {
   lines: MaterialOutboundNeedRow[]
 }
 
-/** 미불출 주문서 카드 — 발주와 같이 주문 1장, 내부에서 SMD/DIP 불출 */
+/** 미불출 발주서 카드 — 구매발주와 같이 주문 1장, 내부에서 SMD/DIP 불출 */
 export type MaterialOutboundOrderCard = {
   key: string
   orderId: string

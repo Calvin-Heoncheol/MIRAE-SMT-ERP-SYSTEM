@@ -32,6 +32,7 @@ export type PostProcessProductionHistoryRow = {
   id: string
   recordDate: string
   createdAt: string
+  assemblyGroupId: string
   orderNumber: string
   customer: string
   productName: string

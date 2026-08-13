@@ -342,7 +342,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     },
     {
       key: 'unshipped',
-      label: '미출하 주문',
+      label: '미출하 발주',
       value: unshippedOrders,
       unit: '건',
       hint: '출하 미완료',

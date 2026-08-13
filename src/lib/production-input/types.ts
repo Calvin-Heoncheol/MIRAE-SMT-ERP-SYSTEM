@@ -8,7 +8,7 @@ export type ProductionOrderLine = {
   uiKey: string
   countKey: string
   orderLineId: string
-  /** 주문서 PK — 생산계획 드래그/집계용 */
+  /** 발주서 PK — 생산계획 드래그/집계용 */
   orderId: string
   /** 후공정·출하 — order_assembly_groups.id */
   assemblyGroupId?: string
@@ -16,6 +16,7 @@ export type ProductionOrderLine = {
   orderDate: string
   deliveryDate: string
   customer: string
+  productId?: string
   productCode: string
   /** 버전 라벨 (마스터 기준, 표시용) */
   productVersion: string | null

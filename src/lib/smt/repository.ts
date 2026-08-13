@@ -3,6 +3,7 @@ import { createSupabaseClient } from '@/lib/supabase'
 import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { todayYmdSeoul } from '@/lib/orders/utils'
+import { syncLotsForSmtOrderLine } from '@/lib/production-lots/repository'
 import { normalizeProductPcbSideMode } from '@/lib/products/utils'
 import { buildSmtCountKey, buildSmtPlanProgressKey, smtPcbSidesForMode } from '@/lib/smt/count-keys'
 import type { CreateSmtProductionRecordInput, SmtPcbSide, SmtProductionHistoryRow, SmtProductionRecord } from './types'
@@ -303,7 +304,7 @@ export async function createSmtProductionRecord(
         detail:
           pcbSideMode === 'double'
             ? '양면 제품은 TOP 또는 BOT 면으로 등록해 주세요.'
-            : '단면·듀얼 제품은 SINGLE로만 등록할 수 있습니다.',
+            : '단면·더블 제품은 SINGLE로만 등록할 수 있습니다.',
       }
     }
 
@@ -435,6 +436,9 @@ export async function createSmtProductionRecord(
       if (!payload?.record) {
         return { ok: false, reason: 'query', detail: 'SMT 생산 기록 저장에 실패했습니다.' }
       }
+      if (quantity > 0) {
+        await syncLotsForSmtOrderLine({ orderLineId, preferDate: recordDate })
+      }
       return {
         ok: true,
         record: mapSmtProductionRecord(payload.record as Parameters<typeof mapSmtProductionRecord>[0]),
@@ -502,6 +506,9 @@ export async function createSmtProductionRecord(
       }
     }
 
+    if (quantity > 0) {
+      await syncLotsForSmtOrderLine({ orderLineId, preferDate: recordDate })
+    }
     return {
       ok: true,
       record: mapSmtProductionRecord(inserted),
@@ -588,6 +595,7 @@ function mapSmtProductionHistoryRow(row: SmtProductionHistoryRecordRow): SmtProd
     id: record.id,
     recordDate: record.recordDate,
     createdAt: record.createdAt,
+    orderLineId: record.orderLineId,
     orderNumber: order.id || '',
     customer: order.customer || '',
     productName: orderLine.product_name || '',
@@ -713,6 +721,12 @@ export async function deleteSmtProductionRecord(
 
   try {
     const supabase = createSupabaseClient()
+    const { data: existing } = await supabase
+      .from('smt_production_records')
+      .select('order_line_id, record_date, quantity')
+      .eq('id', id)
+      .maybeSingle()
+
     const { error } = await supabase.from('smt_production_records').delete().eq('id', id)
 
     if (error) {
@@ -724,6 +738,14 @@ export async function deleteSmtProductionRecord(
         }
       }
       return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    const orderLineId = String(existing?.order_line_id || '').trim()
+    if (orderLineId && Math.max(0, Math.floor(Number(existing?.quantity) || 0)) > 0) {
+      await syncLotsForSmtOrderLine({
+        orderLineId,
+        preferDate: String(existing?.record_date || '').slice(0, 10),
+      })
     }
 
     return { ok: true }

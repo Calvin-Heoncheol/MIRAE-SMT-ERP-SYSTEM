@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { BomFetchError } from '@/components/bom/bom-fetch-error'
+import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { BomListTable } from '@/components/bom/bom-list-table'
 import { BomModal } from '@/components/bom/bom-modal'
 import { FilterChipBar } from '@/components/ui/filter-chip'
@@ -116,13 +117,11 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
 
   if (!itemsResult.ok) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-        <p className="font-semibold">품목 목록을 불러오지 못했습니다</p>
-        <p className="mt-1 whitespace-pre-wrap">{itemsResult.detail}</p>
-        <p className="mt-3 text-xs text-amber-800">
-          BOM 등록 전에 기초등록 → 품목등록이 필요합니다.
-        </p>
-      </div>
+      <FetchErrorBanner
+        title="품목 목록을 불러오지 못했습니다"
+        detail={itemsResult.detail}
+        hint="BOM 등록 전에 기초등록 → 품목등록이 필요합니다."
+      />
     )
   }
 
@@ -130,11 +129,6 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
     <>
       <PageShell>
         <WorkspaceHeader
-          title="BOM등록"
-          subtitle="품목등록의 반제품·조립제품이 행마다 표시됩니다. 품목코드가 같아도 품명·버전이 다르면 각각 독립 BOM을 등록할 수 있습니다."
-          totalCount={listRows.length}
-          filteredCount={filtered.length}
-          hasQuery={hasActiveFilter}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="품목코드, 품목명, 버전, 미등록/등록완료 검색…"

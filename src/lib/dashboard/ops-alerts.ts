@@ -34,7 +34,7 @@ function groupAssembliesByOrderId(groups: OrderAssemblyGroup[]) {
 }
 
 /**
- * 납기 임박·지연 미출하 주문.
+ * 납기 임박·지연 미출하 발주.
  * - 출하가능 수량 있음 → 영업 (생산은 됐고 출하 대기)
  * - 아니면 → 생산 (아직 생산이 막혀 납기 위험)
  */
@@ -127,8 +127,8 @@ export function buildPendingPurchaseNotification(pendingCount: number): OpsAlert
   if (pendingCount <= 0) return null
   return {
     key: 'purchase:pending-inbound',
-    label: `미입고 발주 ${pendingCount.toLocaleString('ko-KR')}건`,
-    detail: '발주서 입고 잔량을 확인하세요',
+    label: `미입고 구매발주 ${pendingCount.toLocaleString('ko-KR')}건`,
+    detail: '구매발주서 입고 잔량을 확인하세요',
     href: '/materials/purchase-orders',
     tone: 'warn',
     department: 'material',

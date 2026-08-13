@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type SetStateAction } from 'react'
 import { MaterialBarcodeRegisterPanel } from '@/components/materials/material-barcode-register-panel'
@@ -11,7 +11,7 @@ import {
   type DirectInboundItemForm,
 } from '@/lib/materials/inbound/form-state'
 import type { Material } from '@/lib/materials/types'
-import { resolveMaterialByInventoryCode } from '@/lib/materials/utils'
+import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
 
 type InboundDirectLinesFormProps = {
   items: DirectInboundItemForm[]
@@ -80,14 +80,15 @@ export function InboundDirectLinesForm({
         .filter((item) => item.materialId.trim())
         .map((item) => {
           const reels = Math.max(0, Number(item.reelCount) || 0)
+          const material = materials.find((row) => row.id === item.materialId.trim())
           return {
-            id: item.materialId.trim(),
+            id: material ? formatMaterialDisplayCode(material) : item.materialId.trim(),
             materialName: item.materialName,
             mpn: item.mpn,
             copies: reels > 0 ? reels : 1,
           }
         }),
-    [items],
+    [items, materials],
   )
 
   const inputClassName =
@@ -170,7 +171,7 @@ export function InboundDirectLinesForm({
 
     setScanMessage({
       tone: 'success',
-      text: `${material.id} · ${material.materialName} · ${inboundQuantity.toLocaleString('ko-KR')}개 (${reels.toLocaleString('ko-KR')}릴)`,
+      text: `${formatMaterialDisplayCode(material)} · ${material.materialName} · ${inboundQuantity.toLocaleString('ko-KR')}개 (${reels.toLocaleString('ko-KR')}릴)`,
     })
     return true
   }
@@ -193,7 +194,7 @@ export function InboundDirectLinesForm({
     if (perReel <= 0 || reels <= 0) {
       setScanMessage({
         tone: 'success',
-        text: `${material.id} · ${material.materialName} 매칭됨 — 수량과 릴 개수를 입력해 주세요.`,
+        text: `${formatMaterialDisplayCode(material)} · ${material.materialName} 매칭됨 — 수량과 릴 개수를 입력해 주세요.`,
       })
       setUnmatchedScanCode(null)
       quantityPerReelRef.current?.focus()
@@ -305,7 +306,7 @@ export function InboundDirectLinesForm({
       {labelPrintItems.length > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
           <p className="text-xs text-slate-600">
-            입고 라인 기준으로 자재코드 바코드 라벨을 출력합니다. 릴 개수만큼 장수가 정해집니다.
+            입고 라인 기준으로 품목코드 바코드 라벨을 출력합니다. 릴 개수만큼 장수가 정해집니다.
           </p>
           <MaterialLabelPrintButton items={labelPrintItems} />
         </div>
@@ -320,7 +321,7 @@ export function InboundDirectLinesForm({
         <table className="min-w-[920px] w-full border-collapse text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">자재코드</th>
+              <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">품목코드</th>
               <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">MPN</th>
               <th className="min-w-[160px] px-3 py-2 text-left text-sm font-semibold text-slate-600">자재명</th>
               <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">규격</th>
@@ -335,11 +336,20 @@ export function InboundDirectLinesForm({
               <tr key={index} className="border-t border-slate-100">
                 <td className="px-3 py-2 align-top">
                   <MaterialCombobox
-                    value={item.materialId}
+                    value={
+                      item.materialName
+                        ? formatMaterialDisplayCode(
+                            materials.find((row) => row.id === item.materialId) ?? {
+                              id: item.materialId,
+                              baseCode: '',
+                            },
+                          )
+                        : item.materialId
+                    }
                     materials={materials}
                     supplier=""
-                    placeholder="자재코드 검색"
-                    ariaLabel={`${index + 1}행 자재코드`}
+                    placeholder="품목코드 검색"
+                    ariaLabel={`${index + 1}행 품목코드`}
                     inputClassName={`${inputClassName} min-w-[120px]`}
                     onValueChange={(materialId) =>
                       onChange((current) =>

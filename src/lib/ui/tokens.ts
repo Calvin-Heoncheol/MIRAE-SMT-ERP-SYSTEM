@@ -123,17 +123,24 @@ export const ERP_FIELD_INPUT_CLASS =
 export const ERP_ROW_ADD_BUTTON_CLASS =
   'inline-flex h-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50'
 
-/** 빈 목록 메시지: 없음 + 다음 액션 */
+/** 목록 fetch 실패 배너 (수금·거래명세서와 동일 rose) */
+export const ERP_ERROR_BANNER_CLASS =
+  'rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700'
+
+export const ERP_ERROR_BANNER_HINT_CLASS = 'mt-3 text-xs text-rose-800'
+
+/** 빈 목록 메시지: 검색/필터 시 조건 안내, 아니면 없음 + 다음 액션 */
 export function formatEmptyListMessage(options: {
   hasQuery: boolean
   emptyLabel: string
   actionHint?: string
 }) {
   if (options.hasQuery) {
-    return '검색 결과가 없습니다. 검색어를 바꿔 보세요.'
+    return '검색 결과가 없습니다. 조건을 바꿔 보세요.'
   }
   if (options.actionHint) {
-    return `${options.emptyLabel}. ${options.actionHint}`
+    const label = options.emptyLabel.replace(/[.。]+$/, '')
+    return `${label}. ${options.actionHint}`
   }
   return options.emptyLabel
 }

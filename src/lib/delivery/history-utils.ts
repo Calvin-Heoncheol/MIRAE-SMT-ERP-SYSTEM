@@ -12,6 +12,7 @@ export function filterDeliveryHistory<
     productCode: string
     recordDate: string
     note: string
+    lotLabel?: string
   },
 >(rows: T[], query: string, dateRange: DateRangeFilterValue = {}) {
   const q = query.trim().toLowerCase()
@@ -19,7 +20,17 @@ export function filterDeliveryHistory<
   return rows.filter((row) => {
     if (!matchesDateRange(row.recordDate, dateRange)) return false
     if (!q) return true
-    return [row.id, row.shipmentId, row.orderNumber, row.customer, row.productName, row.productCode, row.recordDate, row.note]
+    return [
+      row.id,
+      row.shipmentId,
+      row.orderNumber,
+      row.customer,
+      row.productName,
+      row.productCode,
+      row.recordDate,
+      row.note,
+      row.lotLabel,
+    ]
       .join(' ')
       .toLowerCase()
       .includes(q)

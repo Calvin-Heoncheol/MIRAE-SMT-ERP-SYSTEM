@@ -514,10 +514,10 @@ export async function upsertSmtProductionPlan(
   const plannedQuantity = Math.floor(Number(input.plannedQuantity) || 0)
 
   if (!orderId) {
-    return { ok: false, reason: 'validation', detail: '주문서를 선택하세요.' }
+    return { ok: false, reason: 'validation', detail: '발주서를 선택하세요.' }
   }
   if (!orderLineId) {
-    return { ok: false, reason: 'validation', detail: '주문 라인을 선택하세요.' }
+    return { ok: false, reason: 'validation', detail: '발주 라인을 선택하세요.' }
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(plannedDate)) {
     return { ok: false, reason: 'validation', detail: '계획일 형식이 올바르지 않습니다.' }

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { UsersModal } from '@/components/users/users-modal'
 import { UsersTable } from '@/components/users/users-table'
 import { ErpButton } from '@/components/ui/erp-button'
+import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import {
@@ -75,19 +76,22 @@ export function UsersWorkspace({ result }: UsersWorkspaceProps) {
 
   if (!result.ok) {
     return (
-      <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-6 text-sm text-rose-800">
-        <p className="font-semibold">사용자 목록을 불러오지 못했습니다.</p>
-        <p className="mt-2 text-rose-700">{result.detail}</p>
-        {result.reason === 'env' ? (
-          <p className="mt-3 text-rose-700">
-            Supabase Dashboard → Project Settings → API →{' '}
-            <code className="font-mono">service_role</code> 키를{' '}
-            <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code> 로 넣으세요. 로컬은{' '}
-            <code className="font-mono">.env.local</code>, 배포는 Vercel Environment Variables에
-            추가한 뒤 재배포하세요. (브라우저/계정 문제가 아닙니다.)
-          </p>
-        ) : null}
-      </div>
+      <FetchErrorBanner
+        reason={result.reason}
+        title="사용자 목록을 불러오지 못했습니다"
+        detail={result.detail}
+        hint={
+          result.reason === 'env' ? (
+            <>
+              Supabase Dashboard → Project Settings → API →{' '}
+              <code className="font-mono">service_role</code> 키를{' '}
+              <code className="font-mono">SUPABASE_SERVICE_ROLE_KEY</code> 로 넣으세요. 로컬은{' '}
+              <code className="font-mono">.env.local</code>, 배포는 Vercel Environment Variables에
+              추가한 뒤 재배포하세요. (브라우저/계정 문제가 아닙니다.)
+            </>
+          ) : null
+        }
+      />
     )
   }
 
@@ -95,10 +99,6 @@ export function UsersWorkspace({ result }: UsersWorkspaceProps) {
     <>
       <PageShell>
         <WorkspaceHeader
-          title="사용자등록"
-          totalCount={users.length}
-          filteredCount={filtered.length}
-          hasQuery={Boolean(query)}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="이름, 이메일, 역할, 부서 검색…"

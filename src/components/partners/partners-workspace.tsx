@@ -9,7 +9,7 @@ import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchBusinessPartnersResult } from '@/lib/partners/repository'
 import { PARTNER_TRADE_ROLE_LABELS } from '@/lib/partners/types'
-import { formatBusinessRegNo } from '@/lib/partners/utils'
+import { formatBusinessRegNo, formatPartnerPaymentTermLabel } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
@@ -34,6 +34,7 @@ function matchesQuery(partner: BusinessPartner, query: string) {
     partner.businessType,
     partner.address,
     partner.phone,
+    formatPartnerPaymentTermLabel(partner),
     PARTNER_TRADE_ROLE_LABELS[partner.tradeRole],
   ]
     .join(' ')
@@ -85,13 +86,9 @@ export function PartnersWorkspace({ result }: PartnersWorkspaceProps) {
     <>
       <PageShell>
         <WorkspaceHeader
-          title="거래처등록"
-          totalCount={partners.length}
-          filteredCount={filtered.length}
-          hasQuery={Boolean(query)}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="거래처ID, 사업자번호, 거래처명, 대표자명, 업태, 전화 검색…"
+          searchPlaceholder="사업자번호, 거래처명, 결제조건, 전화 검색…"
           accent="slate"
           actions={<ErpButton onClick={openCreate}>거래처 등록</ErpButton>}
         />

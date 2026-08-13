@@ -6,6 +6,8 @@ import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { PageShell } from '@/components/ui/page-shell'
+import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import {
   ERP_TABLE_CLASS,
   ERP_TABLE_HEAD_CLASS,
@@ -236,57 +238,61 @@ export function ProductionReportWorkspace({
 
   return (
     <PageShell>
-      <ReportPeriodControls
-        period={period}
-        rangeLabel={rangeLabel}
-        prevHref={prevHref}
-        nextHref={nextHref}
-        weekHref={weekHref}
-        monthHref={monthHref}
+      {data ? (
+        <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4">
+          <KpiStatCard label="총 생산수량" value={data.totalQuantity} unit="EA" />
+          <KpiStatCard label="총 생산금액" value={data.totalAmount} unit="원" />
+          <KpiStatCard
+            label="계획 달성률"
+            value={data.totalAchievementRate != null ? `${data.totalAchievementRate}%` : null}
+            hint={
+              data.totalPlannedQuantity > 0
+                ? `원계획 ${formatCount(data.totalPlannedQuantity)} EA (지난 날짜 기준)`
+                : '기간 내 마감된 계획 없음'
+            }
+            tone={
+              data.totalAchievementRate == null
+                ? 'slate'
+                : data.totalAchievementRate >= 100
+                  ? 'emerald'
+                  : data.totalAchievementRate >= 80
+                    ? 'default'
+                    : 'rose'
+            }
+          />
+          <KpiStatCard
+            label="납기 지연 주문"
+            value={data.totalOverdueOrders}
+            unit="건"
+            hint="납기 경과 · 출하 미완료 (현재 기준)"
+            tone={data.totalOverdueOrders > 0 ? 'rose' : 'default'}
+          />
+        </div>
+      ) : null}
+
+      <WorkspaceHeader
+        inlineFilters={
+          <ReportPeriodControls
+            period={period}
+            rangeLabel={rangeLabel}
+            prevHref={prevHref}
+            nextHref={nextHref}
+            weekHref={weekHref}
+            monthHref={monthHref}
+          />
+        }
         actions={
-          <div className="flex items-center gap-2">
+          <>
             <PdfDownloadButton onDownload={handlePdfDownload} disabled={!data} />
             <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!data} />
-          </div>
+          </>
         }
       />
 
       {!result.ok ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
-          리포트 데이터를 불러오지 못했습니다: {result.detail}
-        </div>
+        <FetchErrorBanner title="리포트 데이터를 불러오지 못했습니다" detail={result.detail} />
       ) : data ? (
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-          <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-            <KpiStatCard label="총 생산수량" value={data.totalQuantity} unit="EA" />
-            <KpiStatCard label="총 생산금액" value={data.totalAmount} unit="원" />
-            <KpiStatCard
-              label="계획 달성률"
-              value={data.totalAchievementRate != null ? `${data.totalAchievementRate}%` : null}
-              hint={
-                data.totalPlannedQuantity > 0
-                  ? `원계획 ${formatCount(data.totalPlannedQuantity)} EA (지난 날짜 기준)`
-                  : '기간 내 마감된 계획 없음'
-              }
-              tone={
-                data.totalAchievementRate == null
-                  ? 'slate'
-                  : data.totalAchievementRate >= 100
-                    ? 'emerald'
-                    : data.totalAchievementRate >= 80
-                      ? 'default'
-                      : 'rose'
-              }
-            />
-            <KpiStatCard
-              label="납기 지연 주문"
-              value={data.totalOverdueOrders}
-              unit="건"
-              hint="납기 경과 · 출하 미완료 (현재 기준)"
-              tone={data.totalOverdueOrders > 0 ? 'rose' : 'default'}
-            />
-          </div>
-
           <div className={`${ERP_TABLE_WRAP_CLASS} min-h-0 shrink-0`}>
             <div className={ERP_TABLE_SCROLL_CLASS}>
               <table className={`${ERP_TABLE_CLASS} min-w-[720px]`}>

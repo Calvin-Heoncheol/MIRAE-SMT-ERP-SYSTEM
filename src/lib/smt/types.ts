@@ -36,6 +36,7 @@ export type SmtProductionHistoryRow = {
   id: string
   recordDate: string
   createdAt: string
+  orderLineId: string
   orderNumber: string
   customer: string
   productName: string

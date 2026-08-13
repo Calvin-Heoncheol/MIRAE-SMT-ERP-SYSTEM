@@ -43,6 +43,26 @@ function BellIcon({ className }: { className?: string }) {
   )
 }
 
+function RefreshIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21 12a9 9 0 1 1-2.64-6.36L21 8"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 3v5h-5" />
+    </svg>
+  )
+}
+
 export function NotificationBell({
   userId = null,
   variant = 'icon',
@@ -200,9 +220,11 @@ export function NotificationBell({
                 type="button"
                 onClick={refresh}
                 disabled={pending}
-                className="text-xs font-semibold text-sky-700 hover:underline disabled:opacity-50"
+                aria-label={pending ? '불러오는 중' : '새로고침'}
+                title="새로고침"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
               >
-                {pending ? '불러오는 중…' : '새로고침'}
+                <RefreshIcon className={`h-4 w-4 ${pending ? 'animate-spin' : ''}`} />
               </button>
             </div>
 

@@ -123,7 +123,7 @@ async function applyPurchaseOrderInboundUpdates(
       .maybeSingle()
 
     if (fetchError) throw new Error(fetchError.message)
-    if (!line?.id) throw new Error('발주 라인을 찾을 수 없습니다.')
+    if (!line?.id) throw new Error('구매발주 라인을 찾을 수 없습니다.')
 
     const ordered = Number(line.quantity) || 0
     const received = Number(line.inbound_quantity) || 0
@@ -131,7 +131,7 @@ async function applyPurchaseOrderInboundUpdates(
     const inboundQty = Number(item.quantity) || 0
 
     if (inboundQty > remaining) {
-      throw new Error(`입고 수량이 발주 잔량을 초과합니다. (잔량 ${remaining.toLocaleString('ko-KR')})`)
+      throw new Error(`입고 수량이 구매발주 잔량을 초과합니다. (잔량 ${remaining.toLocaleString('ko-KR')})`)
     }
 
     const { error: updateError } = await supabase
@@ -158,7 +158,7 @@ async function revertPurchaseOrderInboundUpdates(
       .maybeSingle()
 
     if (fetchError) throw new Error(fetchError.message)
-    if (!line?.id) throw new Error('발주 라인을 찾을 수 없습니다.')
+    if (!line?.id) throw new Error('구매발주 라인을 찾을 수 없습니다.')
 
     const received = Number(line.inbound_quantity) || 0
     const inboundQty = Number(item.quantity) || 0
@@ -207,18 +207,18 @@ function validateInboundPayload(payload: MaterialInboundRowPayload): string | nu
   if (!items.length) return '입고 수량이 1개 이상인 품목을 입력해 주세요.'
 
   if (payload.inbound_type === 'purchase') {
-    if (!payload.purchase_order_id?.trim()) return '발주 입고는 발주를 선택해 주세요.'
+    if (!payload.purchase_order_id?.trim()) return '구매발주 입고는 구매발주를 선택해 주세요.'
     for (const item of items) {
-      if (!item.purchase_order_line_id) return '발주 라인 정보가 없습니다.'
-      if (!item.material_id?.trim()) return '자재코드가 없는 발주 라인은 입고할 수 없습니다.'
+      if (!item.purchase_order_line_id) return '구매발주 라인 정보가 없습니다.'
+      if (!item.material_id?.trim()) return '자재코드가 없는 구매발주 라인은 입고할 수 없습니다.'
     }
     return null
   }
 
-  if (payload.purchase_order_id) return '사급·반품 입고는 발주를 연결할 수 없습니다.'
+  if (payload.purchase_order_id) return '사급·반품 입고는 구매발주를 연결할 수 없습니다.'
   for (const item of items) {
     if (!item.material_id?.trim()) return '자재를 선택해 주세요.'
-    if (item.purchase_order_line_id) return '발주 입고가 아닌 경우 발주 라인을 연결할 수 없습니다.'
+    if (item.purchase_order_line_id) return '구매발주 입고가 아닌 경우 구매발주 라인을 연결할 수 없습니다.'
   }
 
   return null
@@ -320,7 +320,7 @@ export async function updateMaterialInbound(
     }
 
     if ((existing.purchase_order_id || null) !== (payload.purchase_order_id || null)) {
-      return { ok: false, reason: 'validation', detail: '연결된 발주는 수정할 수 없습니다.' }
+      return { ok: false, reason: 'validation', detail: '연결된 구매발주는 수정할 수 없습니다.' }
     }
 
     const oldLines = (existing.material_inbound_lines || []).map((line) => ({
@@ -342,7 +342,7 @@ export async function updateMaterialInbound(
         const lineId = item.purchase_order_line_id
         if (!lineId) continue
         const line = lineById.get(lineId)
-        if (!line) return { ok: false, reason: 'validation', detail: '발주 라인을 찾을 수 없습니다.' }
+        if (!line) return { ok: false, reason: 'validation', detail: '구매발주 라인을 찾을 수 없습니다.' }
 
         const ordered = Number(line.quantity) || 0
         const received = Number(line.inbound_quantity) || 0
@@ -353,7 +353,7 @@ export async function updateMaterialInbound(
           return {
             ok: false,
             reason: 'validation',
-            detail: `입고 수량이 발주 잔량을 초과합니다. (잔량 ${remaining.toLocaleString('ko-KR')})`,
+            detail: `입고 수량이 구매발주 잔량을 초과합니다. (잔량 ${remaining.toLocaleString('ko-KR')})`,
           }
         }
       }
@@ -527,7 +527,7 @@ export async function createMaterialInbound(
         const lineId = item.purchase_order_line_id
         if (!lineId) continue
         const line = lineById.get(lineId)
-        if (!line) return { ok: false, reason: 'validation', detail: '발주 라인을 찾을 수 없습니다.' }
+        if (!line) return { ok: false, reason: 'validation', detail: '구매발주 라인을 찾을 수 없습니다.' }
 
         const ordered = Number(line.quantity) || 0
         const received = Number(line.inbound_quantity) || 0
@@ -536,7 +536,7 @@ export async function createMaterialInbound(
           return {
             ok: false,
             reason: 'validation',
-            detail: `입고 수량이 발주 잔량을 초과합니다. (잔량 ${remaining.toLocaleString('ko-KR')})`,
+            detail: `입고 수량이 구매발주 잔량을 초과합니다. (잔량 ${remaining.toLocaleString('ko-KR')})`,
           }
         }
 
@@ -544,7 +544,7 @@ export async function createMaterialInbound(
           return {
             ok: false,
             reason: 'validation',
-            detail: '자재코드가 연결되지 않은 발주 라인은 입고할 수 없습니다.',
+            detail: '자재코드가 연결되지 않은 구매발주 라인은 입고할 수 없습니다.',
           }
         }
       }

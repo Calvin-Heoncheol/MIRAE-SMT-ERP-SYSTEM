@@ -335,9 +335,9 @@ export function ProductionInputPanel({
   /** 본문 인라인: 라인 선택·복수 계획 칩만 (팀 뱃지는 헤더) */
   const showPlanControls =
     showLineSelector || (showPostProcessPlanSelector && postProcessPlans.length > 1)
-  /** 주문서 사이드바 모드: 선택 전에는 라인/계획 컨트롤 숨김. 계획 기반만 empty에서 노출 */
+  /** 발주서 사이드바 모드: 선택 전에는 라인/계획 컨트롤 숨김. 계획 기반만 empty에서 노출 */
   const showEmptyPlanControls = Boolean(planSetupHref) || showPostProcessPlanSelector
-  /** SMT=생산1팀, 후공정=생산2/3/4팀 — 주문서 미선택 empty state에서도 표시 */
+  /** SMT=생산1팀, 후공정=생산2/3/4팀 — 발주서 미선택 empty state에서도 표시 */
   const headerTeamBadge = isPostProcess ? (postProcessTeam ?? null) : '생산1팀'
   const showPanelHeader = Boolean(headerTeamBadge || (order && !embedded))
   const headerTeamBadgeClass = isPostProcess
@@ -781,7 +781,7 @@ export function ProductionInputPanel({
                       ? '라인을 선택하세요'
                       : showEmptyPlanControls && showLineSelector && lineNo != null
                         ? `LINE ${lineNo} · 등록할 계획이 없습니다`
-                        : '주문서를 선택하세요')}
+                        : '발주서를 선택하세요')}
               </p>
               <p className="mt-1 text-xs text-slate-400 sm:text-sm">
                 {showEmptyPlanControls && showPostProcessPlanSelector && postProcessTeam
@@ -790,7 +790,7 @@ export function ProductionInputPanel({
                     ? '위에서 SMT 라인을 고른 뒤 오늘 배정된 계획을 등록합니다.'
                     : showEmptyPlanControls && showLineSelector
                       ? '오늘 이 라인에 배정된 생산계획이 없습니다. 생산계획에서 일정을 먼저 배치해 주세요.'
-                      : '주문 카드를 선택한 뒤 생산 수량을 등록합니다.'}
+                      : '발주서 카드를 선택한 뒤 생산 수량을 등록합니다.'}
               </p>
               {(showPostProcessPlanSelector ||
                 (showEmptyPlanControls && showLineSelector && lineNo != null)) &&

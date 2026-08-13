@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { DefectHandlingModal } from '@/components/quality/defect-handling-modal'
 import { DefectHandlingTable } from '@/components/quality/defect-handling-table'
+import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
@@ -90,9 +91,7 @@ export function DefectHandlingWorkspace({ result }: DefectHandlingWorkspaceProps
         />
 
         {!result.ok ? (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {result.detail}
-          </div>
+          <FetchErrorBanner title="불량대처 목록을 불러오지 못했습니다" detail={result.detail} />
         ) : (
           <>
             <DefectHandlingTable

@@ -397,7 +397,7 @@ export function buildOutboundNeedCards(input: {
   })
 }
 
-/** 미불출 액션 카드를 주문서 단위로 묶습니다 (발주 카드와 동일 UX) */
+/** 미불출 액션 카드를 발주서 단위로 묶습니다 (구매발주 카드와 동일 UX) */
 export function buildOutboundOrderCards(
   needCards: MaterialOutboundNeedCard[],
 ): MaterialOutboundOrderCard[] {

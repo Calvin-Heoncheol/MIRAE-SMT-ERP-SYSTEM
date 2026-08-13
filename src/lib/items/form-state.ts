@@ -139,6 +139,13 @@ export function validateItemForm(form: ItemFormState, options?: { isCreate?: boo
   if (isSemiFinishedItemCategory(category) && !form.processType) {
     return '생산 공정(SMD/후공정)을 선택해 주세요.'
   }
+  if (
+    isSemiFinishedItemCategory(category) &&
+    (form.processType === 'smt' || form.processType === 'smt_post') &&
+    !form.pcbSideMode
+  ) {
+    return '면(단면/더블/양면)을 선택해 주세요.'
+  }
   return null
 }
 
@@ -173,7 +180,7 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     materialType: isRawMaterial ? form.materialType : '',
     supplyType: isProduct ? '' : form.supplyType,
     supplier: form.supplier.trim(),
-    pcbSideMode: '',
+    pcbSideMode: isSemiFinishedItemCategory(itemCategory) ? form.pcbSideMode || 'single' : '',
     processType: isProduct ? form.processType : '',
     unitPrice: isProduct ? money(form.unitPrice) : 0,
     smdUnitPrice: 0,

@@ -52,6 +52,8 @@ export function filterProductionHistory(
       row.customer,
       row.productName,
       row.productCode,
+      row.lotLabel,
+      row.shipmentLabel,
       row.createdByName,
       row.note,
       row.lineNo != null ? `라인${row.lineNo}` : '',

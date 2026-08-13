@@ -174,7 +174,7 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
   const total = supply + vat
   const roleLabel = role === 'supplier' ? '공급자용' : '공급받는자용'
   const showOrderNumber = items.some((item) => Boolean(String(item.orderNumber || '').trim()))
-  const headOrder = showOrderNumber ? '<th class="c-order">주문번호</th>' : ''
+  const headOrder = showOrderNumber ? '<th class="c-order">발주번호</th>' : ''
   const summaryColspan = showOrderNumber ? 4 : 3
 
   return `<section class="statement-copy">
@@ -600,7 +600,7 @@ export async function buildDeliveryStatementDataFromOrder(input: {
     productCode: string
     productName: string
     qty: number
-    /** 있으면 이 단가 사용, 없으면 주문서 라인 단가 */
+    /** 있으면 이 단가 사용, 없으면 발주서 라인 단가 */
     unitPrice?: number
   }>
 }): Promise<
@@ -609,7 +609,7 @@ export async function buildDeliveryStatementDataFromOrder(input: {
 > {
   const orderNumber = String(input.orderNumber || '').trim()
   if (!orderNumber) {
-    return { ok: false, detail: '주문번호가 없습니다.' }
+    return { ok: false, detail: '발주번호가 없습니다.' }
   }
 
   const shippedLines = (input.shippedLines || [])
@@ -628,7 +628,7 @@ export async function buildDeliveryStatementDataFromOrder(input: {
 
   const order = await fetchOrderById(orderNumber)
   if (!order) {
-    return { ok: false, detail: `주문서(${orderNumber})를 찾을 수 없습니다.` }
+    return { ok: false, detail: `발주서(${orderNumber})를 찾을 수 없습니다.` }
   }
 
   const orderLines = order.items.filter((item) => !item.derivedFromLineId)
@@ -802,7 +802,7 @@ export async function buildDeliveryStatementDataFromShipment(input: {
   }
 }
 
-/** @deprecated 단일 품목용 — 주문서 기준 buildDeliveryStatementDataFromOrder 를 사용하세요 */
+/** @deprecated 단일 품목용 — 발주서 기준 buildDeliveryStatementDataFromOrder 를 사용하세요 */
 export function buildDeliveryStatementData(input: {
   row: {
     docNo: string

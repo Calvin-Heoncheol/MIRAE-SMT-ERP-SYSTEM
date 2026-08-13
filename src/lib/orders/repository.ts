@@ -6,6 +6,18 @@ import {
 } from '@/lib/auth/created-by'
 import { insertChangeLog, formatChangeLogWarning } from '@/lib/change-logs/repository'
 import { buildOrderChangeDetail } from '@/lib/change-logs/utils'
+import {
+  fetchPaymentTermSnapshotForCustomer,
+  firstNonEmptyPaymentTermSnapshot,
+  isMissingPaymentTermSnapshotColumn,
+  omitPaymentTermSnapshotFields,
+  paymentTermSnapshotFromDbRow,
+  paymentTermSnapshotToDbRow,
+  persistPaymentTermSnapshot,
+  resolvePaymentTermSnapshotForUpdate,
+  type PaymentTermSnapshot,
+} from '@/lib/partners/payment-term-snapshot'
+import { fetchQuotePaymentSnapshot } from '@/lib/quotes/repository'
 import { createSupabaseClient } from '@/lib/supabase'
 import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { syncAssemblyGroupsForOrder } from '@/lib/assembly/repository'
@@ -38,18 +50,27 @@ function isMissingOrdersTable(detail: string) {
 
 function mapOrderSaveError(detail: string) {
   if (detail.includes('order_lines_product_id_fkey')) {
-    return '주문 품목 FK가 품목등록(items)과 맞지 않습니다. Supabase SQL Editor에서 supabase/setup-items.sql 하단 FK 교체 구문을 실행한 뒤, Supabase Dashboard → Settings → API에서 schema cache를 새로고침해 주세요.'
+    return '발주 품목 FK가 품목등록(items)과 맞지 않습니다. Supabase SQL Editor에서 supabase/setup-items.sql 하단 FK 교체 구문을 실행한 뒤, Supabase Dashboard → Settings → API에서 schema cache를 새로고침해 주세요.'
   }
   if (detail.includes('ORDER_CODE_TAKEN')) {
-    return `이미 사용 중인 주문코드입니다: ${detail.split(':').slice(1).join(':') || ''}`.trim()
+    return `이미 사용 중인 발주코드입니다: ${detail.split(':').slice(1).join(':') || ''}`.trim()
   }
   if (detail.includes('ORDER_NOT_FOUND')) {
-    return `주문서를 찾을 수 없습니다: ${detail.split(':').slice(1).join(':') || ''}`.trim()
+    return `발주서를 찾을 수 없습니다: ${detail.split(':').slice(1).join(':') || ''}`.trim()
   }
   if (detail.includes('AUTH_REQUIRED')) {
     return '로그인이 필요합니다.'
   }
   return detail
+}
+
+async function resolveOrderPaymentSnapshot(payload: OrderRowPayload): Promise<PaymentTermSnapshot> {
+  const fromPayload = payload.paymentTerms
+  const fromQuote = payload.source_quote_id
+    ? await fetchQuotePaymentSnapshot(payload.source_quote_id)
+    : paymentTermSnapshotFromDbRow(null)
+  const fromPartner = await fetchPaymentTermSnapshotForCustomer(payload.customer)
+  return firstNonEmptyPaymentTermSnapshot(fromPayload, fromQuote, fromPartner)
 }
 
 function orderLinesJson(items: OrderRowPayload['items']) {
@@ -84,9 +105,9 @@ async function insertOrderLines(orderId: string, items: OrderRowPayload['items']
 
 export async function fetchOrders(options?: {
   includeDerivedLines?: boolean
-  /** true면 과거 거래명세서용 주문서도 포함 (기본: 제외) */
+  /** true면 과거 거래명세서용 발주서도 포함 (기본: 제외) */
   includeLegacyStatements?: boolean
-  /** true면 과거 거래명세서 주문서만 */
+  /** true면 과거 거래명세서 발주서만 */
   legacyOnly?: boolean
 }): Promise<FetchOrdersResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -146,7 +167,7 @@ export async function fetchOrderById(orderId: string): Promise<OrderListGroup | 
   return groupOrdersFromRecords([data as OrderRecord])[0] ?? null
 }
 
-/** 견적에서 이미 전환된 주문서 번호 (있으면) */
+/** 견적에서 이미 전환된 발주서 번호 (있으면) */
 export async function findOrderNumberBySourceQuoteId(
   quoteId: string,
 ): Promise<{ ok: true; orderNumber: string | null } | { ok: false; detail: string }> {
@@ -195,6 +216,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
 
   try {
     const supabase = createSupabaseClient()
+    const paymentSnapshot = await resolveOrderPaymentSnapshot(payload)
 
     // 발주ID는 항상 자동 발급 (MRO-YYMMDD-NN). payload.id 는 무시.
     const header = {
@@ -218,7 +240,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
     if (!rpcError) {
       const orderId = String((rpcData as { orderId?: string } | null)?.orderId || '').trim()
       if (!orderId) {
-        return { ok: false, reason: 'query', detail: '주문서 저장에 실패했습니다.' }
+        return { ok: false, reason: 'query', detail: '발주서 저장에 실패했습니다.' }
       }
       // 등록자 컬럼이 있으면 후속 갱신 (RPC는 스키마 호환을 위해 생략)
       const createdBy = await withCreatedByFields({})
@@ -228,6 +250,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
           console.warn('[orders] created_by patch failed:', patch.error.message)
         }
       }
+      await persistPaymentTermSnapshot('orders', orderId, paymentSnapshot)
       await syncAssemblyGroupsForOrder(orderId)
       return { ok: true, orderId, orderNumber: orderId }
     }
@@ -237,16 +260,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
     }
 
     // RPC 미적용 환경 — 레거시 비원자 경로 (발주ID 자동 발급)
-    const baseRow: {
-      order_date: string
-      delivery_date: string | null
-      customer: string
-      category: string
-      source: string
-      source_quote_id: string | null
-      note: string
-      customer_po_number: string
-    } = {
+    const baseRow = {
       order_date: payload.order_date,
       delivery_date: payload.delivery_date || null,
       customer: payload.customer,
@@ -255,6 +269,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       source_quote_id: payload.source_quote_id || null,
       note: payload.note?.trim() || '',
       customer_po_number: payload.customer_po_number?.trim() || '',
+      ...paymentTermSnapshotToDbRow(paymentSnapshot),
     }
 
     const insertRow = await withCreatedByFields(baseRow)
@@ -268,10 +283,19 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
         .single())
     }
 
-    if (error || !inserted?.id) {
-      return { ok: false, reason: 'query', detail: error?.message || '주문서 저장에 실패했습니다.' }
+    if (error && isMissingPaymentTermSnapshotColumn(error.message)) {
+      ;({ data: inserted, error } = await supabase
+        .from('orders')
+        .insert(omitPaymentTermSnapshotFields(insertRow))
+        .select('id')
+        .single())
     }
 
+    if (error || !inserted?.id) {
+      return { ok: false, reason: 'query', detail: error?.message || '발주서 저장에 실패했습니다.' }
+    }
+
+    await persistPaymentTermSnapshot('orders', inserted.id, paymentSnapshot)
     await insertOrderLines(inserted.id, payload.items)
     await syncAssemblyGroupsForOrder(inserted.id)
     return { ok: true, orderId: inserted.id, orderNumber: inserted.id }
@@ -306,10 +330,17 @@ export async function updateOrder(
 
     if (fetchError) return { ok: false, reason: 'query', detail: fetchError.message }
     if (!existing?.id) {
-      return { ok: false, reason: 'query', detail: `주문서를 찾을 수 없습니다: ${orderId}` }
+      return { ok: false, reason: 'query', detail: `발주서를 찾을 수 없습니다: ${orderId}` }
     }
 
     const beforeGroup = groupOrdersFromRecords([existing as OrderRecord])[0]
+    const paymentSnapshot = resolvePaymentTermSnapshotForUpdate({
+      previousCustomer: beforeGroup?.customer || String(existing.customer || ''),
+      nextCustomer: payload.customer,
+      previousSnapshot:
+        beforeGroup?.paymentTerms || paymentTermSnapshotFromDbRow(existing as OrderRecord),
+      partnerSnapshot: await fetchPaymentTermSnapshotForCustomer(payload.customer),
+    })
     const header = {
       order_date: payload.order_date,
       delivery_date: payload.delivery_date || null,
@@ -352,6 +383,7 @@ export async function updateOrder(
       await insertOrderLines(existing.id, payload.items)
     }
 
+    await persistPaymentTermSnapshot('orders', existing.id, paymentSnapshot)
     await syncAssemblyGroupsForOrder(existing.id)
 
     const afterTotalAmount = payload.items.reduce(
@@ -390,7 +422,7 @@ export async function updateOrder(
     const changeLogResult = await insertChangeLog({
       entityType: 'order',
       entityId: existing.id,
-      title: `주문서 ${existing.id} 수정`,
+      title: `발주서 ${existing.id} 수정`,
       detail,
       reason: options?.reason,
       beforeData: {

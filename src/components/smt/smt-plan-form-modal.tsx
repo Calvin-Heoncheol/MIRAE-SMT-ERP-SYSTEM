@@ -123,7 +123,7 @@ function SmtPlanCandidatePicker({
       open
       size="lg"
       title={title || '이번 차 등록'}
-      description={description || '주문서 카드를 선택하면 이번 차 수량을 등록합니다.'}
+      description={description || '발주서 카드를 선택하면 이번 차 수량을 등록합니다.'}
       onClose={onClose}
       contentClassName="flex min-h-[min(68dvh,720px)] flex-1 flex-col overflow-hidden px-5 py-4"
       footer={
@@ -143,7 +143,7 @@ function SmtPlanCandidatePicker({
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="주문번호 · 고객사 · 제품명 검색"
+          placeholder="발주ID, 고객사, 제품명 검색…"
           className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
           autoFocus
         />
@@ -151,7 +151,7 @@ function SmtPlanCandidatePicker({
 
       {filtered.length === 0 ? (
         <p className="py-10 text-center text-sm text-slate-500">
-          {search.trim() ? '검색 결과가 없습니다.' : '미배정 주문이 없습니다.'}
+          {search.trim() ? '검색 결과가 없습니다.' : '미배정 발주서가 없습니다.'}
         </p>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
@@ -192,7 +192,7 @@ function SmtPlanCandidatePicker({
                   </div>
 
                   <p className="mt-2 text-[12px] tabular-nums text-slate-600">
-                    주문{' '}
+                    발주{' '}
                     <span className="font-semibold text-slate-800">{qty.orderLabel}</span>
                     <span className="mx-1 text-slate-300">·</span>
                     기계획{' '}
@@ -394,7 +394,7 @@ function SmtPlanFormModalInner({
         {breakdown ? (
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-600">
             <p className="tabular-nums">
-              주문{' '}
+              발주{' '}
               <span className="font-semibold text-slate-800">
                 {breakdown.orderQty.toLocaleString('ko-KR')}
               </span>
@@ -608,8 +608,8 @@ export function SmtPlanFormModal({
         title={title || '이번 차 등록'}
         description={
           cellHint
-            ? `${cellHint} · 주문서 카드를 선택하면 이번 차 수량을 등록합니다.`
-            : '주문서 카드를 선택하면 이번 차 수량을 등록합니다.'
+            ? `${cellHint} · 발주서 카드를 선택하면 이번 차 수량을 등록합니다.`
+            : '발주서 카드를 선택하면 이번 차 수량을 등록합니다.'
         }
         candidates={unplanned}
         onPick={(candidate) => onPickCandidate?.(candidate)}

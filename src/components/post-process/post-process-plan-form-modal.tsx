@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
@@ -242,7 +242,7 @@ export function PostProcessPlanFormModal({
         open
         size="form"
         title={title || '생산계획 등록'}
-        description="캘린더에 넣을 미배정 주문을 선택하세요."
+        description="캘린더에 넣을 미배정 발주서를 선택하세요."
         onClose={onClose}
         footer={
           <ErpButton variant="secondary" onClick={onClose}>
@@ -251,10 +251,10 @@ export function PostProcessPlanFormModal({
         }
       >
         {unplanned.length === 0 ? (
-          <p className="text-sm text-slate-600">미배정 주문이 없습니다.</p>
+          <p className="text-sm text-slate-600">미배정 발주서가 없습니다.</p>
         ) : (
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-600">주문 / 품목</span>
+            <span className="mb-1 block font-medium text-slate-600">발주서 / 품목</span>
             <select
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
               defaultValue=""

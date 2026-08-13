@@ -45,11 +45,16 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { label: '문의업체', href: '/new-companies' },
       { label: '견적서 등록', href: '/quotations' },
-      { label: '주문서 등록', href: '/orders' },
+      { label: '발주서 등록', href: '/orders' },
       { label: '출하등록', href: '/delivery/input' },
       { label: '출하현황', href: '/orders/status' },
       { label: '거래명세서', href: '/reports/sales' },
     ],
+  },
+  {
+    label: '회계관리',
+    href: '/accounting/receivables',
+    children: [{ label: '수금현황', href: '/accounting/receivables' }],
   },
   {
     label: '생산관리',
@@ -93,10 +98,10 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/materials/inventory',
     children: [
       { label: '재고현황', href: '/materials/inventory' },
-      { label: '발주', href: '/materials/purchase-orders' },
+      { label: '구매발주', href: '/materials/purchase-orders' },
       { label: '입고', href: '/materials/inbound' },
+      { label: '입고이력', href: '/materials/inbound/history' },
       { label: '불출', href: '/materials/outbound' },
-      { label: '자재이력', href: '/materials/history' },
     ],
   },
   {
@@ -184,6 +189,7 @@ const NAV_EXACT_CHILD_PATHS = [
   '/master/customers',
   '/materials/inventory',
   '/materials/product-inventory',
+  '/materials/inbound',
 ] as const
 
 export function isNavChildActive(pathname: string, href: string, search?: NavSearch | null) {

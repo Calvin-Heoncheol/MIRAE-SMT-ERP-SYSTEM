@@ -7,7 +7,13 @@ import type {
   ItemProcessType,
   ItemSupplyType,
 } from './types'
-import { deriveItemProcessType, ITEM_CATEGORY_CODE_PREFIX, ITEM_PROCESS_TYPE_LABELS } from './types'
+import {
+  deriveItemProcessType,
+  ITEM_CATEGORY_CODE_PREFIX,
+  ITEM_PCB_SIDE_MODE_LABELS,
+  ITEM_PROCESS_TYPE_LABELS,
+  type ItemPcbSideModeValue,
+} from './types'
 import { normalizeVersionLabel, parseItemVersionCode } from './version-code'
 
 export const ITEM_INTERNAL_ID_PREFIX = 'MR-'
@@ -209,6 +215,9 @@ export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
     mpn: payload.mpn.trim(),
     customer_id: payload.customerId.trim() || null,
     material_type: payload.materialType,
+    supply_type: payload.supplyType,
+    supplier: payload.supplier.trim(),
+    pcb_side_mode: payload.pcbSideMode,
     process_type: payload.processType,
     unit_price: payload.unitPrice,
     smd_unit_price: payload.smdUnitPrice,
@@ -292,6 +301,8 @@ export function itemSearchHaystack(item: Item) {
     item.package,
     item.mpn,
     item.processType,
+    item.pcbSideMode,
+    item.pcbSideMode ? ITEM_PCB_SIDE_MODE_LABELS[item.pcbSideMode as ItemPcbSideModeValue] : '',
     item.materialType,
     item.supplyType,
     item.isActive !== false ? '사용중' : '사용중지',
@@ -348,9 +359,17 @@ export function nextItemCodeFromIds(ids: string[], category: ItemCategory) {
   )
 }
 
-/** 목록·주문서에 보여줄 품목코드 (버전 제외) */
+/** 목록·발주서에 보여줄 품목코드 (버전 제외) */
 export function formatItemDisplayCode(item: Pick<Item, 'id' | 'baseCode'>) {
   return item.baseCode.trim() || parseItemVersionCode(item.id).base || item.id
+}
+
+export function formatItemPcbSideModeLabel(mode: Item['pcbSideMode'] | string | null | undefined) {
+  const value = String(mode || '').trim().toLowerCase()
+  if (value === 'single' || value === 'duo' || value === 'double') {
+    return ITEM_PCB_SIDE_MODE_LABELS[value]
+  }
+  return ''
 }
 
 /** 반제품·조립제품 생산 공정 표시 (SMD / 후공정 / SMD+후공정) */

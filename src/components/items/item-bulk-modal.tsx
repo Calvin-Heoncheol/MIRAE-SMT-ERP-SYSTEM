@@ -20,10 +20,18 @@ import {
   ITEM_CATEGORIES,
   ITEM_CATEGORY_LABELS,
   ITEM_MATERIAL_TYPE_OPTIONS,
+  ITEM_PCB_SIDE_MODE_LABELS,
+  ITEM_PCB_SIDE_MODES,
+  ITEM_PROCESS_TYPE_LABELS,
+  ITEM_PROCESS_TYPES,
+  ITEM_SUPPLY_TYPE_OPTIONS,
   isManualItemCodeCategory,
   type ItemCategory,
   type ItemMaterialType,
+  type ItemPcbSideMode,
   type ItemPayload,
+  type ItemProcessType,
+  type ItemSupplyType,
 } from '@/lib/items/types'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import type { BusinessPartner } from '@/lib/partners/types'
@@ -398,6 +406,57 @@ function ItemBulkModalContent({
                             {ITEM_MATERIAL_TYPE_OPTIONS.map((value) => (
                               <option key={value} value={value}>
                                 {value}
+                              </option>
+                            ))}
+                          </select>
+                        ) : column.key === 'supplyType' ? (
+                          <select
+                            value={row.supplyType}
+                            onChange={(event) =>
+                              patchRow(index, {
+                                supplyType: event.target.value as ItemSupplyType,
+                              })
+                            }
+                            className={inputClassName}
+                          >
+                            <option value="">선택</option>
+                            {ITEM_SUPPLY_TYPE_OPTIONS.map((value) => (
+                              <option key={value} value={value}>
+                                {value}
+                              </option>
+                            ))}
+                          </select>
+                        ) : column.key === 'processType' ? (
+                          <select
+                            value={row.processType}
+                            onChange={(event) =>
+                              patchRow(index, {
+                                processType: event.target.value as ItemProcessType,
+                              })
+                            }
+                            className={inputClassName}
+                          >
+                            <option value="">선택</option>
+                            {ITEM_PROCESS_TYPES.map((value) => (
+                              <option key={value} value={value}>
+                                {ITEM_PROCESS_TYPE_LABELS[value]}
+                              </option>
+                            ))}
+                          </select>
+                        ) : column.key === 'pcbSideMode' ? (
+                          <select
+                            value={row.pcbSideMode}
+                            onChange={(event) =>
+                              patchRow(index, {
+                                pcbSideMode: event.target.value as ItemPcbSideMode,
+                              })
+                            }
+                            className={inputClassName}
+                          >
+                            <option value="">선택</option>
+                            {ITEM_PCB_SIDE_MODES.map((value) => (
+                              <option key={value} value={value}>
+                                {ITEM_PCB_SIDE_MODE_LABELS[value]}
                               </option>
                             ))}
                           </select>

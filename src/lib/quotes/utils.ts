@@ -1,3 +1,4 @@
+import { paymentTermSnapshotFromDbRow } from '@/lib/partners/payment-term-snapshot'
 import {
   resolveUnifiedPostProcessLineForms,
   sumPostProcessLineMinutes,
@@ -94,6 +95,7 @@ export function mapQuoteRecord(record: QuoteRecord): QuoteListItem {
     boardQty: record.board_qty,
     totalAmount: Number(record.total_amount) || 0,
     detailInfo,
+    paymentTerms: paymentTermSnapshotFromDbRow(record),
     createdBy: record.created_by ?? null,
     createdByName: String(record.created_by_name || '').trim(),
     updatedBy: record.updated_by ?? null,

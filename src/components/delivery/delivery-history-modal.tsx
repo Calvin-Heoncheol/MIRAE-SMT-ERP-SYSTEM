@@ -262,6 +262,9 @@ export function DeliveryHistoryModal({
                 <p className="mt-0.5 text-xs text-slate-500">
                   {row.productCode || '-'} · 목표 {row.targetQuantity.toLocaleString('ko-KR')}대
                 </p>
+                {row.lotLabel ? (
+                  <p className="mt-1 text-xs tabular-nums text-slate-600">{row.lotLabel}</p>
+                ) : null}
               </div>
             </div>
             <label className="block text-sm">

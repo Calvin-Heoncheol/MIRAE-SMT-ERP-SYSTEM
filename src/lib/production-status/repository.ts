@@ -1,4 +1,9 @@
-import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups, repairOrphanAssemblyGroups } from '@/lib/assembly/repository'
+import {
+  fetchAssemblyGroups,
+  repairChildrenOnlyAssemblyGroups,
+  repairMissingSemiFinishedDeliveryGroups,
+  repairOrphanAssemblyGroups,
+} from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import {
   buildDeliveryAvailabilityMap,
@@ -80,6 +85,15 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     return assemblyResult
   }
 
+  assemblyResult = await repairMissingSemiFinishedDeliveryGroups(
+    assemblyResult.groups,
+    productById,
+    smtOrdersResult.orders,
+  )
+  if (!assemblyResult.ok) {
+    return assemblyResult
+  }
+
   const postOrders = buildPostProcessAssemblyLines(
     assemblyResult.groups,
     ordersResult.orders,
@@ -88,7 +102,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
   )
   const deliveryOrders = buildDeliveryInputOrders(
     assemblyResult.groups,
-    ordersResult.orders,
+    smtOrdersResult.orders,
     productById,
     quotesResult.quotes,
   )

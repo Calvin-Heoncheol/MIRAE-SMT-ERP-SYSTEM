@@ -91,7 +91,7 @@ function yymmddFromYmd(ymd: string): string {
   return `${match[1].slice(2)}${match[2]}${match[3]}`
 }
 
-/** 자동 발급 예시: MRO-YYMMDD-01 (주문일 기준) */
+/** 자동 발급 예시: MRO-YYMMDD-01 (발주일 기준) */
 export function formatAutoOrderCodeExample(orderDate?: string): string {
   const ymd = String(orderDate || '').trim() || todayYmdSeoul()
   return `MRO-${yymmddFromYmd(ymd)}-01`

@@ -110,10 +110,10 @@ function isIgnorableSchemaError(message: string) {
 
 function mapItemDeleteFkError(detail: string) {
   if (detail.includes('order_assembly_groups')) {
-    return '이 품목은 주문 조립 그룹에서 사용 중이라 삭제할 수 없습니다. 삭제 대신 「사용중지」를 이용해 주세요.'
+    return '이 품목은 발주서 조립 그룹에서 사용 중이라 삭제할 수 없습니다. 삭제 대신 「사용중지」를 이용해 주세요.'
   }
   if (detail.includes('order_assembly_group_lines')) {
-    return '이 품목은 주문 BOM 구성(조립 그룹 라인)에서 사용 중이라 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.'
+    return '이 품목은 발주서 BOM 구성(조립 그룹 라인)에서 사용 중이라 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.'
   }
   if (detail.includes('bom_items')) {
     return '이 품목은 다른 BOM의 구성품으로 등록되어 있어 삭제할 수 없습니다. 먼저 해당 BOM에서 제거하거나 「사용중지」해 주세요.'
@@ -199,7 +199,7 @@ async function clearUnusedAssemblyGroupsForItem(
     if (used > 0) {
       return {
         ok: false,
-        detail: `이 품목은 주문(${groupRows.map((row) => row.order_id).join(', ')})의 조립 그룹에서 사용 중이며 생산·출하 이력이 있어 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.`,
+        detail: `이 품목은 발주서(${groupRows.map((row) => row.order_id).join(', ')})의 조립 그룹에서 사용 중이며 생산·출하 이력이 있어 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.`,
       }
     }
   }
@@ -828,7 +828,7 @@ export async function deleteItem(id: string): Promise<DeleteItemResult> {
         ok: false,
         reason: 'in_use',
         detail:
-          '이 품목은 주문 조립 구성에서 사용 중이라 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.',
+          '이 품목은 발주서 조립 구성에서 사용 중이라 삭제할 수 없습니다. 「사용중지」를 이용해 주세요.',
       }
     }
 

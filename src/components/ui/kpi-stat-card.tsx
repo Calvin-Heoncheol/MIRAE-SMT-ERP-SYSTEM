@@ -16,7 +16,7 @@ const VALUE_TONE: Record<NonNullable<KpiStatCardProps['tone']>, string> = {
   rose: 'text-rose-700',
 }
 
-/** 홈 KPI / 생산현황 공통 통계 카드 밀도 */
+/** 현황 페이지 공통 통계 카드 — 낮은 높이 */
 export function KpiStatCard({
   label,
   value,
@@ -31,19 +31,19 @@ export function KpiStatCard({
   return (
     <div
       className={[
-        'rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm',
+        'rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm',
         className,
       ]
         .filter(Boolean)
         .join(' ')}
     >
-      <p className="text-[11px] font-semibold text-slate-500">{label}</p>
-      <p className={`mt-1 text-2xl font-bold tabular-nums ${VALUE_TONE[tone]}`}>
+      <p className="text-[11px] leading-none font-semibold text-slate-500">{label}</p>
+      <p className={`mt-1.5 text-[22px] leading-none font-bold tabular-nums ${VALUE_TONE[tone]}`}>
         {display}
-        {unit ? <span className="ml-1 text-xs font-semibold text-slate-400">{unit}</span> : null}
+        {unit ? <span className="ml-1 text-[11px] font-semibold text-slate-400">{unit}</span> : null}
       </p>
       {hint ? (
-        <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">{hint}</p>
+        <p className="mt-1 truncate text-[10px] leading-none font-medium text-slate-500">{hint}</p>
       ) : null}
     </div>
   )

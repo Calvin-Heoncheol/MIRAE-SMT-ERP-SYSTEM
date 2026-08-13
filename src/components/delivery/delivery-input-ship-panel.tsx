@@ -327,7 +327,7 @@ export function DeliveryInputShipPanel({
             </button>
             <p className={`text-sm ${canAdd ? 'text-slate-500' : 'text-amber-800'}`}>
               {canAdd
-                ? `주문 잔량 ${remaining.toLocaleString('ko-KR')} · 추가 가능 ${registerMax.toLocaleString('ko-KR')}`
+                ? `발주 잔량 ${remaining.toLocaleString('ko-KR')} · 추가 가능 ${registerMax.toLocaleString('ko-KR')}`
                 : describeDeliveryBlockReason(availability)}
             </p>
           </div>
@@ -361,7 +361,7 @@ export function DeliveryInputShipPanel({
             <table className="min-w-full border-collapse text-sm">
               <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
                 <tr>
-                  <th className="px-3 py-2 text-left">주문번호</th>
+                  <th className="px-3 py-2 text-left">발주번호</th>
                   <th className="px-3 py-2 text-left">품명</th>
                   <th className="px-3 py-2 text-right">수량</th>
                   <th className="px-3 py-2 text-right">삭제</th>

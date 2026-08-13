@@ -17,7 +17,7 @@ export type MaterialPurchaseOrderPrintLine = {
 
 export type MaterialPurchaseOrderPrintData = {
   orderNumber: string
-  /** 연결된 고객 주문서 번호 (주문서 발주 시) */
+  /** 연결된 고객 발주서 번호 (발주서 구매발주 시) */
   sourceOrderNumber?: string | null
   orderDate: string
   deliveryDate: string
@@ -42,7 +42,7 @@ export function buildMaterialPurchaseOrderHtml(data: MaterialPurchaseOrderPrintD
   const orderNumber = escapeHtml(data.orderNumber)
   const sourceOrderNumber = String(data.sourceOrderNumber || '').trim()
   const sourceOrderHtml = sourceOrderNumber
-    ? `<div class="source-no">주문번호 ${escapeHtml(sourceOrderNumber)}</div>`
+    ? `<div class="source-no">발주번호 ${escapeHtml(sourceOrderNumber)}</div>`
     : ''
   const orderDate = escapeHtml(formatMaterialPurchaseOrderDate(data.orderDate) || data.orderDate)
   const deliveryDate = escapeHtml(
@@ -81,7 +81,7 @@ export function buildMaterialPurchaseOrderHtml(data: MaterialPurchaseOrderPrintD
     : `<div class="notes"><strong>안내</strong> 납기일 ${deliveryDate} · 품목 ${formatNumber(data.items.length)}종 · 수량합계 ${formatNumber(totalQuantity)}</div>`
 
   return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
-<title>발주서 ${orderNumber}</title><style>
+<title>구매발주서 ${orderNumber}</title><style>
 @page { size: A4 portrait; margin: 10mm; }
 html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body {
@@ -145,9 +145,9 @@ body {
     </div>
     <div class="doc-title">
       <div class="en">PURCHASE ORDER</div>
-      <h1>발주서</h1>
+      <h1>구매발주서</h1>
       ${sourceOrderHtml}
-      <div class="no">발주번호 ${orderNumber}</div>
+      <div class="no">구매발주번호 ${orderNumber}</div>
     </div>
   </div>
   <div class="party-grid">
@@ -163,7 +163,7 @@ body {
     </div>
   </div>
   <div class="meta-bar">
-    <div class="cell"><strong>발주일</strong>${orderDate}</div>
+    <div class="cell"><strong>구매발주일</strong>${orderDate}</div>
     <div class="cell"><strong>납기일</strong>${deliveryDate}</div>
     <div class="cell"><strong>품목수</strong>${formatNumber(data.items.length)} 종</div>
     <div class="cell"><strong>수량합계</strong>${formatNumber(totalQuantity)}</div>
@@ -186,7 +186,7 @@ body {
   </table>
   <div class="totals-wrap">
     <div class="totals">
-      <div class="row"><span>발주금액 합계</span><span class="val">${escapeHtml(formatMaterialPurchaseOrderMoney(totalAmount))}</span></div>
+      <div class="row"><span>구매발주금액 합계</span><span class="val">${escapeHtml(formatMaterialPurchaseOrderMoney(totalAmount))}</span></div>
     </div>
   </div>
   ${notesHtml}
@@ -199,7 +199,7 @@ export function printMaterialPurchaseOrder(data: MaterialPurchaseOrderPrintData)
 
   const html = buildMaterialPurchaseOrderHtml(data)
   const iframe = document.createElement('iframe')
-  iframe.setAttribute('title', '발주서 인쇄')
+  iframe.setAttribute('title', '구매발주서 인쇄')
   iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
   document.body.appendChild(iframe)
 

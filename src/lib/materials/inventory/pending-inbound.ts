@@ -11,7 +11,7 @@ function isMissingDeliveryDateColumn(detail: string) {
   return lower.includes('delivery_date') && (lower.includes('column') || lower.includes('does not exist'))
 }
 
-/** 발주 라인 기준 미입고 잔량·최만기 납기 합산 (자재별) */
+/** 구매발주 라인 기준 미입고 잔량·최만기 납기 합산 (자재별) */
 export async function fetchPendingInboundByMaterialId(): Promise<FetchPendingInboundByMaterialIdResult> {
   try {
     const supabase = createSupabaseClient()

@@ -11,6 +11,10 @@ create table if not exists public.business_partners (
   address text not null default '',
   phone text not null default '',
   trade_role text not null default 'both' check (trade_role in ('purchase', 'sales', 'both')),
+  payment_term_type text not null default '' check (payment_term_type in ('', 'installment', 'net', 'monthly')),
+  payment_deposit_percent integer not null default 0,
+  payment_net_days integer not null default 0,
+  payment_monthly_day integer not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -25,6 +29,10 @@ comment on column public.business_partners.business_type is '업태';
 comment on column public.business_partners.address is '사업장 주소 (거래명세서 공급받는자 주소)';
 comment on column public.business_partners.phone is '전화';
 comment on column public.business_partners.trade_role is 'purchase=매입, sales=매출, both=매입/매출';
+comment on column public.business_partners.payment_term_type is '결제조건: installment=분할 지급, net=일반 후불, monthly=월괄 후불';
+comment on column public.business_partners.payment_deposit_percent is '분할 지급 선금 % (1~99)';
+comment on column public.business_partners.payment_net_days is '일반 후불 Net 일수';
+comment on column public.business_partners.payment_monthly_day is '월괄 후불 익월 입금일 (1~31)';
 
 create sequence if not exists public.partner_id_seq;
 
@@ -52,6 +60,14 @@ grant execute on function public.generate_partner_id() to anon, authenticated;
 -- 기존 DB: 사업자번호 PK → 내부 id PK
 alter table public.business_partners add column if not exists id text;
 alter table public.business_partners add column if not exists address text not null default '';
+alter table public.business_partners add column if not exists payment_term_type text not null default '';
+alter table public.business_partners add column if not exists payment_deposit_percent integer not null default 0;
+alter table public.business_partners add column if not exists payment_net_days integer not null default 0;
+alter table public.business_partners add column if not exists payment_monthly_day integer not null default 0;
+alter table public.business_partners drop constraint if exists business_partners_payment_term_type_check;
+alter table public.business_partners
+  add constraint business_partners_payment_term_type_check
+  check (payment_term_type in ('', 'installment', 'net', 'monthly'));
 
 do $$
 declare
@@ -162,6 +178,38 @@ begin
   new.trade_role := lower(coalesce(trim(new.trade_role), 'both'));
   if new.trade_role not in ('purchase', 'sales', 'both') then
     new.trade_role := 'both';
+  end if;
+
+  new.payment_term_type := lower(coalesce(trim(new.payment_term_type), ''));
+  if new.payment_term_type not in ('', 'installment', 'net', 'monthly') then
+    new.payment_term_type := '';
+  end if;
+  new.payment_deposit_percent := greatest(0, coalesce(new.payment_deposit_percent, 0));
+  new.payment_net_days := greatest(0, coalesce(new.payment_net_days, 0));
+  new.payment_monthly_day := greatest(0, coalesce(new.payment_monthly_day, 0));
+
+  if new.payment_term_type = 'installment' then
+    if new.payment_deposit_percent < 1 or new.payment_deposit_percent > 99 then
+      new.payment_deposit_percent := 30;
+    end if;
+    new.payment_net_days := 0;
+    new.payment_monthly_day := 0;
+  elsif new.payment_term_type = 'net' then
+    if new.payment_net_days < 1 then
+      new.payment_net_days := 30;
+    end if;
+    new.payment_deposit_percent := 0;
+    new.payment_monthly_day := 0;
+  elsif new.payment_term_type = 'monthly' then
+    if new.payment_monthly_day < 1 or new.payment_monthly_day > 31 then
+      new.payment_monthly_day := 15;
+    end if;
+    new.payment_deposit_percent := 0;
+    new.payment_net_days := 0;
+  else
+    new.payment_deposit_percent := 0;
+    new.payment_net_days := 0;
+    new.payment_monthly_day := 0;
   end if;
 
   if new.name = '' then

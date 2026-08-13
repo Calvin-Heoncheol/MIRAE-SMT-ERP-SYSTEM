@@ -33,13 +33,19 @@ export function resolveSmtProducedForLine(
   pcbSideMode: ProductPcbSideMode,
   smtCounts: Record<string, number>,
 ) {
+  const single = Math.max(0, Math.floor(Number(smtCounts[buildSmtCountKey(orderLineId, 'SINGLE')]) || 0))
   if (isSplitProductPcbSideMode(pcbSideMode)) {
     const top = Math.max(0, Math.floor(Number(smtCounts[buildSmtCountKey(orderLineId, 'TOP')]) || 0))
     const bot = Math.max(0, Math.floor(Number(smtCounts[buildSmtCountKey(orderLineId, 'BOT')]) || 0))
-    return Math.min(top, bot)
+    const paired = Math.min(top, bot)
+    // 양면인데 SINGLE로만 찍힌 실적도 출하 가능으로 인정
+    return paired > 0 ? paired : single
   }
 
-  return Math.max(0, Math.floor(Number(smtCounts[buildSmtCountKey(orderLineId, 'SINGLE')]) || 0))
+  if (single > 0) return single
+  const top = Math.max(0, Math.floor(Number(smtCounts[buildSmtCountKey(orderLineId, 'TOP')]) || 0))
+  const bot = Math.max(0, Math.floor(Number(smtCounts[buildSmtCountKey(orderLineId, 'BOT')]) || 0))
+  return Math.max(top, bot)
 }
 
 export function computeAssemblySmtSets(
@@ -53,12 +59,22 @@ export function computeAssemblySmtSets(
   let counted = 0
 
   for (const line of group.lines) {
-    const product = productById[line.childProductId]
-    // DIP만 있는 구성품은 SMT 세트 계산에서 제외
-    if (!processTypeIncludesSmt(product?.processType)) continue
-
+    const childId = String(line.childProductId || '').trim()
+    const product =
+      productById[childId] ||
+      Object.values(productById).find((item) => {
+        const code = String(item.productCode || '').trim()
+        return (
+          item.id === childId ||
+          code === childId ||
+          code.toUpperCase() === childId.toUpperCase()
+        )
+      })
     const pcbSideMode = product?.pcbSideMode ?? 'single'
     const produced = resolveSmtProducedForLine(line.orderLineId, pcbSideMode, smtCounts)
+    // 공정구분이 비어 있어도 SMT 실적이 있으면 출하 세트로 인정
+    if (!processTypeIncludesSmt(product?.processType) && produced <= 0) continue
+
     const quantityPer = Math.max(1, Math.floor(Number(line.quantityPer) || 1))
     minSets = Math.min(minSets, Math.floor(produced / quantityPer))
     counted += 1
@@ -148,7 +164,7 @@ export function describeDeliveryBlockReason(availability: DeliveryAvailability) 
   }
 
   if (targetQuantity > 0 && shipped >= targetQuantity) {
-    return '주문 수량만큼 출하가 완료되었습니다.'
+    return '발주 수량만큼 출하가 완료되었습니다.'
   }
 
   if (productionCap > 0 && shipped >= productionCap) {

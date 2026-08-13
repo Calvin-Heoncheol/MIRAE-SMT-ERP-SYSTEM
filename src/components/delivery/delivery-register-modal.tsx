@@ -135,6 +135,7 @@ function DeliveryRegisterModalContent({
         lines: validation.lines.map((line) => ({
           assemblyGroupId: line.assemblyGroupId,
           quantity: Math.floor(Number(line.quantity) || 0),
+          allocations: line.lotManual ? line.allocations : undefined,
         })),
       }),
     )
@@ -169,7 +170,7 @@ function DeliveryRegisterModalContent({
       open
       size="lg"
       title="출하 등록"
-      description="출하가능 품목을 선택하고 수량·단가를 입력한 뒤 출하하세요."
+      description="완제품·반제품 코드로 출하할 수 있습니다. LOT은 FIFO로 채워지며 수정 가능합니다."
       onClose={onClose}
       closeOnEscape={!busy}
       footer={

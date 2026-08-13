@@ -4,7 +4,13 @@ import { EmptyListState } from '@/components/ui/empty-list-state'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { ERP_TABLE_SCROLL_CLASS, ERP_TABLE_TD_WRAP_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 import { type Item, type ItemCategory, isProductItemCategory } from '@/lib/items/types'
-import { displayItemUnitPrice, formatItemDisplayCode, formatItemProductionProcessLabel, formatItemUnitPrice } from '@/lib/items/utils'
+import {
+  displayItemUnitPrice,
+  formatItemDisplayCode,
+  formatItemPcbSideModeLabel,
+  formatItemProductionProcessLabel,
+  formatItemUnitPrice,
+} from '@/lib/items/utils'
 
 type ItemListTableProps = {
   items: Item[]
@@ -39,6 +45,7 @@ export function ItemListTable({
   const hideMaterialDetailColumns = showProductColumns
   const showProductionProcessColumn =
     categoryFilter === 'all' || categoryFilter === 3 || categoryFilter === 4
+  const showPcbSideColumn = categoryFilter === 'all' || categoryFilter === 3
 
   if (!items.length) {
     return (
@@ -54,7 +61,9 @@ export function ItemListTable({
         <table
           className={`w-full table-fixed border-collapse ${
             showProductColumns
-              ? 'min-w-[880px]'
+              ? showPcbSideColumn
+                ? 'min-w-[980px]'
+                : 'min-w-[880px]'
               : showProductionProcessColumn
                 ? 'min-w-[1240px]'
                 : 'min-w-[1060px]'
@@ -68,21 +77,23 @@ export function ItemListTable({
             {showProductColumns && showProductionProcessColumn ? (
               <>
                 <col className="w-[108px]" />
+                {showPcbSideColumn ? <col className="w-[72px]" /> : null}
                 <col className="w-[100px]" />
               </>
             ) : null}
             {hideMaterialDetailColumns ? null : (
               <>
-                <col className="w-[88px]" />
                 <col className="w-[100px]" />
                 <col className="w-[100px]" />
                 <col className="w-[160px]" />
                 <col className="w-[140px]" />
+                <col className="w-[88px]" />
               </>
             )}
             {!showProductColumns && showProductionProcessColumn ? (
               <>
                 <col className="w-[108px]" />
+                {showPcbSideColumn ? <col className="w-[72px]" /> : null}
                 <col className="w-[100px]" />
               </>
             ) : null}
@@ -99,21 +110,23 @@ export function ItemListTable({
               {showProductColumns && showProductionProcessColumn ? (
                 <>
                   <th className="px-3 py-2.5 text-center">생산 공정</th>
+                  {showPcbSideColumn ? <th className="px-3 py-2.5 text-center">면</th> : null}
                   <th className="px-3 py-2.5 text-right">단가</th>
                 </>
               ) : null}
               {hideMaterialDetailColumns ? null : (
                 <>
-                  <th className="px-3 py-2.5 text-center">도급/사급</th>
                   <th className="px-3 py-2.5 text-center">공정구분</th>
                   <th className="px-3 py-2.5 text-left">패키지</th>
                   <th className="px-3 py-2.5 text-left">사양</th>
                   <th className="px-3 py-2.5 text-left">MPN</th>
+                  <th className="px-3 py-2.5 text-center">도급/사급</th>
                 </>
               )}
               {!showProductColumns && showProductionProcessColumn ? (
                 <>
                   <th className="px-3 py-2.5 text-center">생산 공정</th>
+                  {showPcbSideColumn ? <th className="px-3 py-2.5 text-center">면</th> : null}
                   <th className="px-3 py-2.5 text-right">단가</th>
                 </>
               ) : null}
@@ -148,6 +161,11 @@ export function ItemListTable({
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
                         {productionProcessCell(item)}
                       </td>
+                      {showPcbSideColumn ? (
+                        <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
+                          {cell(formatItemPcbSideModeLabel(item.pcbSideMode))}
+                        </td>
+                      ) : null}
                       <td className="whitespace-nowrap px-3 py-2.5 text-right text-sm tabular-nums text-slate-800">
                         {unitPriceCell(item)}
                       </td>
@@ -155,9 +173,6 @@ export function ItemListTable({
                   ) : null}
                   {hideMaterialDetailColumns ? null : (
                     <>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
-                        {cell(item.supplyType)}
-                      </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
                         {cell(item.materialType)}
                       </td>
@@ -170,6 +185,9 @@ export function ItemListTable({
                       <td className={`px-3 py-2.5 font-mono text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                         {cell(item.mpn)}
                       </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
+                        {cell(item.supplyType)}
+                      </td>
                     </>
                   )}
                   {!showProductColumns && showProductionProcessColumn ? (
@@ -177,6 +195,11 @@ export function ItemListTable({
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
                         {productionProcessCell(item)}
                       </td>
+                      {showPcbSideColumn ? (
+                        <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
+                          {cell(formatItemPcbSideModeLabel(item.pcbSideMode))}
+                        </td>
+                      ) : null}
                       <td className="whitespace-nowrap px-3 py-2.5 text-right text-sm tabular-nums text-slate-800">
                         {unitPriceCell(item)}
                       </td>

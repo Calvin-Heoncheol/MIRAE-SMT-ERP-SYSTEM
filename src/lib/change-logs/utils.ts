@@ -68,7 +68,7 @@ export function buildOrderChangeDetail(input: {
   pushDiff(parts, '고객', input.before.customer, input.after.customer)
   pushDiff(parts, '구분', input.before.category, input.after.category)
   pushDiff(parts, '발주번호', input.before.customerPoNumber, input.after.customerPoNumber)
-  pushDiff(parts, '주문일', input.before.orderDate, input.after.orderDate)
+  pushDiff(parts, '발주일', input.before.orderDate, input.after.orderDate)
   pushDiff(parts, '납기', input.before.deliveryDate, input.after.deliveryDate)
   pushMoneyDiff(parts, '합계금액', input.before.totalAmount, input.after.totalAmount)
   if (input.before.totalQuantity !== input.after.totalQuantity) {
@@ -82,7 +82,7 @@ export function buildOrderChangeDetail(input: {
   if (input.before.note !== input.after.note) {
     parts.push('비고 변경')
   }
-  return parts.length ? parts.join('\n') : '주문 내용 수정'
+  return parts.length ? parts.join('\n') : '발주 내용 수정'
 }
 
 export function buildItemChangeTitle(

@@ -1,3 +1,5 @@
+import type { PaymentTermSnapshot } from '@/lib/partners/payment-term-snapshot'
+
 export type QuoteType = 'export' | 'domestic'
 
 export type QuoteStatus = 'draft' | 'confirmed'
@@ -129,6 +131,10 @@ export type QuoteRecord = {
   total_amount: number
   detail_info: QuoteDetailInfo
   status?: QuoteStatus | string | null
+  payment_term_type?: string | null
+  payment_deposit_percent?: number | null
+  payment_net_days?: number | null
+  payment_monthly_day?: number | null
   created_by?: string | null
   created_by_name?: string | null
   updated_by?: string | null
@@ -148,6 +154,7 @@ export type QuoteListItem = {
   boardQty: number
   totalAmount: number
   detailInfo: QuoteDetailInfo
+  paymentTerms: PaymentTermSnapshot
   createdBy?: string | null
   createdByName: string
   /** 최종 수정자 (없으면 등록자) */

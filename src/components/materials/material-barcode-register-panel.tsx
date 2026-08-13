@@ -1,9 +1,10 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { MaterialCombobox } from '@/components/materials/purchase-orders/material-combobox'
 import { addAlternateMpn } from '@/lib/materials/repository'
 import type { Material } from '@/lib/materials/types'
+import { formatMaterialDisplayCode } from '@/lib/materials/utils'
 
 type MaterialBarcodeRegisterPanelProps = {
   materials: Material[]
@@ -67,7 +68,7 @@ export function MaterialBarcodeRegisterPanel({
 
     setMessage({
       tone: 'success',
-      text: `${selectedMaterial.id} · ${selectedMaterial.materialName}에 "${result.row.mpn}" 대체 MPN을 등록했습니다.`,
+      text: `${formatMaterialDisplayCode(selectedMaterial)} · ${selectedMaterial.materialName}에 "${result.row.mpn}" 대체 MPN을 등록했습니다.`,
     })
     setBarcode('')
     setMaterialQuery('')
@@ -118,7 +119,7 @@ export function MaterialBarcodeRegisterPanel({
             onValueChange={setMaterialQuery}
             onMaterialSelect={(material) => {
               setSelectedMaterial(material)
-              setMaterialQuery(material.id)
+              setMaterialQuery(formatMaterialDisplayCode(material))
             }}
           />
         </label>
@@ -135,7 +136,8 @@ export function MaterialBarcodeRegisterPanel({
 
       {selectedMaterial ? (
         <p className="mt-2 text-xs text-slate-600">
-          선택: <span className="font-medium">{selectedMaterial.id}</span> · {selectedMaterial.materialName}
+          선택: <span className="font-medium">{formatMaterialDisplayCode(selectedMaterial)}</span> ·{' '}
+          {selectedMaterial.materialName}
           {selectedMaterial.mpn ? (
             <span className="font-mono text-slate-500"> (MPN: {selectedMaterial.mpn})</span>
           ) : null}

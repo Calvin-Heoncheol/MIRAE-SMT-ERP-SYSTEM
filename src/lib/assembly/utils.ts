@@ -129,22 +129,22 @@ export function computeStandaloneFinishedProductGroups(
   return extras
 }
 
-/** 조립 없는 단일 보드 — 주문 SFG 라인을 후공정 카드로 (FG 미등록·BOM 없음) */
+/**
+ * 반제품 단독 출하·생산 그룹.
+ * 조립제품 BOM 자식이어도 반제품 코드로 따로 출하할 수 있게 부모 그룹을 만든다.
+ * (파생 SMT 라인 포함)
+ */
 export function computeStandaloneSemiProductGroups(
   orderLines: OrderLineRecord[],
   existingGroups: ComputedAssemblyGroup[],
   productById: Record<string, Product>,
 ): ComputedAssemblyGroup[] {
-  const childIdsInGroups = new Set(
-    existingGroups.flatMap((group) => group.lines.map((line) => line.childProductId)),
-  )
   const parentIdsInGroups = new Set(existingGroups.map((group) => group.parentProductId))
   const extras: ComputedAssemblyGroup[] = []
 
-  for (const line of orderLines.filter(isUserOrderLine)) {
+  for (const line of orderLines) {
     const productId = resolveLineProductId(line)
     if (!productId || !line.id) continue
-    if (childIdsInGroups.has(productId)) continue
     if (parentIdsInGroups.has(productId)) continue
 
     const product = productById[productId]

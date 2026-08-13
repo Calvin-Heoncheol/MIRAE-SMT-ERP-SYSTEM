@@ -25,6 +25,7 @@ type OutboundNeedsTableProps = {
   cards: MaterialOutboundOrderCard[]
   bomEdges: BomEdge[]
   materials: Material[]
+  emptyMessage?: string
   onIssued: () => void
 }
 
@@ -217,7 +218,13 @@ function OutboundBucketAction({
   )
 }
 
-export function OutboundNeedsTable({ cards, bomEdges, materials, onIssued }: OutboundNeedsTableProps) {
+export function OutboundNeedsTable({
+  cards,
+  bomEdges,
+  materials,
+  emptyMessage,
+  onIssued,
+}: OutboundNeedsTableProps) {
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set())
 
   const edgesByParent = useMemo(() => {
@@ -251,10 +258,7 @@ export function OutboundNeedsTable({ cards, bomEdges, materials, onIssued }: Out
   if (!cards.length) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <EmptyListState
-          message="미불출 주문이 없습니다"
-          hint="주문·BOM 기준으로 아직 남은 자재 소요가 있으면 여기에 표시됩니다."
-        />
+        <EmptyListState message={emptyMessage ?? '미불출 주문이 없습니다'} />
       </div>
     )
   }

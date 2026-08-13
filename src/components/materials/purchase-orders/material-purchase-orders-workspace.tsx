@@ -20,11 +20,11 @@ import type {
   OrderPurchaseCard,
   OrderPurchaseProductLine,
 } from '@/lib/materials/purchase-orders/types'
-import { ERP_SECONDARY_BUTTON_CLASS } from '@/lib/ui/tokens'
+import { ERP_SECONDARY_BUTTON_CLASS, formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type MaterialPurchaseOrdersWorkspaceProps = {
   result: FetchMaterialPurchaseRegisterResult
-  /** URL ?mode=partial 로 부분 발주 패널 시작 */
+  /** URL ?mode=partial 로 부분 구매발주 패널 시작 */
   initialPanel?: 'suggestion' | 'partial'
 }
 
@@ -114,8 +114,8 @@ export function MaterialPurchaseOrdersWorkspace({
   )
 
   const panelChips = [
-    { value: 'suggestion' as const, label: '발주 제안', count: suggestionLines.length },
-    { value: 'partial' as const, label: '부분 발주', count: activeCount },
+    { value: 'suggestion' as const, label: '구매발주 제안', count: suggestionLines.length },
+    { value: 'partial' as const, label: '부분 구매발주', count: activeCount },
   ]
 
   const statusChips = [
@@ -170,7 +170,7 @@ export function MaterialPurchaseOrdersWorkspace({
     const unregistered = preview.filter((line) => !line.registered)
     if (unregistered.length > 0) {
       window.alert(
-        `품목등록에 없는 자재가 ${unregistered.length}종 있어 발주할 수 없습니다.\n` +
+        `품목등록에 없는 자재가 ${unregistered.length}종 있어 구매발주할 수 없습니다.\n` +
           unregistered.map((line) => line.materialCode).slice(0, 15).join(', ') +
           (unregistered.length > 15 ? ' …' : ''),
       )
@@ -189,7 +189,7 @@ export function MaterialPurchaseOrdersWorkspace({
     }))
 
     if (!items.length) {
-      window.alert('이 제품의 BOM 자재가 없어 발주서를 만들 수 없습니다.')
+      window.alert('이 제품의 BOM 자재가 없어 구매발주서를 만들 수 없습니다.')
       return
     }
 
@@ -208,7 +208,7 @@ export function MaterialPurchaseOrdersWorkspace({
   }
 
   function handleSaved(message?: string) {
-    afterSave(message ?? '자재 발주가 저장되었습니다.', {
+    afterSave(message ?? '구매발주가 저장되었습니다.', {
       close: () => setCreateModal({ open: false }),
       refresh: false,
     })
@@ -224,12 +224,12 @@ export function MaterialPurchaseOrdersWorkspace({
     <>
       <PageShell>
         <div className="flex shrink-0 items-center justify-between gap-3">
-          <h1 className="text-base font-bold text-slate-900">새 자재 발주</h1>
+          <h1 className="text-base font-bold text-slate-900">새 구매발주</h1>
           <Link
             href="/materials/purchase-orders"
             className={`${ERP_SECONDARY_BUTTON_CLASS} inline-flex items-center justify-center no-underline`}
           >
-            발주서 목록
+            구매발주서 목록
           </Link>
         </div>
 
@@ -239,7 +239,7 @@ export function MaterialPurchaseOrdersWorkspace({
           searchPlaceholder={
             panel === 'suggestion'
               ? '자재코드, 자재명, MPN, 공급사 검색…'
-              : '주문번호, 고객사, 제품명 검색…'
+              : '발주ID, 고객사, 제품명 검색…'
           }
           accent="slate"
           filters={
@@ -257,15 +257,15 @@ export function MaterialPurchaseOrdersWorkspace({
           meta={
             panel === 'suggestion' ? (
               <p className="text-slate-500">
-                발주필요{' '}
+                구매발주필요{' '}
                 <span className="tabular-nums font-semibold text-rose-600">
                   {suggestionLines.length.toLocaleString('ko-KR')}
                 </span>
-                종 · 주문서 기준
+                종 · 발주서 기준
               </p>
             ) : (
               <p className="text-slate-500">
-                주문의 제품 대수에서 커버할 대수를 지정합니다.
+                발주의 제품 대수에서 커버할 대수를 지정합니다.
               </p>
             )
           }
@@ -282,6 +282,11 @@ export function MaterialPurchaseOrdersWorkspace({
           <div className="min-h-0 flex-1 overflow-auto">
             <MaterialOrderPurchaseCards
               cards={filteredCards}
+              emptyMessage={formatEmptyListMessage({
+                hasQuery: Boolean(search.trim()) || statusFilter !== 'active',
+                emptyLabel: '구매발주할 발주서가 없습니다',
+                actionHint: '출하 미완료 발주서가 있으면 여기에 표시됩니다',
+              })}
               onPurchaseProduct={openPartial}
             />
           </div>

@@ -34,7 +34,7 @@ export type InboundFormProps = {
   mode: 'create' | 'edit'
   variant?: 'page' | 'modal'
   inbound?: MaterialInboundListGroup | null
-  /** 발주서 카드에서 열 때 미리 선택할 발주 */
+  /** 구매발주서 카드에서 열 때 미리 선택할 구매발주 */
   seedPurchaseOrderId?: string
   materials: Material[]
   purchaseOrders: MaterialPurchaseOrderListGroup[]
@@ -45,8 +45,8 @@ export type InboundFormProps = {
 }
 
 /**
- * 발주 입고가 기본이므로 유형 버튼은 사급/반품만 노출.
- * 사급/반품을 다시 누르면 해제되어 발주 입고로 돌아간다.
+ * 구매발주 입고가 기본이므로 유형 버튼은 사급/반품만 노출.
+ * 사급/반품을 다시 누르면 해제되어 구매발주 입고로 돌아간다.
  */
 const INBOUND_TYPE_OPTIONS: MaterialInboundType[] = ['supplied', 'return']
 
@@ -143,7 +143,7 @@ export function InboundForm({
   function handleTypeChange(inboundType: MaterialInboundType) {
     if (isEdit) return
     setForm((current) => {
-      // 활성 버튼을 다시 누르면 해제 → 기본(발주 입고)으로 복귀
+      // 활성 버튼을 다시 누르면 해제 → 기본(구매발주 입고)으로 복귀
       const nextType = current.inboundType === inboundType ? 'purchase' : inboundType
       return {
         ...current,
@@ -206,7 +206,7 @@ export function InboundForm({
     if (!inbound) return
     if (
       !window.confirm(
-        `${inbound.inboundNumber} 입고 전표를 삭제하시겠습니까?\n삭제 후 재고·발주 입고수량이 함께 반영됩니다.`,
+        `${inbound.inboundNumber} 입고 전표를 삭제하시겠습니까?\n삭제 후 재고·구매발주 입고수량이 함께 반영됩니다.`,
       )
     ) {
       return
@@ -258,7 +258,7 @@ export function InboundForm({
 
         <div>
           <p className="mb-2 text-sm font-medium text-slate-600">
-            입고 유형 <span className="font-normal text-slate-400">(기본: 발주 입고 · 필요 시 선택)</span>
+            입고 유형 <span className="font-normal text-slate-400">(기본: 구매발주 입고 · 필요 시 선택)</span>
           </p>
           <div className="flex flex-wrap gap-2">
             {INBOUND_TYPE_OPTIONS.map((type) => {
@@ -286,14 +286,14 @@ export function InboundForm({
         {form.inboundType === 'purchase' ? (
           <div>
             <label className="block max-w-md text-sm">
-              <span className="mb-1 block font-medium text-slate-600">발주</span>
+              <span className="mb-1 block font-medium text-slate-600">구매발주</span>
               <select
                 value={form.purchaseOrderId}
                 onChange={(event) => updateForm('purchaseOrderId', event.target.value)}
                 disabled={isEdit}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50 disabled:text-slate-600"
               >
-                <option value="">발주 선택</option>
+                <option value="">구매발주 선택</option>
                 {(isEdit ? purchaseOrders : selectablePurchaseOrders).map((order) => (
                   <option key={order.orderId} value={order.orderId}>
                     {order.orderNumber} · {order.supplier || '공급업체 미입력'}
@@ -302,7 +302,7 @@ export function InboundForm({
               </select>
             </label>
             {!isEdit && !selectablePurchaseOrders.length ? (
-              <p className="mt-2 text-sm text-amber-700">입고 가능한 발주가 없습니다.</p>
+              <p className="mt-2 text-sm text-amber-700">입고 가능한 구매발주가 없습니다.</p>
             ) : null}
           </div>
         ) : null}

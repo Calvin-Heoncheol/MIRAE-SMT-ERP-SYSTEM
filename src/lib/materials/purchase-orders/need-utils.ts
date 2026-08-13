@@ -48,7 +48,7 @@ function resolveCardStatus(products: OrderPurchaseProductLine[]): OrderPurchaseS
 }
 
 /**
- * 자재 발주 제안 — 고객 주문서(미커버 대수) BOM 소요 − 현재고 − 입고예정.
+ * 구매발주 제안 — 고객 발주서(미커버 대수) BOM 소요 − 현재고 − 입고예정.
  * SMT 생산계획과 무관하게 주문 수량을 목표로 한다.
  */
 export function buildPurchaseSuggestionLines(input: {
@@ -127,7 +127,7 @@ export function buildPurchaseSuggestionLines(input: {
     })
 }
 
-/** 주문서 라인별 이미 커버된 제품 수량 (부분 발주 합산) */
+/** 발주서 라인별 이미 커버된 제품 수량 (부분 구매발주 합산) */
 export function buildCoveredQuantityByOrderLine(
   purchaseOrders: MaterialPurchaseOrderListGroup[],
 ): Map<string, number> {
@@ -142,7 +142,7 @@ export function buildCoveredQuantityByOrderLine(
 }
 
 /**
- * 주문서 단위 발주 카드 — 목표는 주문 제품대수, 잔량 = 주문 − 커버.
+ * 발주서 단위 구매발주 카드 — 목표는 주문 제품대수, 잔량 = 주문 − 커버.
  */
 export function buildOrderPurchaseCards(input: {
   orders: OrderListGroup[]
@@ -206,7 +206,7 @@ export function buildOrderPurchaseCards(input: {
   })
 }
 
-/** 제품 수량 기준 BOM 전개 미리보기 (부분 발주 수량 입력용) */
+/** 제품 수량 기준 BOM 전개 미리보기 (부분 구매발주 수량 입력용) */
 export function buildOrderPurchaseMaterialPreview(input: {
   productId: string
   purchaseQuantity: number

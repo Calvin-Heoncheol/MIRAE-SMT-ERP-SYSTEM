@@ -77,7 +77,7 @@ export function MaterialOrderPartialPurchaseModal({
         `품목등록에 없는 자재가 ${unregistered.length}종 있습니다.\n` +
           `${unregisteredCodes.slice(0, 10).join(', ')}` +
           (unregisteredCodes.length > 10 ? ' …' : '') +
-          `\n품목등록 후 다시 발주해 주세요.`,
+          `\n품목등록 후 다시 구매발주해 주세요.`,
       )
       return
     }
@@ -89,8 +89,8 @@ export function MaterialOrderPartialPurchaseModal({
     } else {
       const nextRemaining = Math.max(0, product.remainingQuantity - purchaseQuantity)
       const ok = window.confirm(
-        `이번 발주 ${purchaseQuantity.toLocaleString('ko-KR')}개로 진행할까요?\n` +
-          `(주문 ${product.orderQuantity.toLocaleString('ko-KR')} · 기존 발주 ${product.coveredQuantity.toLocaleString('ko-KR')} · 발주 후 잔량 ${nextRemaining.toLocaleString('ko-KR')})`,
+        `이번 구매발주 ${purchaseQuantity.toLocaleString('ko-KR')}개로 진행할까요?\n` +
+          `(발주 ${product.orderQuantity.toLocaleString('ko-KR')} · 기존 구매발주 ${product.coveredQuantity.toLocaleString('ko-KR')} · 구매발주 후 잔량 ${nextRemaining.toLocaleString('ko-KR')})`,
       )
       if (!ok) return
     }
@@ -110,7 +110,7 @@ export function MaterialOrderPartialPurchaseModal({
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">
             <h2 id="partial-purchase-title" className="text-lg font-bold text-slate-900">
-              발주
+              구매발주
             </h2>
             <p className="mt-1 font-mono text-sm font-semibold text-slate-700">{card.orderNumber}</p>
             <p className="mt-0.5 truncate text-sm text-slate-600">
@@ -131,13 +131,13 @@ export function MaterialOrderPartialPurchaseModal({
         <div className="border-b border-slate-100 px-5 py-4">
           <div className="grid gap-3 sm:grid-cols-4">
             <div className="rounded-lg bg-slate-50 px-3 py-2">
-              <p className="text-[11px] text-slate-500">주문 수량</p>
+              <p className="text-[11px] text-slate-500">발주 수량</p>
               <p className="mt-0.5 text-base font-bold tabular-nums text-slate-900">
                 {product.orderQuantity.toLocaleString('ko-KR')}
               </p>
             </div>
             <div className="rounded-lg bg-sky-50 px-3 py-2">
-              <p className="text-[11px] text-sky-700">발주</p>
+              <p className="text-[11px] text-sky-700">구매발주</p>
               <p className="mt-0.5 text-base font-bold tabular-nums text-sky-900">
                 {product.coveredQuantity.toLocaleString('ko-KR')}
               </p>
@@ -149,7 +149,7 @@ export function MaterialOrderPartialPurchaseModal({
               </p>
             </div>
             <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <span className="text-[11px] font-semibold text-slate-800">이번 발주 수량</span>
+              <span className="text-[11px] font-semibold text-slate-800">이번 구매발주 수량</span>
               <input
                 type="number"
                 min={1}
@@ -173,7 +173,7 @@ export function MaterialOrderPartialPurchaseModal({
           <div className="mb-2 flex items-center justify-between gap-2">
             <h3 className="text-sm font-bold text-slate-800">BOM 자재 소요 미리보기</h3>
             <p className="text-xs text-slate-500">
-              발주수량 부족 {shortageCount.toLocaleString('ko-KR')}종
+              구매발주수량 부족 {shortageCount.toLocaleString('ko-KR')}종
               {unregistered.length > 0
                 ? ` · 미등록 ${unregistered.length.toLocaleString('ko-KR')}종`
                 : ''}
@@ -183,7 +183,7 @@ export function MaterialOrderPartialPurchaseModal({
           {unregistered.length > 0 ? (
             <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">
               <p className="font-semibold">
-                품목등록에 없는 자재 {unregistered.length.toLocaleString('ko-KR')}종 — 발주할 수
+                품목등록에 없는 자재 {unregistered.length.toLocaleString('ko-KR')}종 — 구매발주할 수
                 없습니다
               </p>
               <p className="mt-1 break-all font-mono text-xs text-rose-700">
@@ -197,7 +197,7 @@ export function MaterialOrderPartialPurchaseModal({
 
           {!preview.length ? (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">
-              발주 수량을 입력하면 자재 소요가 표시됩니다.
+              구매발주 수량을 입력하면 자재 소요가 표시됩니다.
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -209,7 +209,7 @@ export function MaterialOrderPartialPurchaseModal({
                     <th className="px-3 py-2 text-left font-semibold text-slate-600">공급사</th>
                     <th className="px-3 py-2 text-right font-semibold text-slate-600">소요</th>
                     <th className="px-3 py-2 text-right font-semibold text-slate-600">현재고</th>
-                    <th className="px-3 py-2 text-right font-semibold text-slate-600">발주수량</th>
+                    <th className="px-3 py-2 text-right font-semibold text-slate-600">구매발주수량</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -260,8 +260,8 @@ export function MaterialOrderPartialPurchaseModal({
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4">
           <p className="text-xs text-slate-500">
             {unregistered.length > 0
-              ? '미등록 자재가 있으면 발주서를 만들 수 없습니다.'
-              : '발주서에는 이번 수량 기준 BOM 소요가 기본으로 들어갑니다. 현재고가 있으면 발주서에서 수량을 줄이면 됩니다.'}
+              ? '미등록 자재가 있으면 구매발주서를 만들 수 없습니다.'
+              : '구매발주서에는 이번 수량 기준 BOM 소요가 기본으로 들어갑니다. 현재고가 있으면 구매발주서에서 수량을 줄이면 됩니다.'}
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -277,7 +277,7 @@ export function MaterialOrderPartialPurchaseModal({
               disabled={!canCreateOrder}
               className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              발주서 작성
+              구매발주서 작성
             </button>
           </div>
         </div>

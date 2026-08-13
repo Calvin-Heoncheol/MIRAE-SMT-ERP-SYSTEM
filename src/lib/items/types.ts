@@ -76,7 +76,7 @@ export function isFinishedItemCategory(category: ItemCategory) {
   return category === 4
 }
 
-/** 반제품 PCB 면 — single=단면, duo=듀얼(단면과 동일), double=양면(TOP/BOT) */
+/** 반제품 PCB 면 — single=단면, duo=더블(단면과 동일 생산), double=양면(TOP/BOT) */
 export type ItemPcbSideMode = '' | 'single' | 'duo' | 'double'
 
 export const ITEM_PCB_SIDE_MODES = ['single', 'duo', 'double'] as const
@@ -85,7 +85,7 @@ export type ItemPcbSideModeValue = (typeof ITEM_PCB_SIDE_MODES)[number]
 
 export const ITEM_PCB_SIDE_MODE_LABELS: Record<ItemPcbSideModeValue, string> = {
   single: '단면',
-  duo: '듀얼',
+  duo: '더블',
   double: '양면',
 }
 
@@ -207,7 +207,7 @@ export const ITEM_COLUMN_LABELS = {
   materialType: '공정구분',
   supplyType: '도급/사급',
   supplier: '공급사',
-  pcbSideMode: '면 구분',
+  pcbSideMode: '면',
   processType: '공정구분',
   itemCategory: '품목구분',
   isActive: '사용여부',

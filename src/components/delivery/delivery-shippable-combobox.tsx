@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { DeliveryShippableOption } from '@/lib/delivery/register-form'
 import {
+  filterDeliveryShippableOptions,
   formatDeliveryShippableOptionLabel,
   formatDeliveryShippableOptionSubLabel,
 } from '@/lib/delivery/register-form'
@@ -29,24 +30,6 @@ type MenuPosition = {
 
 const MAX_OPTIONS = 12
 
-function filterOptions(options: DeliveryShippableOption[], query: string) {
-  const q = query.trim().toLowerCase()
-  if (!q) return options
-  return options.filter((option) => {
-    const haystack = [
-      option.productCode,
-      option.productName,
-      option.productVersion || '',
-      option.orderNumber,
-      option.customer,
-      option.assemblyGroupId,
-    ]
-      .join(' ')
-      .toLowerCase()
-    return haystack.includes(q)
-  })
-}
-
 export function DeliveryShippableCombobox({
   value,
   options,
@@ -67,7 +50,7 @@ export function DeliveryShippableCombobox({
   const [mounted, setMounted] = useState(false)
 
   const filtered = useMemo(
-    () => filterOptions(options, value).slice(0, MAX_OPTIONS),
+    () => filterDeliveryShippableOptions(options, value).slice(0, MAX_OPTIONS),
     [options, value],
   )
 
@@ -204,7 +187,11 @@ export function DeliveryShippableCombobox({
                   </li>
                 ))
               ) : (
-                <li className="px-3 py-2 text-sm text-slate-500">출하가능 품목이 없습니다</li>
+                <li className="px-3 py-2 text-sm text-slate-500">
+                  {options.length
+                    ? '검색 결과가 없습니다'
+                    : '출하가능 품목이 없습니다. 생산 실적이 있는 완제품·반제품만 표시됩니다.'}
+                </li>
               )}
             </ul>,
             document.body,

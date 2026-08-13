@@ -101,11 +101,11 @@ export function MaterialPurchaseOrdersListWorkspace({
   }
 
   function handleSaved(message?: string) {
-    afterSave(message ?? '자재 발주가 저장되었습니다.', { close: closeModal })
+    afterSave(message ?? '구매발주가 저장되었습니다.', { close: closeModal })
   }
 
   function handleDeleted(message?: string) {
-    afterDelete(message ?? '자재 발주가 삭제되었습니다.', { close: closeModal })
+    afterDelete(message ?? '구매발주가 삭제되었습니다.', { close: closeModal })
   }
 
   if (!result.ok) {
@@ -116,16 +116,15 @@ export function MaterialPurchaseOrdersListWorkspace({
     <>
       <PageShell>
         <div className="flex shrink-0 items-center justify-between gap-3">
-          <h1 className="text-base font-bold text-slate-900">발주서 목록</h1>
+          <h1 className="text-base font-bold text-slate-900">구매발주서 목록</h1>
         </div>
 
         <WorkspaceHeader
-          title="발주서 목록"
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="발주번호, 주문서, 공급사, 자재명, MPN 검색…"
+          searchPlaceholder="구매발주번호, 발주ID, 공급사, 자재명, MPN 검색…"
           accent="slate"
-          actions={<ErpButton onClick={openCreate}>새 자재 발주</ErpButton>}
+          actions={<ErpButton onClick={openCreate}>새 구매발주</ErpButton>}
           filters={
             <FilterChipBar
               options={statusChips}
@@ -139,7 +138,7 @@ export function MaterialPurchaseOrdersListWorkspace({
           orders={filtered}
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query) || statusFilter !== 'all',
-            emptyLabel: '등록된 발주서가 없습니다',
+            emptyLabel: '등록된 구매발주서가 없습니다',
             actionHint: '오른쪽 상단에서 등록하세요',
           })}
           onSelectOrder={openEdit}

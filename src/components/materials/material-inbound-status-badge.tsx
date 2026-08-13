@@ -61,7 +61,7 @@ export function MaterialInboundStatusBadge({
 }
 
 /**
- * SMT 생산계획용: 미발주 / 입고예정 N대분 / 입고완료 N대분
+ * SMT 생산계획용: 미구매발주 / 입고예정 N대분 / 입고완료 N대분
  * (생산가능 뱃지와 중복되지 않게 한 장으로 표기)
  */
 export function SmtPlanMaterialStatusBadge({

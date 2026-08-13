@@ -1,5 +1,6 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
+import { validatePartnerForm, type PartnerFormState } from './form-state'
 import type { BusinessPartner, BusinessPartnerPayload } from './types'
 import { mapBusinessPartnerRecord, toBusinessPartnerRow } from './utils'
 
@@ -35,7 +36,26 @@ function mapDuplicateError(detail: string) {
   ) {
     return '이미 등록된 사업자번호입니다.'
   }
+  if (detail.includes('payment_term') || detail.includes('payment_deposit') || detail.includes('payment_net') || detail.includes('payment_monthly')) {
+    return '결제조건 컬럼이 없습니다. supabase/migrate-partners-payment-terms.sql 을 실행해 주세요.'
+  }
   return detail
+}
+
+function validatePartnerPayload(payload: BusinessPartnerPayload) {
+  return validatePartnerForm({
+    businessRegNo: payload.businessRegNo,
+    name: payload.name,
+    representativeName: payload.representativeName,
+    businessType: payload.businessType,
+    address: payload.address,
+    phone: payload.phone,
+    tradeRole: payload.tradeRole,
+    paymentTermType: payload.paymentTermType,
+    paymentDepositPercent: String(payload.paymentDepositPercent || ''),
+    paymentNetDays: String(payload.paymentNetDays || ''),
+    paymentMonthlyDay: String(payload.paymentMonthlyDay || ''),
+  } satisfies PartnerFormState)
 }
 
 export async function fetchBusinessPartners(): Promise<FetchBusinessPartnersResult> {
@@ -68,7 +88,7 @@ export async function fetchBusinessPartners(): Promise<FetchBusinessPartnersResu
   }
 }
 
-/** 주문서 등 매출 거래처 선택용 — trade_role 이 sales 또는 both 인 거래처만 */
+/** 발주서 등 매출 거래처 선택용 — trade_role 이 sales 또는 both 인 거래처만 */
 export async function fetchSalesBusinessPartners(): Promise<FetchBusinessPartnersResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
@@ -168,8 +188,9 @@ export async function createBusinessPartner(
   const gate = await assertCanWrite({ module: 'master', action: 'create' })
   if (!gate.ok) return gate
 
-  if (!payload.name.trim()) {
-    return { ok: false, reason: 'validation', detail: '거래처명을 입력해 주세요.' }
+  const invalid = validatePartnerPayload(payload)
+  if (invalid) {
+    return { ok: false, reason: 'validation', detail: invalid }
   }
 
   try {
@@ -213,8 +234,9 @@ export async function updateBusinessPartner(
       detail: '거래처ID가 없습니다. Supabase에서 migrate-partners-internal-id.sql 을 실행해 주세요.',
     }
   }
-  if (!payload.name.trim()) {
-    return { ok: false, reason: 'validation', detail: '거래처명을 입력해 주세요.' }
+  const invalid = validatePartnerPayload(payload)
+  if (invalid) {
+    return { ok: false, reason: 'validation', detail: invalid }
   }
 
   try {

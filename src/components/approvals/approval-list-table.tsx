@@ -58,11 +58,11 @@ export function ApprovalListTable({
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 작성자
               </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                결재상태
-              </th>
               <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 합계(VAT포함)
+              </th>
+              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                결재상태
               </th>
             </tr>
           </thead>
@@ -87,11 +87,11 @@ export function ApprovalListTable({
                 ) : null}
                 <td className="px-3 py-2.5 text-sm text-slate-700">{approval.subject || '-'}</td>
                 <td className="px-3 py-2.5 text-sm text-slate-700">{approval.author || '-'}</td>
-                <td className="px-3 py-2.5 text-center">
-                  <SignoffStatusBadge label={getSignoffStatusLabel(approval.detailInfo.signoffs)} />
-                </td>
                 <td className="px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900">
                   {formatApprovalMoney(approval.totalAmount)}
+                </td>
+                <td className="px-3 py-2.5 text-center">
+                  <SignoffStatusBadge label={getSignoffStatusLabel(approval.detailInfo.signoffs)} />
                 </td>
               </tr>
             ))}

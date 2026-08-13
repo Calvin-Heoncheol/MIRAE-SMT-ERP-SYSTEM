@@ -73,7 +73,7 @@ export function validateMaterialPurchaseOrderItems(
     if (!matched) {
       return {
         ok: false as const,
-        message: `${index + 1}행(${item.materialCode}) 품목등록에 없는 자재입니다. 품목등록 후 다시 발주하세요.`,
+        message: `${index + 1}행(${item.materialCode}) 품목등록에 없는 자재입니다. 품목등록 후 다시 구매발주하세요.`,
       }
     }
 

@@ -13,6 +13,10 @@ create table if not exists public.orders (
   source_quote_id text references public.quotations(id) on delete set null,
   note text not null default '',
   customer_po_number text not null default '',
+  payment_term_type text not null default '' check (payment_term_type in ('', 'installment', 'net', 'monthly')),
+  payment_deposit_percent integer not null default 0,
+  payment_net_days integer not null default 0,
+  payment_monthly_day integer not null default 0,
   created_by uuid references auth.users (id) on delete set null,
   created_by_name text not null default '',
   created_at timestamptz not null default now(),
@@ -26,6 +30,7 @@ comment on column public.orders.id is '내부 발주ID — MRO-YYMMDD-NN 또는 
 comment on column public.orders.source_quote_id is '원본 견적 FK (quotations.id = MRQ-YYMMDD-NN)';
 comment on column public.orders.note is '주문서 비고';
 comment on column public.orders.customer_po_number is '발주번호(PO/NO) — 미입력 시 INSERT 때 발주ID(id)와 동일하게 자동 발급, 이후 수정 가능';
+comment on column public.orders.payment_term_type is '결제조건 스냅샷 — 견적 상속 또는 거래처 복사';
 comment on column public.orders.created_by is '등록자 auth.users.id';
 comment on column public.orders.created_by_name is '등록자 표시명 스냅샷';
 
@@ -181,6 +186,15 @@ alter table public.orders
   add column if not exists created_by_name text not null default '';
 alter table public.orders
   add column if not exists customer_po_number text not null default '';
+alter table public.orders
+  add column if not exists payment_term_type text not null default '',
+  add column if not exists payment_deposit_percent integer not null default 0,
+  add column if not exists payment_net_days integer not null default 0,
+  add column if not exists payment_monthly_day integer not null default 0;
+alter table public.orders drop constraint if exists orders_payment_term_type_check;
+alter table public.orders
+  add constraint orders_payment_term_type_check
+  check (payment_term_type in ('', 'installment', 'net', 'monthly'));
 create index if not exists orders_created_by_idx on public.orders (created_by);
 
 comment on column public.orders.id is '발주ID — MRO-YYMMDD-NN 자동 발급 (수정 불가, FK 기준키)';

@@ -73,7 +73,7 @@ export function MaterialPurchaseNeedDetailModal({
     if (!onDelete || deleting) return
     if (
       !window.confirm(
-        `${card.orderNumber} 주문서 카드를 삭제할까요?\n\n자재 발주 화면에서만 삭제되며, 고객 주문·재고·기존 발주 데이터는 그대로 유지됩니다.`,
+        `${card.orderNumber} 발주서 카드를 삭제할까요?\n\n구매발주 화면에서만 삭제되며, 고객 발주·재고·기존 구매발주 데이터는 그대로 유지됩니다.`,
       )
     ) {
       return
@@ -94,7 +94,7 @@ export function MaterialPurchaseNeedDetailModal({
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">
             <h2 id="purchase-need-detail-title" className="text-lg font-bold text-slate-900">
-              발주 필요 자재
+              구매발주 필요 자재
             </h2>
             <p className="mt-1 font-mono text-sm font-semibold text-slate-700">{card.orderNumber}</p>
             <p className="mt-0.5 text-sm text-slate-600">
@@ -247,7 +247,7 @@ export function MaterialPurchaseNeedDetailModal({
                 onClick={() => onCreateShortageOrder(card)}
                 className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900"
               >
-                부족분 발주
+                부족분 구매발주
               </button>
             ) : null}
           </div>

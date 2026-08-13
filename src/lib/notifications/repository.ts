@@ -42,7 +42,7 @@ const SOURCES: ActivitySource[] = [
       if (!id) return null
       const customer = String(row.customer || '').trim() || '—'
       return {
-        title: '주문서 등록',
+        title: '발주서 등록',
         detail: `${id} · ${customer}`,
       }
     },
@@ -91,7 +91,7 @@ const SOURCES: ActivitySource[] = [
       if (!id) return null
       const supplier = String(row.supplier || '').trim() || '—'
       return {
-        title: '발주서 등록',
+        title: '구매발주서 등록',
         detail: `${id} · ${supplier}`,
       }
     },

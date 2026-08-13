@@ -14,7 +14,7 @@ type MaterialPurchaseOrderItemsFormProps = {
   materials: Material[]
   /** 신규 행·빈 납기에 채울 기본 납기 (YYYY-MM-DD) */
   defaultDeliveryDate?: string
-  /** 주문서/제안에서 시드된 신규 발주 — 자재코드·수량·단가 잠금 */
+  /** 발주서/제안에서 시드된 신규 구매발주 — 자재코드·수량·단가 잠금 */
   lockSeededFields?: boolean
   onChange: Dispatch<SetStateAction<MaterialPurchaseOrderItemForm[]>>
   onSupplierSuggest?: (supplier: string) => void
@@ -115,7 +115,7 @@ export function MaterialPurchaseOrderItemsForm({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-bold text-slate-900">발주 품목</h3>
+        <h3 className="text-sm font-bold text-slate-900">구매발주 품목</h3>
         {!lockSeededFields ? <ErpRowAddButton onClick={addRow} title="행 추가" /> : null}
       </div>
 

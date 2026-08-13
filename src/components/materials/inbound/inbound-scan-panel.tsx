@@ -7,9 +7,10 @@ import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { computeDirectInboundQuantity } from '@/lib/materials/inbound/form-state'
 import { createMaterialInbound } from '@/lib/materials/inbound/repository'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
-import type { Material } from '@/lib/materials/types'
-import { resolveMaterialByInventoryCode } from '@/lib/materials/utils'
+import type { Material, MaterialSupplyType, MaterialType } from '@/lib/materials/types'
+import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
+import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 import { useToast } from '@/components/ui/toast-provider'
 
 type InboundScanPanelProps = {
@@ -19,7 +20,7 @@ type InboundScanPanelProps = {
   onMaterialsChanged: () => void
 }
 
-/** 자재별 미입고 발주 라인 (납기 빠른 순) */
+/** 자재별 미입고 구매발주 라인 (납기 빠른 순) */
 type OpenPoLine = {
   orderId: string
   orderNumber: string
@@ -33,25 +34,18 @@ type OpenPoLine = {
 type ScanLine = {
   key: string
   materialId: string
+  materialCode: string
   materialName: string
+  materialType: MaterialType
+  package: string
   specification: string
   mpn: string
+  supplyType: MaterialSupplyType
   quantityPerReel: string
   reelCount: string
   quantity: string
-  /** null이면 발주 미연결 → 사급 입고로 저장 */
+  /** null이면 구매발주 미연결 → 사급 입고로 저장 */
   poLine: OpenPoLine | null
-}
-
-type DraftState = {
-  line: ScanLine
-  /** 목록의 기존 라인을 수정 중이면 그 key */
-  editingKey: string | null
-  /**
-   * 미입고 발주가 있을 때 발주/사급을 한 번 고르기 전에는 false.
-   * (같은 MPN이 사급으로 와도 열려 있는 발주에 자동 붙지 않게)
-   */
-  inboundChoiceConfirmed: boolean
 }
 
 function buildOpenPoLinesByMaterial(orders: MaterialPurchaseOrderListGroup[]) {
@@ -93,6 +87,11 @@ function createLineKey() {
   return `scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+function cell(value: string) {
+  const trimmed = value.trim()
+  return trimmed || '-'
+}
+
 export function InboundScanPanel({
   materials,
   purchaseOrders,
@@ -102,23 +101,25 @@ export function InboundScanPanel({
   const toast = useToast()
   const [scanCode, setScanCode] = useState('')
   const [lines, setLines] = useState<ScanLine[]>([])
-  const [draft, setDraft] = useState<DraftState | null>(null)
   const [unmatchedScanCode, setUnmatchedScanCode] = useState<string | null>(null)
   const [pendingRetryCode, setPendingRetryCode] = useState<string | null>(null)
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const [inboundDate, setInboundDate] = useState(() => todayYmdSeoul())
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const [lastScannedKey, setLastScannedKey] = useState<string | null>(null)
+  const [scanPulse, setScanPulse] = useState<{ kind: 'success' | 'error'; token: number } | null>(
+    null,
+  )
 
   const scanInputRef = useRef<HTMLInputElement>(null)
-  const perReelInputRef = useRef<HTMLInputElement>(null)
+  const tableScrollRef = useRef<HTMLDivElement>(null)
 
   const openPoLinesByMaterial = useMemo(
     () => buildOpenPoLinesByMaterial(purchaseOrders),
     [purchaseOrders],
   )
 
-  /** 발주 라인별로 이미 목록에 잡아둔 수량 (잔량 초과 방지용) */
   function reservedQuantityByPoLine(excludeKey?: string | null) {
     const reserved = new Map<string, number>()
     for (const line of lines) {
@@ -133,98 +134,55 @@ export function InboundScanPanel({
   }
 
   function focusScanInput() {
-    window.setTimeout(() => scanInputRef.current?.focus(), 0)
+    window.setTimeout(() => {
+      scanInputRef.current?.focus()
+      scanInputRef.current?.select()
+    }, 0)
   }
 
-  function openDraftForMaterial(material: Material) {
+  function focusQuantityInput(key: string) {
+    window.setTimeout(() => {
+      const input = tableScrollRef.current?.querySelector<HTMLInputElement>(
+        `[data-qty-input="${key}"]`,
+      )
+      if (!input) return
+      input.focus()
+      input.select()
+    }, 50)
+  }
+
+  function triggerScanPulse(kind: 'success' | 'error') {
+    setScanPulse(null)
+    window.requestAnimationFrame(() => {
+      setScanPulse({ kind, token: Date.now() })
+    })
+  }
+
+  function markJustScanned(key: string) {
+    setLastScannedKey(key)
+    triggerScanPulse('success')
+    window.setTimeout(() => {
+      const row = tableScrollRef.current?.querySelector<HTMLElement>(`[data-scan-key="${key}"]`)
+      row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      focusQuantityInput(key)
+    }, 40)
+  }
+
+  function resolvePoLine(material: Material, excludeKey?: string | null): OpenPoLine | null {
+    if (material.supplyType === '사급') return null
     const candidates = openPoLinesByMaterial.get(material.id) ?? []
-    const reserved = reservedQuantityByPoLine()
-    const hasOpenPo = candidates.some(
-      (candidate) => candidate.remaining - (reserved.get(candidate.lineId) ?? 0) > 0,
-    )
-
-    // 같은 자재를 이미 등록했으면 릴당 수량을 이어받아 입력을 줄인다
-    const previousLine = [...lines].reverse().find((line) => line.materialId === material.id)
-
-    setDraft({
-      editingKey: null,
-      // 열린 발주가 있으면 자동 매칭하지 않고 발주/사급을 고르게 함
-      inboundChoiceConfirmed: !hasOpenPo,
-      line: {
-        key: createLineKey(),
-        materialId: material.id,
-        materialName: material.materialName,
-        specification: material.specification,
-        mpn: material.mpn,
-        quantityPerReel: previousLine?.quantityPerReel || '',
-        reelCount: '1',
-        quantity: computeDirectInboundQuantity(previousLine?.quantityPerReel || '0', '1'),
-        poLine: null,
-      },
-    })
-    setMessage({
-      tone: 'success',
-      text: hasOpenPo
-        ? `${material.id} · ${material.materialName} — 미입고 발주가 있습니다. 발주 입고 / 사급을 선택해 주세요.`
-        : `${material.id} · ${material.materialName} — 미입고 발주 없음 (사급 입고로 등록됩니다)`,
-    })
-    if (!hasOpenPo) {
-      window.setTimeout(() => perReelInputRef.current?.focus(), 0)
-    }
-  }
-
-  function choosePurchaseInbound() {
-    if (!draft) return
-    const candidates = openPoLinesByMaterial.get(draft.line.materialId) ?? []
-    const reserved = reservedQuantityByPoLine(draft.editingKey)
-    const firstAvailable =
+    const reserved = reservedQuantityByPoLine(excludeKey)
+    return (
       candidates.find(
         (candidate) => candidate.remaining - (reserved.get(candidate.lineId) ?? 0) > 0,
-      ) ??
-      candidates[0] ??
-      null
-    setDraft({
-      ...draft,
-      inboundChoiceConfirmed: true,
-      line: { ...draft.line, poLine: firstAvailable },
-    })
-    window.setTimeout(() => perReelInputRef.current?.focus(), 0)
-  }
-
-  function chooseSuppliedInbound() {
-    if (!draft) return
-    setDraft({
-      ...draft,
-      inboundChoiceConfirmed: true,
-      line: { ...draft.line, poLine: null },
-    })
-    window.setTimeout(() => perReelInputRef.current?.focus(), 0)
-  }
-
-  function handleScan(rawCode: string) {
-    const code = rawCode.trim()
-    if (!code) {
-      setMessage({ tone: 'error', text: '바코드를 스캔하거나 자재코드·MPN을 입력해 주세요.' })
-      return
-    }
-
-    const material = resolveMaterialByInventoryCode(materials, code)
-    if (!material) {
-      setMessage({ tone: 'error', text: `"${code}" 와 일치하는 자재를 찾지 못했습니다.` })
-      setUnmatchedScanCode(code)
-      setDraft(null)
-      setScanCode('')
-      return
-    }
-
-    setUnmatchedScanCode(null)
-    setScanCode('')
-
-    // 같은 자재가 이미 목록에 있으면 릴 +1 (같은 릴을 연속 스캔하는 빠른 흐름)
-    const existing = lines.find(
-      (line) => line.materialId === material.id && Number(line.quantityPerReel) > 0,
+      ) ?? null
     )
-    if (existing && !draft) {
+  }
+
+  function addMaterialToList(material: Material) {
+    const displayCode = formatMaterialDisplayCode(material)
+    const existing = lines.find((line) => line.materialId === material.id)
+    if (existing) {
       const nextReels = (Number(existing.reelCount) || 0) + 1
       setLines((current) =>
         current.map((line) =>
@@ -237,25 +195,67 @@ export function InboundScanPanel({
             : line,
         ),
       )
-      setMessage({
-        tone: 'success',
-        text: `${material.materialName} 릴 +1 (총 ${nextReels.toLocaleString('ko-KR')}릴)`,
-      })
-      focusScanInput()
+      setMessage(null)
+      markJustScanned(existing.key)
       return
     }
 
-    openDraftForMaterial(material)
+    const quantityPerReel = ''
+    const reelCount = '1'
+    const poLine = resolvePoLine(material)
+    const key = createLineKey()
+
+    setLines((current) => [
+      {
+        key,
+        materialId: material.id,
+        materialCode: displayCode,
+        materialName: material.materialName,
+        materialType: material.type,
+        package: material.package,
+        specification: material.specification,
+        mpn: material.mpn,
+        supplyType: material.supplyType,
+        quantityPerReel,
+        reelCount,
+        quantity: computeDirectInboundQuantity(quantityPerReel || '0', reelCount),
+        poLine,
+      },
+      ...current,
+    ])
+    setMessage(null)
+    markJustScanned(key)
   }
 
-  // 미등록 바코드를 대체 MPN으로 등록한 뒤 materials가 갱신되면 자동 재시도
+  function handleScan(rawCode: string) {
+    const code = rawCode.trim()
+    if (!code) {
+      setMessage({ tone: 'error', text: '바코드를 스캔하거나 품목코드·MPN을 입력해 주세요.' })
+      triggerScanPulse('error')
+      return
+    }
+
+    const material = resolveMaterialByInventoryCode(materials, code)
+    if (!material) {
+      setMessage({ tone: 'error', text: `"${code}" 와 일치하는 자재를 찾지 못했습니다.` })
+      setUnmatchedScanCode(code)
+      setScanCode('')
+      triggerScanPulse('error')
+      return
+    }
+
+    setUnmatchedScanCode(null)
+    setScanCode('')
+    addMaterialToList(material)
+  }
+
   useEffect(() => {
     if (!pendingRetryCode) return
     const material = resolveMaterialByInventoryCode(materials, pendingRetryCode)
     if (!material) return
     setPendingRetryCode(null)
     setUnmatchedScanCode(null)
-    openDraftForMaterial(material)
+    addMaterialToList(material)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materials, pendingRetryCode])
 
@@ -265,107 +265,64 @@ export function InboundScanPanel({
     handleScan(scanCode)
   }
 
-  function patchDraft(patch: Partial<ScanLine>) {
-    setDraft((current) => {
-      if (!current) return current
-      const next = { ...current.line, ...patch }
-      if ('quantityPerReel' in patch || 'reelCount' in patch) {
-        next.quantity = computeDirectInboundQuantity(next.quantityPerReel, next.reelCount)
-      }
-      return { ...current, line: next }
-    })
-  }
-
-  function commitDraft() {
-    if (!draft) return
-    const { line, editingKey } = draft
-    const candidates = openPoLinesByMaterial.get(line.materialId) ?? []
-    if (candidates.length > 0 && !draft.inboundChoiceConfirmed) {
-      setMessage({
-        tone: 'error',
-        text: '미입고 발주가 있습니다. 발주 입고인지 사급인지 먼저 선택해 주세요.',
-      })
+  function handleQuantityKeyDown(event: KeyboardEvent<HTMLInputElement>, key: string) {
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    const qty = Number(event.currentTarget.value) || 0
+    if (qty <= 0) {
+      setMessage({ tone: 'error', text: '수량을 입력해 주세요.' })
+      event.currentTarget.focus()
+      event.currentTarget.select()
       return
     }
-
-    const perReel = Math.max(0, Number(line.quantityPerReel) || 0)
-    const reels = Math.max(0, Number(line.reelCount) || 0)
-    const quantity = perReel * reels
-    if (perReel <= 0) {
-      setMessage({ tone: 'error', text: '릴당 수량을 입력해 주세요.' })
-      perReelInputRef.current?.focus()
-      return
-    }
-    if (reels <= 0) {
-      setMessage({ tone: 'error', text: '릴 개수를 입력해 주세요.' })
-      return
-    }
-
-    if (line.poLine) {
-      const reserved = reservedQuantityByPoLine(editingKey)
-      const available = line.poLine.remaining - (reserved.get(line.poLine.lineId) ?? 0)
-      if (quantity > available) {
-        setMessage({
-          tone: 'error',
-          text: `입고 수량이 발주 잔량을 초과합니다. (${line.poLine.orderNumber} 잔량 ${Math.max(0, available).toLocaleString('ko-KR')}개)`,
-        })
-        return
-      }
-    }
-
-    const committed: ScanLine = { ...line, quantity: String(quantity) }
-    setLines((current) => {
-      if (editingKey) {
-        return current.map((item) => (item.key === editingKey ? committed : item))
-      }
-      return [committed, ...current]
-    })
-    setDraft(null)
-    setMessage({
-      tone: 'success',
-      text: `${line.materialName} · ${quantity.toLocaleString('ko-KR')}개 (${reels.toLocaleString('ko-KR')}릴) ${editingKey ? '수정됨' : '추가됨'}`,
-    })
+    setMessage(null)
+    setLastScannedKey((current) => (current === key ? null : current))
     focusScanInput()
   }
 
-  function handleDraftKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key !== 'Enter') return
-    event.preventDefault()
-    commitDraft()
-  }
-
-  function editLine(line: ScanLine) {
-    setUnmatchedScanCode(null)
-    setDraft({ editingKey: line.key, line: { ...line }, inboundChoiceConfirmed: true })
-    window.setTimeout(() => perReelInputRef.current?.focus(), 0)
+  function patchLine(key: string, patch: Partial<Pick<ScanLine, 'quantityPerReel' | 'reelCount'>>) {
+    setLines((current) =>
+      current.map((line) => {
+        if (line.key !== key) return line
+        const next = { ...line, ...patch }
+        next.quantity = computeDirectInboundQuantity(next.quantityPerReel, next.reelCount)
+        return next
+      }),
+    )
   }
 
   function removeLine(key: string) {
     setLines((current) => current.filter((line) => line.key !== key))
-    setDraft((current) => (current?.editingKey === key ? null : current))
-  }
-
-  function changeDraftPoLine(lineId: string) {
-    if (!draft) return
-    if (!lineId) {
-      setDraft({
-        ...draft,
-        inboundChoiceConfirmed: true,
-        line: { ...draft.line, poLine: null },
-      })
-      return
-    }
-    const candidates = openPoLinesByMaterial.get(draft.line.materialId) ?? []
-    const next = candidates.find((candidate) => candidate.lineId === lineId) ?? null
-    setDraft({
-      ...draft,
-      inboundChoiceConfirmed: true,
-      line: { ...draft.line, poLine: next },
-    })
+    setLastScannedKey((current) => (current === key ? null : current))
   }
 
   async function handleSaveAll() {
     if (!lines.length || saving) return
+
+    const invalid = lines.find(
+      (line) => (Number(line.quantityPerReel) || 0) <= 0 || (Number(line.reelCount) || 0) <= 0,
+    )
+    if (invalid) {
+      setMessage({
+        tone: 'error',
+        text: `${invalid.materialCode || invalid.materialName} — 릴과 수량을 입력해 주세요.`,
+      })
+      return
+    }
+
+    for (const line of lines) {
+      if (!line.poLine) continue
+      const reserved = reservedQuantityByPoLine(line.key)
+      const available = line.poLine.remaining - (reserved.get(line.poLine.lineId) ?? 0)
+      const quantity = Number(line.quantity) || 0
+      if (quantity > available) {
+        setMessage({
+          tone: 'error',
+          text: `입고 수량이 구매발주 잔량을 초과합니다. (${line.poLine.orderNumber} 잔량 ${Math.max(0, available).toLocaleString('ko-KR')}개)`,
+        })
+        return
+      }
+    }
 
     const purchaseGroups = new Map<string, ScanLine[]>()
     const suppliedLines: ScanLine[] = []
@@ -446,37 +403,73 @@ export function InboundScanPanel({
 
   const totalQuantity = lines.reduce((sum, line) => sum + (Number(line.quantity) || 0), 0)
   const labelPrintItems = lines.map((line) => ({
-    id: line.materialId,
+    id: line.materialCode || line.materialId,
     materialName: line.materialName,
     mpn: line.mpn,
     copies: Math.max(1, Number(line.reelCount) || 1),
   }))
 
-  const draftCandidates = draft ? (openPoLinesByMaterial.get(draft.line.materialId) ?? []) : []
-  const draftReserved = draft ? reservedQuantityByPoLine(draft.editingKey) : new Map<string, number>()
-
   const inputClassName =
-    'w-full min-w-0 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
+    'h-8 w-full min-w-0 rounded-md border border-slate-200 px-2 text-right text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
 
   return (
-    <div className="grid min-h-[min(70vh,720px)] items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)]">
-      {/* 왼쪽: 스캔 + 입고 목록 */}
-      <section className="flex min-h-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex min-h-[min(70vh,720px)] flex-col">
+      <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-bold text-slate-800">바코드 스캔</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                스캔 후 수량을 입력하고 Enter 하면 다음 바코드를 찍을 수 있습니다.
+              </p>
+            </div>
+            <span
+              className={[
+                'rounded-full px-2.5 py-1 text-xs font-semibold',
+                scanPulse?.kind === 'error' || message?.tone === 'error'
+                  ? 'bg-rose-100 text-rose-800'
+                  : lastScannedKey
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-slate-200 text-slate-600',
+              ].join(' ')}
+            >
+              {scanPulse?.kind === 'error' || message?.tone === 'error'
+                ? '미인식'
+                : lastScannedKey
+                  ? '인식됨'
+                  : '스캔 대기'}
+            </span>
+          </div>
           <label className="block">
-            <span className="mb-1 block text-sm font-bold text-slate-800">바코드 스캔</span>
-            <input
-              ref={scanInputRef}
-              value={scanCode}
-              onChange={(event) => setScanCode(event.target.value)}
-              onKeyDown={handleScanKeyDown}
-              placeholder="릴 바코드 스캔 또는 자재코드·MPN 입력 후 Enter"
-              autoFocus
-              className="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 font-mono text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-            />
+            <span className="sr-only">바코드 스캔</span>
+            <div
+              className={[
+                'rounded-xl',
+                scanPulse?.kind === 'success' ? 'erp-scan-flash-ok' : '',
+                scanPulse?.kind === 'error' ? 'erp-scan-flash-err' : '',
+              ].join(' ')}
+            >
+              <input
+                ref={scanInputRef}
+                value={scanCode}
+                onChange={(event) => setScanCode(event.target.value)}
+                onKeyDown={handleScanKeyDown}
+                placeholder="릴 바코드 스캔 또는 품목코드·MPN 입력 후 Enter"
+                autoFocus
+                className={[
+                  'h-12 w-full rounded-xl border bg-white px-3 font-mono text-sm outline-none transition',
+                  scanPulse?.kind === 'error'
+                    ? 'border-rose-400 focus:border-rose-500'
+                    : scanPulse?.kind === 'success'
+                      ? 'border-emerald-500 focus:border-emerald-500'
+                      : 'border-slate-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100',
+                ].join(' ')}
+              />
+            </div>
           </label>
           {message ? (
             <p
+              aria-live="polite"
               className={[
                 'mt-2 rounded-lg px-3 py-2 text-sm',
                 message.tone === 'success'
@@ -487,15 +480,33 @@ export function InboundScanPanel({
               {message.text}
             </p>
           ) : null}
+          {unmatchedScanCode ? (
+            <div className="mt-3">
+              <MaterialBarcodeRegisterPanel
+                materials={materials}
+                suggestedBarcode={unmatchedScanCode}
+                onRegistered={() => {
+                  setPendingRetryCode(unmatchedScanCode)
+                  onMaterialsChanged()
+                }}
+              />
+            </div>
+          ) : null}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
+        <div ref={tableScrollRef} className="min-h-0 flex-1 overflow-auto">
+          <table className="w-full min-w-[1180px] border-collapse text-sm">
             <thead className="sticky top-0 bg-slate-50">
               <tr>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">자재</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">발주</th>
-                <th className="px-3 py-2 text-right font-semibold text-slate-600">릴당 × 릴</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">품목코드</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">품목명</th>
+                <th className="px-3 py-2 text-center font-semibold text-slate-600">공정구분</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">패키지</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">사양</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">MPN</th>
+                <th className="px-3 py-2 text-center font-semibold text-slate-600">도급/사급</th>
+                <th className="px-3 py-2 text-right font-semibold text-slate-600">릴</th>
+                <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
                 <th className="px-3 py-2 text-right font-semibold text-slate-600">입고수량</th>
                 <th className="w-10 px-2 py-2" />
               </tr>
@@ -503,50 +514,78 @@ export function InboundScanPanel({
             <tbody>
               {lines.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-16 text-center text-sm text-slate-500">
-                    스캔한 자재가 여기에 쌓입니다. 같은 자재를 다시 스캔하면 릴 개수가 +1 됩니다.
+                  <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-500">
+                    스캔한 자재가 바로 여기에 쌓입니다. 같은 자재를 다시 스캔하면 릴 개수가 +1 됩니다.
                   </td>
                 </tr>
               ) : (
-                lines.map((line) => (
+                lines.map((line) => {
+                  const isLatest = line.key === lastScannedKey
+                  return (
                   <tr
                     key={line.key}
-                    onClick={() => editLine(line)}
+                    data-scan-key={line.key}
                     className={[
-                      'cursor-pointer border-t border-slate-100 transition hover:bg-slate-50/80',
-                      draft?.editingKey === line.key ? 'bg-slate-100' : '',
+                      'border-t',
+                      isLatest
+                        ? 'erp-scan-row-latest border-emerald-200 bg-emerald-50 ring-1 ring-inset ring-emerald-300'
+                        : 'border-slate-100',
                     ].join(' ')}
                   >
-                    <td className="px-3 py-2">
-                      <p className="font-medium text-slate-800">{line.materialName}</p>
-                      <p className="font-mono text-xs text-slate-500">
-                        {line.materialId}
-                        {line.mpn ? ` · ${line.mpn}` : ''}
-                      </p>
+                    <td className={`px-3 py-2 font-mono text-sm font-semibold ${isLatest ? 'text-emerald-900' : 'text-slate-800'} ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                      {cell(line.materialCode || line.materialId)}
                     </td>
-                    <td className="px-3 py-2">
-                      {line.poLine ? (
-                        <span className="font-mono text-xs text-slate-700">{line.poLine.orderNumber}</span>
-                      ) : (
-                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                          사급
-                        </span>
-                      )}
+                    <td className={`px-3 py-2 text-sm font-medium text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                      {cell(line.materialName)}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-slate-700">
-                      {Number(line.quantityPerReel).toLocaleString('ko-KR')} ×{' '}
-                      {Number(line.reelCount).toLocaleString('ko-KR')}
+                    <td className="whitespace-nowrap px-3 py-2 text-center text-sm text-slate-700">
+                      {cell(line.materialType)}
                     </td>
-                    <td className="px-3 py-2 text-right font-semibold tabular-nums text-slate-900">
-                      {Number(line.quantity).toLocaleString('ko-KR')}
+                    <td className={`px-3 py-2 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                      {cell(line.package)}
+                    </td>
+                    <td className={`px-3 py-2 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                      {cell(line.specification)}
+                    </td>
+                    <td className={`px-3 py-2 font-mono text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                      {cell(line.mpn)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-center text-sm text-slate-700">
+                      {cell(line.supplyType)}
+                    </td>
+                    <td className="w-[88px] px-2 py-2">
+                      <QuoteNumericInput
+                        min={0}
+                        value={line.reelCount}
+                        onChange={(reelCount) => patchLine(line.key, { reelCount })}
+                        className={inputClassName}
+                      />
+                    </td>
+                    <td className="w-[96px] px-2 py-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        data-qty-input={line.key}
+                        value={line.quantityPerReel}
+                        onChange={(event) =>
+                          patchLine(line.key, {
+                            quantityPerReel: event.target.value.replace(/[^\d.]/g, ''),
+                          })
+                        }
+                        onKeyDown={(event) => handleQuantityKeyDown(event, line.key)}
+                        className={[
+                          inputClassName,
+                          isLatest ? 'border-emerald-400 ring-2 ring-emerald-200' : '',
+                        ].join(' ')}
+                      />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-slate-900">
+                      {(Number(line.quantity) || 0).toLocaleString('ko-KR')}
                     </td>
                     <td className="w-10 px-2 py-2 text-center">
                       <button
                         type="button"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          removeLine(line.key)
-                        }}
+                        onClick={() => removeLine(line.key)}
                         className="mx-auto flex h-7 w-7 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600"
                         aria-label="라인 삭제"
                       >
@@ -554,7 +593,8 @@ export function InboundScanPanel({
                       </button>
                     </td>
                   </tr>
-                ))
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -598,177 +638,6 @@ export function InboundScanPanel({
           </div>
         </div>
       </section>
-
-      {/* 오른쪽: 스캔 상세 / 미등록 바코드 등록 */}
-      <aside className="space-y-3 xl:sticky xl:top-4">
-        {unmatchedScanCode ? (
-          <MaterialBarcodeRegisterPanel
-            materials={materials}
-            suggestedBarcode={unmatchedScanCode}
-            onRegistered={() => {
-              setPendingRetryCode(unmatchedScanCode)
-              onMaterialsChanged()
-            }}
-          />
-        ) : draft ? (
-          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3">
-              <h3 className="text-sm font-bold text-slate-900">
-                {draft.editingKey ? '라인 수정' : '스캔 자재'}
-              </h3>
-              <p className="mt-1 font-mono text-xs text-slate-500">{draft.line.materialId}</p>
-            </div>
-
-            <div className="space-y-3 px-4 py-4">
-              <div className="text-sm">
-                <p className="font-semibold text-slate-900">{draft.line.materialName}</p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {[draft.line.specification, draft.line.mpn].filter(Boolean).join(' · ') || '—'}
-                </p>
-              </div>
-
-              {draftCandidates.length > 0 && !draft.inboundChoiceConfirmed ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
-                  <p className="text-sm font-semibold text-amber-950">
-                    같은 자재의 미입고 발주가 {draftCandidates.length.toLocaleString('ko-KR')}건
-                    있습니다.
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-amber-800">
-                    고객 사급으로 받은 건지, 우리 발주 입고인지 선택해 주세요. (같은 MPN이 둘 다
-                    있을 수 있습니다)
-                  </p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={choosePurchaseInbound}
-                      className="rounded-lg bg-slate-800 px-3 py-2.5 text-sm font-semibold text-white hover:bg-slate-900"
-                    >
-                      발주 입고
-                    </button>
-                    <button
-                      type="button"
-                      onClick={chooseSuppliedInbound}
-                      className="rounded-lg border border-amber-300 bg-white px-3 py-2.5 text-sm font-semibold text-amber-900 hover:bg-amber-100/60"
-                    >
-                      사급 입고
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <label className="block text-sm">
-                    <span className="mb-1 block font-medium text-slate-600">발주 연결</span>
-                    <select
-                      value={draft.line.poLine?.lineId || ''}
-                      onChange={(event) => changeDraftPoLine(event.target.value)}
-                      className={inputClassName}
-                    >
-                      <option value="">발주 미연결 (사급 입고)</option>
-                      {draftCandidates.map((candidate) => {
-                        const available =
-                          candidate.remaining - (draftReserved.get(candidate.lineId) ?? 0)
-                        return (
-                          <option key={candidate.lineId} value={candidate.lineId}>
-                            {candidate.orderNumber} · 잔량{' '}
-                            {Math.max(0, available).toLocaleString('ko-KR')}
-                            {candidate.deliveryDate ? ` · 예정 ${candidate.deliveryDate}` : ''}
-                          </option>
-                        )
-                      })}
-                    </select>
-                    {draft.line.poLine ? (
-                      <p className="mt-1 text-xs text-slate-500">
-                        {draft.line.poLine.supplier || '공급업체 미입력'} · 발주 잔량{' '}
-                        {Math.max(
-                          0,
-                          draft.line.poLine.remaining -
-                            (draftReserved.get(draft.line.poLine.lineId) ?? 0),
-                        ).toLocaleString('ko-KR')}
-                        개
-                      </p>
-                    ) : draftCandidates.length > 0 ? (
-                      <p className="mt-1 text-xs text-amber-700">
-                        사급 입고로 저장됩니다. (발주가 있어도 사급을 선택함)
-                      </p>
-                    ) : (
-                      <p className="mt-1 text-xs text-amber-700">
-                        미입고 발주가 없어 사급 입고로 저장됩니다.
-                      </p>
-                    )}
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="block text-sm">
-                      <span className="mb-1 block font-medium text-slate-600">릴당 수량</span>
-                      <input
-                        ref={perReelInputRef}
-                        type="text"
-                        inputMode="numeric"
-                        value={draft.line.quantityPerReel}
-                        onChange={(event) =>
-                          patchDraft({
-                            quantityPerReel: event.target.value.replace(/[^\d.]/g, ''),
-                          })
-                        }
-                        onKeyDown={handleDraftKeyDown}
-                        className={`${inputClassName} text-right`}
-                      />
-                    </label>
-                    <label className="block text-sm">
-                      <span className="mb-1 block font-medium text-slate-600">릴 개수</span>
-                      <QuoteNumericInput
-                        min={0}
-                        value={draft.line.reelCount}
-                        onChange={(reelCount) => patchDraft({ reelCount })}
-                        onKeyDown={handleDraftKeyDown}
-                        className={`${inputClassName} text-right`}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
-                    <span className="text-slate-600">입고수량</span>
-                    <span className="text-base font-bold tabular-nums text-slate-900">
-                      {(Number(draft.line.quantity) || 0).toLocaleString('ko-KR')}개
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="flex items-center justify-end gap-2 border-t border-slate-200 bg-slate-50/70 px-4 py-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setDraft(null)
-                  focusScanInput()
-                }}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                취소
-              </button>
-              {draft.inboundChoiceConfirmed ? (
-                <button
-                  type="button"
-                  onClick={commitDraft}
-                  className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900"
-                >
-                  {draft.editingKey ? '수정 반영' : '목록에 추가'}
-                </button>
-              ) : null}
-            </div>
-          </section>
-        ) : (
-          <section className="rounded-2xl border border-dashed border-slate-300 bg-white/80 px-5 py-10 text-center">
-            <p className="text-sm font-semibold text-slate-700">바코드를 스캔하세요</p>
-            <p className="mt-2 text-sm text-slate-500">
-              스캔하면 자재 정보와 매칭된 발주가 여기에 표시됩니다.
-              <br />
-              릴당 수량과 릴 개수를 입력하고 Enter로 목록에 추가하세요.
-            </p>
-          </section>
-        )}
-      </aside>
     </div>
   )
 }

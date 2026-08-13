@@ -36,7 +36,7 @@ export function OrdersListWorkspace({
 }: OrdersListWorkspaceProps) {
   const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
-  /** KPI 카드로 진입했을 때만 오늘 주문일 필터 (칩 UI 없음) */
+  /** KPI 카드로 진입했을 때만 오늘 발주일 필터 (칩 UI 없음) */
   const [kpiTodayOnly] = useState(initialFilter === 'today')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
@@ -69,17 +69,17 @@ export function OrdersListWorkspace({
   }
 
   function handleSaved(message?: string) {
-    afterSave(message ?? '주문서가 저장되었습니다.', { close: closeModal })
+    afterSave(message ?? '발주서가 저장되었습니다.', { close: closeModal })
   }
 
   function handleDeleted(message?: string) {
-    afterDelete(message ?? '주문서가 삭제되었습니다.', { close: closeModal })
+    afterDelete(message ?? '발주서가 삭제되었습니다.', { close: closeModal })
   }
 
   async function handleExcelDownload() {
     await downloadExcel({
-      fileName: '주문서',
-      sheetName: '주문서',
+      fileName: '발주서',
+      sheetName: '발주서',
       columns: ORDER_LINE_EXPORT_COLUMNS,
       rows: buildOrderLineExportRows(filtered),
     })
@@ -93,13 +93,9 @@ export function OrdersListWorkspace({
     <>
       <PageShell>
         <WorkspaceHeader
-          title="주문서 등록"
-          totalCount={orders.length}
-          filteredCount={filtered.length}
-          hasQuery={Boolean(query) || kpiTodayOnly}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="발주번호, 고객사, 제품명, 주문일 검색…"
+          searchPlaceholder="발주ID, 발주번호, 고객사, 제품명, 발주일 검색…"
           accent="slate"
           actions={
             <div className="flex items-center gap-2">
@@ -107,7 +103,7 @@ export function OrdersListWorkspace({
                 onDownload={handleExcelDownload}
                 disabled={!filtered.length}
               />
-              <ErpButton onClick={openCreate}>주문서 등록</ErpButton>
+              <ErpButton onClick={openCreate}>발주서 등록</ErpButton>
             </div>
           }
         />
@@ -117,8 +113,8 @@ export function OrdersListWorkspace({
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query) || kpiTodayOnly,
             emptyLabel: kpiTodayOnly
-              ? '오늘 등록된 주문서가 없습니다'
-              : '등록된 주문서가 없습니다',
+              ? '오늘 등록된 발주서가 없습니다'
+              : '등록된 발주서가 없습니다',
             actionHint: '오른쪽 상단에서 등록하세요',
           })}
           onSelectOrder={openEdit}

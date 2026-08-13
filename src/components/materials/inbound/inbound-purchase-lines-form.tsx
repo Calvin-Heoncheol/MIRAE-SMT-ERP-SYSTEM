@@ -22,7 +22,7 @@ export function InboundPurchaseLinesForm({ items, onChange }: InboundPurchaseLin
   if (!items.length) {
     return (
       <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-        입고 가능한 발주 라인이 없습니다.
+        입고 가능한 구매발주 라인이 없습니다.
       </div>
     )
   }
@@ -34,7 +34,7 @@ export function InboundPurchaseLinesForm({ items, onChange }: InboundPurchaseLin
           <tr>
             <th className="px-3 py-2 text-left text-sm font-semibold text-slate-600">자재코드</th>
             <th className="px-3 py-2 text-left text-sm font-semibold text-slate-600">자재명</th>
-            <th className="px-3 py-2 text-right text-sm font-semibold text-slate-600">발주수량</th>
+            <th className="px-3 py-2 text-right text-sm font-semibold text-slate-600">구매발주수량</th>
             <th className="px-3 py-2 text-right text-sm font-semibold text-slate-600">기입고</th>
             <th className="px-3 py-2 text-right text-sm font-semibold text-slate-600">잔량</th>
             <th className="px-3 py-2 text-right text-sm font-semibold text-slate-600">입고수량</th>

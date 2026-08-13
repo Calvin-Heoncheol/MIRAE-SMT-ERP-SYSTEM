@@ -1,3 +1,22 @@
+/**
+ * 날짜 필터 정책
+ * - 현황·이력: 기본 전체(빈 값). 초기화 → 빈 값
+ * - 수금·거래명세서: 기본 이번 달(?start&end URL). 초기화 → 이번 달
+ * - 라벨: 필터 대상 날짜만 사용
+ *   현황 → 납기 / 수금·거래명세서 → 발행일 / 출하등록 → 출하일 / 생산이력 → 기록일
+ */
+export const DATE_RANGE_FILTER_LABEL = {
+  due: '납기',
+  issue: '발행일',
+  ship: '출하일',
+  record: '기록일',
+} as const
+
+export type DateRangeFilterLabel =
+  (typeof DATE_RANGE_FILTER_LABEL)[keyof typeof DATE_RANGE_FILTER_LABEL]
+
+export const EMPTY_DATE_RANGE = { startDate: '', endDate: '' } as const
+
 /** YYYY-MM-DD 기간 필터 (시작·종료 중 빈 값은 해당 쪽 제한 없음) */
 export type DateRangeFilterValue = {
   startDate?: string

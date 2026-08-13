@@ -391,7 +391,7 @@ export async function confirmProductionPlanItem(
   const note = input.note?.trim() || ''
 
   if (!orderId || !targetId) {
-    return { ok: false, reason: 'validation', detail: '주문·대상이 올바르지 않습니다.' }
+    return { ok: false, reason: 'validation', detail: '발주서·대상이 올바르지 않습니다.' }
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(plannedDate)) {
     return { ok: false, reason: 'validation', detail: '계획일을 선택하세요.' }

@@ -10,7 +10,7 @@ type InboundModalProps = {
   open: boolean
   mode: 'create' | 'edit'
   inbound?: MaterialInboundListGroup | null
-  /** 발주서 카드에서 열 때 미리 선택할 발주 */
+  /** 구매발주서 카드에서 열 때 미리 선택할 구매발주 */
   seedPurchaseOrderId?: string
   materials: Material[]
   purchaseOrders: MaterialPurchaseOrderListGroup[]

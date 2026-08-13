@@ -2,7 +2,7 @@ export const MATERIAL_INBOUND_TYPES = ['purchase', 'supplied', 'return'] as cons
 export type MaterialInboundType = (typeof MATERIAL_INBOUND_TYPES)[number]
 
 export const MATERIAL_INBOUND_TYPE_LABELS: Record<MaterialInboundType, string> = {
-  purchase: '발주',
+  purchase: '구매발주',
   supplied: '사급',
   return: '반품',
 }

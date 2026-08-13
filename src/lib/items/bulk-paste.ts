@@ -2,8 +2,13 @@ import { emptyItemForm, type ItemFormState } from './form-state'
 import {
   isManualItemCodeCategory,
   isRawMaterialItemCategory,
+  ITEM_PCB_SIDE_MODE_LABELS,
+  ITEM_PROCESS_TYPE_LABELS,
   type ItemCategory,
   type ItemMaterialType,
+  type ItemPcbSideMode,
+  type ItemProcessType,
+  type ItemSupplyType,
 } from './types'
 
 export type ItemBulkColumn = {
@@ -20,6 +25,7 @@ const RAW_MATERIAL_BULK_COLUMNS: ItemBulkColumn[] = [
   { key: 'specification', label: '사양 규격' },
   { key: 'package', label: '패키지' },
   { key: 'mpn', label: 'MPN' },
+  { key: 'supplyType', label: '도급/사급' },
 ]
 
 const SUB_MATERIAL_BULK_COLUMNS: ItemBulkColumn[] = [
@@ -29,6 +35,7 @@ const SUB_MATERIAL_BULK_COLUMNS: ItemBulkColumn[] = [
   { key: 'specification', label: '사양' },
   { key: 'package', label: '패키지' },
   { key: 'mpn', label: 'MPN' },
+  { key: 'supplyType', label: '도급/사급' },
 ]
 
 const PRODUCT_BULK_COLUMNS: ItemBulkColumn[] = [
@@ -36,6 +43,12 @@ const PRODUCT_BULK_COLUMNS: ItemBulkColumn[] = [
   { key: 'id', label: '품목코드', required: true },
   { key: 'name', label: '품목명', required: true },
   { key: 'version', label: '버전' },
+]
+
+const SEMI_FINISHED_BULK_COLUMNS: ItemBulkColumn[] = [
+  ...PRODUCT_BULK_COLUMNS,
+  { key: 'processType', label: '생산 공정', required: true },
+  { key: 'pcbSideMode', label: '면', required: true },
 ]
 
 export function itemBulkColumns(category: ItemCategory): ItemBulkColumn[] {
@@ -49,6 +62,9 @@ export function itemBulkColumns(category: ItemCategory): ItemBulkColumn[] {
         : column,
     )
   }
+  if (category === 3) {
+    return SEMI_FINISHED_BULK_COLUMNS
+  }
   return PRODUCT_BULK_COLUMNS.map((column) =>
     column.key === 'id'
       ? { ...column, required: isManualItemCodeCategory(category) }
@@ -58,15 +74,15 @@ export function itemBulkColumns(category: ItemCategory): ItemBulkColumn[] {
 
 export function itemBulkPasteSampleValues(category: ItemCategory): string[] {
   if (category === 2) {
-    return ['미래전자', '', '나사 M3', 'SUS', '', '']
+    return ['미래전자', '', '나사 M3', 'SUS', '', '', '도급']
   }
   if (category === 3) {
-    return ['미래전자', 'SFG-CUSTOM', '메인보드', 'A1']
+    return ['미래전자', 'SFG-CUSTOM', '메인보드', 'A1', 'SMD', '단면']
   }
   if (category === 4) {
     return ['미래전자', 'FG-CUSTOM', '조립제품 A', 'V1']
   }
-  return ['미래전자', 'ABC-100', 'SMD', '저항 10K', '1/10W', '0603', 'RC0603FR']
+  return ['미래전자', 'ABC-100', 'SMD', '저항 10K', '1/10W', '0603', 'RC0603FR', '도급']
 }
 
 export function itemBulkPastePlaceholder(category: ItemCategory) {
@@ -80,7 +96,7 @@ export function defaultItemBulkRow(category: ItemCategory): ItemFormState {
   const form = emptyItemForm()
   form.itemCategory = category
   if (category === 3) {
-    form.pcbSideMode = ''
+    form.pcbSideMode = 'single'
   }
   return form
 }
@@ -253,13 +269,53 @@ function splitPasteColumns(
 function isHeaderColumns(cols: string[], category: ItemCategory) {
   const first = normalizePasteCell(cols[0] || '')
   if (!first) return false
-  if (/^(고객사(명)?|품목(코드|명)|공정(\s*구분)?|버전)$/i.test(first)) return true
+  if (/^(고객사(명)?|품목(코드|명)|공정(\s*구분)?|생산\s*공정|버전|면|도급\/사급|MPN)$/i.test(first)) return true
   return itemBulkColumns(category).some((column) => column.label === first)
 }
 
 function normalizePasteMaterialType(value: string): ItemMaterialType {
   const upper = value.trim().toUpperCase()
   if (upper === 'SMD' || upper === 'DIP') return upper
+  return ''
+}
+
+function normalizePasteSupplyType(value: string): ItemSupplyType {
+  const trimmed = value.trim()
+  if (trimmed === '도급' || trimmed === '사급') return trimmed
+  return ''
+}
+
+function normalizePasteProcessType(value: string): ItemProcessType {
+  const raw = value.trim().toLowerCase().replace(/\s+/g, '')
+  if (raw === 'smt' || raw === 'smd') return 'smt'
+  if (raw === 'post' || raw === 'dip' || raw === '후공정') return 'post'
+  if (
+    raw === 'smt_post' ||
+    raw === 'smd_post' ||
+    raw === 'smt+post' ||
+    raw === 'smd+post' ||
+    raw === 'smd+dip' ||
+    raw === 'smt+dip' ||
+    raw === 'smd+후공정' ||
+    raw === 'smt+후공정'
+  ) {
+    return 'smt_post'
+  }
+  const label = value.trim()
+  if (label === ITEM_PROCESS_TYPE_LABELS.smt) return 'smt'
+  if (label === ITEM_PROCESS_TYPE_LABELS.post) return 'post'
+  if (label === ITEM_PROCESS_TYPE_LABELS.smt_post) return 'smt_post'
+  return ''
+}
+
+function normalizePastePcbSideMode(value: string): ItemPcbSideMode {
+  const raw = value.trim().toLowerCase().replace(/\s+/g, '')
+  if (raw === 'single' || raw === '단면') return 'single'
+  if (raw === 'duo' || raw === '더블' || raw === '듀얼') return 'duo'
+  if (raw === 'double' || raw === 'dual' || raw === '양면') return 'double'
+  if (value.trim() === ITEM_PCB_SIDE_MODE_LABELS.single) return 'single'
+  if (value.trim() === ITEM_PCB_SIDE_MODE_LABELS.duo) return 'duo'
+  if (value.trim() === ITEM_PCB_SIDE_MODE_LABELS.double) return 'double'
   return ''
 }
 
@@ -272,6 +328,12 @@ function applyPasteValue(
   switch (key) {
     case 'materialType':
       return { ...form, materialType: normalizePasteMaterialType(value) }
+    case 'supplyType':
+      return { ...form, supplyType: normalizePasteSupplyType(value) }
+    case 'processType':
+      return { ...form, processType: normalizePasteProcessType(value) }
+    case 'pcbSideMode':
+      return { ...form, pcbSideMode: normalizePastePcbSideMode(value) }
     case 'itemCategory':
       return form
     default:
@@ -400,6 +462,7 @@ export function isEmptyItemBulkRow(row: ItemFormState) {
     !row.materialType &&
     !row.package.trim() &&
     !row.specification.trim() &&
-    !row.mpn.trim()
+    !row.mpn.trim() &&
+    !row.supplyType
   )
 }

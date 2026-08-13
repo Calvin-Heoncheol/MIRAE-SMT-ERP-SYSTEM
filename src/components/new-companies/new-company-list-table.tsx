@@ -41,7 +41,6 @@ export function NewCompanyListTable({
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               <th className="px-3 py-2.5">등록일</th>
-              <th className="px-3 py-2.5">상태</th>
               <th className="px-3 py-2.5">회사명</th>
               <th className="px-3 py-2.5">지역</th>
               <th className="px-3 py-2.5">담당자</th>
@@ -49,6 +48,7 @@ export function NewCompanyListTable({
               <th className="px-3 py-2.5">연락처</th>
               <th className="px-3 py-2.5">유입경로</th>
               <th className="px-3 py-2.5">등록자</th>
+              <th className="px-3 py-2.5">상태</th>
             </tr>
           </thead>
           <tbody>
@@ -68,12 +68,6 @@ export function NewCompanyListTable({
                 >
                   <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-600">
                     {inquiry.createdAt.slice(0, 10)}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <StatusBadge
-                      label={NEW_COMPANY_STATUS_LABELS[inquiry.status]}
-                      className={`ring-1 ${NEW_COMPANY_STATUS_BADGE_CLASS[inquiry.status]}`}
-                    />
                   </td>
                   <td className={`px-3 py-2.5 font-medium text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {cell(inquiry.companyName)}
@@ -95,6 +89,12 @@ export function NewCompanyListTable({
                   </td>
                   <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                     {registrantLabel}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <StatusBadge
+                      label={NEW_COMPANY_STATUS_LABELS[inquiry.status]}
+                      className={`ring-1 ${NEW_COMPANY_STATUS_BADGE_CLASS[inquiry.status]}`}
+                    />
                   </td>
                 </tr>
               )

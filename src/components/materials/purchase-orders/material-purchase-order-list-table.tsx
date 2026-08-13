@@ -45,16 +45,16 @@ export function MaterialPurchaseOrderListTable({
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                발주일
+                구매발주일
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 납기일
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                발주번호
+                구매발주번호
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                연결 주문서
+                연결 발주서
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 공급사
@@ -66,7 +66,7 @@ export function MaterialPurchaseOrderListTable({
                 수량합계
               </th>
               <th className="min-w-[96px] whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                발주금액
+                구매발주금액
               </th>
               <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 상태

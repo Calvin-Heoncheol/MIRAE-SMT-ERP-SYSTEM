@@ -18,6 +18,7 @@
 11. `setup-production-plan-board.sql`
 12. `setup-material-purchase-orders.sql` → inbound / outbound
 13. 품질·결재·설비: `setup-quality-defect-handlings.sql`, approvals, leave, expense, metal-masks, squeegees …
+14. 회계 수금: `setup-statement-payments.sql`
 
 ## RPC (함수) — 운영·신규 공통
 
@@ -45,10 +46,14 @@
 ## 출하·주문·견적 번호 형식
 
 - 출하: `MRS-YYMMDD-NN` — `migrate-delivery-number-yymmdd.sql`
+- 생산 LOT: `LOT-YYMMDD-NN` — `migrate-production-lots.sql` (`production_lots` + `delivery_record_lots`, 후공정 일자별 백필)
 - 주문 자동발급: `MRO-YYMMDD-NN` (비우면, 주문일 기준) — `migrate-order-quote-number-yymmdd.sql`
 - 견적: `MRQ-YYMMDD-NN` — 동일 migrate
 - 자재 발주: `MRP-YYMMDD-NN` (기존)
 - 품목 내부 PK: `MR-00001` — `migrate-items-internal-id-mr.sql` (표시 코드는 `base_code`)
+- 거래처 결제조건: `migrate-partners-payment-terms.sql` (분할/일반후불/월괄후불)
+- 결제조건 스냅샷(견적·발주·출하): `migrate-payment-term-snapshots.sql` (거래처 수정 후에도 입금예정일 유지)
+- 거래명세서 입금(수금): `migrate-statement-payments.sql` (`statement_payments`)
 - 구형식·수동 PO/NO는 유지
 
 ## RLS

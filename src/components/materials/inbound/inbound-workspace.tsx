@@ -113,12 +113,9 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
     <>
       <PageShell>
         <WorkspaceHeader
-          totalCount={inbounds.length}
-          filteredCount={filtered.length}
-          hasQuery={Boolean(query)}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="입고번호, 발주번호, 자재명, 자재코드 검색…"
+          searchPlaceholder="입고번호, 구매발주번호, 자재명, 자재코드 검색…"
           accent="slate"
         />
 
@@ -127,7 +124,7 @@ export function InboundWorkspace({ result, view }: InboundWorkspaceProps) {
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query),
             emptyLabel: '등록된 입고 내역이 없습니다',
-            actionHint: '입고등록 탭에서 등록하세요',
+            actionHint: '입고 메뉴에서 등록하세요',
           })}
           onSelectInbound={openEdit}
         />

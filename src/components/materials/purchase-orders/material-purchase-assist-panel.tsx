@@ -59,7 +59,7 @@ export function MaterialPurchaseAssistPanel({
     () => new Set(suggestionLines.map((line) => line.materialId)),
   )
   const [expandedOrderKey, setExpandedOrderKey] = useState<string | null>(null)
-  /** 제품별 발주 수량 입력 (orderLineId → text) */
+  /** 제품별 구매발주 수량 입력 (orderLineId → text) */
   const [qtyByLineId, setQtyByLineId] = useState<Record<string, string>>({})
 
   const query = search.trim().toLowerCase()
@@ -102,7 +102,7 @@ export function MaterialPurchaseAssistPanel({
 
     const purchaseQuantity = Math.max(0, Math.floor(Number(qtyTextFor(orderLineId, product.remainingQuantity)) || 0))
     if (purchaseQuantity <= 0) {
-      window.alert('발주 수량을 1 이상 입력하세요.')
+      window.alert('구매발주 수량을 1 이상 입력하세요.')
       return
     }
     if (purchaseQuantity > product.remainingQuantity) {
@@ -123,7 +123,7 @@ export function MaterialPurchaseAssistPanel({
     const unregistered = preview.filter((line) => !line.registered)
     if (unregistered.length > 0) {
       window.alert(
-        `품목등록에 없는 자재가 ${unregistered.length}종 있어 발주할 수 없습니다.\n` +
+        `품목등록에 없는 자재가 ${unregistered.length}종 있어 구매발주할 수 없습니다.\n` +
           unregistered
             .map((line) => line.materialCode)
             .slice(0, 15)
@@ -135,7 +135,7 @@ export function MaterialPurchaseAssistPanel({
 
     const fillLines = preview.filter((line) => line.suggestedQuantity > 0)
     if (!fillLines.length) {
-      window.alert('현재고로 충당 가능해 발주할 자재가 없습니다.')
+      window.alert('현재고로 충당 가능해 구매발주할 자재가 없습니다.')
       return
     }
 
@@ -161,7 +161,7 @@ export function MaterialPurchaseAssistPanel({
   function applyStockSelection() {
     const selected = filteredSuggestions.filter((line) => selectedMaterialIds.has(line.materialId))
     if (!selected.length) {
-      window.alert('발주할 자재를 선택하세요.')
+      window.alert('구매발주할 자재를 선택하세요.')
       return
     }
     const suppliers = [...new Set(selected.map((line) => line.supplier.trim()).filter(Boolean))]
@@ -190,12 +190,12 @@ export function MaterialPurchaseAssistPanel({
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5">
           <div>
             <h3 className="text-base font-bold text-slate-900">
-              {mode === 'order' ? '미발주 주문서' : '재고현황 · 발주필요'}
+              {mode === 'order' ? '미구매발주 발주서' : '재고현황 · 구매발주필요'}
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
               {mode === 'order'
-                ? '제품별 발주 수량을 입력한 뒤 BOM 채우기를 누르면, 소요(현재고 차감)가 품목표에 채워집니다.'
-                : '발주필요 자재를 고른 뒤 품목표에 반영하세요.'}
+                ? '제품별 구매발주 수량을 입력한 뒤 BOM 채우기를 누르면, 소요(현재고 차감)가 품목표에 채워집니다.'
+                : '구매발주필요 자재를 고른 뒤 품목표에 반영하세요.'}
             </p>
           </div>
           <button
@@ -215,8 +215,8 @@ export function MaterialPurchaseAssistPanel({
             onChange={(event) => setSearch(event.target.value)}
             placeholder={
               mode === 'order'
-                ? '주문번호 · 고객사 · 제품명 검색…'
-                : '자재코드 · 자재명 · 공급사 검색…'
+                ? '발주ID, 고객사, 제품명 검색…'
+                : '자재코드, 자재명, 공급사 검색…'
             }
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
           />
@@ -225,7 +225,7 @@ export function MaterialPurchaseAssistPanel({
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {mode === 'order' ? (
             !filteredCards.length ? (
-              <p className="py-10 text-center text-sm text-slate-500">미발주 주문서가 없습니다.</p>
+              <p className="py-10 text-center text-sm text-slate-500">미구매발주 발주서가 없습니다.</p>
             ) : (
               <div className="space-y-2">
                 {filteredCards.map((card) => {
@@ -250,7 +250,7 @@ export function MaterialPurchaseAssistPanel({
                             {card.orderNumber}
                           </p>
                           <p className="mt-0.5 truncate text-xs text-slate-500">
-                            {card.customer || '—'} · 납기 {card.deliveryDate || '—'} · 미발주{' '}
+                            {card.customer || '—'} · 납기 {card.deliveryDate || '—'} · 미구매발주{' '}
                             {openProducts.length}종
                           </p>
                         </div>
@@ -272,7 +272,7 @@ export function MaterialPurchaseAssistPanel({
                                   {product.productName}
                                 </p>
                                 <p className="mt-0.5 text-xs tabular-nums text-slate-500">
-                                  주문 {product.orderQuantity.toLocaleString('ko-KR')} · 기발주{' '}
+                                  발주 {product.orderQuantity.toLocaleString('ko-KR')} · 기구매발주{' '}
                                   {product.coveredQuantity.toLocaleString('ko-KR')} · 잔량{' '}
                                   <span className="font-bold text-rose-600">
                                     {product.remainingQuantity.toLocaleString('ko-KR')}
@@ -281,7 +281,7 @@ export function MaterialPurchaseAssistPanel({
                               </div>
                               <label className="block shrink-0">
                                 <span className="mb-1 block text-[11px] font-semibold text-slate-500">
-                                  발주 수량
+                                  구매발주 수량
                                 </span>
                                 <input
                                   type="number"
@@ -295,7 +295,7 @@ export function MaterialPurchaseAssistPanel({
                                   }
                                   onClick={(event) => event.stopPropagation()}
                                   className="w-28 rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-sm tabular-nums outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-                                  aria-label={`${product.productName} 발주 수량`}
+                                  aria-label={`${product.productName} 구매발주 수량`}
                                 />
                               </label>
                               <button
@@ -310,7 +310,7 @@ export function MaterialPurchaseAssistPanel({
                           })}
                           {card.products.some((product) => !product.hasBom) ? (
                             <p className="px-1 text-xs text-amber-700">
-                              BOM 미등록 제품은 표시·발주에서 제외됩니다.
+                              BOM 미등록 제품은 표시·구매발주에서 제외됩니다.
                             </p>
                           ) : null}
                         </div>
@@ -321,7 +321,7 @@ export function MaterialPurchaseAssistPanel({
               </div>
             )
           ) : !filteredSuggestions.length ? (
-            <p className="py-10 text-center text-sm text-slate-500">발주필요한 자재가 없습니다.</p>
+            <p className="py-10 text-center text-sm text-slate-500">구매발주필요한 자재가 없습니다.</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-slate-300">
               <table className="min-w-[880px] w-full border-collapse text-sm">
@@ -358,7 +358,7 @@ export function MaterialPurchaseAssistPanel({
                       입고예정
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-semibold text-rose-600">
-                      발주필요
+                      구매발주필요
                     </th>
                   </tr>
                 </thead>

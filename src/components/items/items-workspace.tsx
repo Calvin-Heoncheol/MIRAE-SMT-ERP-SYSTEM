@@ -151,11 +151,11 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
               ...processAndPriceColumns,
             ]
           : [
-              { header: '도급/사급', value: (row: Item) => row.supplyType, width: 10 },
               { header: '공정구분', value: (row: Item) => row.materialType, width: 10 },
               { header: '패키지', value: (row: Item) => row.package, width: 12 },
               { header: '사양', value: (row: Item) => row.specification, width: 20 },
               { header: 'MPN', value: (row: Item) => row.mpn, width: 18 },
+              { header: '도급/사급', value: (row: Item) => row.supplyType, width: 10 },
               ...processAndPriceColumns,
             ]),
         { header: '사용여부', value: (row) => (row.isActive === false ? '사용중지' : '사용중'), width: 10 },
@@ -171,10 +171,6 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     <>
       <PageShell>
         <WorkspaceHeader
-          title="품목등록"
-          totalCount={items.length}
-          filteredCount={filtered.length}
-          hasQuery={hasActiveFilter}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="고객사, 품목코드, 품목명, 패키지, 사양, MPN 검색…"

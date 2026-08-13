@@ -46,11 +46,11 @@ type MaterialPurchaseOrderModalProps = {
   order?: MaterialPurchaseOrderListGroup | null
   initialItems?: MaterialPurchaseOrderItemForm[] | null
   initialSupplier?: string
-  /** 발주 화면에서 이미 로드한 자재 목록 (부분발주 시드용) */
+  /** 구매발주 화면에서 이미 로드한 자재 목록 (부분구매발주 시드용) */
   initialMaterials?: Material[] | null
-  /** 주문서 카드에서 발주 시 연결할 고객 주문서 id */
+  /** 발주서 카드에서 구매발주 시 연결할 고객 발주서 id */
   sourceOrderId?: string | null
-  /** 부분 발주 — 커버한 주문 라인 / 제품 수량 */
+  /** 부분 구매발주 — 커버한 주문 라인 / 제품 수량 */
   coveredOrderLineId?: string | null
   coveredProductQuantity?: number | null
   onClose: () => void
@@ -120,7 +120,7 @@ function MaterialPurchaseOrderModalContent({
         deliveryDate: item.deliveryDate || defaultDelivery,
       }))
     }
-    // 신규 수동 발주: 입력표 3행으로 시작
+    // 신규 수동 구매발주: 입력표 3행으로 시작
     return [
       defaultMaterialPurchaseOrderItemForm(defaultDelivery),
       defaultMaterialPurchaseOrderItemForm(defaultDelivery),
@@ -152,7 +152,7 @@ function MaterialPurchaseOrderModalContent({
   )
 
   const readOnly = mode === 'edit' && Boolean(order?.hasInbound)
-  /** 주문서/제안에서 시드된 신규 발주 — 자재코드·공급사·수량·단가 잠금 */
+  /** 발주서/제안에서 시드된 신규 구매발주 — 자재코드·공급사·수량·단가 잠금 */
   const lockSeededFields = mode === 'create' && Boolean(initialItems?.length)
 
   async function ensureRegisterData() {
@@ -221,7 +221,7 @@ function MaterialPurchaseOrderModalContent({
     setMaterials((current) => mergeMaterialLists(current, initialMaterials))
   }, [initialMaterials])
 
-  // 부분발주·발주제안에서 넘어온 행: 품목 마스터로 MPN·규격·자재명 보강
+  // 부분구매발주·구매발주제안에서 넘어온 행: 품목 마스터로 MPN·규격·자재명 보강
   useEffect(() => {
     if (!lockSeededFields || !materials.length) return
     setItems((current) => {
@@ -359,7 +359,7 @@ function MaterialPurchaseOrderModalContent({
         }),
       )
       if (!printed) {
-        window.alert('발주는 저장됐지만 발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
+        window.alert('구매발주는 저장됐지만 구매발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
       }
     }
 
@@ -379,13 +379,13 @@ function MaterialPurchaseOrderModalContent({
       }),
     )
     if (!printed) {
-      setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
+      setSaveError('구매발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
     }
   }
 
   async function handleDelete() {
     if (!order || readOnly) return
-    if (!window.confirm(`${order.orderNumber} 발주를 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) {
+    if (!window.confirm(`${order.orderNumber} 구매발주를 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) {
       return
     }
 
@@ -409,8 +409,8 @@ function MaterialPurchaseOrderModalContent({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
           <h2 className="text-lg font-bold text-slate-900">
             {mode === 'edit'
-              ? `자재 발주 수정 (${items.length}개 품목)`
-              : '신규 자재 발주'}
+              ? `구매발주 수정 (${items.length}개 품목)`
+              : '신규 구매발주'}
           </h2>
           <div className="flex flex-wrap items-center gap-2">
             {mode === 'create' && !readOnly ? (
@@ -421,7 +421,7 @@ function MaterialPurchaseOrderModalContent({
                   disabled={assistLoading || saving || deleting}
                   className={`${ERP_SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
                 >
-                  {assistLoading && assistMode == null ? '불러오는 중…' : '주문서'}
+                  {assistLoading && assistMode == null ? '불러오는 중…' : '발주서'}
                 </button>
                 <button
                   type="button"
@@ -458,7 +458,7 @@ function MaterialPurchaseOrderModalContent({
         <div className="overflow-x-auto overflow-y-auto p-6">
           {readOnly ? (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              입고 이력이 있는 발주는 수정·삭제할 수 없습니다.
+              입고 이력이 있는 구매발주는 수정·삭제할 수 없습니다.
             </div>
           ) : null}
 
@@ -470,11 +470,11 @@ function MaterialPurchaseOrderModalContent({
 
           {mode === 'create' && coverProductQuantity != null && coverProductQuantity > 0 ? (
             <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
-              이 발주서가 커버하는 제품 수량:{' '}
+              이 구매발주서가 커버하는 제품 수량:{' '}
               <span className="font-bold tabular-nums">
                 {coverProductQuantity.toLocaleString('ko-KR')}
               </span>
-              개 (주문 카드의 발주 수량에 합산됩니다)
+              개 (발주서 카드의 구매발주 수량에 합산됩니다)
               {coverSourceOrderId ? (
                 <span className="ml-2 font-mono text-xs text-slate-500">({coverSourceOrderId})</span>
               ) : null}
@@ -483,7 +483,7 @@ function MaterialPurchaseOrderModalContent({
 
           {mode === 'edit' && order?.coveredProductQuantity ? (
             <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
-              부분 발주 · 커버 제품 수량{' '}
+              부분 구매발주 · 커버 제품 수량{' '}
               <span className="font-bold tabular-nums">
                 {order.coveredProductQuantity.toLocaleString('ko-KR')}
               </span>
@@ -499,7 +499,7 @@ function MaterialPurchaseOrderModalContent({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {mode === 'edit' && order ? (
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-medium text-slate-600">발주번호</span>
+                <span className="mb-1 block font-medium text-slate-600">구매발주번호</span>
                 <input
                   value={order.orderNumber}
                   readOnly
@@ -509,9 +509,9 @@ function MaterialPurchaseOrderModalContent({
             ) : null}
             {(mode === 'edit' ? order?.sourceOrderId : coverSourceOrderId) ? (
               <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-medium text-slate-600">구분 · 연결 주문서</span>
+                <span className="mb-1 block font-medium text-slate-600">구분 · 연결 발주서</span>
                 <input
-                  value={`부분 발주 · ${(mode === 'edit' ? order?.sourceOrderId : coverSourceOrderId) || ''}`}
+                  value={`부분 구매발주 · ${(mode === 'edit' ? order?.sourceOrderId : coverSourceOrderId) || ''}`}
                   readOnly
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600"
                 />
@@ -520,14 +520,14 @@ function MaterialPurchaseOrderModalContent({
               <label className="block text-sm sm:col-span-2">
                 <span className="mb-1 block font-medium text-slate-600">구분</span>
                 <input
-                  value="자재별 발주"
+                  value="자재별 구매발주"
                   readOnly
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
                 />
               </label>
             ) : null}
             <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">발주일</span>
+              <span className="mb-1 block font-medium text-slate-600">구매발주일</span>
               <input
                 type="date"
                 value={form.orderDate}
@@ -562,7 +562,7 @@ function MaterialPurchaseOrderModalContent({
           </div>
 
           <div className="mt-6">
-            {readOnly ? <h3 className="mb-3 text-sm font-bold text-slate-900">발주 품목</h3> : null}
+            {readOnly ? <h3 className="mb-3 text-sm font-bold text-slate-900">구매발주 품목</h3> : null}
             {readOnly ? (
               <div className="overflow-x-auto rounded-lg border border-slate-300">
                 <table className="min-w-[760px] w-full border-collapse text-sm">
@@ -646,7 +646,7 @@ function MaterialPurchaseOrderModalContent({
               disabled={saving || deleting}
               className={`${ERP_SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
             >
-              발주서 출력
+              구매발주서 출력
             </button>
           ) : null}
           {!readOnly ? (
@@ -665,7 +665,7 @@ function MaterialPurchaseOrderModalContent({
                 disabled={saving || deleting}
                 className={`${ERP_SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
               >
-                {saving ? '저장 중...' : '저장 후 발주서'}
+                {saving ? '저장 중...' : '저장 후 구매발주서'}
               </button>
             </>
           ) : null}

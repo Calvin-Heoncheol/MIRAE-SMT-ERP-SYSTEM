@@ -496,6 +496,145 @@ export async function repairChildrenOnlyAssemblyGroups(
 }
 
 /**
+ * 조립제품 그룹의 반제품 자식이 단독 출하 그룹으로 없으면 만든다.
+ * (기존 주문은 ensureAssemblyGroupsForOrders 가 재동기화하지 않음)
+ */
+export async function repairMissingSemiFinishedDeliveryGroups(
+  groups: OrderAssemblyGroup[],
+  productById: Record<string, Product>,
+  ordersWithDerivedLines: OrderListGroup[] = [],
+): Promise<FetchAssemblyGroupsResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const groupsByOrder = new Map<string, OrderAssemblyGroup[]>()
+  for (const group of groups) {
+    const list = groupsByOrder.get(group.orderId) ?? []
+    list.push(group)
+    groupsByOrder.set(group.orderId, list)
+  }
+
+  const toInsert: Array<{
+    orderId: string
+    parentProductId: string
+    targetQuantity: number
+    orderLineId: string
+    groupSeq: number
+  }> = []
+
+  const orderById = new Map(ordersWithDerivedLines.map((order) => [order.orderId, order]))
+  const orderIds = new Set<string>([...groupsByOrder.keys(), ...orderById.keys()])
+
+  for (const orderId of orderIds) {
+    const orderGroups = groupsByOrder.get(orderId) ?? []
+    const parentIds = new Set(orderGroups.map((group) => group.parentProductId))
+    let nextSeq =
+      orderGroups.reduce((max, group) => Math.max(max, Math.floor(Number(group.groupSeq) || 0)), 0) + 1
+
+    const addSemiGroup = (
+      parentProductId: string,
+      orderLineId: string,
+      targetQuantity: number,
+    ) => {
+      if (!parentProductId || !orderLineId) return
+      const product =
+        productById[parentProductId] ||
+        Object.values(productById).find((item) => {
+          const code = String(item.productCode || '').trim()
+          return (
+            item.id === parentProductId ||
+            code === parentProductId ||
+            code.toUpperCase() === parentProductId.toUpperCase()
+          )
+        })
+      if (!product || product.productKind !== 'pcb') return
+      if (parentIds.has(product.id)) return
+      if (targetQuantity < 1) return
+      parentIds.add(product.id)
+      toInsert.push({
+        orderId,
+        parentProductId: product.id,
+        targetQuantity,
+        orderLineId,
+        groupSeq: nextSeq,
+      })
+      nextSeq += 1
+    }
+
+    for (const group of orderGroups) {
+      const parent = productById[group.parentProductId]
+      if (parent?.productKind !== 'assembly') continue
+
+      for (const line of group.lines) {
+        const childId = String(line.childProductId || '').trim()
+        const orderLineId = String(line.orderLineId || '').trim()
+        const quantityPer = Math.max(1, Math.floor(Number(line.quantityPer) || 1))
+        const targetQuantity = Math.max(0, Math.floor(Number(group.targetQuantity) || 0) * quantityPer)
+        addSemiGroup(childId, orderLineId, targetQuantity)
+      }
+    }
+
+    const order = orderById.get(orderId)
+    for (const item of order?.items || []) {
+      const productId = String(item.productId || '').trim()
+      const orderLineId = String(item.lineId || '').trim()
+      const targetQuantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
+      addSemiGroup(productId, orderLineId, targetQuantity)
+    }
+  }
+
+  if (!toInsert.length) {
+    return { ok: true, groups }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    for (const item of toInsert) {
+      const { data: inserted, error: insertError } = await supabase
+        .from('order_assembly_groups')
+        .insert({
+          order_id: item.orderId,
+          parent_product_id: item.parentProductId,
+          target_quantity: item.targetQuantity,
+          group_seq: item.groupSeq,
+        })
+        .select('id')
+        .single()
+
+      if (insertError) {
+        if (isMissingAssemblyTable(insertError.message)) {
+          return { ok: true, groups }
+        }
+        return { ok: false, reason: 'query', detail: insertError.message }
+      }
+      if (!inserted?.id) continue
+
+      const { error: lineError } = await supabase.from('order_assembly_group_lines').insert({
+        assembly_group_id: inserted.id,
+        order_line_id: item.orderLineId,
+        child_product_id: item.parentProductId,
+        quantity_per: 1,
+      })
+      if (lineError) {
+        if (isMissingAssemblyTable(lineError.message)) {
+          return { ok: true, groups }
+        }
+        return { ok: false, reason: 'query', detail: lineError.message }
+      }
+    }
+
+    return fetchAssemblyGroups(productById)
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+/**
  * TEMP 등 품목마스터에 없는 parent_product_id 로 생긴 조립 그룹을 삭제하도록
  * 해당 주문을 다시 동기화한다.
  */

@@ -30,7 +30,7 @@ export function DeliveryShippableListTable({
           <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-3 py-2.5 text-left">고객사</th>
-              <th className="px-3 py-2.5 text-left">주문번호</th>
+              <th className="px-3 py-2.5 text-left">발주번호</th>
               <th className="px-3 py-2.5 text-left">품목코드</th>
               <th className="px-3 py-2.5 text-left">품목명</th>
               <th className="px-3 py-2.5 text-right">단가</th>

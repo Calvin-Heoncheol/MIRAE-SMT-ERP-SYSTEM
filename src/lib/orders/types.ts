@@ -1,3 +1,5 @@
+import type { PaymentTermSnapshot } from '@/lib/partners/payment-term-snapshot'
+
 export type OrderCategory = '양산' | '샘플' | '자재'
 
 export const ORDER_CATEGORIES: OrderCategory[] = ['양산', '샘플', '자재']
@@ -31,6 +33,7 @@ export type OrderListGroup = {
   totalAmount: number
   source?: string
   sourceQuoteId?: string | null
+  paymentTerms: PaymentTermSnapshot
   createdBy?: string | null
   createdByName: string
   createdAt: string
@@ -60,6 +63,10 @@ export type OrderRecord = {
   source_quote_id: string | null
   note?: string
   customer_po_number?: string
+  payment_term_type?: string | null
+  payment_deposit_percent?: number | null
+  payment_net_days?: number | null
+  payment_monthly_day?: number | null
   created_by?: string | null
   created_by_name?: string | null
   created_at: string
@@ -77,5 +84,6 @@ export type OrderRowPayload = {
   customer_po_number?: string
   source?: string
   source_quote_id?: string | null
+  paymentTerms?: PaymentTermSnapshot
   items: OrderLineItem[]
 }

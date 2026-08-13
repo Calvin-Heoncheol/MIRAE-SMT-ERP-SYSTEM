@@ -17,7 +17,7 @@ export type MaterialInboundStatusInfo = {
 export const MATERIAL_INBOUND_STATUS_LABELS: Record<MaterialInboundStatus, string> = {
   ready: '입고완료',
   scheduled: '입고예정',
-  missing: '발주필요',
+  missing: '구매발주필요',
   no_bom: 'BOM없음',
 }
 
@@ -32,7 +32,7 @@ export function formatMaterialInboundStatusLabel(info: MaterialInboundStatusInfo
 
 /**
  * SMT 생산계획 카드용 3종 문구:
- * 미발주 / 입고예정 N대분 / 입고완료 N대분
+ * 미구매발주 / 입고예정 N대분 / 입고완료 N대분
  */
 export function formatSmtPlanMaterialStatusLabel(info: MaterialInboundStatusInfo): string {
   if (info.status === 'ready') {
@@ -43,7 +43,7 @@ export function formatSmtPlanMaterialStatusLabel(info: MaterialInboundStatusInfo
     const n = Math.max(0, Math.floor(info.scheduledUnits || 0))
     return `입고예정 ${n.toLocaleString('ko-KR')}대분`
   }
-  if (info.status === 'missing') return '미발주'
+  if (info.status === 'missing') return '미구매발주'
   return MATERIAL_INBOUND_STATUS_LABELS.no_bom
 }
 
@@ -110,10 +110,10 @@ export function resolveBottleneckDeliveryDate(
 }
 
 /**
- * BOM 소요(잔여 생산수량) vs 현재고 / 발주 미입고 잔량.
+ * BOM 소요(잔여 생산수량) vs 현재고 / 구매발주 미입고 잔량.
  * - 입고완료: 현재고만으로 충족
  * - 입고예정: 현재고+입고예정으로 충족 (병목 납기 포함)
- * - 발주필요: 그래도 부족
+ * - 구매발주필요: 그래도 부족
  * - BOM없음: 전개 자재 없음
  */
 export function resolveMaterialInboundStatus(

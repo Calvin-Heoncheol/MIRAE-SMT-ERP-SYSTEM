@@ -24,11 +24,14 @@ export type CreateDeliveryRecordInput = {
   recordDate?: string
   source?: DeliverySource
   note?: string
+  /** 비우면 출하 시 FIFO 자동 배정 */
+  allocations?: Array<{ lotId: string; lotDate?: string; quantity: number; remaining?: number }>
 }
 
 export type CreateDeliveryShipmentLineInput = {
   assemblyGroupId: string
   quantity: number
+  allocations?: Array<{ lotId: string; lotDate?: string; quantity: number; remaining?: number }>
 }
 
 export type CreateDeliveryShipmentInput = {
@@ -62,6 +65,8 @@ export type DeliveryHistoryRow = {
   note: string
   createdBy?: string | null
   createdByName: string
+  /** 출하에 배정된 생산 LOT (없으면 빈 문자열) */
+  lotLabel: string
 }
 
 export type DeliveryStatementLine = {

@@ -5,7 +5,7 @@ import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 import { PARTNER_TRADE_ROLE_LABELS } from '@/lib/partners/types'
-import { formatBusinessRegNo } from '@/lib/partners/utils'
+import { formatBusinessRegNo, formatPartnerPaymentTermLabel } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
 
 type PartnerListTableProps = {
@@ -35,9 +35,6 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
           <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                거래처ID
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 사업자번호
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -55,6 +52,9 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 전화
               </th>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                결제조건
+              </th>
               <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 매입/매출
               </th>
@@ -69,9 +69,6 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
                   onSelectPartner ? 'cursor-pointer' : ''
                 }`}
               >
-                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-medium text-slate-500">
-                  {cell(partner.id)}
-                </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm font-semibold tabular-nums text-slate-800">
                   {formatBusinessRegNo(partner.businessRegNo) || '-'}
                 </td>
@@ -80,6 +77,9 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
                 <td className="px-3 py-2.5 text-sm text-slate-700">{cell(partner.businessType)}</td>
                 <td className="max-w-[280px] px-3 py-2.5 text-sm text-slate-700">{cell(partner.address)}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">{cell(partner.phone)}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
+                  {cell(formatPartnerPaymentTermLabel(partner))}
+                </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm font-medium text-slate-700">
                   {PARTNER_TRADE_ROLE_LABELS[partner.tradeRole]}
                 </td>

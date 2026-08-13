@@ -250,7 +250,7 @@ export function ProductionOrderSidebar({
     >
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-3 py-2.5 sm:px-4">
         <h4 className="text-sm font-bold text-slate-900">
-          {isBoard ? '주문 선택 · 카드를 누르면 생산 등록' : '주문 선택'}
+          {isBoard ? '발주서 선택 · 카드를 누르면 생산 등록' : '발주서 선택'}
         </h4>
         <span className="text-xs font-medium text-slate-400 tabular-nums">
           {filteredOrders.length.toLocaleString('ko-KR')}건
@@ -268,7 +268,7 @@ export function ProductionOrderSidebar({
           type="search"
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="발주ID · 품목코드 · 품목명 · 고객사 검색"
+          placeholder="발주ID, 품목코드, 품목명, 고객사 검색…"
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
         />
       </div>
@@ -285,7 +285,7 @@ export function ProductionOrderSidebar({
           <p className="py-8 text-center text-sm text-slate-400">
             {search.trim() || statusFilter !== 'all'
               ? '검색·필터 결과 없음'
-              : '표시할 주문이 없습니다'}
+              : '표시할 발주서가 없습니다'}
           </p>
         ) : (
           <div

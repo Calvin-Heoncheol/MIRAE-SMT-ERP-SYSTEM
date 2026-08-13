@@ -33,7 +33,7 @@ export function normalizeProductProcessType(value: string | null | undefined): P
 
 export function formatProductPcbSideModeLabel(mode: ProductPcbSideMode) {
   if (mode === 'double') return '양면'
-  if (mode === 'duo') return '듀얼'
+  if (mode === 'duo') return '더블'
   return '단면'
 }
 

@@ -12,6 +12,10 @@ create table if not exists public.delivery_records (
   source text not null default 'manual' check (source in ('manual')),
   note text not null default '',
   shipment_id text not null default '',
+  payment_term_type text not null default '' check (payment_term_type in ('', 'installment', 'net', 'monthly')),
+  payment_deposit_percent integer not null default 0,
+  payment_net_days integer not null default 0,
+  payment_monthly_day integer not null default 0,
   created_by uuid references auth.users (id) on delete set null,
   created_by_name text not null default '',
   created_at timestamptz not null default now(),
@@ -30,6 +34,7 @@ comment on column public.delivery_records.source is 'manual=ì¶œí•˜ìž…
 comment on column public.delivery_records.shipment_id is 'ê±°ëž˜ëª…ì„¸ì„œ ë¬¶ìŒë²ˆí˜¸ â€” ê°™ì€ ê°’ì´ë©´ í•œ ìž¥ìœ¼ë¡œ ì¶œë ¥';
 comment on column public.delivery_records.created_by is 'ë“±ë¡ìž auth.users.id';
 comment on column public.delivery_records.created_by_name is 'ë“±ë¡ìž í‘œì‹œëª… ìŠ¤ëƒ…ìƒ· (profiles.display_name)';
+comment on column public.delivery_records.payment_term_type is '거래명세서 결제조건 스냅샷 — 발주 상속';
 
 create index if not exists delivery_records_assembly_group_id_idx
   on public.delivery_records (assembly_group_id);
@@ -295,3 +300,13 @@ revoke all on function public.insert_delivery_record_atomic(
 grant execute on function public.insert_delivery_record_atomic(
   uuid, integer, integer, date, text, text, text, uuid, text, text
 ) to authenticated;
+
+alter table public.delivery_records
+  add column if not exists payment_term_type text not null default '',
+  add column if not exists payment_deposit_percent integer not null default 0,
+  add column if not exists payment_net_days integer not null default 0,
+  add column if not exists payment_monthly_day integer not null default 0;
+alter table public.delivery_records drop constraint if exists delivery_records_payment_term_type_check;
+alter table public.delivery_records
+  add constraint delivery_records_payment_term_type_check
+  check (payment_term_type in ('', 'installment', 'net', 'monthly'));

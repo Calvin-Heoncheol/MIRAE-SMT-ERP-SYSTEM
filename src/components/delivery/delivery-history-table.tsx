@@ -27,7 +27,7 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="min-w-[960px] w-full border-collapse">
+        <table className="min-w-[1100px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -47,6 +47,9 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 출하수량
+              </th>
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                LOT
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 등록자
@@ -77,6 +80,7 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
                 <td className="whitespace-nowrap px-3 py-2.5 text-right text-sm font-bold tabular-nums text-slate-900">
                   {row.quantity.toLocaleString('ko-KR')}
                 </td>
+                <td className="px-3 py-2.5 text-xs tabular-nums text-slate-700">{cell(row.lotLabel)}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
                   {cell(row.createdByName)}
                 </td>

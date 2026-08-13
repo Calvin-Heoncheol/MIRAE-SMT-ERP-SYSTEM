@@ -11,6 +11,7 @@ import {
 import type { SqueegeeAsset } from '@/lib/squeegees/types'
 import { DEFAULT_SQUEEGEE_USE_LIMIT, SQUEEGEE_STATUS_LABELS } from '@/lib/squeegees/types'
 import { isSqueegeeNearLimit, squeegeeRemaining } from '@/lib/squeegees/utils'
+import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 type SqueegeesWorkspaceProps = {
   result: FetchSqueegeesResult
@@ -224,19 +225,20 @@ export function SqueegeesWorkspace({ result }: SqueegeesWorkspaceProps) {
   if (!result.ok) {
     const missingTable = result.reason === 'query' && isMissingSqueegeesTable(result.detail)
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-        <p className="font-semibold">
-          {result.reason === 'env' ? '환경변수 필요' : '스퀴즈 목록을 불러오지 못했습니다'}
-        </p>
-        <p className="mt-1 whitespace-pre-wrap">{result.detail}</p>
-        {missingTable ? (
-          <p className="mt-3 text-amber-800">
-            Supabase SQL Editor에서{' '}
-            <code className="rounded bg-amber-100 px-1">setup-squeegees.sql</code>을 실행했는지
-            확인하세요.
-          </p>
-        ) : null}
-      </div>
+      <FetchErrorBanner
+        reason={result.reason}
+        title="스퀴즈 목록을 불러오지 못했습니다"
+        detail={result.detail}
+        hint={
+          missingTable ? (
+            <>
+              Supabase SQL Editor에서{' '}
+              <code className="rounded bg-white/70 px-1">setup-squeegees.sql</code>을 실행했는지
+              확인하세요.
+            </>
+          ) : null
+        }
+      />
     )
   }
 

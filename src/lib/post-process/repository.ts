@@ -6,6 +6,7 @@ import { createSupabaseClient } from '@/lib/supabase'
 import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { todayYmdSeoul } from '@/lib/orders/utils'
+import { syncFinishedGoodsLots } from '@/lib/production-lots/repository'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import { normalizePostProcessTeam } from '@/lib/post-process/teams'
 import type {
@@ -385,6 +386,9 @@ export async function createPostProcessProductionRecord(
       if (!payload?.record) {
         return { ok: false, reason: 'query', detail: '후공정 생산 기록 저장에 실패했습니다.' }
       }
+      if (quantity > 0) {
+        await syncFinishedGoodsLots({ assemblyGroupId, preferDate: recordDate })
+      }
       return {
         ok: true,
         record: mapPostProcessProductionRecord(
@@ -471,6 +475,9 @@ export async function createPostProcessProductionRecord(
       }
     }
 
+    if (quantity > 0) {
+      await syncFinishedGoodsLots({ assemblyGroupId, preferDate: recordDate })
+    }
     return {
       ok: true,
       record: mapPostProcessProductionRecord(inserted),
@@ -550,6 +557,7 @@ function mapPostProcessProductionHistoryRow(
     id: record.id,
     recordDate: record.recordDate,
     createdAt: record.createdAt,
+    assemblyGroupId: record.assemblyGroupId,
     orderNumber: order.id || assemblyGroup.order_id || '',
     customer: order.customer || '',
     productName: product?.name || assemblyGroup.parent_product_id || '',
@@ -691,6 +699,12 @@ export async function deletePostProcessProductionRecord(
 
   try {
     const supabase = createSupabaseClient()
+    const { data: existing } = await supabase
+      .from('post_process_production_records')
+      .select('assembly_group_id, record_date, quantity')
+      .eq('id', id)
+      .maybeSingle()
+
     const { error } = await supabase.from('post_process_production_records').delete().eq('id', id)
 
     if (error) {
@@ -702,6 +716,14 @@ export async function deletePostProcessProductionRecord(
         }
       }
       return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    const assemblyGroupId = String(existing?.assembly_group_id || '').trim()
+    if (assemblyGroupId && Math.max(0, Math.floor(Number(existing?.quantity) || 0)) > 0) {
+      await syncFinishedGoodsLots({
+        assemblyGroupId,
+        preferDate: String(existing?.record_date || '').slice(0, 10),
+      })
     }
 
     return { ok: true }

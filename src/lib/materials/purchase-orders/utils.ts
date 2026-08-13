@@ -1,5 +1,6 @@
 import type { Material } from '@/lib/materials/types'
 import {
+  formatMaterialDisplayCode,
   materialMatchesMpnValue,
   resolveMaterialById,
   resolveMaterialByInventoryCode,
@@ -149,7 +150,7 @@ export function formatMaterialSummary(group: MaterialPurchaseOrderListGroup) {
   return `${first} 외 ${group.items.length - 1}건`
 }
 
-/** 발주서 목록용 입고 상태 — 라인별 inboundQuantity vs quantity */
+/** 구매발주서 목록용 입고 상태 — 라인별 inboundQuantity vs quantity */
 export type MaterialPurchaseInboundStatus = 'none' | 'partial' | 'done'
 
 export function resolveMaterialPurchaseInboundStatus(
@@ -188,7 +189,7 @@ export function getMaterialPurchaseInboundStatusClassName(status: MaterialPurcha
   return 'bg-slate-100 text-slate-700'
 }
 
-/** 부분(주문서 연결) 발주 vs 자재별 발주 — source_order_id 유무로 구분 */
+/** 부분(발주서 연결) 구매발주 vs 자재별 구매발주 — source_order_id 유무로 구분 */
 export type MaterialPurchaseSourceKind = 'order' | 'material'
 
 export function getMaterialPurchaseSourceKind(
@@ -207,7 +208,7 @@ export function computeMaterialPurchaseOrderLineAmount(quantity: number, unitPri
   return qty * price
 }
 
-/** 발주수량 − 누적입고 (입고예정·발주연동 입고 공통) */
+/** 구매발주수량 − 누적입고 (입고예정·구매발주연동 입고 공통) */
 export function computePurchaseOrderRemainingQuantity(orderedQuantity: number, inboundQuantity: number) {
   const ordered = Math.max(0, Number(orderedQuantity) || 0)
   const received = Math.max(0, Number(inboundQuantity) || 0)
@@ -226,7 +227,7 @@ export function formatMaterialOptionLabel(
   field: 'id' | 'mpn' | 'idOrMpn' = 'idOrMpn',
 ) {
   const name = material.materialName.trim() || '-'
-  const code = material.id.trim()
+  const code = formatMaterialDisplayCode(material)
   const mpn = material.mpn.trim() || material.alternateMpns[0]?.trim() || ''
 
   if (field === 'idOrMpn') {
@@ -264,19 +265,23 @@ export function filterMaterialsForPurchaseOrder(
     if (!q) return true
 
     if (field === 'id') {
-      return material.id.trim().toLowerCase().includes(q)
+      const id = material.id.trim().toLowerCase()
+      const base = material.baseCode.trim().toLowerCase()
+      return id.includes(q) || base.includes(q)
     }
 
     if (field === 'mpn' || field === 'idOrMpn') {
       const idMatch = material.id.trim().toLowerCase().includes(q)
+      const baseMatch = material.baseCode.trim().toLowerCase().includes(q)
       const mpns = [material.mpn, ...material.alternateMpns]
       const mpnMatch = mpns.some((value) => value.trim().toLowerCase().includes(q))
       if (field === 'mpn') return mpnMatch
-      return idMatch || mpnMatch
+      return idMatch || baseMatch || mpnMatch
     }
 
     const haystack = [
       material.materialName,
+      material.baseCode,
       material.id,
       material.mpn,
       ...material.alternateMpns,
@@ -361,7 +366,7 @@ export function resolveMaterialPurchaseOrderLineMaterial(
   const code = materialId || materialCode
 
   if (code) {
-    // 발주서 공급사와 품목 공급사가 달라도 코드로 등록 품목을 찾음
+    // 구매발주서 공급사와 품목 공급사가 달라도 코드로 등록 품목을 찾음
     const byCode =
       resolveMaterialByInventoryCode(materials, code, { supplier }) ||
       resolveMaterialByInventoryCode(materials, code)

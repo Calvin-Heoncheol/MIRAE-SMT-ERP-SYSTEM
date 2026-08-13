@@ -28,7 +28,7 @@ import type {
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 import type { DeliveryAvailability } from '@/lib/delivery/utils'
 import { filterDeliveryHistory } from '@/lib/delivery/history-utils'
-import { hasDateRangeFilter } from '@/lib/ui/date-range'
+import { DATE_RANGE_FILTER_LABEL, hasDateRangeFilter } from '@/lib/ui/date-range'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type DeliveryInputWorkspaceProps = {
@@ -156,11 +156,6 @@ export function DeliveryInputWorkspace({
     <>
       <PageShell>
         <WorkspaceHeader
-          title="출하등록"
-          subtitle="출하 이력을 최신순으로 보여줍니다. 행을 클릭하면 수정·거래명세서 출력이 가능합니다."
-          totalCount={rows.length}
-          filteredCount={filtered.length}
-          hasQuery={hasActiveFilter}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="출하번호, 발주ID, 고객사, 품목명, 출하일 검색…"
@@ -171,7 +166,7 @@ export function DeliveryInputWorkspace({
               endDate={endDate}
               onStartDateChange={setStartDate}
               onEndDateChange={setEndDate}
-              label="출하일"
+              label={DATE_RANGE_FILTER_LABEL.ship}
             />
           }
           actions={<ErpButton onClick={() => openRegister()}>출하 등록</ErpButton>}

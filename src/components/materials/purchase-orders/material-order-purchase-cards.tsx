@@ -7,13 +7,14 @@ import type { OrderPurchaseCard, OrderPurchaseStatus } from '@/lib/materials/pur
 
 type MaterialOrderPurchaseCardsProps = {
   cards: OrderPurchaseCard[]
+  emptyMessage?: string
   onPurchaseProduct: (card: OrderPurchaseCard, orderLineId: string) => void
 }
 
 function statusLabel(status: OrderPurchaseStatus) {
-  if (status === 'done') return '발주완료'
-  if (status === 'partial') return '부분발주'
-  return '미발주'
+  if (status === 'done') return '구매발주완료'
+  if (status === 'partial') return '부분구매발주'
+  return '미구매발주'
 }
 
 function statusClass(status: OrderPurchaseStatus) {
@@ -37,6 +38,7 @@ function cardSummary(card: OrderPurchaseCard) {
 
 export function MaterialOrderPurchaseCards({
   cards,
+  emptyMessage,
   onPurchaseProduct,
 }: MaterialOrderPurchaseCardsProps) {
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set())
@@ -52,10 +54,7 @@ export function MaterialOrderPurchaseCards({
 
   if (!cards.length) {
     return (
-      <EmptyListState
-        message="발주할 주문이 없습니다"
-        hint="출하 미완료 주문서가 있으면 여기에 표시됩니다."
-      />
+      <EmptyListState message={emptyMessage ?? '구매발주할 발주서가 없습니다'} />
     )
   }
 
@@ -117,7 +116,7 @@ export function MaterialOrderPurchaseCards({
                   ) : null}
                 </p>
                 <p className="mt-1 text-[11px] font-medium text-slate-500">
-                  품목 {productCount.toLocaleString('ko-KR')} · 발주가능{' '}
+                  품목 {productCount.toLocaleString('ko-KR')} · 구매발주가능{' '}
                   <span className="tabular-nums text-slate-700">
                     {openCount.toLocaleString('ko-KR')}
                   </span>
@@ -165,13 +164,13 @@ export function MaterialOrderPurchaseCards({
 
                       <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[11px]">
                         <div>
-                          <p className="text-slate-400">주문</p>
+                          <p className="text-slate-400">발주</p>
                           <p className="font-semibold tabular-nums text-slate-800">
                             {product.orderQuantity.toLocaleString('ko-KR')}
                           </p>
                         </div>
                         <div>
-                          <p className="text-slate-400">발주</p>
+                          <p className="text-slate-400">구매발주</p>
                           <p className="font-semibold tabular-nums text-sky-800">
                             {product.coveredQuantity.toLocaleString('ko-KR')}
                           </p>
@@ -190,7 +189,7 @@ export function MaterialOrderPurchaseCards({
                           disabled
                           className="mt-2.5 w-full cursor-not-allowed rounded-lg bg-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500"
                         >
-                          발주
+                          구매발주
                         </button>
                       ) : canPurchase ? (
                         <button
@@ -198,11 +197,11 @@ export function MaterialOrderPurchaseCards({
                           onClick={() => onPurchaseProduct(card, product.orderLineId)}
                           className="mt-2.5 w-full rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-900"
                         >
-                          발주
+                          구매발주
                         </button>
                       ) : (
                         <p className="mt-2.5 text-center text-[11px] font-medium text-emerald-700">
-                          전량 발주 커버됨
+                          전량 구매발주 커버됨
                         </p>
                       )}
                     </li>

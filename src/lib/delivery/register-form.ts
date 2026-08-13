@@ -1,12 +1,16 @@
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionProductName } from '@/lib/production-input/utils'
 import type { DeliveryAvailability } from '@/lib/delivery/utils'
+import { parseItemVersionCode } from '@/lib/items/version-code'
+import type { LotAllocation, ProductionLot } from '@/lib/production-lots/types'
+import { allocateLotsFifo, sumLotAllocationQuantity } from '@/lib/production-lots/utils'
 
 export type DeliveryShippableOption = {
   uiKey: string
   assemblyGroupId: string
   orderNumber: string
   customer: string
+  productId?: string
   productCode: string
   productName: string
   productVersion: string | null
@@ -26,6 +30,9 @@ export type DeliveryRegisterItemForm = {
   quantity: string
   unitPrice: string
   maxQuantity: number
+  availableLots: ProductionLot[]
+  allocations: LotAllocation[]
+  lotManual: boolean
 }
 
 let registerItemKeySeq = 0
@@ -48,6 +55,9 @@ export function emptyDeliveryRegisterItemForm(): DeliveryRegisterItemForm {
     quantity: '',
     unitPrice: '0',
     maxQuantity: 0,
+    availableLots: [],
+    allocations: [],
+    lotManual: false,
   }
 }
 
@@ -68,8 +78,13 @@ export function buildDeliveryShippableOptions(
     if (!assemblyGroupId) continue
     const availability = availabilityByGroupId[assemblyGroupId]
     if (!availability) continue
-    const remaining = Math.max(0, availability.targetQuantity - availability.shipped)
-    const maxQuantity = Math.min(remaining, Math.max(0, availability.shippable))
+    const remaining =
+      availability.targetQuantity > 0
+        ? Math.max(0, availability.targetQuantity - availability.shipped)
+        : Math.max(0, availability.shippable)
+    const shippable = Math.max(0, availability.shippable)
+    const maxQuantity =
+      availability.targetQuantity > 0 ? Math.min(remaining, shippable) : shippable
     if (maxQuantity < 1) continue
 
     options.push({
@@ -77,6 +92,7 @@ export function buildDeliveryShippableOptions(
       assemblyGroupId,
       orderNumber: order.orderNumber,
       customer: order.customer,
+      productId: order.productId,
       productCode: order.productCode,
       productName: formatProductionProductName(order),
       productVersion: order.productVersion,
@@ -111,7 +127,14 @@ export function applyShippableOptionToItem(
     maxQuantity: option.maxQuantity,
     // 수량은 직접 입력 — placeholder(가능 N)만 안내
     quantity: '',
+    availableLots: [],
+    allocations: [],
+    lotManual: false,
   }
+}
+
+export function allocationsForRegisterQuantity(lots: ProductionLot[], quantity: number) {
+  return allocateLotsFifo(lots, Math.max(0, Math.floor(Number(quantity) || 0)))
 }
 
 export function validateDeliveryRegisterItems(
@@ -153,9 +176,66 @@ export function validateDeliveryRegisterItems(
         detail: `${item.productName || item.productCode} 출하가능 수량(${item.maxQuantity.toLocaleString('ko-KR')})을 초과할 수 없습니다.`,
       }
     }
+    if (item.lotManual) {
+      const allocated = sumLotAllocationQuantity(item.allocations)
+      if (allocated !== quantity) {
+        return {
+          ok: false,
+          detail: `${item.productName || item.productCode} LOT 합계(${allocated.toLocaleString('ko-KR')})가 출하 수량과 다릅니다.`,
+        }
+      }
+    }
   }
 
   return { ok: true, lines: filled, customer }
+}
+
+function shippableOptionSearchValues(option: DeliveryShippableOption) {
+  return [
+    option.productCode,
+    option.productId || '',
+    option.productName,
+    option.productVersion || '',
+    option.orderNumber,
+    option.customer,
+    option.assemblyGroupId,
+    parseItemVersionCode(option.productCode).base,
+    parseItemVersionCode(option.productId || '').base,
+  ]
+}
+
+export function filterDeliveryShippableOptions(options: DeliveryShippableOption[], query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return options
+  const qBase = parseItemVersionCode(query.trim()).base.toLowerCase()
+  return options.filter((option) => {
+    const haystack = shippableOptionSearchValues(option).join(' ').toLowerCase()
+    return haystack.includes(q) || (qBase !== q && haystack.includes(qBase))
+  })
+}
+
+export function findExactShippableOptions(options: DeliveryShippableOption[], query: string) {
+  const q = query.trim()
+  if (!q) return [] as DeliveryShippableOption[]
+  const qUpper = q.toUpperCase()
+  const qBase = parseItemVersionCode(q).base.trim()
+  const qBaseUpper = qBase.toUpperCase()
+
+  return options.filter((option) => {
+    const codes = [
+      option.productCode,
+      option.productId || '',
+      parseItemVersionCode(option.productCode).base,
+      parseItemVersionCode(option.productId || '').base,
+    ]
+      .map((value) => value.trim())
+      .filter(Boolean)
+
+    return codes.some((code) => {
+      const upper = code.toUpperCase()
+      return upper === qUpper || Boolean(qBase && upper === qBaseUpper)
+    })
+  })
 }
 
 export function formatDeliveryShippableOptionLabel(option: DeliveryShippableOption) {

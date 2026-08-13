@@ -209,7 +209,7 @@ function buildPrintHtml(
 </html>`
 }
 
-/** 자재 ID 바코드 라벨을 새 창에서 미리보기 후 인쇄한다. */
+/** 품목코드 바코드 라벨을 새 창에서 미리보기 후 인쇄한다. */
 export function printMaterialLabels(
   items: MaterialLabelPrintItem[],
   options: PrintMaterialLabelsOptions = {},

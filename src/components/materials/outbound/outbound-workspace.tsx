@@ -105,13 +105,9 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
     return (
       <PageShell>
         <WorkspaceHeader
-          subtitle="주문·BOM 기준 미불출 필요 수량입니다"
-          totalCount={orderCards.length}
-          filteredCount={filteredOrderCards.length}
-          hasQuery={Boolean(query)}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="주문번호, 고객사, 품목 검색…"
+          searchPlaceholder="발주ID, 고객사, 품목 검색…"
           accent="slate"
         />
 
@@ -119,6 +115,11 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
           cards={filteredOrderCards}
           bomEdges={bomEdges}
           materials={materials}
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: Boolean(query),
+            emptyLabel: '미불출 주문이 없습니다',
+            actionHint: '주문·BOM 기준으로 아직 남은 자재 소요가 있으면 여기에 표시됩니다',
+          })}
           onIssued={() => router.refresh()}
         />
       </PageShell>
@@ -129,12 +130,9 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
     <>
       <PageShell>
         <WorkspaceHeader
-          totalCount={outbounds.length}
-          filteredCount={filtered.length}
-          hasQuery={Boolean(query)}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="불출번호, 주문번호, 자재명, 자재코드 검색…"
+          searchPlaceholder="불출번호, 발주ID, 자재명, 자재코드 검색…"
           accent="slate"
         />
 

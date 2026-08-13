@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Material } from '@/lib/materials/types'
+import { formatMaterialDisplayCode } from '@/lib/materials/utils'
 import {
   filterMaterialsForPurchaseOrder,
   formatMaterialOptionLabel,
@@ -32,7 +33,10 @@ type MenuPosition = {
 const MAX_OPTIONS = 10
 
 function formatMaterialOptionSubLabel(material: Material) {
-  return [material.mpn, material.specification, material.supplier].filter(Boolean).join(' · ') || material.id
+  return (
+    [material.mpn, material.specification, material.supplier].filter(Boolean).join(' · ') ||
+    formatMaterialDisplayCode(material)
+  )
 }
 
 export function MaterialCombobox({

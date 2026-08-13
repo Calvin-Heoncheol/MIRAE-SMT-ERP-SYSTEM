@@ -95,9 +95,6 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
     <PageShell>
       {result.ok ? (
         <WorkspaceHeader
-          totalCount={rows.length}
-          filteredCount={filtered.length}
-          hasQuery={hasExtraFilter}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="품목코드, 품목명, MPN, 규격, 패키지 검색…"

@@ -89,7 +89,7 @@ async function updateOrderLineUnitPrice(input: {
     return {
       ok: false,
       reason: 'validation',
-      detail: '단가를 저장할 주문서 라인을 찾지 못했습니다.',
+      detail: '단가를 저장할 발주서 라인을 찾지 못했습니다.',
     }
   }
 
@@ -106,6 +106,48 @@ async function updateOrderLineUnitPrice(input: {
     return { ok: false, reason: 'query', detail: updateError.message }
   }
 
+  return { ok: true }
+}
+
+export async function updateStatementLines(
+  lines: UpdateStatementLineInput[],
+): Promise<StatementEditResult> {
+  if (!lines.length) {
+    return { ok: false, reason: 'validation', detail: '수정할 품목이 없습니다.' }
+  }
+  for (let index = 0; index < lines.length; index += 1) {
+    const result = await updateStatementLine(lines[index]!)
+    if (!result.ok) {
+      return {
+        ...result,
+        detail: `${index + 1}행: ${result.detail}`,
+      }
+    }
+  }
+  return { ok: true }
+}
+
+export async function deleteStatementLines(
+  lines: Array<{
+    source: 'delivery' | 'legacy'
+    deliveryId: string
+    orderNumber: string
+    orderLineId?: string
+    productCode?: string
+  }>,
+): Promise<StatementEditResult> {
+  if (!lines.length) {
+    return { ok: false, reason: 'validation', detail: '삭제할 품목이 없습니다.' }
+  }
+  for (let index = 0; index < lines.length; index += 1) {
+    const result = await deleteStatementLine(lines[index]!)
+    if (!result.ok) {
+      return {
+        ...result,
+        detail: `${index + 1}행: ${result.detail}`,
+      }
+    }
+  }
   return { ok: true }
 }
 
@@ -145,6 +187,7 @@ export async function updateStatementLine(
 
       const priceResult = await updateOrderLineUnitPrice({
         orderNumber: input.orderNumber,
+        orderLineId: input.orderLineId,
         productCode: input.productCode,
         unitPrice,
       })

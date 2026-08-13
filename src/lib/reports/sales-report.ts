@@ -11,9 +11,9 @@ import { createSupabaseClient } from '@/lib/supabase'
 
 export type SalesReportCustomerRow = {
   customer: string
-  /** 기간 내 수주 주문 수 */
+  /** 기간 내 발주 건수 */
   orderCount: number
-  /** 기간 내 수주 금액 (주문서 금액 합) */
+  /** 기간 내 발주 금액 (발주서 금액 합) */
   orderAmount: number
   /** 기간 내 출하 수량 */
   shippedQuantity: number
@@ -26,6 +26,9 @@ export type SalesReportShipmentRow = {
   deliveryId: string
   /** 거래명세서 묶음번호 — 같은 값이면 한 장 */
   shipmentId: string
+  /** 발주ID (MRO-…) — 수정·삭제용 */
+  orderId: string
+  /** 발주번호 (고객 PO). 없으면 발주ID */
   orderNumber: string
   customer: string
   productCode: string
@@ -35,6 +38,93 @@ export type SalesReportShipmentRow = {
   amount: number
   source: 'delivery' | 'legacy'
   orderLineId: string
+}
+
+/** 같은 출하번호(거래명세서)를 한 행으로 묶은 결과 */
+export type SalesReportStatementGroup = {
+  recordDate: string
+  shipmentId: string
+  /** 발주ID — 수정·삭제용 */
+  orderId: string
+  /** 발주번호 (고객 PO) */
+  orderNumber: string
+  customer: string
+  productCode: string
+  productName: string
+  quantity: number
+  unitPrice: number
+  unitPriceMixed: boolean
+  amount: number
+  source: 'delivery' | 'legacy'
+  lines: SalesReportShipmentRow[]
+}
+
+export function groupSalesReportShipments(
+  rows: SalesReportShipmentRow[],
+): SalesReportStatementGroup[] {
+  const groups = new Map<string, SalesReportShipmentRow[]>()
+  for (const row of rows) {
+    const key = String(row.shipmentId || row.deliveryId || '').trim()
+    if (!key) continue
+    const list = groups.get(key) || []
+    list.push(row)
+    groups.set(key, list)
+  }
+
+  const result: SalesReportStatementGroup[] = []
+  for (const [shipmentId, lines] of groups) {
+    const sortedLines = [...lines].sort((a, b) => {
+      const byDate = b.recordDate.localeCompare(a.recordDate)
+      if (byDate !== 0) return byDate
+      return String(b.deliveryId).localeCompare(String(a.deliveryId))
+    })
+    const first = sortedLines[0]!
+    const recordDate = sortedLines.reduce(
+      (latest, line) => (line.recordDate > latest ? line.recordDate : latest),
+      first.recordDate,
+    )
+    const customers = [
+      ...new Set(sortedLines.map((line) => line.customer.trim()).filter(Boolean)),
+    ]
+    const orderIds = [
+      ...new Set(sortedLines.map((line) => line.orderId.trim()).filter(Boolean)),
+    ]
+    const orderNumbers = [
+      ...new Set(sortedLines.map((line) => line.orderNumber.trim()).filter(Boolean)),
+    ]
+    const productNames = [
+      ...new Set(sortedLines.map((line) => line.productName.trim()).filter(Boolean)),
+    ]
+    const productCodes = [
+      ...new Set(sortedLines.map((line) => line.productCode.trim()).filter(Boolean)),
+    ]
+    const prices = [...new Set(sortedLines.map((line) => line.unitPrice))]
+    const sources = [...new Set(sortedLines.map((line) => line.source))]
+    result.push({
+      recordDate,
+      shipmentId,
+      orderId: orderIds.join(', '),
+      orderNumber: orderNumbers.join(', '),
+      customer: customers[0] || '',
+      productCode: productCodes.length === 1 ? productCodes[0]! : '',
+      productName:
+        productNames.length <= 1
+          ? productNames[0] || ''
+          : `${productNames[0]} 외 ${productNames.length - 1}건`,
+      quantity: sortedLines.reduce((sum, line) => sum + line.quantity, 0),
+      unitPrice: prices.length === 1 ? prices[0]! : 0,
+      unitPriceMixed: prices.length !== 1,
+      amount: sortedLines.reduce((sum, line) => sum + line.amount, 0),
+      source: sources.length === 1 ? sources[0]! : first.source,
+      lines: sortedLines,
+    })
+  }
+
+  return result.sort((a, b) => {
+    const byDate = b.recordDate.localeCompare(a.recordDate)
+    if (byDate !== 0) return byDate
+    return b.shipmentId.localeCompare(a.shipmentId)
+  })
 }
 
 export type SalesReportDailyRow = {
@@ -72,10 +162,15 @@ type DeliveryRecordRow = {
 
 type GroupInfo = {
   orderId: string
+  customerPoNumber: string
   customer: string
   parentProductId: string
   productName: string
   itemUnitPrice: number
+}
+
+function displayPoNumber(customerPoNumber: string | undefined, orderId: string) {
+  return String(customerPoNumber || '').trim() || String(orderId || '').trim()
 }
 
 const IN_CHUNK_SIZE = 150
@@ -107,7 +202,7 @@ export async function fetchSalesReportData(
   try {
     const supabase = createSupabaseClient()
 
-    // ── 1. 기간 내 수주 (주문일 기준) + 출하 기록 + 과거 명세서 ──
+    // ── 1. 기간 내 발주 (발주일 기준) + 출하 기록 + 과거 명세서 ──
     const [ordersResult, legacyOrdersResult, deliveryQuery] = await Promise.all([
       fetchOrders(),
       fetchOrders({ legacyOnly: true }),
@@ -152,6 +247,9 @@ export async function fetchSalesReportData(
         order.orderDate <= endDate,
     )
     const deliveryRows = (deliveryRowsRaw || []) as DeliveryRecordRow[]
+    const orderById = new Map(
+      [...ordersResult.orders, ...legacyOrdersResult.orders].map((order) => [order.orderId, order]),
+    )
 
     // ── 2. 출하 기록 → 조립그룹(주문·고객사·조립제품) ──────────────
     const groupIds = [
@@ -160,12 +258,22 @@ export async function fetchSalesReportData(
     const groupInfoById = new Map<string, GroupInfo>()
 
     for (const ids of chunk(groupIds, IN_CHUNK_SIZE)) {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('order_assembly_groups')
         .select(
-          'id, order_id, parent_product_id, items!order_assembly_groups_parent_product_id_fkey(name, unit_price), orders(customer)',
+          'id, order_id, parent_product_id, items!order_assembly_groups_parent_product_id_fkey(name, unit_price), orders(customer, customer_po_number)',
         )
         .in('id', ids)
+      if (error && /customer_po_number/i.test(error.message)) {
+        const fallback = await supabase
+          .from('order_assembly_groups')
+          .select(
+            'id, order_id, parent_product_id, items!order_assembly_groups_parent_product_id_fkey(name, unit_price), orders(customer)',
+          )
+          .in('id', ids)
+        data = fallback.data
+        error = fallback.error
+      }
       if (error) {
         return { ok: false, reason: 'query', detail: error.message }
       }
@@ -175,11 +283,19 @@ export async function fetchSalesReportData(
           | { name?: string | null; unit_price?: number | null }[]
           | null
         const item = Array.isArray(items) ? items[0] : items
-        const orders = row.orders as { customer?: string | null } | { customer?: string | null }[] | null
-        const customer = Array.isArray(orders) ? orders[0]?.customer : orders?.customer
+        const orders = row.orders as
+          | { customer?: string | null; customer_po_number?: string | null }
+          | { customer?: string | null; customer_po_number?: string | null }[]
+          | null
+        const orderRow = Array.isArray(orders) ? orders[0] : orders
+        const orderId = String(row.order_id ?? '')
         groupInfoById.set(String(row.id), {
-          orderId: String(row.order_id ?? ''),
-          customer: String(customer ?? '').trim(),
+          orderId,
+          customerPoNumber:
+            String(orderRow?.customer_po_number ?? '').trim() ||
+            orderById.get(orderId)?.customerPoNumber.trim() ||
+            '',
+          customer: String(orderRow?.customer ?? '').trim(),
           parentProductId: String(row.parent_product_id ?? '').trim(),
           productName: String(item?.name ?? '').trim() || String(row.parent_product_id ?? ''),
           itemUnitPrice: Math.max(0, Math.round(Number(item?.unit_price) || 0)),
@@ -241,11 +357,13 @@ export async function fetchSalesReportData(
       if (quantity <= 0) continue
       const info = row.assembly_group_id ? groupInfoById.get(String(row.assembly_group_id)) : undefined
       const unitPrice = info ? resolveShipUnitPrice(info) : 0
+      const orderId = info?.orderId ?? ''
       shipments.push({
         recordDate: String(row.record_date ?? ''),
         deliveryId: String(row.id ?? ''),
         shipmentId: String(row.shipment_id || row.id || '').trim() || String(row.id ?? ''),
-        orderNumber: info?.orderId ?? '',
+        orderId,
+        orderNumber: displayPoNumber(info?.customerPoNumber, orderId),
         customer: info?.customer ?? '',
         productCode: info?.parentProductId ?? '',
         productName: info?.productName ?? '',
@@ -282,7 +400,8 @@ export async function fetchSalesReportData(
           recordDate: item.deliveryDate || order.orderDate,
           deliveryId: displayShipmentId,
           shipmentId: displayShipmentId,
-          orderNumber: order.orderNumber,
+          orderId: order.orderId,
+          orderNumber: displayPoNumber(order.customerPoNumber, order.orderId || order.orderNumber),
           customer: order.customer,
           productCode: item.productCode || item.productId || '',
           productName: item.productName || '과거 명세서',

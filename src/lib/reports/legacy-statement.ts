@@ -3,11 +3,13 @@ import {
   stripCreatedByFields,
   withCreatedByFields,
 } from '@/lib/auth/created-by'
+import { resolveDeliveryPaymentSnapshot } from '@/lib/delivery/repository'
 import { createOrder } from '@/lib/orders/repository'
 import type { OrderLineItem } from '@/lib/orders/types'
+import { persistPaymentTermSnapshot } from '@/lib/partners/payment-term-snapshot'
 import { createSupabaseClient } from '@/lib/supabase'
 
-/** 과거 거래명세서용 주문서 source — 생산·출하등록 목록에서 제외 */
+/** 과거 거래명세서용 발주서 source — 생산·출하등록 목록에서 제외 */
 export const LEGACY_STATEMENT_ORDER_SOURCE = 'legacy_statement'
 
 export const LEGACY_SHIPMENT_NOTE_PREFIX = 'legacy_statement:'
@@ -183,7 +185,13 @@ export async function ensureLegacyShipmentNumber(input: {
   }
 
   if (!inserted.error && inserted.data?.id) {
-    return String(inserted.data.id)
+    const shipmentId = String(inserted.data.id)
+    await persistPaymentTermSnapshot(
+      'delivery_records',
+      shipmentId,
+      await resolveDeliveryPaymentSnapshot({ orderId }),
+    )
+    return shipmentId
   }
 
   const generated = await supabase.rpc('generate_delivery_number', { p_record_date: shipDate })

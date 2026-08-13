@@ -89,7 +89,7 @@ export async function fetchRecentChangeLogs(limit = 30): Promise<FetchChangeLogs
   }
 }
 
-/** 특정 엔티티(주문서·품목·견적)의 변경이력 */
+/** 특정 엔티티(발주서·품목·견적)의 변경이력 */
 export async function fetchChangeLogsForEntity(
   entityType: ChangeLogEntityType,
   entityId: string,

@@ -220,7 +220,7 @@ function OrderModalContent({
 
   async function handleDelete() {
     if (!order) return
-    if (!window.confirm(`${order.orderNumber} 주문서를 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) {
+    if (!window.confirm(`${order.orderNumber} 발주서를 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) {
       return
     }
 
@@ -244,7 +244,7 @@ function OrderModalContent({
     <ErpModal
       open
       size="lg"
-      title={mode === 'edit' ? `주문서 수정 (${items.length}개 제품)` : '신규 주문서'}
+      title={mode === 'edit' ? `발주서 수정 (${items.length}개 제품)` : '신규 발주서'}
       onClose={onClose}
       closeOnEscape={!busy}
       footer={
@@ -276,11 +276,11 @@ function OrderModalContent({
                   variant="secondary"
                   onClick={() => {
                     const ok = printOrder(buildOrderPrintData(order))
-                    if (!ok) setSaveError('주문서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
+                    if (!ok) setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
                   }}
                   disabled={busy}
                 >
-                  주문서 인쇄
+                  발주서 인쇄
                 </ErpButton>
               ) : null}
               <CancelButton disabled={busy} />
@@ -328,7 +328,7 @@ function OrderModalContent({
           <p className="mt-1 text-xs text-slate-500">
             {mode === 'create'
               ? '입력하지 않으면 저장 시 MRO-YYMMDD-NN 형식으로 자동 발급됩니다. 고객 PO를 받으면 나중에 수정할 수 있습니다.'
-              : '고객 주문서를 늦게 받아도 이 칸만 수정하면 됩니다.'}
+              : '고객 발주서를 늦게 받아도 이 칸만 수정하면 됩니다.'}
           </p>
         </label>
       </div>
@@ -349,7 +349,7 @@ function OrderModalContent({
           </select>
         </label>
         <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>주문일</span>
+          <span className={ERP_FIELD_LABEL_CLASS}>발주일</span>
           <input
             type="date"
             value={form.orderDate}
@@ -383,7 +383,7 @@ function OrderModalContent({
           value={form.note}
           onChange={(event) => updateForm('note', event.target.value)}
           rows={2}
-          placeholder="주문서 비고"
+          placeholder="발주서 비고"
           lang="ko"
           className={ERP_FIELD_INPUT_CLASS}
           style={{ imeMode: 'active' }}

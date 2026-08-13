@@ -14,12 +14,17 @@ import {
   emptyPartnerForm,
   formToPartnerPayload,
   partnerToForm,
+  validatePartnerForm,
   type PartnerFormState,
 } from '@/lib/partners/form-state'
 import {
+  PARTNER_PAYMENT_TERM_TYPE_HINTS,
+  PARTNER_PAYMENT_TERM_TYPE_LABELS,
+  PARTNER_PAYMENT_TERM_TYPES,
   PARTNER_TRADE_ROLES,
   PARTNER_TRADE_ROLE_LABELS,
   type BusinessPartner,
+  type PartnerPaymentTermType,
   type PartnerTradeRole,
 } from '@/lib/partners/types'
 import { formatBusinessRegNo } from '@/lib/partners/utils'
@@ -69,7 +74,24 @@ function PartnerModalContent({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function updatePaymentTermType(type: PartnerPaymentTermType) {
+    setForm((current) => ({
+      ...current,
+      paymentTermType: type,
+      paymentDepositPercent:
+        type === 'installment' ? current.paymentDepositPercent || '30' : current.paymentDepositPercent,
+      paymentNetDays: type === 'net' ? current.paymentNetDays || '30' : current.paymentNetDays,
+      paymentMonthlyDay: type === 'monthly' ? current.paymentMonthlyDay || '15' : current.paymentMonthlyDay,
+    }))
+  }
+
   async function handleSave() {
+    const invalid = validatePartnerForm(form)
+    if (invalid) {
+      setSaveError(invalid)
+      return
+    }
+
     setSaving(true)
     setSaveError(null)
 
@@ -114,11 +136,6 @@ function PartnerModalContent({
       open
       size="form"
       title={isCreate ? '거래처 등록' : '거래처 수정'}
-      description={
-        !isCreate && partner
-          ? partner.id
-          : '내부 거래처ID는 저장 시 BP-00001 형식으로 자동 발급됩니다.'
-      }
       onClose={onClose}
       closeOnEscape={!busy}
       footer={
@@ -148,14 +165,6 @@ function PartnerModalContent({
       }
     >
       <div className="grid grid-cols-1 gap-4">
-        {!isCreate && partner?.id ? (
-          <div className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-600">거래처ID</span>
-            <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-600">
-              {partner.id} <span className="text-slate-400">(수정 불가)</span>
-            </div>
-          </div>
-        ) : null}
         <label className="block text-sm">
           <span className="mb-1 block font-medium text-slate-600">
             사업자번호 <span className="font-normal text-slate-400">(선택)</span>
@@ -226,6 +235,74 @@ function PartnerModalContent({
             ))}
           </select>
         </label>
+        <div className="space-y-3">
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-slate-600">결제조건</span>
+            <select
+              value={form.paymentTermType}
+              onChange={(event) => updatePaymentTermType(event.target.value as PartnerPaymentTermType)}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2"
+            >
+              {PARTNER_PAYMENT_TERM_TYPES.map((type) => (
+                <option key={type || 'none'} value={type}>
+                  {PARTNER_PAYMENT_TERM_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+            {form.paymentTermType ? (
+              <p className="mt-1 text-xs text-slate-500">{PARTNER_PAYMENT_TERM_TYPE_HINTS[form.paymentTermType]}</p>
+            ) : null}
+          </label>
+          {form.paymentTermType === 'installment' ? (
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-600">선금 비율 (%)</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={form.paymentDepositPercent}
+                  onChange={(event) => updateForm('paymentDepositPercent', event.target.value)}
+                  className="w-28 rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
+                />
+                <span className="text-sm text-slate-500">
+                  잔금 {Math.max(0, 100 - Math.floor(Number(form.paymentDepositPercent) || 0))}%
+                </span>
+              </div>
+            </label>
+          ) : null}
+          {form.paymentTermType === 'net' ? (
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-600">후불 일수 (Net)</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={form.paymentNetDays}
+                  onChange={(event) => updateForm('paymentNetDays', event.target.value)}
+                  className="w-28 rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
+                />
+                <span className="text-sm text-slate-500">일</span>
+              </div>
+            </label>
+          ) : null}
+          {form.paymentTermType === 'monthly' ? (
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-600">익월 입금일</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={form.paymentMonthlyDay}
+                  onChange={(event) => updateForm('paymentMonthlyDay', event.target.value)}
+                  className="w-28 rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
+                />
+                <span className="text-sm text-slate-500">일 (월말 마감)</span>
+              </div>
+            </label>
+          ) : null}
+        </div>
       </div>
     </ErpModal>
   )

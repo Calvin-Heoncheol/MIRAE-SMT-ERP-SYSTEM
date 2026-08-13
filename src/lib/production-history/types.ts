@@ -22,6 +22,8 @@ export type ProductionHistoryRow = {
   customer: string
   productName: string
   productCode: string
+  lotLabel: string
+  shipmentLabel: string
   quantity: number
   defectQuantity: number
   note: string

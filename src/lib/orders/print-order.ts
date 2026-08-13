@@ -108,7 +108,7 @@ export function buildOrderHtml(data: OrderPrintData, logoSrc = ORDER_PRINT_LOGO_
     : `<div class="notes notes-muted"><div class="notes-label">안내</div><div class="notes-body">납기 ${deliveryDate} · 품목 ${formatNumber(data.items.length)}종 · 수량 합계 ${formatNumber(totalQuantity)}</div></div>`
 
   return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
-<title>주문서 ${orderNumber}</title><style>
+<title>발주서 ${orderNumber}</title><style>
 @page { size: A4 portrait; margin: 12mm; }
 html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 * { box-sizing: border-box; }
@@ -376,7 +376,7 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
     </div>
     <div class="doc-badge">
       <div class="en">PURCHASE ORDER</div>
-      <h1>주문서</h1>
+      <h1>발주서</h1>
       <div class="order-no">${orderNumber}</div>
     </div>
   </div>
@@ -386,7 +386,7 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
     <div class="party-box">
       <div class="label">발주처 · Customer</div>
       <div class="name">${customer}</div>
-      <div class="detail">주문일자 ${orderDate} · 분류 ${category}</div>
+      <div class="detail">발주일자 ${orderDate} · 분류 ${category}</div>
     </div>
     <div class="party-box supplier">
       <div class="label">수주처 · Supplier</div>
@@ -421,7 +421,7 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
   <div class="bottom-grid">
     <div class="sign">
       <div class="label">확인 · Confirmation</div>
-      <div class="body">위 주문 내용을 확인합니다.</div>
+      <div class="body">위 발주 내용을 확인합니다.</div>
       <div class="stamp">${companyName}</div>
     </div>
     <div class="totals">
@@ -439,7 +439,7 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
   ${notesHtml}
 
   <div class="footer">
-    <span>${companyName} · 정식 주문서</span>
+    <span>${companyName} · 정식 발주서</span>
     <span>${orderNumber}</span>
   </div>
 </div></body></html>`
@@ -450,7 +450,7 @@ export function printOrder(data: OrderPrintData) {
 
   const html = buildOrderHtml(data, resolvePrintLogoSrc())
   const iframe = document.createElement('iframe')
-  iframe.setAttribute('title', '주문서 인쇄')
+  iframe.setAttribute('title', '발주서 인쇄')
   iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
   document.body.appendChild(iframe)
 

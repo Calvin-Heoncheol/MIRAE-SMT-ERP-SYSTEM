@@ -1,6 +1,17 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import type { AuthProfile } from '@/lib/auth/types'
+import {
+  fetchPaymentTermSnapshotForCustomer,
+  firstNonEmptyPaymentTermSnapshot,
+  isMissingPaymentTermSnapshotColumn,
+  omitPaymentTermSnapshotFields,
+  paymentTermSnapshotFromDbRow,
+  paymentTermSnapshotToDbRow,
+  persistPaymentTermSnapshot,
+  resolvePaymentTermSnapshotForUpdate,
+  type PaymentTermSnapshot,
+} from '@/lib/partners/payment-term-snapshot'
 import { createSupabaseClient } from '@/lib/supabase'
 import type { QuoteRowPayload } from './build-quote-payload'
 import type { QuoteDetailInfo, QuoteRecord, QuoteStatus, QuoteType } from './types'
@@ -68,6 +79,34 @@ function quoteStatusFromPayload(payload: QuoteRowPayload) {
     : 'draft'
 }
 
+export async function fetchQuotePaymentSnapshot(quoteId: string): Promise<PaymentTermSnapshot> {
+  const id = String(quoteId || '').trim()
+  if (!id) return paymentTermSnapshotFromDbRow(null)
+
+  const supabase = createSupabaseClient()
+  if (!supabase) return paymentTermSnapshotFromDbRow(null)
+
+  const { data, error } = await supabase
+    .from('quotations')
+    .select('customer, payment_term_type, payment_deposit_percent, payment_net_days, payment_monthly_day')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) {
+    if (isMissingPaymentTermSnapshotColumn(error.message)) {
+      const fallback = await supabase.from('quotations').select('customer').eq('id', id).maybeSingle()
+      return fetchPaymentTermSnapshotForCustomer(String(fallback.data?.customer || ''))
+    }
+    return paymentTermSnapshotFromDbRow(null)
+  }
+  if (!data) return paymentTermSnapshotFromDbRow(null)
+
+  return firstNonEmptyPaymentTermSnapshot(
+    paymentTermSnapshotFromDbRow(data),
+    await fetchPaymentTermSnapshotForCustomer(String(data.customer || '')),
+  )
+}
+
 export async function fetchQuotes(): Promise<FetchQuotesResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return {
@@ -115,6 +154,7 @@ export async function createQuote(payload: QuoteRowPayload, _quoteType: QuoteTyp
   try {
     const supabase = createSupabaseClient()
     const actor = await resolveQuoteActor(gate.profile)
+    const paymentSnapshot = await fetchPaymentTermSnapshotForCustomer(payload.customer)
     const baseRow = {
       quote_date: payload.quote_date,
       customer: payload.customer,
@@ -123,6 +163,7 @@ export async function createQuote(payload: QuoteRowPayload, _quoteType: QuoteTyp
       total_amount: payload.total_amount,
       detail_info: payload.detail_info,
       status: quoteStatusFromPayload(payload),
+      ...paymentTermSnapshotToDbRow(paymentSnapshot),
       created_by: actor.userId,
       created_by_name: actor.name,
       updated_by: actor.userId,
@@ -143,6 +184,11 @@ export async function createQuote(payload: QuoteRowPayload, _quoteType: QuoteTyp
         const { updated_by: _u, updated_by_name: _n, ...withoutBoth } = withoutStatus
         ;({ data, error } = await supabase.from('quotations').insert(withoutBoth).select('id').single())
       }
+    }
+
+    if (error && isMissingPaymentTermSnapshotColumn(error.message)) {
+      const withoutPayment = omitPaymentTermSnapshotFields(baseRow)
+      ;({ data, error } = await supabase.from('quotations').insert(withoutPayment).select('id').single())
     }
 
     if (error) {
@@ -192,6 +238,12 @@ export async function updateQuote(
       .maybeSingle()
 
     const before = beforeRow ? mapQuoteRecord(beforeRow as QuoteRecord) : null
+    const paymentSnapshot = resolvePaymentTermSnapshotForUpdate({
+      previousCustomer: before?.customer || '',
+      nextCustomer: payload.customer,
+      previousSnapshot: before?.paymentTerms || paymentTermSnapshotFromDbRow(beforeRow as QuoteRecord),
+      partnerSnapshot: await fetchPaymentTermSnapshotForCustomer(payload.customer),
+    })
     const patch: Record<string, unknown> = {
       quote_date: payload.quote_date,
       customer: payload.customer,
@@ -200,6 +252,7 @@ export async function updateQuote(
       total_amount: payload.total_amount,
       detail_info: payload.detail_info,
       status: quoteStatusFromPayload(payload),
+      ...paymentTermSnapshotToDbRow(paymentSnapshot),
       updated_at: new Date().toISOString(),
       updated_by: actor.userId,
       updated_by_name: actor.name,
@@ -230,6 +283,11 @@ export async function updateQuote(
         if (actor.userId) withoutBoth.created_by = actor.userId
         ;({ error } = await supabase.from('quotations').update(withoutBoth).eq('id', quoteId))
       }
+    }
+
+    if (error && isMissingPaymentTermSnapshotColumn(error.message)) {
+      const withoutPayment = omitPaymentTermSnapshotFields(patch)
+      ;({ error } = await supabase.from('quotations').update(withoutPayment).eq('id', quoteId))
     }
 
     if (error) {
@@ -296,6 +354,19 @@ export async function updateQuoteStatus(
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    const existing = await supabase
+      .from('quotations')
+      .select('customer, payment_term_type, payment_deposit_percent, payment_net_days, payment_monthly_day')
+      .eq('id', quoteId)
+      .maybeSingle()
+    if (!existing.error && existing.data) {
+      const current = paymentTermSnapshotFromDbRow(existing.data)
+      if (!current.paymentTermType) {
+        const snapshot = await fetchPaymentTermSnapshotForCustomer(String(existing.data.customer || ''))
+        await persistPaymentTermSnapshot('quotations', quoteId, snapshot)
+      }
     }
 
     return { ok: true, quoteId, quoteNumber: quoteId }

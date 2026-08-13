@@ -113,6 +113,10 @@ export function resolveAssemblyProductionCap(input: {
   if (needsSmt && needsPost) return Math.min(smtSets, postProduced)
   if (needsSmt) return smtSets
   if (needsPost) return postProduced
+  // 공정구분이 비어 있어도 생산실적이 있으면 출하 가능
+  if (smtSets > 0 && postProduced > 0) return Math.min(smtSets, postProduced)
+  if (smtSets > 0) return smtSets
+  if (postProduced > 0) return postProduced
   return 0
 }
 
@@ -135,7 +139,14 @@ function resolveMasterProduct(
   if (id && productById[id]) return productById[id]
   const code = String(productCode || '').trim()
   if (code && productById[code]) return productById[code]
-  return undefined
+  const needle = (id || code).trim()
+  if (!needle) return undefined
+  const upper = needle.toUpperCase()
+  const matches = Object.values(productById).filter((product) => {
+    const pc = String(product.productCode || '').trim()
+    return product.id === needle || pc === needle || pc.toUpperCase() === upper
+  })
+  return matches[0]
 }
 
 function resolveLineProductFields(
@@ -236,6 +247,7 @@ export function buildProductionOrderLines(
         orderDate: order.orderDate,
         deliveryDate: item.deliveryDate || order.deliveryDate,
         customer: order.customer,
+        productId,
         productCode,
         productVersion,
         productName,
@@ -263,7 +275,7 @@ export function buildPostProcessAssemblyLines(
   return buildAssemblyGroupProductionLines(assemblyGroups, orders, productById, 'post', quotes)
 }
 
-/** 출하용 — 조립그룹 부모 품목에 대응하는 주문서 라인 단가 */
+/** 출하용 — 조립그룹 부모 품목에 대응하는 발주서 라인 단가 */
 export function resolveAssemblyGroupOrderUnitPrice(
   order: OrderListGroup,
   parentProductId: string,
@@ -312,12 +324,7 @@ function buildAssemblyGroupProductionLines(
   for (const group of assemblyGroups) {
     const order = orderById[group.orderId]
     if (!order) continue
-    // parent 가 마스터에 없으면 TEMP 등으로 잘못 생긴 그룹
-    if (!productById[group.parentProductId]) continue
     if (mode === 'post' && !assemblyGroupIncludesPostProcess(group, productById, quotes, order)) {
-      continue
-    }
-    if (mode === 'delivery' && !assemblyGroupIsDeliveryEligible(group, productById, quotes, order)) {
       continue
     }
 
@@ -326,6 +333,8 @@ function buildAssemblyGroupProductionLines(
       group.parentProductCode,
       productById,
     )
+    // parent 가 마스터에 없으면 TEMP 등으로 잘못 생긴 그룹
+    if (!parentProduct) continue
     const productName = (
       parentProduct?.productName || group.parentProductName
     ).trim()
@@ -346,7 +355,9 @@ function buildAssemblyGroupProductionLines(
       parseItemVersionCode(productCode).version ||
       null
 
-    const unitPrice = resolveAssemblyGroupOrderUnitPrice(order, group.parentProductId, productCode)
+    const unitPrice =
+      resolveAssemblyGroupOrderUnitPrice(order, group.parentProductId, productCode) ||
+      Math.max(0, Math.round(Number(parentProduct?.defaultUnitPrice) || 0))
 
     lines.push({
       uiKey: `${order.orderNumber}\u001easm\u001e${group.id}`,
@@ -358,6 +369,7 @@ function buildAssemblyGroupProductionLines(
       orderDate: order.orderDate,
       deliveryDate: order.deliveryDate,
       customer: order.customer,
+      productId: parentProduct.id || group.parentProductId,
       productCode,
       productVersion,
       productName,

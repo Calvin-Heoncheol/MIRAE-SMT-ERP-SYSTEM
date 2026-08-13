@@ -1,4 +1,5 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
+import { matchesDateRange, type DateRangeFilterValue } from '@/lib/ui/date-range'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { formatProductSummary, isBillingOnlyOrderItem } from '@/lib/orders/utils'
 import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-input/types'
@@ -274,4 +275,22 @@ export function buildProductionStatusLines(
       products,
     }
   })
+}
+
+export function matchesProductionStatusSearch(line: ProductionStatusLine, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const productNames = line.products.map((product) => product.productName).join(' ')
+  const productCodes = line.products.map((product) => product.productCode).join(' ')
+  return [line.orderNumber, line.customer, line.productName, productNames, productCodes]
+    .join(' ')
+    .toLowerCase()
+    .includes(q)
+}
+
+export function filterProductionStatusLinesByDate(
+  lines: ProductionStatusLine[],
+  range: DateRangeFilterValue,
+) {
+  return lines.filter((line) => matchesDateRange(line.deliveryDate, range))
 }

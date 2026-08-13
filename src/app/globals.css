@@ -676,3 +676,48 @@ body {
 .erp-busy-bar {
   animation: erp-busy-slide 1.1s ease-in-out infinite;
 }
+
+@keyframes erp-scan-flash-ok {
+  0% {
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0.7);
+  }
+  35% {
+    box-shadow: 0 0 0 4px rgb(16 185 129 / 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0);
+  }
+}
+
+@keyframes erp-scan-flash-err {
+  0% {
+    box-shadow: 0 0 0 0 rgb(244 63 94 / 0.7);
+  }
+  35% {
+    box-shadow: 0 0 0 4px rgb(244 63 94 / 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(244 63 94 / 0);
+  }
+}
+
+@keyframes erp-scan-row-in {
+  0% {
+    background-color: rgb(167 243 208);
+  }
+  100% {
+    background-color: rgb(236 253 245);
+  }
+}
+
+.erp-scan-flash-ok {
+  animation: erp-scan-flash-ok 0.75s ease-out;
+}
+
+.erp-scan-flash-err {
+  animation: erp-scan-flash-err 0.75s ease-out;
+}
+
+.erp-scan-row-latest {
+  animation: erp-scan-row-in 0.55s ease-out;
+}

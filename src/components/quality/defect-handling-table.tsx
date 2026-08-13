@@ -40,9 +40,6 @@ export function DefectHandlingTable({ rows, emptyMessage, onRowClick }: DefectHa
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                상태
-              </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 기록일
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -66,6 +63,9 @@ export function DefectHandlingTable({ rows, emptyMessage, onRowClick }: DefectHa
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 대처
               </th>
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                상태
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -75,13 +75,6 @@ export function DefectHandlingTable({ rows, emptyMessage, onRowClick }: DefectHa
                 className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
                 onClick={() => onRowClick(row)}
               >
-                <td className="whitespace-nowrap px-3 py-2.5">
-                  <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${statusClass(row.status)}`}
-                  >
-                    {formatDefectStatus(row.status)}
-                  </span>
-                </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
                   {row.recordDate}
                 </td>
@@ -113,6 +106,13 @@ export function DefectHandlingTable({ rows, emptyMessage, onRowClick }: DefectHa
                 </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
                   {formatDefectAction(row.actionType)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5">
+                  <span
+                    className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${statusClass(row.status)}`}
+                  >
+                    {formatDefectStatus(row.status)}
+                  </span>
                 </td>
               </tr>
             ))}

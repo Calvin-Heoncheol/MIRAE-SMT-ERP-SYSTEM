@@ -87,7 +87,7 @@ function formatChangeTime(iso: string) {
 }
 
 function changeEntityLabel(entityType: ChangeLogRecord['entityType']) {
-  if (entityType === 'order') return '주문'
+  if (entityType === 'order') return '발주서'
   if (entityType === 'item') return '품목'
   return '견적'
 }
@@ -135,7 +135,7 @@ function ChangesPanel({
             </span>
           ) : null}
         </div>
-        <p className="mt-0.5 text-xs text-slate-500">주문서 · 품목 · 견적서 수정 이력</p>
+        <p className="mt-0.5 text-xs text-slate-500">발주서 · 품목 · 견적서 수정 이력</p>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {badge ? (
@@ -271,7 +271,7 @@ function TeamProductionModal({
             <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
               <tr>
                 <th className="whitespace-nowrap px-3 py-2.5">시간</th>
-                <th className="whitespace-nowrap px-3 py-2.5">주문번호</th>
+                <th className="whitespace-nowrap px-3 py-2.5">발주번호</th>
                 <th className="whitespace-nowrap px-3 py-2.5">고객</th>
                 <th className="px-3 py-2.5">품목</th>
                 <th className="whitespace-nowrap px-3 py-2.5 text-right">수량</th>

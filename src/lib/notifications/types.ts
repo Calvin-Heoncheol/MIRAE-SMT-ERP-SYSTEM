@@ -28,10 +28,10 @@ export type ActivityNotificationFeed = {
 }
 
 export const ACTIVITY_KIND_LABELS: Record<ActivityNotificationKind, string> = {
-  order: '주문',
+  order: '발주서',
   quote: '견적',
   delivery: '출하',
-  purchase: '발주',
+  purchase: '구매발주',
   inbound: '입고',
   outbound: '불출',
   approval: '품의',

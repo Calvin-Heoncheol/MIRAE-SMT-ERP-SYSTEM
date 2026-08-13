@@ -36,7 +36,7 @@ export type ProductionStatusLine = {
   /** 펼친 행에 쓰는 제품 수 */
   productCount: number
   deliveryDate: string
-  /** 주문서 주문수량 합계 */
+  /** 발주서 주문수량 합계 */
   quantity: number
   smtTarget: number
   smtProduced: number

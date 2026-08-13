@@ -23,8 +23,11 @@ import {
   ITEM_CATEGORY_LABELS,
   ITEM_MATERIAL_TYPE_OPTIONS,
   ITEM_SUPPLY_TYPE_OPTIONS,
+  ITEM_PCB_SIDE_MODE_LABELS,
+  ITEM_PCB_SIDE_MODES,
   ITEM_PROCESS_TYPE_LABELS,
   ITEM_PROCESS_TYPES,
+  type ItemPcbSideMode,
   isManualItemCodeCategory,
   canEditItemCodeOnCreate,
   isProductItemCategory,
@@ -88,7 +91,7 @@ function createFormWithCategory(
   if (!category) return form
 
   form.itemCategory = category
-  form.pcbSideMode = ''
+  form.pcbSideMode = isSemiFinishedItemCategory(category) ? 'single' : ''
   form.id = resolvePreviewItemCode(category, existingItems)
 
   if (initialValues) {
@@ -190,7 +193,7 @@ function ItemModalContent({
       const next: ItemFormState = {
         ...current,
         itemCategory: value,
-        pcbSideMode: '',
+        pcbSideMode: value && isSemiFinishedItemCategory(value) ? 'single' : '',
       }
       if (isCreate) {
         if (!value) {
@@ -223,6 +226,7 @@ function ItemModalContent({
     form.itemCategory !== '' && isRawMaterialItemCategory(form.itemCategory)
   const showProductProcessTypeField =
     form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
+  const showPcbSideModeField = showProductProcessTypeField
   const showProductUnitPriceField =
     form.itemCategory !== '' && isProductItemCategory(form.itemCategory)
   const showVersionField =
@@ -314,7 +318,7 @@ function ItemModalContent({
         [
           `${item.name} (${item.id}) 을(를) 사용중지할까요?`,
           '',
-          '· 주문·생산 이력은 그대로 유지됩니다.',
+          '· 발주·생산 이력은 그대로 유지됩니다.',
           '· 품목 수정 화면에서「사용중지」로 표시됩니다.',
           '· BOM 등록 목록에서는 숨겨집니다.',
           '· 실수로 만든 버전을 없애고 싶을 때 삭제 대신 이 방법을 권장합니다.',
@@ -572,6 +576,33 @@ function ItemModalContent({
             </p>
           </label>
         ) : null}
+        {showPcbSideModeField ? (
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>
+              면
+              {form.processType === 'smt' || form.processType === 'smt_post' ? (
+                <span className="text-red-500"> *</span>
+              ) : null}
+            </span>
+            <select
+              value={form.pcbSideMode}
+              onChange={(event) =>
+                updateForm('pcbSideMode', event.target.value as ItemPcbSideMode)
+              }
+              className={ERP_FIELD_INPUT_CLASS}
+            >
+              <option value="">선택</option>
+              {ITEM_PCB_SIDE_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {ITEM_PCB_SIDE_MODE_LABELS[mode]}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500">
+              양면만 TOP/BOT를 나눠 생산합니다. 단면·더블은 한 면으로 등록합니다.
+            </p>
+          </label>
+        ) : null}
         {showProductUnitPriceField ? (
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>기본 단가</span>
@@ -582,33 +613,11 @@ function ItemModalContent({
               }
               min={0}
               step={1}
-              placeholder="주문서 자동입력용"
+              placeholder="발주서 자동입력용"
               className={ERP_FIELD_INPUT_CLASS}
             />
             <p className="mt-1 text-xs text-slate-500">
-              주문서에서 품목 선택 시 이 단가가 자동으로 채워집니다.
-            </p>
-          </label>
-        ) : null}
-        {showMaterialDetailFields ? (
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>도급/사급</span>
-            <select
-              value={form.supplyType}
-              onChange={(event) =>
-                updateForm('supplyType', event.target.value as ItemSupplyType)
-              }
-              className={ERP_FIELD_INPUT_CLASS}
-            >
-              <option value="">선택</option>
-              {ITEM_SUPPLY_TYPE_OPTIONS.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-slate-500">
-              사급은 고객이 자재를 넘기고, 도급은 우리가 발주·수급합니다.
+              발주서에서 품목 선택 시 이 단가가 자동으로 채워집니다.
             </p>
           </label>
         ) : null}
@@ -661,6 +670,26 @@ function ItemModalContent({
                 onChange={(event) => updateForm('mpn', event.target.value)}
                 className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
               />
+            </label>
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>도급/사급</span>
+              <select
+                value={form.supplyType}
+                onChange={(event) =>
+                  updateForm('supplyType', event.target.value as ItemSupplyType)
+                }
+                className={ERP_FIELD_INPUT_CLASS}
+              >
+                <option value="">선택</option>
+                {ITEM_SUPPLY_TYPE_OPTIONS.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">
+                사급은 고객이 자재를 넘기고, 도급은 우리가 구매발주·수급합니다.
+              </p>
             </label>
           </>
         ) : null}

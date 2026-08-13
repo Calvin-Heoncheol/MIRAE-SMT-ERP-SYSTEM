@@ -7,15 +7,35 @@ import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import type { BusinessPartner } from '@/lib/partners/types'
-import type { SalesReportShipmentRow } from '@/lib/reports/sales-report'
-import { deleteStatementLine, updateStatementLine } from '@/lib/reports/statement-edit'
-import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS, ERP_SECONDARY_BUTTON_CLASS } from '@/lib/ui/tokens'
+import type { SalesReportShipmentRow, SalesReportStatementGroup } from '@/lib/reports/sales-report'
+import {
+  deleteStatementLines,
+  updateStatementLines,
+} from '@/lib/reports/statement-edit'
+import {
+  ERP_FIELD_INPUT_CLASS,
+  ERP_FIELD_LABEL_CLASS,
+  ERP_SECONDARY_BUTTON_CLASS,
+  ERP_TABLE_TD_WRAP_CLASS,
+} from '@/lib/ui/tokens'
 
 type SalesStatementEditModalProps = {
   open: boolean
-  row: SalesReportShipmentRow | null
+  group: SalesReportStatementGroup | null
   onClose: () => void
   onSaved?: (message?: string) => void
+}
+
+type LineDraft = {
+  source: 'delivery' | 'legacy'
+  deliveryId: string
+  orderId: string
+  orderNumber: string
+  orderLineId: string
+  productCode: string
+  productName: string
+  quantity: string
+  unitPrice: string
 }
 
 function formatMoneyInput(value: number) {
@@ -24,6 +44,28 @@ function formatMoneyInput(value: number) {
 
 function parseMoneyInput(value: string) {
   return Math.max(0, Math.round(Number(String(value).replace(/[^\d]/g, '')) || 0))
+}
+
+function formatCount(value: number) {
+  return value.toLocaleString('ko-KR')
+}
+
+function lineKey(line: Pick<SalesReportShipmentRow, 'deliveryId' | 'orderLineId'>, index: number) {
+  return `${line.deliveryId}-${line.orderLineId || index}`
+}
+
+function toDraft(line: SalesReportShipmentRow): LineDraft {
+  return {
+    source: line.source,
+    deliveryId: line.deliveryId,
+    orderId: line.orderId || line.orderNumber,
+    orderNumber: line.orderNumber,
+    orderLineId: line.orderLineId,
+    productCode: line.productCode,
+    productName: line.productName,
+    quantity: String(line.quantity),
+    unitPrice: formatMoneyInput(line.unitPrice),
+  }
 }
 
 function CancelButton({ disabled }: { disabled?: boolean }) {
@@ -42,36 +84,30 @@ function CancelButton({ disabled }: { disabled?: boolean }) {
 
 export function SalesStatementEditModal({
   open,
-  row,
+  group,
   onClose,
   onSaved,
 }: SalesStatementEditModalProps) {
   const canDelete = useCanDeleteRecords()
-  const isLegacy = row?.source === 'legacy'
+  const isLegacy = group?.source === 'legacy' || group?.lines.some((line) => line.source === 'legacy')
   const [partners, setPartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(false)
   const [recordDate, setRecordDate] = useState('')
   const [customer, setCustomer] = useState('')
-  const [productCode, setProductCode] = useState('')
-  const [productName, setProductName] = useState('')
-  const [quantity, setQuantity] = useState('')
-  const [unitPrice, setUnitPrice] = useState('0')
+  const [drafts, setDrafts] = useState<LineDraft[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open || !row) return
-    setRecordDate(row.recordDate.slice(0, 10))
-    setCustomer(row.customer)
-    setProductCode(row.productCode)
-    setProductName(row.productName)
-    setQuantity(String(row.quantity))
-    setUnitPrice(formatMoneyInput(row.unitPrice))
+    if (!open || !group) return
+    setRecordDate(group.recordDate.slice(0, 10))
+    setCustomer(group.customer)
+    setDrafts(group.lines.map(toDraft))
     setError(null)
     setSaving(false)
     setDeleting(false)
-  }, [open, row])
+  }, [open, group])
 
   useEffect(() => {
     if (!open || !isLegacy) return
@@ -87,48 +123,60 @@ export function SalesStatementEditModal({
     }
   }, [open, isLegacy])
 
-  const qtyNumber = Math.max(0, Math.floor(Number(quantity) || 0))
-  const unitPriceNumber = parseMoneyInput(unitPrice)
-  const amount = qtyNumber * unitPriceNumber
-
-  const description = useMemo(() => {
-    if (!row) return undefined
-    if (isLegacy) {
-      return '과거 명세서입니다. 같은 발주ID의 출하일·고객사가 함께 변경됩니다.'
+  const showOrderNumber = drafts.some((line) => line.orderNumber.trim())
+  const totals = useMemo(() => {
+    let quantity = 0
+    let amount = 0
+    for (const line of drafts) {
+      const qty = Math.max(0, Math.floor(Number(line.quantity) || 0))
+      const price = parseMoneyInput(line.unitPrice)
+      quantity += qty
+      amount += qty * price
     }
-      return '출하일·수량을 수정합니다. 단가는 주문서 품목 단가라서 같은 품목의 다른 출하에도 반영됩니다.'
-  }, [isLegacy, row])
+    return { quantity, amount }
+  }, [drafts])
+
+  function patchDraft(index: number, patch: Partial<LineDraft>) {
+    setDrafts((current) =>
+      current.map((line, lineIndex) => (lineIndex === index ? { ...line, ...patch } : line)),
+    )
+  }
 
   async function handleSave() {
-    if (!row) return
-    if (qtyNumber < 1) {
-      setError('수량은 1 이상이어야 합니다.')
-      return
+    if (!group) return
+    for (let index = 0; index < drafts.length; index += 1) {
+      const line = drafts[index]!
+      if (Math.floor(Number(line.quantity) || 0) < 1) {
+        setError(`${index + 1}행 수량은 1 이상이어야 합니다.`)
+        return
+      }
+      if (isLegacy && !line.productName.trim()) {
+        setError(`${index + 1}행 품목명을 입력해 주세요.`)
+        return
+      }
     }
     if (isLegacy && !customer.trim()) {
       setError('고객사를 입력해 주세요.')
-      return
-    }
-    if (isLegacy && !productName.trim()) {
-      setError('품목명을 입력해 주세요.')
       return
     }
 
     setSaving(true)
     setError(null)
 
-    const result = await updateStatementLine({
-      source: row.source,
-      deliveryId: row.deliveryId,
-      orderNumber: row.orderNumber,
-      orderLineId: row.orderLineId,
-      recordDate,
-      customer,
-      productCode,
-      productName,
-      quantity: qtyNumber,
-      unitPrice: unitPriceNumber,
-    })
+    const result = await updateStatementLines(
+      drafts.map((line) => ({
+        source: line.source,
+        deliveryId: line.deliveryId,
+        orderNumber: line.orderId || line.orderNumber,
+        orderLineId: line.orderLineId,
+        recordDate,
+        customer,
+        productCode: line.productCode,
+        productName: line.productName,
+        quantity: Math.max(0, Math.floor(Number(line.quantity) || 0)),
+        unitPrice: parseMoneyInput(line.unitPrice),
+      })),
+    )
 
     setSaving(false)
     if (!result.ok) {
@@ -141,20 +189,22 @@ export function SalesStatementEditModal({
   }
 
   async function handleDelete() {
-    if (!row) return
-    const label = isLegacy ? row.productName || row.orderNumber : row.deliveryId
-    if (!window.confirm(`${label}\n이 내역을 삭제하시겠습니까?`)) return
+    if (!group) return
+    const label = group.shipmentId || group.customer || '이 거래명세서'
+    if (!window.confirm(`${label}\n거래명세서 내역을 삭제하시겠습니까?`)) return
 
     setDeleting(true)
     setError(null)
 
-    const result = await deleteStatementLine({
-      source: row.source,
-      deliveryId: row.deliveryId,
-      orderNumber: row.orderNumber,
-      orderLineId: row.orderLineId,
-      productCode: row.productCode,
-    })
+    const result = await deleteStatementLines(
+      drafts.map((line) => ({
+        source: line.source,
+        deliveryId: line.deliveryId,
+        orderNumber: line.orderId || line.orderNumber,
+        orderLineId: line.orderLineId,
+        productCode: line.productCode,
+      })),
+    )
 
     setDeleting(false)
     if (!result.ok) {
@@ -166,12 +216,19 @@ export function SalesStatementEditModal({
     onClose()
   }
 
+  const cellInputClass =
+    'h-8 w-full min-w-0 rounded-md border border-slate-200 px-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
+
   return (
     <ErpModal
-      open={open && Boolean(row)}
-      title="거래명세서 내역 수정"
-      description={description}
-      size="md"
+      open={open && Boolean(group)}
+      title="거래명세서"
+      description={
+        isLegacy
+          ? '과거 명세서입니다. 출하일·고객사는 같은 발주서에 함께 반영됩니다.'
+          : '출하일·수량·단가를 품목별로 수정합니다. 단가는 발주서 품목 단가에도 반영됩니다.'
+      }
+      size="xl"
       onClose={onClose}
       closeOnEscape={!saving && !deleting}
       footer={
@@ -189,7 +246,7 @@ export function SalesStatementEditModal({
           ) : null}
           <CancelButton disabled={saving || deleting} />
           <ErpButton
-            disabled={saving || deleting}
+            disabled={saving || deleting || !drafts.length}
             loading={saving}
             onClick={() => void handleSave()}
           >
@@ -198,7 +255,7 @@ export function SalesStatementEditModal({
         </>
       }
     >
-      {row ? (
+      {group ? (
         <div className="space-y-4">
           {error ? (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -206,9 +263,9 @@ export function SalesStatementEditModal({
             </div>
           ) : null}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <label className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>출하일</span>
+              <span className={ERP_FIELD_LABEL_CLASS}>거래일자</span>
               <input
                 type="date"
                 value={recordDate}
@@ -217,16 +274,15 @@ export function SalesStatementEditModal({
               />
             </label>
             <div className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>{isLegacy ? '발주ID' : '출하번호'}</span>
+              <span className={ERP_FIELD_LABEL_CLASS}>출하번호</span>
               <div className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-mono text-xs`}>
-                {isLegacy ? row.orderNumber || '—' : row.shipmentId || row.deliveryId || '—'}
+                {group.shipmentId || '—'}
               </div>
             </div>
-
             {isLegacy ? (
-              <label className="block text-sm sm:col-span-2">
+              <label className="block text-sm">
                 <span className={ERP_FIELD_LABEL_CLASS}>
-                  고객사 <span className="text-rose-600">*</span>
+                  공급받는자 <span className="text-rose-600">*</span>
                 </span>
                 <CustomerCombobox
                   value={customer}
@@ -241,76 +297,113 @@ export function SalesStatementEditModal({
                 </p>
               </label>
             ) : (
-              <div className="block text-sm sm:col-span-2">
-                <span className={ERP_FIELD_LABEL_CLASS}>고객사 / 주문서</span>
-                <div className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50`}>
-                  <span className="font-semibold text-slate-900">{row.customer || '—'}</span>
-                  {row.orderNumber ? (
-                    <span className="ml-2 font-mono text-xs text-slate-500">{row.orderNumber}</span>
+              <div className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>공급받는자</span>
+                <div className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-semibold text-slate-900`}>
+                  {group.customer || '—'}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="min-w-[720px] w-full border-collapse text-sm">
+              <thead className="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500">
+                <tr>
+                  <th className="w-10 px-2 py-2 text-center">No</th>
+                  {showOrderNumber ? (
+                    <th className="px-2 py-2 text-left">발주번호</th>
                   ) : null}
-                </div>
-              </div>
-            )}
-
-            {isLegacy ? (
-              <>
-                <label className="block text-sm">
-                  <span className={ERP_FIELD_LABEL_CLASS}>품목코드</span>
-                  <input
-                    value={productCode}
-                    onChange={(event) => setProductCode(event.target.value)}
-                    className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
-                  />
-                </label>
-                <label className="block text-sm">
-                  <span className={ERP_FIELD_LABEL_CLASS}>
-                    품목명 <span className="text-rose-600">*</span>
-                  </span>
-                  <input
-                    value={productName}
-                    onChange={(event) => setProductName(event.target.value)}
-                    className={ERP_FIELD_INPUT_CLASS}
-                  />
-                </label>
-              </>
-            ) : (
-              <div className="block text-sm sm:col-span-2">
-                <span className={ERP_FIELD_LABEL_CLASS}>품목</span>
-                <div className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50`}>
-                  <p className="font-medium text-slate-900">{row.productName || '—'}</p>
-                  <p className="mt-0.5 font-mono text-xs text-slate-500">{row.productCode || '—'}</p>
-                </div>
-              </div>
-            )}
-
-            <label className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>수량</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={quantity}
-                onChange={(event) => setQuantity(event.target.value)}
-                className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>단가</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={unitPrice}
-                onChange={(event) => setUnitPrice(event.target.value.replace(/[^\d,]/g, ''))}
-                onBlur={() => setUnitPrice(formatMoneyInput(parseMoneyInput(unitPrice)))}
-                className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
-              />
-            </label>
-            <div className="block text-sm sm:col-span-2">
-              <span className={ERP_FIELD_LABEL_CLASS}>금액</span>
-              <div className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 text-base font-bold tabular-nums`}>
-                ₩{formatMoneyInput(amount)}
-              </div>
-            </div>
+                  <th className="px-2 py-2 text-left">품목코드</th>
+                  <th className="px-2 py-2 text-left">품명</th>
+                  <th className="w-[88px] px-2 py-2 text-right">수량</th>
+                  <th className="w-[112px] px-2 py-2 text-right">단가</th>
+                  <th className="w-[120px] px-2 py-2 text-right">공급가액</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drafts.map((line, index) => {
+                  const qty = Math.max(0, Math.floor(Number(line.quantity) || 0))
+                  const price = parseMoneyInput(line.unitPrice)
+                  const amount = qty * price
+                  const legacyLine = line.source === 'legacy'
+                  return (
+                    <tr key={lineKey(line, index)} className="border-t border-slate-100">
+                      <td className="px-2 py-2 text-center tabular-nums text-slate-500">{index + 1}</td>
+                      {showOrderNumber ? (
+                        <td className="px-2 py-2 font-mono text-xs text-slate-600">
+                          {line.orderNumber || '—'}
+                        </td>
+                      ) : null}
+                      <td className={`px-2 py-2 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                        {legacyLine ? (
+                          <input
+                            value={line.productCode}
+                            onChange={(event) => patchDraft(index, { productCode: event.target.value })}
+                            className={`${cellInputClass} font-mono`}
+                          />
+                        ) : (
+                          <span className="font-mono text-xs text-slate-700">{line.productCode || '—'}</span>
+                        )}
+                      </td>
+                      <td className={`px-2 py-2 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                        {legacyLine ? (
+                          <input
+                            value={line.productName}
+                            onChange={(event) => patchDraft(index, { productName: event.target.value })}
+                            className={cellInputClass}
+                          />
+                        ) : (
+                          <span className="font-medium text-slate-900">{line.productName || '—'}</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={line.quantity}
+                          onChange={(event) => patchDraft(index, { quantity: event.target.value })}
+                          className={`${cellInputClass} text-right tabular-nums`}
+                        />
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={line.unitPrice}
+                          onChange={(event) =>
+                            patchDraft(index, { unitPrice: event.target.value.replace(/[^\d,]/g, '') })
+                          }
+                          onBlur={() =>
+                            patchDraft(index, {
+                              unitPrice: formatMoneyInput(parseMoneyInput(line.unitPrice)),
+                            })
+                          }
+                          className={`${cellInputClass} text-right tabular-nums`}
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-right font-semibold tabular-nums text-slate-900">
+                        {formatCount(amount)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-900">
+                  <td
+                    className="px-2 py-2.5 text-right"
+                    colSpan={showOrderNumber ? 4 : 3}
+                  >
+                    합계
+                  </td>
+                  <td className="px-2 py-2.5 text-right tabular-nums">{formatCount(totals.quantity)}</td>
+                  <td className="px-2 py-2.5" />
+                  <td className="px-2 py-2.5 text-right tabular-nums">{formatCount(totals.amount)}</td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
       ) : null}

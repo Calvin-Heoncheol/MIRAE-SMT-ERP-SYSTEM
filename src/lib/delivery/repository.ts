@@ -2,6 +2,7 @@ import {
   ensureAssemblyGroupsForOrders,
   fetchAssemblyGroups,
   repairChildrenOnlyAssemblyGroups,
+  repairMissingSemiFinishedDeliveryGroups,
   repairOrphanAssemblyGroups,
 } from '@/lib/assembly/repository'
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
@@ -13,10 +14,23 @@ import {
 } from '@/lib/auth/created-by'
 import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
+import {
+  fetchPaymentTermSnapshotForCustomer,
+  firstNonEmptyPaymentTermSnapshot,
+  isMissingPaymentTermSnapshotColumn,
+  paymentTermSnapshotFromDbRow,
+  persistPaymentTermSnapshot,
+  type PaymentTermSnapshot,
+} from '@/lib/partners/payment-term-snapshot'
 import { fetchPostProcessCumulativeCounts } from '@/lib/post-process/repository'
 import { fetchProducts } from '@/lib/products/repository'
 import { fetchQuotes } from '@/lib/quotes/repository'
 import { fetchSmtCumulativeCounts } from '@/lib/smt/repository'
+import {
+  fetchLotLabelsByDeliveryIds,
+  persistDeliveryRecordLots,
+} from '@/lib/production-lots/repository'
+import type { LotAllocation } from '@/lib/production-lots/types'
 import { createSupabaseClient } from '@/lib/supabase'
 import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { assignShipmentRounds } from './history-utils'
@@ -76,6 +90,83 @@ export function isMissingDeliveryTable(detail: string) {
   )
 }
 
+export async function resolveDeliveryPaymentSnapshot(input: {
+  assemblyGroupId?: string | null
+  orderId?: string | null
+  customer?: string | null
+}): Promise<PaymentTermSnapshot> {
+  const supabase = createSupabaseClient()
+  if (!supabase) return paymentTermSnapshotFromDbRow(null)
+
+  let orderId = String(input.orderId || '').trim()
+  let customer = String(input.customer || '').trim()
+  let orderSnapshot = paymentTermSnapshotFromDbRow(null)
+
+  const assemblyGroupId = String(input.assemblyGroupId || '').trim()
+  if (assemblyGroupId) {
+    const selectWithTerms =
+      'order_id, orders(customer, payment_term_type, payment_deposit_percent, payment_net_days, payment_monthly_day)'
+    let { data, error } = await supabase
+      .from('order_assembly_groups')
+      .select(selectWithTerms)
+      .eq('id', assemblyGroupId)
+      .maybeSingle()
+
+    if (error && isMissingPaymentTermSnapshotColumn(error.message)) {
+      const fallback = await supabase
+        .from('order_assembly_groups')
+        .select('order_id, orders(customer)')
+        .eq('id', assemblyGroupId)
+        .maybeSingle()
+      data = fallback.data as typeof data
+      error = fallback.error
+    }
+
+    if (!error && data) {
+      orderId = orderId || String(data.order_id || '').trim()
+      const orders = data.orders as
+        | {
+            customer?: string | null
+            payment_term_type?: string | null
+            payment_deposit_percent?: number | null
+            payment_net_days?: number | null
+            payment_monthly_day?: number | null
+          }
+        | {
+            customer?: string | null
+            payment_term_type?: string | null
+            payment_deposit_percent?: number | null
+            payment_net_days?: number | null
+            payment_monthly_day?: number | null
+          }[]
+        | null
+      const order = Array.isArray(orders) ? orders[0] : orders
+      customer = customer || String(order?.customer || '').trim()
+      orderSnapshot = paymentTermSnapshotFromDbRow(order)
+    }
+  }
+
+  if (!orderSnapshot.paymentTermType && orderId) {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('customer, payment_term_type, payment_deposit_percent, payment_net_days, payment_monthly_day')
+      .eq('id', orderId)
+      .maybeSingle()
+    if (error && isMissingPaymentTermSnapshotColumn(error.message)) {
+      const fallback = await supabase.from('orders').select('customer').eq('id', orderId).maybeSingle()
+      customer = customer || String(fallback.data?.customer || '').trim()
+    } else if (!error && data) {
+      customer = customer || String(data.customer || '').trim()
+      orderSnapshot = paymentTermSnapshotFromDbRow(data)
+    }
+  }
+
+  return firstNonEmptyPaymentTermSnapshot(
+    orderSnapshot,
+    await fetchPaymentTermSnapshotForCustomer(customer),
+  )
+}
+
 function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }>(): T {
   return {
     ok: false,
@@ -113,12 +204,17 @@ function mapDeliveryRecord(row: {
 }
 
 export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPageResult> {
-  const ordersResult = await fetchOrders()
+  const [ordersResult, derivedOrdersResult, productsResult] = await Promise.all([
+    fetchOrders(),
+    fetchOrders({ includeDerivedLines: true }),
+    fetchProducts(),
+  ])
   if (!ordersResult.ok) {
     return ordersResult
   }
-
-  const productsResult = await fetchProducts()
+  if (!derivedOrdersResult.ok) {
+    return derivedOrdersResult
+  }
   if (!productsResult.ok) {
     return productsResult
   }
@@ -153,6 +249,13 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
   assemblyResult = await repairOrphanAssemblyGroups(assemblyResult.groups, productById)
   if (!assemblyResult.ok) return assemblyResult
 
+  assemblyResult = await repairMissingSemiFinishedDeliveryGroups(
+    assemblyResult.groups,
+    productById,
+    derivedOrdersResult.orders,
+  )
+  if (!assemblyResult.ok) return assemblyResult
+
   const deliveryCounts = deliveryCountsResult.counts
   const availabilityByGroupId = buildDeliveryAvailabilityMap(
     assemblyResult.groups,
@@ -167,7 +270,7 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
     data: {
       orders: buildDeliveryInputOrders(
         assemblyResult.groups,
-        ordersResult.orders,
+        derivedOrdersResult.orders,
         productById,
         quotesResult.quotes,
       ),
@@ -361,9 +464,26 @@ export async function createDeliveryRecord(
       if (!payload?.record) {
         return { ok: false, reason: 'query', detail: '출하 기록 저장에 실패했습니다.' }
       }
+      const record = mapDeliveryRecord(payload.record as Parameters<typeof mapDeliveryRecord>[0])
+      await persistPaymentTermSnapshot(
+        'delivery_records',
+        record.id,
+        await resolveDeliveryPaymentSnapshot({ assemblyGroupId }),
+      )
+      const lotsResult = await persistDeliveryRecordLots({
+        deliveryRecordId: record.id,
+        assemblyGroupId,
+        quantity,
+        preferDate: recordDate,
+        allocations: input.allocations as LotAllocation[] | undefined,
+      })
+      if (!lotsResult.ok && lotsResult.reason === 'validation') {
+        await supabase.from('delivery_records').delete().eq('id', record.id)
+        return { ok: false, reason: 'validation', detail: lotsResult.detail }
+      }
       return {
         ok: true,
-        record: mapDeliveryRecord(payload.record as Parameters<typeof mapDeliveryRecord>[0]),
+        record,
         cumulative: Math.max(0, Math.floor(Number(payload.cumulative) || currentTotal + quantity)),
       }
     }
@@ -426,9 +546,26 @@ export async function createDeliveryRecord(
       }
     }
 
+    const record = mapDeliveryRecord(inserted)
+    await persistPaymentTermSnapshot(
+      'delivery_records',
+      record.id,
+      await resolveDeliveryPaymentSnapshot({ assemblyGroupId }),
+    )
+    const lotsResult = await persistDeliveryRecordLots({
+      deliveryRecordId: record.id,
+      assemblyGroupId,
+      quantity,
+      preferDate: recordDate,
+      allocations: input.allocations as LotAllocation[] | undefined,
+    })
+    if (!lotsResult.ok && lotsResult.reason === 'validation') {
+      await supabase.from('delivery_records').delete().eq('id', record.id)
+      return { ok: false, reason: 'validation', detail: lotsResult.detail }
+    }
     return {
       ok: true,
-      record: mapDeliveryRecord(inserted),
+      record,
       cumulative: currentTotal + quantity,
     }
   } catch (error) {
@@ -452,17 +589,35 @@ export async function createDeliveryShipment(
     return { ok: false, reason: 'validation', detail: '고객사가 없습니다.' }
   }
 
-  const merged = new Map<string, number>()
+  const merged = new Map<
+    string,
+    { assemblyGroupId: string; quantity: number; allocations?: LotAllocation[] }
+  >()
   for (const line of input.lines || []) {
     const assemblyGroupId = String(line.assemblyGroupId || '').trim()
     const quantity = Math.max(0, Math.floor(Number(line.quantity) || 0))
     if (!assemblyGroupId || quantity < 1) continue
-    merged.set(assemblyGroupId, (merged.get(assemblyGroupId) || 0) + quantity)
+    const allocations = (line.allocations || [])
+      .map((allocation) => ({
+        lotId: String(allocation.lotId || '').trim(),
+        lotDate: String(allocation.lotDate || ''),
+        quantity: Math.max(0, Math.floor(Number(allocation.quantity) || 0)),
+        remaining: Math.max(0, Math.floor(Number(allocation.remaining) || 0)),
+      }))
+      .filter((allocation) => allocation.lotId && allocation.quantity > 0)
+    const existing = merged.get(assemblyGroupId)
+    if (existing) {
+      existing.quantity += quantity
+      existing.allocations = undefined
+      continue
+    }
+    merged.set(assemblyGroupId, {
+      assemblyGroupId,
+      quantity,
+      allocations: allocations.length ? allocations : undefined,
+    })
   }
-  const lines = [...merged.entries()].map(([assemblyGroupId, quantity]) => ({
-    assemblyGroupId,
-    quantity,
-  }))
+  const lines = [...merged.values()]
 
   if (!lines.length) {
     return { ok: false, reason: 'validation', detail: '출하목록에 품목을 추가해 주세요.' }
@@ -528,6 +683,7 @@ export async function createDeliveryShipment(
         quantity: line.quantity,
         recordDate,
         note,
+        allocations: line.allocations,
         // 두 번째 라인부터 첫 라인 출하번호로 묶음
         shipmentGroupId: index === 0 ? undefined : shipmentGroupId,
       })
@@ -934,6 +1090,7 @@ function mapDeliveryHistoryRow(row: DeliveryHistoryRecordRow): DeliveryHistoryRo
     note: record.note,
     createdBy: record.createdBy,
     createdByName: record.createdByName,
+    lotLabel: '',
   }
 }
 
@@ -1090,6 +1247,11 @@ async function fetchDeliveryRecords(options?: {
     for (const row of data || []) {
       const mapped = mapDeliveryHistoryRow(row as DeliveryHistoryRecordRow)
       if (mapped) rows.push(mapped)
+    }
+
+    const lotLabels = await fetchLotLabelsByDeliveryIds(rows.map((row) => row.id))
+    for (const row of rows) {
+      row.lotLabel = lotLabels[row.id] || ''
     }
 
     return { ok: true, rows: assignShipmentRounds(rows) }

@@ -142,7 +142,7 @@ function OutboundModalContent({
       open
       size="md"
       title={isEdit ? '불출 수정' : '불출 등록'}
-      description="주문·BOM 기준 미불출 수량을 가져와 등록할 수 있습니다."
+      description="발주서·BOM 기준 미불출 수량을 가져와 등록할 수 있습니다."
       onClose={onClose}
       closeOnEscape={!busy}
       footer={
@@ -203,14 +203,14 @@ function OutboundModalContent({
 
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>
-            주문 {form.outboundType === 'production' ? '(필수)' : '(선택)'}
+            발주서 {form.outboundType === 'production' ? '(필수)' : '(선택)'}
           </span>
           <select
             value={form.orderId}
             onChange={(event) => setForm((current) => ({ ...current, orderId: event.target.value }))}
             className={ERP_FIELD_INPUT_CLASS}
           >
-            <option value="">주문 선택</option>
+            <option value="">발주서 선택</option>
             {orders.map((order) => (
               <option key={order.orderId} value={order.orderId}>
                 {order.orderNumber} · {order.customer}

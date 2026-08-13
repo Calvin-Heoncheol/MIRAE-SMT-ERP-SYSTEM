@@ -10,7 +10,7 @@ type MaterialPurchaseSuggestionTableProps = {
   onCreateOrder: (items: MaterialPurchaseOrderItemForm[], supplier: string) => void
 }
 
-/** 자재 기준 발주 제안 — 주문서 소요 대비 부족한 자재 */
+/** 자재 기준 구매발주 제안 — 발주서 소요 대비 부족한 자재 */
 export function MaterialPurchaseSuggestionTable({
   lines,
   onCreateOrder,
@@ -59,11 +59,11 @@ export function MaterialPurchaseSuggestionTable({
     return (
       <section className="rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
-          <h3 className="text-sm font-bold text-slate-900">발주 제안</h3>
+          <h3 className="text-sm font-bold text-slate-900">구매발주 제안</h3>
         </div>
         <div className="px-5 py-8 text-center text-sm text-slate-500">
-          발주가 필요한 자재가 없습니다. 미처리 주문 소요가 현재고·입고예정으로
-          충당되었거나, 발주 대상 주문이 없습니다.
+          구매발주가 필요한 자재가 없습니다. 미처리 발주 소요가 현재고·입고예정으로
+          충당되었거나, 구매발주 대상 발주서가 없습니다.
         </div>
       </section>
     )
@@ -74,11 +74,11 @@ export function MaterialPurchaseSuggestionTable({
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3.5">
         <div>
           <h3 className="text-sm font-bold text-slate-900">
-            발주 제안{' '}
+            구매발주 제안{' '}
             <span className="tabular-nums font-semibold text-rose-600">{lines.length}</span>종
           </h3>
           <p className="mt-0.5 text-xs text-slate-500">
-            주문서 기준: 발주필요 = 주문 미커버 소요 − 현재고 − 입고예정
+            발주서 기준: 구매발주필요 = 발주 미커버 소요 − 현재고 − 입고예정
           </p>
         </div>
         <button
@@ -87,7 +87,7 @@ export function MaterialPurchaseSuggestionTable({
           disabled={!selectedLines.length}
           className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          선택 자재 발주 ({selectedLines.length.toLocaleString('ko-KR')})
+          선택 구매발주 ({selectedLines.length.toLocaleString('ko-KR')})
         </button>
       </div>
 
@@ -137,7 +137,7 @@ export function MaterialPurchaseSuggestionTable({
                 입고예정
               </th>
               <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-rose-600">
-                발주필요
+                구매발주필요
               </th>
             </tr>
           </thead>

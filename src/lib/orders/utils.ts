@@ -1,3 +1,4 @@
+import { paymentTermSnapshotFromDbRow } from '@/lib/partners/payment-term-snapshot'
 import type { OrderCategory, OrderLineItem, OrderListGroup, OrderRecord } from './types'
 import { ORDER_CATEGORIES } from './types'
 
@@ -164,6 +165,7 @@ export function mapOrderRecord(
     customerPoNumber: record.customer_po_number || '',
     source: record.source || 'manual',
     sourceQuoteId: record.source_quote_id,
+    paymentTerms: paymentTermSnapshotFromDbRow(record),
     createdBy: record.created_by ?? null,
     createdByName: String(record.created_by_name || '').trim(),
     createdAt: record.created_at,

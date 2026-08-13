@@ -45,11 +45,11 @@ export function ExpenseReportListTable({ reports, emptyMessage, onSelectReport }
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 영수자
               </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                결재상태
-              </th>
               <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 합계
+              </th>
+              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                결재상태
               </th>
             </tr>
           </thead>
@@ -67,11 +67,11 @@ export function ExpenseReportListTable({ reports, emptyMessage, onSelectReport }
                   {getExpenseReportProcessingMethodLabel(report.processingDetails)}
                 </td>
                 <td className="px-3 py-2.5 text-sm text-slate-700">{report.recipient || '-'}</td>
-                <td className="px-3 py-2.5 text-center">
-                  <SignoffStatusBadge label={getSignoffStatusLabel(report.detailInfo.signoffs)} />
-                </td>
                 <td className="px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900">
                   {formatExpenseReportMoney(report.totalAmount)}
+                </td>
+                <td className="px-3 py-2.5 text-center">
+                  <SignoffStatusBadge label={getSignoffStatusLabel(report.detailInfo.signoffs)} />
                 </td>
               </tr>
             ))}

@@ -2,22 +2,29 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import { CustomerFilterCombobox } from '@/components/reports/customer-filter-combobox'
 import { LegacyStatementModal } from '@/components/reports/legacy-statement-modal'
 import { SalesStatementEditModal } from '@/components/reports/sales-statement-edit-modal'
 import { DateRangeFilter } from '@/components/ui/date-range-filter'
+import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { PageShell } from '@/components/ui/page-shell'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import {
   buildDeliveryStatementDataFromShipment,
   printDeliveryStatements,
 } from '@/lib/delivery/print-delivery-statement'
 import type { DeliveryStatementData } from '@/lib/delivery/types'
 import { downloadExcelSheets, type ExcelColumn } from '@/lib/excel/export'
-import type { FetchSalesReportResult, SalesReportShipmentRow } from '@/lib/reports/sales-report'
+import { currentMonthRange } from '@/lib/reports/period'
+import {
+  groupSalesReportShipments,
+  type FetchSalesReportResult,
+  type SalesReportStatementGroup,
+} from '@/lib/reports/sales-report'
+import { DATE_RANGE_FILTER_LABEL } from '@/lib/ui/date-range'
 import {
   ERP_SECONDARY_BUTTON_CLASS,
   ERP_TABLE_CLASS,
@@ -27,6 +34,7 @@ import {
   ERP_TABLE_TD_WRAP_CLASS,
   ERP_TABLE_TH_CLASS,
   ERP_TABLE_WRAP_CLASS,
+  formatEmptyListMessage,
 } from '@/lib/ui/tokens'
 
 type SalesReportWorkspaceProps = {
@@ -59,11 +67,11 @@ export function SalesReportWorkspace({
   const data = result.ok ? result.data : null
   const [startDate, setStartDate] = useState(initialStartDate)
   const [endDate, setEndDate] = useState(initialEndDate)
-  const [customerFilter, setCustomerFilter] = useState('')
+  const [search, setSearch] = useState('')
   const [printing, setPrinting] = useState(false)
   const [printError, setPrintError] = useState<string | null>(null)
   const [legacyOpen, setLegacyOpen] = useState(false)
-  const [editingRow, setEditingRow] = useState<SalesReportShipmentRow | null>(null)
+  const [editingGroup, setEditingGroup] = useState<SalesReportStatementGroup | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -71,46 +79,17 @@ export function SalesReportWorkspace({
     setEndDate(initialEndDate)
   }, [initialStartDate, initialEndDate])
 
-  const selectedCustomer = customerFilter.trim()
-
-  const customerOptions = useMemo(() => {
-    const names = new Set<string>()
-    for (const row of data?.shipments ?? []) {
-      const name = row.customer.trim()
-      if (name) names.add(name)
-    }
-    for (const row of data?.customers ?? []) {
-      const name = row.customer.trim()
-      if (name) names.add(name)
-    }
-    return [...names]
-  }, [data?.customers, data?.shipments])
-
   const filteredShipments = useMemo(() => {
-    const rows = data?.shipments ?? []
-    const filtered = selectedCustomer
-      ? rows.filter((row) => row.customer.trim() === selectedCustomer)
-      : rows
-    return [...filtered].sort((a, b) => {
-      const byDate = b.recordDate.localeCompare(a.recordDate)
-      if (byDate !== 0) return byDate
-      return b.deliveryId.localeCompare(a.deliveryId)
-    })
-  }, [data?.shipments, selectedCustomer])
-
-  const filteredOrderCount = useMemo(() => {
-    if (!selectedCustomer) return data?.totalOrderCount ?? 0
-    return (data?.customers ?? [])
-      .filter((row) => row.customer === selectedCustomer)
-      .reduce((sum, row) => sum + row.orderCount, 0)
-  }, [data?.customers, data?.totalOrderCount, selectedCustomer])
-
-  const filteredOrderAmount = useMemo(() => {
-    if (!selectedCustomer) return data?.totalOrderAmount ?? 0
-    return (data?.customers ?? [])
-      .filter((row) => row.customer === selectedCustomer)
-      .reduce((sum, row) => sum + row.orderAmount, 0)
-  }, [data?.customers, data?.totalOrderAmount, selectedCustomer])
+    const groups = groupSalesReportShipments(data?.shipments ?? [])
+    const query = search.trim().toLowerCase()
+    if (!query) return groups
+    return groups.filter((row) =>
+      [row.shipmentId, row.orderNumber, row.customer, row.productName, row.productCode, row.recordDate]
+        .join(' ')
+        .toLowerCase()
+        .includes(query),
+    )
+  }, [data?.shipments, search])
 
   const filteredShipQty = useMemo(
     () => filteredShipments.reduce((sum, row) => sum + row.quantity, 0),
@@ -121,14 +100,22 @@ export function SalesReportWorkspace({
     [filteredShipments],
   )
 
+  const monthRange = currentMonthRange()
+
+  function applyDateRange(nextStart: string, nextEnd: string) {
+    setStartDate(nextStart)
+    setEndDate(nextEnd)
+    startTransition(() => {
+      router.push(buildSalesHref(nextStart, nextEnd))
+    })
+  }
+
   function handleStartDateChange(value: string) {
-    setStartDate(value)
     if (!value && !endDate) {
-      startTransition(() => {
-        router.push('/reports/sales')
-      })
+      applyDateRange(monthRange.startDate, monthRange.endDate)
       return
     }
+    setStartDate(value)
     if (value && endDate) {
       startTransition(() => {
         router.push(buildSalesHref(value, endDate))
@@ -137,13 +124,11 @@ export function SalesReportWorkspace({
   }
 
   function handleEndDateChange(value: string) {
-    setEndDate(value)
     if (!startDate && !value) {
-      startTransition(() => {
-        router.push('/reports/sales')
-      })
+      applyDateRange(monthRange.startDate, monthRange.endDate)
       return
     }
+    setEndDate(value)
     if (startDate && value) {
       startTransition(() => {
         router.push(buildSalesHref(startDate, value))
@@ -154,14 +139,18 @@ export function SalesReportWorkspace({
   async function handleExcelDownload() {
     if (!data) return
 
-    const shipmentColumns: ExcelColumn<SalesReportShipmentRow>[] = [
-      { header: '출하일', value: (row) => row.recordDate, width: 12 },
-      { header: '출하번호', value: (row) => row.deliveryId, width: 16 },
-      { header: '발주ID', value: (row) => row.orderNumber, width: 22 },
+    const shipmentColumns: ExcelColumn<SalesReportStatementGroup>[] = [
+      { header: '발행일', value: (row) => row.recordDate, width: 12 },
+      { header: '출하번호', value: (row) => row.shipmentId, width: 16 },
+      { header: '발주번호', value: (row) => row.orderNumber, width: 22 },
       { header: '고객사', value: (row) => row.customer, width: 18 },
       { header: '품목', value: (row) => row.productName, width: 26 },
       { header: '수량', value: (row) => row.quantity, width: 10 },
-      { header: '단가(원)', value: (row) => row.unitPrice, width: 12 },
+      {
+        header: '단가(원)',
+        value: (row) => (row.unitPriceMixed ? '' : row.unitPrice),
+        width: 12,
+      },
       { header: '금액(원)', value: (row) => row.amount, width: 14 },
     ]
 
@@ -187,29 +176,20 @@ export function SalesReportWorkspace({
     setPrintError(null)
 
     try {
-      const groups = new Map<string, SalesReportShipmentRow[]>()
-      for (const row of filteredShipments) {
-        const key = row.shipmentId || row.deliveryId
-        if (!key) continue
-        const list = groups.get(key) || []
-        list.push(row)
-        groups.set(key, list)
-      }
-
       const statements: DeliveryStatementData[] = []
       const failures: string[] = []
 
-      for (const [shipmentId, rows] of groups) {
-        const first = rows[0]!
-        if (!first.customer) {
+      for (const group of filteredShipments) {
+        const shipmentId = group.shipmentId
+        if (!group.customer) {
           failures.push(`${shipmentId}`)
           continue
         }
         const built = await buildDeliveryStatementDataFromShipment({
           shipmentId,
-          shipDate: first.recordDate,
-          customer: first.customer,
-          shippedLines: rows.map((row) => ({
+          shipDate: group.recordDate,
+          customer: group.customer,
+          shippedLines: group.lines.map((row) => ({
             orderNumber: row.orderNumber,
             productCode: row.productCode,
             productName: row.productName,
@@ -251,37 +231,69 @@ export function SalesReportWorkspace({
 
   return (
     <PageShell>
-      <div className="flex flex-wrap items-center gap-3">
-        <CustomerFilterCombobox
-          value={customerFilter}
-          options={customerOptions}
-          onChange={setCustomerFilter}
-          placeholder="고객사 검색…"
-        />
-        <DateRangeFilter
-          startDate={startDate}
-          endDate={endDate}
-          onStartDateChange={handleStartDateChange}
-          onEndDateChange={handleEndDateChange}
-          label="출하일"
-        />
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setLegacyOpen(true)}
-            disabled={isPending}
-            className={`${ERP_SECONDARY_BUTTON_CLASS} !px-3 !py-2 text-xs`}
-          >
-            과거 등록
-          </button>
-          <PdfDownloadButton
-            onDownload={() => void handleStatementPrint()}
-            disabled={!data || printing || isPending || !filteredShipments.length}
-            label={printing ? '준비 중…' : '거래명세서'}
+      {data ? (
+        <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4">
+          <KpiStatCard
+            label="발주 건수"
+            value={data.totalOrderCount}
+            unit="건"
+            hint="발주일 기준"
           />
-          <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!data || isPending} />
+          <KpiStatCard label="발주 금액" value={data.totalOrderAmount} unit="원" />
+          <KpiStatCard
+            label="출하 수량"
+            value={search.trim() ? filteredShipQty : data.totalShippedQuantity}
+            unit="EA"
+            hint="출하일 기준"
+          />
+          <KpiStatCard
+            label="출하 금액"
+            value={search.trim() ? filteredShipAmount : data.totalShippedAmount}
+            unit="원"
+          />
         </div>
-      </div>
+      ) : null}
+
+      <WorkspaceHeader
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="출하번호, 고객사, 발주번호, 품목 검색…"
+        inlineFilters={
+          <DateRangeFilter
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={handleStartDateChange}
+            onEndDateChange={handleEndDateChange}
+            label={DATE_RANGE_FILTER_LABEL.issue}
+            defaultStartDate={monthRange.startDate}
+            defaultEndDate={monthRange.endDate}
+            onClear={() => applyDateRange(monthRange.startDate, monthRange.endDate)}
+          />
+        }
+        actions={
+          <>
+            <p className="text-xs whitespace-nowrap text-slate-500">
+              기간 {rangeLabel}
+              {isPending ? ' · 불러오는 중…' : ''}
+              {data ? ` · ${filteredShipments.length.toLocaleString('ko-KR')}건` : ''}
+            </p>
+            <button
+              type="button"
+              onClick={() => setLegacyOpen(true)}
+              disabled={isPending}
+              className={`${ERP_SECONDARY_BUTTON_CLASS} !px-3 !py-2 text-xs`}
+            >
+              과거 등록
+            </button>
+            <PdfDownloadButton
+              onDownload={() => void handleStatementPrint()}
+              disabled={!data || printing || isPending || !filteredShipments.length}
+              label={printing ? '준비 중…' : '거래명세서'}
+            />
+            <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!data || isPending} />
+          </>
+        }
+      />
 
       {saveMessage ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm text-emerald-900">
@@ -296,44 +308,15 @@ export function SalesReportWorkspace({
       ) : null}
 
       {!result.ok ? (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
-          리포트 데이터를 불러오지 못했습니다: {result.detail}
-        </div>
+        <FetchErrorBanner title="리포트 데이터를 불러오지 못했습니다" detail={result.detail} />
       ) : data ? (
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-          <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-            <KpiStatCard
-              label="수주 건수"
-              value={filteredOrderCount}
-              unit="건"
-              hint={selectedCustomer ? '선택 고객사 · 주문일 기준' : '주문일 기준'}
-            />
-            <KpiStatCard label="수주 금액" value={filteredOrderAmount} unit="원" />
-            <KpiStatCard
-              label="출하 수량"
-              value={selectedCustomer ? filteredShipQty : data.totalShippedQuantity}
-              unit="EA"
-              hint={selectedCustomer ? '선택 고객사 · 출하일 기준' : '출하일 기준'}
-            />
-            <KpiStatCard
-              label="출하 금액"
-              value={selectedCustomer ? filteredShipAmount : data.totalShippedAmount}
-              unit="원"
-            />
-          </div>
-
-          <p className="shrink-0 text-xs text-slate-500">
-            기간 {rangeLabel}
-            {isPending ? ' · 불러오는 중…' : ''}
-            {' · '}
-            내역 {filteredShipments.length.toLocaleString('ko-KR')}건
-            {selectedCustomer ? ` · 고객사 ${selectedCustomer}` : ''}
-          </p>
-
           <div className={ERP_TABLE_WRAP_CLASS}>
             <div className="shrink-0 border-b border-slate-100 px-4 py-3">
               <h2 className="text-sm font-bold text-slate-900">거래명세서 내역</h2>
-              <p className="mt-1 text-xs text-slate-500">행을 클릭하면 내역을 수정할 수 있습니다.</p>
+              <p className="mt-1 text-xs text-slate-500">
+                같은 출하번호는 한 행으로 묶습니다. 행을 클릭하면 내역을 수정할 수 있습니다.
+              </p>
             </div>
             {filteredShipments.length ? (
               <>
@@ -341,9 +324,9 @@ export function SalesReportWorkspace({
                   <table className={`${ERP_TABLE_CLASS} min-w-[960px]`}>
                     <thead className={ERP_TABLE_HEAD_CLASS}>
                       <tr>
-                        <th className={`${ERP_TABLE_TH_CLASS} text-left`}>출하일</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} text-left`}>발행일</th>
                         <th className={`${ERP_TABLE_TH_CLASS} text-left`}>출하번호</th>
-                        <th className={`${ERP_TABLE_TH_CLASS} text-left`}>발주ID</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} text-left`}>발주번호</th>
                         <th className={`${ERP_TABLE_TH_CLASS} text-left`}>고객사</th>
                         <th className={`${ERP_TABLE_TH_CLASS} text-left`}>품목</th>
                         <th className={`${ERP_TABLE_TH_CLASS} text-right`}>수량</th>
@@ -354,15 +337,15 @@ export function SalesReportWorkspace({
                     <tbody>
                       {filteredShipments.map((row) => (
                         <tr
-                          key={`${row.source}-${row.deliveryId}-${row.orderLineId}`}
+                          key={`${row.source}-${row.shipmentId}`}
                           className="cursor-pointer border-t border-slate-100 hover:bg-slate-50/80"
-                          onClick={() => setEditingRow(row)}
+                          onClick={() => setEditingGroup(row)}
                         >
                           <td className={`${ERP_TABLE_TD_CLASS} whitespace-nowrap tabular-nums text-slate-700`}>
                             {row.recordDate || '—'}
                           </td>
                           <td className={`${ERP_TABLE_TD_CLASS} whitespace-nowrap font-mono text-xs font-semibold text-slate-800`}>
-                            {row.deliveryId || '—'}
+                            {row.shipmentId || '—'}
                           </td>
                           <td className={`${ERP_TABLE_TD_CLASS} whitespace-nowrap font-mono text-xs text-slate-700`}>
                             {row.orderNumber || '—'}
@@ -377,7 +360,7 @@ export function SalesReportWorkspace({
                             {formatCount(row.quantity)}
                           </td>
                           <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums text-slate-700`}>
-                            {formatCount(row.unitPrice)}
+                            {row.unitPriceMixed ? '—' : formatCount(row.unitPrice)}
                           </td>
                           <td className={`${ERP_TABLE_TD_CLASS} text-right font-semibold tabular-nums text-slate-900`}>
                             {formatCount(row.amount)}
@@ -390,7 +373,12 @@ export function SalesReportWorkspace({
               </>
             ) : (
               <div className="flex min-h-0 flex-1 flex-col">
-                <EmptyListState message="기간 내 거래명세서 내역이 없습니다." />
+                <EmptyListState
+                  message={formatEmptyListMessage({
+                    hasQuery: Boolean(search.trim()),
+                    emptyLabel: '기간 내 거래명세서 내역이 없습니다',
+                  })}
+                />
               </div>
             )}
           </div>
@@ -409,9 +397,9 @@ export function SalesReportWorkspace({
         }}
       />
       <SalesStatementEditModal
-        open={Boolean(editingRow)}
-        row={editingRow}
-        onClose={() => setEditingRow(null)}
+        open={Boolean(editingGroup)}
+        group={editingGroup}
+        onClose={() => setEditingGroup(null)}
         onSaved={(message) => {
           setSaveMessage(message ?? '거래명세서 내역을 수정했습니다.')
           startTransition(() => {

@@ -9,11 +9,23 @@ import type {
   ProductionStatusLine,
   ProductionStatusProductLine,
 } from '@/lib/production-status/types'
-import { ERP_BADGE_COMPACT_CLASS, ERP_TABLE_SCROLL_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
+import {
+  ERP_BADGE_COMPACT_CLASS,
+  ERP_TABLE_CLASS,
+  ERP_TABLE_HEAD_CLASS,
+  ERP_TABLE_ROW_CLASS,
+  ERP_TABLE_SCROLL_CLASS,
+  ERP_TABLE_TD_CLASS,
+  ERP_TABLE_TD_FIXED_CLASS,
+  ERP_TABLE_TD_WRAP_CLASS,
+  ERP_TABLE_TH_CLASS,
+  ERP_TABLE_WRAP_CLASS,
+} from '@/lib/ui/tokens'
 
 type OrderStatusTableProps = {
   lines: ProductionStatusLine[]
   availabilityByGroupId?: Record<string, DeliveryAvailability>
+  emptyMessage?: string
 }
 
 type ShipmentRow = {
@@ -137,50 +149,49 @@ function buildShipmentRows(
   return rows
 }
 
+export function summarizeOrderShipmentKpi(
+  lines: ProductionStatusLine[],
+  availabilityByGroupId: Record<string, DeliveryAvailability> = {},
+) {
+  const rows = buildShipmentRows(lines, availabilityByGroupId)
+  return {
+    activeCount: lines.filter((line) => !isOrderShipmentComplete(line)).length,
+    doneCount: lines.filter(isOrderShipmentComplete).length,
+    shippable: rows.reduce((sum, row) => sum + row.shippable, 0),
+    shipped: rows.reduce((sum, row) => sum + row.shipped, 0),
+    remaining: rows.reduce((sum, row) => sum + Math.max(0, row.target - row.shipped), 0),
+  }
+}
+
 export function OrderStatusTable({
   lines,
   availabilityByGroupId = {},
+  emptyMessage,
 }: OrderStatusTableProps) {
   const rows = buildShipmentRows(lines, availabilityByGroupId)
 
   if (!rows.length) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <EmptyListState
-          message="표시할 주문서가 없습니다"
-          hint="주문서를 등록하면 출하 현황이 여기에 표시됩니다."
-        />
+        <EmptyListState message={emptyMessage ?? '표시할 발주서가 없습니다'} />
       </div>
     )
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="min-w-[880px] w-full border-collapse">
-          <thead className="sticky top-0 z-[1] bg-slate-50/95 backdrop-blur-sm">
+        <table className={`${ERP_TABLE_CLASS} min-w-[980px]`}>
+          <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
-              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                주문서
-              </th>
-              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                고객사
-              </th>
-              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                제품
-              </th>
-              <th className="whitespace-nowrap px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                납기
-              </th>
-              <th className="min-w-[140px] px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                출하가능
-              </th>
-              <th className="min-w-[140px] px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                출하누적
-              </th>
-              <th className="px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                상태
-              </th>
+              <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>발주서</th>
+              <th className={ERP_TABLE_TH_CLASS}>고객사</th>
+              <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>품목코드</th>
+              <th className={ERP_TABLE_TH_CLASS}>제품</th>
+              <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>납기</th>
+              <th className={`${ERP_TABLE_TH_CLASS} min-w-[140px]`}>출하가능</th>
+              <th className={`${ERP_TABLE_TH_CLASS} min-w-[140px]`}>출하누적</th>
+              <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>상태</th>
             </tr>
           </thead>
           <tbody>
@@ -188,42 +199,43 @@ export function OrderStatusTable({
               const done = row.target > 0 && row.shipped >= row.target
 
               return (
-                <tr key={row.key} className="border-t border-slate-200 bg-white hover:bg-slate-50/70">
+                <tr key={row.key} className={ERP_TABLE_ROW_CLASS}>
                   <td
-                    className="px-4 py-3.5 font-mono text-sm font-bold whitespace-nowrap text-slate-900"
+                    className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-sm font-bold text-slate-900`}
                     title={row.orderNumber}
                   >
                     {formatInternalCodeLabel(row.orderNumber)}
                   </td>
-                  <td className={`px-4 py-3.5 text-sm font-semibold text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-semibold text-slate-800`}>
                     {row.customer || '—'}
                   </td>
-                  <td className={`px-4 py-3.5 text-sm text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    <span className="font-medium">{row.productName || '—'}</span>
-                    {row.productCode ? (
-                      <span className="ml-1.5 font-mono text-[11px] whitespace-nowrap text-slate-400">
-                        [{row.productCode}]
-                      </span>
-                    ) : null}
+                  <td
+                    className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-xs text-slate-700`}
+                    title={row.productCode || undefined}
+                  >
+                    {row.productCode || '—'}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3">
+                  <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-medium text-slate-900`}>
+                    {row.productName || '—'}
+                  </td>
+                  <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
                     <DeliveryDueBadge deliveryDate={row.deliveryDate} done={done} />
                   </td>
-                  <td className="px-4 py-3.5">
+                  <td className={ERP_TABLE_TD_CLASS}>
                     <ShipmentProgress
                       value={row.shippable}
                       target={row.target}
                       barClass={row.shippable > 0 ? 'bg-sky-500' : 'bg-slate-300'}
                     />
                   </td>
-                  <td className="px-4 py-3.5">
+                  <td className={ERP_TABLE_TD_CLASS}>
                     <ShipmentProgress
                       value={row.shipped}
                       target={row.target}
                       barClass={done ? 'bg-emerald-500' : row.shipped > 0 ? 'bg-amber-500' : 'bg-slate-300'}
                     />
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3.5">
+                  <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
                     <OrderStatusBadge done={done} hasTarget={row.target > 0} shipped={row.shipped} />
                   </td>
                 </tr>

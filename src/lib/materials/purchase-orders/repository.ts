@@ -53,7 +53,7 @@ async function mergeMaterialsFromBomLeaves(
   return [...materials, ...extras]
 }
 
-/** 수동 제외 + 출하완료 주문을 발주 소요/카드에서 빼기 (불출과 동일 규칙) */
+/** 수동 제외 + 출하완료 주문을 구매발주 소요/카드에서 빼기 (불출과 동일 규칙) */
 async function filterOrdersForPurchaseNeed(
   orders: OrderListGroup[],
   deletedNeedOrderIds: Set<string>,
@@ -81,9 +81,9 @@ export type FetchMaterialPurchaseOrdersResult =
 export type FetchMaterialPurchaseRegisterResult =
   | {
       ok: true
-      /** 자재 기준 발주 제안 (발주필요 > 0 자재만) */
+      /** 자재 기준 구매발주 제안 (구매발주필요 > 0 자재만) */
       suggestionLines: MaterialPurchaseSuggestionLine[]
-      /** 부분 발주(주문서·대수)용 카드 */
+      /** 부분 구매발주(발주서·대수)용 카드 */
       cards: OrderPurchaseCard[]
       materials: Material[]
       bomEdges: BomEdge[]
@@ -348,7 +348,7 @@ export async function createMaterialPurchaseOrder(
         ok: false,
         reason: 'validation',
         detail:
-          '부분 발주 정보가 불완전합니다. 발주 화면에서 제품 수량을 다시 입력한 뒤 저장해 주세요.',
+          '부분 구매발주 정보가 불완전합니다. 구매발주 화면에서 제품 수량을 다시 입력한 뒤 저장해 주세요.',
       }
     }
 
@@ -358,8 +358,8 @@ export async function createMaterialPurchaseOrder(
       .select('id')
       .single()
 
-    // 커버 컬럼이 없으면 발주만 성공시키고 넘어가면 카드의 "발주" 수량이 영원히 0이 된다.
-    // 주문서 발주(커버 수량 포함)인 경우 마이그레이션 안내로 실패 처리한다.
+    // 커버 컬럼이 없으면 구매발주만 성공시키고 넘어가면 카드의 "구매발주" 수량이 영원히 0이 된다.
+    // 발주서 구매발주(커버 수량 포함)인 경우 마이그레이션 안내로 실패 처리한다.
     if (
       error &&
       (error.message.includes('covered_order_line_id') ||
@@ -369,7 +369,7 @@ export async function createMaterialPurchaseOrder(
         ok: false,
         reason: 'query',
         detail:
-          '부분 발주 기록 컬럼이 없습니다. Supabase에서 supabase/migrate-material-purchase-orders-partial-cover.sql 을 실행한 뒤 다시 저장해 주세요.',
+          '부분 구매발주 기록 컬럼이 없습니다. Supabase에서 supabase/migrate-material-purchase-orders-partial-cover.sql 을 실행한 뒤 다시 저장해 주세요.',
       }
     }
 
@@ -393,7 +393,7 @@ export async function createMaterialPurchaseOrder(
     }
 
     if (error || !inserted?.id) {
-      return { ok: false, reason: 'query', detail: error?.message || '자재 발주 저장에 실패했습니다.' }
+      return { ok: false, reason: 'query', detail: error?.message || '구매발주 저장에 실패했습니다.' }
     }
 
     await insertMaterialPurchaseOrderLines(inserted.id, payload.items)
@@ -428,14 +428,14 @@ export async function updateMaterialPurchaseOrder(
 
     if (fetchError) return { ok: false, reason: 'query', detail: fetchError.message }
     if (!existing?.id) {
-      return { ok: false, reason: 'query', detail: `발주를 찾을 수 없습니다: ${orderId}` }
+      return { ok: false, reason: 'query', detail: `구매발주를 찾을 수 없습니다: ${orderId}` }
     }
 
     if (await fetchOrderHasInbound(existing.id)) {
       return {
         ok: false,
         reason: 'query',
-        detail: '입고 이력이 있는 발주는 수정할 수 없습니다.',
+        detail: '입고 이력이 있는 구매발주는 수정할 수 없습니다.',
       }
     }
 
@@ -490,7 +490,7 @@ export async function deleteMaterialPurchaseOrder(
       return {
         ok: false,
         reason: 'query',
-        detail: '입고 이력이 있는 발주는 삭제할 수 없습니다.',
+        detail: '입고 이력이 있는 구매발주는 삭제할 수 없습니다.',
       }
     }
 

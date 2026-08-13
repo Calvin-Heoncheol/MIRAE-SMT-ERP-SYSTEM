@@ -1,6 +1,7 @@
 'use client'
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { MaterialPurchaseNeedCard } from '@/lib/materials/purchase-orders/types'
 
@@ -73,7 +74,7 @@ function PurchaseNeedCardItem({
         </div>
       </div>
 
-      <p className="mt-4 text-xs font-medium text-slate-500">클릭하여 발주 필요 자재 확인</p>
+      <p className="mt-4 text-xs font-medium text-slate-500">클릭하여 구매발주 필요 자재 확인</p>
     </button>
   )
 }
@@ -82,8 +83,11 @@ export function MaterialPurchaseNeedCards({ cards, onSelectCard }: MaterialPurch
   if (!cards.length) {
     return (
       <EmptyListState
-        message="발주 검토할 주문이 없습니다"
-        hint="주문·BOM 기준으로 소요 자재가 있으면 여기에 표시됩니다."
+        message={formatEmptyListMessage({
+          hasQuery: false,
+          emptyLabel: '구매발주 검토할 발주서가 없습니다',
+          actionHint: '발주서·BOM 기준으로 소요 자재가 있으면 여기에 표시됩니다',
+        })}
       />
     )
   }
@@ -91,9 +95,9 @@ export function MaterialPurchaseNeedCards({ cards, onSelectCard }: MaterialPurch
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-2.5">
-        <h3 className="text-sm font-bold text-slate-800">주문서</h3>
+        <h3 className="text-sm font-bold text-slate-800">발주서</h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          카드를 클릭하면 현재고 기준 발주 필요(부족/충분) 자재를 확인할 수 있습니다.
+          카드를 클릭하면 현재고 기준 구매발주 필요(부족/충분) 자재를 확인할 수 있습니다.
         </p>
       </div>
 

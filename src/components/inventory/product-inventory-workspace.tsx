@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { EmptyListState } from '@/components/ui/empty-list-state'
+import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { PageShell } from '@/components/ui/page-shell'
@@ -77,22 +78,17 @@ export function ProductInventoryWorkspace({ result }: ProductInventoryWorkspaceP
 
   if (!result.ok) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-        <p className="font-semibold">
-          {result.reason === 'env' ? '환경변수 필요' : '제품재고를 불러오지 못했습니다'}
-        </p>
-        <p className="mt-1 whitespace-pre-wrap">{result.detail}</p>
-      </div>
+      <FetchErrorBanner
+        reason={result.reason}
+        title="제품재고를 불러오지 못했습니다"
+        detail={result.detail}
+      />
     )
   }
 
   return (
     <PageShell>
       <WorkspaceHeader
-        subtitle="생산 − 출하(조립제품 출하 시 반제품 BOM 차감 포함) = 현재고"
-        totalCount={rows.length}
-        filteredCount={filtered.length}
-        hasQuery={Boolean(query) || categoryFilter !== 'all'}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="품목코드, 품목명 검색…"

@@ -52,7 +52,7 @@ export function buildOrderLineExportRows(orders: OrderListGroup[]): OrderLineExp
 }
 
 export const ORDER_LINE_EXPORT_COLUMNS: ExcelColumn<OrderLineExportRow>[] = [
-  { header: '주문서번호', value: (row) => row.customerPoNumber, width: 20 },
+  { header: '발주번호', value: (row) => row.customerPoNumber, width: 20 },
   { header: '제품코드', value: (row) => row.productCode, width: 18 },
   { header: '제품명', value: (row) => row.productName, width: 28 },
   { header: '버전', value: (row) => row.version, width: 10 },

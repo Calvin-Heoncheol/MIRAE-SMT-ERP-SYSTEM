@@ -45,10 +45,7 @@ export function DeliveryInputTable({
   if (!orders.length) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <EmptyListState
-          message={emptyMessage}
-          hint="조건을 바꾸거나 목록에서 주문을 선택해 출하를 등록하세요."
-        />
+        <EmptyListState message={emptyMessage} />
       </div>
     )
   }
@@ -59,11 +56,11 @@ export function DeliveryInputTable({
         <table className={`${ERP_TABLE_CLASS} min-w-[920px]`}>
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
-              <th className={`${ERP_TABLE_TH_CLASS} text-left`}>주문번호</th>
+              <th className={`${ERP_TABLE_TH_CLASS} text-left`}>발주번호</th>
               <th className={`${ERP_TABLE_TH_CLASS} text-left`}>고객사</th>
               <th className={`${ERP_TABLE_TH_CLASS} text-left`}>조립제품</th>
               <th className={`${ERP_TABLE_TH_CLASS} whitespace-nowrap text-left`}>납기</th>
-              <th className={`${ERP_TABLE_TH_CLASS} text-right`}>주문</th>
+              <th className={`${ERP_TABLE_TH_CLASS} text-right`}>발주</th>
               <th className={`${ERP_TABLE_TH_CLASS} text-right`}>출하</th>
               <th className={`${ERP_TABLE_TH_CLASS} text-right`}>가능</th>
               <th className={`${ERP_TABLE_TH_CLASS} text-left`}>상태</th>

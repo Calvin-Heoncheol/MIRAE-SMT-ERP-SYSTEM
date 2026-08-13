@@ -42,7 +42,7 @@ export function OutboundListTable({
                 유형
               </th>
               <th className="w-[12%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                주문번호
+                발주번호
               </th>
               <th className="w-[22%] px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 품목

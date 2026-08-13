@@ -76,16 +76,28 @@ export function buildReportHrefs(basePath: string, resolved: ResolvedReportPerio
   }
 }
 
-/** 거래명세서: 출하일 범위 (기본 = 이번 달) */
-export function resolveSalesReportRange(params: {
+/** 수금·거래명세서 기본 기간 (이번 달) */
+export function currentMonthRange(): { startDate: string; endDate: string } {
+  const today = todayYmdSeoul()
+  const startDate = `${today.slice(0, 7)}-01`
+  return { startDate, endDate: monthEndYmd(startDate) }
+}
+
+export function hasMonthRangeParams(params: {
+  start?: string | string[]
+  end?: string | string[]
+}) {
+  return Boolean(firstParam(params.start) || firstParam(params.end))
+}
+
+/** 수금·거래명세서: 발행일 범위. URL 없으면 이번 달 */
+export function resolveMonthRangeFromUrl(params: {
   start?: string | string[]
   end?: string | string[]
 }): { startDate: string; endDate: string; rangeLabel: string } {
-  const today = todayYmdSeoul()
-  const defaultStart = `${today.slice(0, 7)}-01`
-  const defaultEnd = monthEndYmd(defaultStart)
-  let startDate = sanitizeYmd(firstParam(params.start), defaultStart)
-  let endDate = sanitizeYmd(firstParam(params.end), defaultEnd)
+  const defaults = currentMonthRange()
+  let startDate = sanitizeYmd(firstParam(params.start), defaults.startDate)
+  let endDate = sanitizeYmd(firstParam(params.end), defaults.endDate)
   if (startDate > endDate) {
     const swap = startDate
     startDate = endDate
@@ -95,3 +107,6 @@ export function resolveSalesReportRange(params: {
     startDate === endDate ? startDate.replaceAll('-', '.') : `${startDate.replaceAll('-', '.')} ~ ${endDate.replaceAll('-', '.')}`
   return { startDate, endDate, rangeLabel }
 }
+
+/** @deprecated resolveMonthRangeFromUrl 사용 */
+export const resolveSalesReportRange = resolveMonthRangeFromUrl

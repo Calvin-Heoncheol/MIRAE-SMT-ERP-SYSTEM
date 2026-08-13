@@ -16,9 +16,10 @@ export type AuthAccessModule =
   | 'quality_defects'
   | 'reports_production'
   | 'reports_sales'
+  | 'accounting'
 
 const DEPARTMENT_MODULES: Record<AuthDepartment, AuthAccessModule[]> = {
-  sales: ['dashboard', 'sales', 'approvals', 'reports_sales'],
+  sales: ['dashboard', 'sales', 'approvals', 'reports_sales', 'accounting'],
   materials: ['dashboard', 'materials', 'approvals', 'production_plan'],
   production1: [
     'dashboard',
@@ -68,7 +69,7 @@ const DEPARTMENT_MODULES: Record<AuthDepartment, AuthAccessModule[]> = {
     'approvals',
     'reports_production',
   ],
-  office: ['dashboard', 'approvals'],
+  office: ['dashboard', 'approvals', 'accounting'],
 }
 
 /** 관리자 전용 모듈 — 부서와 무관하게 admin만 */
@@ -89,6 +90,7 @@ const ALL_MODULES: AuthAccessModule[] = [
   'quality_defects',
   'reports_production',
   'reports_sales',
+  'accounting',
 ]
 
 export function resolveAccessModule(
@@ -101,6 +103,7 @@ export function resolveAccessModule(
   if (pathname.startsWith('/production/status')) return 'dashboard'
   if (pathname.startsWith('/reports/production')) return 'reports_production'
   if (pathname.startsWith('/reports/sales')) return 'reports_sales'
+  if (pathname.startsWith('/accounting')) return 'accounting'
   if (
     pathname.startsWith('/new-companies') ||
     pathname.startsWith('/quotations') ||

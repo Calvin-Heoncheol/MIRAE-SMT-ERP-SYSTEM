@@ -5,6 +5,7 @@ import { LegacyQuoteModal } from '@/components/quotes/legacy-quote-modal'
 import { QuoteListTable } from '@/components/quotes/quote-list-table'
 import { QuoteModal } from '@/components/quotes/quote-modal'
 import { QuoteNewMenu } from '@/components/quotes/quote-toolbar'
+import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useBusy } from '@/components/ui/busy-provider'
@@ -94,10 +95,6 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
     <>
       <PageShell>
         <WorkspaceHeader
-          title="견적서 등록"
-          totalCount={quotes.length}
-          filteredCount={filtered.length}
-          hasQuery={Boolean(query)}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="견적번호, 고객사, 제품명, 상태, 견적일 검색…"
@@ -160,17 +157,18 @@ function QuoteFetchError({ result }: { result: Extract<FetchQuotesResult, { ok: 
     result.detail.includes('quotations') || result.detail.includes('schema cache')
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-      <p className="font-semibold">
-        {result.reason === 'env' ? '환경변수 필요' : '견적 목록을 불러오지 못했습니다'}
-      </p>
-      <p className="mt-1 whitespace-pre-wrap">{result.detail}</p>
-      {isMissingTable ? (
-        <p className="mt-3 text-xs text-amber-800">
-          Supabase SQL Editor에서 <code className="rounded bg-white/70 px-1">supabase/setup-quotations.sql</code>{' '}
-          을 실행해 주세요.
-        </p>
-      ) : null}
-    </div>
+    <FetchErrorBanner
+      reason={result.reason}
+      title="견적 목록을 불러오지 못했습니다"
+      detail={result.detail}
+      hint={
+        isMissingTable ? (
+          <>
+            Supabase SQL Editor에서 <code className="rounded bg-white/70 px-1">supabase/setup-quotations.sql</code>{' '}
+            을 실행해 주세요.
+          </>
+        ) : null
+      }
+    />
   )
 }

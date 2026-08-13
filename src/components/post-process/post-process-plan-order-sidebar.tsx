@@ -106,7 +106,7 @@ export function PostProcessPlanOrderSidebar({
   return (
     <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-slate-200 bg-slate-100 lg:border-b-0 lg:border-r">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5">
-        <h4 className="text-sm font-bold text-slate-900">주문 선택</h4>
+        <h4 className="text-sm font-bold text-slate-900">발주서 선택</h4>
         <span className="text-xs font-medium text-slate-400 tabular-nums">{candidates.length}건</span>
       </div>
 
@@ -115,7 +115,7 @@ export function PostProcessPlanOrderSidebar({
           type="search"
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="주문번호 · 고객사 · 제품명 검색"
+          placeholder="발주ID, 고객사, 제품명 검색…"
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
         />
       </div>
@@ -123,7 +123,7 @@ export function PostProcessPlanOrderSidebar({
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-2.5 py-2.5">
         {!pageItems.length ? (
           <p className="py-8 text-center text-sm text-slate-400">
-            {search.trim() ? '검색 결과 없음' : '미계획 주문이 없습니다'}
+            {search.trim() ? '검색 결과 없음' : '미계획 발주서가 없습니다'}
           </p>
         ) : (
           pageItems.map((candidate) => {

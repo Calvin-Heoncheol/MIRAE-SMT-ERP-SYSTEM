@@ -7,7 +7,12 @@ import {
   filterProductionStatusLineByStatus,
   ProductionStatusTable,
 } from '@/components/production-status/production-status-table'
+import { DateRangeFilter } from '@/components/ui/date-range-filter'
+import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
+import { DATE_RANGE_FILTER_LABEL, hasDateRangeFilter } from '@/lib/ui/date-range'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
+import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchProductionStatusResult } from '@/lib/production-status/repository'
@@ -16,6 +21,10 @@ import type {
   ProductionStatusProductLine,
   ProductionStatusStage,
 } from '@/lib/production-status/types'
+import {
+  filterProductionStatusLinesByDate,
+  matchesProductionStatusSearch,
+} from '@/lib/production-status/utils'
 
 type ProductionStatusWorkspaceProps = {
   result: FetchProductionStatusResult
@@ -33,42 +42,60 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [quickInput, setQuickInput] = useState<QuickInputState>(null)
   const [, startTransition] = useTransition()
 
   const data = result.ok ? result.data : null
   const lines = data?.lines ?? []
   const query = search.trim()
+  const dateRange = useMemo(() => ({ startDate, endDate }), [startDate, endDate])
+
+  const datedLines = useMemo(
+    () => filterProductionStatusLinesByDate(lines, dateRange),
+    [lines, dateRange],
+  )
 
   const doneCount = useMemo(
     () =>
-      lines.filter((line) => filterProductionStatusLineByStatus(line, 'done') != null).length,
-    [lines],
+      datedLines.filter((line) => filterProductionStatusLineByStatus(line, 'done') != null).length,
+    [datedLines],
   )
   const activeCount = useMemo(
     () =>
-      lines.filter((line) => filterProductionStatusLineByStatus(line, 'active') != null).length,
-    [lines],
+      datedLines.filter((line) => filterProductionStatusLineByStatus(line, 'active') != null)
+        .length,
+    [datedLines],
   )
 
   const statusFilteredLines = useMemo(() => {
-    return lines
+    return datedLines
       .map((line) => filterProductionStatusLineByStatus(line, statusFilter))
       .filter((line): line is ProductionStatusLine => line != null)
-  }, [lines, statusFilter])
+  }, [datedLines, statusFilter])
 
-  const filteredLines = useMemo(() => {
-    const q = query.toLowerCase()
-    if (!q) return statusFilteredLines
-    return statusFilteredLines.filter((line) => {
-      const productNames = line.products.map((product) => product.productName).join(' ')
-      const productCodes = line.products.map((product) => product.productCode).join(' ')
-      return [line.orderNumber, line.customer, line.productName, productNames, productCodes]
-        .join(' ')
-        .toLowerCase()
-        .includes(q)
-    })
-  }, [statusFilteredLines, query])
+  const searchedLines = useMemo(
+    () => datedLines.filter((line) => matchesProductionStatusSearch(line, query)),
+    [datedLines, query],
+  )
+
+  const filteredLines = useMemo(
+    () => statusFilteredLines.filter((line) => matchesProductionStatusSearch(line, query)),
+    [statusFilteredLines, query],
+  )
+
+  const kpi = useMemo(
+    () => ({
+      activeCount: searchedLines.filter(
+        (line) => filterProductionStatusLineByStatus(line, 'active') != null,
+      ).length,
+      smtProduced: searchedLines.reduce((sum, line) => sum + Math.max(0, line.smtProduced), 0),
+      postProduced: searchedLines.reduce((sum, line) => sum + Math.max(0, line.postProduced), 0),
+      deliveryProduced: searchedLines.reduce((sum, line) => sum + Math.max(0, line.deliveryProduced), 0),
+    }),
+    [searchedLines],
+  )
 
   const statusChips = [
     {
@@ -78,7 +105,7 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
       tone: STATUS_FILTER_TONES.progress,
     },
     { value: 'done' as const, label: '완료', count: doneCount, tone: STATUS_FILTER_TONES.done },
-    { value: 'all' as const, label: '전체', count: lines.length },
+    { value: 'all' as const, label: '전체', count: datedLines.length },
   ]
 
   function handleStageClick(
@@ -95,24 +122,41 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
     })
   }
 
+  const hasActiveFilter = Boolean(query) || hasDateRangeFilter(dateRange)
+
   if (!result.ok) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-        <p className="font-semibold">
-          {result.reason === 'env' ? '환경변수 필요' : '생산현황을 불러오지 못했습니다'}
-        </p>
-        <p className="mt-1 whitespace-pre-wrap">{result.detail}</p>
-      </div>
+      <FetchErrorBanner
+        reason={result.reason}
+        title="생산현황을 불러오지 못했습니다"
+        detail={result.detail}
+      />
     )
   }
 
   return (
     <PageShell className="gap-4">
+      <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4">
+        <KpiStatCard label="진행중" value={kpi.activeCount} unit="건" tone="amber" />
+        <KpiStatCard label="SMT 생산" value={kpi.smtProduced} unit="EA" tone="sky" />
+        <KpiStatCard label="후공정 생산" value={kpi.postProduced} unit="EA" tone="emerald" />
+        <KpiStatCard label="출하누적" value={kpi.deliveryProduced} unit="EA" />
+      </div>
+
       <WorkspaceHeader
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="발주ID, 고객사, 제품명 검색…"
+        searchPlaceholder="발주ID, 고객사, 품목코드, 제품명 검색…"
         accent="slate"
+        inlineFilters={
+          <DateRangeFilter
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
+            label={DATE_RANGE_FILTER_LABEL.due}
+          />
+        }
         filters={
           <FilterChipBar
             options={statusChips}
@@ -123,7 +167,15 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
       />
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        <ProductionStatusTable lines={filteredLines} onStageClick={handleStageClick} />
+        <ProductionStatusTable
+          lines={filteredLines}
+          emptyMessage={formatEmptyListMessage({
+            hasQuery: hasActiveFilter,
+            emptyLabel: '표시할 발주서가 없습니다',
+            actionHint: '발주서를 등록하면 생산 현황이 여기에 표시됩니다',
+          })}
+          onStageClick={handleStageClick}
+        />
       </div>
 
       <ProductionStatusQuickInputModal

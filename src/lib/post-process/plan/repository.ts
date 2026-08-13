@@ -590,7 +590,7 @@ export async function upsertPostProcessProductionPlan(
   if (!gate.ok) return gate
 
   if (!orderId) {
-    return { ok: false, reason: 'validation', detail: '주문서를 선택하세요.' }
+    return { ok: false, reason: 'validation', detail: '발주서를 선택하세요.' }
   }
   if (!assemblyGroupId) {
     return { ok: false, reason: 'validation', detail: '조립 그룹을 선택하세요.' }

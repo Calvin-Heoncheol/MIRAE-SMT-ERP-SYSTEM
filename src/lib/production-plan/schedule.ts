@@ -31,7 +31,7 @@ export function formatPlanDateRangeLabel(start: string, end?: string | null) {
 
 /**
  * 후공정 시작이 SMT 종료보다 이르면 안 됨.
- * smtEnds: 해당 주문의 SMT 계획 종료일들
+ * smtEnds: 해당 발주의 SMT 계획 종료일들
  */
 export function validatePostAfterSmt(input: {
   postStart: string
