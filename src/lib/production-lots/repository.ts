@@ -2,6 +2,7 @@ import type { ProductProcessType } from '@/lib/products/types'
 import { processTypeIncludesPostProcess, processTypeIncludesSmt } from '@/lib/quotes/production-flags'
 import { isSplitProductPcbSideMode, normalizeProductPcbSideMode } from '@/lib/products/utils'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
+import { normalizeSmtPlanPcbSide } from '@/lib/smt/plan/utils'
 import { createSupabaseClient } from '@/lib/supabase'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { LotAllocation, LotSyncResult, ProductionLot } from './types'
@@ -122,10 +123,8 @@ async function computeSmtSetsForGroup(lines: Array<{ orderLineId: string; childP
   )
   const countMap: Record<string, number> = {}
   for (const row of totals || []) {
-    countMap[buildSmtCountKey(String(row.order_line_id), String(row.pcb_side))] = Math.max(
-      0,
-      Math.floor(Number(row.total_quantity) || 0),
-    )
+    countMap[buildSmtCountKey(String(row.order_line_id), normalizeSmtPlanPcbSide(String(row.pcb_side)))] =
+      Math.max(0, Math.floor(Number(row.total_quantity) || 0))
   }
 
   let minSets = Number.POSITIVE_INFINITY
@@ -382,7 +381,11 @@ export async function fetchAvailableLots(assemblyGroupId: string): Promise<
   | { ok: false; reason: 'env' | 'query'; detail: string }
 > {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return missingEnvResult()
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
   }
   const id = String(assemblyGroupId || '').trim()
   if (!id) return { ok: true, lots: [] }
@@ -688,7 +691,11 @@ export async function fetchShipmentSearchIndex(): Promise<ShipmentSearchIndex> {
 
     if (deliveryError && /shipment_id/i.test(deliveryError.message)) {
       const fallback = await supabase.from('delivery_records').select('id, assembly_group_id').limit(20000)
-      deliveries = fallback.data
+      deliveries = (fallback.data || []).map((row) => ({
+        id: row.id,
+        assembly_group_id: row.assembly_group_id,
+        shipment_id: null,
+      }))
       deliveryError = fallback.error
     }
 

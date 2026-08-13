@@ -57,7 +57,12 @@ import type {
 } from '@/lib/quotes/types'
 import { normalizeQuoteStatus, toEstimateInputFromDetail } from '@/lib/quotes/utils'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
+import {
+  EMPTY_PAYMENT_TERM_SNAPSHOT,
+  snapshotFromPartner,
+} from '@/lib/partners/payment-term-snapshot'
 import type { BusinessPartner } from '@/lib/partners/types'
+import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
 import { formatProductOptionLabel } from '@/lib/products/utils'
@@ -489,6 +494,7 @@ function QuoteModalContent({
       })
     const { pcbBoards, dipBoards } = collectBoardModels()
     const payload = buildQuoteRowPayload(form, pcbBoards, dipBoards, estimate, quoteType, currentStatus)
+    const partner = resolvePartnerFromInput(salesPartners, payload.customer)
 
     return {
       quoteId: quote?.quoteId || estimate.estNo,
@@ -501,6 +507,12 @@ function QuoteModalContent({
       boardQty: payload.board_qty,
       totalAmount: payload.total_amount,
       detailInfo: payload.detail_info,
+      paymentTerms:
+        quote?.paymentTerms?.paymentTermType
+          ? quote.paymentTerms
+          : partner
+            ? snapshotFromPartner(partner)
+            : EMPTY_PAYMENT_TERM_SNAPSHOT,
       createdBy: quote?.createdBy ?? null,
       createdByName: quote?.createdByName || '',
       updatedBy: quote?.updatedBy ?? null,

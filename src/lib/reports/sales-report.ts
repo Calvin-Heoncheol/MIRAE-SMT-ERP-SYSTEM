@@ -271,7 +271,20 @@ export async function fetchSalesReportData(
             'id, order_id, parent_product_id, items!order_assembly_groups_parent_product_id_fkey(name, unit_price), orders(customer)',
           )
           .in('id', ids)
-        data = fallback.data
+        data = (fallback.data || []).map((row) => ({
+          ...row,
+          orders: Array.isArray(row.orders)
+            ? row.orders.map((order: { customer?: string | null }) => ({
+                customer: order.customer,
+                customer_po_number: null,
+              }))
+            : row.orders
+              ? {
+                  customer: (row.orders as { customer?: string | null }).customer,
+                  customer_po_number: null,
+                }
+              : null,
+        })) as typeof data
         error = fallback.error
       }
       if (error) {
