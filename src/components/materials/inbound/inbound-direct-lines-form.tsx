@@ -148,7 +148,11 @@ export function InboundDirectLinesForm({
     }
 
     onChange((current) => {
-      const existingIndex = current.findIndex((item) => item.materialId === material.id)
+      const existingIndex = current.findIndex(
+        (item) =>
+          item.materialId === material.id &&
+          Math.max(0, Number(item.quantityPerReel) || 0) === perReel,
+      )
       if (existingIndex >= 0) {
         return current.map((item, index) => {
           if (index !== existingIndex) return item

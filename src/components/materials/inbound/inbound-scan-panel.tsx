@@ -181,12 +181,15 @@ export function InboundScanPanel({
 
   function addMaterialToList(material: Material) {
     const displayCode = formatMaterialDisplayCode(material)
-    const existing = lines.find((line) => line.materialId === material.id)
-    if (existing) {
-      const nextReels = (Number(existing.reelCount) || 0) + 1
+    // 수량 미입력 행만 합침 — 같은 MPN이라도 수량이 다르면 별도 행
+    const existingEmptyQty = lines.find(
+      (line) => line.materialId === material.id && !(Number(line.quantityPerReel) || 0),
+    )
+    if (existingEmptyQty) {
+      const nextReels = (Number(existingEmptyQty.reelCount) || 0) + 1
       setLines((current) =>
         current.map((line) =>
-          line.key === existing.key
+          line.key === existingEmptyQty.key
             ? {
                 ...line,
                 reelCount: String(nextReels),
@@ -196,7 +199,7 @@ export function InboundScanPanel({
         ),
       )
       setMessage(null)
-      markJustScanned(existing.key)
+      markJustScanned(existingEmptyQty.key)
       return
     }
 
@@ -276,6 +279,40 @@ export function InboundScanPanel({
       return
     }
     setMessage(null)
+    // 같은 자재·같은 수량 행이 있으면 릴만 합침 (수량이 다르면 행 유지)
+    setLines((current) => {
+      const source = current.find((line) => line.key === key)
+      if (!source) return current
+      const match = current.find(
+        (line) =>
+          line.key !== key &&
+          line.materialId === source.materialId &&
+          Math.max(0, Number(line.quantityPerReel) || 0) === qty,
+      )
+      if (!match) {
+        return current.map((line) =>
+          line.key === key
+            ? {
+                ...line,
+                quantityPerReel: String(qty),
+                quantity: computeDirectInboundQuantity(String(qty), line.reelCount),
+              }
+            : line,
+        )
+      }
+      const nextReels = (Number(match.reelCount) || 0) + (Number(source.reelCount) || 0)
+      return current
+        .filter((line) => line.key !== key)
+        .map((line) =>
+          line.key === match.key
+            ? {
+                ...line,
+                reelCount: String(nextReels),
+                quantity: computeDirectInboundQuantity(line.quantityPerReel, String(nextReels)),
+              }
+            : line,
+        )
+    })
     setLastScannedKey((current) => (current === key ? null : current))
     focusScanInput()
   }
@@ -515,7 +552,7 @@ export function InboundScanPanel({
               {lines.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-500">
-                    스캔한 자재가 바로 여기에 쌓입니다. 같은 자재를 다시 스캔하면 릴 개수가 +1 됩니다.
+                    스캔한 자재가 바로 여기에 쌓입니다. 같은 수량의 릴은 합쳐지고, 수량이 다르면 행이 따로 생깁니다.
                   </td>
                 </tr>
               ) : (
