@@ -56,8 +56,8 @@ export function ItemListTable({
             showProductColumns
               ? 'min-w-[880px]'
               : showProductionProcessColumn
-                ? 'min-w-[1160px]'
-                : 'min-w-[980px]'
+                ? 'min-w-[1240px]'
+                : 'min-w-[1060px]'
           }`}
         >
           <colgroup>
@@ -73,6 +73,7 @@ export function ItemListTable({
             ) : null}
             {hideMaterialDetailColumns ? null : (
               <>
+                <col className="w-[88px]" />
                 <col className="w-[100px]" />
                 <col className="w-[100px]" />
                 <col className="w-[160px]" />
@@ -103,6 +104,7 @@ export function ItemListTable({
               ) : null}
               {hideMaterialDetailColumns ? null : (
                 <>
+                  <th className="px-3 py-2.5 text-center">도급/사급</th>
                   <th className="px-3 py-2.5 text-center">공정구분</th>
                   <th className="px-3 py-2.5 text-left">패키지</th>
                   <th className="px-3 py-2.5 text-left">사양</th>
@@ -153,6 +155,9 @@ export function ItemListTable({
                   ) : null}
                   {hideMaterialDetailColumns ? null : (
                     <>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
+                        {cell(item.supplyType)}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
                         {cell(item.materialType)}
                       </td>

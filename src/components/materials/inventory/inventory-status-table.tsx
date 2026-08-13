@@ -10,13 +10,12 @@ import {
 } from '@/lib/ui/tokens'
 
 import { formatInventoryQuantity } from '@/lib/materials/inventory/utils'
+import { formatMaterialDisplayCode } from '@/lib/materials/utils'
 import type { MaterialInventoryRow } from '@/lib/materials/inventory/types'
 
 type InventoryStatusTableProps = {
   rows: MaterialInventoryRow[]
   emptyMessage: string
-  /** 사급 필터 시 '고객사', 기본 '공급사' */
-  supplierColumnLabel?: string
   onSelectRow?: (row: MaterialInventoryRow) => void
 }
 
@@ -56,7 +55,6 @@ function quantityClass(value: number, variant: 'onHand' | 'expected') {
 export function InventoryStatusTable({
   rows,
   emptyMessage,
-  supplierColumnLabel = '공급사',
   onSelectRow,
 }: InventoryStatusTableProps) {
   if (!rows.length) {
@@ -70,7 +68,7 @@ export function InventoryStatusTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="w-full min-w-[940px] table-fixed border-collapse">
+        <table className="w-full min-w-[900px] table-fixed border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
@@ -83,16 +81,13 @@ export function InventoryStatusTable({
                 규격
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                패키지
+              </th>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 MPN
               </th>
               <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 구분
-              </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                도급/사급
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                {supplierColumnLabel}
               </th>
               <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 입고예정
@@ -126,7 +121,9 @@ export function InventoryStatusTable({
                 tabIndex={onSelectRow ? 0 : undefined}
                 title={onSelectRow ? '클릭하여 현재고 설정' : undefined}
               >
-                <td className={`px-3 py-2.5 font-medium text-blue-800 ${codeCellClass}`}>{row.id}</td>
+                <td className={`px-3 py-2.5 font-medium text-blue-800 ${codeCellClass}`}>
+                  {formatMaterialDisplayCode(row)}
+                </td>
                 <td className={`px-3 py-2.5 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                   <CellText value={row.materialName} className="font-medium text-slate-900" />
                 </td>
@@ -134,13 +131,12 @@ export function InventoryStatusTable({
                   <CellText value={row.specification} />
                 </td>
                 <td className={`px-3 py-2.5 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  <CellText value={row.package} />
+                </td>
+                <td className={`px-3 py-2.5 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                   <CellText value={row.mpn} className="text-slate-700" />
                 </td>
                 <td className="px-3 py-2.5 text-center text-sm text-slate-700">{cell(row.type)}</td>
-                <td className="px-3 py-2.5 text-center text-sm text-slate-700">{cell(row.supplyType)}</td>
-                <td className={`px-3 py-2.5 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                  <CellText value={row.supplier} className="text-slate-700" />
-                </td>
                 <td
                   className={`px-3 py-2.5 text-right text-sm tabular-nums ${quantityClass(row.expectedInboundQuantity, 'expected')}`}
                 >

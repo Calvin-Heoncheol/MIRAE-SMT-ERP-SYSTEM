@@ -63,8 +63,10 @@ export function matchesInventoryQuery(row: MaterialInventoryRow, query: string) 
 
   const haystack = [
     row.id,
+    row.baseCode,
     row.materialName,
     row.specification,
+    row.package,
     row.type,
     row.mpn,
     ...row.alternateMpns,

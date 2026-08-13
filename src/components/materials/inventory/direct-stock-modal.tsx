@@ -6,6 +6,7 @@ import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { setMaterialDirectStockBatch } from '@/lib/materials/inventory/direct-stock'
 import { formatInventoryQuantity } from '@/lib/materials/inventory/utils'
+import { formatMaterialDisplayCode } from '@/lib/materials/utils'
 import type { MaterialInventoryRow } from '@/lib/materials/inventory/types'
 import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
 
@@ -91,11 +92,13 @@ export function DirectStockModal({ open, row, onClose, onSaved }: DirectStockMod
     >
       <div className="space-y-4">
         <div>
-          <p className="font-mono text-xs font-semibold text-blue-800">{row.id}</p>
+          <p className="font-mono text-xs font-semibold text-blue-800">
+            {formatMaterialDisplayCode(row)}
+          </p>
           <p className="mt-1 text-base font-bold text-slate-900">{row.materialName || '—'}</p>
-          {row.specification.trim() || row.mpn.trim() ? (
+          {row.package.trim() || row.specification.trim() || row.mpn.trim() ? (
             <p className="mt-1 text-xs text-slate-500">
-              {[row.specification, row.mpn].filter((value) => value.trim()).join(' · ')}
+              {[row.package, row.specification, row.mpn].filter((value) => value.trim()).join(' · ')}
             </p>
           ) : null}
         </div>

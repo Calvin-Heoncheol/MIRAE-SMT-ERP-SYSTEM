@@ -1,5 +1,5 @@
 import type { Material } from '@/lib/materials/types'
-import { resolveMaterialByInventoryCode } from '@/lib/materials/utils'
+import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
 
 export const DIRECT_STOCK_PASTE_COLUMNS = [
   { key: 'materialId', label: '품목코드', required: true },
@@ -7,13 +7,13 @@ export const DIRECT_STOCK_PASTE_COLUMNS = [
 ] as const
 
 export function directStockPasteSampleValues() {
-  return ['MR-001', '100']
+  return ['C1608-104K', '100']
 }
 
 export function directStockPastePlaceholder() {
   const header = DIRECT_STOCK_PASTE_COLUMNS.map((column) => column.label).join('\t')
   const sample = directStockPasteSampleValues().join('\t')
-  const sample2 = ['MR-002', '50'].join('\t')
+  const sample2 = ['R1005-100K', '50'].join('\t')
   return `${header}\n${sample}\n${sample2}`
 }
 
@@ -94,7 +94,7 @@ export function resolveDirectStockPasteRows(
     if (seen.has(matched.id)) {
       return {
         ok: false,
-        detail: `품목 ${matched.id} 이(가) 중복되었습니다.`,
+        detail: `품목 ${formatMaterialDisplayCode(matched)} 이(가) 중복되었습니다.`,
         unresolved,
       }
     }
@@ -104,7 +104,7 @@ export function resolveDirectStockPasteRows(
     if (!Number.isFinite(qty) || qty < 0) {
       return {
         ok: false,
-        detail: `${matched.id} 수량은 0 이상이어야 합니다.`,
+        detail: `${formatMaterialDisplayCode(matched)} 수량은 0 이상이어야 합니다.`,
         unresolved,
       }
     }

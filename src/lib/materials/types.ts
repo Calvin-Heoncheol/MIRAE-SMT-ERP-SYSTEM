@@ -40,6 +40,9 @@ export type MaterialRecord = {
 
 export type Material = {
   id: string
+  /** 고객사 품목코드. 없으면 id(MR-00001) */
+  baseCode: string
+  package: string
   customer: string
   materialName: string
   specification: string

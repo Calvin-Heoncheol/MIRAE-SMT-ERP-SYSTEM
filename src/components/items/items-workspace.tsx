@@ -151,6 +151,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
               ...processAndPriceColumns,
             ]
           : [
+              { header: '도급/사급', value: (row: Item) => row.supplyType, width: 10 },
               { header: '공정구분', value: (row: Item) => row.materialType, width: 10 },
               { header: '패키지', value: (row: Item) => row.package, width: 12 },
               { header: '사양', value: (row: Item) => row.specification, width: 20 },

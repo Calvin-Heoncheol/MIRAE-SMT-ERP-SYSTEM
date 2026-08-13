@@ -72,6 +72,8 @@ export function mapMaterialRecord(record: MaterialRecord): Material {
 
   return {
     id: record.id,
+    baseCode: record.id,
+    package: '',
     customer: record.customer,
     materialName: record.material_name,
     specification: record.specification,
@@ -91,8 +93,10 @@ export function mapMaterialRecord(record: MaterialRecord): Material {
 
 export function mapItemRowToMaterial(row: {
   id: string
+  base_code?: string | null
   name: string
   specification: string
+  package?: string | null
   mpn: string
   material_type?: string | null
   supply_type?: string | null
@@ -114,6 +118,8 @@ export function mapItemRowToMaterial(row: {
 
   return {
     id: row.id,
+    baseCode: String(row.base_code || '').trim(),
+    package: String(row.package || '').trim(),
     customer: '',
     materialName: row.name || '',
     specification: row.specification || '',
@@ -319,6 +325,10 @@ export function materialMatchesMpnValue(material: Material, mpn: string) {
   return mpns.some((value) => barcodeMatchesPart(mpn, value))
 }
 
+export function formatMaterialDisplayCode(material: Pick<Material, 'id' | 'baseCode'>) {
+  return material.baseCode.trim() || material.id
+}
+
 export function resolveMaterialById(materials: Material[], id: string) {
   const trimmed = id.trim()
   if (!trimmed) return null
@@ -328,12 +338,28 @@ export function resolveMaterialById(materials: Material[], id: string) {
   return materials.find((material) => material.id.toLowerCase() === lower) ?? null
 }
 
+function resolveMaterialByBaseCode(materials: Material[], code: string) {
+  const trimmed = code.trim()
+  if (!trimmed) return null
+  const lower = trimmed.toLowerCase()
+  const hits = materials.filter((material) => {
+    const base = material.baseCode.trim()
+    return Boolean(base) && base.toLowerCase() === lower
+  })
+  if (hits.length === 1) return hits[0]
+  return null
+}
+
 function resolveMaterialByBarcodeScan(materials: Material[], code: string) {
   let best: Material | null = null
   let bestLength = -1
 
   for (const material of materials) {
-    const candidates = [material.id, ...getMaterialMpnCandidates(material)]
+    const candidates = [
+      material.id,
+      formatMaterialDisplayCode(material),
+      ...getMaterialMpnCandidates(material),
+    ]
     for (const candidate of candidates) {
       const trimmed = candidate.trim()
       if (trimmed.length > bestLength && barcodeMatchesPart(code, trimmed)) {
@@ -362,6 +388,11 @@ export function resolveMaterialByInventoryCode(
         (material) => !material.supplier.trim() || material.supplier.trim() === supplierTrim,
       )
     : materials
+
+  const byCode =
+    resolveMaterialByBaseCode(scopedMaterials, raw) ??
+    (normalized !== raw ? resolveMaterialByBaseCode(scopedMaterials, normalized) : null)
+  if (byCode) return byCode
 
   const byId =
     resolveMaterialById(scopedMaterials, raw) ??

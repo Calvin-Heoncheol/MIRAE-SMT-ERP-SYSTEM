@@ -283,7 +283,8 @@ export function LegacyStatementModal({
           <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-3">
             <p className="text-sm font-medium text-blue-900">일괄 붙여넣기</p>
             <p className="mt-1 text-xs text-blue-800">
-              Excel에서 아래 열 순서대로 복사한 뒤, 이 칸에 붙여넣으세요.
+              Excel에서 한 행(품목코드 · 품목명 · 수량 · 단가 · 금액)을 복사해 붙여넣으세요. 탭이
+              공백으로 바뀌어도 인식됩니다.
             </p>
             <ExcelPasteSampleTable
               columns={STATEMENT_PASTE_COLUMNS}

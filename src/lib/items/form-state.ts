@@ -171,7 +171,7 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     mpn: form.mpn.trim(),
     customerId: form.customerId.trim(),
     materialType: isRawMaterial ? form.materialType : '',
-    supplyType: form.supplyType,
+    supplyType: isProduct ? '' : form.supplyType,
     supplier: form.supplier.trim(),
     pcbSideMode: '',
     processType: isProduct ? form.processType : '',

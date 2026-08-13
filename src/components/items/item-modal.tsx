@@ -22,6 +22,7 @@ import {
   ITEM_CATEGORIES,
   ITEM_CATEGORY_LABELS,
   ITEM_MATERIAL_TYPE_OPTIONS,
+  ITEM_SUPPLY_TYPE_OPTIONS,
   ITEM_PROCESS_TYPE_LABELS,
   ITEM_PROCESS_TYPES,
   isManualItemCodeCategory,
@@ -33,6 +34,7 @@ import {
   type ItemCategory,
   type ItemMaterialType,
   type ItemProcessType,
+  type ItemSupplyType,
 } from '@/lib/items/types'
 import { nextItemCodeForCategory, itemFromPayload } from '@/lib/items/utils'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
@@ -206,6 +208,7 @@ function ItemModalContent({
       }
       if (value && isProductItemCategory(value)) {
         next.materialType = ''
+        next.supplyType = ''
         next.package = ''
         next.specification = ''
         next.mpn = ''
@@ -584,6 +587,28 @@ function ItemModalContent({
             />
             <p className="mt-1 text-xs text-slate-500">
               주문서에서 품목 선택 시 이 단가가 자동으로 채워집니다.
+            </p>
+          </label>
+        ) : null}
+        {showMaterialDetailFields ? (
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>도급/사급</span>
+            <select
+              value={form.supplyType}
+              onChange={(event) =>
+                updateForm('supplyType', event.target.value as ItemSupplyType)
+              }
+              className={ERP_FIELD_INPUT_CLASS}
+            >
+              <option value="">선택</option>
+              {ITEM_SUPPLY_TYPE_OPTIONS.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-500">
+              사급은 고객이 자재를 넘기고, 도급은 우리가 발주·수급합니다.
             </p>
           </label>
         ) : null}

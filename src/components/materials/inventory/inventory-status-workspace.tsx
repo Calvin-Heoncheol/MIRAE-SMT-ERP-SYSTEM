@@ -18,6 +18,7 @@ import {
   matchesInventoryFilter,
   matchesInventoryQuery,
 } from '@/lib/materials/inventory/utils'
+import { formatMaterialDisplayCode } from '@/lib/materials/utils'
 import { ERP_SEARCH_INPUT_BASE, formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type InventoryStatusWorkspaceProps = {
@@ -78,17 +79,12 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
       sheetName: '재고현황',
       rows: filtered,
       columns: [
-        { header: '품목코드', value: (row) => row.id, width: 16 },
+        { header: '품목코드', value: (row) => formatMaterialDisplayCode(row), width: 16 },
         { header: '품목명', value: (row) => row.materialName, width: 24 },
         { header: '규격', value: (row) => row.specification, width: 24 },
+        { header: '패키지', value: (row) => row.package, width: 12 },
         { header: 'MPN', value: (row) => row.mpn, width: 20 },
         { header: '구분', value: (row) => row.type, width: 10 },
-        { header: '도급/사급', value: (row) => row.supplyType, width: 10 },
-        {
-          header: filterMode === '사급' ? '고객사' : '공급사',
-          value: (row) => row.supplier,
-          width: 18,
-        },
         { header: '입고예정', value: (row) => row.expectedInboundQuantity, width: 10 },
         { header: '현재고', value: (row) => row.onHandQuantity, width: 10 },
       ],
@@ -104,7 +100,7 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
           hasQuery={hasExtraFilter}
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="품목코드, 품목명, MPN, 규격, 공급사(고객사) 검색…"
+          searchPlaceholder="품목코드, 품목명, MPN, 규격, 패키지 검색…"
           accent="slate"
           actions={
             <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!filtered.length} />
@@ -160,7 +156,6 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <InventoryStatusTable
             rows={filtered}
-            supplierColumnLabel={filterMode === '사급' ? '고객사' : '공급사'}
             emptyMessage={formatEmptyListMessage({
               hasQuery: hasExtraFilter,
               emptyLabel: '등록된 품목이 없습니다',

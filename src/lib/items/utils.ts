@@ -293,6 +293,7 @@ export function itemSearchHaystack(item: Item) {
     item.mpn,
     item.processType,
     item.materialType,
+    item.supplyType,
     item.isActive !== false ? '사용중' : '사용중지',
   ]
     .join(' ')
