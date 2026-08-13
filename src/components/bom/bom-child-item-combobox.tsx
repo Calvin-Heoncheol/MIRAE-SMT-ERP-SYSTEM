@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { formatItemOptionLabel } from '@/lib/bom/utils'
+import { formatItemOptionLabel, resolveBomChildItem } from '@/lib/bom/utils'
 import type { Item } from '@/lib/items/types'
 import { ITEM_CATEGORY_LABELS } from '@/lib/items/types'
 import { filterItemsForSearch } from '@/lib/items/utils'
@@ -29,20 +29,18 @@ const MAX_OPTIONS_EMPTY = 80
 const MAX_OPTIONS_SEARCH = 120
 
 function resolveItemFromInput(items: Item[], raw: string) {
-  const want = raw.trim().toLowerCase()
+  const want = raw.trim()
   if (!want) return null
 
-  const exactId = items.find((item) => item.id.trim().toLowerCase() === want)
-  if (exactId) return exactId
+  const byCode = resolveBomChildItem(want, items)
+  if (byCode) return byCode
 
-  const exactLabel = items.find((item) => formatItemOptionLabel(item).toLowerCase() === want)
+  const lower = want.toLowerCase()
+  const exactLabel = items.find((item) => formatItemOptionLabel(item).toLowerCase() === lower)
   if (exactLabel) return exactLabel
 
-  const exactName = items.filter((item) => item.name.trim().toLowerCase() === want)
+  const exactName = items.filter((item) => item.name.trim().toLowerCase() === lower)
   if (exactName.length === 1) return exactName[0]
-
-  const exactMpn = items.filter((item) => item.mpn.trim().toLowerCase() === want)
-  if (exactMpn.length === 1) return exactMpn[0]
 
   return null
 }

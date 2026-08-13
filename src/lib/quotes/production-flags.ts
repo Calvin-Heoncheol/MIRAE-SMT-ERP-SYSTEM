@@ -154,12 +154,13 @@ export function resolveProductionFlagsForOrderLine(input: {
 
 function resolveQuoteFlagsForAssemblyParent(input: {
   quotes: QuoteListItem[]
-  order: OrderListGroup
+  order?: OrderListGroup | null
   parentProduct: Product | undefined
   childProductIds?: string[]
   productById: Record<string, Product>
 }): QuoteProductionFlags {
   const { quotes, order, parentProduct, childProductIds = [], productById } = input
+  if (!order) return EMPTY_FLAGS
 
   if (parentProduct) {
     const parentFlags = resolveProductionFlagsForProduct(quotes, order.customer, parentProduct)
@@ -214,7 +215,7 @@ export function flagsFromAssemblyGroupProducts(input: {
  */
 export function resolveProductionFlagsForAssemblyParent(input: {
   quotes: QuoteListItem[]
-  order: OrderListGroup
+  order?: OrderListGroup | null
   parentProduct: Product | undefined
   childProductIds?: string[]
   productById: Record<string, Product>

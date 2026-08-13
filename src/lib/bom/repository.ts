@@ -541,7 +541,11 @@ export async function saveBomForParent(
         return { ok: false, reason: 'validation', detail: '소요량은 0보다 큰 숫자여야 합니다.' }
       }
       if (seen.has(childId)) {
-        return { ok: false, reason: 'validation', detail: `구성 품목 ${childId} 이(가) 중복되었습니다.` }
+        return {
+          ok: false,
+          reason: 'validation',
+          detail: `구성 품목 ${childMeta.baseCode || childId} 이(가) 중복되었습니다.`,
+        }
       }
       seen.add(childId)
 

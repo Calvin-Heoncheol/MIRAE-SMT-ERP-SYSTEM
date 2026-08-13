@@ -88,7 +88,9 @@ export function validateBomForm(
       return '소요량은 0보다 큰 숫자여야 합니다.'
     }
     if (seen.has(line.childProductId)) {
-      return `구성 품목 ${line.childProductId} 이(가) 중복되었습니다.`
+      const child = childById.get(line.childProductId)
+      const label = child?.baseCode.trim() || line.childProductId
+      return `구성 품목 ${label} 이(가) 중복되었습니다.`
     }
     seen.add(line.childProductId)
 

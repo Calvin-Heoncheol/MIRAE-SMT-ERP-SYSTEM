@@ -1,4 +1,5 @@
 import { createBomFormLine, type BomFormLine } from '@/lib/bom/form-state'
+import { formatBomItemCode, resolveBomChildItem } from '@/lib/bom/utils'
 import type { Item } from '@/lib/items/types'
 
 export const BOM_PASTE_COLUMNS = [
@@ -7,13 +8,13 @@ export const BOM_PASTE_COLUMNS = [
 ] as const
 
 export function bomPasteSampleValues() {
-  return ['MR-001', '2']
+  return ['C1608-104K', '2']
 }
 
 export function bomPastePlaceholder() {
   const header = BOM_PASTE_COLUMNS.map((column) => column.label).join('\t')
   const sample = bomPasteSampleValues().join('\t')
-  const sample2 = ['MR-002', '1'].join('\t')
+  const sample2 = ['R1005-100K', '1'].join('\t')
   return `${header}\n${sample}\n${sample2}`
 }
 
@@ -80,18 +81,7 @@ export function parseBomBulkPaste(text: string): BomPasteRow[] {
 }
 
 function resolveChildItem(token: string, childItems: Item[]): Item | null {
-  const needle = token.trim()
-  if (!needle) return null
-
-  const byId = childItems.find((item) => item.id.toLowerCase() === needle.toLowerCase())
-  if (byId) return byId
-
-  const byMpn = childItems.find(
-    (item) => item.mpn.trim() && item.mpn.toLowerCase() === needle.toLowerCase(),
-  )
-  if (byMpn) return byMpn
-
-  return null
+  return resolveBomChildItem(token, childItems)
 }
 
 export type BomPasteUnresolved = {
@@ -129,7 +119,7 @@ export function resolveBomPasteRows(
     if (seen.has(matched.id)) {
       return {
         ok: false,
-        detail: `구성 품목 ${matched.id} 이(가) 중복되었습니다.`,
+        detail: `구성 품목 ${formatBomItemCode(matched)} 이(가) 중복되었습니다.`,
         unresolved,
       }
     }
@@ -139,7 +129,7 @@ export function resolveBomPasteRows(
     if (!Number.isFinite(qty) || qty <= 0) {
       return {
         ok: false,
-        detail: `${matched.id} 수량은 0보다 큰 숫자여야 합니다.`,
+        detail: `${formatBomItemCode(matched)} 수량은 0보다 큰 숫자여야 합니다.`,
         unresolved,
       }
     }

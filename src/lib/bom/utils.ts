@@ -159,6 +159,48 @@ export function formatItemOptionLabel(
   return `${codeLabel} · ${item.name || '—'} (${ITEM_CATEGORY_LABELS[item.itemCategory]})`
 }
 
+export function formatBomItemCode(item: Pick<Item, 'id' | 'baseCode'>) {
+  return item.baseCode?.trim() || item.id
+}
+
+function pickUniqueOrActiveItem<T extends Pick<Item, 'isActive'>>(hits: T[]): T | null {
+  if (hits.length === 1) return hits[0]
+  if (hits.length > 1) {
+    const active = hits.filter((item) => item.isActive !== false)
+    if (active.length === 1) return active[0]
+  }
+  return null
+}
+
+/** 고객사 BOM 기준: 품목코드 → MPN → 품목ID */
+export function resolveBomChildItem(token: string, items: Item[]): Item | null {
+  const needle = token.trim()
+  if (!needle) return null
+
+  const lower = needle.toLowerCase()
+  const compact = lower.replace(/[\s·•._/-]+/g, '')
+
+  const codeHits = items.filter((item) => {
+    const code = formatBomItemCode(item).toLowerCase()
+    const version = item.version.trim().toLowerCase()
+    if (code === lower) return true
+    if (!version) return false
+    if (`${code} ${version}` === lower || `${code}·${version}` === lower) return true
+    if (`${code}-${version}` === lower || `${code}${version}` === compact) return true
+    return false
+  })
+  const byCode = pickUniqueOrActiveItem(codeHits)
+  if (byCode) return byCode
+
+  const mpnHits = items.filter(
+    (item) => item.mpn.trim() && item.mpn.toLowerCase() === lower,
+  )
+  const byMpn = pickUniqueOrActiveItem(mpnHits)
+  if (byMpn) return byMpn
+
+  return items.find((item) => item.id.toLowerCase() === lower) ?? null
+}
+
 /** 구성 품목 단가 × 소요량 합산 (원 단위 반올림) */
 export function sumBomComponentUnitPrices(
   lines: Array<{ quantityPer: number; childUnitPrice: number }>,

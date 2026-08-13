@@ -39,7 +39,7 @@ export function assemblyGroupIncludesPostProcess(
 ): boolean {
   const flags = resolveProductionFlagsForAssemblyParent({
     quotes: quotes ?? [],
-    order: order ?? ({ items: [], customer: '', orderId: group.orderId } as OrderListGroup),
+    order,
     parentProduct:
       productById[group.parentProductId] ||
       productById[String(group.parentProductCode || '').trim()],
@@ -58,7 +58,7 @@ export function assemblyGroupIncludesSmt(
 ): boolean {
   const flags = resolveProductionFlagsForAssemblyParent({
     quotes: quotes ?? [],
-    order: order ?? ({ items: [], customer: '', orderId: group.orderId } as OrderListGroup),
+    order,
     parentProduct:
       productById[group.parentProductId] ||
       productById[String(group.parentProductCode || '').trim()],

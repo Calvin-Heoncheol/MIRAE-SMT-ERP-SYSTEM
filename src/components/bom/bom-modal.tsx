@@ -197,8 +197,9 @@ function BomModalContent({
         if (!target) return true
         const token = target.token.trim().toLowerCase()
         if (row.token.trim().toLowerCase() === token) return false
-        if (item.id.toLowerCase() === row.token.trim().toLowerCase()) return false
-        if (item.mpn.trim() && item.mpn.toLowerCase() === row.token.trim().toLowerCase()) return false
+        if (item.baseCode.trim().toLowerCase() === token) return false
+        if (item.id.toLowerCase() === token) return false
+        if (item.mpn.trim() && item.mpn.toLowerCase() === token) return false
         return true
       }),
     )
@@ -464,8 +465,8 @@ function BomModalContent({
           <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-3">
             <p className="text-sm font-medium text-blue-900">일괄 붙여넣기</p>
             <p className="mt-1 text-xs text-blue-800">
-              Excel에서 아래 열 순서대로 복사한 뒤, 이 칸에 붙여넣으세요. 품목코드 또는 MPN으로
-              매칭됩니다.
+              Excel에서 아래 열 순서대로 복사한 뒤, 이 칸에 붙여넣으세요. 고객사 품목코드 또는
+              MPN으로 매칭됩니다.
             </p>
 
             <ExcelPasteSampleTable
