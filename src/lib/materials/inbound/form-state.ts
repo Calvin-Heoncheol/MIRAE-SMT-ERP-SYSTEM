@@ -37,7 +37,7 @@ export function defaultDirectInboundItemForm(): DirectInboundItemForm {
     specification: '',
     mpn: '',
     quantityPerReel: '0',
-    reelCount: '0',
+    reelCount: '1',
     quantity: '0',
   }
 }

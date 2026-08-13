@@ -64,7 +64,7 @@ export function InboundDirectLinesForm({
 }: InboundDirectLinesFormProps) {
   const [scanCode, setScanCode] = useState('')
   const [scanQuantityPerReel, setScanQuantityPerReel] = useState('0')
-  const [scanReelCount, setScanReelCount] = useState('0')
+  const [scanReelCount, setScanReelCount] = useState('1')
   const [scanMessage, setScanMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const [unmatchedScanCode, setUnmatchedScanCode] = useState<string | null>(null)
   const [pendingRetry, setPendingRetry] = useState<{
@@ -208,7 +208,7 @@ export function InboundDirectLinesForm({
     if (commitInboundLine(material, scanQuantityPerReel, scanReelCount)) {
       setScanCode('')
       setScanQuantityPerReel('0')
-      setScanReelCount('0')
+      setScanReelCount('1')
       setUnmatchedScanCode(null)
       setPendingRetry(null)
     }
@@ -222,7 +222,7 @@ export function InboundDirectLinesForm({
     if (commitInboundLine(material, pendingRetry.quantityPerReel, pendingRetry.reelCount)) {
       setScanCode('')
       setScanQuantityPerReel('0')
-      setScanReelCount('0')
+      setScanReelCount('1')
       setUnmatchedScanCode(null)
       setPendingRetry(null)
     }
@@ -329,8 +329,8 @@ export function InboundDirectLinesForm({
               <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">MPN</th>
               <th className="min-w-[160px] px-3 py-2 text-left text-sm font-semibold text-slate-600">자재명</th>
               <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">규격</th>
-              <th className="min-w-[96px] px-3 py-2 text-right text-sm font-semibold text-slate-600">수량</th>
               <th className="min-w-[80px] px-3 py-2 text-right text-sm font-semibold text-slate-600">릴 개수</th>
+              <th className="min-w-[96px] px-3 py-2 text-right text-sm font-semibold text-slate-600">수량</th>
               <th className="min-w-[96px] px-3 py-2 text-right text-sm font-semibold text-slate-600">입고수량</th>
               <th className="w-10 px-2 py-2" />
             </tr>
@@ -382,18 +382,20 @@ export function InboundDirectLinesForm({
                 </td>
                 <td className="px-3 py-2 align-top">
                   <QuoteNumericInput
-                    min={0}
-                    value={String(item.quantityPerReel)}
-                    onChange={(quantityPerReel) => patchItem(index, { quantityPerReel })}
-                    className={`${inputClassName} min-w-[96px] text-right`}
+                    min={1}
+                    value={String(item.reelCount || '1')}
+                    onChange={(reelCount) =>
+                      patchItem(index, { reelCount: reelCount.trim() ? reelCount : '1' })
+                    }
+                    className={`${inputClassName} min-w-[80px] text-right`}
                   />
                 </td>
                 <td className="px-3 py-2 align-top">
                   <QuoteNumericInput
                     min={0}
-                    value={String(item.reelCount)}
-                    onChange={(reelCount) => patchItem(index, { reelCount })}
-                    className={`${inputClassName} min-w-[80px] text-right`}
+                    value={String(item.quantityPerReel)}
+                    onChange={(quantityPerReel) => patchItem(index, { quantityPerReel })}
+                    className={`${inputClassName} min-w-[96px] text-right`}
                   />
                 </td>
                 <td className="px-3 py-2 align-top">

@@ -108,6 +108,7 @@ export function InboundScanPanel({
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [lastScannedKey, setLastScannedKey] = useState<string | null>(null)
+  const [scanFocusToken, setScanFocusToken] = useState(0)
   const [scanPulse, setScanPulse] = useState<{ kind: 'success' | 'error'; token: number } | null>(
     null,
   )
@@ -141,14 +142,22 @@ export function InboundScanPanel({
   }
 
   function focusQuantityInput(key: string) {
-    window.setTimeout(() => {
+    let attempts = 0
+    const tryFocus = () => {
       const input = tableScrollRef.current?.querySelector<HTMLInputElement>(
         `[data-qty-input="${key}"]`,
       )
-      if (!input) return
-      input.focus()
-      input.select()
-    }, 50)
+      if (input) {
+        input.focus()
+        input.select()
+        return
+      }
+      if (attempts < 12) {
+        attempts += 1
+        window.setTimeout(tryFocus, 25)
+      }
+    }
+    window.requestAnimationFrame(tryFocus)
   }
 
   function triggerScanPulse(kind: 'success' | 'error') {
@@ -160,12 +169,8 @@ export function InboundScanPanel({
 
   function markJustScanned(key: string) {
     setLastScannedKey(key)
+    setScanFocusToken((value) => value + 1)
     triggerScanPulse('success')
-    window.setTimeout(() => {
-      const row = tableScrollRef.current?.querySelector<HTMLElement>(`[data-scan-key="${key}"]`)
-      row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-      focusQuantityInput(key)
-    }, 40)
   }
 
   function resolvePoLine(material: Material, excludeKey?: string | null): OpenPoLine | null {
@@ -261,6 +266,15 @@ export function InboundScanPanel({
     addMaterialToList(material)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materials, pendingRetryCode])
+
+  useEffect(() => {
+    if (!lastScannedKey || !scanFocusToken) return
+    const row = tableScrollRef.current?.querySelector<HTMLElement>(
+      `[data-scan-key="${lastScannedKey}"]`,
+    )
+    row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    focusQuantityInput(lastScannedKey)
+  }, [lastScannedKey, scanFocusToken])
 
   function handleScanKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== 'Enter') return
@@ -542,7 +556,7 @@ export function InboundScanPanel({
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">사양</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">MPN</th>
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">도급/사급</th>
-                <th className="px-3 py-2 text-right font-semibold text-slate-600">릴</th>
+                <th className="px-3 py-2 text-right font-semibold text-slate-600">릴 개수</th>
                 <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
                 <th className="px-3 py-2 text-right font-semibold text-slate-600">입고수량</th>
                 <th className="w-10 px-2 py-2" />
@@ -592,9 +606,11 @@ export function InboundScanPanel({
                     </td>
                     <td className="w-[88px] px-2 py-2">
                       <QuoteNumericInput
-                        min={0}
-                        value={line.reelCount}
-                        onChange={(reelCount) => patchLine(line.key, { reelCount })}
+                        min={1}
+                        value={line.reelCount || '1'}
+                        onChange={(reelCount) =>
+                          patchLine(line.key, { reelCount: reelCount.trim() ? reelCount : '1' })
+                        }
                         className={inputClassName}
                       />
                     </td>
@@ -610,6 +626,7 @@ export function InboundScanPanel({
                           })
                         }
                         onKeyDown={(event) => handleQuantityKeyDown(event, line.key)}
+                        placeholder="수량"
                         className={[
                           inputClassName,
                           isLatest ? 'border-emerald-400 ring-2 ring-emerald-200' : '',
