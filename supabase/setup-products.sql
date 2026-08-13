@@ -1,0 +1,2 @@
+-- 이 파일은 setup-items.sql 로 대체되었습니다.
+-- 신규 설치: setup-orders.sql → setup-items.sql 순서로 실행하세요.

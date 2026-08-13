@@ -1,0 +1,678 @@
+@import "tailwindcss";
+
+:root {
+  --erp-accent: #2563eb;
+  --erp-accent-light: #3b82f6;
+  --erp-bg-start: #e2e8f0;
+  --erp-bg-mid: #cbd5e0;
+  --erp-surface: #ffffff;
+  --erp-border: #e2e8f0;
+  --erp-text: #1a202c;
+  --erp-text-muted: #64748b;
+}
+
+@theme inline {
+  --color-erp-accent: var(--erp-accent);
+  --color-erp-accent-light: var(--erp-accent-light);
+  --color-erp-surface: var(--erp-surface);
+  --color-erp-border: var(--erp-border);
+  --font-sans: var(--font-noto-sans-kr), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+}
+
+body {
+  background: linear-gradient(135deg, var(--erp-bg-start) 0%, var(--erp-bg-mid) 50%, var(--erp-bg-start) 100%);
+  color: var(--erp-text);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+.erp-panel {
+  background: var(--erp-surface);
+  border: 1px solid var(--erp-border);
+  border-radius: 16px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+/* 문서 시트: 본문 + 하단 로고 */
+.document-print-sheet {
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 1.5rem;
+  min-height: 52rem;
+  box-sizing: border-box;
+}
+
+.document-print-content {
+  flex: 1 1 auto;
+}
+
+.document-brand-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: auto;
+  flex-shrink: 0;
+  padding-top: 1rem;
+}
+
+.document-brand-logo-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88px;
+  overflow: hidden;
+}
+
+.document-brand-logo {
+  height: 64px;
+  width: auto;
+  max-width: none;
+  object-fit: contain;
+  transform: scale(2.4);
+  transform-origin: center center;
+  mix-blend-mode: screen;
+}
+
+.document-print-title {
+  font-size: 2.25rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.document-print-subtitle {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+@media (min-width: 640px) {
+  .document-print-title {
+    font-size: 2.5rem;
+  }
+
+  .document-print-subtitle {
+    font-size: 1.0625rem;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 12mm 14mm 12mm;
+  }
+
+  html {
+    font-size: 16px !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body.document-printing {
+    background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* 화면 UI는 숨기고, 인쇄 복제본만 출력 */
+  body.document-printing > *:not(#document-print-host) {
+    display: none !important;
+  }
+
+  body.document-printing .no-print {
+    display: none !important;
+  }
+
+  body.document-printing #document-print-host {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #0f172a !important;
+    visibility: visible !important;
+  }
+
+  body.document-printing #document-print-host *,
+  body.document-printing #document-print-root,
+  body.document-printing #document-print-root * {
+    visibility: visible !important;
+    color: inherit;
+  }
+
+  body.document-printing #document-print-root {
+    display: flex !important;
+    flex-direction: column !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 8mm 6mm !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    overflow: visible !important;
+    font-size: 14px !important;
+    line-height: 1.45 !important;
+    color: #0f172a !important;
+    min-height: auto !important;
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.document-printing #document-print-root.document-print-sheet {
+    min-height: auto !important;
+    padding: 0 !important;
+  }
+
+  /* 화면 Tailwind 글자 크기 유지 (px 고정 — 인쇄 시 rem 기준 흔들림 방지) */
+  body.document-printing #document-print-root .text-xs {
+    font-size: 12px !important;
+    line-height: 1rem !important;
+  }
+
+  body.document-printing #document-print-root .text-sm {
+    font-size: 14px !important;
+    line-height: 1.25rem !important;
+  }
+
+  body.document-printing #document-print-root .text-base {
+    font-size: 16px !important;
+    line-height: 1.5rem !important;
+  }
+
+  body.document-printing #document-print-root .font-semibold {
+    font-weight: 600 !important;
+  }
+
+  body.document-printing #document-print-root .font-bold {
+    font-weight: 700 !important;
+  }
+
+  body.document-printing #document-print-root .document-print-content {
+    flex: 1 1 auto !important;
+  }
+
+  /* 인쇄 타이포그래피 — 화면(.document-print-title 등)과 동일 크기 유지 */
+  body.document-printing #document-print-root .document-print-title {
+    font-size: 2.25rem !important;
+    line-height: 1.25 !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.15em !important;
+  }
+
+  body.document-printing #document-print-root .document-print-subtitle {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    margin-top: 4px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.06em !important;
+    color: #64748b !important;
+  }
+
+  body.document-printing #document-print-root .document-print-label {
+    line-height: 1.3 !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    margin-bottom: 0 !important;
+  }
+
+  body.document-printing #document-print-root .document-print-value,
+  body.document-printing #document-print-root .document-print-cell-value {
+    line-height: 1.45 !important;
+    color: #0f172a !important;
+  }
+
+  body.document-printing #document-print-root .document-print-section-title {
+    line-height: 1.35 !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.14em !important;
+    text-transform: uppercase !important;
+    color: #475569 !important;
+  }
+
+  body.document-printing #document-print-root .document-print-option {
+    display: inline-flex !important;
+    align-items: center !important;
+    margin-right: 14px !important;
+    white-space: nowrap !important;
+    line-height: 1.45 !important;
+    color: #0f172a !important;
+  }
+
+  body.document-printing #document-print-root .document-print-check-box,
+  body.document-printing #document-print-root .document-print-radio-dot {
+    width: 14px !important;
+    height: 14px !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #fff !important;
+    flex-shrink: 0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.document-printing #document-print-root .document-print-check-box {
+    border-radius: 3px !important;
+  }
+
+  body.document-printing #document-print-root .document-print-radio-dot {
+    border-radius: 9999px !important;
+  }
+
+  body.document-printing #document-print-root .document-print-check-box.is-checked,
+  body.document-printing #document-print-root .document-print-radio-dot.is-checked {
+    border-color: #2563eb !important;
+    background: #2563eb !important;
+    color: #fff !important;
+  }
+
+  body.document-printing #document-print-root .document-print-body,
+  body.document-printing #document-print-root .document-print-text-value {
+    line-height: 1.5 !important;
+    color: #0f172a !important;
+    white-space: pre-wrap !important;
+  }
+
+  body.document-printing #document-print-root .document-print-divider {
+    margin: 10px 0 !important;
+    letter-spacing: 0.35em !important;
+    color: #64748b !important;
+  }
+
+  body.document-printing #document-print-root .document-print-closing {
+    margin-top: 16px !important;
+  }
+
+  body.document-printing #document-print-root .document-print-totals,
+  body.document-printing #document-print-root .approval-totals-row {
+    line-height: 1.4 !important;
+  }
+
+  body.document-printing #document-print-root .document-print-table {
+    line-height: 1.35 !important;
+  }
+
+  body.document-printing #document-print-root .document-print-table-label {
+    font-weight: 600 !important;
+    text-align: center !important;
+    color: #334155 !important;
+  }
+
+  body.document-printing #document-print-root .document-print-table-value {
+    color: #0f172a !important;
+  }
+
+  /* 인쇄 시 불필요한 여백·박스 스타일 제거 */
+  body.document-printing #document-print-root [class*='min-h-'] {
+    min-height: 0 !important;
+  }
+
+  body.document-printing #document-print-root .approval-meta-field input,
+  body.document-printing #document-print-root .approval-meta-field select,
+  body.document-printing #document-print-root .approval-inline-field input,
+  body.document-printing #document-print-root .approval-inline-field .rounded-lg,
+  body.document-printing #document-print-root .approval-meta-field .document-print-value,
+  body.document-printing #document-print-root .approval-inline-field .document-print-value {
+    padding: 0 !important;
+    min-height: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  body.document-printing #document-print-root .approval-document-section {
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 12px 4px !important;
+    margin-top: 10px !important;
+    background: transparent !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.document-printing #document-print-root .approval-document-section--breakable {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  body.document-printing #document-print-root .approval-document-header {
+    margin-bottom: 12px !important;
+    padding: 4px 4px 14px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+
+  body.document-printing #document-print-root .document-form-header > div {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 1.5rem !important;
+  }
+
+  body.document-printing #document-print-root .document-form-header .document-signoff-slot {
+    width: 300px !important;
+    max-width: 42% !important;
+    flex-shrink: 0 !important;
+  }
+
+  body.document-printing #document-print-root .approval-meta-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    column-gap: 28px !important;
+    row-gap: 8px !important;
+    margin-bottom: 4px !important;
+    padding: 14px 16px !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 4px !important;
+    background: #f8fafc !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.document-printing #document-print-root .approval-meta-grid .approval-meta-field,
+  body.document-printing #document-print-root .approval-meta-grid .approval-meta-field > label {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    line-height: 1.5 !important;
+  }
+
+  body.document-printing #document-print-root .approval-meta-grid .approval-meta-field > span:first-child,
+  body.document-printing #document-print-root .approval-meta-grid .approval-meta-field > label > span:first-child,
+  body.document-printing #document-print-root .approval-meta-grid .approval-meta-field .document-print-label {
+    margin-bottom: 0 !important;
+    width: 4.2rem !important;
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    letter-spacing: 0.04em !important;
+  }
+
+  body.document-printing #document-print-root .approval-meta-grid .approval-meta-field input,
+  body.document-printing #document-print-root .approval-meta-grid .approval-meta-field select,
+  body.document-printing #document-print-root .approval-meta-grid .approval-meta-field .approval-meta-print-value,
+  body.document-printing #document-print-root .approval-meta-grid .approval-meta-field .rounded-lg {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    line-height: 1.45 !important;
+    font-weight: 600 !important;
+  }
+
+  body.document-printing #document-print-root .document-meta-grid:not(.approval-meta-grid) {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 1rem !important;
+  }
+
+  body.document-printing #document-print-root .document-form-header {
+    padding: 2mm 2mm !important;
+  }
+
+  body.document-printing #document-print-root .document-form-header__title {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+  }
+
+  body.document-printing #document-print-root .document-brand-footer {
+    margin-top: 2rem !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  body.document-printing #document-print-root .document-brand-logo-frame {
+    height: 72px !important;
+    overflow: hidden !important;
+  }
+
+  body.document-printing #document-print-root .document-brand-logo,
+  body.document-printing #document-print-root .document-brand-footer img {
+    height: 72px !important;
+    width: auto !important;
+    max-width: 240px !important;
+    object-fit: contain !important;
+    transform: none !important;
+    mix-blend-mode: normal !important;
+  }
+
+  body.document-printing #document-print-root .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  body.document-printing #document-print-root .approval-detail-table {
+    min-width: 0 !important;
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    border: 1px solid #cbd5e1 !important;
+    line-height: 1.35 !important;
+  }
+
+  body.document-printing #document-print-root .approval-detail-thead,
+  body.document-printing #document-print-root .approval-detail-table thead {
+    background: #1e293b !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.document-printing #document-print-root .approval-detail-table th,
+  body.document-printing #document-print-root .approval-detail-table td {
+    padding: 9px 8px !important;
+    vertical-align: middle !important;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
+  }
+
+  body.document-printing #document-print-root .approval-detail-table th {
+    white-space: nowrap !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #e2e8f0 !important;
+    text-align: center !important;
+    border: none !important;
+    background: #1e293b !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.document-printing #document-print-root .approval-detail-table td {
+    border-top: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+
+  body.document-printing #document-print-root .approval-grand-total {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 12px !important;
+    margin-top: 12px !important;
+    padding: 14px 18px !important;
+    border: 2px solid #1d4ed8 !important;
+    border-radius: 6px !important;
+    background: linear-gradient(to right, #eff6ff, #fff) !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.document-printing #document-print-root .approval-detail-table .approval-detail-cell-value {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.3 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  body.document-printing #document-print-root th {
+    white-space: nowrap !important;
+  }
+
+  body.document-printing #document-print-root .approval-inline-field input,
+  body.document-printing #document-print-root .approval-inline-field .rounded-lg {
+    border: none !important;
+    background: transparent !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.document-printing #document-print-root table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  body.document-printing #document-print-root th,
+  body.document-printing #document-print-root td {
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
+  body.document-printing #document-print-root input:not([type='checkbox']):not([type='radio']),
+  body.document-printing #document-print-root select,
+  body.document-printing #document-print-root textarea {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    appearance: none;
+    -webkit-appearance: none;
+    color: #0f172a !important;
+  }
+
+  body.document-printing #document-print-root tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.document-printing #document-print-root img {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.document-printing #document-print-root .approval-signoff-panel {
+    display: flex !important;
+    overflow: hidden !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    background: #fff !important;
+  }
+
+  body.document-printing #document-print-root .document-print-table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+  }
+
+  body.document-printing #document-print-root .document-print-table th,
+  body.document-printing #document-print-root .document-print-table td {
+    border: 1px solid #94a3b8 !important;
+    padding: 6px 8px !important;
+    vertical-align: middle !important;
+    line-height: 1.35 !important;
+  }
+
+  body.document-printing #document-print-root .document-print-table th {
+    background: #f8fafc !important;
+    font-weight: 600 !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+
+  body.document-printing #document-print-root .expense-report-amount-row {
+    border: 1px solid #94a3b8 !important;
+    margin-top: 1rem !important;
+  }
+
+  body.document-printing #document-print-root .expense-report-amount-inner {
+    display: flex !important;
+    align-items: flex-end !important;
+    gap: 0.5rem !important;
+    padding: 1rem 1.25rem !important;
+  }
+
+  body.document-printing #document-print-root .expense-report-amount-label {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #0f172a !important;
+  }
+
+  body.document-printing #document-print-root .expense-report-amount-korean,
+  body.document-printing #document-print-root .expense-report-amount-number {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #0f172a !important;
+  }
+
+  body.document-printing #document-print-root .expense-report-amount-korean,
+  body.document-printing #document-print-root .expense-report-amount-number-wrap {
+    border-bottom: 1px solid #64748b !important;
+    padding-bottom: 0.25rem !important;
+  }
+
+  body.document-printing #document-print-root input[type='date']::-webkit-calendar-picker-indicator {
+    display: none !important;
+  }
+
+  body.document-printing #document-print-root .approval-totals-row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: baseline !important;
+    justify-content: flex-end !important;
+    gap: 4px 16px !important;
+  }
+
+  body.document-printing #document-print-root .approval-inline-field {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  body.document-printing #document-print-root .approval-inline-field .document-print-label {
+    width: 3.8rem !important;
+    flex-shrink: 0 !important;
+    white-space: pre !important;
+  }
+
+  body.document-printing #document-print-root .document-print-text-value {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+  }
+}
+
+/* 전역 busy 로딩바 */
+@keyframes erp-busy-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(420%);
+  }
+}
+.erp-busy-bar {
+  animation: erp-busy-slide 1.1s ease-in-out infinite;
+}

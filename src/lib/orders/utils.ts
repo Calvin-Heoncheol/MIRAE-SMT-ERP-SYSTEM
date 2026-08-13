@@ -1,0 +1,221 @@
+import type { OrderCategory, OrderLineItem, OrderListGroup, OrderRecord } from './types'
+import { ORDER_CATEGORIES } from './types'
+
+export const ORDER_CODE_MAX_LENGTH = 100
+
+/** 레거시 MRO-0001 순번 판별용 */
+export const MRO_ORDER_CODE_PATTERN = /^MRO-[0-9]+$/
+
+/** 신규 자동 발급: MRO-YYMMDD-NN */
+export const MRO_DATE_ORDER_CODE_PATTERN = /^MRO-[0-9]{6}-[0-9]{2}$/
+
+/** 고객사 접두사 레거시 자동 발급 코드 (SC-0001 등) */
+export const AUTO_ORDER_CODE_PATTERN = /^[A-Z0-9]+-[0-9]+$/
+
+export function normalizeOrderCodeInput(value: string) {
+  return value.trim().toUpperCase()
+}
+
+export function validateOrderCodeInput(
+  value: string,
+): { ok: true; code: string } | { ok: false; message: string } {
+  const code = normalizeOrderCodeInput(value)
+  if (!code) return { ok: true, code: '' }
+  if (code.length > ORDER_CODE_MAX_LENGTH) {
+    return {
+      ok: false,
+      message: `주문코드는 ${ORDER_CODE_MAX_LENGTH}자 이하여야 합니다.`,
+    }
+  }
+  return { ok: true, code }
+}
+
+export function formatOrderMoney(amount: number) {
+  return `₩${Math.round(Number(amount) || 0).toLocaleString('ko-KR')}`
+}
+
+/**
+ * 품목마스터에 없는 임시(금액 전용) 라인.
+ * product_id 가 없으면 생산·조립·실적에 올리지 않는다.
+ */
+export function isBillingOnlyOrderItem(item: {
+  productId?: string | null
+}) {
+  return !String(item.productId || '').trim()
+}
+
+export function isBillingOnlyOrderLine(line: {
+  product_id?: string | null
+}) {
+  return !String(line.product_id || '').trim()
+}
+
+export function formatOrderDate(value: string | null | undefined) {
+  if (!value) return ''
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : String(value)
+}
+
+export function todayYmdSeoul() {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(new Date())
+}
+
+export function addDaysYmd(baseYmd: string, days: number) {
+  const match = baseYmd.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return baseYmd
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  date.setDate(date.getDate() + days)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+export function normalizeOrderCategory(value: string | null | undefined): OrderCategory {
+  const cat = String(value || '').trim()
+  if (ORDER_CATEGORIES.includes(cat as OrderCategory)) return cat as OrderCategory
+  if (cat === '확정') return '양산'
+  return '양산'
+}
+
+export function parseOrderDateForSort(orderDate: string) {
+  if (!orderDate) return 0
+  const match = orderDate.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])).getTime()
+  }
+  const parsed = Date.parse(orderDate)
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+export function sortOrderGroupsNewestFirst(groups: OrderListGroup[]) {
+  return [...groups].sort((a, b) => {
+    const dateDiff = parseOrderDateForSort(b.orderDate) - parseOrderDateForSort(a.orderDate)
+    if (dateDiff !== 0) return dateDiff
+    return b.createdAt.localeCompare(a.createdAt)
+  })
+}
+
+export function mapOrderLineRecord(
+  line: {
+    id?: string
+    product_id?: string | null
+    product_code: string
+    product_name: string
+    quantity: number
+    unit_price: number
+    order_amount: number
+    delivery_date?: string | null
+    derived_from_line_id?: string | null
+  },
+  fallbackDeliveryDate = '',
+): OrderLineItem {
+  return {
+    lineId: line.id,
+    productId: line.product_id || null,
+    productCode: line.product_code || line.product_id || '',
+    productName: line.product_name || '',
+    quantity: Number(line.quantity) || 0,
+    unitPrice: Number(line.unit_price) || 0,
+    orderAmount: Number(line.order_amount) || 0,
+    deliveryDate: formatOrderDate(line.delivery_date) || fallbackDeliveryDate,
+    derivedFromLineId: line.derived_from_line_id || null,
+  }
+}
+
+export function earliestDeliveryDate(dates: Array<string | null | undefined>) {
+  const valid = dates
+    .map((value) => formatOrderDate(value))
+    .filter(Boolean)
+    .sort()
+  return valid[0] || ''
+}
+
+export function formatOrderDeliverySummary(order: Pick<OrderListGroup, 'deliveryDate' | 'items'>) {
+  const dates = [
+    ...new Set(
+      order.items
+        .map((item) => formatOrderDate(item.deliveryDate) || formatOrderDate(order.deliveryDate))
+        .filter(Boolean),
+    ),
+  ].sort()
+  if (!dates.length) return order.deliveryDate || '-'
+  if (dates.length === 1) return dates[0]!
+  return `${dates[0]} 외 ${dates.length - 1}`
+}
+
+export function mapOrderRecord(
+  record: OrderRecord,
+  options?: { includeDerivedLines?: boolean },
+): OrderListGroup {
+  const headerDeliveryDate = formatOrderDate(record.delivery_date)
+  const lines = [...(record.order_lines || [])]
+    .filter((line) => options?.includeDerivedLines || !line.derived_from_line_id)
+    .sort((a, b) => a.line_seq - b.line_seq)
+  const items = lines.map((line) => mapOrderLineRecord(line, headerDeliveryDate))
+  return {
+    orderId: record.id,
+    orderNumber: record.id,
+    orderDate: formatOrderDate(record.order_date),
+    deliveryDate: earliestDeliveryDate(items.map((item) => item.deliveryDate)) || headerDeliveryDate,
+    customer: record.customer || '',
+    category: normalizeOrderCategory(record.category),
+    note: record.note || '',
+    customerPoNumber: record.customer_po_number || '',
+    source: record.source || 'manual',
+    sourceQuoteId: record.source_quote_id,
+    createdBy: record.created_by ?? null,
+    createdByName: String(record.created_by_name || '').trim(),
+    createdAt: record.created_at,
+    items,
+    totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
+    totalAmount: items.reduce((sum, item) => sum + item.orderAmount, 0),
+  }
+}
+
+export function groupOrdersFromRecords(
+  records: OrderRecord[],
+  options?: { includeDerivedLines?: boolean },
+): OrderListGroup[] {
+  return sortOrderGroupsNewestFirst(records.map((record) => mapOrderRecord(record, options)))
+}
+
+export function formatProductSummary(group: OrderListGroup) {
+  if (!group.items.length) return '-'
+  const first = group.items[0]?.productName.trim() || '-'
+  if (group.items.length === 1) return first
+  return `${first} 외 ${group.items.length - 1}건`
+}
+
+export function computeLineAmount(quantity: number, unitPrice: number) {
+  const qty = Math.max(0, Math.floor(Number(quantity) || 0))
+  const price = Math.max(0, Math.round(Number(unitPrice) || 0))
+  return qty * price
+}
+
+export function formatInternalCodeLabel(code: string) {
+  const value = code.trim()
+  if (!value) return '—'
+  if (value.length <= 14) return value
+  return `${value.slice(0, 8)}…${value.slice(-4)}`
+}
+
+export function filterOrdersForSearch(orders: OrderListGroup[], query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return orders
+  return orders.filter((order) => {
+    const haystack = [
+      order.orderNumber,
+      order.customerPoNumber,
+      order.customer,
+      order.category,
+      order.orderDate,
+      order.deliveryDate,
+      order.note,
+      ...order.items.flatMap((item) => [item.productCode, item.productName]),
+    ]
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(q)
+  })
+}

@@ -1,0 +1,237 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useBusy } from '@/components/ui/busy-provider'
+import { ErpButton } from '@/components/ui/erp-button'
+import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
+import {
+  createBusinessPartner,
+  deleteBusinessPartner,
+  updateBusinessPartner,
+} from '@/lib/partners/repository'
+import {
+  emptyPartnerForm,
+  formToPartnerPayload,
+  partnerToForm,
+  type PartnerFormState,
+} from '@/lib/partners/form-state'
+import {
+  PARTNER_TRADE_ROLES,
+  PARTNER_TRADE_ROLE_LABELS,
+  type BusinessPartner,
+  type PartnerTradeRole,
+} from '@/lib/partners/types'
+import { formatBusinessRegNo } from '@/lib/partners/utils'
+
+type PartnerModalProps = {
+  open: boolean
+  mode: 'create' | 'edit'
+  partner?: BusinessPartner | null
+  onClose: () => void
+  onSaved?: () => void
+  onDeleted?: () => void
+}
+
+function CancelButton({ disabled }: { disabled?: boolean }) {
+  const requestClose = useErpModalRequestClose()
+  return (
+    <ErpButton variant="secondary" disabled={disabled} onClick={() => requestClose?.()}>
+      취소
+    </ErpButton>
+  )
+}
+
+function PartnerModalContent({
+  mode,
+  partner,
+  onClose,
+  onSaved,
+  onDeleted,
+}: Omit<PartnerModalProps, 'open'> & { open: boolean }) {
+  const isCreate = mode === 'create'
+  const [form, setForm] = useState<PartnerFormState>(() =>
+    partner ? partnerToForm(partner) : emptyPartnerForm(),
+  )
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  const busyUi = useBusy()
+  const { notifyAuthOrFailure } = useWriteFailureToast()
+
+  useEffect(() => {
+    setForm(partner ? partnerToForm(partner) : emptyPartnerForm())
+    setSaveError(null)
+  }, [partner, mode])
+
+  function updateForm<K extends keyof PartnerFormState>(key: K, value: PartnerFormState[K]) {
+    setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    setSaveError(null)
+
+    const result = await busyUi.run(() =>
+      isCreate
+        ? createBusinessPartner(formToPartnerPayload(form))
+        : updateBusinessPartner(partner!.id, formToPartnerPayload(form)),
+    )
+
+    setSaving(false)
+
+    if (!result.ok) {
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
+      return
+    }
+
+    onSaved?.()
+  }
+
+  async function handleDelete() {
+    if (!partner) return
+    if (!window.confirm(`${partner.name} 거래처를 삭제하시겠습니까?`)) return
+
+    setDeleting(true)
+    setSaveError(null)
+
+    const result = await busyUi.run(() => deleteBusinessPartner(partner.id))
+    setDeleting(false)
+
+    if (!result.ok) {
+      if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
+      return
+    }
+
+    onDeleted?.()
+  }
+
+  const busy = saving || deleting
+
+  return (
+    <ErpModal
+      open
+      size="form"
+      title={isCreate ? '거래처 등록' : '거래처 수정'}
+      description={
+        !isCreate && partner
+          ? partner.id
+          : '내부 거래처ID는 저장 시 BP-00001 형식으로 자동 발급됩니다.'
+      }
+      onClose={onClose}
+      closeOnEscape={!busy}
+      footer={
+        <div className="flex w-full flex-col gap-3">
+          {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+          <div className="flex justify-between gap-2">
+            {!isCreate ? (
+              <ErpButton
+                variant="danger"
+                onClick={() => void handleDelete()}
+                disabled={busy}
+                loading={deleting}
+              >
+                삭제
+              </ErpButton>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <CancelButton disabled={busy} />
+              <ErpButton onClick={() => void handleSave()} disabled={busy} loading={saving}>
+                저장
+              </ErpButton>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <div className="grid grid-cols-1 gap-4">
+        {!isCreate && partner?.id ? (
+          <div className="block text-sm">
+            <span className="mb-1 block font-medium text-slate-600">거래처ID</span>
+            <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-600">
+              {partner.id} <span className="text-slate-400">(수정 불가)</span>
+            </div>
+          </div>
+        ) : null}
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-600">
+            사업자번호 <span className="font-normal text-slate-400">(선택)</span>
+          </span>
+          <input
+            value={form.businessRegNo}
+            onChange={(event) => updateForm('businessRegNo', event.target.value)}
+            onBlur={() => updateForm('businessRegNo', formatBusinessRegNo(form.businessRegNo))}
+            placeholder="000-00-00000"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-600">거래처명</span>
+          <input
+            value={form.name}
+            onChange={(event) => updateForm('name', event.target.value)}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-600">대표자명</span>
+          <input
+            value={form.representativeName}
+            onChange={(event) => updateForm('representativeName', event.target.value)}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-600">업태</span>
+          <input
+            value={form.businessType}
+            onChange={(event) => updateForm('businessType', event.target.value)}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-600">
+            주소 <span className="font-normal text-slate-400">(거래명세서)</span>
+          </span>
+          <textarea
+            value={form.address}
+            onChange={(event) => updateForm('address', event.target.value)}
+            rows={2}
+            placeholder="사업장 주소"
+            className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-600">전화</span>
+          <input
+            value={form.phone}
+            onChange={(event) => updateForm('phone', event.target.value)}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2"
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-600">매입/매출</span>
+          <select
+            value={form.tradeRole}
+            onChange={(event) => updateForm('tradeRole', event.target.value as PartnerTradeRole)}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2"
+          >
+            {PARTNER_TRADE_ROLES.map((role) => (
+              <option key={role} value={role}>
+                {PARTNER_TRADE_ROLE_LABELS[role]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </ErpModal>
+  )
+}
+
+export function PartnerModal({ open, ...props }: PartnerModalProps) {
+  if (!open) return null
+  return <PartnerModalContent open={open} {...props} />
+}

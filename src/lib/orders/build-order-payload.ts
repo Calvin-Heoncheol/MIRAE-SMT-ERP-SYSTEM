@@ -1,0 +1,107 @@
+import type { OrderItemForm } from './form-state'
+import { findProductsByName, resolveOrderLineProduct } from '@/lib/products/utils'
+import type { Product } from '@/lib/products/types'
+import { computeLineAmount } from './utils'
+
+export function orderItemFormToModel(item: OrderItemForm) {
+  const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
+  const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+  const productId = String(item.productId || '').trim()
+  const isAdhoc = Boolean(item.isAdhoc)
+  return {
+    productId: isAdhoc ? null : productId || null,
+    productCode: String(item.productCode || '').trim(),
+    productName: String(item.productName || '').trim(),
+    quantity,
+    unitPrice,
+    orderAmount: computeLineAmount(quantity, unitPrice),
+    deliveryDate: String(item.deliveryDate || '').trim(),
+    isAdhoc,
+  }
+}
+
+export function validateOrderItems(
+  items: OrderItemForm[],
+  products: Product[],
+  customer: string,
+  headerDeliveryDate = '',
+) {
+  const parsed = items
+    .map(orderItemFormToModel)
+    .filter(
+      (item) =>
+        item.productName ||
+        item.productCode ||
+        item.quantity > 0 ||
+        item.orderAmount > 0,
+    )
+
+  if (!parsed.length) {
+    return { ok: false as const, message: '제품을 1개 이상 입력하세요.' }
+  }
+
+  const validated: ReturnType<typeof orderItemFormToModel>[] = []
+
+  for (let index = 0; index < parsed.length; index += 1) {
+    const item = parsed[index]
+    if (!item.productName) {
+      return { ok: false as const, message: `${index + 1}행 제품명을 입력하세요.` }
+    }
+    if (item.quantity <= 0) {
+      return { ok: false as const, message: `${index + 1}행 수량은 0보다 커야 합니다.` }
+    }
+    if (item.unitPrice < 0) {
+      return { ok: false as const, message: `${index + 1}행 단가는 0 이상이어야 합니다.` }
+    }
+
+    if (item.isAdhoc) {
+      validated.push({
+        productId: null,
+        productCode: item.productCode || 'TEMP',
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        orderAmount: item.orderAmount,
+        deliveryDate: headerDeliveryDate || item.deliveryDate,
+        isAdhoc: true,
+      })
+      continue
+    }
+
+    const matched = resolveOrderLineProduct(products, customer, {
+      productId: item.productId,
+      productName: item.productName,
+    })
+
+    if (!matched) {
+      if (item.productId) {
+        return {
+          ok: false as const,
+          message: `${index + 1}행 제품명이 등록 정보와 다릅니다. 목록에서 다시 선택하세요.`,
+        }
+      }
+      const sameNameVersions = findProductsByName(products, item.productName, customer)
+      if (sameNameVersions.length > 1) {
+        return {
+          ok: false as const,
+          message: `${index + 1}행 같은 제품명에 버전이 ${sameNameVersions.length}개 있습니다. 드롭다운에서 버전을 선택하세요.`,
+        }
+      }
+      return {
+        ok: false as const,
+        message: `${index + 1}행 해당 제품은 등록되어 있지 않습니다. 임시 품목으로 추가하거나 제품명을 확인해 주세요.`,
+      }
+    }
+
+    validated.push({
+      ...item,
+      productId: matched.id,
+      productCode: matched.productCode,
+      productName: matched.productName,
+      isAdhoc: false,
+      deliveryDate: headerDeliveryDate || item.deliveryDate,
+    })
+  }
+
+  return { ok: true as const, items: validated }
+}

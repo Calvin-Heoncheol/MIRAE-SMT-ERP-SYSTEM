@@ -1,0 +1,706 @@
+import { createSupabaseClient } from '@/lib/supabase'
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
+import {
+  isMissingCreatedByColumn,
+  stripCreatedByFields,
+  withCreatedByFields,
+} from '@/lib/auth/created-by'
+import { fetchAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
+import { buildFullyShippedOrderIdSet } from '@/lib/delivery/utils'
+import { fetchMaterials } from '@/lib/materials/repository'
+import { fetchOrders } from '@/lib/orders/repository'
+import type { Material } from '@/lib/materials/types'
+import type { OrderListGroup } from '@/lib/orders/types'
+import type {
+  BomEdge,
+  MaterialOutboundListGroup,
+  MaterialOutboundNeedCard,
+  MaterialOutboundNeedRow,
+  MaterialOutboundRecord,
+  MaterialOutboundRowPayload,
+} from './types'
+import {
+  aggregateIssuedByOrderMaterial,
+  buildOutboundNeedCards,
+  buildOutboundNeedRows,
+  groupOutboundsFromRecords,
+  resolveMaterialBucket,
+} from './utils'
+import { fetchOnHandByMaterialId, availableOnHandForOutboundEdit } from '@/lib/materials/inventory/stock'
+
+export type FetchMaterialOutboundsResult =
+  | { ok: true; outbounds: MaterialOutboundListGroup[] }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export type FetchMaterialOutboundPageResult =
+  | {
+      ok: true
+      outbounds: MaterialOutboundListGroup[]
+      needs: MaterialOutboundNeedRow[]
+      needCards: MaterialOutboundNeedCard[]
+      bomEdges: BomEdge[]
+      materials: Material[]
+      orders: OrderListGroup[]
+    }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export type SaveMaterialOutboundResult =
+  | { ok: true; outboundId: string; outboundNumber: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
+
+export type DeleteMaterialOutboundResult =
+  | { ok: true }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
+
+function missingFetchEnvResult(): FetchMaterialOutboundsResult {
+  return {
+    ok: false,
+    reason: 'env',
+    detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+  }
+}
+
+function missingEnvResult(): SaveMaterialOutboundResult {
+  return {
+    ok: false,
+    reason: 'env',
+    detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+  }
+}
+
+export function isMissingMaterialOutboundTable(detail: string) {
+  return (
+    detail.includes('material_outbound_records') ||
+    detail.includes('material_outbound_lines') ||
+    detail.includes('schema cache') ||
+    detail.includes('relationship')
+  )
+}
+
+async function fetchItemsByIds(ids: string[]) {
+  const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+  if (!uniqueIds.length) {
+    return new Map<string, { id: string; name: string; specification: string; mpn: string }>()
+  }
+
+  const supabase = createSupabaseClient()
+  const { data, error } = await supabase
+    .from('items')
+    .select('id, name, specification, mpn')
+    .in('id', uniqueIds)
+
+  if (error) throw new Error(error.message)
+
+  return new Map(
+    (data || []).map((row) => [
+      row.id,
+      {
+        id: row.id,
+        name: row.name || '',
+        specification: row.specification || '',
+        mpn: row.mpn || '',
+      },
+    ]),
+  )
+}
+
+function attachItemsToOutboundRecords(
+  records: MaterialOutboundRecord[],
+  itemsById: Map<string, { id: string; name: string; specification: string; mpn: string }>,
+): MaterialOutboundRecord[] {
+  return records.map((record) => ({
+    ...record,
+    material_outbound_lines: (record.material_outbound_lines || []).map((line) => ({
+      ...line,
+      items: itemsById.get(line.material_id) ?? null,
+    })),
+  }))
+}
+
+function validateOutboundPayload(payload: MaterialOutboundRowPayload): string | null {
+  if (!payload.outbound_date?.trim()) return '불출일을 입력해 주세요.'
+  if (!payload.outbound_type) return '불출 유형을 선택해 주세요.'
+
+  const items = payload.items.filter((item) => Number(item.quantity) > 0)
+  if (!items.length) return '불출 수량이 1개 이상인 품목을 입력해 주세요.'
+
+  if (payload.outbound_type === 'production' && !payload.order_id?.trim()) {
+    return '생산 불출은 주문을 선택해 주세요.'
+  }
+
+  for (const item of items) {
+    if (!item.material_id?.trim()) return '자재를 선택해 주세요.'
+  }
+
+  return null
+}
+
+async function validateOutboundStock(
+  items: { material_id: string; quantity: number }[],
+  previousLines: { material_id: string; quantity: number }[] = [],
+): Promise<string | null> {
+  const onHandResult = await fetchOnHandByMaterialId()
+  if (!onHandResult.ok) return onHandResult.detail
+
+  const requestedByMaterial = new Map<string, number>()
+  for (const item of items) {
+    requestedByMaterial.set(
+      item.material_id,
+      (requestedByMaterial.get(item.material_id) ?? 0) + item.quantity,
+    )
+  }
+
+  for (const [materialId, qty] of requestedByMaterial) {
+    const available = availableOnHandForOutboundEdit(
+      onHandResult.onHandByMaterialId,
+      previousLines,
+      materialId,
+    )
+    if (qty > available) {
+      return `${materialId} 현재고(${available.toLocaleString('ko-KR')})를 초과할 수 없습니다. (요청 ${qty.toLocaleString('ko-KR')})`
+    }
+  }
+
+  return null
+}
+
+export async function fetchMaterialOutbounds(): Promise<FetchMaterialOutboundsResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingFetchEnvResult()
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase
+      .from('material_outbound_records')
+      .select(
+        `
+        *,
+        material_outbound_lines (
+          id,
+          outbound_id,
+          line_seq,
+          material_id,
+          quantity
+        )
+      `,
+      )
+      .order('outbound_date', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+
+    const records = (data || []) as MaterialOutboundRecord[]
+    const materialIds = records.flatMap((record) =>
+      (record.material_outbound_lines || []).map((line) => line.material_id),
+    )
+    const orderIds = [...new Set(records.map((record) => record.order_id).filter(Boolean))] as string[]
+
+    const [itemsById, ordersResult] = await Promise.all([
+      fetchItemsByIds(materialIds),
+      orderIds.length
+        ? supabase.from('orders').select('id, customer').in('id', orderIds)
+        : Promise.resolve({ data: [], error: null }),
+    ])
+
+    if (ordersResult.error) {
+      return { ok: false, reason: 'query', detail: ordersResult.error.message }
+    }
+
+    const orderMetaById = new Map(
+      (ordersResult.data || []).map((row) => [
+        row.id as string,
+        { orderNumber: row.id as string, customer: String(row.customer || '') },
+      ]),
+    )
+
+    const outbounds = groupOutboundsFromRecords(
+      attachItemsToOutboundRecords(records, itemsById),
+      orderMetaById,
+    )
+    return { ok: true, outbounds }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function fetchBomEdges(): Promise<BomEdge[]> {
+  const supabase = createSupabaseClient()
+  const { data, error } = await supabase
+    .from('bom_detail')
+    .select('parent_product_id, child_product_id, quantity_per, child_item_category')
+
+  let rows: {
+    parent_product_id: string
+    child_product_id: string
+    quantity_per: number
+    child_item_category?: number | null
+  }[]
+
+  if (error) {
+    if (isMissingMaterialOutboundTable(error.message) || error.message.includes('bom')) {
+      const fallback = await supabase
+        .from('bom_items')
+        .select('parent_product_id, child_product_id, quantity_per')
+      if (fallback.error) throw new Error(fallback.error.message)
+      rows = (fallback.data || []).map((row) => ({
+        parent_product_id: String(row.parent_product_id || ''),
+        child_product_id: String(row.child_product_id || ''),
+        quantity_per: Number(row.quantity_per) || 0,
+      }))
+    } else {
+      throw new Error(error.message)
+    }
+  } else {
+    rows = (data || []).map((row) => ({
+      parent_product_id: String(row.parent_product_id || ''),
+      child_product_id: String(row.child_product_id || ''),
+      quantity_per: Number(row.quantity_per) || 0,
+      child_item_category: row.child_item_category as number | null | undefined,
+    }))
+  }
+
+  const childIds = [
+    ...new Set(rows.map((row) => String(row.child_product_id || '').trim()).filter(Boolean)),
+  ]
+  const { data: items, error: itemsError } = await supabase
+    .from('items')
+    .select('id, item_category')
+    .in('id', childIds.length ? childIds : ['__none__'])
+  if (itemsError) throw new Error(itemsError.message)
+
+  const categoryById = new Map(
+    (items || []).map((row) => [String(row.id || '').trim(), Number(row.item_category) || 0]),
+  )
+
+  return rows.map((row) => {
+    const childProductId = String(row.child_product_id || '').trim()
+    return {
+      parentProductId: String(row.parent_product_id || '').trim(),
+      childProductId,
+      quantityPer: Number(row.quantity_per) || 0,
+      // 품목 마스터 구분을 우선 — bom_detail 스냅샷과 어긋나면 MPN/규격 조회가 빠짐
+      childItemCategory:
+        categoryById.get(childProductId) || Number(row.child_item_category) || 0,
+    }
+  })
+}
+
+export { fetchBomEdges }
+
+async function fetchIssuedOrderMaterialRows() {
+  const supabase = createSupabaseClient()
+  const { data, error } = await supabase
+    .from('material_outbound_records')
+    .select(
+      `
+      order_id,
+      material_outbound_lines (
+        material_id,
+        quantity
+      )
+    `,
+    )
+    .not('order_id', 'is', null)
+
+  if (error) throw new Error(error.message)
+
+  const flat: { order_id: string | null; material_id: string; quantity: number }[] = []
+  for (const record of data || []) {
+    for (const line of record.material_outbound_lines || []) {
+      flat.push({
+        order_id: record.order_id,
+        material_id: line.material_id,
+        quantity: Number(line.quantity) || 0,
+      })
+    }
+  }
+  return flat
+}
+
+export type OutboundPendingSummary = {
+  /** 미불출 카드 수 (주문×제품×구분 단위) */
+  smd: number
+  dip: number
+  etc: number
+}
+
+/** 대시보드용 미불출(불출 대기) 카드 수 요약. 재고와 무관하게 BOM 잔량 기준 */
+export async function fetchOutboundPendingSummary(): Promise<
+  { ok: true; pending: OutboundPendingSummary } | { ok: false; reason: 'env' | 'query'; detail: string }
+> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
+  }
+
+  try {
+    const [materialsResult, ordersResult] = await Promise.all([
+      fetchMaterials(),
+      fetchOrders({ includeDerivedLines: true }),
+    ])
+    if (!materialsResult.ok) return materialsResult
+    if (!ordersResult.ok) return ordersResult
+
+    const [bomEdges, issuedRows, assemblyResult, deliveryCountsResult] = await Promise.all([
+      fetchBomEdges(),
+      fetchIssuedOrderMaterialRows(),
+      fetchAssemblyGroups(),
+      fetchDeliveryCumulativeCounts(),
+    ])
+
+    const fullyShippedOrderIds =
+      assemblyResult.ok && deliveryCountsResult.ok
+        ? buildFullyShippedOrderIdSet(assemblyResult.groups, deliveryCountsResult.counts)
+        : new Set<string>()
+    const pendingOrders = ordersResult.orders.filter(
+      (order) => !fullyShippedOrderIds.has(order.orderId),
+    )
+
+    const edgesByParent = new Map<string, BomEdge[]>()
+    for (const edge of bomEdges) {
+      if (!edge.parentProductId || !edge.childProductId) continue
+      const list = edgesByParent.get(edge.parentProductId) || []
+      list.push(edge)
+      edgesByParent.set(edge.parentProductId, list)
+    }
+
+    const itemNameById = new Map(
+      materialsResult.materials.map((material) => [material.id, material.materialName]),
+    )
+    const bucketByMaterialId = new Map(
+      materialsResult.materials.map((material) => [material.id, resolveMaterialBucket(material.type)]),
+    )
+
+    const needs = buildOutboundNeedRows({
+      orders: pendingOrders,
+      edgesByParent,
+      itemNameById,
+      issuedByOrderMaterial: aggregateIssuedByOrderMaterial(issuedRows),
+      bucketByMaterialId,
+    })
+
+    const cardKeys = { smd: new Set<string>(), dip: new Set<string>(), etc: new Set<string>() }
+    for (const row of needs) {
+      const key = `${row.orderId}::${row.productId}`
+      if (row.materialBucket === 'SMD') cardKeys.smd.add(key)
+      else if (row.materialBucket === 'DIP') cardKeys.dip.add(key)
+      else cardKeys.etc.add(key)
+    }
+
+    return {
+      ok: true,
+      pending: { smd: cardKeys.smd.size, dip: cardKeys.dip.size, etc: cardKeys.etc.size },
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutboundPageResult> {
+  const [outboundsResult, materialsResult, ordersResult] = await Promise.all([
+    fetchMaterialOutbounds(),
+    fetchMaterials(),
+    fetchOrders({ includeDerivedLines: true }),
+  ])
+
+  if (!outboundsResult.ok) return outboundsResult
+  if (!materialsResult.ok) return materialsResult
+  if (!ordersResult.ok) return ordersResult
+
+  try {
+    const [bomEdges, issuedRows, onHandResult, assemblyResult, deliveryCountsResult] =
+      await Promise.all([
+        fetchBomEdges(),
+        fetchIssuedOrderMaterialRows(),
+        fetchOnHandByMaterialId(),
+        fetchAssemblyGroups(),
+        fetchDeliveryCumulativeCounts(),
+      ])
+
+    if (!onHandResult.ok) {
+      return { ok: false, reason: 'query', detail: onHandResult.detail }
+    }
+
+    // 출하 완료된 주문은 불출 대기(미불출 소요) 계산에서 제외
+    const fullyShippedOrderIds =
+      assemblyResult.ok && deliveryCountsResult.ok
+        ? buildFullyShippedOrderIdSet(assemblyResult.groups, deliveryCountsResult.counts)
+        : new Set<string>()
+    const pendingOrders = ordersResult.orders.filter(
+      (order) => !fullyShippedOrderIds.has(order.orderId),
+    )
+
+    const edgesByParent = new Map<string, BomEdge[]>()
+    for (const edge of bomEdges) {
+      if (!edge.parentProductId || !edge.childProductId) continue
+      const list = edgesByParent.get(edge.parentProductId) || []
+      list.push(edge)
+      edgesByParent.set(edge.parentProductId, list)
+    }
+
+    const onHandByMaterialId = onHandResult.onHandByMaterialId
+
+    const itemNameById = new Map(materialsResult.materials.map((material) => [material.id, material.materialName]))
+    const bucketByMaterialId = new Map(
+      materialsResult.materials.map((material) => [material.id, resolveMaterialBucket(material.type)]),
+    )
+    const issuedByOrderMaterial = aggregateIssuedByOrderMaterial(issuedRows)
+    const needs = buildOutboundNeedRows({
+      orders: pendingOrders,
+      edgesByParent,
+      itemNameById,
+      issuedByOrderMaterial,
+      bucketByMaterialId,
+    })
+    const needCards = buildOutboundNeedCards({
+      rows: needs,
+      edgesByParent,
+      onHandByMaterialId,
+      bucketByMaterialId,
+    })
+
+    return {
+      ok: true,
+      outbounds: outboundsResult.outbounds,
+      needs,
+      needCards,
+      bomEdges,
+      materials: materialsResult.materials,
+      orders: ordersResult.orders,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function fetchOutboundRecordById(outboundId: string) {
+  const supabase = createSupabaseClient()
+  const { data, error } = await supabase
+    .from('material_outbound_records')
+    .select(
+      `
+      *,
+      material_outbound_lines (
+        id,
+        outbound_id,
+        line_seq,
+        material_id,
+        quantity
+      )
+    `,
+    )
+    .eq('id', outboundId)
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  return data as MaterialOutboundRecord | null
+}
+
+export async function createMaterialOutbound(
+  payload: MaterialOutboundRowPayload,
+): Promise<SaveMaterialOutboundResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const gate = await assertCanWrite({ module: 'materials', action: 'create' })
+  if (!gate.ok) return gate
+
+  const validationError = validateOutboundPayload(payload)
+  if (validationError) {
+    return { ok: false, reason: 'validation', detail: validationError }
+  }
+
+  const items = payload.items
+    .filter((item) => Number(item.quantity) > 0)
+    .map((item) => ({
+      material_id: item.material_id.trim(),
+      quantity: Number(item.quantity),
+    }))
+
+  const stockError = await validateOutboundStock(items)
+  if (stockError) {
+    return { ok: false, reason: 'validation', detail: stockError }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    let headerRow: Record<string, unknown> = await withCreatedByFields({
+      outbound_date: payload.outbound_date,
+      outbound_type: payload.outbound_type,
+      order_id: payload.order_id,
+      note: payload.note,
+    })
+
+    let { data: inserted, error } = await supabase
+      .from('material_outbound_records')
+      .insert(headerRow)
+      .select('id')
+      .single()
+
+    if (error && isMissingCreatedByColumn(error.message)) {
+      headerRow = stripCreatedByFields(headerRow)
+      ;({ data: inserted, error } = await supabase
+        .from('material_outbound_records')
+        .insert(headerRow)
+        .select('id')
+        .single())
+    }
+
+    if (error || !inserted?.id) {
+      return { ok: false, reason: 'query', detail: error?.message || '불출 저장에 실패했습니다.' }
+    }
+
+    const { error: linesError } = await supabase.from('material_outbound_lines').insert(
+      items.map((item, index) => ({
+        outbound_id: inserted.id,
+        line_seq: index,
+        material_id: item.material_id,
+        quantity: item.quantity,
+      })),
+    )
+
+    if (linesError) {
+      await supabase.from('material_outbound_records').delete().eq('id', inserted.id)
+      return { ok: false, reason: 'query', detail: linesError.message }
+    }
+
+    return { ok: true, outboundId: inserted.id, outboundNumber: inserted.id }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function updateMaterialOutbound(
+  outboundId: string,
+  payload: MaterialOutboundRowPayload,
+): Promise<SaveMaterialOutboundResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  const validationError = validateOutboundPayload(payload)
+  if (validationError) {
+    return { ok: false, reason: 'validation', detail: validationError }
+  }
+
+  const items = payload.items
+    .filter((item) => Number(item.quantity) > 0)
+    .map((item) => ({
+      material_id: item.material_id.trim(),
+      quantity: Number(item.quantity),
+    }))
+
+  try {
+    const existing = await fetchOutboundRecordById(outboundId)
+    if (!existing?.id) {
+      return { ok: false, reason: 'query', detail: '불출 전표를 찾을 수 없습니다.' }
+    }
+
+    if (existing.outbound_type !== payload.outbound_type) {
+      return { ok: false, reason: 'validation', detail: '불출 유형은 수정할 수 없습니다.' }
+    }
+
+    const previousLines = (existing.material_outbound_lines || []).map((line) => ({
+      material_id: line.material_id,
+      quantity: Number(line.quantity) || 0,
+    }))
+    const stockError = await validateOutboundStock(items, previousLines)
+    if (stockError) {
+      return { ok: false, reason: 'validation', detail: stockError }
+    }
+
+    const supabase = createSupabaseClient()
+    const { error: updateError } = await supabase
+      .from('material_outbound_records')
+      .update({
+        outbound_date: payload.outbound_date,
+        order_id: payload.order_id,
+        note: payload.note,
+      })
+      .eq('id', outboundId)
+
+    if (updateError) {
+      return { ok: false, reason: 'query', detail: updateError.message }
+    }
+
+    const { error: deleteError } = await supabase
+      .from('material_outbound_lines')
+      .delete()
+      .eq('outbound_id', outboundId)
+
+    if (deleteError) {
+      return { ok: false, reason: 'query', detail: deleteError.message }
+    }
+
+    const { error: linesError } = await supabase.from('material_outbound_lines').insert(
+      items.map((item, index) => ({
+        outbound_id: outboundId,
+        line_seq: index,
+        material_id: item.material_id,
+        quantity: item.quantity,
+      })),
+    )
+
+    if (linesError) {
+      return { ok: false, reason: 'query', detail: linesError.message }
+    }
+
+    return { ok: true, outboundId, outboundNumber: outboundId }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export async function deleteMaterialOutbound(outboundId: string): Promise<DeleteMaterialOutboundResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
+  }
+
+  const gate = await assertCanWrite({ module: 'materials', action: 'delete' })
+  if (!gate.ok) return gate
+
+  try {
+    const supabase = createSupabaseClient()
+    const { error } = await supabase.from('material_outbound_records').delete().eq('id', outboundId)
+    if (error) return { ok: false, reason: 'query', detail: error.message }
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}

@@ -1,0 +1,2 @@
+-- 이 파일은 setup-items.sql 로 대체되었습니다.
+-- material_mpns 등 구 자재 전용 테이블은 더 이상 사용하지 않습니다.
