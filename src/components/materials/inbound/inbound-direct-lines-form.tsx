@@ -63,7 +63,7 @@ export function InboundDirectLinesForm({
   onMaterialsChanged,
 }: InboundDirectLinesFormProps) {
   const [scanCode, setScanCode] = useState('')
-  const [scanQuantityPerReel, setScanQuantityPerReel] = useState('0')
+  const [scanQuantityPerReel, setScanQuantityPerReel] = useState('')
   const [scanReelCount, setScanReelCount] = useState('1')
   const [scanMessage, setScanMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const [unmatchedScanCode, setUnmatchedScanCode] = useState<string | null>(null)
@@ -207,7 +207,7 @@ export function InboundDirectLinesForm({
 
     if (commitInboundLine(material, scanQuantityPerReel, scanReelCount)) {
       setScanCode('')
-      setScanQuantityPerReel('0')
+      setScanQuantityPerReel('')
       setScanReelCount('1')
       setUnmatchedScanCode(null)
       setPendingRetry(null)
@@ -221,7 +221,7 @@ export function InboundDirectLinesForm({
 
     if (commitInboundLine(material, pendingRetry.quantityPerReel, pendingRetry.reelCount)) {
       setScanCode('')
-      setScanQuantityPerReel('0')
+      setScanQuantityPerReel('')
       setScanReelCount('1')
       setUnmatchedScanCode(null)
       setPendingRetry(null)
@@ -255,7 +255,11 @@ export function InboundDirectLinesForm({
             type="text"
             inputMode="numeric"
             value={scanQuantityPerReel}
-            onChange={(event) => setScanQuantityPerReel(event.target.value.replace(/[^\d.]/g, ''))}
+            onChange={(event) => {
+              const raw = event.target.value.replace(/[^\d]/g, '')
+              setScanQuantityPerReel(raw.replace(/^0+(?=\d)/, ''))
+            }}
+            onFocus={(event) => event.target.select()}
             onKeyDown={handleScanKeyDown}
             className="h-10 w-full rounded-lg border border-slate-200 px-3 text-right text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
           />

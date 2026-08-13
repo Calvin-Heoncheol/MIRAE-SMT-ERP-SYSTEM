@@ -115,6 +115,8 @@ export function InboundScanPanel({
 
   const scanInputRef = useRef<HTMLInputElement>(null)
   const tableScrollRef = useRef<HTMLDivElement>(null)
+  const focusGenerationRef = useRef(0)
+  const preferScanFocusRef = useRef(false)
 
   const openPoLinesByMaterial = useMemo(
     () => buildOpenPoLinesByMaterial(purchaseOrders),
@@ -135,15 +137,29 @@ export function InboundScanPanel({
   }
 
   function focusScanInput() {
-    window.setTimeout(() => {
-      scanInputRef.current?.focus()
-      scanInputRef.current?.select()
-    }, 0)
+    preferScanFocusRef.current = true
+    focusGenerationRef.current += 1
+    const generation = focusGenerationRef.current
+    const tryFocus = () => {
+      if (focusGenerationRef.current !== generation) return
+      const input = scanInputRef.current
+      if (!input) {
+        window.setTimeout(tryFocus, 20)
+        return
+      }
+      input.focus()
+      input.select()
+    }
+    window.setTimeout(tryFocus, 0)
   }
 
   function focusQuantityInput(key: string) {
+    preferScanFocusRef.current = false
+    focusGenerationRef.current += 1
+    const generation = focusGenerationRef.current
     let attempts = 0
     const tryFocus = () => {
+      if (focusGenerationRef.current !== generation || preferScanFocusRef.current) return
       const input = tableScrollRef.current?.querySelector<HTMLInputElement>(
         `[data-qty-input="${key}"]`,
       )
@@ -168,6 +184,7 @@ export function InboundScanPanel({
   }
 
   function markJustScanned(key: string) {
+    preferScanFocusRef.current = false
     setLastScannedKey(key)
     setScanFocusToken((value) => value + 1)
     triggerScanPulse('success')
@@ -268,7 +285,7 @@ export function InboundScanPanel({
   }, [materials, pendingRetryCode])
 
   useEffect(() => {
-    if (!lastScannedKey || !scanFocusToken) return
+    if (!lastScannedKey || !scanFocusToken || preferScanFocusRef.current) return
     const row = tableScrollRef.current?.querySelector<HTMLElement>(
       `[data-scan-key="${lastScannedKey}"]`,
     )
@@ -327,7 +344,8 @@ export function InboundScanPanel({
             : line,
         )
     })
-    setLastScannedKey((current) => (current === key ? null : current))
+    setLastScannedKey(null)
+    event.currentTarget.blur()
     focusScanInput()
   }
 
@@ -620,11 +638,13 @@ export function InboundScanPanel({
                         inputMode="numeric"
                         data-qty-input={line.key}
                         value={line.quantityPerReel}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          const raw = event.target.value.replace(/[^\d]/g, '')
                           patchLine(line.key, {
-                            quantityPerReel: event.target.value.replace(/[^\d.]/g, ''),
+                            quantityPerReel: raw.replace(/^0+(?=\d)/, ''),
                           })
-                        }
+                        }}
+                        onFocus={(event) => event.target.select()}
                         onKeyDown={(event) => handleQuantityKeyDown(event, line.key)}
                         placeholder="수량"
                         className={[
