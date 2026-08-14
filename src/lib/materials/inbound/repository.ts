@@ -305,7 +305,7 @@ export async function fetchMaterialInbounds(): Promise<FetchMaterialInboundsResu
       return { ok: false, reason: 'query', detail: error.message }
     }
 
-    const records = (data || []) as MaterialInboundRecord[]
+    const records = (data || []) as unknown as MaterialInboundRecord[]
     const materialIds = records.flatMap((record) =>
       (record.material_inbound_lines || []).map((line) => line.material_id),
     )
