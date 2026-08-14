@@ -1,6 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent, type SetStateAction } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type KeyboardEvent,
+  type SetStateAction,
+} from 'react'
 import { MaterialBarcodeRegisterPanel } from '@/components/materials/material-barcode-register-panel'
 import { MaterialLabelPrintButton } from '@/components/materials/material-label-print-button'
 import { MaterialCombobox } from '@/components/materials/purchase-orders/material-combobox'
@@ -10,14 +18,28 @@ import {
   computeDirectInboundQuantity,
   type DirectInboundItemForm,
 } from '@/lib/materials/inbound/form-state'
+import {
+  createKeyBurstDetector,
+  createScanDeduper,
+  looksLikeBarcodeNotQuantity,
+  QTY_BARCODE_REJECT_MESSAGE,
+  SCAN_DEDUP_MESSAGE,
+} from '@/lib/materials/inbound/scan-guards'
 import type { Material } from '@/lib/materials/types'
 import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
+import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
+import { playScanSound } from '@/lib/ui/toast-sound'
 
 type InboundDirectLinesFormProps = {
   items: DirectInboundItemForm[]
   materials: Material[]
   onChange: Dispatch<SetStateAction<DirectInboundItemForm[]>>
   onMaterialsChanged?: () => void
+}
+
+function cell(value: string) {
+  const trimmed = value.trim()
+  return trimmed || '-'
 }
 
 function clearMaterialFields(item: DirectInboundItemForm): DirectInboundItemForm {
@@ -40,20 +62,20 @@ function applyMaterialToItem(item: DirectInboundItemForm, material: Material): D
   }
 }
 
-function createInboundLine(
-  material: Material,
-  quantityPerReel: string,
-  reelCount: string,
-): DirectInboundItemForm {
+function createInboundLine(material: Material): DirectInboundItemForm {
   return {
     materialId: material.id,
     materialName: material.materialName,
     specification: material.specification,
     mpn: material.mpn,
-    quantityPerReel,
-    reelCount,
-    quantity: computeDirectInboundQuantity(quantityPerReel, reelCount),
+    quantityPerReel: '',
+    reelCount: '1',
+    quantity: computeDirectInboundQuantity('0', '1'),
   }
+}
+
+function createLineKey() {
+  return `direct-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 export function InboundDirectLinesForm({
@@ -63,16 +85,92 @@ export function InboundDirectLinesForm({
   onMaterialsChanged,
 }: InboundDirectLinesFormProps) {
   const [scanCode, setScanCode] = useState('')
-  const [scanQuantityPerReel, setScanQuantityPerReel] = useState('')
-  const [scanReelCount, setScanReelCount] = useState('1')
-  const [scanMessage, setScanMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
+  const [scanMessage, setScanMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(
+    null,
+  )
   const [unmatchedScanCode, setUnmatchedScanCode] = useState<string | null>(null)
-  const [pendingRetry, setPendingRetry] = useState<{
-    code: string
-    quantityPerReel: string
-    reelCount: string
-  } | null>(null)
-  const quantityPerReelRef = useRef<HTMLInputElement>(null)
+  const [pendingRetryCode, setPendingRetryCode] = useState<string | null>(null)
+  const [lastScannedKey, setLastScannedKey] = useState<string | null>(null)
+  const [scanFocusToken, setScanFocusToken] = useState(0)
+  const [scanPulse, setScanPulse] = useState<{ kind: 'success' | 'error'; token: number } | null>(
+    null,
+  )
+  const [rowKeys, setRowKeys] = useState<string[]>(() => items.map(() => createLineKey()))
+
+  const scanInputRef = useRef<HTMLInputElement>(null)
+  const tableScrollRef = useRef<HTMLDivElement>(null)
+  const focusGenerationRef = useRef(0)
+  const preferScanFocusRef = useRef(false)
+  const scanDeduperRef = useRef(createScanDeduper())
+  const qtyBurstRef = useRef(createKeyBurstDetector())
+
+  useEffect(() => {
+    setRowKeys((current) => {
+      if (current.length === items.length) return current
+      if (current.length < items.length) {
+        return [
+          ...current,
+          ...Array.from({ length: items.length - current.length }, () => createLineKey()),
+        ]
+      }
+      return current.slice(0, items.length)
+    })
+  }, [items.length])
+
+  function focusScanInput() {
+    preferScanFocusRef.current = true
+    focusGenerationRef.current += 1
+    const generation = focusGenerationRef.current
+    const tryFocus = () => {
+      if (focusGenerationRef.current !== generation) return
+      const input = scanInputRef.current
+      if (!input) {
+        window.setTimeout(tryFocus, 20)
+        return
+      }
+      input.focus()
+      input.select()
+    }
+    window.setTimeout(tryFocus, 0)
+  }
+
+  function focusQuantityInput(key: string) {
+    preferScanFocusRef.current = false
+    focusGenerationRef.current += 1
+    const generation = focusGenerationRef.current
+    let attempts = 0
+    const tryFocus = () => {
+      if (focusGenerationRef.current !== generation || preferScanFocusRef.current) return
+      const input = tableScrollRef.current?.querySelector<HTMLInputElement>(
+        `[data-qty-input="${key}"]`,
+      )
+      if (input) {
+        input.focus()
+        input.select()
+        return
+      }
+      if (attempts < 12) {
+        attempts += 1
+        window.setTimeout(tryFocus, 25)
+      }
+    }
+    window.requestAnimationFrame(tryFocus)
+  }
+
+  function triggerScanPulse(kind: 'success' | 'error') {
+    playScanSound(kind)
+    setScanPulse(null)
+    window.requestAnimationFrame(() => {
+      setScanPulse({ kind, token: Date.now() })
+    })
+  }
+
+  function markJustScanned(key: string) {
+    preferScanFocusRef.current = false
+    setLastScannedKey(key)
+    setScanFocusToken((value) => value + 1)
+    triggerScanPulse('success')
+  }
 
   const labelPrintItems = useMemo(
     () =>
@@ -92,8 +190,7 @@ export function InboundDirectLinesForm({
   )
 
   const inputClassName =
-    'w-full min-w-0 rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
-  const readOnlyClassName = `${inputClassName} bg-slate-50 text-slate-600`
+    'h-8 w-full min-w-0 rounded-md border border-slate-200 px-2 text-right text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
 
   function patchItem(index: number, patch: Partial<DirectInboundItemForm>) {
     onChange((current) =>
@@ -109,6 +206,8 @@ export function InboundDirectLinesForm({
   }
 
   function addRow() {
+    const key = createLineKey()
+    setRowKeys((current) => [...current, key])
     onChange([
       ...items,
       {
@@ -116,203 +215,280 @@ export function InboundDirectLinesForm({
         materialName: '',
         specification: '',
         mpn: '',
-        quantityPerReel: '0',
-        reelCount: '0',
-        quantity: '0',
+        quantityPerReel: '',
+        reelCount: '1',
+        quantity: '',
       },
     ])
   }
 
   function removeRow(index: number) {
-    if (items.length <= 1) return
+    if (items.length <= 1) {
+      onChange([
+        {
+          materialId: '',
+          materialName: '',
+          specification: '',
+          mpn: '',
+          quantityPerReel: '',
+          reelCount: '1',
+          quantity: '',
+        },
+      ])
+      setRowKeys([createLineKey()])
+      setLastScannedKey(null)
+      return
+    }
+    const removedKey = rowKeys[index]
+    setRowKeys((current) => current.filter((_, itemIndex) => itemIndex !== index))
     onChange(items.filter((_, itemIndex) => itemIndex !== index))
+    setLastScannedKey((current) => (current === removedKey ? null : current))
   }
 
-  function resolveMaterialByScan(code: string) {
-    return resolveMaterialByInventoryCode(materials, code)
-  }
-
-  function commitInboundLine(material: Material, quantityPerReel: string, reelCount: string) {
-    const perReel = Math.max(0, Number(quantityPerReel) || 0)
-    const reels = Math.max(0, Number(reelCount) || 0)
-    const inboundQuantity = perReel * reels
-
-    if (perReel <= 0) {
-      setScanMessage({ tone: 'error', text: '수량을 입력해 주세요.' })
-      quantityPerReelRef.current?.focus()
-      return false
-    }
-    if (reels <= 0) {
-      setScanMessage({ tone: 'error', text: '릴 개수를 입력해 주세요.' })
-      return false
-    }
-
-    onChange((current) => {
-      const existingIndex = current.findIndex(
-        (item) =>
-          item.materialId === material.id &&
-          Math.max(0, Number(item.quantityPerReel) || 0) === perReel,
-      )
-      if (existingIndex >= 0) {
-        return current.map((item, index) => {
-          if (index !== existingIndex) return item
-          const nextReelCount = (Number(item.reelCount) || 0) + reels
-          const nextQuantity = (Number(item.quantity) || 0) + inboundQuantity
-          return {
-            ...item,
-            quantityPerReel: String(perReel),
-            reelCount: String(nextReelCount),
-            quantity: String(nextQuantity),
-          }
-        })
-      }
-
-      return [
-        createInboundLine(material, String(perReel), String(reels)),
-        ...current.filter((item) => item.materialId || Number(item.quantity) > 0),
-      ]
-    })
-
-    setScanMessage({
-      tone: 'success',
-      text: `${formatMaterialDisplayCode(material)} · ${material.materialName} · ${inboundQuantity.toLocaleString('ko-KR')}개 (${reels.toLocaleString('ko-KR')}릴)`,
-    })
-    return true
-  }
-
-  function handleScanSubmit() {
-    const material = resolveMaterialByScan(scanCode)
-    if (!scanCode.trim()) {
-      setScanMessage({ tone: 'error', text: '자재코드 또는 MPN을 스캔해 주세요.' })
-      setUnmatchedScanCode(null)
-      return
-    }
-    if (!material) {
-      setScanMessage({ tone: 'error', text: `"${scanCode}" 와 일치하는 자재를 찾지 못했습니다.` })
-      setUnmatchedScanCode(scanCode.trim())
-      return
-    }
-
-    const perReel = Number(scanQuantityPerReel) || 0
-    const reels = Number(scanReelCount) || 0
-    if (perReel <= 0 || reels <= 0) {
-      setScanMessage({
-        tone: 'success',
-        text: `${formatMaterialDisplayCode(material)} · ${material.materialName} 매칭됨 — 수량과 릴 개수를 입력해 주세요.`,
+  function addMaterialToList(material: Material) {
+    const existingEmptyIndex = items.findIndex(
+      (item) => item.materialId === material.id && !(Number(item.quantityPerReel) || 0),
+    )
+    if (existingEmptyIndex >= 0) {
+      const key = rowKeys[existingEmptyIndex] ?? createLineKey()
+      const nextReels = (Number(items[existingEmptyIndex].reelCount) || 0) + 1
+      patchItem(existingEmptyIndex, {
+        reelCount: String(nextReels),
       })
-      setUnmatchedScanCode(null)
-      quantityPerReelRef.current?.focus()
+      setScanMessage(null)
+      markJustScanned(key)
       return
     }
 
-    if (commitInboundLine(material, scanQuantityPerReel, scanReelCount)) {
-      setScanCode('')
-      setScanQuantityPerReel('')
-      setScanReelCount('1')
-      setUnmatchedScanCode(null)
-      setPendingRetry(null)
+    const key = createLineKey()
+    const kept = items
+      .map((item, index) => ({ item, key: rowKeys[index] ?? createLineKey() }))
+      .filter(
+        ({ item }) =>
+          item.materialId.trim() ||
+          Number(item.quantityPerReel) > 0 ||
+          Number(item.quantity) > 0,
+      )
+    setRowKeys([key, ...kept.map((row) => row.key)])
+    onChange([createInboundLine(material), ...kept.map((row) => row.item)])
+    setScanMessage(null)
+    markJustScanned(key)
+  }
+
+  function handleScan(rawCode: string) {
+    const code = rawCode.trim()
+    if (!code) {
+      setScanMessage({ tone: 'error', text: '바코드를 스캔하거나 품목코드·MPN을 입력해 주세요.' })
+      triggerScanPulse('error')
+      return
     }
+
+    if (!scanDeduperRef.current.accept(code)) {
+      setScanCode('')
+      setScanMessage({ tone: 'error', text: SCAN_DEDUP_MESSAGE })
+      triggerScanPulse('error')
+      focusScanInput()
+      return
+    }
+
+    const material = resolveMaterialByInventoryCode(materials, code)
+    if (!material) {
+      setScanMessage({ tone: 'error', text: `"${code}" 와 일치하는 자재를 찾지 못했습니다.` })
+      setUnmatchedScanCode(code)
+      setScanCode('')
+      triggerScanPulse('error')
+      return
+    }
+
+    setUnmatchedScanCode(null)
+    setScanCode('')
+    addMaterialToList(material)
+  }
+
+  function rejectQtyBarcodeInput(key: string, index: number) {
+    qtyBurstRef.current.reset()
+    patchItem(index, { quantityPerReel: '' })
+    setScanMessage({ tone: 'error', text: QTY_BARCODE_REJECT_MESSAGE })
+    triggerScanPulse('error')
+    focusQuantityInput(key)
   }
 
   useEffect(() => {
-    if (!pendingRetry) return
-    const material = resolveMaterialByScan(pendingRetry.code)
+    if (!pendingRetryCode) return
+    const material = resolveMaterialByInventoryCode(materials, pendingRetryCode)
     if (!material) return
+    setPendingRetryCode(null)
+    setUnmatchedScanCode(null)
+    addMaterialToList(material)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [materials, pendingRetryCode])
 
-    if (commitInboundLine(material, pendingRetry.quantityPerReel, pendingRetry.reelCount)) {
-      setScanCode('')
-      setScanQuantityPerReel('')
-      setScanReelCount('1')
-      setUnmatchedScanCode(null)
-      setPendingRetry(null)
-    }
-  }, [materials, pendingRetry])
+  useEffect(() => {
+    if (!lastScannedKey || !scanFocusToken || preferScanFocusRef.current) return
+    const row = tableScrollRef.current?.querySelector<HTMLElement>(
+      `[data-scan-key="${lastScannedKey}"]`,
+    )
+    row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    focusQuantityInput(lastScannedKey)
+  }, [lastScannedKey, scanFocusToken])
 
   function handleScanKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key !== 'Enter') return
     event.preventDefault()
-    handleScanSubmit()
+    handleScan(scanCode)
+  }
+
+  function handleQuantityKeyDown(event: KeyboardEvent<HTMLInputElement>, key: string, index: number) {
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      if (!/[0-9]/.test(event.key)) {
+        event.preventDefault()
+        qtyBurstRef.current.noteChar()
+        if (qtyBurstRef.current.isBurst()) {
+          rejectQtyBarcodeInput(key, index)
+        }
+        return
+      }
+      qtyBurstRef.current.noteChar()
+    }
+
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+
+    const raw = event.currentTarget.value.trim()
+    if (looksLikeBarcodeNotQuantity(raw) || (qtyBurstRef.current.isBurst() && raw.length >= 5)) {
+      rejectQtyBarcodeInput(key, index)
+      return
+    }
+
+    const qty = Number(raw) || 0
+    if (qty <= 0) {
+      setScanMessage({ tone: 'error', text: '수량을 입력해 주세요.' })
+      event.currentTarget.focus()
+      event.currentTarget.select()
+      return
+    }
+
+    qtyBurstRef.current.reset()
+    setScanMessage(null)
+    const source = items[index]
+    if (!source) return
+
+    const matchIndex = items.findIndex(
+      (line, lineIndex) =>
+        lineIndex !== index &&
+        line.materialId === source.materialId &&
+        Math.max(0, Number(line.quantityPerReel) || 0) === qty,
+    )
+
+    if (matchIndex < 0) {
+      patchItem(index, {
+        quantityPerReel: String(qty),
+      })
+    } else {
+      const nextReels = (Number(items[matchIndex].reelCount) || 0) + (Number(source.reelCount) || 0)
+      const nextItems = items
+        .map((line, lineIndex) => {
+          if (lineIndex !== matchIndex) return line
+          return {
+            ...line,
+            reelCount: String(nextReels),
+            quantity: computeDirectInboundQuantity(line.quantityPerReel, String(nextReels)),
+          }
+        })
+        .filter((_, lineIndex) => lineIndex !== index)
+      setRowKeys(rowKeys.filter((_, lineIndex) => lineIndex !== index))
+      onChange(nextItems)
+    }
+
+    setLastScannedKey(null)
+    event.currentTarget.blur()
+    scanDeduperRef.current.reset()
+    focusScanInput()
   }
 
   return (
-    <div className="space-y-3">
-      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_120px_96px_auto] sm:items-end">
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">바코드</span>
-          <input
-            value={scanCode}
-            onChange={(event) => setScanCode(event.target.value)}
-            onKeyDown={handleScanKeyDown}
-            placeholder="스캔 후 Enter"
-            autoFocus
-            className="h-10 w-full rounded-lg border border-slate-200 px-3 font-mono text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-          />
+    <div className="flex min-h-[360px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-bold text-slate-800">바코드 스캔</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              스캔 후 수량을 입력하고 Enter 하면 다음 바코드를 찍을 수 있습니다.
+            </p>
+          </div>
+          <span
+            className={[
+              'rounded-full px-2.5 py-1 text-xs font-semibold',
+              scanPulse?.kind === 'error' || scanMessage?.tone === 'error'
+                ? 'bg-rose-100 text-rose-800'
+                : lastScannedKey
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-slate-200 text-slate-600',
+            ].join(' ')}
+          >
+            {scanPulse?.kind === 'error' || scanMessage?.tone === 'error'
+              ? '미인식'
+              : lastScannedKey
+                ? '인식됨'
+                : '스캔 대기'}
+          </span>
+        </div>
+        <label className="block">
+          <span className="sr-only">바코드 스캔</span>
+          <div
+            className={[
+              'rounded-xl',
+              scanPulse?.kind === 'success' ? 'erp-scan-flash-ok' : '',
+              scanPulse?.kind === 'error' ? 'erp-scan-flash-err' : '',
+            ].join(' ')}
+          >
+            <input
+              ref={scanInputRef}
+              value={scanCode}
+              onChange={(event) => setScanCode(event.target.value)}
+              onKeyDown={handleScanKeyDown}
+              placeholder="릴 바코드 스캔 또는 품목코드·MPN 입력 후 Enter"
+              autoFocus
+              className={[
+                'h-12 w-full rounded-xl border bg-white px-3 font-mono text-sm outline-none transition',
+                scanPulse?.kind === 'error'
+                  ? 'border-rose-400 focus:border-rose-500'
+                  : scanPulse?.kind === 'success'
+                    ? 'border-emerald-500 focus:border-emerald-500'
+                    : 'border-slate-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100',
+              ].join(' ')}
+            />
+          </div>
         </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">수량</span>
-          <input
-            ref={quantityPerReelRef}
-            type="text"
-            inputMode="numeric"
-            value={scanQuantityPerReel}
-            onChange={(event) => {
-              const raw = event.target.value.replace(/[^\d]/g, '')
-              setScanQuantityPerReel(raw.replace(/^0+(?=\d)/, ''))
-            }}
-            onFocus={(event) => event.target.select()}
-            onKeyDown={handleScanKeyDown}
-            className="h-10 w-full rounded-lg border border-slate-200 px-3 text-right text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">릴 개수</span>
-          <QuoteNumericInput
-            min={0}
-            value={scanReelCount}
-            onChange={setScanReelCount}
-            onKeyDown={handleScanKeyDown}
-            className="h-10 w-full rounded-lg border border-slate-200 px-3 text-right text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-          />
-        </label>
-        <button
-          type="button"
-          onClick={handleScanSubmit}
-          className="h-10 rounded-lg bg-slate-800 px-4 text-sm font-semibold text-white hover:bg-slate-900"
-        >
-          등록
-        </button>
+        {scanMessage ? (
+          <p
+            aria-live="polite"
+            className={[
+              'mt-2 rounded-lg px-3 py-2 text-sm',
+              scanMessage.tone === 'success'
+                ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border border-rose-200 bg-rose-50 text-rose-800',
+            ].join(' ')}
+          >
+            {scanMessage.text}
+          </p>
+        ) : null}
+        {unmatchedScanCode ? (
+          <div className="mt-3">
+            <MaterialBarcodeRegisterPanel
+              materials={materials}
+              suggestedBarcode={unmatchedScanCode}
+              onRegistered={() => {
+                setPendingRetryCode(unmatchedScanCode)
+                onMaterialsChanged?.()
+              }}
+            />
+          </div>
+        ) : null}
       </div>
 
-      {scanMessage ? (
-        <div
-          className={[
-            'rounded-lg px-3 py-2 text-sm',
-            scanMessage.tone === 'success'
-              ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border border-rose-200 bg-rose-50 text-rose-800',
-          ].join(' ')}
-        >
-          {scanMessage.text}
-        </div>
-      ) : null}
-
-      {unmatchedScanCode ? (
-        <MaterialBarcodeRegisterPanel
-          materials={materials}
-          suggestedBarcode={unmatchedScanCode}
-          onRegistered={() => {
-            setPendingRetry({
-              code: unmatchedScanCode,
-              quantityPerReel: scanQuantityPerReel,
-              reelCount: scanReelCount,
-            })
-            onMaterialsChanged?.()
-          }}
-        />
-      ) : null}
-
       {labelPrintItems.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-4 py-2">
           <p className="text-xs text-slate-600">
             입고 라인 기준으로 품목코드 바코드 라벨을 출력합니다. 릴 개수만큼 장수가 정해집니다.
           </p>
@@ -320,109 +496,173 @@ export function InboundDirectLinesForm({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-2">
         <h3 className="text-sm font-bold text-slate-900">입고 품목</h3>
         <ErpRowAddButton onClick={addRow} title="입고 품목 추가" />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="min-w-[920px] w-full border-collapse text-sm">
-          <thead className="bg-slate-50">
+      <div ref={tableScrollRef} className="min-h-0 flex-1 overflow-auto">
+        <table className="w-full min-w-[1180px] border-collapse text-sm">
+          <thead className="sticky top-0 bg-slate-50">
             <tr>
-              <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">품목코드</th>
-              <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">MPN</th>
-              <th className="min-w-[160px] px-3 py-2 text-left text-sm font-semibold text-slate-600">자재명</th>
-              <th className="min-w-[120px] px-3 py-2 text-left text-sm font-semibold text-slate-600">규격</th>
-              <th className="min-w-[80px] px-3 py-2 text-right text-sm font-semibold text-slate-600">릴 개수</th>
-              <th className="min-w-[96px] px-3 py-2 text-right text-sm font-semibold text-slate-600">수량</th>
-              <th className="min-w-[96px] px-3 py-2 text-right text-sm font-semibold text-slate-600">입고수량</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">품목코드</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">품목명</th>
+              <th className="px-3 py-2 text-center font-semibold text-slate-600">공정구분</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">패키지</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">사양</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">MPN</th>
+              <th className="px-3 py-2 text-center font-semibold text-slate-600">도급/사급</th>
+              <th className="px-3 py-2 text-right font-semibold text-slate-600">릴 개수</th>
+              <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
+              <th className="px-3 py-2 text-right font-semibold text-slate-600">입고수량</th>
               <th className="w-10 px-2 py-2" />
             </tr>
           </thead>
           <tbody>
-            {items.map((item, index) => (
-              <tr key={index} className="border-t border-slate-100">
-                <td className="px-3 py-2 align-top">
-                  <MaterialCombobox
-                    value={
-                      item.materialName
-                        ? formatMaterialDisplayCode(
-                            materials.find((row) => row.id === item.materialId) ?? {
-                              id: item.materialId,
-                              baseCode: '',
-                            },
-                          )
-                        : item.materialId
-                    }
-                    materials={materials}
-                    supplier=""
-                    placeholder="품목코드 검색"
-                    ariaLabel={`${index + 1}행 품목코드`}
-                    inputClassName={`${inputClassName} min-w-[120px]`}
-                    onValueChange={(materialId) =>
-                      onChange((current) =>
-                        current.map((row, rowIndex) =>
-                          rowIndex === index ? { ...clearMaterialFields(row), materialId } : row,
-                        ),
-                      )
-                    }
-                    onMaterialSelect={(material) =>
-                      onChange((current) =>
-                        current.map((row, rowIndex) =>
-                          rowIndex === index ? applyMaterialToItem(row, material) : row,
-                        ),
-                      )
-                    }
-                  />
-                </td>
-                <td className="px-3 py-2 align-top">
-                  <input value={item.mpn} readOnly className={readOnlyClassName} placeholder="-" />
-                </td>
-                <td className="px-3 py-2 align-top">
-                  <input value={item.materialName} readOnly className={readOnlyClassName} placeholder="-" />
-                </td>
-                <td className="px-3 py-2 align-top">
-                  <input value={item.specification} readOnly className={readOnlyClassName} placeholder="-" />
-                </td>
-                <td className="px-3 py-2 align-top">
-                  <QuoteNumericInput
-                    min={1}
-                    value={String(item.reelCount || '1')}
-                    onChange={(reelCount) =>
-                      patchItem(index, { reelCount: reelCount.trim() ? reelCount : '1' })
-                    }
-                    className={`${inputClassName} min-w-[80px] text-right`}
-                  />
-                </td>
-                <td className="px-3 py-2 align-top">
-                  <QuoteNumericInput
-                    min={0}
-                    value={String(item.quantityPerReel)}
-                    onChange={(quantityPerReel) => patchItem(index, { quantityPerReel })}
-                    className={`${inputClassName} min-w-[96px] text-right`}
-                  />
-                </td>
-                <td className="px-3 py-2 align-top">
-                  <QuoteNumericInput
-                    min={0}
-                    value={String(item.quantity)}
-                    onChange={(quantity) => patchItem(index, { quantity })}
-                    className={`${inputClassName} min-w-[96px] text-right font-medium`}
-                  />
-                </td>
-                <td className="w-10 px-2 py-2 text-center align-top">
-                  <button
-                    type="button"
-                    onClick={() => removeRow(index)}
-                    disabled={items.length <= 1}
-                    className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-                    aria-label={`${index + 1}행 삭제`}
-                  >
-                    ×
-                  </button>
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-500">
+                  스캔한 자재가 바로 여기에 쌓입니다. 같은 수량의 릴은 합쳐지고, 수량이 다르면 행이 따로
+                  생깁니다.
                 </td>
               </tr>
-            ))}
+            ) : (
+              items.map((item, index) => {
+                const key = rowKeys[index] ?? `row-${index}`
+                const isLatest = key === lastScannedKey
+                const material = materials.find((row) => row.id === item.materialId)
+                const displayCode = material
+                  ? formatMaterialDisplayCode(material)
+                  : item.materialId
+                const isBlank = !item.materialId.trim()
+
+                return (
+                  <tr
+                    key={key}
+                    data-scan-key={key}
+                    className={[
+                      'border-t',
+                      isLatest
+                        ? 'erp-scan-row-latest border-emerald-200 bg-emerald-50 ring-1 ring-inset ring-emerald-300'
+                        : 'border-slate-100',
+                    ].join(' ')}
+                  >
+                    <td
+                      className={`px-3 py-2 font-mono text-sm font-semibold ${isLatest ? 'text-emerald-900' : 'text-slate-800'} ${ERP_TABLE_TD_WRAP_CLASS}`}
+                    >
+                      {isBlank ? (
+                        <MaterialCombobox
+                          value=""
+                          materials={materials}
+                          supplier=""
+                          placeholder="품목코드 검색"
+                          ariaLabel={`${index + 1}행 품목코드`}
+                          inputClassName="h-8 w-full min-w-[120px] rounded-md border border-slate-200 px-2 text-sm"
+                          onValueChange={(materialId) =>
+                            onChange((current) =>
+                              current.map((row, rowIndex) =>
+                                rowIndex === index
+                                  ? { ...clearMaterialFields(row), materialId }
+                                  : row,
+                              ),
+                            )
+                          }
+                          onMaterialSelect={(selected) =>
+                            onChange((current) =>
+                              current.map((row, rowIndex) =>
+                                rowIndex === index ? applyMaterialToItem(row, selected) : row,
+                              ),
+                            )
+                          }
+                        />
+                      ) : (
+                        cell(displayCode)
+                      )}
+                    </td>
+                    <td
+                      className={`px-3 py-2 text-sm font-medium text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}
+                    >
+                      {cell(item.materialName)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-center text-sm text-slate-700">
+                      {cell(material?.type || '')}
+                    </td>
+                    <td className={`px-3 py-2 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                      {cell(material?.package || '')}
+                    </td>
+                    <td className={`px-3 py-2 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                      {cell(item.specification)}
+                    </td>
+                    <td
+                      className={`px-3 py-2 font-mono text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}
+                    >
+                      {cell(item.mpn)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-center text-sm text-slate-700">
+                      {cell(material?.supplyType || '')}
+                    </td>
+                    <td className="w-[88px] px-2 py-2">
+                      <QuoteNumericInput
+                        min={1}
+                        value={item.reelCount || '1'}
+                        onChange={(reelCount) =>
+                          patchItem(index, { reelCount: reelCount.trim() ? reelCount : '1' })
+                        }
+                        className={inputClassName}
+                      />
+                    </td>
+                    <td className="w-[96px] px-2 py-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        data-qty-input={key}
+                        value={item.quantityPerReel}
+                        onChange={(event) => {
+                          const raw = event.target.value
+                          if (/[^0-9]/.test(raw) || raw.length > 7) {
+                            rejectQtyBarcodeInput(key, index)
+                            return
+                          }
+                          patchItem(index, {
+                            quantityPerReel: raw.replace(/^0+(?=\d)/, ''),
+                          })
+                        }}
+                        onPaste={(event) => {
+                          const text = event.clipboardData.getData('text')
+                          if (looksLikeBarcodeNotQuantity(text) || text.trim().length > 7) {
+                            event.preventDefault()
+                            rejectQtyBarcodeInput(key, index)
+                          }
+                        }}
+                        onFocus={(event) => {
+                          qtyBurstRef.current.reset()
+                          event.target.select()
+                        }}
+                        onKeyDown={(event) => handleQuantityKeyDown(event, key, index)}
+                        placeholder="수량"
+                        className={[
+                          inputClassName,
+                          isLatest ? 'border-emerald-400 ring-2 ring-emerald-200' : '',
+                        ].join(' ')}
+                      />
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-slate-900">
+                      {(Number(item.quantity) || 0).toLocaleString('ko-KR')}
+                    </td>
+                    <td className="w-10 px-2 py-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => removeRow(index)}
+                        className="mx-auto flex h-7 w-7 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                        aria-label={`${index + 1}행 삭제`}
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })
+            )}
           </tbody>
         </table>
       </div>

@@ -20,6 +20,8 @@ export type PurchaseInboundItemForm = {
   orderedQuantity: number
   receivedQuantity: number
   remainingQuantity: number
+  quantityPerReel: string
+  reelCount: string
   quantity: string
 }
 
@@ -36,9 +38,9 @@ export function defaultDirectInboundItemForm(): DirectInboundItemForm {
     materialName: '',
     specification: '',
     mpn: '',
-    quantityPerReel: '0',
+    quantityPerReel: '',
     reelCount: '1',
-    quantity: '0',
+    quantity: '',
   }
 }
 

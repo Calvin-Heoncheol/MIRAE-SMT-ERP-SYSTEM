@@ -145,6 +145,8 @@ export function inboundPurchaseItemsFromDetail(
         orderedQuantity,
         receivedQuantity,
         remainingQuantity,
+        quantityPerReel: String(thisInboundQuantity),
+        reelCount: '1',
         quantity: String(thisInboundQuantity),
       }
     })

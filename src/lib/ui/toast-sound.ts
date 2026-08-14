@@ -180,3 +180,69 @@ export function playToastSound(kind: ToastSoundKind, style?: ToastSoundStyle) {
     // 오디오 미지원·자동재생 차단 시 무시
   }
 }
+
+function playTonePlan(
+  plan: {
+    type: OscillatorType
+    peak: number
+    tones: { freq: number; start: number; dur: number }[]
+  },
+) {
+  try {
+    const ctx = getAudioContext()
+    if (!ctx) return
+
+    void ctx.resume().then(() => {
+      const now = ctx.currentTime
+      const master = ctx.createGain()
+      master.gain.setValueAtTime(0.0001, now)
+      master.connect(ctx.destination)
+
+      const last = plan.tones[plan.tones.length - 1]
+      const endAt = now + last.start + last.dur + 0.04
+      master.gain.exponentialRampToValueAtTime(plan.peak, now + 0.01)
+      master.gain.exponentialRampToValueAtTime(0.0001, endAt)
+
+      for (const tone of plan.tones) {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = plan.type
+        osc.frequency.setValueAtTime(tone.freq, now + tone.start)
+        gain.gain.setValueAtTime(0.0001, now + tone.start)
+        gain.gain.exponentialRampToValueAtTime(1, now + tone.start + 0.008)
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.start + tone.dur)
+        osc.connect(gain)
+        gain.connect(master)
+        osc.start(now + tone.start)
+        osc.stop(now + tone.start + tone.dur + 0.02)
+      }
+    })
+  } catch {
+    // 오디오 미지원·자동재생 차단 시 무시
+  }
+}
+
+/** 바코드 스캔 피드백 — 성공은 짧은 상승음, 실패는 낮은 경고음 */
+export function playScanSound(kind: 'success' | 'error') {
+  if (kind === 'success') {
+    playTonePlan({
+      type: 'square',
+      peak: 0.2,
+      tones: [
+        { freq: 1400, start: 0, dur: 0.05 },
+        { freq: 1900, start: 0.055, dur: 0.07 },
+      ],
+    })
+    return
+  }
+
+  playTonePlan({
+    type: 'square',
+    peak: 0.24,
+    tones: [
+      { freq: 420, start: 0, dur: 0.09 },
+      { freq: 320, start: 0.1, dur: 0.1 },
+      { freq: 260, start: 0.21, dur: 0.12 },
+    ],
+  })
+}

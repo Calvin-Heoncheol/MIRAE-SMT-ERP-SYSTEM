@@ -5,12 +5,20 @@ import { MaterialBarcodeRegisterPanel } from '@/components/materials/material-ba
 import { MaterialLabelPrintButton } from '@/components/materials/material-label-print-button'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { computeDirectInboundQuantity } from '@/lib/materials/inbound/form-state'
+import {
+  createKeyBurstDetector,
+  createScanDeduper,
+  looksLikeBarcodeNotQuantity,
+  QTY_BARCODE_REJECT_MESSAGE,
+  SCAN_DEDUP_MESSAGE,
+} from '@/lib/materials/inbound/scan-guards'
 import { createMaterialInbound } from '@/lib/materials/inbound/repository'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
 import type { Material, MaterialSupplyType, MaterialType } from '@/lib/materials/types'
 import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
+import { playScanSound } from '@/lib/ui/toast-sound'
 import { useToast } from '@/components/ui/toast-provider'
 
 type InboundScanPanelProps = {
@@ -117,6 +125,8 @@ export function InboundScanPanel({
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const focusGenerationRef = useRef(0)
   const preferScanFocusRef = useRef(false)
+  const scanDeduperRef = useRef(createScanDeduper())
+  const qtyBurstRef = useRef(createKeyBurstDetector())
 
   const openPoLinesByMaterial = useMemo(
     () => buildOpenPoLinesByMaterial(purchaseOrders),
@@ -177,6 +187,7 @@ export function InboundScanPanel({
   }
 
   function triggerScanPulse(kind: 'success' | 'error') {
+    playScanSound(kind)
     setScanPulse(null)
     window.requestAnimationFrame(() => {
       setScanPulse({ kind, token: Date.now() })
@@ -260,6 +271,14 @@ export function InboundScanPanel({
       return
     }
 
+    if (!scanDeduperRef.current.accept(code)) {
+      setScanCode('')
+      setMessage({ tone: 'error', text: SCAN_DEDUP_MESSAGE })
+      triggerScanPulse('error')
+      focusScanInput()
+      return
+    }
+
     const material = resolveMaterialByInventoryCode(materials, code)
     if (!material) {
       setMessage({ tone: 'error', text: `"${code}" 와 일치하는 자재를 찾지 못했습니다.` })
@@ -272,6 +291,24 @@ export function InboundScanPanel({
     setUnmatchedScanCode(null)
     setScanCode('')
     addMaterialToList(material)
+  }
+
+  function rejectQtyBarcodeInput(key: string) {
+    qtyBurstRef.current.reset()
+    patchLine(key, { quantityPerReel: '' })
+    setMessage({ tone: 'error', text: QTY_BARCODE_REJECT_MESSAGE })
+    triggerScanPulse('error')
+    focusQuantityInput(key)
+  }
+
+  function handleQuantityChange(key: string, rawValue: string) {
+    if (/[^0-9]/.test(rawValue) || rawValue.length > 7) {
+      rejectQtyBarcodeInput(key)
+      return
+    }
+    patchLine(key, {
+      quantityPerReel: rawValue.replace(/^0+(?=\d)/, ''),
+    })
   }
 
   useEffect(() => {
@@ -300,15 +337,36 @@ export function InboundScanPanel({
   }
 
   function handleQuantityKeyDown(event: KeyboardEvent<HTMLInputElement>, key: string) {
+    if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      if (!/[0-9]/.test(event.key)) {
+        event.preventDefault()
+        qtyBurstRef.current.noteChar()
+        if (qtyBurstRef.current.isBurst()) {
+          rejectQtyBarcodeInput(key)
+        }
+        return
+      }
+      qtyBurstRef.current.noteChar()
+    }
+
     if (event.key !== 'Enter') return
     event.preventDefault()
-    const qty = Number(event.currentTarget.value) || 0
+
+    const raw = event.currentTarget.value.trim()
+    if (looksLikeBarcodeNotQuantity(raw) || (qtyBurstRef.current.isBurst() && raw.length >= 5)) {
+      rejectQtyBarcodeInput(key)
+      return
+    }
+
+    const qty = Number(raw) || 0
     if (qty <= 0) {
       setMessage({ tone: 'error', text: '수량을 입력해 주세요.' })
       event.currentTarget.focus()
       event.currentTarget.select()
       return
     }
+
+    qtyBurstRef.current.reset()
     setMessage(null)
     // 같은 자재·같은 수량 행이 있으면 릴만 합침 (수량이 다르면 행 유지)
     setLines((current) => {
@@ -346,6 +404,7 @@ export function InboundScanPanel({
     })
     setLastScannedKey(null)
     event.currentTarget.blur()
+    scanDeduperRef.current.reset()
     focusScanInput()
   }
 
@@ -638,13 +697,18 @@ export function InboundScanPanel({
                         inputMode="numeric"
                         data-qty-input={line.key}
                         value={line.quantityPerReel}
-                        onChange={(event) => {
-                          const raw = event.target.value.replace(/[^\d]/g, '')
-                          patchLine(line.key, {
-                            quantityPerReel: raw.replace(/^0+(?=\d)/, ''),
-                          })
+                        onChange={(event) => handleQuantityChange(line.key, event.target.value)}
+                        onPaste={(event) => {
+                          const text = event.clipboardData.getData('text')
+                          if (looksLikeBarcodeNotQuantity(text) || text.trim().length > 7) {
+                            event.preventDefault()
+                            rejectQtyBarcodeInput(line.key)
+                          }
                         }}
-                        onFocus={(event) => event.target.select()}
+                        onFocus={(event) => {
+                          qtyBurstRef.current.reset()
+                          event.target.select()
+                        }}
                         onKeyDown={(event) => handleQuantityKeyDown(event, line.key)}
                         placeholder="수량"
                         className={[

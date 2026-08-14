@@ -118,7 +118,9 @@ export function InboundForm({
     setPurchaseItems(
       buildPurchaseInboundLineSeeds(selectedOrder).map((seed) => ({
         ...seed,
-        quantity: '0',
+        quantityPerReel: '',
+        reelCount: '1',
+        quantity: '',
       })),
     )
   }, [isEdit, form.inboundType, selectedOrder])
@@ -312,7 +314,12 @@ export function InboundForm({
             입고 유형을 선택하면 품목 입력이 표시됩니다.
           </div>
         ) : form.inboundType === 'purchase' ? (
-          <InboundPurchaseLinesForm key={`purchase-${formKey}`} items={purchaseItems} onChange={setPurchaseItems} />
+          <InboundPurchaseLinesForm
+            key={`purchase-${formKey}`}
+            items={purchaseItems}
+            materials={materials}
+            onChange={setPurchaseItems}
+          />
         ) : (
           <InboundDirectLinesForm
             key={`direct-${formKey}`}
