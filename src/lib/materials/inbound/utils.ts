@@ -31,6 +31,8 @@ export function mapInboundRecord(record: MaterialInboundRecord): MaterialInbound
     specification: line.items?.specification || '',
     mpn: line.items?.mpn || '',
     quantity: Number(line.quantity) || 0,
+    lotNumber: String(line.lot_number || '').trim(),
+    scanFingerprint: String(line.scan_fingerprint || '').trim(),
   }))
 
   const inboundType = normalizeInboundType(record.inbound_type)
@@ -121,30 +123,30 @@ export function inboundPurchaseItemsFromDetail(
   order: MaterialPurchaseOrderListGroup,
   inbound: MaterialInboundListGroup,
 ): PurchaseInboundItemForm[] {
-  const qtyByLineId = new Map(
-    inbound.items
-      .filter((item) => item.purchaseOrderLineId)
-      .map((item) => [item.purchaseOrderLineId as string, item.quantity]),
-  )
+  const poByLineId = new Map(order.items.map((item) => [item.lineId || '', item]))
 
-  return order.items
-    .filter((item): item is typeof item & { lineId: string } => Boolean(item.lineId && qtyByLineId.has(item.lineId)))
-    .map((item) => {
+  return inbound.items
+    .filter((item) => item.purchaseOrderLineId && poByLineId.has(item.purchaseOrderLineId))
+    .map((inboundItem) => {
+      const item = poByLineId.get(inboundItem.purchaseOrderLineId as string)!
       const orderedQuantity = Number(item.quantity) || 0
       const receivedQuantity = Number(item.inboundQuantity) || 0
-      const thisInboundQuantity = qtyByLineId.get(item.lineId) ?? 0
+      const thisInboundQuantity = inboundItem.quantity
       const remainingQuantity = Math.max(0, orderedQuantity - receivedQuantity + thisInboundQuantity)
 
       return {
-        purchaseOrderLineId: item.lineId,
-        materialId: item.materialId || '',
-        materialCode: item.materialCode,
-        materialName: item.materialName,
-        specification: item.specification,
-        mpn: item.mpn,
+        purchaseOrderLineId: item.lineId as string,
+        materialId: item.materialId || inboundItem.materialId || '',
+        materialCode: item.materialCode || inboundItem.materialCode,
+        materialName: item.materialName || inboundItem.materialName,
+        specification: item.specification || inboundItem.specification,
+        mpn: item.mpn || inboundItem.mpn,
         orderedQuantity,
         receivedQuantity,
         remainingQuantity,
+        lotNumber: inboundItem.lotNumber || '',
+        scanFingerprint: inboundItem.scanFingerprint || '',
+        vendorLot: '',
         quantityPerReel: String(thisInboundQuantity),
         reelCount: '1',
         quantity: String(thisInboundQuantity),

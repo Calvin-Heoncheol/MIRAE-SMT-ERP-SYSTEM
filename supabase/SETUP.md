@@ -51,6 +51,7 @@
 - 견적: `MRQ-YYMMDD-NN` — 동일 migrate
 - 자재 발주: `MRP-YYMMDD-NN` (기존)
 - 품목 내부 PK: `MR-00001` — `migrate-items-internal-id-mr.sql` (표시 코드는 `base_code`)
+- 입고 릴 LOT: `MRL-YYMMDD-NNNN` — `migrate-inbound-reel-lot.sql` (`material_inbound_lines.lot_number`)
 - 거래처 결제조건: `migrate-partners-payment-terms.sql` (분할/일반후불/월괄후불)
 - 결제조건 스냅샷(견적·발주·출하): `migrate-payment-term-snapshots.sql` (거래처 수정 후에도 입금예정일 유지)
 - 거래명세서 입금(수금): `migrate-statement-payments.sql` (`statement_payments`)

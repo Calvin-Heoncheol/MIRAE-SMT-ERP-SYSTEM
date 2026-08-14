@@ -121,6 +121,9 @@ export function InboundForm({
         quantityPerReel: '',
         reelCount: '1',
         quantity: '',
+        lotNumber: '',
+        scanFingerprint: '',
+        vendorLot: '',
       })),
     )
   }, [isEdit, form.inboundType, selectedOrder])

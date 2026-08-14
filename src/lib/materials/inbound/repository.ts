@@ -11,6 +11,7 @@ import type { Material } from '@/lib/materials/types'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
 import type { MaterialInboundListGroup, MaterialInboundRecord, MaterialInboundRowPayload } from './types'
 import { groupInboundsFromRecords, normalizeInboundType } from './utils'
+import { isMissingInboundLotColumn } from './reel-lot'
 
 export type FetchMaterialInboundsResult =
   | { ok: true; inbounds: MaterialInboundListGroup[] }
@@ -32,6 +33,65 @@ export type SaveMaterialInboundResult =
 export type DeleteMaterialInboundResult =
   | { ok: true }
   | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
+
+const INBOUND_LINES_SELECT = `
+          id,
+          inbound_id,
+          line_seq,
+          material_id,
+          purchase_order_line_id,
+          quantity,
+          lot_number,
+          scan_fingerprint
+`
+
+const INBOUND_LINES_SELECT_LEGACY = `
+          id,
+          inbound_id,
+          line_seq,
+          material_id,
+          purchase_order_line_id,
+          quantity
+`
+
+function inboundRecordSelect(linesSelect: string) {
+  return `
+        *,
+        material_inbound_lines (
+          ${linesSelect}
+        )
+      `
+}
+
+function toInboundLineInsert(
+  inboundId: string,
+  item: MaterialInboundRowPayload['items'][number],
+  index: number,
+  withLot: boolean,
+) {
+  const row: Record<string, unknown> = {
+    inbound_id: inboundId,
+    line_seq: index,
+    material_id: item.material_id,
+    purchase_order_line_id: item.purchase_order_line_id,
+    quantity: item.quantity,
+  }
+  if (withLot) {
+    row.lot_number = item.lot_number || ''
+    row.scan_fingerprint = item.scan_fingerprint || ''
+  }
+  return row
+}
+
+function sumQuantityByPoLine(items: { purchase_order_line_id: string | null; quantity: number }[]) {
+  const totals = new Map<string, number>()
+  for (const item of items) {
+    const lineId = item.purchase_order_line_id
+    if (!lineId) continue
+    totals.set(lineId, (totals.get(lineId) ?? 0) + (Number(item.quantity) || 0))
+  }
+  return totals
+}
 
 function missingFetchEnvResult(): FetchMaterialInboundsResult {
   return {
@@ -175,23 +235,19 @@ async function revertPurchaseOrderInboundUpdates(
 
 async function fetchInboundRecordById(inboundId: string) {
   const supabase = createSupabaseClient()
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('material_inbound_records')
-    .select(
-      `
-      *,
-      material_inbound_lines (
-        id,
-        inbound_id,
-        line_seq,
-        material_id,
-        purchase_order_line_id,
-        quantity
-      )
-    `,
-    )
+    .select(inboundRecordSelect(INBOUND_LINES_SELECT))
     .eq('id', inboundId)
     .maybeSingle()
+
+  if (error && isMissingInboundLotColumn(error.message)) {
+    ;({ data, error } = await supabase
+      .from('material_inbound_records')
+      .select(inboundRecordSelect(INBOUND_LINES_SELECT_LEGACY))
+      .eq('id', inboundId)
+      .maybeSingle())
+  }
 
   if (error) throw new Error(error.message)
   return data as MaterialInboundRecord | null
@@ -231,23 +287,19 @@ export async function fetchMaterialInbounds(): Promise<FetchMaterialInboundsResu
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('material_inbound_records')
-      .select(
-        `
-        *,
-        material_inbound_lines (
-          id,
-          inbound_id,
-          line_seq,
-          material_id,
-          purchase_order_line_id,
-          quantity
-        )
-      `,
-      )
+      .select(inboundRecordSelect(INBOUND_LINES_SELECT))
       .order('inbound_date', { ascending: false })
       .order('created_at', { ascending: false })
+
+    if (error && isMissingInboundLotColumn(error.message)) {
+      ;({ data, error } = await supabase
+        .from('material_inbound_records')
+        .select(inboundRecordSelect(INBOUND_LINES_SELECT_LEGACY))
+        .order('inbound_date', { ascending: false })
+        .order('created_at', { ascending: false }))
+    }
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }
@@ -301,12 +353,14 @@ export async function updateMaterialInbound(
     return { ok: false, reason: 'validation', detail: validationError }
   }
 
-  const items = payload.items
+    const items = payload.items
     .filter((item) => Number(item.quantity) > 0)
     .map((item) => ({
       material_id: item.material_id.trim(),
       purchase_order_line_id: item.purchase_order_line_id,
       quantity: Number(item.quantity),
+      lot_number: item.lot_number || '',
+      scan_fingerprint: item.scan_fingerprint || '',
     }))
 
   try {
@@ -332,15 +386,10 @@ export async function updateMaterialInbound(
     if (payload.inbound_type === 'purchase' && payload.purchase_order_id) {
       const poLines = await fetchPurchaseOrderLinesForValidation(payload.purchase_order_id)
       const lineById = new Map(poLines.map((line) => [line.id, line]))
-      const oldQtyByLineId = new Map(
-        oldLines
-          .filter((line) => line.purchase_order_line_id)
-          .map((line) => [line.purchase_order_line_id as string, line.quantity]),
-      )
+      const oldQtyByLineId = sumQuantityByPoLine(oldLines)
+      const newQtyByLineId = sumQuantityByPoLine(items)
 
-      for (const item of items) {
-        const lineId = item.purchase_order_line_id
-        if (!lineId) continue
+      for (const [lineId, qty] of newQtyByLineId) {
         const line = lineById.get(lineId)
         if (!line) return { ok: false, reason: 'validation', detail: '구매발주 라인을 찾을 수 없습니다.' }
 
@@ -349,7 +398,7 @@ export async function updateMaterialInbound(
         const previousQty = oldQtyByLineId.get(lineId) ?? 0
         const remaining = Math.max(0, ordered - received + previousQty)
 
-        if (item.quantity > remaining) {
+        if (qty > remaining) {
           return {
             ok: false,
             reason: 'validation',
@@ -392,15 +441,12 @@ export async function updateMaterialInbound(
       return { ok: false, reason: 'query', detail: deleteLinesError.message }
     }
 
-    const lineRows = items.map((item, index) => ({
-      inbound_id: inboundId,
-      line_seq: index,
-      material_id: item.material_id,
-      purchase_order_line_id: item.purchase_order_line_id,
-      quantity: item.quantity,
-    }))
-
-    const { error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows)
+    let lineRows = items.map((item, index) => toInboundLineInsert(inboundId, item, index, true))
+    let { error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows)
+    if (linesError && isMissingInboundLotColumn(linesError.message)) {
+      lineRows = items.map((item, index) => toInboundLineInsert(inboundId, item, index, false))
+      ;({ error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows))
+    }
     if (linesError) {
       if (existing.inbound_type === 'purchase') {
         await applyPurchaseOrderInboundUpdates(oldLines).catch(() => undefined)
@@ -510,29 +556,30 @@ export async function createMaterialInbound(
     return { ok: false, reason: 'validation', detail: validationError }
   }
 
-  const items = payload.items
+    const items = payload.items
     .filter((item) => Number(item.quantity) > 0)
     .map((item) => ({
       material_id: item.material_id.trim(),
       purchase_order_line_id: item.purchase_order_line_id,
       quantity: Number(item.quantity),
+      lot_number: item.lot_number || '',
+      scan_fingerprint: item.scan_fingerprint || '',
     }))
 
   try {
     if (payload.inbound_type === 'purchase' && payload.purchase_order_id) {
       const poLines = await fetchPurchaseOrderLinesForValidation(payload.purchase_order_id)
       const lineById = new Map(poLines.map((line) => [line.id, line]))
+      const qtyByLineId = sumQuantityByPoLine(items)
 
-      for (const item of items) {
-        const lineId = item.purchase_order_line_id
-        if (!lineId) continue
+      for (const [lineId, qty] of qtyByLineId) {
         const line = lineById.get(lineId)
         if (!line) return { ok: false, reason: 'validation', detail: '구매발주 라인을 찾을 수 없습니다.' }
 
         const ordered = Number(line.quantity) || 0
         const received = Number(line.inbound_quantity) || 0
         const remaining = Math.max(0, ordered - received)
-        if (item.quantity > remaining) {
+        if (qty > remaining) {
           return {
             ok: false,
             reason: 'validation',
@@ -577,15 +624,12 @@ export async function createMaterialInbound(
       return { ok: false, reason: 'query', detail: error?.message || '입고 저장에 실패했습니다.' }
     }
 
-    const lineRows = items.map((item, index) => ({
-      inbound_id: inserted.id,
-      line_seq: index,
-      material_id: item.material_id,
-      purchase_order_line_id: item.purchase_order_line_id,
-      quantity: item.quantity,
-    }))
-
-    const { error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows)
+    let lineRows = items.map((item, index) => toInboundLineInsert(inserted.id, item, index, true))
+    let { error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows)
+    if (linesError && isMissingInboundLotColumn(linesError.message)) {
+      lineRows = items.map((item, index) => toInboundLineInsert(inserted.id, item, index, false))
+      ;({ error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows))
+    }
     if (linesError) {
       await rollbackInboundRecord(inserted.id)
       return { ok: false, reason: 'query', detail: linesError.message }

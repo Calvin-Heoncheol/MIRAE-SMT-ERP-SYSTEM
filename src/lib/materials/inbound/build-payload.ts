@@ -2,6 +2,18 @@ import type { DirectInboundItemForm, PurchaseInboundItemForm } from './form-stat
 import type { MaterialInboundRowPayload, MaterialInboundType } from './types'
 import type { Material } from '@/lib/materials/types'
 import { resolveMaterialByInventoryCode } from '@/lib/materials/utils'
+import { assignReelLotNumber } from './reel-lot'
+
+function fillMissingLots<T extends { lot_number?: string }>(items: T[], inboundDate: string) {
+  const used: string[] = items.map((item) => String(item.lot_number || '').trim()).filter(Boolean)
+  return items.map((item) => {
+    const current = String(item.lot_number || '').trim()
+    if (current) return { ...item, lot_number: current }
+    const lot_number = assignReelLotNumber(inboundDate, used)
+    used.push(lot_number)
+    return { ...item, lot_number }
+  })
+}
 
 export function buildDirectInboundPayloadItems(items: DirectInboundItemForm[], materials: Material[]) {
   return items
@@ -12,6 +24,8 @@ export function buildDirectInboundPayloadItems(items: DirectInboundItemForm[], m
         material_id: resolved?.id ?? item.materialId.trim(),
         purchase_order_line_id: null as string | null,
         quantity: Math.max(0, Number(item.quantity) || 0),
+        lot_number: item.lotNumber.trim(),
+        scan_fingerprint: item.scanFingerprint.trim(),
       }
     })
     .filter((item) => item.material_id && item.quantity > 0)
@@ -23,6 +37,8 @@ export function buildPurchaseInboundPayloadItems(items: PurchaseInboundItemForm[
       material_id: item.materialId.trim(),
       purchase_order_line_id: item.purchaseOrderLineId,
       quantity: Math.max(0, Number(item.quantity) || 0),
+      lot_number: item.lotNumber.trim(),
+      scan_fingerprint: item.scanFingerprint.trim(),
     }))
     .filter((item) => item.material_id && item.purchase_order_line_id && item.quantity > 0)
 }
@@ -38,8 +54,8 @@ export function buildMaterialInboundPayload(input: {
 }): MaterialInboundRowPayload {
   const items =
     input.inboundType === 'purchase'
-      ? buildPurchaseInboundPayloadItems(input.purchaseItems)
-      : buildDirectInboundPayloadItems(input.directItems, input.materials)
+      ? fillMissingLots(buildPurchaseInboundPayloadItems(input.purchaseItems), input.inboundDate)
+      : fillMissingLots(buildDirectInboundPayloadItems(input.directItems, input.materials), input.inboundDate)
 
   return {
     inbound_date: input.inboundDate,

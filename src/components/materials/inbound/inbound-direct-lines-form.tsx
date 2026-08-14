@@ -13,11 +13,15 @@ import { MaterialBarcodeRegisterPanel } from '@/components/materials/material-ba
 import { MaterialLabelPrintButton } from '@/components/materials/material-label-print-button'
 import { MaterialCombobox } from '@/components/materials/purchase-orders/material-combobox'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
-import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import {
   computeDirectInboundQuantity,
   type DirectInboundItemForm,
 } from '@/lib/materials/inbound/form-state'
+import {
+  alreadyScannedReelMessage,
+  assignReelLotNumber,
+  parseReelBarcode,
+} from '@/lib/materials/inbound/reel-lot'
 import {
   createKeyBurstDetector,
   createScanDeduper,
@@ -27,6 +31,7 @@ import {
 } from '@/lib/materials/inbound/scan-guards'
 import type { Material } from '@/lib/materials/types'
 import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 import { playScanSound } from '@/lib/ui/toast-sound'
 
@@ -62,15 +67,21 @@ function applyMaterialToItem(item: DirectInboundItemForm, material: Material): D
   }
 }
 
-function createInboundLine(material: Material): DirectInboundItemForm {
+function createInboundLine(
+  material: Material,
+  extra?: Partial<DirectInboundItemForm>,
+): DirectInboundItemForm {
   return {
     materialId: material.id,
     materialName: material.materialName,
     specification: material.specification,
     mpn: material.mpn,
-    quantityPerReel: '',
+    lotNumber: extra?.lotNumber || '',
+    scanFingerprint: extra?.scanFingerprint || '',
+    vendorLot: extra?.vendorLot || '',
+    quantityPerReel: extra?.quantityPerReel || '',
     reelCount: '1',
-    quantity: computeDirectInboundQuantity('0', '1'),
+    quantity: computeDirectInboundQuantity(extra?.quantityPerReel || '0', '1'),
   }
 }
 
@@ -215,6 +226,9 @@ export function InboundDirectLinesForm({
         materialName: '',
         specification: '',
         mpn: '',
+        lotNumber: '',
+        scanFingerprint: '',
+        vendorLot: '',
         quantityPerReel: '',
         reelCount: '1',
         quantity: '',
@@ -230,6 +244,9 @@ export function InboundDirectLinesForm({
           materialName: '',
           specification: '',
           mpn: '',
+          lotNumber: '',
+          scanFingerprint: '',
+          vendorLot: '',
           quantityPerReel: '',
           reelCount: '1',
           quantity: '',
@@ -245,21 +262,22 @@ export function InboundDirectLinesForm({
     setLastScannedKey((current) => (current === removedKey ? null : current))
   }
 
-  function addMaterialToList(material: Material) {
-    const existingEmptyIndex = items.findIndex(
-      (item) => item.materialId === material.id && !(Number(item.quantityPerReel) || 0),
-    )
-    if (existingEmptyIndex >= 0) {
-      const key = rowKeys[existingEmptyIndex] ?? createLineKey()
-      const nextReels = (Number(items[existingEmptyIndex].reelCount) || 0) + 1
-      patchItem(existingEmptyIndex, {
-        reelCount: String(nextReels),
-      })
-      setScanMessage(null)
-      markJustScanned(key)
-      return
+  function addMaterialToList(material: Material, rawCode: string) {
+    const parsed = parseReelBarcode(rawCode)
+    if (parsed.fingerprint) {
+      const existing = items.find((item) => item.scanFingerprint === parsed.fingerprint)
+      if (existing) {
+        setScanMessage({ tone: 'error', text: alreadyScannedReelMessage(existing.lotNumber) })
+        triggerScanPulse('error')
+        focusScanInput()
+        return
+      }
     }
 
+    const lotNumber = assignReelLotNumber(
+      todayYmdSeoul(),
+      items.map((item) => item.lotNumber),
+    )
     const key = createLineKey()
     const kept = items
       .map((item, index) => ({ item, key: rowKeys[index] ?? createLineKey() }))
@@ -270,8 +288,19 @@ export function InboundDirectLinesForm({
           Number(item.quantity) > 0,
       )
     setRowKeys([key, ...kept.map((row) => row.key)])
-    onChange([createInboundLine(material), ...kept.map((row) => row.item)])
-    setScanMessage(null)
+    onChange([
+      createInboundLine(material, {
+        lotNumber,
+        scanFingerprint: parsed.fingerprint,
+        vendorLot: parsed.vendorLot,
+        quantityPerReel: parsed.quantity ? String(parsed.quantity) : '',
+      }),
+      ...kept.map((row) => row.item),
+    ])
+    setScanMessage({
+      tone: 'success',
+      text: parsed.vendorLot ? `LOT ${lotNumber} · 제조 ${parsed.vendorLot}` : `LOT ${lotNumber}`,
+    })
     markJustScanned(key)
   }
 
@@ -302,7 +331,7 @@ export function InboundDirectLinesForm({
 
     setUnmatchedScanCode(null)
     setScanCode('')
-    addMaterialToList(material)
+    addMaterialToList(material, code)
   }
 
   function rejectQtyBarcodeInput(key: string, index: number) {
@@ -319,7 +348,7 @@ export function InboundDirectLinesForm({
     if (!material) return
     setPendingRetryCode(null)
     setUnmatchedScanCode(null)
-    addMaterialToList(material)
+    addMaterialToList(material, pendingRetryCode)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materials, pendingRetryCode])
 
@@ -370,36 +399,7 @@ export function InboundDirectLinesForm({
 
     qtyBurstRef.current.reset()
     setScanMessage(null)
-    const source = items[index]
-    if (!source) return
-
-    const matchIndex = items.findIndex(
-      (line, lineIndex) =>
-        lineIndex !== index &&
-        line.materialId === source.materialId &&
-        Math.max(0, Number(line.quantityPerReel) || 0) === qty,
-    )
-
-    if (matchIndex < 0) {
-      patchItem(index, {
-        quantityPerReel: String(qty),
-      })
-    } else {
-      const nextReels = (Number(items[matchIndex].reelCount) || 0) + (Number(source.reelCount) || 0)
-      const nextItems = items
-        .map((line, lineIndex) => {
-          if (lineIndex !== matchIndex) return line
-          return {
-            ...line,
-            reelCount: String(nextReels),
-            quantity: computeDirectInboundQuantity(line.quantityPerReel, String(nextReels)),
-          }
-        })
-        .filter((_, lineIndex) => lineIndex !== index)
-      setRowKeys(rowKeys.filter((_, lineIndex) => lineIndex !== index))
-      onChange(nextItems)
-    }
-
+    patchItem(index, { quantityPerReel: String(qty) })
     setLastScannedKey(null)
     event.currentTarget.blur()
     scanDeduperRef.current.reset()
@@ -512,7 +512,7 @@ export function InboundDirectLinesForm({
               <th className="px-3 py-2 text-left font-semibold text-slate-600">사양</th>
               <th className="px-3 py-2 text-left font-semibold text-slate-600">MPN</th>
               <th className="px-3 py-2 text-center font-semibold text-slate-600">도급/사급</th>
-              <th className="px-3 py-2 text-right font-semibold text-slate-600">릴 개수</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">LOT</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">입고수량</th>
               <th className="w-10 px-2 py-2" />
@@ -522,8 +522,7 @@ export function InboundDirectLinesForm({
             {items.length === 0 ? (
               <tr>
                 <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-500">
-                  스캔한 자재가 바로 여기에 쌓입니다. 같은 수량의 릴은 합쳐지고, 수량이 다르면 행이 따로
-                  생깁니다.
+                  스캔한 릴이 바로 여기에 쌓입니다. 릴마다 LOT가 부여되고, 같은 릴을 다시 찍으면 알려 줍니다.
                 </td>
               </tr>
             ) : (
@@ -601,15 +600,11 @@ export function InboundDirectLinesForm({
                     <td className="whitespace-nowrap px-3 py-2 text-center text-sm text-slate-700">
                       {cell(material?.supplyType || '')}
                     </td>
-                    <td className="w-[88px] px-2 py-2">
-                      <QuoteNumericInput
-                        min={1}
-                        value={item.reelCount || '1'}
-                        onChange={(reelCount) =>
-                          patchItem(index, { reelCount: reelCount.trim() ? reelCount : '1' })
-                        }
-                        className={inputClassName}
-                      />
+                    <td className={`px-3 py-2 font-mono text-sm text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                      <span className="font-semibold">{cell(item.lotNumber)}</span>
+                      {item.vendorLot ? (
+                        <span className="mt-0.5 block text-xs text-slate-500">제조 {item.vendorLot}</span>
+                      ) : null}
                     </td>
                     <td className="w-[96px] px-2 py-2">
                       <input

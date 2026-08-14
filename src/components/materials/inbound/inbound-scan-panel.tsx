@@ -3,8 +3,12 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { MaterialBarcodeRegisterPanel } from '@/components/materials/material-barcode-register-panel'
 import { MaterialLabelPrintButton } from '@/components/materials/material-label-print-button'
-import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { computeDirectInboundQuantity } from '@/lib/materials/inbound/form-state'
+import {
+  alreadyScannedReelMessage,
+  assignReelLotNumber,
+  parseReelBarcode,
+} from '@/lib/materials/inbound/reel-lot'
 import {
   createKeyBurstDetector,
   createScanDeduper,
@@ -49,6 +53,9 @@ type ScanLine = {
   specification: string
   mpn: string
   supplyType: MaterialSupplyType
+  lotNumber: string
+  vendorLot: string
+  scanFingerprint: string
   quantityPerReel: string
   reelCount: string
   quantity: string
@@ -212,31 +219,24 @@ export function InboundScanPanel({
     )
   }
 
-  function addMaterialToList(material: Material) {
-    const displayCode = formatMaterialDisplayCode(material)
-    // 수량 미입력 행만 합침 — 같은 MPN이라도 수량이 다르면 별도 행
-    const existingEmptyQty = lines.find(
-      (line) => line.materialId === material.id && !(Number(line.quantityPerReel) || 0),
-    )
-    if (existingEmptyQty) {
-      const nextReels = (Number(existingEmptyQty.reelCount) || 0) + 1
-      setLines((current) =>
-        current.map((line) =>
-          line.key === existingEmptyQty.key
-            ? {
-                ...line,
-                reelCount: String(nextReels),
-                quantity: computeDirectInboundQuantity(line.quantityPerReel, String(nextReels)),
-              }
-            : line,
-        ),
-      )
-      setMessage(null)
-      markJustScanned(existingEmptyQty.key)
-      return
+  function addMaterialToList(material: Material, rawCode: string) {
+    const parsed = parseReelBarcode(rawCode)
+    if (parsed.fingerprint) {
+      const existing = lines.find((line) => line.scanFingerprint === parsed.fingerprint)
+      if (existing) {
+        setMessage({ tone: 'error', text: alreadyScannedReelMessage(existing.lotNumber) })
+        triggerScanPulse('error')
+        focusScanInput()
+        return
+      }
     }
 
-    const quantityPerReel = ''
+    const displayCode = formatMaterialDisplayCode(material)
+    const lotNumber = assignReelLotNumber(
+      inboundDate || todayYmdSeoul(),
+      lines.map((line) => line.lotNumber),
+    )
+    const quantityPerReel = parsed.quantity ? String(parsed.quantity) : ''
     const reelCount = '1'
     const poLine = resolvePoLine(material)
     const key = createLineKey()
@@ -252,6 +252,9 @@ export function InboundScanPanel({
         specification: material.specification,
         mpn: material.mpn,
         supplyType: material.supplyType,
+        lotNumber,
+        vendorLot: parsed.vendorLot,
+        scanFingerprint: parsed.fingerprint,
         quantityPerReel,
         reelCount,
         quantity: computeDirectInboundQuantity(quantityPerReel || '0', reelCount),
@@ -259,7 +262,12 @@ export function InboundScanPanel({
       },
       ...current,
     ])
-    setMessage(null)
+    setMessage({
+      tone: 'success',
+      text: parsed.vendorLot
+        ? `LOT ${lotNumber} · 제조 ${parsed.vendorLot}`
+        : `LOT ${lotNumber}`,
+    })
     markJustScanned(key)
   }
 
@@ -290,7 +298,7 @@ export function InboundScanPanel({
 
     setUnmatchedScanCode(null)
     setScanCode('')
-    addMaterialToList(material)
+    addMaterialToList(material, code)
   }
 
   function rejectQtyBarcodeInput(key: string) {
@@ -317,7 +325,7 @@ export function InboundScanPanel({
     if (!material) return
     setPendingRetryCode(null)
     setUnmatchedScanCode(null)
-    addMaterialToList(material)
+    addMaterialToList(material, pendingRetryCode)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materials, pendingRetryCode])
 
@@ -368,40 +376,7 @@ export function InboundScanPanel({
 
     qtyBurstRef.current.reset()
     setMessage(null)
-    // 같은 자재·같은 수량 행이 있으면 릴만 합침 (수량이 다르면 행 유지)
-    setLines((current) => {
-      const source = current.find((line) => line.key === key)
-      if (!source) return current
-      const match = current.find(
-        (line) =>
-          line.key !== key &&
-          line.materialId === source.materialId &&
-          Math.max(0, Number(line.quantityPerReel) || 0) === qty,
-      )
-      if (!match) {
-        return current.map((line) =>
-          line.key === key
-            ? {
-                ...line,
-                quantityPerReel: String(qty),
-                quantity: computeDirectInboundQuantity(String(qty), line.reelCount),
-              }
-            : line,
-        )
-      }
-      const nextReels = (Number(match.reelCount) || 0) + (Number(source.reelCount) || 0)
-      return current
-        .filter((line) => line.key !== key)
-        .map((line) =>
-          line.key === match.key
-            ? {
-                ...line,
-                reelCount: String(nextReels),
-                quantity: computeDirectInboundQuantity(line.quantityPerReel, String(nextReels)),
-              }
-            : line,
-        )
-    })
+    patchLine(key, { quantityPerReel: String(qty) })
     setLastScannedKey(null)
     event.currentTarget.blur()
     scanDeduperRef.current.reset()
@@ -481,6 +456,8 @@ export function InboundScanPanel({
           material_id: line.materialId,
           purchase_order_line_id: line.poLine!.lineId,
           quantity: Number(line.quantity) || 0,
+          lot_number: line.lotNumber,
+          scan_fingerprint: line.scanFingerprint,
         })),
       })
       if (result.ok) {
@@ -500,6 +477,8 @@ export function InboundScanPanel({
           material_id: line.materialId,
           purchase_order_line_id: null,
           quantity: Number(line.quantity) || 0,
+          lot_number: line.lotNumber,
+          scan_fingerprint: line.scanFingerprint,
         })),
       })
       if (result.ok) {
@@ -548,7 +527,7 @@ export function InboundScanPanel({
             <div>
               <p className="text-sm font-bold text-slate-800">바코드 스캔</p>
               <p className="mt-0.5 text-xs text-slate-500">
-                스캔 후 수량을 입력하고 Enter 하면 다음 바코드를 찍을 수 있습니다.
+                스캔 후 수량을 입력하고 Enter 하면 다음 바코드를 찍을 수 있습니다. 릴마다 LOT가 생깁니다.
               </p>
             </div>
             <span
@@ -633,7 +612,7 @@ export function InboundScanPanel({
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">사양</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">MPN</th>
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">도급/사급</th>
-                <th className="px-3 py-2 text-right font-semibold text-slate-600">릴 개수</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">LOT</th>
                 <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
                 <th className="px-3 py-2 text-right font-semibold text-slate-600">입고수량</th>
                 <th className="w-10 px-2 py-2" />
@@ -643,7 +622,7 @@ export function InboundScanPanel({
               {lines.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-500">
-                    스캔한 자재가 바로 여기에 쌓입니다. 같은 수량의 릴은 합쳐지고, 수량이 다르면 행이 따로 생깁니다.
+                    스캔한 릴이 바로 여기에 쌓입니다. 릴마다 LOT가 부여되고, 같은 릴을 다시 찍으면 알려 줍니다.
                   </td>
                 </tr>
               ) : (
@@ -681,17 +660,13 @@ export function InboundScanPanel({
                     <td className="whitespace-nowrap px-3 py-2 text-center text-sm text-slate-700">
                       {cell(line.supplyType)}
                     </td>
-                    <td className="w-[88px] px-2 py-2">
-                      <QuoteNumericInput
-                        min={1}
-                        value={line.reelCount || '1'}
-                        onChange={(reelCount) =>
-                          patchLine(line.key, { reelCount: reelCount.trim() ? reelCount : '1' })
-                        }
-                        className={inputClassName}
-                      />
+                    <td className={`px-3 py-2 font-mono text-sm text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                      <span className="font-semibold">{cell(line.lotNumber)}</span>
+                      {line.vendorLot ? (
+                        <span className="mt-0.5 block text-xs text-slate-500">제조 {line.vendorLot}</span>
+                      ) : null}
                     </td>
-                    <td className="w-[96px] px-2 py-2">
+                    <td className="w-[88px] px-2 py-2">
                       <input
                         type="text"
                         inputMode="numeric"

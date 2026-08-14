@@ -5,6 +5,9 @@ export type DirectInboundItemForm = {
   materialName: string
   specification: string
   mpn: string
+  lotNumber: string
+  scanFingerprint: string
+  vendorLot: string
   quantityPerReel: string
   reelCount: string
   quantity: string
@@ -20,6 +23,9 @@ export type PurchaseInboundItemForm = {
   orderedQuantity: number
   receivedQuantity: number
   remainingQuantity: number
+  lotNumber: string
+  scanFingerprint: string
+  vendorLot: string
   quantityPerReel: string
   reelCount: string
   quantity: string
@@ -38,6 +44,9 @@ export function defaultDirectInboundItemForm(): DirectInboundItemForm {
     materialName: '',
     specification: '',
     mpn: '',
+    lotNumber: '',
+    scanFingerprint: '',
+    vendorLot: '',
     quantityPerReel: '',
     reelCount: '1',
     quantity: '',
@@ -80,6 +89,8 @@ export function directInboundItemsFromDetail(
     specification: string
     mpn: string
     quantity: number
+    lotNumber?: string
+    scanFingerprint?: string
   }[],
 ): DirectInboundItemForm[] {
   if (!items.length) return [defaultDirectInboundItemForm()]
@@ -89,6 +100,9 @@ export function directInboundItemsFromDetail(
     materialName: item.materialName,
     specification: item.specification,
     mpn: item.mpn,
+    lotNumber: item.lotNumber || '',
+    scanFingerprint: item.scanFingerprint || '',
+    vendorLot: '',
     quantityPerReel: String(item.quantity),
     reelCount: '1',
     quantity: String(item.quantity),

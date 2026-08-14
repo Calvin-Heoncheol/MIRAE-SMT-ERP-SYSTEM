@@ -31,11 +31,15 @@ create table if not exists public.material_inbound_lines (
   material_id text not null references public.items(id) on delete restrict,
   purchase_order_line_id uuid references public.material_purchase_order_lines(id) on delete restrict,
   quantity numeric not null check (quantity > 0),
+  lot_number text not null default '',
+  scan_fingerprint text not null default '',
   unique (inbound_id, line_seq)
 );
 
-comment on table public.material_inbound_lines is '자재 입고 라인';
+comment on table public.material_inbound_lines is '자재 입고 라인 — 릴 1개당 1행';
 comment on column public.material_inbound_lines.purchase_order_line_id is '발주연동 입고 시 발주 라인 FK';
+comment on column public.material_inbound_lines.lot_number is '릴 LOT. MRL-YYMMDD-NNNN';
+comment on column public.material_inbound_lines.scan_fingerprint is '같은 릴 재스캔 방지용 지문';
 
 create index if not exists material_inbound_records_inbound_date_idx
   on public.material_inbound_records (inbound_date desc);

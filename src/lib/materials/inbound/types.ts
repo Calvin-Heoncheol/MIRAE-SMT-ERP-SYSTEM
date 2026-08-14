@@ -16,6 +16,8 @@ export type MaterialInboundLineItem = {
   specification: string
   mpn: string
   quantity: number
+  lotNumber: string
+  scanFingerprint: string
 }
 
 export type MaterialInboundListGroup = {
@@ -39,6 +41,8 @@ export type MaterialInboundLineRecord = {
   material_id: string
   purchase_order_line_id: string | null
   quantity: number
+  lot_number?: string
+  scan_fingerprint?: string
   items?: {
     id: string
     name: string
@@ -69,6 +73,8 @@ export type MaterialInboundRowPayload = {
     material_id: string
     purchase_order_line_id: string | null
     quantity: number
+    lot_number?: string
+    scan_fingerprint?: string
   }[]
 }
 

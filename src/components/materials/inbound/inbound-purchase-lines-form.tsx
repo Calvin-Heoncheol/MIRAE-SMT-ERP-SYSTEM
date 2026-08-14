@@ -8,11 +8,15 @@ import {
   type KeyboardEvent,
   type SetStateAction,
 } from 'react'
-import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import {
   computeDirectInboundQuantity,
   type PurchaseInboundItemForm,
 } from '@/lib/materials/inbound/form-state'
+import {
+  alreadyScannedReelMessage,
+  assignReelLotNumber,
+  parseReelBarcode,
+} from '@/lib/materials/inbound/reel-lot'
 import {
   createKeyBurstDetector,
   createScanDeduper,
@@ -22,6 +26,7 @@ import {
 } from '@/lib/materials/inbound/scan-guards'
 import type { Material } from '@/lib/materials/types'
 import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 import { playScanSound } from '@/lib/ui/toast-sound'
 
@@ -169,6 +174,18 @@ export function InboundPurchaseLinesForm({
       return
     }
 
+    const parsed = parseReelBarcode(code)
+    if (parsed.fingerprint) {
+      const existing = items.find((item) => item.scanFingerprint === parsed.fingerprint)
+      if (existing) {
+        setScanCode('')
+        setScanMessage({ tone: 'error', text: alreadyScannedReelMessage(existing.lotNumber) })
+        triggerScanPulse('error')
+        focusScanInput()
+        return
+      }
+    }
+
     const matched = findPurchaseLine(code)
     if (!matched) {
       setScanMessage({
@@ -181,16 +198,61 @@ export function InboundPurchaseLinesForm({
       return
     }
 
+    const lotNumber = assignReelLotNumber(
+      todayYmdSeoul(),
+      items.map((item) => item.lotNumber),
+    )
+    const qtyPrefill = parsed.quantity ? String(parsed.quantity) : ''
+    const emptyIndex = items.findIndex(
+      (item) =>
+        item.materialId === matched.line.materialId &&
+        !item.lotNumber.trim() &&
+        !item.scanFingerprint.trim() &&
+        !(Number(item.quantityPerReel) || 0),
+    )
+
     const label = matched.material
       ? `${formatMaterialDisplayCode(matched.material)} · ${matched.material.materialName}`
       : `${matched.line.materialCode || matched.line.materialId} · ${matched.line.materialName}`
 
+    if (emptyIndex >= 0) {
+      patchItem(emptyIndex, {
+        lotNumber,
+        scanFingerprint: parsed.fingerprint,
+        vendorLot: parsed.vendorLot,
+        ...(qtyPrefill ? { quantityPerReel: qtyPrefill } : {}),
+      })
+      setScanMessage({
+        tone: 'success',
+        text: parsed.vendorLot
+          ? `${label} · LOT ${lotNumber} · 제조 ${parsed.vendorLot}`
+          : `${label} · LOT ${lotNumber}`,
+      })
+      setScanCode('')
+      markJustScanned(lotNumber)
+      return
+    }
+
+    onChange((current) => [
+      {
+        ...matched.line,
+        lotNumber,
+        scanFingerprint: parsed.fingerprint,
+        vendorLot: parsed.vendorLot,
+        quantityPerReel: qtyPrefill,
+        reelCount: '1',
+        quantity: computeDirectInboundQuantity(qtyPrefill || '0', '1'),
+      },
+      ...current,
+    ])
     setScanMessage({
       tone: 'success',
-      text: `${label} — 수량을 입력한 뒤 Enter 하면 다음 스캔을 할 수 있습니다.`,
+      text: parsed.vendorLot
+        ? `${label} · LOT ${lotNumber} · 제조 ${parsed.vendorLot}`
+        : `${label} · LOT ${lotNumber}`,
     })
     setScanCode('')
-    markJustScanned(matched.line.purchaseOrderLineId)
+    markJustScanned(lotNumber)
   }
 
   function rejectQtyBarcodeInput(lineId: string, index: number) {
@@ -347,14 +409,15 @@ export function InboundPurchaseLinesForm({
               <th className="px-3 py-2 text-right font-semibold text-slate-600">구매발주</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">기입고</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">잔량</th>
-              <th className="px-3 py-2 text-right font-semibold text-slate-600">릴 개수</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-600">LOT</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">입고수량</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, index) => {
-              const isLatest = lastScannedKey === item.purchaseOrderLineId
+              const rowKey = item.lotNumber || `${item.purchaseOrderLineId}-${index}`
+              const isLatest = lastScannedKey === rowKey || lastScannedKey === item.lotNumber
               const material = materials.find((row) => row.id === item.materialId)
               const displayCode = material
                 ? formatMaterialDisplayCode(material)
@@ -362,8 +425,8 @@ export function InboundPurchaseLinesForm({
 
               return (
                 <tr
-                  key={item.purchaseOrderLineId}
-                  data-scan-key={item.purchaseOrderLineId}
+                  key={rowKey}
+                  data-scan-key={rowKey}
                   className={[
                     'border-t',
                     isLatest
@@ -407,26 +470,22 @@ export function InboundPurchaseLinesForm({
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-amber-700">
                     {item.remainingQuantity.toLocaleString('ko-KR')}
                   </td>
-                  <td className="w-[88px] px-2 py-2">
-                    <QuoteNumericInput
-                      min={1}
-                      value={item.reelCount || '1'}
-                      onChange={(reelCount) =>
-                        patchItem(index, { reelCount: reelCount.trim() ? reelCount : '1' })
-                      }
-                      className={inputClassName}
-                    />
+                  <td className={`px-3 py-2 font-mono text-sm text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                    <span className="font-semibold">{cell(item.lotNumber)}</span>
+                    {item.vendorLot ? (
+                      <span className="mt-0.5 block text-xs text-slate-500">제조 {item.vendorLot}</span>
+                    ) : null}
                   </td>
                   <td className="w-[96px] px-2 py-2">
                     <input
                       type="text"
                       inputMode="numeric"
-                      data-qty-input={item.purchaseOrderLineId}
+                      data-qty-input={rowKey}
                       value={item.quantityPerReel}
                       onChange={(event) => {
                         const raw = event.target.value
                         if (/[^0-9]/.test(raw) || raw.length > 7) {
-                          rejectQtyBarcodeInput(item.purchaseOrderLineId, index)
+                          rejectQtyBarcodeInput(rowKey, index)
                           return
                         }
                         patchItem(index, {
@@ -437,7 +496,7 @@ export function InboundPurchaseLinesForm({
                         const text = event.clipboardData.getData('text')
                         if (looksLikeBarcodeNotQuantity(text) || text.trim().length > 7) {
                           event.preventDefault()
-                          rejectQtyBarcodeInput(item.purchaseOrderLineId, index)
+                          rejectQtyBarcodeInput(rowKey, index)
                         }
                       }}
                       onFocus={(event) => {
@@ -445,7 +504,7 @@ export function InboundPurchaseLinesForm({
                         event.target.select()
                       }}
                       onKeyDown={(event) =>
-                        handleQuantityKeyDown(event, item.purchaseOrderLineId, index)
+                        handleQuantityKeyDown(event, rowKey, index)
                       }
                       placeholder="수량"
                       className={[
