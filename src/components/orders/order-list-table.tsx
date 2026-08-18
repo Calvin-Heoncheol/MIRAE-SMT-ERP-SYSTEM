@@ -37,31 +37,31 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
         <table className="min-w-[1040px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 발주일
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 납기일
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 발주번호
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 고객사
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 제품
               </th>
-              <th className="min-w-[72px] whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="min-w-[72px] whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                 수량
               </th>
-              <th className="min-w-[96px] whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="min-w-[96px] whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                 발주금액
               </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
                 구분
               </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 등록자
               </th>
             </tr>

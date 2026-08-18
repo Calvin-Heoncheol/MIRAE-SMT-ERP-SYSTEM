@@ -16,7 +16,6 @@ import type { FetchItemsResult } from '@/lib/items/repository'
 import { displayItemUnitPrice, filterItemsForSearch, formatItemDisplayCode, formatItemProductionProcessLabel, formatItemUnitPrice } from '@/lib/items/utils'
 import {
   ITEM_CATEGORIES,
-  ITEM_CATEGORY_FILTER_IDLE_CLASS,
   ITEM_CATEGORY_LABELS,
   isProductItemCategory,
   type Item,
@@ -72,7 +71,6 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
         value: category,
         label: ITEM_CATEGORY_LABELS[category],
         count: categoryCounts[category],
-        tone: { idleClassName: ITEM_CATEGORY_FILTER_IDLE_CLASS[category] },
       })),
     ],
     [categoryCounts],

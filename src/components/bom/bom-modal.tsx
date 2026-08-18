@@ -37,7 +37,7 @@ import type { BomGroup } from '@/lib/bom/types'
 import type { Item } from '@/lib/items/types'
 import { ITEM_CATEGORY_LABELS, isProductItemCategory, isSemiFinishedItemCategory } from '@/lib/items/types'
 import { normalizeVersionLabel, suggestNextVersionForItem } from '@/lib/items/version-code'
-import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
+import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS, ERP_INFO_BOX_CLASS, ERP_INFO_BOX_TEXT_CLASS, ERP_INFO_BOX_TITLE_CLASS, ERP_PASTE_TEXTAREA_CLASS } from '@/lib/ui/tokens'
 
 type BomModalProps = {
   open: boolean
@@ -462,9 +462,9 @@ function BomModalContent({
         </div>
 
         {showExcelPaste ? (
-          <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-3">
-            <p className="text-sm font-medium text-blue-900">일괄 붙여넣기</p>
-            <p className="mt-1 text-xs text-blue-800">
+          <div className={ERP_INFO_BOX_CLASS}>
+            <p className={ERP_INFO_BOX_TITLE_CLASS}>일괄 붙여넣기</p>
+            <p className={ERP_INFO_BOX_TEXT_CLASS}>
               Excel에서 아래 열 순서대로 복사한 뒤, 이 칸에 붙여넣으세요. 고객사 품목코드 또는
               MPN으로 매칭됩니다.
             </p>
@@ -484,7 +484,7 @@ function BomModalContent({
               disabled={busy}
               rows={4}
               placeholder={bomPastePlaceholder()}
-              className="mt-2 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 font-mono text-xs text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
+              className={ERP_PASTE_TEXTAREA_CLASS}
             />
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <ErpButton

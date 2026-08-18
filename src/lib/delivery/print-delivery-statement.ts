@@ -110,17 +110,13 @@ function formatProductLabel(productName: string, productCode: string) {
   return `${baseName} ${version}`
 }
 
-function buildItemRows(items: DeliveryStatementLine[], showOrderNumber: boolean) {
+function buildItemRows(items: DeliveryStatementLine[]) {
   const rows: string[] = items.map((item, index) => {
     const code = escapeHtml(item.productCode || '')
     const name = escapeHtml(formatProductLabel(item.productName, item.productCode))
-    const orderCell = showOrderNumber
-      ? `<td class="c-order">${escapeHtml(item.orderNumber || '')}</td>`
-      : ''
     // 세액은 현재 0 유지
     return `<tr>
       <td class="c-no">${index + 1}</td>
-      ${orderCell}
       <td class="c-code">${code}</td>
       <td class="c-name">${name}</td>
       <td class="c-num">${formatNumber(item.qty)}</td>
@@ -130,13 +126,11 @@ function buildItemRows(items: DeliveryStatementLine[], showOrderNumber: boolean)
     </tr>`
   })
 
-  const emptyOrder = showOrderNumber ? '<td class="c-order">&nbsp;</td>' : ''
   const padTo = Math.max(MIN_ITEM_ROW_COUNT, items.length)
   for (let i = items.length; i < padTo; i += 1) {
     rows.push(
       `<tr class="empty">
         <td class="c-no">&nbsp;</td>
-        ${emptyOrder}
         <td class="c-code">&nbsp;</td>
         <td class="c-name">&nbsp;</td>
         <td class="c-num">&nbsp;</td>
@@ -173,16 +167,9 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
   const vat = 0
   const total = supply + vat
   const roleLabel = role === 'supplier' ? '공급자용' : '공급받는자용'
-  const showOrderNumber = items.some((item) => Boolean(String(item.orderNumber || '').trim()))
-  const headOrder = showOrderNumber ? '<th class="c-order">발주번호</th>' : ''
-  const summaryColspan = showOrderNumber ? 4 : 3
 
   return `<section class="statement-copy">
   <div class="top-row">
-    <div class="date-line">
-      <span class="date-label">거래일자</span>
-      <span class="date-value">${escapeHtml(date)}</span>
-    </div>
     <div class="title-box">
       <h1 class="doc-title">거 래 명 세 서</h1>
       <span class="doc-role">(${roleLabel})</span>
@@ -202,6 +189,10 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
       <col class="lbl-sm" />
       <col class="val" />
     </colgroup>
+    <tr class="date-row">
+      <th class="party-label">거래일자</th>
+      <td colspan="9" class="party-value date-in-box">${escapeHtml(date)}</td>
+    </tr>
     <tr>
       <th rowspan="4" class="party-side">공<br/>급<br/>받<br/>는<br/>자</th>
       <th class="party-label">상호<br/>(법인명)</th>
@@ -247,7 +238,6 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
       <thead>
         <tr>
           <th class="c-no">No.</th>
-          ${headOrder}
           <th class="c-code">품목코드</th>
           <th class="c-name">품 목</th>
           <th class="c-num">수 량</th>
@@ -257,11 +247,11 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
         </tr>
       </thead>
       <tbody>
-        ${buildItemRows(items, showOrderNumber)}
+        ${buildItemRows(items)}
       </tbody>
       <tfoot>
         <tr class="summary-row">
-          <th colspan="${summaryColspan}">합계</th>
+          <th colspan="3">합계</th>
           <td class="c-num">${formatNumber(qty)}</td>
           <td class="c-num">&nbsp;</td>
           <td class="c-num">${formatNumber(supply)}</td>
@@ -329,38 +319,12 @@ body {
 }
 
 .top-row {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: end;
-  gap: 4px;
-  margin-bottom: 10px;
-  flex: 0 0 auto;
-  padding-top: 1mm;
-  padding-bottom: 0;
-}
-.date-line {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  padding-bottom: 2px;
-  justify-self: start;
-  max-width: 42mm;
-}
-.date-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #374151;
-  white-space: nowrap;
-}
-.date-value {
-  flex: 1;
-  min-width: 0;
-  font-size: 12px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  border-bottom: 1.5px solid #333;
-  padding: 0 2px 1px;
-  text-align: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  flex: 0 0 auto;
+  padding-top: 1mm;
 }
 .title-box {
   display: flex;
@@ -368,8 +332,6 @@ body {
   justify-content: center;
   gap: 6px;
   padding: 1px 0;
-  justify-self: center;
-  grid-column: 2;
 }
 .doc-title {
   margin: 0;
@@ -445,6 +407,16 @@ body {
   height: 32px;
 }
 .parties .muted { color: #9ca3af; }
+.parties .date-row th,
+.parties .date-row td {
+  height: 26px;
+}
+.parties .date-in-box {
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
 
 .items-grow {
   flex: 0 1 auto;
@@ -477,8 +449,7 @@ table.items tbody td {
 }
 table.items .c-no { width: 6%; font-variant-numeric: tabular-nums; }
 table.items .c-code { width: 16%; }
-table.items .c-order { width: 12%; font-size: 9.5px; }
-table.items .c-name { width: 28%; }
+table.items .c-name { width: 38%; }
 table.items .c-num { width: 10%; font-variant-numeric: tabular-nums; }
 table.items tbody tr.empty td {
   height: 23px;

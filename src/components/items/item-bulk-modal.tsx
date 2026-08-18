@@ -16,6 +16,7 @@ import {
 } from '@/lib/items/bulk-paste'
 import { formToItemPayload, validateItemForm, type ItemFormState } from '@/lib/items/form-state'
 import { createItems } from '@/lib/items/repository'
+import { ERP_INFO_BOX_CLASS, ERP_INFO_BOX_TEXT_CLASS, ERP_INFO_BOX_TITLE_CLASS, ERP_PASTE_TEXTAREA_CLASS } from '@/lib/ui/tokens'
 import {
   ITEM_CATEGORIES,
   ITEM_CATEGORY_LABELS,
@@ -85,7 +86,7 @@ function ItemBulkModalContent({
 
   const columns = itemBulkColumns(category)
   const inputClassName =
-    'w-full min-w-0 rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100'
+    'w-full min-w-0 rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -317,17 +318,17 @@ function ItemBulkModalContent({
             </select>
           </label>
 
-          <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-3">
-            <p className="text-sm font-medium text-blue-900">일괄 붙여넣기</p>
-            <p className="mt-1 text-xs text-blue-800">
+          <div className={ERP_INFO_BOX_CLASS}>
+            <p className={ERP_INFO_BOX_TITLE_CLASS}>일괄 붙여넣기</p>
+            <p className={ERP_INFO_BOX_TEXT_CLASS}>
               Excel에서 아래 열 순서대로 복사한 뒤, 이 칸에 붙여넣으세요.
             </p>
             {!isManualItemCodeCategory(category) ? (
-              <p className="mt-1 text-xs text-blue-700">품목코드는 비우면 자동 생성됩니다.</p>
+              <p className={ERP_INFO_BOX_TEXT_CLASS}>품목코드는 비우면 자동 생성됩니다.</p>
             ) : (
-              <p className="mt-1 text-xs text-blue-700">품목코드는 필수입니다.</p>
+              <p className={ERP_INFO_BOX_TEXT_CLASS}>품목코드는 필수입니다.</p>
             )}
-            <p className="mt-1 text-xs text-blue-700">
+            <p className={ERP_INFO_BOX_TEXT_CLASS}>
               내부 품목ID(MR-00001)는 저장 시 자동 발급됩니다.
             </p>
 
@@ -342,7 +343,7 @@ function ItemBulkModalContent({
               onPaste={handleBulkPaste}
               disabled={saving}
               placeholder={itemBulkPastePlaceholder(category)}
-              className="mt-2 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 font-mono text-xs text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
+              className={ERP_PASTE_TEXTAREA_CLASS}
             />
           </div>
 

@@ -7,6 +7,7 @@ import type { SmtPlanBlock } from '@/lib/smt/plan/types'
 import { formatCalendarDayLabel, formatWeekdayLabel } from '@/lib/smt/plan/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
+import { ERP_TABLE_HEAD_CLASS } from '@/lib/ui/tokens'
 
 type SmtPlanCalendarProps = {
   weekDates: string[]
@@ -91,11 +92,11 @@ export function SmtPlanCalendar({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-200 bg-white">
       <table className="min-w-[920px] w-full border-collapse">
-        <thead className="sticky top-0 z-10 bg-slate-50">
+        <thead className={ERP_TABLE_HEAD_CLASS}>
           <tr>
-            <th className="w-20 border-b border-r border-slate-200 px-2 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <th className="w-20 border-b border-r border-slate-200 px-2 py-3 text-left text-xs font-semibold text-slate-500">
               라인
             </th>
             {weekDates.map((date) => {
@@ -103,10 +104,10 @@ export function SmtPlanCalendar({
               return (
                 <th
                   key={date}
-                  className={`min-w-[120px] border-b border-r border-slate-200 px-2 py-2 text-center last:border-r-0 ${isToday ? 'bg-sky-50' : ''}`}
+                  className={`min-w-[120px] border-b border-r border-slate-200 px-2 py-2 text-center last:border-r-0 ${isToday ? 'bg-slate-100' : ''}`}
                 >
                   <p className="text-[11px] font-semibold text-slate-500">{formatWeekdayLabel(date)}</p>
-                  <p className={`text-sm font-bold ${isToday ? 'text-sky-700' : 'text-slate-800'}`}>
+                  <p className={`text-sm font-bold ${isToday ? 'text-slate-900' : 'text-slate-800'}`}>
                     {formatCalendarDayLabel(date)}
                   </p>
                 </th>
@@ -129,7 +130,7 @@ export function SmtPlanCalendar({
                 return (
                   <td
                     key={key}
-                    className={`min-h-[110px] cursor-pointer border-r border-slate-100 align-top p-1.5 last:border-r-0 hover:bg-sky-50/80 ${isToday ? 'bg-sky-50/40' : ''} ${isDropTarget ? 'bg-sky-100/80 ring-2 ring-inset ring-sky-300' : ''}`}
+                    className={`min-h-[110px] cursor-pointer border-r border-slate-100 align-top p-1.5 last:border-r-0 hover:bg-slate-50/80 ${isToday ? 'bg-slate-50/40' : ''} ${isDropTarget ? 'bg-slate-100/80 ring-2 ring-inset ring-slate-300' : ''}`}
                     onClick={() => onCellClick({ plannedDate, lineNo })}
                     onDragOver={(event) => handleDragOver(event, key)}
                     onDragLeave={() => setDragOverCell((current) => (current === key ? null : current))}

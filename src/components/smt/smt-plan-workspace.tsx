@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { PageShell } from '@/components/ui/page-shell'
 import { SmtPlanCalendar } from '@/components/smt/smt-plan-calendar'
 import { SmtPlanFetchError } from '@/components/smt/smt-plan-fetch-error'
 import { SmtPlanFormModal, type SmtPlanFormValues } from '@/components/smt/smt-plan-form-modal'
@@ -269,7 +268,7 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
   }
 
   return (
-    <PageShell>
+    <>
       {error ? <SmtPlanFetchError result={{ ok: false, reason: 'query', detail: error }} /> : null}
       {statusMessage ? (
         <div className="shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -277,11 +276,11 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
-          <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5">
+          <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5">
             <div className="flex flex-wrap items-baseline gap-3">
-              <span className="text-sm font-bold text-sky-800">생산1팀 · 일정 캘린더</span>
+              <span className="text-sm font-bold text-slate-800">생산1팀 · 일정 캘린더</span>
               <span className="text-sm font-semibold text-slate-700">
                 {formatWeekRangeLabel(weekStart)}
               </span>
@@ -311,7 +310,7 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
                 type="button"
                 onClick={() => changeWeek(getWeekStartMondayYmd())}
                 disabled={loading}
-                className="rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-sm font-semibold text-sky-800 hover:bg-sky-100 disabled:opacity-50"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50"
               >
                 이번 주
               </button>
@@ -383,6 +382,6 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
             : undefined
         }
       />
-    </PageShell>
+    </>
   )
 }

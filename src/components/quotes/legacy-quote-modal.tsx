@@ -38,6 +38,9 @@ import { formatQuoteKrw } from '@/lib/quotes/format'
 import {
   ERP_FIELD_INPUT_CLASS,
   ERP_FIELD_LABEL_CLASS,
+  ERP_INFO_BOX_CLASS,
+  ERP_INFO_BOX_TEXT_CLASS,
+  ERP_INFO_BOX_TITLE_CLASS,
   ERP_SECONDARY_BUTTON_CLASS,
 } from '@/lib/ui/tokens'
 
@@ -338,9 +341,9 @@ export function LegacyQuoteModal({
 
         {showTabs && createTab === 'bulk' ? (
           <div className="space-y-3">
-            <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-3">
-              <p className="text-sm font-medium text-blue-900">일괄 붙여넣기</p>
-              <p className="mt-1 text-xs text-blue-800">
+            <div className={ERP_INFO_BOX_CLASS}>
+              <p className={ERP_INFO_BOX_TITLE_CLASS}>일괄 붙여넣기</p>
+              <p className={ERP_INFO_BOX_TEXT_CLASS}>
                 Excel에서 아래 열 순서대로 복사한 뒤, 이 칸에 붙여넣으세요.
               </p>
               <ExcelPasteSampleTable

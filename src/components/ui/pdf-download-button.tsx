@@ -20,7 +20,7 @@ type PdfDownloadButtonProps = {
   menuItems?: PdfDownloadMenuItem[]
 }
 
-/** 전 페이지 공통 PDF 내보내기 — 로즈 */
+/** 전 페이지 공통 PDF 내보내기 */
 export function PdfDownloadButton({
   onDownload,
   disabled = false,
@@ -97,7 +97,7 @@ export function PdfDownloadButton({
               key={item.label}
               type="button"
               role="menuitem"
-              className="block w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-rose-50 hover:text-rose-700"
+              className="block w-full px-3 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
               onClick={() => {
                 setOpen(false)
                 item.onDownload()

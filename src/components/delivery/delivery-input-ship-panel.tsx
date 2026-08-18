@@ -252,7 +252,7 @@ export function DeliveryInputShipPanel({
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
           <div className="min-w-0">
-            <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+            <p className="text-xs font-semibold text-slate-500">
               선택 품목 · 추가
             </p>
             {order ? (

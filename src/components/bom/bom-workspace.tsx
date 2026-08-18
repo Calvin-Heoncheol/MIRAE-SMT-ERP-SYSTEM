@@ -12,7 +12,7 @@ import type { FetchBomResult } from '@/lib/bom/repository'
 import type { BomGroup, BomListRow, BomParentFilter } from '@/lib/bom/types'
 import { buildBomListRows, filterBomListRows, groupBomLines } from '@/lib/bom/utils'
 import type { FetchItemsResult } from '@/lib/items/repository'
-import { ITEM_CATEGORY_FILTER_IDLE_CLASS, ITEM_CATEGORY_LABELS } from '@/lib/items/types'
+import { ITEM_CATEGORY_LABELS } from '@/lib/items/types'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
@@ -59,13 +59,11 @@ export function BomWorkspace({ bomResult, itemsResult }: BomWorkspaceProps) {
         value: 3 as BomParentFilter,
         label: ITEM_CATEGORY_LABELS[3],
         count: parentCounts[3],
-        tone: { idleClassName: ITEM_CATEGORY_FILTER_IDLE_CLASS[3] },
       },
       {
         value: 4 as BomParentFilter,
         label: ITEM_CATEGORY_LABELS[4],
         count: parentCounts[4],
-        tone: { idleClassName: ITEM_CATEGORY_FILTER_IDLE_CLASS[4] },
       },
     ],
     [parentCounts],

@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { PageShell } from '@/components/ui/page-shell'
 import { PostProcessPlanCalendar } from '@/components/post-process/post-process-plan-calendar'
 import { PostProcessPlanFetchError } from '@/components/post-process/post-process-plan-fetch-error'
 import {
@@ -282,7 +281,7 @@ export function PostProcessPlanWorkspace({
   }
 
   return (
-    <PageShell>
+    <>
       {error ? (
         <PostProcessPlanFetchError result={{ ok: false, reason: 'query', detail: error }} />
       ) : null}
@@ -292,11 +291,11 @@ export function PostProcessPlanWorkspace({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-md">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
-          <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5">
+          <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5">
             <div className="flex flex-wrap items-baseline gap-3">
-              <span className="text-sm font-bold text-emerald-800">{selectedTeam}</span>
+              <span className="text-sm font-bold text-slate-800">{selectedTeam}</span>
               <span className="text-sm font-semibold text-slate-700">
                 {formatWeekRangeLabel(weekStart)}
               </span>
@@ -326,7 +325,7 @@ export function PostProcessPlanWorkspace({
                 type="button"
                 onClick={() => changeWeek(getWeekStartMondayYmd())}
                 disabled={loading}
-                className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50"
               >
                 이번 주
               </button>
@@ -397,6 +396,6 @@ export function PostProcessPlanWorkspace({
             : undefined
         }
       />
-    </PageShell>
+    </>
   )
 }

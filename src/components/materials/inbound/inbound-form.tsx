@@ -29,6 +29,7 @@ import {
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { Material } from '@/lib/materials/types'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
+import { ERP_DANGER_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 export type InboundFormProps = {
   mode: 'create' | 'edit'
@@ -360,7 +361,7 @@ export function InboundForm({
               type="button"
               onClick={() => void handleDelete()}
               disabled={deleting || saving}
-              className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+              className={ERP_DANGER_BUTTON_CLASS}
             >
               {deleting ? '삭제 중…' : '삭제'}
             </button>

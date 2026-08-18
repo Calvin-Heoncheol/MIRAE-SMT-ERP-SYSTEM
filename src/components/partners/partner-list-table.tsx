@@ -1,12 +1,11 @@
 'use client'
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
-
-import { ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
-
+import { ErpTableHead, ErpTableShell, ErpTableTd, ErpTableTh } from '@/components/ui/erp-table'
 import { PARTNER_TRADE_ROLE_LABELS } from '@/lib/partners/types'
 import { formatBusinessRegNo, formatPartnerPaymentTermLabel } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
+import { ERP_TABLE_ROW_CLASS } from '@/lib/ui/tokens'
 
 type PartnerListTableProps = {
   partners: BusinessPartner[]
@@ -29,65 +28,43 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
   }
 
   return (
-    <div className={ERP_TABLE_WRAP_CLASS}>
-      <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="w-full min-w-[1180px] border-collapse">
-          <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                사업자번호
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                거래처명
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                대표자명
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                업태
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                주소
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                전화
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                결제조건
-              </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                매입/매출
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {partners.map((partner) => (
-              <tr
-                key={partner.id || partner.businessRegNo}
-                onClick={() => onSelectPartner?.(partner)}
-                className={`border-t border-slate-100 hover:bg-slate-50/80 ${
-                  onSelectPartner ? 'cursor-pointer' : ''
-                }`}
-              >
-                <td className="whitespace-nowrap px-3 py-2.5 text-sm font-semibold tabular-nums text-slate-800">
-                  {formatBusinessRegNo(partner.businessRegNo) || '-'}
-                </td>
-                <td className="px-3 py-2.5 text-sm font-medium text-slate-900">{cell(partner.name)}</td>
-                <td className="px-3 py-2.5 text-sm text-slate-700">{cell(partner.representativeName)}</td>
-                <td className="px-3 py-2.5 text-sm text-slate-700">{cell(partner.businessType)}</td>
-                <td className="max-w-[280px] px-3 py-2.5 text-sm text-slate-700">{cell(partner.address)}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">{cell(partner.phone)}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
-                  {cell(formatPartnerPaymentTermLabel(partner))}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm font-medium text-slate-700">
-                  {PARTNER_TRADE_ROLE_LABELS[partner.tradeRole]}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <ErpTableShell tableClassName="min-w-[1180px]">
+      <ErpTableHead>
+        <tr>
+          <ErpTableTh>사업자번호</ErpTableTh>
+          <ErpTableTh>거래처명</ErpTableTh>
+          <ErpTableTh>대표자명</ErpTableTh>
+          <ErpTableTh>업태</ErpTableTh>
+          <ErpTableTh>주소</ErpTableTh>
+          <ErpTableTh>전화</ErpTableTh>
+          <ErpTableTh>결제조건</ErpTableTh>
+          <ErpTableTh align="center">매입/매출</ErpTableTh>
+        </tr>
+      </ErpTableHead>
+      <tbody>
+        {partners.map((partner) => (
+          <tr
+            key={partner.id || partner.businessRegNo}
+            onClick={() => onSelectPartner?.(partner)}
+            className={`${ERP_TABLE_ROW_CLASS} ${onSelectPartner ? 'cursor-pointer' : ''}`}
+          >
+            <ErpTableTd className="font-semibold text-slate-800">
+              {formatBusinessRegNo(partner.businessRegNo) || '-'}
+            </ErpTableTd>
+            <ErpTableTd className="font-medium text-slate-900">{cell(partner.name)}</ErpTableTd>
+            <ErpTableTd className="text-slate-700">{cell(partner.representativeName)}</ErpTableTd>
+            <ErpTableTd className="text-slate-700">{cell(partner.businessType)}</ErpTableTd>
+            <ErpTableTd text="wrap" className="max-w-[280px] text-slate-700">
+              {cell(partner.address)}
+            </ErpTableTd>
+            <ErpTableTd className="text-slate-700">{cell(partner.phone)}</ErpTableTd>
+            <ErpTableTd className="text-slate-700">{cell(formatPartnerPaymentTermLabel(partner))}</ErpTableTd>
+            <ErpTableTd align="center" className="font-medium text-slate-700">
+              {PARTNER_TRADE_ROLE_LABELS[partner.tradeRole]}
+            </ErpTableTd>
+          </tr>
+        ))}
+      </tbody>
+    </ErpTableShell>
   )
 }

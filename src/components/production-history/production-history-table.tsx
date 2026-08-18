@@ -46,41 +46,41 @@ export function ProductionHistoryTable({
         >
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 기록일
               </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 팀
               </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 발주ID
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 고객사
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 제품명
               </th>
               {showSmtColumns ? (
                 <>
-                  <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                  <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
                     라인
                   </th>
-                  <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                  <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
                     면구분
                   </th>
                 </>
               ) : null}
-              <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                 양품
               </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                 불량
               </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 등록자
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 비고
               </th>
             </tr>

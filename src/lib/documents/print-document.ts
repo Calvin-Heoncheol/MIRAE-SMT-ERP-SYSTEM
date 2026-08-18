@@ -441,7 +441,7 @@ function createPrintCheckboxOption(checked: boolean, text: string) {
   const box = document.createElement('span')
   box.className = [
     'document-print-check-box inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] font-bold leading-none',
-    checked ? 'is-checked border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white',
+    checked ? 'is-checked border-slate-800 bg-slate-800 text-white' : 'border-slate-300 bg-white',
   ].join(' ')
   box.textContent = checked ? '✓' : ''
 
@@ -459,7 +459,7 @@ function createPrintRadioOption(checked: boolean, text: string) {
   const dot = document.createElement('span')
   dot.className = [
     'document-print-radio-dot inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px]',
-    checked ? 'is-checked border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white',
+    checked ? 'is-checked border-slate-800 bg-slate-800 text-white' : 'border-slate-300 bg-white',
   ].join(' ')
   dot.textContent = checked ? '●' : ''
 

@@ -15,7 +15,6 @@ import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import {
   APPROVAL_CATEGORIES,
-  APPROVAL_CATEGORY_FILTER_IDLE_CLASS,
   getApprovalCategoryLabel,
   type ApprovalCategory,
 } from '@/lib/approvals/categories'
@@ -113,17 +112,14 @@ export function ApprovalsWorkspace({ category, result }: ApprovalsWorkspaceProps
             <div className="flex flex-wrap gap-1.5">
               {APPROVAL_CATEGORIES.map((item) => {
                 const active = pathname === item.href
-                const tone = {
-                  idleClassName: APPROVAL_CATEGORY_FILTER_IDLE_CLASS[item.slug],
-                }
                 return (
                   <Link
                     key={item.slug}
                     href={item.href}
-                    className={filterChipClassName(active, tone)}
+                    className={filterChipClassName(active)}
                   >
                     <span>{item.shortLabel}</span>
-                    <span className={`tabular-nums ${filterChipCountClassName(active, tone)}`}>
+                    <span className={`tabular-nums ${filterChipCountClassName(active)}`}>
                       {categoryCounts[item.slug].toLocaleString('ko-KR')}
                     </span>
                   </Link>

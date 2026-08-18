@@ -2,6 +2,7 @@ export type MaterialLabelPrintItem = {
   id: string
   materialName: string
   mpn: string
+  lotNumber?: string
   /** 라벨 매수 (기본 1) */
   copies?: number
 }
@@ -11,6 +12,8 @@ export type PrintMaterialLabelsOptions = {
   /** 라벨 한 장 크기 (mm) — 기본 40×30 */
   widthMm?: number
   heightMm?: number
+  /** true면 창을 연 뒤 인쇄 대화상자를 바로 연다 */
+  autoPrint?: boolean
 }
 
 function escapeHtml(value: string) {
@@ -28,7 +31,7 @@ function truncateText(value: string, maxLength: number) {
 }
 
 function buildLabelHtml(items: MaterialLabelPrintItem[]) {
-  const labels: { id: string; name: string; mpn: string }[] = []
+  const labels: { id: string; name: string; mpn: string; lot: string }[] = []
 
   for (const item of items) {
     const copies = Math.max(1, Math.floor(Number(item.copies) || 1))
@@ -37,9 +40,10 @@ function buildLabelHtml(items: MaterialLabelPrintItem[]) {
 
     const name = truncateText(item.materialName, 22)
     const mpn = truncateText(item.mpn, 28)
+    const lot = truncateText(item.lotNumber || '', 20)
 
     for (let index = 0; index < copies; index += 1) {
-      labels.push({ id, name, mpn })
+      labels.push({ id, name, mpn, lot })
     }
   }
 
@@ -49,6 +53,7 @@ function buildLabelHtml(items: MaterialLabelPrintItem[]) {
     <section class="label" data-index="${index}">
       <svg class="barcode" data-code="${escapeHtml(label.id)}"></svg>
       <p class="label-id">${escapeHtml(label.id)}</p>
+      ${label.lot ? `<p class="label-lot">${escapeHtml(label.lot)}</p>` : ''}
       ${label.name ? `<p class="label-name">${escapeHtml(label.name)}</p>` : ''}
       ${label.mpn ? `<p class="label-mpn">${escapeHtml(label.mpn)}</p>` : ''}
     </section>`,
@@ -129,6 +134,15 @@ function buildPrintHtml(
       text-align: center;
       word-break: break-all;
     }
+    .label-lot {
+      width: 100%;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 7.5pt;
+      font-weight: 800;
+      line-height: 1.1;
+      text-align: center;
+      color: #111;
+    }
     .label-name {
       width: 100%;
       font-size: 6.5pt;
@@ -202,6 +216,7 @@ function buildPrintHtml(
       });
       window.setTimeout(function () {
         if (window.opener) window.focus();
+        ${options.autoPrint ? 'window.print();' : ''}
       }, 300);
     })();
   <\/script>
@@ -232,4 +247,12 @@ export function printMaterialLabels(
   printWindow.document.open()
   printWindow.document.write(html)
   printWindow.document.close()
+}
+
+/** 입고 스캔 직후 해당 릴 라벨 1장 */
+export function printInboundReelLabel(item: MaterialLabelPrintItem) {
+  printMaterialLabels([{ ...item, copies: 1 }], {
+    autoPrint: true,
+    title: item.lotNumber ? `라벨 ${item.lotNumber}` : '자재 바코드 라벨',
+  })
 }

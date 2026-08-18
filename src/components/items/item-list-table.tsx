@@ -2,7 +2,12 @@
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { ERP_TABLE_SCROLL_CLASS, ERP_TABLE_TD_WRAP_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import {
+  ERP_TABLE_HEAD_CLASS,
+  ERP_TABLE_SCROLL_CLASS,
+  ERP_TABLE_TD_WRAP_CLASS,
+  ERP_TABLE_WRAP_CLASS,
+} from '@/lib/ui/tokens'
 import { type Item, type ItemCategory, isProductItemCategory } from '@/lib/items/types'
 import {
   displayItemUnitPrice,
@@ -99,7 +104,7 @@ export function ItemListTable({
             ) : null}
             <col className="w-[88px]" />
           </colgroup>
-          <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               <th className="px-3 py-2.5 text-left">고객사명</th>
               <th className="px-3 py-2.5 text-left">품목코드</th>

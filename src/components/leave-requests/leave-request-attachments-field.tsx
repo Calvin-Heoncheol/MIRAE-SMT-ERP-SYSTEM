@@ -98,7 +98,7 @@ export function LeaveRequestAttachmentsField({
                     href={getLeaveRequestAttachmentPublicUrl(file.path)}
                     target="_blank"
                     rel="noreferrer"
-                    className="block truncate text-sm font-medium text-blue-700 hover:underline"
+                    className="block truncate text-sm font-medium text-slate-800 hover:underline"
                   >
                     {file.name}
                   </a>

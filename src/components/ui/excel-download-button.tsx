@@ -8,7 +8,7 @@ type ExcelDownloadButtonProps = {
   disabled?: boolean
 }
 
-/** 전 페이지 공통 Excel 내보내기 — 초록 */
+/** 전 페이지 공통 Excel 내보내기 */
 export function ExcelDownloadButton({ onDownload, disabled = false }: ExcelDownloadButtonProps) {
   const [busy, setBusy] = useState(false)
 

@@ -106,7 +106,7 @@ export function SmtPlanOrderSidebar({
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="발주ID, 고객사, 제품명 검색…"
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
         />
       </div>
 
@@ -141,7 +141,7 @@ export function SmtPlanOrderSidebar({
                 className={[
                   'shrink-0 cursor-grab rounded-xl bg-white px-3 py-2 text-left transition active:cursor-grabbing',
                   selected
-                    ? 'border-2 border-sky-500 bg-sky-50 shadow-md ring-2 ring-sky-200'
+                    ? 'border-2 border-slate-500 bg-slate-50 shadow-md ring-2 ring-slate-200'
                     : [
                         'border border-slate-200 border-l-4 hover:border-slate-300 hover:shadow-sm',
                         urgencyBorderClass(candidate.daysUntilDelivery),
@@ -197,7 +197,7 @@ export function SmtPlanOrderSidebar({
                       event.stopPropagation()
                       onQuickBatch(candidate.orderLineId)
                     }}
-                    className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-sky-700 px-2.5 py-1.5 text-[12px] font-bold text-white hover:bg-sky-800"
+                    className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-slate-800 px-2.5 py-1.5 text-[12px] font-bold text-white hover:bg-slate-900"
                   >
                     이번 차 등록
                     {readyUnits > 0 && readyUnits < candidate.unplannedRemaining

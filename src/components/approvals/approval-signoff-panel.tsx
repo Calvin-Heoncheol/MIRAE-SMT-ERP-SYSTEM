@@ -103,7 +103,7 @@ export function ApprovalSignoffPanel({
                               disabled={signing}
                               onClick={() => handleToggle(item.role)}
                               className={[
-                                'no-print inline-flex items-center justify-center rounded border-2 border-blue-600 bg-blue-600 font-bold text-white hover:border-blue-700 hover:bg-blue-700 disabled:opacity-60',
+                                'no-print inline-flex items-center justify-center rounded border-2 border-slate-800 bg-slate-800 font-bold text-white hover:border-slate-900 hover:bg-slate-900 disabled:opacity-60',
                                 boxSize,
                               ].join(' ')}
                               aria-label={`${item.label} 결재 취소`}
@@ -114,7 +114,7 @@ export function ApprovalSignoffPanel({
                           ) : null}
                           <span
                             className={[
-                              'items-center justify-center rounded border-2 border-blue-600 bg-blue-600 font-bold text-white',
+                              'items-center justify-center rounded border-2 border-slate-800 bg-slate-800 font-bold text-white',
                               boxSize,
                               canRevoke ? 'hidden print:inline-flex' : 'inline-flex',
                             ].join(' ')}
@@ -140,7 +140,7 @@ export function ApprovalSignoffPanel({
                             disabled={signing}
                             onClick={() => handleToggle(item.role)}
                             className={[
-                              'no-print inline-flex items-center justify-center rounded border-2 border-slate-300 bg-white hover:border-blue-500 disabled:opacity-60',
+                              'no-print inline-flex items-center justify-center rounded border-2 border-slate-300 bg-white hover:border-slate-500 disabled:opacity-60',
                               boxSize,
                             ].join(' ')}
                             aria-label={`${item.label} 결재`}

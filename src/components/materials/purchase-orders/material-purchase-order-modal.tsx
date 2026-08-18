@@ -38,7 +38,7 @@ import type { BomEdge } from '@/lib/materials/outbound/types'
 import { fetchMaterials } from '@/lib/materials/repository'
 import type { Material } from '@/lib/materials/types'
 import { resolveMaterialByInventoryCode } from '@/lib/materials/utils'
-import { ERP_PRIMARY_BUTTON_CLASS, ERP_SECONDARY_BUTTON_CLASS } from '@/lib/ui/tokens'
+import { ERP_DANGER_BUTTON_CLASS, ERP_PRIMARY_BUTTON_CLASS, ERP_SECONDARY_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 type MaterialPurchaseOrderModalProps = {
   open: boolean
@@ -438,7 +438,7 @@ function MaterialPurchaseOrderModalContent({
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting || saving}
-                className="inline-flex items-center rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className={ERP_DANGER_BUTTON_CLASS}
               >
                 {deleting ? '삭제 중...' : '삭제'}
               </button>

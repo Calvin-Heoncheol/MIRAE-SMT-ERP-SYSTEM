@@ -158,6 +158,17 @@ export function canAccessPath(
 
   if (!profile) return false
 
+  if (pathname.startsWith('/post-process') && !searchParams?.get('team')) {
+    const modules = getAllowedModules(profile)
+    if (
+      modules.includes('production_post_2') ||
+      modules.includes('production_post_3') ||
+      modules.includes('production_post_4')
+    ) {
+      return true
+    }
+  }
+
   const accessModule = resolveAccessModule(pathname, searchParams)
   // 매핑 안 된 경로·관리자 전용 모듈은 admin만
   if (!accessModule) return profile.role === 'admin'

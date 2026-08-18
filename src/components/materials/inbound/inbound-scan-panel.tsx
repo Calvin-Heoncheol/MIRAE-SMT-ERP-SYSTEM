@@ -17,6 +17,7 @@ import {
   SCAN_DEDUP_MESSAGE,
 } from '@/lib/materials/inbound/scan-guards'
 import { createMaterialInbound } from '@/lib/materials/inbound/repository'
+import { printInboundReelLabel } from '@/lib/materials/print-material-labels'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
 import type { Material, MaterialSupplyType, MaterialType } from '@/lib/materials/types'
 import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
@@ -127,6 +128,7 @@ export function InboundScanPanel({
   const [scanPulse, setScanPulse] = useState<{ kind: 'success' | 'error'; token: number } | null>(
     null,
   )
+  const [printOnScan, setPrintOnScan] = useState(true)
 
   const scanInputRef = useRef<HTMLInputElement>(null)
   const tableScrollRef = useRef<HTMLDivElement>(null)
@@ -269,6 +271,14 @@ export function InboundScanPanel({
         : `LOT ${lotNumber}`,
     })
     markJustScanned(key)
+    if (printOnScan) {
+      printInboundReelLabel({
+        id: displayCode || material.id,
+        materialName: material.materialName,
+        mpn: material.mpn,
+        lotNumber,
+      })
+    }
   }
 
   function handleScan(rawCode: string) {
@@ -513,6 +523,7 @@ export function InboundScanPanel({
     id: line.materialCode || line.materialId,
     materialName: line.materialName,
     mpn: line.mpn,
+    lotNumber: line.lotNumber,
     copies: Math.max(1, Number(line.reelCount) || 1),
   }))
 
@@ -530,6 +541,7 @@ export function InboundScanPanel({
                 스캔 후 수량을 입력하고 Enter 하면 다음 바코드를 찍을 수 있습니다. 릴마다 LOT가 생깁니다.
               </p>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
             <span
               className={[
                 'rounded-full px-2.5 py-1 text-xs font-semibold',
@@ -546,6 +558,16 @@ export function InboundScanPanel({
                   ? '인식됨'
                   : '스캔 대기'}
             </span>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+              <input
+                type="checkbox"
+                checked={printOnScan}
+                onChange={(event) => setPrintOnScan(event.target.checked)}
+                className="h-3.5 w-3.5 rounded border-slate-300"
+              />
+              스캔 시 라벨
+            </label>
+            </div>
           </div>
           <label className="block">
             <span className="sr-only">바코드 스캔</span>
@@ -564,7 +586,7 @@ export function InboundScanPanel({
                 placeholder="릴 바코드 스캔 또는 품목코드·MPN 입력 후 Enter"
                 autoFocus
                 className={[
-                  'h-12 w-full rounded-xl border bg-white px-3 font-mono text-sm outline-none transition',
+                  'h-14 w-full rounded-xl border bg-white px-3 font-mono text-base outline-none transition',
                   scanPulse?.kind === 'error'
                     ? 'border-rose-400 focus:border-rose-500'
                     : scanPulse?.kind === 'success'

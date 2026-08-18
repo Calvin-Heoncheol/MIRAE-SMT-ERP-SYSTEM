@@ -2,7 +2,7 @@
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
 
-import { ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_SCROLL_CLASS, ERP_TABLE_TH_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 import { CategoryBadge } from '@/components/ui/category-badge'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -119,12 +119,12 @@ export function BomListTable({ rows, emptyMessage, onSelectRow }: BomListTablePr
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
         <table className="w-full min-w-[640px] border-collapse">
-          <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               {BOM_LIST_COLUMNS.map((column) => (
                 <th
                   key={column.key}
-                  className={`px-3 py-2.5 text-xs font-semibold tracking-wide text-slate-500 uppercase ${ALIGN_CLASS[column.align]}`}
+                  className={`${ERP_TABLE_TH_CLASS} ${ALIGN_CLASS[column.align]}`}
                 >
                   {column.label}
                 </th>

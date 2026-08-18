@@ -144,7 +144,7 @@ function PostProcessPlanFormModalInner({
                   return { ...current, plannedDate, plannedEndDate }
                 })
               }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
               required
             />
           </label>
@@ -157,7 +157,7 @@ function PostProcessPlanFormModalInner({
               onChange={(event) =>
                 setValues((current) => ({ ...current, plannedEndDate: event.target.value }))
               }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
               required
             />
           </label>
@@ -173,7 +173,7 @@ function PostProcessPlanFormModalInner({
                 planStatus: event.target.value === 'draft' ? 'draft' : 'confirmed',
               }))
             }
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
           >
             <option value="draft">가계획</option>
             <option value="confirmed">확정</option>
@@ -193,7 +193,7 @@ function PostProcessPlanFormModalInner({
                 plannedQuantity: Math.max(1, Math.floor(Number(event.target.value) || 1)),
               }))
             }
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
             required
           />
           {sideMax != null ? (
@@ -210,7 +210,7 @@ function PostProcessPlanFormModalInner({
             value={values.note}
             onChange={(event) => setValues((current) => ({ ...current, note: event.target.value }))}
             placeholder="선택 입력"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
           />
         </label>
       </form>
@@ -256,7 +256,7 @@ export function PostProcessPlanFormModal({
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-600">발주서 / 품목</span>
             <select
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
               defaultValue=""
               onChange={(event) => {
                 const candidate = unplanned.find(

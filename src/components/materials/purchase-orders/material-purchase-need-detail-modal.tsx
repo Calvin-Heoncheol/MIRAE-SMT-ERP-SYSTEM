@@ -5,7 +5,7 @@ import { EmptyListState } from '@/components/ui/empty-list-state'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { MaterialPurchaseNeedCard } from '@/lib/materials/purchase-orders/types'
-import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_DANGER_BUTTON_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type MaterialPurchaseNeedDetailModalProps = {
   open: boolean
@@ -108,7 +108,7 @@ export function MaterialPurchaseNeedDetailModal({
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3.5 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className={ERP_DANGER_BUTTON_CLASS}
               >
                 {deleting ? '삭제 중…' : '삭제'}
               </button>
@@ -153,28 +153,28 @@ export function MaterialPurchaseNeedDetailModal({
                 </colgroup>
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                       상태
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                       자재코드
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                       자재명
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                       규격
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                       공급사
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                       소요
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                       현재고
                     </th>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                       부족
                     </th>
                   </tr>

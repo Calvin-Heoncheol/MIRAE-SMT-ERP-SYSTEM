@@ -27,7 +27,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-gradient-to-br from-slate-100 via-white to-sky-50 px-4 py-10">
+    <div className="flex min-h-dvh items-center justify-center bg-slate-100 px-4 py-10">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="mb-6 flex items-center gap-3">
           <span className="relative h-10 w-[5.25rem] shrink-0">

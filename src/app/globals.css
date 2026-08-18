@@ -1,10 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --erp-accent: #2563eb;
-  --erp-accent-light: #3b82f6;
-  --erp-bg-start: #e2e8f0;
-  --erp-bg-mid: #cbd5e0;
+  --erp-accent: #334155;
+  --erp-accent-light: #475569;
+  --erp-bg: #f1f5f9;
   --erp-surface: #ffffff;
   --erp-border: #e2e8f0;
   --erp-text: #1a202c;
@@ -20,7 +19,7 @@
 }
 
 body {
-  background: linear-gradient(135deg, var(--erp-bg-start) 0%, var(--erp-bg-mid) 50%, var(--erp-bg-start) 100%);
+  background: var(--erp-bg);
   color: var(--erp-text);
   font-family: var(--font-sans);
   line-height: 1.55;
@@ -31,9 +30,6 @@ body {
   background: var(--erp-surface);
   border: 1px solid var(--erp-border);
   border-radius: 16px;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.05),
-    0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
 /* 문서 시트: 본문 + 하단 로고 */
@@ -271,8 +267,8 @@ body {
 
   body.document-printing #document-print-root .document-print-check-box.is-checked,
   body.document-printing #document-print-root .document-print-radio-dot.is-checked {
-    border-color: #2563eb !important;
-    background: #2563eb !important;
+    border-color: #1e293b !important;
+    background: #1e293b !important;
     color: #fff !important;
   }
 
@@ -505,9 +501,9 @@ body {
     gap: 12px !important;
     margin-top: 12px !important;
     padding: 14px 18px !important;
-    border: 2px solid #1d4ed8 !important;
+    border: 2px solid #334155 !important;
     border-radius: 6px !important;
-    background: linear-gradient(to right, #eff6ff, #fff) !important;
+    background: #f8fafc !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }

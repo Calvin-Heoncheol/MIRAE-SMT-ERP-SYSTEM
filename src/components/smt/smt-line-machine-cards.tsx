@@ -21,9 +21,9 @@ type SmtLineMachineCardsProps = {
 
 /** 심플 SMT 라인 아이콘 — 본체 + 레일만 */
 function SmtLineGlyph({ active }: { active: boolean }) {
-  const stroke = active ? '#0284c7' : '#94a3b8'
-  const fill = active ? '#e0f2fe' : '#f8fafc'
-  const rail = active ? '#38bdf8' : '#cbd5e1'
+  const stroke = active ? '#334155' : '#94a3b8'
+  const fill = active ? '#f1f5f9' : '#f8fafc'
+  const rail = active ? '#64748b' : '#cbd5e1'
 
   return (
     <svg viewBox="0 0 96 36" className="mx-auto h-8 w-full max-w-[5.5rem]" aria-hidden="true">
@@ -36,7 +36,7 @@ function SmtLineGlyph({ active }: { active: boolean }) {
 }
 
 function cardSurfaceClass(selected: boolean, planStatus: SmtInputLinePlanStatus) {
-  if (selected) return 'border-sky-500 bg-sky-50 shadow-md ring-2 ring-sky-200'
+  if (selected) return 'border-slate-500 bg-slate-50 shadow-md ring-2 ring-slate-200'
   if (planStatus === 'done') return 'border-emerald-300 bg-emerald-50/80 hover:border-emerald-400 hover:shadow-sm'
   if (planStatus === 'progress') return 'border-amber-300 bg-amber-50/70 hover:border-amber-400 hover:shadow-sm'
   if (planStatus === 'ready') return 'border-cyan-200 bg-white hover:border-sky-300 hover:shadow-sm'
@@ -46,12 +46,13 @@ function cardSurfaceClass(selected: boolean, planStatus: SmtInputLinePlanStatus)
 function topBarClass(selected: boolean, planStatus: SmtInputLinePlanStatus) {
   if (planStatus === 'done') return 'bg-gradient-to-r from-emerald-400 to-emerald-600'
   if (planStatus === 'progress') return 'bg-gradient-to-r from-amber-400 to-orange-500'
-  if (selected || planStatus === 'ready') return 'bg-gradient-to-r from-cyan-400 to-sky-500'
+  if (selected) return 'bg-gradient-to-r from-slate-500 to-slate-700'
+  if (planStatus === 'ready') return 'bg-gradient-to-r from-cyan-400 to-sky-500'
   return 'bg-gradient-to-r from-slate-300 to-slate-400'
 }
 
 function badgeClass(selected: boolean, planStatus: SmtInputLinePlanStatus) {
-  if (selected) return 'bg-sky-100 text-sky-800 ring-sky-200'
+  if (selected) return 'bg-slate-100 text-slate-800 ring-slate-200'
   if (planStatus === 'done') return 'bg-emerald-100 text-emerald-800 ring-emerald-200'
   if (planStatus === 'progress') return 'bg-amber-100 text-amber-800 ring-amber-200'
   if (planStatus === 'ready') return 'bg-sky-50 text-sky-700 ring-sky-100'

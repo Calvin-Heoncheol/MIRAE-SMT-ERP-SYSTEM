@@ -119,7 +119,7 @@ function TabLink({
         className={[
           'rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors',
           active
-            ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
+            ? 'bg-slate-100 text-slate-900 shadow-sm ring-1 ring-slate-200'
             : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
         ].join(' ')}
         aria-current={active ? 'page' : undefined}
@@ -141,7 +141,7 @@ function TabLink({
         className={[
           'inline-flex items-center gap-1 rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors',
           active || open
-            ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
+            ? 'bg-slate-100 text-slate-900 shadow-sm ring-1 ring-slate-200'
             : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
         ].join(' ')}
         aria-haspopup="menu"
@@ -174,7 +174,7 @@ function TabLink({
                 className={[
                   'block px-3.5 py-2 text-sm font-semibold transition-colors',
                   itemActive
-                    ? 'bg-blue-50 text-blue-700'
+                    ? 'bg-slate-100 text-slate-900'
                     : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900',
                 ].join(' ')}
                 aria-current={itemActive ? 'page' : undefined}

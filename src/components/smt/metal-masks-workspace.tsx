@@ -18,7 +18,7 @@ import {
 } from '@/lib/metal-masks/types'
 import { isMetalMaskNearLimit, metalMaskRemaining } from '@/lib/metal-masks/utils'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
-import { ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type MetalMasksWorkspaceProps = {
   result: FetchMetalMasksResult
@@ -354,7 +354,7 @@ export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWor
         <div className={ERP_TABLE_WRAP_CLASS}>
           <div className={ERP_TABLE_SCROLL_CLASS}>
             <table className="min-w-full border-collapse text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <thead className={ERP_TABLE_HEAD_CLASS}>
                 <tr>
                   <th className="px-3 py-2.5">바코드</th>
                   <th className="px-3 py-2.5">면</th>

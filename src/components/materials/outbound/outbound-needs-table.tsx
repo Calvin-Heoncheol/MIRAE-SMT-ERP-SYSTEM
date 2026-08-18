@@ -149,9 +149,9 @@ function OutboundBucketAction({
           </div>
         </div>
         {maxQty < 1 ? (
-          <StatusBadge label="재고부족" className="bg-rose-100 text-rose-800" />
+          <StatusBadge label="재고부족" tone="danger" />
         ) : (
-          <StatusBadge label="불출가능" className="bg-emerald-100 text-emerald-800" />
+          <StatusBadge label="불출가능" tone="success" />
         )}
       </div>
 

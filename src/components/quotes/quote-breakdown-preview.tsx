@@ -248,7 +248,7 @@ export function QuoteBreakdownPreview({
         </div>
         <div className="text-right">
           <h3 className="text-xl font-light tracking-[0.2em] lg:text-2xl lg:tracking-[0.28em]">{previewLabels.title}</h3>
-          <p className="mt-1 text-xs font-semibold tracking-wide text-blue-300 lg:text-sm">{result?.estNo || '-'}</p>
+          <p className="mt-1 text-xs font-semibold tracking-wide text-slate-300 lg:text-sm">{result?.estNo || '-'}</p>
         </div>
       </div>
 
@@ -291,7 +291,7 @@ export function QuoteBreakdownPreview({
             </div>
             <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
               <dt className="text-slate-500">E-mail</dt>
-              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold text-blue-700`}>
+              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold text-slate-800`}>
                 {supplierEmail}
               </dd>
             </div>
@@ -349,7 +349,7 @@ export function QuoteBreakdownPreview({
         </div>
         <div className="flex items-center justify-between text-base">
           <span className="font-bold text-slate-900">{previewLabels.grandTotalVat}</span>
-          <span className="font-bold text-blue-700">
+          <span className="font-bold text-slate-800">
             {previewSummary ? previewSummary.totalFormatted : formatAmount(0, quoteType, displayCurrency)}
           </span>
         </div>

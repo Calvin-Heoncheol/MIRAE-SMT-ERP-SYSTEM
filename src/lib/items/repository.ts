@@ -7,7 +7,7 @@ import {
   buildItemChangeTitle,
 } from '@/lib/change-logs/utils'
 import type { Item, ItemPayload, UpdateItemPayload } from './types'
-import { isManualItemCodeCategory, isRawMaterialItemCategory } from './types'
+import { isManualItemCodeCategory, isRawMaterialItemCategory, isFinishedItemCategory } from './types'
 import {
   mapItemRecord,
   normalizeItemCategory,
@@ -702,7 +702,12 @@ export async function updateItem(
       }
     }
 
-    const { error } = await supabase.from('items').update(toItemUpdateRow(payload)).eq('id', key)
+    const updatePayload =
+      beforeItem && isFinishedItemCategory(payload.itemCategory)
+        ? { ...payload, unitPrice: beforeItem.unitPrice }
+        : payload
+
+    const { error } = await supabase.from('items').update(toItemUpdateRow(updatePayload)).eq('id', key)
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }
@@ -721,8 +726,8 @@ export async function updateItem(
           otherUnitPrice: beforeItem.otherUnitPrice,
         },
         after: {
-          name: payload.name,
-          unitPrice: payload.unitPrice,
+          name: updatePayload.name,
+          unitPrice: updatePayload.unitPrice,
           smdUnitPrice: beforeItem.smdUnitPrice,
           dipUnitPrice: beforeItem.dipUnitPrice,
           materialUnitPrice: beforeItem.materialUnitPrice,

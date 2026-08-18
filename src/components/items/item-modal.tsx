@@ -33,13 +33,14 @@ import {
   isProductItemCategory,
   isRawMaterialItemCategory,
   isSemiFinishedItemCategory,
+  isFinishedItemCategory,
   type Item,
   type ItemCategory,
   type ItemMaterialType,
   type ItemProcessType,
   type ItemSupplyType,
 } from '@/lib/items/types'
-import { nextItemCodeForCategory, itemFromPayload } from '@/lib/items/utils'
+import { nextItemCodeForCategory, itemFromPayload, displayItemUnitPrice, formatItemUnitPrice } from '@/lib/items/utils'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
@@ -228,7 +229,9 @@ function ItemModalContent({
     form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
   const showPcbSideModeField = showProductProcessTypeField
   const showProductUnitPriceField =
-    form.itemCategory !== '' && isProductItemCategory(form.itemCategory)
+    form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
+  const showFinishedProductUnitPriceInfo =
+    form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)
   const showVersionField =
     form.itemCategory !== '' && isProductItemCategory(form.itemCategory)
 
@@ -602,6 +605,23 @@ function ItemModalContent({
               양면만 TOP/BOT를 나눠 생산합니다. 단면·더블은 한 면으로 등록합니다.
             </p>
           </label>
+        ) : null}
+        {showFinishedProductUnitPriceInfo ? (
+          <div className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>기본 단가</span>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+              {!isCreate && item && displayItemUnitPrice(item) > 0 ? (
+                <p className="font-medium text-slate-800">
+                  {formatItemUnitPrice(displayItemUnitPrice(item))}원
+                </p>
+              ) : (
+                <p className="text-slate-500">BOM 등록 후 자동 계산</p>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              조립제품 단가는 BOM 등록에서 구성 반제품 단가 합으로 자동 반영됩니다.
+            </p>
+          </div>
         ) : null}
         {showProductUnitPriceField ? (
           <label className="block text-sm">

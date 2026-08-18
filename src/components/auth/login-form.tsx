@@ -25,7 +25,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
           required
           autoFocus
           placeholder="name@company.com"
-          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
         />
       </label>
 
@@ -37,7 +37,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
           autoComplete="current-password"
           required
           placeholder="비밀번호"
-          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
         />
       </label>
 

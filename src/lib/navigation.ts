@@ -62,35 +62,11 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { label: '생산현황', href: '/production/status' },
       { label: '생산이력', href: '/production/history' },
-      {
-        label: '생산1: SMT',
-        href: '/smt/input',
-        children: [
-          { label: '생산등록', href: '/smt/input' },
-          { label: '메탈마스크&스퀴즈', href: '/smt/metal-masks' },
-        ],
-      },
-      {
-        label: '생산2: 후공정',
-        href: '/post-process/input?team=생산2팀',
-        children: [
-          { label: '생산등록', href: '/post-process/input?team=생산2팀' },
-        ],
-      },
-      {
-        label: '생산3: 후공정',
-        href: '/post-process/input?team=생산3팀',
-        children: [
-          { label: '생산등록', href: '/post-process/input?team=생산3팀' },
-        ],
-      },
-      {
-        label: '생산4: 후공정',
-        href: '/post-process/input?team=생산4팀',
-        children: [
-          { label: '생산등록', href: '/post-process/input?team=생산4팀' },
-        ],
-      },
+      { label: '생산계획', href: '/production/plan' },
+      { label: '생산리포트', href: '/reports/production' },
+      { label: 'SMT 생산등록', href: '/smt/input' },
+      { label: '후공정 생산등록', href: '/post-process/input' },
+      { label: '메탈마스크&스퀴즈', href: '/smt/metal-masks' },
     ],
   },
   {
@@ -98,6 +74,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/materials/inventory',
     children: [
       { label: '재고현황', href: '/materials/inventory' },
+      { label: '제품재고', href: '/materials/product-inventory' },
       { label: '구매발주', href: '/materials/purchase-orders' },
       { label: '입고', href: '/materials/inbound' },
       { label: '입고이력', href: '/materials/inbound/history' },

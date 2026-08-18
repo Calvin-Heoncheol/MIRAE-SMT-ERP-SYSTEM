@@ -182,7 +182,7 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     supplier: form.supplier.trim(),
     pcbSideMode: isSemiFinishedItemCategory(itemCategory) ? form.pcbSideMode || 'single' : '',
     processType: isProduct ? form.processType : '',
-    unitPrice: isProduct ? money(form.unitPrice) : 0,
+    unitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.unitPrice) : 0,
     smdUnitPrice: 0,
     dipUnitPrice: 0,
     materialUnitPrice: 0,

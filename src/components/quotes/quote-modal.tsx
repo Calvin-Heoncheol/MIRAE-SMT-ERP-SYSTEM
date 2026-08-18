@@ -66,7 +66,7 @@ import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
 import { formatProductOptionLabel } from '@/lib/products/utils'
-import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
+import { ERP_DANGER_BUTTON_CLASS, ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
 
 type QuoteModalProps = {
   open: boolean
@@ -639,7 +639,7 @@ function QuoteModalContent({
                     type="button"
                     onClick={() => void handleDelete()}
                     disabled={busy}
-                    className="inline-flex items-center rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    className={ERP_DANGER_BUTTON_CLASS}
                   >
                     {deleting ? '삭제 중...' : '삭제'}
                   </button>

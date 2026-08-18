@@ -12,15 +12,13 @@ function PageLocationHeaderInner() {
   if (!crumb) return null
 
   return (
-    <section className="shrink-0 rounded-xl border border-slate-200 border-l-4 border-l-slate-700 bg-slate-50 px-4 py-3 shadow-sm">
-      <p className="text-sm font-semibold tracking-tight text-slate-900">
-        <span className="text-slate-500">{crumb.section}</span>
-        <span className="mx-2 font-medium text-slate-300" aria-hidden>
-          /
-        </span>
-        <span>{crumb.page}</span>
-      </p>
-    </section>
+    <p className="shrink-0 text-xs font-medium text-slate-500">
+      <span>{crumb.section}</span>
+      <span className="mx-1.5 text-slate-300" aria-hidden>
+        /
+      </span>
+      <span className="text-slate-800">{crumb.page}</span>
+    </p>
   )
 }
 

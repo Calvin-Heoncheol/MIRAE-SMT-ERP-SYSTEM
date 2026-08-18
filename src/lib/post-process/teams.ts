@@ -13,3 +13,11 @@ export function normalizePostProcessTeam(value: string | null | undefined): Post
   if (isPostProcessTeam(raw)) return raw
   return DEFAULT_POST_PROCESS_TEAM
 }
+
+/** 로그인 부서 → 후공정 팀. SMT·품질·관리는 null */
+export function postProcessTeamFromDepartment(department: string | null | undefined): PostProcessTeam | null {
+  if (department === 'production2') return '생산2팀'
+  if (department === 'production3') return '생산3팀'
+  if (department === 'production4') return '생산4팀'
+  return null
+}

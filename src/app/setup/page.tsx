@@ -47,7 +47,7 @@ export default async function SetupPage() {
     <div className="min-h-screen bg-slate-50 px-6 py-12 text-slate-900">
       <main className="mx-auto flex max-w-2xl flex-col gap-8">
         <header>
-          <p className="text-sm font-medium text-blue-700">{APP_NAME}</p>
+          <p className="text-sm font-medium text-slate-800">{APP_NAME}</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Supabase 연결 확인</h1>
           <p className="mt-3 text-slate-600">
             Vercel 환경변수 설정 후, Supabase와 통신되는지 확인하는 페이지입니다.
@@ -72,7 +72,7 @@ export default async function SetupPage() {
         </section>
 
         <p className="text-sm text-slate-600">
-          <Link href="/" className="font-medium text-blue-700 hover:underline">
+          <Link href="/" className="font-medium text-slate-800 hover:underline">
             대시보드로 돌아가기
           </Link>
         </p>

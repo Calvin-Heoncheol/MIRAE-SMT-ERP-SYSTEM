@@ -110,9 +110,6 @@ export function ReceivablesPaymentModal({
       closeOnEscape={!busy}
       footer={
         <>
-          <ErpButton variant="secondary" disabled={busy} onClick={onClose}>
-            닫기
-          </ErpButton>
           {row.remaining > 0 ? (
             <ErpButton
               variant="secondary"
@@ -123,7 +120,7 @@ export function ReceivablesPaymentModal({
             </ErpButton>
           ) : null}
           <ErpButton disabled={busy || paymentsMissing} loading={saving} onClick={() => void handleSave(false)}>
-            입금 기록
+            확인
           </ErpButton>
         </>
       }
@@ -198,11 +195,11 @@ export function ReceivablesPaymentModal({
         ) : null}
 
         <div>
-          <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">입금 내역</p>
+          <p className="mb-2 text-xs font-semibold text-slate-500">입금 내역</p>
           {row.payments.length ? (
             <div className="overflow-hidden rounded-xl border border-slate-200">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
                   <tr>
                     <th className="px-3 py-2 text-left">입금일</th>
                     <th className="px-3 py-2 text-right">금액</th>

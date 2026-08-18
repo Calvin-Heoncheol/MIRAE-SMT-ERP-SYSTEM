@@ -54,7 +54,7 @@ export function ApprovalPaymentMethodField({
             checked={isImmediate}
             disabled={readOnly}
             onChange={() => selectType('immediate')}
-            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+            className="h-4 w-4 rounded border-slate-300 text-slate-800"
           />
           즉시 결제
         </label>
@@ -64,7 +64,7 @@ export function ApprovalPaymentMethodField({
             checked={isRecurring}
             disabled={readOnly}
             onChange={() => selectType('recurring')}
-            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+            className="h-4 w-4 rounded border-slate-300 text-slate-800"
           />
           정기 결제
         </label>

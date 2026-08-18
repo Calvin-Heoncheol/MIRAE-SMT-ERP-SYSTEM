@@ -100,7 +100,7 @@ function ProcessingMethodField({
               <span
                 className={[
                   'inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px]',
-                  value === item.value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300',
+                  value === item.value ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-300',
                 ].join(' ')}
               >
                 {value === item.value ? '●' : ''}
@@ -114,7 +114,7 @@ function ProcessingMethodField({
                 name="processingDetails"
                 checked={value === item.value}
                 onChange={() => onChange(item.value)}
-                className="h-4 w-4 border-slate-300 text-blue-600"
+                className="h-4 w-4 border-slate-300 text-slate-800"
               />
               <span>{item.label}</span>
             </>

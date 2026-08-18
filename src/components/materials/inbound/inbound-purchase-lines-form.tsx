@@ -26,6 +26,7 @@ import {
 } from '@/lib/materials/inbound/scan-guards'
 import type { Material } from '@/lib/materials/types'
 import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
+import { printInboundReelLabel } from '@/lib/materials/print-material-labels'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 import { playScanSound } from '@/lib/ui/toast-sound'
@@ -55,6 +56,7 @@ export function InboundPurchaseLinesForm({
   const [scanPulse, setScanPulse] = useState<{ kind: 'success' | 'error'; token: number } | null>(
     null,
   )
+  const [printOnScan, setPrintOnScan] = useState(true)
   const scanInputRef = useRef<HTMLInputElement>(null)
   const tableRef = useRef<HTMLDivElement>(null)
   const focusGenerationRef = useRef(0)
@@ -230,6 +232,16 @@ export function InboundPurchaseLinesForm({
       })
       setScanCode('')
       markJustScanned(lotNumber)
+      if (printOnScan) {
+        printInboundReelLabel({
+          id: matched.material
+            ? formatMaterialDisplayCode(matched.material)
+            : matched.line.materialCode || matched.line.materialId,
+          materialName: matched.material?.materialName || matched.line.materialName,
+          mpn: matched.material?.mpn || '',
+          lotNumber,
+        })
+      }
       return
     }
 
@@ -253,6 +265,16 @@ export function InboundPurchaseLinesForm({
     })
     setScanCode('')
     markJustScanned(lotNumber)
+    if (printOnScan) {
+      printInboundReelLabel({
+        id: matched.material
+          ? formatMaterialDisplayCode(matched.material)
+          : matched.line.materialCode || matched.line.materialId,
+        materialName: matched.material?.materialName || matched.line.materialName,
+        mpn: matched.material?.mpn || '',
+        lotNumber,
+      })
+    }
   }
 
   function rejectQtyBarcodeInput(lineId: string, index: number) {
@@ -336,6 +358,7 @@ export function InboundPurchaseLinesForm({
               스캔 후 수량을 입력하고 Enter 하면 다음 바코드를 찍을 수 있습니다.
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
           <span
             className={[
               'rounded-full px-2.5 py-1 text-xs font-semibold',
@@ -352,6 +375,16 @@ export function InboundPurchaseLinesForm({
                 ? '인식됨'
                 : '스캔 대기'}
           </span>
+          <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+            <input
+              type="checkbox"
+              checked={printOnScan}
+              onChange={(event) => setPrintOnScan(event.target.checked)}
+              className="h-3.5 w-3.5 rounded border-slate-300"
+            />
+            스캔 시 라벨
+          </label>
+          </div>
         </div>
         <label className="block">
           <span className="sr-only">바코드 스캔</span>
@@ -370,7 +403,7 @@ export function InboundPurchaseLinesForm({
               placeholder="릴 바코드 스캔 또는 품목코드·MPN 입력 후 Enter"
               autoFocus
               className={[
-                'h-12 w-full rounded-xl border bg-white px-3 font-mono text-sm outline-none transition',
+                'h-14 w-full rounded-xl border bg-white px-3 font-mono text-base outline-none transition',
                 scanPulse?.kind === 'error'
                   ? 'border-rose-400 focus:border-rose-500'
                   : scanPulse?.kind === 'success'

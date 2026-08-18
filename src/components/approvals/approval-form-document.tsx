@@ -73,7 +73,7 @@ function AmountBasisField({
             checked={amountBasis === 'supply'}
             disabled={readOnly}
             onChange={() => onChange(amountBasis === 'supply' ? '' : 'supply')}
-            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+            className="h-4 w-4 rounded border-slate-300 text-slate-800"
           />
           공급가액 기준
         </label>
@@ -83,7 +83,7 @@ function AmountBasisField({
             checked={amountBasis === 'total'}
             disabled={readOnly}
             onChange={() => onChange(amountBasis === 'total' ? '' : 'total')}
-            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+            className="h-4 w-4 rounded border-slate-300 text-slate-800"
           />
           공급대가 기준
         </label>
@@ -93,7 +93,7 @@ function AmountBasisField({
             checked={amountBasis === 'exempt'}
             disabled={readOnly}
             onChange={() => onChange(amountBasis === 'exempt' ? '' : 'exempt')}
-            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+            className="h-4 w-4 rounded border-slate-300 text-slate-800"
           />
           면세
         </label>
@@ -535,15 +535,15 @@ export function ApprovalFormDocument({
               <span className="font-semibold tabular-nums text-slate-800">{formatApprovalMoney(vatAmount)}</span>
             </p>
           </div>
-          <div className="approval-grand-total flex flex-wrap items-center justify-between gap-3 rounded-md border-2 border-blue-700 bg-gradient-to-r from-blue-50 to-white px-5 py-3.5">
-            <span className="text-sm font-bold text-blue-900">
+          <div className="approval-grand-total flex flex-wrap items-center justify-between gap-3 rounded-md border-2 border-slate-700 bg-slate-50 px-5 py-3.5">
+            <span className="text-sm font-bold text-slate-800">
               {category === 'duty-tax'
                 ? '합계금액 (관세+부가세)'
                 : amountBasis === 'exempt'
                   ? '공급대가 (면세)'
                   : '공급대가 (VAT 포함)'}
             </span>
-            <span className="text-xl font-extrabold tracking-tight text-blue-700 tabular-nums">
+            <span className="text-xl font-extrabold tracking-tight text-slate-800 tabular-nums">
               {formatApprovalMoney(grandTotal)}
             </span>
           </div>

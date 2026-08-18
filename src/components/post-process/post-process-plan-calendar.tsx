@@ -79,17 +79,17 @@ export function PostProcessPlanCalendar({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-200 bg-white">
       <div className="grid min-w-[720px] grid-cols-7 border-b border-slate-200 bg-slate-50">
         {weekDates.map((date) => {
           const isToday = date === today
           return (
             <div
               key={`h-${date}`}
-              className={`border-r border-slate-200 px-2 py-2 text-center last:border-r-0 ${isToday ? 'bg-sky-50' : ''}`}
+              className={`border-r border-slate-200 px-2 py-2 text-center last:border-r-0 ${isToday ? 'bg-slate-100' : ''}`}
             >
               <p className="text-[11px] font-semibold text-slate-500">{formatWeekdayLabel(date)}</p>
-              <p className={`text-sm font-bold ${isToday ? 'text-sky-700' : 'text-slate-800'}`}>
+              <p className={`text-sm font-bold ${isToday ? 'text-slate-900' : 'text-slate-800'}`}>
                 {formatCalendarDayLabel(date)}
               </p>
             </div>
@@ -105,7 +105,7 @@ export function PostProcessPlanCalendar({
           return (
             <div
               key={plannedDate}
-              className={`min-h-[420px] cursor-pointer border-r border-slate-100 p-1.5 last:border-r-0 hover:bg-sky-50/80 ${isToday ? 'bg-sky-50/40' : ''} ${isDropTarget ? 'bg-sky-100/80 ring-2 ring-inset ring-sky-300' : ''}`}
+              className={`min-h-[420px] cursor-pointer border-r border-slate-100 p-1.5 last:border-r-0 hover:bg-slate-50/80 ${isToday ? 'bg-slate-50/40' : ''} ${isDropTarget ? 'bg-slate-100/80 ring-2 ring-inset ring-slate-300' : ''}`}
               onClick={() => onCellClick({ plannedDate })}
               onDragOver={(event) => handleDragOver(event, plannedDate)}
               onDragLeave={() => setDragOverDate((current) => (current === plannedDate ? null : current))}

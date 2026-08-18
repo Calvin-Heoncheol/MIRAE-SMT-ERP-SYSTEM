@@ -25,19 +25,7 @@ type SideNavProps = {
   authDisabled?: boolean
 }
 
-/** 생산팀 사용자는 본인 팀 하위 메뉴만 기본 펼침 */
-function shouldExpandMyProductionTeam(
-  label: string,
-  department: AuthDepartment | null | undefined,
-) {
-  if (!department) return false
-  if (department === 'production1') return label.includes('생산1')
-  if (department === 'production2') return label.includes('생산2')
-  if (department === 'production3') return label.includes('생산3')
-  if (department === 'production4') return label.includes('생산4')
-  return false
-}
-
+/** 생산팀 사용자는 생산관리 섹션을 기본 펼침 */
 function shouldExpandProductionSection(
   label: string,
   department: AuthDepartment | null | undefined,
@@ -214,7 +202,7 @@ function NavChildLink({
         child.locked
           ? 'cursor-not-allowed text-slate-400 hover:bg-slate-50'
           : childActive
-            ? 'bg-blue-50 font-semibold text-blue-700'
+            ? 'bg-slate-100 font-semibold text-slate-900'
             : nested
               ? 'text-slate-400 hover:bg-slate-50 hover:text-slate-700'
               : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
@@ -234,19 +222,16 @@ function NavChildSection({
   child,
   pathname,
   search,
-  department,
   onNavigate,
 }: {
   child: NavChildItem
   pathname: string
   search: NavSearch | null
-  department?: AuthDepartment | null
   onNavigate?: () => void
 }) {
   const hasGrandchildren = Boolean(child.children?.length)
   const childActive = isNavChildItemActive(pathname, child, search)
-  const preferMyTeam = shouldExpandMyProductionTeam(child.label, department)
-  const [expanded, setExpanded] = useState(childActive || preferMyTeam)
+  const [expanded, setExpanded] = useState(childActive)
 
   useEffect(() => {
     if (childActive) setExpanded(true)
@@ -270,7 +255,7 @@ function NavChildSection({
         onClick={() => setExpanded((value) => !value)}
         className={[
           'flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left text-[13px] font-semibold transition-colors',
-          childActive ? 'text-blue-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800',
+          childActive ? 'text-slate-900' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800',
         ].join(' ')}
         aria-expanded={expanded}
       >
@@ -377,7 +362,7 @@ function NavSection({
           item.locked
             ? 'cursor-not-allowed text-slate-400 hover:bg-slate-50'
             : sectionActive
-              ? 'bg-blue-50 text-blue-700'
+              ? 'bg-slate-100 text-slate-900'
               : 'text-slate-800 hover:bg-slate-50 hover:text-slate-900',
         ].join(' ')}
       >
@@ -397,7 +382,7 @@ function NavSection({
         onClick={() => setExpanded((value) => !value)}
         className={[
           'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold transition-colors',
-          sectionActive ? 'text-blue-700' : 'text-slate-800 hover:bg-slate-50 hover:text-slate-900',
+          sectionActive ? 'text-slate-900' : 'text-slate-800 hover:bg-slate-50 hover:text-slate-900',
         ].join(' ')}
         aria-expanded={expanded}
       >
@@ -413,7 +398,6 @@ function NavSection({
               child={child}
               pathname={pathname}
               search={search}
-              department={department}
               onNavigate={onNavigate}
             />
           ))}

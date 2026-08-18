@@ -71,28 +71,28 @@ export function InventoryStatusTable({
         <table className="w-full min-w-[900px] table-fixed border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 품목코드
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 품목명
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 규격
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 패키지
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 MPN
               </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
                 구분
               </th>
-              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                 입고예정
               </th>
-              <th className="px-3 py-2.5 text-right text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                 현재고
               </th>
             </tr>

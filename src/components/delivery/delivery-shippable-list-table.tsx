@@ -1,7 +1,7 @@
 'use client'
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
-import { ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 import type { DeliveryShippableOption } from '@/lib/delivery/register-form'
 
 type DeliveryShippableListTableProps = {
@@ -27,7 +27,7 @@ export function DeliveryShippableListTable({
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
         <table className="w-full min-w-[840px] table-fixed border-collapse">
-          <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               <th className="px-3 py-2.5 text-left">고객사</th>
               <th className="px-3 py-2.5 text-left">발주번호</th>

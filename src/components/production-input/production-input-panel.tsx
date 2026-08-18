@@ -642,7 +642,7 @@ export function ProductionInputPanel({
                 })}
               </div>
 
-              <p className="mt-3 text-xs font-bold tracking-wide text-slate-500 uppercase">
+              <p className="mt-3 text-xs font-bold text-slate-500">
                 {qtyModeLabel}
               </p>
               <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
