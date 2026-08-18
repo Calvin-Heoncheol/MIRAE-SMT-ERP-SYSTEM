@@ -5,8 +5,6 @@ import { createPortal } from 'react-dom'
 import type { Product } from '@/lib/products/types'
 import {
   filterProductsForOrder,
-  formatProductOptionLabel,
-  formatProductVersionChoiceLabel,
   resolveProductInput,
 } from '@/lib/products/utils'
 
@@ -20,6 +18,8 @@ type ProductComboboxProps = {
   inputClassName?: string
   onValueChange: (value: string) => void
   onProductSelect: (product: Product) => void
+  /** 단일 품목으로 확정됐을 때 — 수량 칸 포커스 등에 사용 */
+  onVersionResolved?: () => void
 }
 
 type MenuPosition = {
@@ -42,6 +42,7 @@ export function ProductCombobox({
   inputClassName,
   onValueChange,
   onProductSelect,
+  onVersionResolved,
 }: ProductComboboxProps) {
   const listId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -51,17 +52,27 @@ export function ProductCombobox({
   const [activeIndex, setActiveIndex] = useState(0)
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
   const [mounted, setMounted] = useState(false)
-  /** 버전이 여러 개라 목록에서 고르라는 상태 */
-  const [versionPickRequired, setVersionPickRequired] = useState(false)
-  const [versionChoices, setVersionChoices] = useState<Product[]>([])
 
-  const searchOptions = useMemo(
-    () => filterProductsForOrder(products, customer, value).slice(0, MAX_OPTIONS),
-    [products, customer, value],
-  )
+  const options = useMemo(() => {
+    const filtered = filterProductsForOrder(products, customer, value)
+    // 코드/이름 기준으로 중복 제거 — 버전이 여러 개면 첫 번째만 대표로 표시
+    const seen = new Set<string>()
+    const deduped: Product[] = []
+    for (const p of filtered) {
+      const key = field === 'code' ? p.productCode : (p.productName || p.productCode)
+      if (!seen.has(key)) {
+        seen.add(key)
+        deduped.push(p)
+      }
+      if (deduped.length >= MAX_OPTIONS) break
+    }
+    return deduped
+  }, [products, customer, value, field])
 
-  const options = versionPickRequired && versionChoices.length > 0 ? versionChoices : searchOptions
-  const showVersionChoiceUi = versionPickRequired && versionChoices.length > 1
+  function optionLabel(product: Product) {
+    if (field === 'code') return product.productCode
+    return product.productName || product.productCode
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -69,7 +80,7 @@ export function ProductCombobox({
 
   useEffect(() => {
     setActiveIndex(0)
-  }, [value, options.length, versionPickRequired])
+  }, [value, options.length])
 
   function updateMenuPosition() {
     const input = inputRef.current
@@ -86,7 +97,7 @@ export function ProductCombobox({
     setMenuPosition({
       top: openUp ? rect.top - gap : rect.bottom + gap,
       left: rect.left,
-      width: Math.max(rect.width, showVersionChoiceUi ? 320 : 280),
+      width: Math.max(rect.width, 280),
       maxHeight,
       placement: openUp ? 'above' : 'below',
     })
@@ -105,7 +116,7 @@ export function ProductCombobox({
       window.removeEventListener('resize', updateMenuPosition)
       window.removeEventListener('scroll', updateMenuPosition, true)
     }
-  }, [open, value, options.length, showVersionChoiceUi])
+  }, [open, value, options.length])
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -114,8 +125,6 @@ export function ProductCombobox({
         return
       }
       setOpen(false)
-      setVersionPickRequired(false)
-      setVersionChoices([])
     }
 
     document.addEventListener('mousedown', handlePointerDown)
@@ -123,10 +132,14 @@ export function ProductCombobox({
   }, [])
 
   function selectProduct(product: Product) {
+    // 같은 코드로 버전이 여럿인지 확인 — 여러 개면 버전 컬럼 select에서 선택해야 하므로 onVersionResolved 미호출
+    const sameCode = filterProductsForOrder(products, customer, product.productCode)
+    const isAmbiguous = sameCode.filter(
+      (p) => p.productCode === product.productCode
+    ).length > 1
     onProductSelect(product)
-    setVersionPickRequired(false)
-    setVersionChoices([])
     setOpen(false)
+    if (!isAmbiguous) onVersionResolved?.()
   }
 
   function tryResolveOnBlur() {
@@ -136,23 +149,12 @@ export function ProductCombobox({
 
     if (result.status === 'resolved') {
       onProductSelect(result.product)
-      setVersionPickRequired(false)
-      setVersionChoices([])
       setOpen(false)
+      onVersionResolved?.()
       return
     }
 
-    if (result.status === 'ambiguous') {
-      setVersionChoices(result.products)
-      setVersionPickRequired(true)
-      setOpen(true)
-      setActiveIndex(0)
-      inputRef.current?.focus()
-      return
-    }
-
-    setVersionPickRequired(false)
-    setVersionChoices([])
+    // ambiguous(버전 여러 개) → 테이블 버전 컬럼 select에서 선택하므로 그냥 닫는다
     setOpen(false)
   }
 
@@ -182,8 +184,6 @@ export function ProductCombobox({
 
     if (event.key === 'Escape') {
       setOpen(false)
-      setVersionPickRequired(false)
-      setVersionChoices([])
     }
   }
 
@@ -202,11 +202,6 @@ export function ProductCombobox({
           transform: menuPosition.placement === 'above' ? 'translateY(-100%)' : undefined,
         }}
       >
-        {showVersionChoiceUi ? (
-          <li className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-amber-800">
-            버전이 {versionChoices.length}개입니다. 목록에서 선택하세요.
-          </li>
-        ) : null}
         {options.map((product, index) => (
           <li key={product.id} role="option" aria-selected={index === activeIndex}>
             <button
@@ -219,18 +214,9 @@ export function ProductCombobox({
                 index === activeIndex ? 'bg-sky-50 text-sky-900' : 'text-slate-700 hover:bg-slate-50',
               ].join(' ')}
             >
-              <span className="block font-semibold">
-                {showVersionChoiceUi
-                  ? formatProductVersionChoiceLabel(product)
-                  : formatProductOptionLabel(product)}
-              </span>
-              {!showVersionChoiceUi && product.customer ? (
+              <span className="block font-semibold">{optionLabel(product)}</span>
+              {product.customer ? (
                 <span className="mt-0.5 block text-xs text-slate-400">{product.customer}</span>
-              ) : null}
-              {showVersionChoiceUi ? (
-                <span className="mt-0.5 block text-xs font-medium text-sky-700">
-                  {product.version.trim() || '버전 없음'}
-                </span>
               ) : null}
             </button>
           </li>
@@ -246,12 +232,10 @@ export function ProductCombobox({
         lang={field === 'name' ? 'ko' : 'en'}
         onChange={(event) => {
           onValueChange(event.target.value)
-          setVersionPickRequired(false)
-          setVersionChoices([])
           setOpen(true)
         }}
         onFocus={() => {
-          if (value.trim() || versionPickRequired) setOpen(true)
+          if (value.trim()) setOpen(true)
         }}
         onBlur={() => {
           window.setTimeout(() => {

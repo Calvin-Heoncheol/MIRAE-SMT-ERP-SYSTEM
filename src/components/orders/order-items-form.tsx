@@ -1,6 +1,6 @@
 'use client'
 
-import { type Dispatch, type SetStateAction, useEffect } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useRef } from 'react'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { ProductCombobox } from '@/components/orders/product-combobox'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
@@ -12,6 +12,7 @@ import {
 } from '@/lib/orders/form-state'
 import { computeLineAmount } from '@/lib/orders/utils'
 import type { Product } from '@/lib/products/types'
+import { findProductsByCode, findProductsByName } from '@/lib/products/utils'
 
 type OrderItemsFormProps = {
   items: OrderItemForm[]
@@ -34,6 +35,22 @@ function applyProductToItem(item: OrderItemForm, product: Product): OrderItemFor
     quoteId: '',
     isAdhoc: false,
   }
+}
+
+/** 같은 코드/이름으로 버전이 여럿인 후보 목록 */
+function productVersionCandidates(item: OrderItemForm, products: Product[], customer: string): Product[] {
+  if (item.isAdhoc || item.productId) return []
+  const code = item.productCode.trim()
+  const name = item.productName.trim()
+  if (code) {
+    const byCode = findProductsByCode(products, code, customer)
+    if (byCode.length > 1) return byCode
+  }
+  if (name) {
+    const byName = findProductsByName(products, name, customer)
+    if (byName.length > 1) return byName
+  }
+  return []
 }
 
 function productVersionLabel(item: OrderItemForm, products: Product[]) {
@@ -60,6 +77,15 @@ export function OrderItemsForm({
   products,
   onChange,
 }: OrderItemsFormProps) {
+  const quantityRefs = useRef<(HTMLInputElement | null)[]>([])
+
+  function focusQuantity(index: number) {
+    window.setTimeout(() => {
+      quantityRefs.current[index]?.focus()
+      quantityRefs.current[index]?.select()
+    }, 50)
+  }
+
   // 품목 기본 단가가 나중에 로드되면, 단가 0인 행만 채움
   useEffect(() => {
     onChange((current) => {
@@ -97,7 +123,26 @@ export function OrderItemsForm({
     onChange(items.filter((_, itemIndex) => itemIndex !== index))
   }
 
+  /** 드롭다운에서 품목 선택 — 버전이 여럿이면 productId를 비워 버전 컬럼 select 활성화 */
   function selectProduct(index: number, product: Product) {
+    const sameCode = products.filter(
+      (p) => p.productCode === product.productCode && (!product.productName || p.productName === product.productName),
+    )
+    const isAmbiguous = sameCode.length > 1
+    onChange((current) =>
+      current.map((item, itemIndex) => {
+        if (itemIndex !== index) return item
+        const applied = applyProductToItem(item, product)
+        if (isAmbiguous) {
+          return { ...applied, productId: '' }
+        }
+        return applied
+      }),
+    )
+  }
+
+  /** 버전 컬럼 select에서 확정 선택 — productId 포함해서 완전 확정 (단가 자동 세팅) */
+  function confirmVersion(index: number, product: Product) {
     onChange((current) =>
       current.map((item, itemIndex) =>
         itemIndex === index ? applyProductToItem(item, product) : item,
@@ -151,6 +196,7 @@ export function OrderItemsForm({
             {items.map((item, index) => {
               const amount = computeLineAmount(Number(item.quantity), Number(item.unitPrice))
               const version = productVersionLabel(item, products)
+              const versionCandidates = productVersionCandidates(item, products, customer)
               const isAdhoc = Boolean(item.isAdhoc)
 
               return (
@@ -195,6 +241,7 @@ export function OrderItemsForm({
                           })
                         }
                         onProductSelect={(product) => selectProduct(index, product)}
+                        onVersionResolved={() => focusQuantity(index)}
                       />
                     )}
                   </td>
@@ -237,20 +284,46 @@ export function OrderItemsForm({
                           })
                         }
                         onProductSelect={(product) => selectProduct(index, product)}
+                        onVersionResolved={() => focusQuantity(index)}
                       />
                     )}
                   </td>
                   <td className="px-2 py-2 align-top text-center">
-                    <div className="flex h-[34px] items-center justify-center">
-                      {version ? (
-                        <span className="text-xs font-semibold text-sky-700">{version}</span>
-                      ) : (
-                        <span className="text-xs text-slate-300">—</span>
-                      )}
-                    </div>
+                    {versionCandidates.length > 1 ? (
+                      <select
+                        aria-label={`${index + 1}행 버전 선택`}
+                        defaultValue=""
+                        onChange={(e) => {
+                          const chosen = versionCandidates.find((p) => p.id === e.target.value)
+                          if (chosen) {
+                            confirmVersion(index, chosen)
+                            focusQuantity(index)
+                          }
+                        }}
+                        className="w-full rounded-lg border border-amber-300 bg-amber-50 px-1.5 py-1.5 text-xs font-semibold text-amber-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                      >
+                        <option value="" disabled>
+                          선택
+                        </option>
+                        {versionCandidates.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.version?.trim() || '버전 없음'}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="flex h-[34px] items-center justify-center">
+                        {version ? (
+                          <span className="text-xs font-semibold text-sky-700">{version}</span>
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="px-2 py-2 align-top">
                     <QuoteNumericInput
+                      ref={(el) => { quantityRefs.current[index] = el }}
                       min={0}
                       value={String(item.quantity)}
                       onChange={(quantity) => patchItem(index, { quantity })}

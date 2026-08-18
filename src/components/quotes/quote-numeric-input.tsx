@@ -1,6 +1,6 @@
 'use client'
 
-import type { InputHTMLAttributes } from 'react'
+import { forwardRef, type InputHTMLAttributes } from 'react'
 
 type QuoteNumericInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'> & {
   value: string
@@ -26,23 +26,26 @@ function sanitizeNumericInput(value: string): string {
   return stripLeadingZeros(next)
 }
 
-export function QuoteNumericInput({ value, onChange, onBlur, onFocus, inputMode, ...props }: QuoteNumericInputProps) {
-  return (
-    <input
-      {...props}
-      type="text"
-      inputMode={inputMode ?? 'decimal'}
-      value={value}
-      onChange={(event) => onChange(sanitizeNumericInput(event.target.value))}
-      onFocus={(event) => {
-        if (event.target.value === '0') onChange('')
-        requestAnimationFrame(() => event.target.select())
-        onFocus?.(event)
-      }}
-      onBlur={(event) => {
-        if (event.target.value === '' || event.target.value === '-') onChange('0')
-        onBlur?.(event)
-      }}
-    />
-  )
-}
+export const QuoteNumericInput = forwardRef<HTMLInputElement, QuoteNumericInputProps>(
+  function QuoteNumericInput({ value, onChange, onBlur, onFocus, inputMode, ...props }, ref) {
+    return (
+      <input
+        {...props}
+        ref={ref}
+        type="text"
+        inputMode={inputMode ?? 'decimal'}
+        value={value}
+        onChange={(event) => onChange(sanitizeNumericInput(event.target.value))}
+        onFocus={(event) => {
+          if (event.target.value === '0') onChange('')
+          requestAnimationFrame(() => event.target.select())
+          onFocus?.(event)
+        }}
+        onBlur={(event) => {
+          if (event.target.value === '' || event.target.value === '-') onChange('0')
+          onBlur?.(event)
+        }}
+      />
+    )
+  },
+)
