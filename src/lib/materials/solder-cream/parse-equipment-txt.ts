@@ -88,6 +88,20 @@ function parseEquipmentMessage(message: string, activeMixLot: string | null): Pa
     return events
   }
 
+  if (/자재\s*입고/.test(trimmed)) {
+    for (const lot of extractLots(trimmed)) {
+      events.push({
+        eventType: 'store',
+        equipmentType: 'fridge',
+        lotNumber: lot,
+        mixSeconds: null,
+        result: '',
+        note: trimmed,
+      })
+    }
+    return events
+  }
+
   if (/냉장\s*보관실에서\s*자재\s*꺼내기/.test(trimmed)) {
     for (const lot of extractLots(trimmed)) {
       events.push({
@@ -222,6 +236,31 @@ function parseEquipmentMessage(message: string, activeMixLot: string | null): Pa
   return events
 }
 
+const STORE_DEDUP_WINDOW_MS = 2 * 60 * 1000
+
+function dedupeNearbyStoreEvents(rows: SolderCreamLogImportRow[]) {
+  const kept: SolderCreamLogImportRow[] = []
+  const lastStoreAtByLot = new Map<string, number>()
+
+  for (const row of rows) {
+    if (row.eventType !== 'store' || !row.lotNumber) {
+      kept.push(row)
+      continue
+    }
+
+    const recordedAt = new Date(row.recordedAt).getTime()
+    const previousAt = lastStoreAtByLot.get(row.lotNumber)
+    if (previousAt != null && Math.abs(recordedAt - previousAt) <= STORE_DEDUP_WINDOW_MS) {
+      continue
+    }
+
+    lastStoreAtByLot.set(row.lotNumber, recordedAt)
+    kept.push(row)
+  }
+
+  return kept
+}
+
 export function isEquipmentTxtLogFormat(text: string) {
   const lines = text
     .replace(/\r\n/g, '\n')
@@ -284,7 +323,7 @@ export function parseEquipmentTxtLog(text: string): SolderCreamLogImportRow[] {
     }
   }
 
-  return rows
+  return dedupeNearbyStoreEvents(rows)
 }
 
 export function equipmentTxtLogSampleLines() {
