@@ -88,20 +88,6 @@ function parseEquipmentMessage(message: string, activeMixLot: string | null): Pa
     return events
   }
 
-  if (/자재\s*입고/.test(trimmed)) {
-    for (const lot of extractLots(trimmed)) {
-      events.push({
-        eventType: 'store',
-        equipmentType: 'fridge',
-        lotNumber: lot,
-        mixSeconds: null,
-        result: '',
-        note: trimmed,
-      })
-    }
-    return events
-  }
-
   if (/냉장\s*보관실에서\s*자재\s*꺼내기/.test(trimmed)) {
     for (const lot of extractLots(trimmed)) {
       events.push({
@@ -208,7 +194,7 @@ function parseEquipmentMessage(message: string, activeMixLot: string | null): Pa
     for (const lot of extractLots(trimmed)) {
       events.push({
         eventType: 'discard',
-        equipmentType: 'unknown',
+        equipmentType: 'fridge',
         lotNumber: lot,
         mixSeconds: null,
         result: '출고',
@@ -327,8 +313,7 @@ export function parseEquipmentTxtLog(text: string): SolderCreamLogImportRow[] {
 }
 
 export function equipmentTxtLogSampleLines() {
-  return `2026-08-19 19:11:30.117 자재 입고K-PF-260403-016
-2026-08-19 19:11:42.206 입고 완료K-PF-260403-016
+  return `2026-08-20 14:58:05.131 입고 완료K-PF-260403-015
 2026-08-19 05:05:55.150 냉장 보관실에서 자재 꺼내기S-PF-260713-008#5
 2026-08-19 07:06:18.246 자재를 교반통에 넣습니다S-PF-260713-008#5
 2026-08-19 07:06:55.578 분당 800.00회전 속도로 4.00분 동안 교반합니다

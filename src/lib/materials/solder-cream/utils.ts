@@ -38,6 +38,7 @@ export const SOLDER_CREAM_STATUS_FILTERS = [
   'opened',
   'mixed',
   'ready',
+  'discarded',
 ] as const
 
 export type SolderCreamStatusFilter = (typeof SOLDER_CREAM_STATUS_FILTERS)[number]
@@ -156,7 +157,7 @@ export function buildSolderCreamStatusRows(logs: SolderCreamEquipmentLog[]): Sol
         status: deriveLotStatus(events),
       }
     })
-    .filter((row) => row.status !== 'discarded' && row.status !== 'alarm')
+    .filter((row) => row.status !== 'alarm')
     .sort((a, b) => {
       const statusDiff = STATUS_SORT_ORDER[a.status] - STATUS_SORT_ORDER[b.status]
       if (statusDiff !== 0) return statusDiff

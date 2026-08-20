@@ -86,6 +86,7 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
       opened: 0,
       mixed: 0,
       ready: 0,
+      discarded: 0,
     }
     for (const row of statusRows) {
       if (row.status in counts) counts[row.status as SolderCreamStatusFilter] += 1
@@ -189,6 +190,12 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                   count: statusCounts.ready,
                   tone: STATUS_FILTER_TONES.done,
                 },
+                {
+                  value: 'discarded',
+                  label: SOLDER_CREAM_LOT_STATUS_LABELS.discarded,
+                  count: statusCounts.discarded,
+                  tone: STATUS_FILTER_TONES.waiting,
+                },
               ]}
             />
           ) : null}
@@ -267,8 +274,6 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                       <th className={`${ERP_TABLE_TH_CLASS} text-left`}>설비</th>
                       <th className={`${ERP_TABLE_TH_CLASS} text-left`}>LOT</th>
                       <th className={`${ERP_TABLE_TH_CLASS} text-left`}>이벤트</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-right`}>온도</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-right`}>교반초</th>
                       <th className={`${ERP_TABLE_TH_CLASS} text-left`}>결과</th>
                       <th className={`${ERP_TABLE_TH_CLASS} text-left`}>비고</th>
                     </tr>
@@ -292,16 +297,6 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                           <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
                             {SOLDER_CREAM_EVENT_LABELS[row.eventType]}
                           </td>
-                          <td
-                            className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-right tabular-nums text-slate-600`}
-                          >
-                            {row.temperature ?? '—'}
-                          </td>
-                          <td
-                            className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-right tabular-nums text-slate-600`}
-                          >
-                            {row.mixSeconds ?? '—'}
-                          </td>
                           <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
                             {row.result || '—'}
                           </td>
@@ -310,7 +305,7 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={8} className="px-3 py-8 text-center text-sm text-slate-500">
+                        <td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-500">
                           {formatEmptyListMessage({
                             hasQuery: Boolean(query),
                             emptyLabel: '가져온 설비 로그가 없습니다.',

@@ -70,8 +70,16 @@ function Get-RelevantLogText([string]$RawText) {
     if ([string]::IsNullOrWhiteSpace($line)) { continue }
     if ($line -notmatch '^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}') { continue }
     if (
-      $line -match '[A-Z]-P[FB]-\d{6}' -or
-      $line -match '입고|꺼내기|교반|출고|경보|상온|WaitOutbound|错误|오류|알람'
+      $line -match '입고\s*완료' -or
+      $line -match '자재\s*출고' -or
+      $line -match '냉장\s*보관실에서\s*자재\s*꺼내기' -or
+      $line -match '상온\s*보관실에서\s*자재\s*꺼내기' -or
+      $line -match '을\s*상온\s*보관실에\s*넣' -or
+      $line -match '자재를\s*교반통에\s*넣습니다' -or
+      $line -match '분당\s*[\d.]+\s*회전' -or
+      $line -match '교반\s*완료' -or
+      $line -match '꺼내기\s*성공' -or
+      $line -match '경보|WaitOutbound|错误|오류|알람'
     ) {
       $kept.Add($line.TrimEnd())
     }
