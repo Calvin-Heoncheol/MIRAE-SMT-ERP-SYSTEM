@@ -6,16 +6,17 @@ create table if not exists public.material_outbound_records (
   id text primary key,
   outbound_date date not null default (timezone('Asia/Seoul', now()))::date,
   outbound_type text not null default 'production'
-    check (outbound_type in ('production', 'scrap', 'adjustment')),
+    check (outbound_type in ('production', 'scrap', 'adjustment', 'restock')),
   order_id text references public.orders(id) on delete restrict,
+  product_id text,
   note text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint material_outbound_records_id_not_blank_check check (length(trim(id)) > 0),
   constraint material_outbound_records_id_format_check check (id ~ '^MROB-[0-9]+$'),
   constraint material_outbound_records_order_check check (
-    (outbound_type = 'production' and order_id is not null)
-    or (outbound_type <> 'production')
+    (outbound_type in ('production', 'restock') and order_id is not null)
+    or (outbound_type not in ('production', 'restock'))
   )
 );
 
@@ -30,6 +31,8 @@ create table if not exists public.material_outbound_lines (
   line_seq integer not null default 0,
   material_id text not null references public.items(id) on delete restrict,
   quantity numeric not null check (quantity > 0),
+  lot_number text not null default '',
+  inbound_line_id uuid references public.material_inbound_lines(id) on delete restrict,
   unique (outbound_id, line_seq)
 );
 
@@ -146,22 +149,12 @@ create trigger material_outbound_records_updated_at
 
 -- 자재별 현재고 (입고합 − 불출합). 앱에서 라인 전량 조회하지 않도록 DB 집계
 create or replace view public.material_on_hand as
-with inbound as (
-  select material_id, sum(quantity)::numeric as qty
-  from public.material_inbound_lines
-  group by material_id
-),
-outbound as (
-  select material_id, sum(quantity)::numeric as qty
-  from public.material_outbound_lines
-  group by material_id
-)
 select
-  coalesce(i.material_id, o.material_id) as material_id,
-  coalesce(i.qty, 0) - coalesce(o.qty, 0) as on_hand
-from inbound i
-full outer join outbound o on o.material_id = i.material_id;
+  material_id,
+  coalesce(sum(remaining_qty), 0)::numeric as on_hand
+from public.material_inbound_lines
+group by material_id;
 
-comment on view public.material_on_hand is '자재별 현재고 (입고합 − 불출합). 라인 전량 전송 없이 집계만 조회';
+comment on view public.material_on_hand is '자재별 현재고 = 릴 remaining_qty 합 (창고 실물)';
 
 grant select on public.material_on_hand to anon, authenticated;

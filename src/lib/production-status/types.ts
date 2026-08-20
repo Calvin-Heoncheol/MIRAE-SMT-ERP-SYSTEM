@@ -8,6 +8,7 @@ export type ProductionStatusProductLine = {
   key: string
   productName: string
   productCode: string
+  version: string
   quantity: number
   smtTarget: number
   smtProduced: number

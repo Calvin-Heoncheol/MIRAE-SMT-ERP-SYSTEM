@@ -181,7 +181,7 @@ export function InboundPurchaseLinesForm({
       const existing = items.find((item) => item.scanFingerprint === parsed.fingerprint)
       if (existing) {
         setScanCode('')
-        setScanMessage({ tone: 'error', text: alreadyScannedReelMessage(existing.lotNumber) })
+        setScanMessage({ tone: 'error', text: alreadyScannedReelMessage() })
         triggerScanPulse('error')
         focusScanInput()
         return
@@ -226,9 +226,7 @@ export function InboundPurchaseLinesForm({
       })
       setScanMessage({
         tone: 'success',
-        text: parsed.vendorLot
-          ? `${label} · LOT ${lotNumber} · 제조 ${parsed.vendorLot}`
-          : `${label} · LOT ${lotNumber}`,
+        text: parsed.vendorLot ? `${label} · 제조 ${parsed.vendorLot}` : label,
       })
       setScanCode('')
       markJustScanned(lotNumber)
@@ -238,7 +236,9 @@ export function InboundPurchaseLinesForm({
             ? formatMaterialDisplayCode(matched.material)
             : matched.line.materialCode || matched.line.materialId,
           materialName: matched.material?.materialName || matched.line.materialName,
-          mpn: matched.material?.mpn || '',
+          customer: matched.material?.customer || '',
+          package: matched.material?.package || '',
+          specification: matched.material?.specification || matched.line.specification,
           lotNumber,
         })
       }
@@ -259,9 +259,7 @@ export function InboundPurchaseLinesForm({
     ])
     setScanMessage({
       tone: 'success',
-      text: parsed.vendorLot
-        ? `${label} · LOT ${lotNumber} · 제조 ${parsed.vendorLot}`
-        : `${label} · LOT ${lotNumber}`,
+      text: parsed.vendorLot ? `${label} · 제조 ${parsed.vendorLot}` : label,
     })
     setScanCode('')
     markJustScanned(lotNumber)
@@ -271,7 +269,9 @@ export function InboundPurchaseLinesForm({
           ? formatMaterialDisplayCode(matched.material)
           : matched.line.materialCode || matched.line.materialId,
         materialName: matched.material?.materialName || matched.line.materialName,
-        mpn: matched.material?.mpn || '',
+        customer: matched.material?.customer || '',
+        package: matched.material?.package || '',
+        specification: matched.material?.specification || matched.line.specification,
         lotNumber,
       })
     }
@@ -442,7 +442,6 @@ export function InboundPurchaseLinesForm({
               <th className="px-3 py-2 text-right font-semibold text-slate-600">구매발주</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">기입고</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">잔량</th>
-              <th className="px-3 py-2 text-left font-semibold text-slate-600">LOT</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">입고수량</th>
             </tr>
@@ -502,12 +501,6 @@ export function InboundPurchaseLinesForm({
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-amber-700">
                     {item.remainingQuantity.toLocaleString('ko-KR')}
-                  </td>
-                  <td className={`px-3 py-2 font-mono text-sm text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    <span className="font-semibold">{cell(item.lotNumber)}</span>
-                    {item.vendorLot ? (
-                      <span className="mt-0.5 block text-xs text-slate-500">제조 {item.vendorLot}</span>
-                    ) : null}
                   </td>
                   <td className="w-[96px] px-2 py-2">
                     <input

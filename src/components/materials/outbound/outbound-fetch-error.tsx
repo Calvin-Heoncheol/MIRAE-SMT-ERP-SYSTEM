@@ -16,7 +16,8 @@ export function OutboundFetchError({ result }: OutboundFetchErrorProps) {
       hint={
         result.reason === 'query' ? (
           <>
-            Supabase에서 <code className="rounded bg-white/70 px-1">setup-material-outbound.sql</code> 을
+            Supabase에서 <code className="rounded bg-white/70 px-1">setup-material-outbound.sql</code>
+            과 <code className="rounded bg-white/70 px-1">migrate-material-reel-remaining.sql</code> 을
             실행했는지 확인해 주세요.
           </>
         ) : null

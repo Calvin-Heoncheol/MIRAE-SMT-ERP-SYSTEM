@@ -120,7 +120,6 @@ function buildItemRows(items: DeliveryStatementLine[]) {
       <td class="c-code">${code}</td>
       <td class="c-name">${name}</td>
       <td class="c-num">${formatNumber(item.qty)}</td>
-      <td class="c-num">${formatNumber(item.unitPrice)}</td>
       <td class="c-num">${formatNumber(item.supplyAmount)}</td>
       <td class="c-num">0</td>
     </tr>`
@@ -133,7 +132,6 @@ function buildItemRows(items: DeliveryStatementLine[]) {
         <td class="c-no">&nbsp;</td>
         <td class="c-code">&nbsp;</td>
         <td class="c-name">&nbsp;</td>
-        <td class="c-num">&nbsp;</td>
         <td class="c-num">&nbsp;</td>
         <td class="c-num">&nbsp;</td>
         <td class="c-num">&nbsp;</td>
@@ -241,7 +239,6 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
           <th class="c-code">품목코드</th>
           <th class="c-name">품 목</th>
           <th class="c-num">수 량</th>
-          <th class="c-num">단 가</th>
           <th class="c-num">공급가액</th>
           <th class="c-num">세 액</th>
         </tr>
@@ -253,7 +250,6 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
         <tr class="summary-row">
           <th colspan="3">합계</th>
           <td class="c-num">${formatNumber(qty)}</td>
-          <td class="c-num">&nbsp;</td>
           <td class="c-num">${formatNumber(supply)}</td>
           <td class="c-num">${formatNumber(vat)}</td>
         </tr>
@@ -270,14 +266,9 @@ export function buildDeliveryStatementHtml(data: DeliveryStatementData) {
 /** 여러 출하건 거래명세서를 한 문서(페이지 나눔)로 합침 */
 export function buildDeliveryStatementsHtml(list: DeliveryStatementData[]) {
   if (!list.length) return ''
-  const title =
-    list.length === 1
-      ? `거래명세서 ${escapeHtml(list[0]!.orderNumber)}`
-      : `거래명세서 ${list.length}건`
-
   return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
-<title>${title}</title><style>
-@page { size: A4 portrait; margin: 12mm 8mm; }
+<title></title><style>
+@page { size: A4 portrait; margin: 0; }
 html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 * { box-sizing: border-box; }
 body {
@@ -288,6 +279,9 @@ body {
   font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   font-size: 10.5px;
   line-height: 1.35;
+}
+@media print {
+  body { margin: 12mm 8mm; }
 }
 .sheet {
   display: flex;
@@ -448,9 +442,9 @@ table.items tbody td {
   text-align: center;
 }
 table.items .c-no { width: 6%; font-variant-numeric: tabular-nums; }
-table.items .c-code { width: 16%; }
-table.items .c-name { width: 38%; }
-table.items .c-num { width: 10%; font-variant-numeric: tabular-nums; }
+table.items .c-code { width: 18%; }
+table.items .c-name { width: 40%; }
+table.items .c-num { width: 12%; font-variant-numeric: tabular-nums; }
 table.items tbody tr.empty td {
   height: 23px;
   color: transparent;
@@ -501,18 +495,45 @@ function openStatementPrintWindow(html: string, title: string) {
   frameDoc.write(html)
   frameDoc.close()
 
-  const cleanup = () => iframe.remove()
+  const previousTitle = document.title
+  document.title = title
+
+  let cleaned = false
+  const cleanup = () => {
+    if (cleaned) return
+    cleaned = true
+    document.title = previousTitle
+    window.removeEventListener('afterprint', cleanup)
+    try {
+      frameWindow.removeEventListener('afterprint', cleanup)
+    } catch {
+      /* ignore */
+    }
+    iframe.remove()
+  }
+
+  window.addEventListener('afterprint', cleanup)
+  try {
+    frameWindow.addEventListener('afterprint', cleanup)
+  } catch {
+    /* ignore */
+  }
+  window.setTimeout(cleanup, 120_000)
 
   const triggerPrint = () => {
+    try {
+      frameDoc.title = ''
+    } catch {
+      /* ignore */
+    }
     frameWindow.focus()
     frameWindow.print()
-    window.setTimeout(cleanup, 120_000)
   }
 
   if (frameDoc.readyState === 'complete') {
     window.setTimeout(triggerPrint, 50)
   } else {
-    iframe.onload = () => window.setTimeout(triggerPrint, 50)
+    iframe.addEventListener('load', () => window.setTimeout(triggerPrint, 50), { once: true })
   }
 
   return true
@@ -527,7 +548,11 @@ export function printDeliveryStatements(list: DeliveryStatementData[]) {
   if (!list.length) return false
   const html = buildDeliveryStatementsHtml(list)
   if (!html) return false
-  return openStatementPrintWindow(html, '거래명세서 인쇄')
+  const fileTitle =
+    list.length === 1
+      ? `거래명세서_${list[0]!.orderNumber || list[0]!.docNo}`
+      : `거래명세서_${list.length}건`
+  return openStatementPrintWindow(html, fileTitle)
 }
 
 function isCollapsedProductLabel(name: string) {

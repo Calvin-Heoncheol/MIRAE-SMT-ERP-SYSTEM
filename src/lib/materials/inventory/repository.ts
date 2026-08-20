@@ -29,6 +29,31 @@ export function isMissingMaterialInventoryTables(detail: string) {
   )
 }
 
+async function fetchCustomerNamesById(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  customerIds: string[],
+) {
+  const names = new Map<string, string>()
+  const ids = [...new Set(customerIds.map((id) => id.trim()).filter(Boolean))]
+  if (!ids.length) return names
+
+  const chunkSize = 100
+  for (let offset = 0; offset < ids.length; offset += chunkSize) {
+    const chunk = ids.slice(offset, offset + chunkSize)
+    const { data, error } = await supabase
+      .from('business_partners')
+      .select('id, name')
+      .in('id', chunk)
+    if (error) break
+    for (const row of data || []) {
+      const id = String(row.id || '').trim()
+      if (id) names.set(id, String(row.name || '').trim())
+    }
+  }
+
+  return names
+}
+
 export async function fetchMaterialInventoryStatus(): Promise<FetchMaterialInventoryResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
@@ -62,7 +87,18 @@ export async function fetchMaterialInventoryStatus(): Promise<FetchMaterialInven
       return { ok: false, reason: 'query', detail: onHandResult.detail }
     }
 
-    const materials = (materialsResult.data || []).map((row) => mapItemRowToMaterial(row))
+    const itemRows = materialsResult.data || []
+    const customerNames = await fetchCustomerNamesById(
+      supabase,
+      itemRows.map((row) => String(row.customer_id || '')),
+    )
+
+    const materials = itemRows.map((row) => {
+      const material = mapItemRowToMaterial(row)
+      const customerId = String(row.customer_id || '').trim()
+      const customerName = customerNames.get(customerId) || material.customer
+      return { ...material, customer: customerName }
+    })
     const { pendingByMaterialId } = aggregatePendingInboundByMaterialId(
       (linesResult.data || []) as MaterialPurchaseOrderLineAggregateRecord[],
     )

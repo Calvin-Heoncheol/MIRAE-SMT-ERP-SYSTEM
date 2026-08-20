@@ -38,6 +38,8 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isLoginPage = pathname === '/login' || pathname.startsWith('/login/')
   const isForbiddenPage = pathname === '/forbidden' || pathname.startsWith('/forbidden/')
+  const isSolderPasteIngestApi =
+    pathname === '/api/solder-paste/logs' && request.method === 'POST'
   const isPublicAsset =
     pathname.startsWith('/_next') ||
     pathname.startsWith('/branding') ||
@@ -45,6 +47,17 @@ export async function updateSession(request: NextRequest) {
 
   if (isPublicAsset) {
     return supabaseResponse
+  }
+
+  if (isSolderPasteIngestApi) {
+    const ingestKey = process.env.SOLDER_PASTE_INGEST_KEY?.trim()
+    const provided =
+      request.headers.get('x-solder-paste-key')?.trim() ||
+      request.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() ||
+      ''
+    if (ingestKey && provided === ingestKey) {
+      return supabaseResponse
+    }
   }
 
   if (!user && !isLoginPage) {

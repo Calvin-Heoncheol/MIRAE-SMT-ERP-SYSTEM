@@ -1,10 +1,11 @@
-export const MATERIAL_OUTBOUND_TYPES = ['production', 'scrap', 'adjustment'] as const
+export const MATERIAL_OUTBOUND_TYPES = ['production', 'scrap', 'adjustment', 'restock'] as const
 export type MaterialOutboundType = (typeof MATERIAL_OUTBOUND_TYPES)[number]
 
 export const MATERIAL_OUTBOUND_TYPE_LABELS: Record<MaterialOutboundType, string> = {
   production: '생산',
   scrap: '폐기',
   adjustment: '조정',
+  restock: '잔량반납',
 }
 
 export type MaterialOutboundLineItem = {
@@ -15,6 +16,7 @@ export type MaterialOutboundLineItem = {
   specification: string
   mpn: string
   quantity: number
+  lotNumber: string
 }
 
 export type MaterialOutboundListGroup = {
@@ -38,6 +40,8 @@ export type MaterialOutboundLineRecord = {
   line_seq: number
   material_id: string
   quantity: number
+  lot_number?: string
+  inbound_line_id?: string | null
   items?: {
     id: string
     name: string
@@ -67,6 +71,8 @@ export type MaterialOutboundRowPayload = {
   items: {
     material_id: string
     quantity: number
+    lot_number?: string
+    inbound_line_id?: string | null
   }[]
 }
 
@@ -99,6 +105,7 @@ export type MaterialOutboundNeedRow = {
   requiredQuantity: number
   issuedQuantity: number
   remainingQuantity: number
+  onHandQuantity: number
 }
 
 /** 미불출 주문·품목·자재구분 카드 (SMD/DIP/기타 액션 단위) */

@@ -127,6 +127,7 @@ function buildProductLinesForOrder(
       productName:
         (smtLine?.productName || master?.productName || item.productName).trim() || '—',
       productCode: (smtLine?.productCode || master?.productCode || item.productCode).trim(),
+      version: (smtLine?.productVersion || master?.version || '').trim(),
       quantity,
       smtTarget,
       smtProduced,
@@ -159,6 +160,7 @@ function buildProductLinesForOrder(
       key: `smt:${smtLine.orderLineId}`,
       productName: smtLine.productName.trim() || '—',
       productCode: smtLine.productCode.trim(),
+      version: (smtLine.productVersion || '').trim(),
       quantity: smtTarget,
       smtTarget,
       smtProduced,
@@ -282,7 +284,8 @@ export function matchesProductionStatusSearch(line: ProductionStatusLine, query:
   if (!q) return true
   const productNames = line.products.map((product) => product.productName).join(' ')
   const productCodes = line.products.map((product) => product.productCode).join(' ')
-  return [line.orderNumber, line.customer, line.productName, productNames, productCodes]
+  const versions = line.products.map((product) => product.version).join(' ')
+  return [line.orderNumber, line.customer, line.productName, productNames, productCodes, versions]
     .join(' ')
     .toLowerCase()
     .includes(q)

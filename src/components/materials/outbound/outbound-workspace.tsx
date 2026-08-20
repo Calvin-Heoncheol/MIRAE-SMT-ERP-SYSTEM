@@ -118,7 +118,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query),
             emptyLabel: '미불출 주문이 없습니다',
-            actionHint: '주문·BOM 기준으로 아직 남은 자재 소요가 있으면 여기에 표시됩니다',
+            actionHint: '발주×BOM 소요가 남아 있으면 여기에 표시됩니다. 제품의 릴 스캔을 누르면 지급·반납합니다',
           })}
           onIssued={() => router.refresh()}
         />
@@ -141,7 +141,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
           emptyMessage={formatEmptyListMessage({
             hasQuery: Boolean(query),
             emptyLabel: '등록된 불출 내역이 없습니다',
-            actionHint: '불출등록 탭에서 등록하세요',
+            actionHint: '자재불출에서 등록하세요',
           })}
           onSelectOutbound={openEdit}
         />

@@ -1,6 +1,6 @@
 import { createSupabaseClient } from '@/lib/supabase'
 
-/** inbound − outbound → 현재고 */
+/** 릴 remaining 합 → 현재고 (뷰 material_on_hand) */
 export function computeOnHandByMaterialId(
   inboundByMaterialId: Map<string, number>,
   outboundByMaterialId: Map<string, number>,
@@ -51,7 +51,7 @@ export async function fetchOnHandByMaterialId(): Promise<FetchOnHandByMaterialId
           return {
             ok: false,
             detail:
-              '현재고 집계 뷰(material_on_hand)가 없습니다. Supabase SQL Editor에서 supabase/migrate-material-on-hand-view.sql 을 실행해 주세요.',
+              '현재고 집계 뷰(material_on_hand)가 없습니다. Supabase SQL Editor에서 supabase/migrate-material-on-hand-view.sql 또는 supabase/migrate-material-reel-remaining.sql 을 실행해 주세요.',
           }
         }
         return { ok: false, detail: error.message }

@@ -3,7 +3,7 @@ import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib
 
 export const DIRECT_STOCK_PASTE_COLUMNS = [
   { key: 'materialId', label: '품목코드', required: true },
-  { key: 'quantity', label: '수량', required: true },
+  { key: 'quantity', label: '현재고', required: true },
 ] as const
 
 export function directStockPasteSampleValues() {

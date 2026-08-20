@@ -1,0 +1,6 @@
+{
+  "logRoot": "D:\\Log",
+  "erpUrl": "http://192.168.0.10:3000/api/solder-paste/logs",
+  "ingestKey": "여기에-ERP-SOLDER_PASTE_INGEST_KEY-와-동일하게",
+  "syncDaysBack": 1
+}

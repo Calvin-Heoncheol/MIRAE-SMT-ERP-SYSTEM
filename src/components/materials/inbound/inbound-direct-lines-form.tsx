@@ -195,9 +195,11 @@ export function InboundDirectLinesForm({
           return {
             id: material ? formatMaterialDisplayCode(material) : item.materialId.trim(),
             materialName: item.materialName,
-            mpn: item.mpn,
-            lotNumber: item.lotNumber,
-            copies: reels > 0 ? reels : 1,
+            customer: material?.customer || '',
+            package: material?.package || '',
+            specification: item.specification,
+            lotNumber: item.lotNumber.trim(),
+            copies: item.lotNumber.trim() ? 1 : reels > 0 ? reels : 1,
           }
         }),
     [items, materials],
@@ -270,7 +272,7 @@ export function InboundDirectLinesForm({
     if (parsed.fingerprint) {
       const existing = items.find((item) => item.scanFingerprint === parsed.fingerprint)
       if (existing) {
-        setScanMessage({ tone: 'error', text: alreadyScannedReelMessage(existing.lotNumber) })
+        setScanMessage({ tone: 'error', text: alreadyScannedReelMessage() })
         triggerScanPulse('error')
         focusScanInput()
         return
@@ -302,14 +304,18 @@ export function InboundDirectLinesForm({
     ])
     setScanMessage({
       tone: 'success',
-      text: parsed.vendorLot ? `LOT ${lotNumber} · 제조 ${parsed.vendorLot}` : `LOT ${lotNumber}`,
+      text: parsed.vendorLot
+        ? `${formatMaterialDisplayCode(material)} · 제조 ${parsed.vendorLot}`
+        : formatMaterialDisplayCode(material),
     })
     markJustScanned(key)
     if (printOnScan) {
       printInboundReelLabel({
         id: formatMaterialDisplayCode(material),
         materialName: material.materialName,
-        mpn: material.mpn,
+        customer: material.customer,
+        package: material.package,
+        specification: material.specification,
         lotNumber,
       })
     }
@@ -512,7 +518,7 @@ export function InboundDirectLinesForm({
       {labelPrintItems.length > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-4 py-2">
           <p className="text-xs text-slate-600">
-            입고 라인 기준으로 품목코드 바코드 라벨을 출력합니다. 릴 개수만큼 장수가 정해집니다.
+            입고 라인 기준으로 품목코드·내부 LOT 바코드 라벨을 출력합니다. LOT가 있으면 릴마다 1장입니다.
           </p>
           <MaterialLabelPrintButton items={labelPrintItems} />
         </div>
@@ -534,7 +540,6 @@ export function InboundDirectLinesForm({
               <th className="px-3 py-2 text-left font-semibold text-slate-600">사양</th>
               <th className="px-3 py-2 text-left font-semibold text-slate-600">MPN</th>
               <th className="px-3 py-2 text-center font-semibold text-slate-600">도급/사급</th>
-              <th className="px-3 py-2 text-left font-semibold text-slate-600">LOT</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">입고수량</th>
               <th className="w-10 px-2 py-2" />
@@ -543,8 +548,8 @@ export function InboundDirectLinesForm({
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-500">
-                  스캔한 릴이 바로 여기에 쌓입니다. 릴마다 LOT가 부여되고, 같은 릴을 다시 찍으면 알려 줍니다.
+                <td colSpan={10} className="px-4 py-16 text-center text-sm text-slate-500">
+                  스캔한 릴이 바로 여기에 쌓입니다. 같은 릴을 다시 찍으면 알려 줍니다.
                 </td>
               </tr>
             ) : (
@@ -621,12 +626,6 @@ export function InboundDirectLinesForm({
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-center text-sm text-slate-700">
                       {cell(material?.supplyType || '')}
-                    </td>
-                    <td className={`px-3 py-2 font-mono text-sm text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                      <span className="font-semibold">{cell(item.lotNumber)}</span>
-                      {item.vendorLot ? (
-                        <span className="mt-0.5 block text-xs text-slate-500">제조 {item.vendorLot}</span>
-                      ) : null}
                     </td>
                     <td className="w-[96px] px-2 py-2">
                       <input

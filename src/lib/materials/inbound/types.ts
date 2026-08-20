@@ -43,6 +43,8 @@ export type MaterialInboundLineRecord = {
   quantity: number
   lot_number?: string
   scan_fingerprint?: string
+  remaining_qty?: number
+  location_status?: string
   items?: {
     id: string
     name: string

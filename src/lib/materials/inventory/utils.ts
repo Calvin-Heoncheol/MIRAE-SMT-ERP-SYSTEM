@@ -58,6 +58,13 @@ export function mergeMaterialInventoryRows(
   })
 }
 
+export function inventoryCustomerLabel(row: MaterialInventoryRow) {
+  const customer = row.customer.trim()
+  if (customer) return customer
+  if (row.supplyType === '사급') return row.supplier.trim()
+  return ''
+}
+
 export function matchesInventoryQuery(row: MaterialInventoryRow, query: string) {
   if (!query) return true
 
@@ -65,6 +72,7 @@ export function matchesInventoryQuery(row: MaterialInventoryRow, query: string) 
     row.id,
     row.baseCode,
     row.materialName,
+    inventoryCustomerLabel(row),
     row.specification,
     row.package,
     row.type,
@@ -85,18 +93,16 @@ export function matchesInventoryFilter(row: MaterialInventoryRow, mode: Inventor
   return true
 }
 
-/** 사급 재고: 공급사 필드 = 고객사 */
 export function matchesInventoryCustomer(row: MaterialInventoryRow, customer: string) {
-  const q = customer.trim().toLowerCase()
-  if (!q) return true
-  return row.supplier.trim().toLowerCase().includes(q)
+  const selected = customer.trim()
+  if (!selected) return true
+  return inventoryCustomerLabel(row) === selected
 }
 
-export function listInventoryConsigneeCustomers(rows: MaterialInventoryRow[]) {
+export function listInventoryCustomers(rows: MaterialInventoryRow[]) {
   const names = new Set<string>()
   for (const row of rows) {
-    if (row.supplyType !== '사급') continue
-    const name = row.supplier.trim()
+    const name = inventoryCustomerLabel(row)
     if (name) names.add(name)
   }
   return Array.from(names).sort((a, b) => a.localeCompare(b, 'ko'))

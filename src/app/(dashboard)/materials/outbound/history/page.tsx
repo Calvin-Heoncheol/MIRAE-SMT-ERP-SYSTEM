@@ -1,5 +1,7 @@
-import { redirect } from 'next/navigation'
+import { OutboundWorkspace } from '@/components/materials/outbound/outbound-workspace'
+import { fetchMaterialOutboundPageData } from '@/lib/materials/outbound/repository'
 
-export default function MaterialOutboundHistoryRedirectPage() {
-  redirect('/materials/outbound')
+export default async function MaterialOutboundHistoryPage() {
+  const result = await fetchMaterialOutboundPageData()
+  return <OutboundWorkspace result={result} view="history" />
 }

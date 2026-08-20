@@ -226,7 +226,7 @@ export function InboundScanPanel({
     if (parsed.fingerprint) {
       const existing = lines.find((line) => line.scanFingerprint === parsed.fingerprint)
       if (existing) {
-        setMessage({ tone: 'error', text: alreadyScannedReelMessage(existing.lotNumber) })
+        setMessage({ tone: 'error', text: alreadyScannedReelMessage() })
         triggerScanPulse('error')
         focusScanInput()
         return
@@ -266,16 +266,16 @@ export function InboundScanPanel({
     ])
     setMessage({
       tone: 'success',
-      text: parsed.vendorLot
-        ? `LOT ${lotNumber} · 제조 ${parsed.vendorLot}`
-        : `LOT ${lotNumber}`,
+      text: parsed.vendorLot ? `${displayCode} · 제조 ${parsed.vendorLot}` : displayCode || material.materialName,
     })
     markJustScanned(key)
     if (printOnScan) {
       printInboundReelLabel({
         id: displayCode || material.id,
         materialName: material.materialName,
-        mpn: material.mpn,
+        customer: material.customer,
+        package: material.package,
+        specification: material.specification,
         lotNumber,
       })
     }
@@ -522,9 +522,11 @@ export function InboundScanPanel({
   const labelPrintItems = lines.map((line) => ({
     id: line.materialCode || line.materialId,
     materialName: line.materialName,
-    mpn: line.mpn,
+    customer: materials.find((row) => row.id === line.materialId)?.customer || '',
+    package: line.package,
+    specification: line.specification,
     lotNumber: line.lotNumber,
-    copies: Math.max(1, Number(line.reelCount) || 1),
+    copies: line.lotNumber?.trim() ? 1 : Math.max(1, Number(line.reelCount) || 1),
   }))
 
   const inputClassName =
@@ -538,7 +540,7 @@ export function InboundScanPanel({
             <div>
               <p className="text-sm font-bold text-slate-800">바코드 스캔</p>
               <p className="mt-0.5 text-xs text-slate-500">
-                스캔 후 수량을 입력하고 Enter 하면 다음 바코드를 찍을 수 있습니다. 릴마다 LOT가 생깁니다.
+                스캔 후 수량을 입력하고 Enter 하면 다음 바코드를 찍을 수 있습니다.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -634,7 +636,6 @@ export function InboundScanPanel({
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">사양</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">MPN</th>
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">도급/사급</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">LOT</th>
                 <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
                 <th className="px-3 py-2 text-right font-semibold text-slate-600">입고수량</th>
                 <th className="w-10 px-2 py-2" />
@@ -643,8 +644,8 @@ export function InboundScanPanel({
             <tbody>
               {lines.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-16 text-center text-sm text-slate-500">
-                    스캔한 릴이 바로 여기에 쌓입니다. 릴마다 LOT가 부여되고, 같은 릴을 다시 찍으면 알려 줍니다.
+                  <td colSpan={10} className="px-4 py-16 text-center text-sm text-slate-500">
+                    스캔한 릴이 바로 여기에 쌓입니다. 같은 릴을 다시 찍으면 알려 줍니다.
                   </td>
                 </tr>
               ) : (
@@ -681,12 +682,6 @@ export function InboundScanPanel({
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-center text-sm text-slate-700">
                       {cell(line.supplyType)}
-                    </td>
-                    <td className={`px-3 py-2 font-mono text-sm text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                      <span className="font-semibold">{cell(line.lotNumber)}</span>
-                      {line.vendorLot ? (
-                        <span className="mt-0.5 block text-xs text-slate-500">제조 {line.vendorLot}</span>
-                      ) : null}
                     </td>
                     <td className="w-[88px] px-2 py-2">
                       <input

@@ -61,12 +61,45 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/production/status',
     children: [
       { label: '생산현황', href: '/production/status' },
-      { label: '생산이력', href: '/production/history' },
-      { label: '생산계획', href: '/production/plan' },
+      {
+        label: '생산1팀',
+        href: '/smt/input',
+        children: [
+          { label: '생산등록', href: '/smt/input' },
+          { label: '생산계획', href: '/production/plan?tab=smt' },
+          { label: '생산이력', href: '/production/history?team=생산1팀' },
+          { label: '메탈마스크&스퀴즈', href: '/smt/metal-masks' },
+          { label: '솔더페이스트', href: '/smt/solder-paste' },
+        ],
+      },
+      {
+        label: '생산2팀',
+        href: '/post-process/input?team=생산2팀',
+        children: [
+          { label: '생산등록', href: '/post-process/input?team=생산2팀' },
+          { label: '생산계획', href: '/production/plan?tab=생산2팀' },
+          { label: '생산이력', href: '/production/history?team=생산2팀' },
+        ],
+      },
+      {
+        label: '생산3팀',
+        href: '/post-process/input?team=생산3팀',
+        children: [
+          { label: '생산등록', href: '/post-process/input?team=생산3팀' },
+          { label: '생산계획', href: '/production/plan?tab=생산3팀' },
+          { label: '생산이력', href: '/production/history?team=생산3팀' },
+        ],
+      },
+      {
+        label: '생산4팀',
+        href: '/post-process/input?team=생산4팀',
+        children: [
+          { label: '생산등록', href: '/post-process/input?team=생산4팀' },
+          { label: '생산계획', href: '/production/plan?tab=생산4팀' },
+          { label: '생산이력', href: '/production/history?team=생산4팀' },
+        ],
+      },
       { label: '생산리포트', href: '/reports/production' },
-      { label: 'SMT 생산등록', href: '/smt/input' },
-      { label: '후공정 생산등록', href: '/post-process/input' },
-      { label: '메탈마스크&스퀴즈', href: '/smt/metal-masks' },
     ],
   },
   {
@@ -74,11 +107,11 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/materials/inventory',
     children: [
       { label: '재고현황', href: '/materials/inventory' },
-      { label: '제품재고', href: '/materials/product-inventory' },
       { label: '구매발주', href: '/materials/purchase-orders' },
-      { label: '입고', href: '/materials/inbound' },
+      { label: '자재입고', href: '/materials/inbound' },
       { label: '입고이력', href: '/materials/inbound/history' },
-      { label: '불출', href: '/materials/outbound' },
+      { label: '자재불출', href: '/materials/outbound' },
+      { label: '불출이력', href: '/materials/outbound/history' },
     ],
   },
   {
@@ -165,8 +198,8 @@ const NAV_EXACT_CHILD_PATHS = [
   '/quotations',
   '/master/customers',
   '/materials/inventory',
-  '/materials/product-inventory',
   '/materials/inbound',
+  '/materials/outbound',
 ] as const
 
 export function isNavChildActive(pathname: string, href: string, search?: NavSearch | null) {

@@ -100,6 +100,8 @@ export function mapItemRowToMaterial(row: {
   mpn: string
   material_type?: string | null
   supply_type?: string | null
+  customer?: string | null
+  customer_name?: string | null
   supplier?: string | null
   unit_price?: number | null
   safety_stock?: number | null
@@ -120,7 +122,7 @@ export function mapItemRowToMaterial(row: {
     id: row.id,
     baseCode: String(row.base_code || '').trim(),
     package: String(row.package || '').trim(),
-    customer: '',
+    customer: String(row.customer_name || row.customer || '').trim(),
     materialName: row.name || '',
     specification: row.specification || '',
     type,

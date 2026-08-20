@@ -232,6 +232,7 @@ export function ProductionStatusTable({ lines, emptyMessage, onStageClick }: Pro
               <th className={ERP_TABLE_TH_CLASS}>고객사</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>품목코드</th>
               <th className={ERP_TABLE_TH_CLASS}>제품</th>
+              <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>버전</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>납기</th>
               <th className={ERP_TABLE_TH_CLASS}>SMT</th>
               <th className={ERP_TABLE_TH_CLASS}>후공정</th>
@@ -272,6 +273,9 @@ function OrderStatusRows({
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-xs text-slate-700`}>—</td>
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-medium text-slate-900`}>
           {line.productName || '—'}
+        </td>
+        <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-center text-xs text-slate-500`}>
+          —
         </td>
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
           <DeliveryDueBadge deliveryDate={line.deliveryDate} done={done} />
@@ -325,6 +329,13 @@ function OrderStatusRows({
             </td>
             <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-medium text-slate-900`}>
               {product.productName || '—'}
+            </td>
+            <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-center`}>
+              {product.version ? (
+                <span className="text-xs font-semibold text-sky-700">{product.version}</span>
+              ) : (
+                <span className="text-xs text-slate-300">—</span>
+              )}
             </td>
             <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
               <DeliveryDueBadge deliveryDate={line.deliveryDate} done={done} />

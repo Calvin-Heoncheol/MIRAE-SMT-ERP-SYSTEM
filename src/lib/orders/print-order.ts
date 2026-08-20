@@ -28,9 +28,12 @@ export type OrderPrintData = {
   items: OrderPrintLine[]
   note?: string
   customerPoNumber?: string
+  /** 발주서 상단 연락 이메일 — 없으면 회사 기본값 */
+  contactEmail?: string
 }
 
 const ORDER_PRINT_LOGO_PATH = '/branding/logo.png'
+const ORDER_PRINT_SEAL_PATH = '/branding/company-seal.png'
 /** 브랜드 틸 — 로고 악센트와 맞춤 */
 const BRAND_TEAL = '#0f766e'
 const BRAND_TEAL_SOFT = '#ecfdf5'
@@ -47,9 +50,17 @@ function formatNumber(value: number) {
   return Math.max(0, Math.round(Number(value) || 0)).toLocaleString('ko-KR')
 }
 
+function resolvePrintAssetSrc(path: string) {
+  if (typeof window === 'undefined') return path
+  return `${window.location.origin}${path}`
+}
+
 function resolvePrintLogoSrc() {
-  if (typeof window === 'undefined') return ORDER_PRINT_LOGO_PATH
-  return `${window.location.origin}${ORDER_PRINT_LOGO_PATH}`
+  return resolvePrintAssetSrc(ORDER_PRINT_LOGO_PATH)
+}
+
+function resolvePrintSealSrc() {
+  return resolvePrintAssetSrc(ORDER_PRINT_SEAL_PATH)
 }
 
 function formatTel(value: string) {
@@ -63,7 +74,26 @@ function formatTel(value: string) {
   return value
 }
 
-export function buildOrderHtml(data: OrderPrintData, logoSrc = ORDER_PRINT_LOGO_PATH) {
+function sanitizePdfFilenamePart(value: string) {
+  return value
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
+}
+
+/** PDF「다른 이름으로 저장」기본 파일명 — 발주처_발주번호 */
+function buildOrderPdfDocumentTitle(data: OrderPrintData) {
+  const customer = sanitizePdfFilenamePart(data.customer.trim()) || '발주처'
+  const orderNumber = sanitizePdfFilenamePart(data.orderNumber.trim()) || '발주서'
+  return `${customer}_${orderNumber}`
+}
+
+export function buildOrderHtml(
+  data: OrderPrintData,
+  logoSrc = ORDER_PRINT_LOGO_PATH,
+  sealSrc = ORDER_PRINT_SEAL_PATH,
+) {
   const orderNumber = escapeHtml(data.orderNumber)
   const sourceQuote = String(data.sourceQuoteNumber || '').trim()
   const sourceQuoteHtml = sourceQuote
@@ -80,7 +110,11 @@ export function buildOrderHtml(data: OrderPrintData, logoSrc = ORDER_PRINT_LOGO_
   const noteRaw = String(data.note || '').trim()
   const note = escapeHtml(noteRaw)
   const logo = escapeHtml(logoSrc)
+  const seal = escapeHtml(sealSrc)
   const companyName = escapeHtml(APP_SHORT_NAME)
+  const contactEmail = escapeHtml(
+    String(data.contactEmail || '').trim() || COMPANY_QUOTE_EMAIL_DOMESTIC,
+  )
 
   const totalQuantity = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0)
   const totalAmount = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.orderAmount) || 0), 0)
@@ -103,13 +137,13 @@ export function buildOrderHtml(data: OrderPrintData, logoSrc = ORDER_PRINT_LOGO_
     })
     .join('')
 
-  const notesHtml = noteRaw
-    ? `<div class="notes"><div class="notes-label">비고</div><div class="notes-body">${note}</div></div>`
-    : `<div class="notes notes-muted"><div class="notes-label">안내</div><div class="notes-body">납기 ${deliveryDate} · 품목 ${formatNumber(data.items.length)}종 · 수량 합계 ${formatNumber(totalQuantity)}</div></div>`
+  const confirmationBody = noteRaw
+    ? note
+    : '위 발주 내용을 확인합니다.'
 
   return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
-<title>발주서 ${orderNumber}</title><style>
-@page { size: A4 portrait; margin: 12mm; }
+<title></title><style>
+@page { size: A4 portrait; margin: 0; }
 html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 * { box-sizing: border-box; }
 body {
@@ -120,6 +154,9 @@ body {
   font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   font-size: 10px;
   line-height: 1.45;
+}
+@media print {
+  body { margin: 12mm; }
 }
 .sheet { padding: 0; background: #fff; }
 .brand-bar {
@@ -206,8 +243,23 @@ body {
   background: #fff;
 }
 .party-box.supplier {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   border-color: #99f6e4;
   background: ${BRAND_TEAL_SOFT};
+}
+.party-box.supplier .supplier-body {
+  min-width: 0;
+  flex: 1;
+}
+.company-seal {
+  display: block;
+  width: 68px;
+  height: 68px;
+  flex-shrink: 0;
+  object-fit: contain;
 }
 .party-box .label {
   margin-bottom: 5px;
@@ -251,10 +303,16 @@ table.items {
   border-collapse: collapse;
   table-layout: fixed;
 }
+table.items col.col-no { width: 5%; }
+table.items col.col-code { width: 14%; }
+table.items col.col-name { width: 36%; }
+table.items col.col-qty { width: 9%; }
+table.items col.col-price { width: 16%; }
+table.items col.col-amt { width: 20%; }
 table.items th,
 table.items td {
   border: 1px solid #cbd5e1;
-  padding: 7px 8px;
+  padding: 7px 6px;
   vertical-align: middle;
 }
 table.items th {
@@ -265,18 +323,36 @@ table.items th {
   letter-spacing: 0.04em;
   text-align: center;
 }
-table.items td.c-no { width: 32px; text-align: center; color: #64748b; }
-table.items td.mono {
-  width: 18%;
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  font-size: 9px;
-  color: #334155;
-}
-table.items td.name { word-break: break-word; font-weight: 600; color: #0f172a; }
+table.items th.col-qty,
+table.items th.col-price,
+table.items th.col-amt,
 table.items td.num {
   text-align: right;
+}
+table.items td.c-no {
+  text-align: center;
+  color: #64748b;
+  font-size: 9px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+table.items td.mono {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 8.5px;
+  color: #334155;
+  word-break: break-all;
+}
+table.items td.name {
+  word-break: break-word;
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+table.items td.num {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  font-size: 9px;
 }
 table.items td.amt { font-weight: 800; color: #0f172a; }
 .bottom-grid {
@@ -284,9 +360,13 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
   grid-template-columns: 1.2fr 0.8fr;
   gap: 10px;
   margin-top: 12px;
-  align-items: start;
+  align-items: stretch;
 }
 .totals {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
   padding: 12px 14px;
   border: 1px solid #99f6e4;
   border-radius: 6px;
@@ -308,11 +388,13 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
 }
 .totals .grand .value { font-size: 14px; color: ${BRAND_TEAL}; }
 .sign {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   padding: 12px 14px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   background: #fff;
-  min-height: 88px;
 }
 .sign .label {
   font-size: 8px;
@@ -322,35 +404,13 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
   text-transform: uppercase;
 }
 .sign .body {
+  flex: 1;
   margin-top: 10px;
   font-size: 10px;
   color: #475569;
   line-height: 1.5;
+  white-space: pre-wrap;
 }
-.sign .stamp {
-  margin-top: 18px;
-  text-align: right;
-  font-size: 11px;
-  font-weight: 800;
-  color: #0f172a;
-}
-.notes {
-  margin-top: 12px;
-  padding: 10px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background: #f8fafc;
-}
-.notes-muted { background: #fff; }
-.notes-label {
-  margin-bottom: 4px;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #64748b;
-  text-transform: uppercase;
-}
-.notes-body { color: #334155; white-space: pre-wrap; }
 .footer {
   margin-top: 16px;
   padding-top: 8px;
@@ -370,7 +430,7 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
         <div class="en">MIRAE SMT</div>
         <div class="contact">
           ${escapeHtml(COMPANY_ADDRESS_STATEMENT)}<br />
-          Tel ${escapeHtml(formatTel(COMPANY_TEL))} · ${escapeHtml(COMPANY_QUOTE_EMAIL_DOMESTIC)}
+          Tel ${escapeHtml(formatTel(COMPANY_TEL))} · ${contactEmail}
         </div>
       </div>
     </div>
@@ -389,11 +449,14 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
       <div class="detail">발주일자 ${orderDate} · 분류 ${category}</div>
     </div>
     <div class="party-box supplier">
-      <div class="label">수주처 · Supplier</div>
-      <div class="name">${companyName}</div>
-      <div class="detail">
-        사업자등록번호 ${escapeHtml(COMPANY_BIZ_NO)} · 대표자 ${escapeHtml(COMPANY_CEO_NAME)}
+      <div class="supplier-body">
+        <div class="label">수주처 · Supplier</div>
+        <div class="name">${companyName}</div>
+        <div class="detail">
+          사업자등록번호 ${escapeHtml(COMPANY_BIZ_NO)} · 대표자 ${escapeHtml(COMPANY_CEO_NAME)}
+        </div>
       </div>
+      <img class="company-seal" src="${seal}" alt="" />
     </div>
   </div>
 
@@ -405,14 +468,22 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
   </div>
 
   <table class="items">
+    <colgroup>
+      <col class="col-no" />
+      <col class="col-code" />
+      <col class="col-name" />
+      <col class="col-qty" />
+      <col class="col-price" />
+      <col class="col-amt" />
+    </colgroup>
     <thead>
       <tr>
-        <th>No</th>
-        <th>제품코드</th>
-        <th>제품명</th>
-        <th>수량</th>
-        <th>단가</th>
-        <th>금액</th>
+        <th class="c-no">No</th>
+        <th class="col-code">제품코드</th>
+        <th class="col-name">제품명</th>
+        <th class="col-qty">수량</th>
+        <th class="col-price">단가</th>
+        <th class="col-amt">금액</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -421,8 +492,7 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
   <div class="bottom-grid">
     <div class="sign">
       <div class="label">확인 · Confirmation</div>
-      <div class="body">위 발주 내용을 확인합니다.</div>
-      <div class="stamp">${companyName}</div>
+      <div class="body">${confirmationBody}</div>
     </div>
     <div class="totals">
       <div class="row">
@@ -436,8 +506,6 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
     </div>
   </div>
 
-  ${notesHtml}
-
   <div class="footer">
     <span>${companyName} · 정식 발주서</span>
     <span>${orderNumber}</span>
@@ -448,9 +516,10 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
 export function printOrder(data: OrderPrintData) {
   if (typeof document === 'undefined') return false
 
-  const html = buildOrderHtml(data, resolvePrintLogoSrc())
+  const pdfTitle = buildOrderPdfDocumentTitle(data)
+  const html = buildOrderHtml(data, resolvePrintLogoSrc(), resolvePrintSealSrc())
   const iframe = document.createElement('iframe')
-  iframe.setAttribute('title', '발주서 인쇄')
+  iframe.setAttribute('title', pdfTitle)
   iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
   document.body.appendChild(iframe)
 
@@ -465,7 +534,30 @@ export function printOrder(data: OrderPrintData) {
   frameDoc.write(html)
   frameDoc.close()
 
-  const cleanup = () => iframe.remove()
+  const previousTitle = document.title
+  document.title = pdfTitle
+
+  let cleaned = false
+  const cleanup = () => {
+    if (cleaned) return
+    cleaned = true
+    document.title = previousTitle
+    window.removeEventListener('afterprint', cleanup)
+    try {
+      frameWindow.removeEventListener('afterprint', cleanup)
+    } catch {
+      /* ignore */
+    }
+    iframe.remove()
+  }
+
+  window.addEventListener('afterprint', cleanup)
+  try {
+    frameWindow.addEventListener('afterprint', cleanup)
+  } catch {
+    /* ignore */
+  }
+  window.setTimeout(cleanup, 120_000)
 
   const waitForImages = () => {
     const images = Array.from(frameDoc.images || [])
@@ -487,9 +579,13 @@ export function printOrder(data: OrderPrintData) {
 
   const triggerPrint = () => {
     void waitForImages().then(() => {
+      try {
+        frameDoc.title = ''
+      } catch {
+        /* ignore */
+      }
       frameWindow.focus()
       frameWindow.print()
-      window.setTimeout(cleanup, 120_000)
     })
   }
 

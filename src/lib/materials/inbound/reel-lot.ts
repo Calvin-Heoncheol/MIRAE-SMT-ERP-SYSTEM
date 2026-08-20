@@ -78,8 +78,8 @@ export function assignReelLotNumber(inboundDate: string, existingLots: string[])
   return generateMaterialReelLot(inboundDate, existingLots)
 }
 
-export function alreadyScannedReelMessage(lotNumber: string) {
-  return `이미 스캔한 릴입니다. (LOT ${lotNumber})`
+export function alreadyScannedReelMessage() {
+  return '이미 스캔한 릴입니다.'
 }
 
 export function isMissingInboundLotColumn(detail: string) {

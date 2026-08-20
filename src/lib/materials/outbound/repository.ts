@@ -9,6 +9,7 @@ import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { buildFullyShippedOrderIdSet } from '@/lib/delivery/utils'
 import { fetchMaterials } from '@/lib/materials/repository'
+import { formatMaterialDisplayCode } from '@/lib/materials/utils'
 import { fetchOrders } from '@/lib/orders/repository'
 import type { Material } from '@/lib/materials/types'
 import type { OrderListGroup } from '@/lib/orders/types'
@@ -28,6 +29,35 @@ import {
   resolveMaterialBucket,
 } from './utils'
 import { fetchOnHandByMaterialId, availableOnHandForOutboundEdit } from '@/lib/materials/inventory/stock'
+import {
+  allocateFifoReelLines,
+  issueMaterialProductUnits,
+  issueMaterialReel,
+  issueMaterialReels,
+  previewMaterialReel,
+  restockMaterialReel,
+  restoreReelsForOutboundLines,
+  type ReelPreviewResult,
+} from './reel-ops'
+import { REEL_MIGRATION_HINT } from './reels'
+
+const OUTBOUND_LINES_SELECT = `
+          id,
+          outbound_id,
+          line_seq,
+          material_id,
+          quantity,
+          lot_number,
+          inbound_line_id
+`
+
+const OUTBOUND_LINES_SELECT_LEGACY = `
+          id,
+          outbound_id,
+          line_seq,
+          material_id,
+          quantity
+`
 
 export type FetchMaterialOutboundsResult =
   | { ok: true; outbounds: MaterialOutboundListGroup[] }
@@ -125,7 +155,10 @@ function validateOutboundPayload(payload: MaterialOutboundRowPayload): string | 
   const items = payload.items.filter((item) => Number(item.quantity) > 0)
   if (!items.length) return '불출 수량이 1개 이상인 품목을 입력해 주세요.'
 
-  if (payload.outbound_type === 'production' && !payload.order_id?.trim()) {
+  if (
+    (payload.outbound_type === 'production' || payload.outbound_type === 'restock') &&
+    !payload.order_id?.trim()
+  ) {
     return '생산 불출은 주문을 선택해 주세요.'
   }
 
@@ -172,22 +205,33 @@ export async function fetchMaterialOutbounds(): Promise<FetchMaterialOutboundsRe
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('material_outbound_records')
       .select(
         `
         *,
         material_outbound_lines (
-          id,
-          outbound_id,
-          line_seq,
-          material_id,
-          quantity
+          ${OUTBOUND_LINES_SELECT}
         )
       `,
       )
       .order('outbound_date', { ascending: false })
       .order('created_at', { ascending: false })
+
+    if (error && (error.message.includes('lot_number') || error.message.includes('inbound_line_id'))) {
+      ;({ data, error } = await supabase
+        .from('material_outbound_records')
+        .select(
+          `
+        *,
+        material_outbound_lines (
+          ${OUTBOUND_LINES_SELECT_LEGACY}
+        )
+      `,
+        )
+        .order('outbound_date', { ascending: false })
+        .order('created_at', { ascending: false }))
+    }
 
     if (error) {
       return { ok: false, reason: 'query', detail: error.message }
@@ -302,6 +346,8 @@ async function fetchIssuedOrderMaterialRows() {
     .select(
       `
       order_id,
+      product_id,
+      outbound_type,
       material_outbound_lines (
         material_id,
         quantity
@@ -310,15 +356,57 @@ async function fetchIssuedOrderMaterialRows() {
     )
     .not('order_id', 'is', null)
 
+  if (error && String(error.message).includes('product_id')) {
+    const fallback = await supabase
+      .from('material_outbound_records')
+      .select(
+        `
+      order_id,
+      outbound_type,
+      material_outbound_lines (
+        material_id,
+        quantity
+      )
+    `,
+      )
+      .not('order_id', 'is', null)
+    if (fallback.error) throw new Error(fallback.error.message)
+    const flatLegacy: {
+      order_id: string | null
+      product_id: string | null
+      material_id: string
+      quantity: number
+    }[] = []
+    for (const record of fallback.data || []) {
+      for (const line of record.material_outbound_lines || []) {
+        flatLegacy.push({
+          order_id: record.order_id,
+          product_id: null,
+          material_id: line.material_id,
+          quantity:
+            (record.outbound_type === 'restock' ? -1 : 1) * (Number(line.quantity) || 0),
+        })
+      }
+    }
+    return flatLegacy
+  }
+
   if (error) throw new Error(error.message)
 
-  const flat: { order_id: string | null; material_id: string; quantity: number }[] = []
+  const flat: {
+    order_id: string | null
+    product_id: string | null
+    material_id: string
+    quantity: number
+  }[] = []
   for (const record of data || []) {
     for (const line of record.material_outbound_lines || []) {
       flat.push({
         order_id: record.order_id,
+        product_id: String(record.product_id || '').trim() || null,
         material_id: line.material_id,
-        quantity: Number(line.quantity) || 0,
+        quantity:
+          (record.outbound_type === 'restock' ? -1 : 1) * (Number(line.quantity) || 0),
       })
     }
   }
@@ -378,6 +466,9 @@ export async function fetchOutboundPendingSummary(): Promise<
     const itemNameById = new Map(
       materialsResult.materials.map((material) => [material.id, material.materialName]),
     )
+    const itemCodeById = new Map(
+      materialsResult.materials.map((material) => [material.id, formatMaterialDisplayCode(material)]),
+    )
     const bucketByMaterialId = new Map(
       materialsResult.materials.map((material) => [material.id, resolveMaterialBucket(material.type)]),
     )
@@ -386,6 +477,7 @@ export async function fetchOutboundPendingSummary(): Promise<
       orders: pendingOrders,
       edgesByParent,
       itemNameById,
+      itemCodeById,
       issuedByOrderMaterial: aggregateIssuedByOrderMaterial(issuedRows),
       bucketByMaterialId,
     })
@@ -456,6 +548,9 @@ export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutb
     const onHandByMaterialId = onHandResult.onHandByMaterialId
 
     const itemNameById = new Map(materialsResult.materials.map((material) => [material.id, material.materialName]))
+    const itemCodeById = new Map(
+      materialsResult.materials.map((material) => [material.id, formatMaterialDisplayCode(material)]),
+    )
     const bucketByMaterialId = new Map(
       materialsResult.materials.map((material) => [material.id, resolveMaterialBucket(material.type)]),
     )
@@ -464,8 +559,10 @@ export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutb
       orders: pendingOrders,
       edgesByParent,
       itemNameById,
+      itemCodeById,
       issuedByOrderMaterial,
       bucketByMaterialId,
+      onHandByMaterialId,
     })
     const needCards = buildOutboundNeedCards({
       rows: needs,
@@ -494,22 +591,33 @@ export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutb
 
 async function fetchOutboundRecordById(outboundId: string) {
   const supabase = createSupabaseClient()
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('material_outbound_records')
     .select(
       `
       *,
       material_outbound_lines (
-        id,
-        outbound_id,
-        line_seq,
-        material_id,
-        quantity
+        ${OUTBOUND_LINES_SELECT}
       )
     `,
     )
     .eq('id', outboundId)
     .maybeSingle()
+
+  if (error && (error.message.includes('lot_number') || error.message.includes('inbound_line_id'))) {
+    ;({ data, error } = await supabase
+      .from('material_outbound_records')
+      .select(
+        `
+      *,
+      material_outbound_lines (
+        ${OUTBOUND_LINES_SELECT_LEGACY}
+      )
+    `,
+      )
+      .eq('id', outboundId)
+      .maybeSingle())
+  }
 
   if (error) throw new Error(error.message)
   return data as MaterialOutboundRecord | null
@@ -535,6 +643,8 @@ export async function createMaterialOutbound(
     .map((item) => ({
       material_id: item.material_id.trim(),
       quantity: Number(item.quantity),
+      inbound_line_id: item.inbound_line_id || null,
+      lot_number: item.lot_number || '',
     }))
 
   const stockError = await validateOutboundStock(items)
@@ -543,6 +653,16 @@ export async function createMaterialOutbound(
   }
 
   try {
+    let allocated: Awaited<ReturnType<typeof allocateFifoReelLines>> | null = null
+    try {
+      allocated = await allocateFifoReelLines(items)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      if (detail !== REEL_MIGRATION_HINT) {
+        return { ok: false, reason: 'validation', detail }
+      }
+    }
+
     const supabase = createSupabaseClient()
     let headerRow: Record<string, unknown> = await withCreatedByFields({
       outbound_date: payload.outbound_date,
@@ -567,19 +687,31 @@ export async function createMaterialOutbound(
     }
 
     if (error || !inserted?.id) {
+      if (allocated) {
+        await restoreReelsForOutboundLines(allocated, payload.outbound_type).catch(() => undefined)
+      }
       return { ok: false, reason: 'query', detail: error?.message || '불출 저장에 실패했습니다.' }
     }
 
-    const { error: linesError } = await supabase.from('material_outbound_lines').insert(
-      items.map((item, index) => ({
-        outbound_id: inserted.id,
-        line_seq: index,
-        material_id: item.material_id,
-        quantity: item.quantity,
-      })),
-    )
+    const lineRows = (allocated ?? items).map((item, index) => ({
+      outbound_id: inserted.id,
+      line_seq: index,
+      material_id: item.material_id,
+      quantity: item.quantity,
+      ...(allocated
+        ? {
+            lot_number: 'lot_number' in item ? item.lot_number : '',
+            inbound_line_id: 'inbound_line_id' in item ? item.inbound_line_id : null,
+          }
+        : {}),
+    }))
+
+    const { error: linesError } = await supabase.from('material_outbound_lines').insert(lineRows)
 
     if (linesError) {
+      if (allocated) {
+        await restoreReelsForOutboundLines(allocated, payload.outbound_type).catch(() => undefined)
+      }
       await supabase.from('material_outbound_records').delete().eq('id', inserted.id)
       return { ok: false, reason: 'query', detail: linesError.message }
     }
@@ -622,6 +754,25 @@ export async function updateMaterialOutbound(
 
     if (existing.outbound_type !== payload.outbound_type) {
       return { ok: false, reason: 'validation', detail: '불출 유형은 수정할 수 없습니다.' }
+    }
+
+    if (existing.outbound_type === 'restock') {
+      return { ok: false, reason: 'validation', detail: '잔량반납 전표는 수정할 수 없습니다. 삭제한 뒤 다시 스캔하세요.' }
+    }
+
+    const hasReelLines = (existing.material_outbound_lines || []).some((line) => line.inbound_line_id)
+    if (hasReelLines) {
+      const supabase = createSupabaseClient()
+      const { error: updateError } = await supabase
+        .from('material_outbound_records')
+        .update({
+          outbound_date: payload.outbound_date,
+          order_id: payload.order_id,
+          note: payload.note,
+        })
+        .eq('id', outboundId)
+      if (updateError) return { ok: false, reason: 'query', detail: updateError.message }
+      return { ok: true, outboundId, outboundNumber: outboundId }
     }
 
     const previousLines = (existing.material_outbound_lines || []).map((line) => ({
@@ -692,6 +843,17 @@ export async function deleteMaterialOutbound(outboundId: string): Promise<Delete
   if (!gate.ok) return gate
 
   try {
+    const existing = await fetchOutboundRecordById(outboundId)
+    if (existing?.material_outbound_lines?.length) {
+      await restoreReelsForOutboundLines(
+        existing.material_outbound_lines.map((line) => ({
+          inbound_line_id: line.inbound_line_id,
+          quantity: Number(line.quantity) || 0,
+        })),
+        existing.outbound_type,
+      )
+    }
+
     const supabase = createSupabaseClient()
     const { error } = await supabase.from('material_outbound_records').delete().eq('id', outboundId)
     if (error) return { ok: false, reason: 'query', detail: error.message }
@@ -703,4 +865,100 @@ export async function deleteMaterialOutbound(outboundId: string): Promise<Delete
       detail: error instanceof Error ? error.message : String(error),
     }
   }
+}
+
+export async function issueOrderProductUnits(input: {
+  orderId: string
+  productId: string
+  productName?: string
+  bucketLabel?: string
+  productQuantity: number
+  units: number
+  remainingProductQuantity: number
+  issuableQuantity: number
+  lines: { materialId: string; requiredQuantity: number; remainingQuantity: number }[]
+}): Promise<SaveMaterialOutboundResult & { message?: string }> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+  const gate = await assertCanWrite({ module: 'materials', action: 'create' })
+  if (!gate.ok) return gate
+  return issueMaterialProductUnits({
+    ...input,
+    withCreatedBy: withCreatedByFields,
+    stripCreatedBy: stripCreatedByFields,
+    isMissingCreatedBy: isMissingCreatedByColumn,
+  })
+}
+
+export async function previewOrderReel(input: {
+  allowedMaterialIds: string[]
+  scanCode: string
+}): Promise<ReelPreviewResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+  return previewMaterialReel(input)
+}
+
+export async function issueOrderReel(input: {
+  orderId: string
+  productId?: string
+  allowedMaterialIds: string[]
+  scanCode: string
+  productName?: string
+  bucketLabel?: string
+}): Promise<SaveMaterialOutboundResult & { message?: string }> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+  const gate = await assertCanWrite({ module: 'materials', action: 'create' })
+  if (!gate.ok) return gate
+  return issueMaterialReel({
+    ...input,
+    withCreatedBy: withCreatedByFields,
+    stripCreatedBy: stripCreatedByFields,
+    isMissingCreatedBy: isMissingCreatedByColumn,
+  })
+}
+
+export async function issueOrderReels(input: {
+  orderId: string
+  productId?: string
+  allowedMaterialIds: string[]
+  scanCodes: string[]
+  productName?: string
+  bucketLabel?: string
+}): Promise<SaveMaterialOutboundResult & { message?: string }> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+  const gate = await assertCanWrite({ module: 'materials', action: 'create' })
+  if (!gate.ok) return gate
+  return issueMaterialReels({
+    ...input,
+    withCreatedBy: withCreatedByFields,
+    stripCreatedBy: stripCreatedByFields,
+    isMissingCreatedBy: isMissingCreatedByColumn,
+  })
+}
+
+export async function restockOrderReel(input: {
+  orderId: string
+  allowedMaterialIds: string[]
+  scanCode: string
+  leftoverQty: number
+  productName?: string
+}): Promise<SaveMaterialOutboundResult & { message?: string }> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+  const gate = await assertCanWrite({ module: 'materials', action: 'create' })
+  if (!gate.ok) return gate
+  return restockMaterialReel({
+    ...input,
+    withCreatedBy: withCreatedByFields,
+    stripCreatedBy: stripCreatedByFields,
+    isMissingCreatedBy: isMissingCreatedByColumn,
+  })
 }

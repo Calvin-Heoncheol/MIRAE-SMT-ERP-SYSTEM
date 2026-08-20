@@ -32,7 +32,9 @@ function matchesBucket(materialId: string, filter: OutboundBucketFilter | undefi
 }
 
 export function normalizeOutboundType(value: string | null | undefined): MaterialOutboundType {
-  if (value === 'production' || value === 'scrap' || value === 'adjustment') return value
+  if (value === 'production' || value === 'scrap' || value === 'adjustment' || value === 'restock') {
+    return value
+  }
   return 'production'
 }
 
@@ -53,6 +55,7 @@ export function mapOutboundRecord(
     specification: line.items?.specification || '',
     mpn: line.items?.mpn || '',
     quantity: Number(line.quantity) || 0,
+    lotNumber: String(line.lot_number || '').trim(),
   }))
 
   return {
@@ -84,25 +87,46 @@ export function groupOutboundsFromRecords(
 
 export function formatOutboundMaterialSummary(group: MaterialOutboundListGroup) {
   if (!group.items.length) return '-'
-  const first = group.items[0]?.materialName.trim() || group.items[0]?.materialCode || '-'
-  if (group.items.length === 1) return first
-  return `${first} 외 ${group.items.length - 1}건`
+  const first = group.items[0]
+  const name = first?.materialName.trim() || first?.materialCode || '-'
+  const lot = first?.lotNumber?.trim()
+  const head = lot ? `${name} (${lot})` : name
+  if (group.items.length === 1) return head
+  return `${head} 외 ${group.items.length - 1}건`
 }
 
 export function aggregateIssuedByOrderMaterial(
-  rows: { order_id: string | null; material_id: string; quantity: number }[],
+  rows: { order_id: string | null; material_id: string; quantity: number; product_id?: string | null }[],
 ): Map<string, number> {
   const totals = new Map<string, number>()
   for (const row of rows) {
     const orderId = row.order_id?.trim()
     const materialId = row.material_id?.trim()
     if (!orderId || !materialId) continue
-    const quantity = Math.max(0, Number(row.quantity) || 0)
-    if (quantity <= 0) continue
-    const key = `${orderId}::${materialId}`
+    const quantity = Number(row.quantity) || 0
+    if (quantity === 0) continue
+    const productId = String(row.product_id || '').trim()
+    const key = productId ? `${orderId}::${productId}::${materialId}` : `${orderId}::${materialId}`
     totals.set(key, (totals.get(key) ?? 0) + quantity)
   }
+  for (const [key, value] of totals) {
+    totals.set(key, Math.max(0, value))
+  }
   return totals
+}
+
+function takeUnscopedIssued(
+  unscopedLeft: Map<string, number>,
+  orderId: string,
+  materialId: string,
+  want: number,
+) {
+  if (want <= 0) return 0
+  const key = `${orderId}::${materialId}`
+  const pool = unscopedLeft.get(key) ?? 0
+  const take = Math.min(pool, want)
+  unscopedLeft.set(key, pool - take)
+  return take
 }
 
 export function aggregateOutboundByMaterialId(
@@ -158,42 +182,70 @@ export function buildOutboundNeedRows(input: {
   itemNameById: Map<string, string>
   issuedByOrderMaterial: Map<string, number>
   bucketByMaterialId: Map<string, OutboundMaterialBucket>
+  itemCodeById?: Map<string, string>
+  onHandByMaterialId?: Map<string, number>
 }): MaterialOutboundNeedRow[] {
   const rows: MaterialOutboundNeedRow[] = []
 
   for (const order of input.orders) {
     const materialNeed = new Map<
       string,
-      { productId: string; productName: string; productQuantity: number; required: number }
+      {
+        productId: string
+        productName: string
+        productQuantity: number
+        materialId: string
+        required: number
+      }
     >()
 
     for (const item of order.items) {
+      if (item.derivedFromLineId) continue
       const productId = (item.productId || item.productCode || '').trim()
       if (!productId) continue
       const orderQty = Math.max(0, Number(item.quantity) || 0)
       if (orderQty <= 0) continue
 
       const exploded = explodeBomToMaterials(productId, orderQty, input.edgesByParent)
+      if (!exploded.size) continue
+
       for (const [materialId, required] of exploded) {
-        const existing = materialNeed.get(materialId)
+        const key = `${productId}::${materialId}`
+        const existing = materialNeed.get(key)
         if (existing) {
           existing.required += required
-          if (existing.productId === productId) {
-            existing.productQuantity += orderQty
-          }
+          existing.productQuantity += orderQty
         } else {
-          materialNeed.set(materialId, {
+          materialNeed.set(key, {
             productId,
             productName: item.productName || productId,
             productQuantity: orderQty,
+            materialId,
             required,
           })
         }
       }
     }
 
-    for (const [materialId, need] of materialNeed) {
-      const issued = input.issuedByOrderMaterial.get(`${order.orderId}::${materialId}`) ?? 0
+    const unscopedLeft = new Map<string, number>()
+    const orderPrefix = `${order.orderId}::`
+    for (const [key, qty] of input.issuedByOrderMaterial) {
+      if (!key.startsWith(orderPrefix)) continue
+      const rest = key.slice(orderPrefix.length)
+      if (!rest.includes('::')) unscopedLeft.set(`${order.orderId}::${rest}`, qty)
+    }
+
+    for (const need of materialNeed.values()) {
+      const scoped =
+        input.issuedByOrderMaterial.get(`${order.orderId}::${need.productId}::${need.materialId}`) ?? 0
+      const issued =
+        scoped +
+        takeUnscopedIssued(
+          unscopedLeft,
+          order.orderId,
+          need.materialId,
+          Math.max(0, need.required - scoped),
+        )
       const remaining = Math.max(0, need.required - issued)
       if (remaining <= 0) continue
 
@@ -205,13 +257,14 @@ export function buildOutboundNeedRows(input: {
         productId: need.productId,
         productName: need.productName,
         productQuantity: need.productQuantity,
-        materialId,
-        materialCode: materialId,
-        materialName: input.itemNameById.get(materialId) || materialId,
-        materialBucket: input.bucketByMaterialId.get(materialId) ?? 'ETC',
+        materialId: need.materialId,
+        materialCode: input.itemCodeById?.get(need.materialId) || need.materialId,
+        materialName: input.itemNameById.get(need.materialId) || need.materialId,
+        materialBucket: input.bucketByMaterialId.get(need.materialId) ?? 'ETC',
         requiredQuantity: need.required,
         issuedQuantity: issued,
         remainingQuantity: remaining,
+        onHandQuantity: Math.max(0, input.onHandByMaterialId?.get(need.materialId) ?? 0),
       })
     }
   }
@@ -219,6 +272,8 @@ export function buildOutboundNeedRows(input: {
   return rows.sort((a, b) => {
     const orderCompare = b.orderNumber.localeCompare(a.orderNumber, 'ko')
     if (orderCompare !== 0) return orderCompare
+    const productCompare = a.productId.localeCompare(b.productId, 'ko')
+    if (productCompare !== 0) return productCompare
     return a.materialId.localeCompare(b.materialId, 'ko')
   })
 }

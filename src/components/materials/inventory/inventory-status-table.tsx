@@ -9,7 +9,7 @@ import {
   ERP_TABLE_WRAP_CLASS,
 } from '@/lib/ui/tokens'
 
-import { formatInventoryQuantity } from '@/lib/materials/inventory/utils'
+import { formatInventoryQuantity, inventoryCustomerLabel } from '@/lib/materials/inventory/utils'
 import { formatMaterialDisplayCode } from '@/lib/materials/utils'
 import type { MaterialInventoryRow } from '@/lib/materials/inventory/types'
 
@@ -68,9 +68,12 @@ export function InventoryStatusTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="w-full min-w-[900px] table-fixed border-collapse">
+        <table className="w-full min-w-[1020px] table-fixed border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
+              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
+                고객사
+              </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 품목코드
               </th>
@@ -121,6 +124,9 @@ export function InventoryStatusTable({
                 tabIndex={onSelectRow ? 0 : undefined}
                 title={onSelectRow ? '클릭하여 현재고 설정' : undefined}
               >
+                <td className={`px-3 py-2.5 ${ERP_TABLE_TD_WRAP_CLASS}`}>
+                  <CellText value={inventoryCustomerLabel(row)} className="text-slate-700" />
+                </td>
                 <td className={`px-3 py-2.5 font-medium text-blue-800 ${codeCellClass}`}>
                   {formatMaterialDisplayCode(row)}
                 </td>

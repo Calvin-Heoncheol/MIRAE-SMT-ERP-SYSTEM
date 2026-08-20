@@ -293,7 +293,7 @@ export function ProductionReportWorkspace({
         <FetchErrorBanner title="리포트 데이터를 불러오지 못했습니다" detail={result.detail} />
       ) : data ? (
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-          <div className={`${ERP_TABLE_WRAP_CLASS} min-h-0 shrink-0`}>
+          <div className={`${ERP_TABLE_WRAP_CLASS} h-auto flex-none`}>
             <div className={ERP_TABLE_SCROLL_CLASS}>
               <table className={`${ERP_TABLE_CLASS} min-w-[720px]`}>
                 <thead className={ERP_TABLE_HEAD_CLASS}>
@@ -363,7 +363,7 @@ export function ProductionReportWorkspace({
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">팀별 누적 — EA</p>
             </div>
-            <div className="min-h-0 flex-1 overflow-hidden px-4 py-4">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4">
               <ReportBarChart
                 rows={buildTrendRows(data.daily, period).map((row) => ({
                   label: row.label,

@@ -1,9 +1,12 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { DirectStockBulkModal } from '@/components/materials/inventory/direct-stock-bulk-modal'
 import { DirectStockModal } from '@/components/materials/inventory/direct-stock-modal'
 import { InventoryFetchError } from '@/components/materials/inventory/inventory-fetch-error'
 import { InventoryStatusTable } from '@/components/materials/inventory/inventory-status-table'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
+import { ErpButton } from '@/components/ui/erp-button'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { PageShell } from '@/components/ui/page-shell'
@@ -13,13 +16,14 @@ import { downloadExcel } from '@/lib/excel/export'
 import type { FetchMaterialInventoryResult } from '@/lib/materials/inventory/repository'
 import type { InventoryFilterMode, MaterialInventoryRow } from '@/lib/materials/inventory/types'
 import {
-  listInventoryConsigneeCustomers,
+  listInventoryCustomers,
+  inventoryCustomerLabel,
   matchesInventoryCustomer,
   matchesInventoryFilter,
   matchesInventoryQuery,
 } from '@/lib/materials/inventory/utils'
 import { formatMaterialDisplayCode } from '@/lib/materials/utils'
-import { ERP_SEARCH_INPUT_BASE, formatEmptyListMessage } from '@/lib/ui/tokens'
+import { erpSearchFocusClass, formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type InventoryStatusWorkspaceProps = {
   result: FetchMaterialInventoryResult
@@ -33,14 +37,15 @@ const FILTER_OPTIONS: { value: InventoryFilterMode; label: string }[] = [
 
 export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspaceProps) {
   const { afterSave } = useSaveFeedback()
+  const canAdjustStock = useCanDeleteRecords()
   const [search, setSearch] = useState('')
   const [filterMode, setFilterMode] = useState<InventoryFilterMode>('all')
-  const [customerQuery, setCustomerQuery] = useState('')
+  const [customerFilter, setCustomerFilter] = useState('')
   const [directStockRow, setDirectStockRow] = useState<MaterialInventoryRow | null>(null)
+  const [bulkOpen, setBulkOpen] = useState(false)
 
   const rows = result.ok ? result.rows : []
   const query = search.trim().toLowerCase()
-  const showCustomerFilter = filterMode === '사급'
 
   const searched = useMemo(
     () => rows.filter((row) => matchesInventoryQuery(row, query)),
@@ -52,15 +57,12 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
     [searched, filterMode],
   )
 
-  const filtered = useMemo(() => {
-    if (!showCustomerFilter) return supplyFiltered
-    return supplyFiltered.filter((row) => matchesInventoryCustomer(row, customerQuery))
-  }, [supplyFiltered, showCustomerFilter, customerQuery])
-
-  const consigneeCustomers = useMemo(
-    () => listInventoryConsigneeCustomers(searched),
-    [searched],
+  const filtered = useMemo(
+    () => supplyFiltered.filter((row) => matchesInventoryCustomer(row, customerFilter)),
+    [supplyFiltered, customerFilter],
   )
+
+  const customers = useMemo(() => listInventoryCustomers(rows), [rows])
 
   const filterOptions = useMemo(
     () =>
@@ -71,7 +73,7 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
     [searched],
   )
 
-  const hasExtraFilter = Boolean(query) || filterMode !== 'all' || Boolean(customerQuery.trim())
+  const hasExtraFilter = Boolean(query) || filterMode !== 'all' || Boolean(customerFilter.trim())
 
   async function handleExcelDownload() {
     await downloadExcel({
@@ -79,6 +81,7 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
       sheetName: '재고현황',
       rows: filtered,
       columns: [
+        { header: '고객사', value: (row) => inventoryCustomerLabel(row), width: 16 },
         { header: '품목코드', value: (row) => formatMaterialDisplayCode(row), width: 16 },
         { header: '품목명', value: (row) => row.materialName, width: 24 },
         { header: '규격', value: (row) => row.specification, width: 24 },
@@ -97,52 +100,38 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="품목코드, 품목명, MPN, 규격, 패키지 검색…"
+          searchPlaceholder="품목코드, 품목명, 고객사, MPN, 규격, 패키지 검색…"
           accent="slate"
+          inlineFilters={
+            <label className="block min-w-[12rem] max-w-[16rem] shrink-0">
+              <span className="sr-only">고객사</span>
+              <select
+                value={customerFilter}
+                onChange={(event) => setCustomerFilter(event.target.value)}
+                className={`w-full min-w-[12rem] rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none ${erpSearchFocusClass('slate')}`}
+                aria-label="고객사"
+              >
+                <option value="">전체 고객사</option>
+                {customers.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          }
           actions={
-            <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!filtered.length} />
+            <>
+              {canAdjustStock ? (
+                <ErpButton variant="secondary" onClick={() => setBulkOpen(true)}>
+                  일괄등록
+                </ErpButton>
+              ) : null}
+              <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!filtered.length} />
+            </>
           }
           filters={
-            <div className="flex w-full flex-col gap-2.5">
-              <FilterChipBar
-                options={filterOptions}
-                value={filterMode}
-                onChange={(value) => {
-                  setFilterMode(value)
-                  if (value !== '사급') setCustomerQuery('')
-                }}
-              />
-              {showCustomerFilter ? (
-                <div className="flex w-full flex-wrap items-center gap-2">
-                  <label className="sr-only" htmlFor="inventory-consignee-customer">
-                    고객사
-                  </label>
-                  <input
-                    id="inventory-consignee-customer"
-                    type="search"
-                    list="inventory-consignee-customer-list"
-                    value={customerQuery}
-                    onChange={(event) => setCustomerQuery(event.target.value)}
-                    placeholder="고객사 검색 (사급 공급사)"
-                    className={`${ERP_SEARCH_INPUT_BASE} min-w-[14rem] max-w-md flex-1`}
-                  />
-                  <datalist id="inventory-consignee-customer-list">
-                    {consigneeCustomers.map((name) => (
-                      <option key={name} value={name} />
-                    ))}
-                  </datalist>
-                  {customerQuery.trim() ? (
-                    <button
-                      type="button"
-                      onClick={() => setCustomerQuery('')}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                    >
-                      고객사 초기화
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
+            <FilterChipBar options={filterOptions} value={filterMode} onChange={setFilterMode} />
           }
         />
       ) : null}
@@ -171,6 +160,18 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
           onSaved={() => {
             setDirectStockRow(null)
             afterSave('현재고가 반영되었습니다.')
+          }}
+        />
+      ) : null}
+
+      {bulkOpen ? (
+        <DirectStockBulkModal
+          open
+          rows={rows}
+          onClose={() => setBulkOpen(false)}
+          onSaved={(message) => {
+            setBulkOpen(false)
+            afterSave(message ?? '현재고가 일괄 반영되었습니다.')
           }}
         />
       ) : null}

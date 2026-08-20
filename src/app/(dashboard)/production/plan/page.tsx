@@ -14,7 +14,7 @@ import { fetchSmtPlanPageData } from '@/lib/smt/plan/repository'
 import { getWeekStartMondayYmd as getSmtWeekStart } from '@/lib/smt/plan/utils'
 
 const PLAN_TEAM_TABS: { id: ProductionPlanTabId; label: string; href: string }[] = [
-  { id: 'smt', label: '생산1 SMT', href: '/production/plan?tab=smt' },
+  { id: 'smt', label: '생산1팀', href: '/production/plan?tab=smt' },
   ...POST_PROCESS_TEAMS.map((team) => ({
     id: team,
     label: team,

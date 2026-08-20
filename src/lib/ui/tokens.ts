@@ -78,7 +78,7 @@ export const ERP_SEARCH_INPUT_BASE =
   'w-full max-w-md rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400'
 
 export const ERP_TABLE_WRAP_CLASS =
-  'flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white'
+  'flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white'
 
 /** 표 본문 스크롤 — sticky thead와 함께 사용 */
 export const ERP_TABLE_SCROLL_CLASS = 'min-h-0 flex-1 overflow-auto'

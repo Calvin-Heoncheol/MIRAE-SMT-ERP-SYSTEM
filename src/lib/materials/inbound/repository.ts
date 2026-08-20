@@ -12,6 +12,7 @@ import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-or
 import type { MaterialInboundListGroup, MaterialInboundRecord, MaterialInboundRowPayload } from './types'
 import { groupInboundsFromRecords, normalizeInboundType } from './utils'
 import { isMissingInboundLotColumn } from './reel-lot'
+import { isMissingReelRemainingColumn } from '@/lib/materials/outbound/reels'
 
 export type FetchMaterialInboundsResult =
   | { ok: true; inbounds: MaterialInboundListGroup[] }
@@ -35,6 +36,19 @@ export type DeleteMaterialInboundResult =
   | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 const INBOUND_LINES_SELECT = `
+          id,
+          inbound_id,
+          line_seq,
+          material_id,
+          purchase_order_line_id,
+          quantity,
+          lot_number,
+          scan_fingerprint,
+          remaining_qty,
+          location_status
+`
+
+const INBOUND_LINES_SELECT_LOT = `
           id,
           inbound_id,
           line_seq,
@@ -68,6 +82,7 @@ function toInboundLineInsert(
   item: MaterialInboundRowPayload['items'][number],
   index: number,
   withLot: boolean,
+  withRemaining: boolean,
 ) {
   const row: Record<string, unknown> = {
     inbound_id: inboundId,
@@ -79,6 +94,10 @@ function toInboundLineInsert(
   if (withLot) {
     row.lot_number = item.lot_number || ''
     row.scan_fingerprint = item.scan_fingerprint || ''
+  }
+  if (withRemaining) {
+    row.remaining_qty = item.quantity
+    row.location_status = 'warehouse'
   }
   return row
 }
@@ -233,6 +252,13 @@ async function revertPurchaseOrderInboundUpdates(
   }
 }
 
+function inboundHasIssuedReels(record: MaterialInboundRecord) {
+  return (record.material_inbound_lines || []).some((line) => {
+    if (line.remaining_qty == null) return false
+    return Number(line.remaining_qty) < Number(line.quantity)
+  })
+}
+
 async function fetchInboundRecordById(inboundId: string) {
   const supabase = createSupabaseClient()
   let { data, error } = await supabase
@@ -240,6 +266,14 @@ async function fetchInboundRecordById(inboundId: string) {
     .select(inboundRecordSelect(INBOUND_LINES_SELECT))
     .eq('id', inboundId)
     .maybeSingle()
+
+  if (error && isMissingReelRemainingColumn(error.message)) {
+    ;({ data, error } = await supabase
+      .from('material_inbound_records')
+      .select(inboundRecordSelect(INBOUND_LINES_SELECT_LOT))
+      .eq('id', inboundId)
+      .maybeSingle())
+  }
 
   if (error && isMissingInboundLotColumn(error.message)) {
     ;({ data, error } = await supabase
@@ -292,6 +326,14 @@ export async function fetchMaterialInbounds(): Promise<FetchMaterialInboundsResu
       .select(inboundRecordSelect(INBOUND_LINES_SELECT))
       .order('inbound_date', { ascending: false })
       .order('created_at', { ascending: false })
+
+    if (error && isMissingReelRemainingColumn(error.message)) {
+      ;({ data, error } = await supabase
+        .from('material_inbound_records')
+        .select(inboundRecordSelect(INBOUND_LINES_SELECT_LOT))
+        .order('inbound_date', { ascending: false })
+        .order('created_at', { ascending: false }))
+    }
 
     if (error && isMissingInboundLotColumn(error.message)) {
       ;({ data, error } = await supabase
@@ -377,6 +419,14 @@ export async function updateMaterialInbound(
       return { ok: false, reason: 'validation', detail: '연결된 구매발주는 수정할 수 없습니다.' }
     }
 
+    if (inboundHasIssuedReels(existing)) {
+      return {
+        ok: false,
+        reason: 'validation',
+        detail: '이미 불출된 릴이 있어 입고 전표를 수정할 수 없습니다.',
+      }
+    }
+
     const oldLines = (existing.material_inbound_lines || []).map((line) => ({
       material_id: line.material_id,
       purchase_order_line_id: line.purchase_order_line_id,
@@ -441,10 +491,14 @@ export async function updateMaterialInbound(
       return { ok: false, reason: 'query', detail: deleteLinesError.message }
     }
 
-    let lineRows = items.map((item, index) => toInboundLineInsert(inboundId, item, index, true))
+    let lineRows = items.map((item, index) => toInboundLineInsert(inboundId, item, index, true, true))
     let { error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows)
+    if (linesError && isMissingReelRemainingColumn(linesError.message)) {
+      lineRows = items.map((item, index) => toInboundLineInsert(inboundId, item, index, true, false))
+      ;({ error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows))
+    }
     if (linesError && isMissingInboundLotColumn(linesError.message)) {
-      lineRows = items.map((item, index) => toInboundLineInsert(inboundId, item, index, false))
+      lineRows = items.map((item, index) => toInboundLineInsert(inboundId, item, index, false, false))
       ;({ error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows))
     }
     if (linesError) {
@@ -505,6 +559,14 @@ export async function deleteMaterialInbound(inboundId: string): Promise<DeleteMa
   try {
     const existing = await fetchInboundRecordById(inboundId)
     if (!existing?.id) return { ok: true }
+
+    if (inboundHasIssuedReels(existing)) {
+      return {
+        ok: false,
+        reason: 'validation',
+        detail: '이미 불출된 릴이 있어 입고 전표를 삭제할 수 없습니다.',
+      }
+    }
 
     const oldLines = (existing.material_inbound_lines || []).map((line) => ({
       purchase_order_line_id: line.purchase_order_line_id,
@@ -624,10 +686,14 @@ export async function createMaterialInbound(
       return { ok: false, reason: 'query', detail: error?.message || '입고 저장에 실패했습니다.' }
     }
 
-    let lineRows = items.map((item, index) => toInboundLineInsert(inserted.id, item, index, true))
+    let lineRows = items.map((item, index) => toInboundLineInsert(inserted.id, item, index, true, true))
     let { error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows)
+    if (linesError && isMissingReelRemainingColumn(linesError.message)) {
+      lineRows = items.map((item, index) => toInboundLineInsert(inserted.id, item, index, true, false))
+      ;({ error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows))
+    }
     if (linesError && isMissingInboundLotColumn(linesError.message)) {
-      lineRows = items.map((item, index) => toInboundLineInsert(inserted.id, item, index, false))
+      lineRows = items.map((item, index) => toInboundLineInsert(inserted.id, item, index, false, false))
       ;({ error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows))
     }
     if (linesError) {

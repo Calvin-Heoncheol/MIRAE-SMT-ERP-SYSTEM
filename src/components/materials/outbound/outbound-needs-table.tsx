@@ -1,15 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { OutboundRestockModal } from '@/components/materials/outbound/outbound-restock-modal'
+import { OutboundScanModal } from '@/components/materials/outbound/outbound-scan-modal'
 import { CategoryBadge } from '@/components/ui/category-badge'
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { createMaterialOutbound } from '@/lib/materials/outbound/repository'
-import {
-  buildOutboundLinesForProductQuantity,
-  resolveMaterialBucket,
-  type OutboundBucketFilter,
-} from '@/lib/materials/outbound/utils'
 import type {
   BomEdge,
   MaterialOutboundNeedCard,
@@ -18,13 +14,12 @@ import type {
 } from '@/lib/materials/outbound/types'
 import { OUTBOUND_MATERIAL_BUCKET_LABELS } from '@/lib/materials/outbound/types'
 import type { Material } from '@/lib/materials/types'
-import { todayYmdSeoul } from '@/lib/orders/utils'
-import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_PRIMARY_BUTTON_CLASS, ERP_SECONDARY_BUTTON_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type OutboundNeedsTableProps = {
   cards: MaterialOutboundOrderCard[]
-  bomEdges: BomEdge[]
-  materials: Material[]
+  bomEdges?: BomEdge[]
+  materials?: Material[]
   emptyMessage?: string
   onIssued: () => void
 }
@@ -35,9 +30,21 @@ const BUCKET_BADGE_CLASS: Record<OutboundMaterialBucket, string> = {
   ETC: 'bg-slate-100 text-slate-700',
 }
 
-function borderClass(card: MaterialOutboundOrderCard) {
-  if (card.issuableActionCount > 0) return 'border-l-orange-400'
-  return 'border-l-slate-300'
+function isShortageLine(line: { remainingQuantity: number; onHandQuantity: number }) {
+  return (line.onHandQuantity ?? 0) < line.remainingQuantity
+}
+
+function countMaterials(actions: MaterialOutboundNeedCard[]) {
+  const ids = new Set<string>()
+  const shortageIds = new Set<string>()
+  for (const action of actions) {
+    for (const line of action.lines) {
+      if (!line.materialId) continue
+      ids.add(line.materialId)
+      if (isShortageLine(line)) shortageIds.add(line.materialId)
+    }
+  }
+  return { materialCount: ids.size, shortageCount: shortageIds.size }
 }
 
 function groupActionsByProduct(actions: MaterialOutboundNeedCard[]) {
@@ -52,208 +59,38 @@ function groupActionsByProduct(actions: MaterialOutboundNeedCard[]) {
     productName: items[0]?.productName || productId,
     productQuantity: items[0]?.productQuantity ?? 0,
     actions: items,
+    ...countMaterials(items),
   }))
 }
 
-function OutboundBucketAction({
-  action,
-  edgesByParent,
-  bucketByMaterialId,
-  onIssued,
-}: {
-  action: MaterialOutboundNeedCard
-  edgesByParent: Map<string, BomEdge[]>
-  bucketByMaterialId: Map<string, OutboundMaterialBucket>
-  onIssued: () => void
-}) {
-  const defaultQty = Math.min(action.issuableQuantity, action.remainingProductQuantity)
-  const [qty, setQty] = useState(defaultQty > 0 ? String(defaultQty) : '')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [okMessage, setOkMessage] = useState('')
+export function OutboundNeedsTable({ cards, emptyMessage, onIssued }: OutboundNeedsTableProps) {
+  const [selectedOrderId, setSelectedOrderId] = useState('')
+  const [scanActionKey, setScanActionKey] = useState<string | null>(null)
+  const [cachedScanAction, setCachedScanAction] = useState<MaterialOutboundNeedCard | null>(null)
+  const [restockOpen, setRestockOpen] = useState(false)
 
-  const maxQty = Math.min(action.issuableQuantity, action.remainingProductQuantity)
-  const bucketLabel = OUTBOUND_MATERIAL_BUCKET_LABELS[action.materialBucket]
-
-  async function handleIssue() {
-    const value = Math.floor(Number(qty) || 0)
-    if (value < 1) {
-      setError('불출 수량을 입력하세요.')
-      setOkMessage('')
-      return
-    }
-    if (value > action.remainingProductQuantity) {
-      setError(
-        `남은 주문 수량(${action.remainingProductQuantity.toLocaleString('ko-KR')})을 초과할 수 없습니다.`,
-      )
-      setOkMessage('')
-      return
-    }
-    if (value > action.issuableQuantity) {
-      setError(
-        `불출가능 수량(${action.issuableQuantity.toLocaleString('ko-KR')})을 초과할 수 없습니다.`,
-      )
-      setOkMessage('')
-      return
-    }
-
-    const filter: OutboundBucketFilter = {
-      bucket: action.materialBucket,
-      bucketByMaterialId,
-    }
-    const items = buildOutboundLinesForProductQuantity(
-      action.productId,
-      value,
-      edgesByParent,
-      filter,
-    )
-    if (!items.length) {
-      setError('BOM 구성이 없어 불출할 자재가 없습니다.')
-      setOkMessage('')
-      return
-    }
-
-    setSaving(true)
-    setError('')
-    setOkMessage('')
-
-    const result = await createMaterialOutbound({
-      outbound_date: todayYmdSeoul(),
-      outbound_type: 'production',
-      order_id: action.orderId,
-      note: `${action.productName} ${value}대 ${bucketLabel}`,
-      items,
-    })
-
-    setSaving(false)
-
-    if (!result.ok) {
-      setError(result.detail)
-      return
-    }
-
-    setOkMessage(`${result.outboundNumber} 등록 · ${value.toLocaleString('ko-KR')}대`)
-    setQty('')
-    onIssued()
-  }
-
-  return (
-    <li className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <CategoryBadge
-              label={bucketLabel}
-              className={BUCKET_BADGE_CLASS[action.materialBucket]}
-            />
-          </div>
-        </div>
-        {maxQty < 1 ? (
-          <StatusBadge label="재고부족" tone="danger" />
-        ) : (
-          <StatusBadge label="불출가능" tone="success" />
-        )}
-      </div>
-
-      <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[11px]">
-        <div>
-          <p className="text-slate-400">주문잔량</p>
-          <p className="font-semibold tabular-nums text-slate-800">
-            {action.remainingProductQuantity.toLocaleString('ko-KR')}
-          </p>
-        </div>
-        <div>
-          <p className="text-slate-400">불출가능</p>
-          <p
-            className={`font-semibold tabular-nums ${
-              action.issuableQuantity > 0 ? 'text-emerald-700' : 'text-rose-600'
-            }`}
-          >
-            {action.issuableQuantity.toLocaleString('ko-KR')}
-          </p>
-        </div>
-        <div>
-          <p className="text-slate-400">주문</p>
-          <p className="font-semibold tabular-nums text-slate-800">
-            {action.productQuantity.toLocaleString('ko-KR')}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-2.5 flex flex-col gap-1.5">
-        <input
-          type="number"
-          min={1}
-          max={maxQty || undefined}
-          step={1}
-          value={qty}
-          disabled={saving || maxQty < 1}
-          onChange={(event) => {
-            setQty(event.target.value)
-            setError('')
-            setOkMessage('')
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') void handleIssue()
-          }}
-          placeholder="불출수량"
-          className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-right text-xs font-semibold tabular-nums outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 disabled:bg-slate-100"
-        />
-        <button
-          type="button"
-          disabled={saving || maxQty < 1}
-          onClick={() => void handleIssue()}
-          className="w-full rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
-        >
-          {saving ? '처리 중…' : bucketLabel}
-        </button>
-      </div>
-
-      {error ? <p className="mt-2 text-[11px] font-medium text-rose-600">{error}</p> : null}
-      {okMessage ? <p className="mt-2 text-[11px] font-medium text-emerald-700">{okMessage}</p> : null}
-      {maxQty < 1 ? (
-        <p className="mt-2 text-[11px] text-slate-500">현재고 부족 또는 미불출 잔량이 없습니다.</p>
-      ) : null}
-    </li>
+  const selectedCard = cards.find((card) => card.orderId === selectedOrderId) ?? cards[0] ?? null
+  const productGroups = useMemo(
+    () => (selectedCard ? groupActionsByProduct(selectedCard.actions) : []),
+    [selectedCard],
   )
-}
+  const liveScanAction =
+    cards.flatMap((card) => card.actions).find((action) => action.key === scanActionKey) ?? null
+  const scanAction = liveScanAction ?? (scanActionKey ? cachedScanAction : null)
 
-export function OutboundNeedsTable({
-  cards,
-  bomEdges,
-  materials,
-  emptyMessage,
-  onIssued,
-}: OutboundNeedsTableProps) {
-  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set())
+  useEffect(() => {
+    if (liveScanAction) setCachedScanAction(liveScanAction)
+  }, [liveScanAction])
 
-  const edgesByParent = useMemo(() => {
-    const map = new Map<string, BomEdge[]>()
-    for (const edge of bomEdges) {
-      if (!edge.parentProductId || !edge.childProductId) continue
-      const list = map.get(edge.parentProductId) || []
-      list.push(edge)
-      map.set(edge.parentProductId, list)
+  useEffect(() => {
+    if (!cards.length) {
+      setSelectedOrderId('')
+      return
     }
-    return map
-  }, [bomEdges])
-
-  const bucketByMaterialId = useMemo(
-    () =>
-      new Map<string, OutboundMaterialBucket>(
-        materials.map((material) => [material.id, resolveMaterialBucket(material.type)]),
-      ),
-    [materials],
-  )
-
-  function toggleExpanded(key: string) {
-    setExpandedKeys((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
+    if (!cards.some((card) => card.orderId === selectedOrderId)) {
+      setSelectedOrderId(cards[0].orderId)
+    }
+  }, [cards, selectedOrderId])
 
   if (!cards.length) {
     return (
@@ -264,109 +101,186 @@ export function OutboundNeedsTable({
   }
 
   return (
-    <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {cards.map((card) => {
-        const expanded = expandedKeys.has(card.key)
-        const productGroups = groupActionsByProduct(card.actions)
-
-        return (
-          <article
-            key={card.key}
-            className={[
-              'flex flex-col rounded-xl border border-slate-200 border-l-4 bg-white shadow-sm',
-              borderClass(card),
-            ].join(' ')}
-          >
-            <button
-              type="button"
-              onClick={() => toggleExpanded(card.key)}
-              aria-expanded={expanded}
-              className="flex w-full flex-col px-4 py-3.5 text-left transition hover:bg-slate-50/80"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-mono text-sm font-bold text-slate-900">{card.orderNumber}</p>
-                  <p className={`mt-1 text-sm text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {card.customer || '—'}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <StatusBadge
-                    label={
-                      card.issuableActionCount > 0
-                        ? `불출가능 ${card.issuableActionCount}`
-                        : '대기'
-                    }
-                    className={
-                      card.issuableActionCount > 0
-                        ? 'bg-orange-100 text-orange-800'
-                        : 'bg-slate-100 text-slate-600'
-                    }
-                  />
-                  <span
+    <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
+      <aside className="flex w-[19rem] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <p className="shrink-0 border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-500">
+          미불출 발주 {cards.length.toLocaleString('ko-KR')}
+        </p>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          <ul className="flex flex-col gap-1.5">
+            {cards.map((card) => {
+              const active = card.orderId === selectedCard?.orderId
+              return (
+                <li key={card.key}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedOrderId(card.orderId)
+                      setRestockOpen(false)
+                    }}
                     className={[
-                      'inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition',
-                      expanded ? 'rotate-180 bg-slate-100 text-slate-700' : '',
+                      'w-full rounded-lg border px-3 py-2.5 text-left transition',
+                      active
+                        ? 'border-slate-800 bg-slate-800 text-white'
+                        : 'border-slate-200 bg-white hover:bg-slate-50',
                     ].join(' ')}
-                    aria-hidden
                   >
-                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                      <path
-                        fillRule="evenodd"
-                        d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
-                        clipRule="evenodd"
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-mono text-sm font-bold">{card.orderNumber}</p>
+                      <StatusBadge
+                        label={card.issuableActionCount > 0 ? '창고릴' : '대기'}
+                        className={
+                          active
+                            ? 'bg-white/15 text-white'
+                            : card.issuableActionCount > 0
+                              ? 'bg-orange-100 text-orange-800'
+                              : 'bg-slate-100 text-slate-600'
+                        }
                       />
-                    </svg>
-                  </span>
+                    </div>
+                    <p
+                      className={`mt-1 text-xs ${active ? 'text-slate-200' : 'text-slate-600'} ${ERP_TABLE_TD_WRAP_CLASS}`}
+                    >
+                      {card.customer || '—'}
+                    </p>
+                    <p className={`mt-1 text-[11px] ${active ? 'text-slate-300' : 'text-slate-500'}`}>
+                      {card.productLabel} · 납기 {card.deliveryDate || '—'}
+                    </p>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      </aside>
+
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
+        {!selectedCard ? (
+          <EmptyListState message="왼쪽에서 발주를 선택하세요" />
+        ) : (
+          <>
+            <div className="shrink-0 border-b border-slate-100 px-5 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-mono text-lg font-bold text-slate-900">{selectedCard.orderNumber}</p>
+                  <p className="mt-0.5 text-sm text-slate-600">{selectedCard.customer || '—'}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-slate-400">납기 {selectedCard.deliveryDate || '—'}</p>
+                  <button
+                    type="button"
+                    onClick={() => setRestockOpen(true)}
+                    className={`${ERP_SECONDARY_BUTTON_CLASS} py-2 text-xs`}
+                  >
+                    잔량반납
+                  </button>
                 </div>
               </div>
+            </div>
 
-              <p className="mt-2 text-[11px] text-slate-400">납기 {card.deliveryDate || '—'}</p>
-
-              <div className="mt-2.5 min-h-[2.75rem]">
-                <p className={`text-sm font-medium text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                  {card.productLabel}
-                </p>
-                <p className="mt-1 text-[11px] font-medium text-slate-500">
-                  품목 {card.productCount.toLocaleString('ko-KR')} · 액션{' '}
-                  <span className="tabular-nums text-slate-700">
-                    {card.actions.length.toLocaleString('ko-KR')}
-                  </span>
-                  {expanded ? ' · 접기' : ' · 펼치기'}
-                </p>
-              </div>
-            </button>
-
-            {expanded ? (
-              <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <ul className="grid grid-cols-2 gap-3">
                 {productGroups.map((group) => (
-                  <div key={group.productId} className="space-y-2">
-                    <div className="min-w-0">
+                  <li
+                    key={group.productId}
+                    className="flex min-h-0 flex-col rounded-xl border border-slate-200 p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
                       <p className={`text-sm font-semibold text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                         {group.productName}
                       </p>
-                      <p className="mt-0.5 text-[11px] text-slate-500">
-                        주문수량 {group.productQuantity.toLocaleString('ko-KR')}
+                      <p className="shrink-0 text-xs font-medium text-slate-500">
+                        주문 {group.productQuantity.toLocaleString('ko-KR')}대
                       </p>
                     </div>
-                    <ul className="grid grid-cols-2 gap-2">
-                      {group.actions.map((action) => (
-                        <OutboundBucketAction
+                    <p className="mt-2 text-sm text-slate-600">
+                      자재{' '}
+                      <span className="font-semibold tabular-nums text-slate-900">
+                        {group.materialCount.toLocaleString('ko-KR')}종
+                      </span>
+                      <span className="mx-1.5 text-slate-300">·</span>
+                      부족{' '}
+                      <span
+                        className={`font-semibold tabular-nums ${
+                          group.shortageCount > 0 ? 'text-rose-600' : 'text-emerald-700'
+                        }`}
+                      >
+                        {group.shortageCount.toLocaleString('ko-KR')}종
+                      </span>
+                    </p>
+                    <ul className="mt-3 flex flex-1 flex-col gap-2">
+                      {group.actions.map((action) => {
+                        const stats = countMaterials([action])
+                        return (
+                        <li
                           key={action.key}
-                          action={action}
-                          edgesByParent={edgesByParent}
-                          bucketByMaterialId={bucketByMaterialId}
-                          onIssued={onIssued}
-                        />
-                      ))}
+                          className="flex flex-col gap-2 rounded-lg bg-slate-50 px-3 py-2.5"
+                        >
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <CategoryBadge
+                              label={OUTBOUND_MATERIAL_BUCKET_LABELS[action.materialBucket]}
+                              className={BUCKET_BADGE_CLASS[action.materialBucket]}
+                            />
+                            <p className="text-xs text-slate-500">
+                              자재 {stats.materialCount.toLocaleString('ko-KR')}종
+                              <span className="mx-1.5 text-slate-300">·</span>
+                              부족{' '}
+                              <span
+                                className={`font-semibold tabular-nums ${
+                                  stats.shortageCount > 0 ? 'text-rose-600' : 'text-emerald-700'
+                                }`}
+                              >
+                                {stats.shortageCount.toLocaleString('ko-KR')}종
+                              </span>
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCachedScanAction(action)
+                              setScanActionKey(action.key)
+                            }}
+                            className={`${ERP_PRIMARY_BUTTON_CLASS} w-full px-3 py-2`}
+                          >
+                            릴 스캔
+                          </button>
+                        </li>
+                        )
+                      })}
                     </ul>
-                  </div>
+                  </li>
                 ))}
-              </div>
-            ) : null}
-          </article>
-        )
-      })}
+              </ul>
+            </div>
+          </>
+        )}
+      </section>
+
+      <OutboundScanModal
+        open={Boolean(scanAction)}
+        action={scanAction}
+        onClose={() => {
+          setScanActionKey(null)
+          setCachedScanAction(null)
+        }}
+        onIssued={onIssued}
+      />
+      <OutboundRestockModal
+        open={restockOpen && Boolean(selectedCard)}
+        orderId={selectedCard?.orderId ?? ''}
+        orderNumber={selectedCard?.orderNumber ?? ''}
+        customer={selectedCard?.customer ?? ''}
+        allowedMaterialIds={[
+          ...new Set(
+            (selectedCard?.actions ?? []).flatMap((action) =>
+              action.lines.map((line) => line.materialId).filter(Boolean),
+            ),
+          ),
+        ]}
+        productName={selectedCard?.productLabel}
+        onClose={() => setRestockOpen(false)}
+        onRestocked={onIssued}
+      />
     </div>
   )
 }

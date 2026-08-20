@@ -8,7 +8,7 @@ export const TOAST_SOUND_STYLES: {
   label: string
   description: string
 }[] = [
-  { id: 'chime', label: '종소리', description: '맑은 두 음' },
+  { id: 'chime', label: '완료 차임', description: '저장·등록 완료처럼 분명한 두 음' },
   { id: 'beep', label: '전자음', description: '또렷한 비프' },
   { id: 'ping', label: '핑', description: '짧고 강한 한 번' },
 ]
@@ -114,31 +114,31 @@ function toastTonePlan(kind: ToastSoundKind, style: ToastSoundStyle) {
     }
   }
 
-  // chime — 기본, 종소리처럼 두 음
+  // chime — 기본, 완료 차임
   if (kind === 'success') {
     return {
-      type: 'triangle' as OscillatorType,
-      peak: 0.3,
+      type: 'sine' as OscillatorType,
+      peak: 0.44,
       tones: [
-        { freq: 1046, start: 0, dur: 0.14 },
-        { freq: 1568, start: 0.09, dur: 0.2 },
+        { freq: 784, start: 0, dur: 0.22 },
+        { freq: 1174, start: 0.16, dur: 0.42 },
       ],
     }
   }
   if (kind === 'error') {
     return {
       type: 'triangle' as OscillatorType,
-      peak: 0.32,
+      peak: 0.4,
       tones: [
-        { freq: 466, start: 0, dur: 0.14 },
-        { freq: 349, start: 0.12, dur: 0.2 },
+        { freq: 392, start: 0, dur: 0.24 },
+        { freq: 294, start: 0.22, dur: 0.4 },
       ],
     }
   }
   return {
-    type: 'triangle' as OscillatorType,
-    peak: 0.26,
-    tones: [{ freq: 880, start: 0, dur: 0.14 }],
+    type: 'sine' as OscillatorType,
+    peak: 0.36,
+    tones: [{ freq: 698, start: 0, dur: 0.32 }],
   }
 }
 
@@ -158,22 +158,26 @@ export function playToastSound(kind: ToastSoundKind, style?: ToastSoundStyle) {
       master.connect(ctx.destination)
 
       const last = plan.tones[plan.tones.length - 1]
-      const endAt = now + last.start + last.dur + 0.05
-      master.gain.exponentialRampToValueAtTime(plan.peak, now + 0.015)
-      master.gain.exponentialRampToValueAtTime(0.0001, endAt)
+      const lastEnd = now + last.start + last.dur
+      master.gain.exponentialRampToValueAtTime(plan.peak, now + 0.018)
+      master.gain.setValueAtTime(plan.peak, Math.max(now + 0.018, lastEnd - 0.12))
+      master.gain.exponentialRampToValueAtTime(0.0001, lastEnd + 0.06)
 
       for (const tone of plan.tones) {
         const osc = ctx.createOscillator()
         const gain = ctx.createGain()
+        const startAt = now + tone.start
+        const holdAt = startAt + Math.max(0.04, tone.dur * 0.62)
         osc.type = plan.type
-        osc.frequency.setValueAtTime(tone.freq, now + tone.start)
-        gain.gain.setValueAtTime(0.0001, now + tone.start)
-        gain.gain.exponentialRampToValueAtTime(1, now + tone.start + 0.012)
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.start + tone.dur)
+        osc.frequency.setValueAtTime(tone.freq, startAt)
+        gain.gain.setValueAtTime(0.0001, startAt)
+        gain.gain.exponentialRampToValueAtTime(1, startAt + 0.018)
+        gain.gain.setValueAtTime(1, holdAt)
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + tone.dur)
         osc.connect(gain)
         gain.connect(master)
-        osc.start(now + tone.start)
-        osc.stop(now + tone.start + tone.dur + 0.03)
+        osc.start(startAt)
+        osc.stop(startAt + tone.dur + 0.04)
       }
     })
   } catch {
@@ -199,22 +203,26 @@ function playTonePlan(
       master.connect(ctx.destination)
 
       const last = plan.tones[plan.tones.length - 1]
-      const endAt = now + last.start + last.dur + 0.04
-      master.gain.exponentialRampToValueAtTime(plan.peak, now + 0.01)
-      master.gain.exponentialRampToValueAtTime(0.0001, endAt)
+      const lastEnd = now + last.start + last.dur
+      master.gain.exponentialRampToValueAtTime(plan.peak, now + 0.018)
+      master.gain.setValueAtTime(plan.peak, Math.max(now + 0.018, lastEnd - 0.12))
+      master.gain.exponentialRampToValueAtTime(0.0001, lastEnd + 0.06)
 
       for (const tone of plan.tones) {
         const osc = ctx.createOscillator()
         const gain = ctx.createGain()
+        const startAt = now + tone.start
+        const holdAt = startAt + Math.max(0.04, tone.dur * 0.62)
         osc.type = plan.type
-        osc.frequency.setValueAtTime(tone.freq, now + tone.start)
-        gain.gain.setValueAtTime(0.0001, now + tone.start)
-        gain.gain.exponentialRampToValueAtTime(1, now + tone.start + 0.008)
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.start + tone.dur)
+        osc.frequency.setValueAtTime(tone.freq, startAt)
+        gain.gain.setValueAtTime(0.0001, startAt)
+        gain.gain.exponentialRampToValueAtTime(1, startAt + 0.018)
+        gain.gain.setValueAtTime(1, holdAt)
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + tone.dur)
         osc.connect(gain)
         gain.connect(master)
-        osc.start(now + tone.start)
-        osc.stop(now + tone.start + tone.dur + 0.02)
+        osc.start(startAt)
+        osc.stop(startAt + tone.dur + 0.04)
       }
     })
   } catch {
@@ -222,15 +230,16 @@ function playTonePlan(
   }
 }
 
-/** 바코드 스캔 피드백 — 성공은 짧은 상승음, 실패는 낮은 경고음 */
+/** 바코드 스캔 피드백 — 성공은 긴 상승 멜로디, 실패는 낮은 버저 */
 export function playScanSound(kind: 'success' | 'error') {
   if (kind === 'success') {
     playTonePlan({
-      type: 'square',
-      peak: 0.2,
+      type: 'triangle',
+      peak: 0.42,
       tones: [
-        { freq: 1400, start: 0, dur: 0.05 },
-        { freq: 1900, start: 0.055, dur: 0.07 },
+        { freq: 784, start: 0, dur: 0.22 },
+        { freq: 988, start: 0.18, dur: 0.26 },
+        { freq: 1318, start: 0.4, dur: 0.42 },
       ],
     })
     return
@@ -238,11 +247,11 @@ export function playScanSound(kind: 'success' | 'error') {
 
   playTonePlan({
     type: 'square',
-    peak: 0.24,
+    peak: 0.4,
     tones: [
-      { freq: 420, start: 0, dur: 0.09 },
-      { freq: 320, start: 0.1, dur: 0.1 },
-      { freq: 260, start: 0.21, dur: 0.12 },
+      { freq: 220, start: 0, dur: 0.24 },
+      { freq: 220, start: 0.3, dur: 0.24 },
+      { freq: 165, start: 0.6, dur: 0.36 },
     ],
   })
 }

@@ -33,10 +33,13 @@ create table if not exists public.material_inbound_lines (
   quantity numeric not null check (quantity > 0),
   lot_number text not null default '',
   scan_fingerprint text not null default '',
+  remaining_qty numeric not null default 0,
+  location_status text not null default 'warehouse'
+    check (location_status in ('warehouse', 'line')),
   unique (inbound_id, line_seq)
 );
 
-comment on table public.material_inbound_lines is '자재 입고 라인 — 릴 1개당 1행';
+comment on table public.material_inbound_lines is '자재 입고 라인 — 릴 1개당 1행 (remaining_qty가 창고 잔량)';
 comment on column public.material_inbound_lines.purchase_order_line_id is '발주연동 입고 시 발주 라인 FK';
 comment on column public.material_inbound_lines.lot_number is '릴 LOT. MRL-YYMMDD-NNNN';
 comment on column public.material_inbound_lines.scan_fingerprint is '같은 릴 재스캔 방지용 지문';
@@ -158,3 +161,27 @@ alter table public.material_inbound_lines
   foreign key (material_id) references public.items(id) on delete restrict;
 
 comment on column public.material_inbound_lines.material_id is '품목 FK (items.id)';
+
+create or replace function public.normalize_material_inbound_reel_row()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.remaining_qty is null or (tg_op = 'INSERT' and new.remaining_qty = 0 and new.quantity > 0) then
+    new.remaining_qty := new.quantity;
+  end if;
+  if new.remaining_qty > 0 then
+    new.location_status := 'warehouse';
+  else
+    new.location_status := 'line';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists material_inbound_lines_normalize_reel on public.material_inbound_lines;
+create trigger material_inbound_lines_normalize_reel
+  before insert on public.material_inbound_lines
+  for each row
+  execute function public.normalize_material_inbound_reel_row();
+
