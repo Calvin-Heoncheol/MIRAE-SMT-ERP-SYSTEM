@@ -1,11 +1,11 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  솔더페이스트 설비 PC → ERP 로그 자동 전송
+  Solder paste equipment PC -> ERP log sync
 
 .DESCRIPTION
-  D:\Log\2026\8\19.txt 형식(년\월\일.txt)의 로그를 읽어 ERP API로 보냅니다.
-  작업 스케줄러에 3~5분 간격 등록해 사용하세요.
+  Reads D:\Log\2026\8\19.txt style logs and POSTs to ERP API.
+  Register with register-scheduled-task.ps1 (every 3 minutes).
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\sync-solder-paste-log.ps1
@@ -24,7 +24,7 @@ function Write-Log([string]$Message) {
 }
 
 if (-not (Test-Path -LiteralPath $ConfigPath)) {
-  throw "설정 파일이 없습니다: $ConfigPath`nconfig.example.json 을 복사해 config.json 을 만드세요."
+  throw "Config not found: $ConfigPath`nCopy config.example.json to config.json"
 }
 
 $config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -34,7 +34,7 @@ $ingestKey = [string]$config.ingestKey
 $syncDaysBack = if ($null -ne $config.syncDaysBack) { [int]$config.syncDaysBack } else { 1 }
 
 if (-not $logRoot -or -not $erpUrl -or -not $ingestKey) {
-  throw 'config.json 에 logRoot, erpUrl, ingestKey 가 필요합니다.'
+  throw 'config.json needs logRoot, erpUrl, ingestKey'
 }
 
 $stateDir = Join-Path $env:ProgramData 'MiraeSolderPasteAgent'

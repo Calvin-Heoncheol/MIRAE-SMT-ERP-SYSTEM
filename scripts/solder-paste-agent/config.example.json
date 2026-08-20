@@ -1,6 +1,6 @@
 {
   "logRoot": "D:\\Log",
   "erpUrl": "https://mirae-smt-erp-system.vercel.app/api/solder-paste/logs",
-  "ingestKey": "Vercel-SOLDER_PASTE_INGEST_KEY-와-동일하게-입력",
+  "ingestKey": "same-as-vercel-SOLDER_PASTE_INGEST_KEY",
   "syncDaysBack": 1
 }

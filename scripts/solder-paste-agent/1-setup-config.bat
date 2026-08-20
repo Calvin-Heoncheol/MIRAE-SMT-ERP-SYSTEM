@@ -1,6 +1,6 @@
 @echo off
 cd /d "%~dp0"
-title Solder paste - make config
+title Solder paste - setup config
 
 echo.
 echo ========================================
@@ -18,6 +18,6 @@ echo.
 notepad "%~dp0config.json"
 
 echo.
-echo Next: run the send-log bat (2-...).
+echo Next: run 2-send-log-now.bat
 echo.
 pause

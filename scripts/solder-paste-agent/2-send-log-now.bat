@@ -10,7 +10,7 @@ echo.
 
 if exist "%~dp0config.json" goto SEND
 echo ERROR: config.json not found.
-echo Run the setup bat (1-...) first.
+echo Run 1-setup-config.bat first.
 echo.
 pause
 exit /b 1

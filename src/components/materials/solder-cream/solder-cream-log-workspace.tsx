@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { SolderCreamLogFetchError } from '@/components/materials/solder-cream/solder-cream-log-fetch-error'
 import { SolderCreamLogImportModal } from '@/components/materials/solder-cream/solder-cream-log-import-modal'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
@@ -39,11 +40,12 @@ type SolderCreamLogWorkspaceProps = {
   result: FetchSolderCreamLogPageResult
 }
 
-type ViewMode = 'status' | 'history'
+type ViewMode = 'status' | 'history' | 'sync'
 
 const VIEW_OPTIONS: { value: ViewMode; label: string }[] = [
   { value: 'status', label: '솔더페이스트 현황' },
   { value: 'history', label: '이력' },
+  { value: 'sync', label: '로그' },
 ]
 
 function lotStatusTone(status: SolderCreamLotStatus): ErpStatusTone {
@@ -64,6 +66,7 @@ function lotStatusTone(status: SolderCreamLotStatus): ErpStatusTone {
 }
 
 export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps) {
+  const router = useRouter()
   const { afterSave } = useSaveFeedback()
   const [view, setView] = useState<ViewMode>('status')
   const [statusFilter, setStatusFilter] = useState<SolderCreamStatusFilter>('all')
@@ -71,6 +74,7 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
   const [importOpen, setImportOpen] = useState(false)
 
   const logs = result.ok ? result.logs : []
+  const imports = result.ok ? result.imports : []
   const query = search.trim()
 
   const statusRows = useMemo(() => buildSolderCreamStatusRows(logs), [logs])
@@ -112,7 +116,12 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                 설비 PC가 D:\Log\년\월\일.txt 로그를 자동 전송합니다. 수동 가져오기도 가능합니다.
               </p>
             </div>
-            <ErpButton onClick={() => setImportOpen(true)}>가져오기</ErpButton>
+            <div className="flex items-center gap-2">
+              <ErpButton variant="secondary" onClick={() => router.refresh()}>
+                새로고침
+              </ErpButton>
+              <ErpButton onClick={() => setImportOpen(true)}>가져오기</ErpButton>
+            </div>
           </div>
         </>
       ) : null}
@@ -140,12 +149,14 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
               ))}
             </div>
 
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={view === 'status' ? '품목 바코드·상태 검색' : 'LOT·설비·이벤트 검색'}
-              className={`w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 ${erpSearchFocusClass('sky')}`}
-            />
+            {view !== 'sync' ? (
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={view === 'status' ? '품목 바코드·상태 검색' : 'LOT·설비·이벤트 검색'}
+                className={`w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 ${erpSearchFocusClass('sky')}`}
+              />
+            ) : null}
           </div>
 
           {view === 'status' ? (
@@ -304,6 +315,49 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                             hasQuery: Boolean(query),
                             emptyLabel: '가져온 설비 로그가 없습니다.',
                             actionHint: '가져오기 또는 설비 PC 에이전트로 로그를 전송하세요.',
+                          })}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              ) : null}
+
+              {view === 'sync' ? (
+                <table className={ERP_TABLE_CLASS}>
+                  <thead className={ERP_TABLE_HEAD_CLASS}>
+                    <tr>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>가져온 시각</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>파일명</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-right`}>행 수</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>비고</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {imports.length ? (
+                      imports.map((row) => (
+                        <tr key={row.id} className={ERP_TABLE_ROW_CLASS}>
+                          <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-600`}>
+                            {formatSolderCreamDateTime(row.importedAt)}
+                          </td>
+                          <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-xs text-slate-700`}>
+                            {row.sourceName || '—'}
+                          </td>
+                          <td
+                            className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-right tabular-nums text-slate-600`}
+                          >
+                            {row.rowCount}
+                          </td>
+                          <td className={ERP_TABLE_TD_CLASS}>{row.note || '—'}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-8 text-center text-sm text-slate-500">
+                          {formatEmptyListMessage({
+                            hasQuery: false,
+                            emptyLabel: '가져온 파일 로그가 없습니다.',
+                            actionHint: '설비 PC에서 전송 후 다시 확인하세요.',
                           })}
                         </td>
                       </tr>

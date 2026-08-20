@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  솔더페이스트 로그 동기화 작업 스케줄러 등록 (3분 간격)
+  Register solder paste log sync scheduled task (every 3 minutes)
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\register-scheduled-task.ps1
@@ -19,15 +19,28 @@ if (-not (Test-Path -LiteralPath $scriptPath)) {
   $scriptPath = Join-Path $PSScriptRoot 'sync-solder-paste-log.ps1'
 }
 if (-not (Test-Path -LiteralPath $scriptPath)) {
-  throw "sync-solder-paste-log.bat 또는 .ps1 을 찾을 수 없습니다."
+  throw 'sync-solder-paste-log.bat or .ps1 not found'
 }
 
 $taskName = 'MiraeSolderPasteLogSync'
-$action = New-ScheduledTaskAction `
-  -Execute $scriptPath `
-  -WorkingDirectory $PSScriptRoot
+if ($scriptPath -like '*.ps1') {
+  $action = New-ScheduledTaskAction `
+    -Execute 'powershell.exe' `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -ConfigPath `"$ConfigPath`"" `
+    -WorkingDirectory $PSScriptRoot
+} else {
+  $action = New-ScheduledTaskAction `
+    -Execute 'cmd.exe' `
+    -Argument "/c `"$scriptPath`"" `
+    -WorkingDirectory $PSScriptRoot
+}
 
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) -RepetitionDuration ([TimeSpan]::MaxValue)
+# [TimeSpan]::MaxValue causes invalid Duration in task scheduler XML.
+$trigger = New-ScheduledTaskTrigger `
+  -Once `
+  -At (Get-Date).AddMinutes(1) `
+  -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) `
+  -RepetitionDuration (New-TimeSpan -Days 3650)
 
 $settings = New-ScheduledTaskSettingsSet `
   -AllowStartIfOnBatteries `
@@ -40,7 +53,7 @@ Register-ScheduledTask `
   -Action $action `
   -Trigger $trigger `
   -Settings $settings `
-  -Description '솔더페이스트 설비 로그를 ERP로 자동 전송' `
+  -Description 'Mirae solder paste equipment log sync to ERP' `
   -Force | Out-Null
 
-Write-Host "등록 완료: $taskName (${IntervalMinutes}분마다 실행)"
+Write-Host "OK registered: $taskName (every $IntervalMinutes minutes)"

@@ -7,7 +7,7 @@ import type {
 /** 설비 LOT — S-PF-260713-008#5, T-PB-260714-033 등 */
 export const EQUIPMENT_LOT_PATTERN = /[A-Z]-P[FB]-\d{6}(?:-\d+)?(?:#\d+)?/g
 
-const EQUIPMENT_LINE_PATTERN = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+) (.+)$/
+const EQUIPMENT_LINE_PATTERN = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?) (.+)$/
 
 function parseEquipmentTimestamp(value: string) {
   const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?$/)

@@ -11,7 +11,7 @@ echo.
 
 if exist "%~dp0config.json" goto ADMIN
 echo ERROR: config.json not found.
-echo Run the setup bat (1-...) first.
+echo Run 1-setup-config.bat first.
 echo.
 pause
 exit /b 1
@@ -27,6 +27,6 @@ exit /b
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0register-scheduled-task.ps1" -ConfigPath "%~dp0config.json"
 
 echo.
-echo You can still test with the send-log bat (2-...).
+echo You can still test with 2-send-log-now.bat
 echo.
 pause

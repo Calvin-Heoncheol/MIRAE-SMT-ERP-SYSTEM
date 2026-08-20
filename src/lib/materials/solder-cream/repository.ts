@@ -118,6 +118,32 @@ async function insertLogRows(
   return null
 }
 
+async function fetchAllSolderCreamEquipmentLogs(
+  supabase: NonNullable<ReturnType<typeof createSupabaseClient>>,
+) {
+  const pageSize = 1000
+  const logs: SolderCreamEquipmentLog[] = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('solder_cream_equipment_logs')
+      .select(
+        'id, import_id, source_row, recorded_at, equipment_type, equipment_id, lot_number, event_type, temperature, mix_seconds, result, note, created_at',
+      )
+      .order('recorded_at', { ascending: false })
+      .range(from, from + pageSize - 1)
+
+    if (error) return { ok: false as const, detail: error.message }
+    const rows = data || []
+    logs.push(...rows.map(mapLogRow))
+    if (rows.length < pageSize) break
+    from += pageSize
+  }
+
+  return { ok: true as const, logs }
+}
+
 export async function fetchSolderCreamLogPageData(): Promise<FetchSolderCreamLogPageResult> {
   const supabase = createSupabaseClient()
   if (!supabase) {
@@ -134,26 +160,20 @@ export async function fetchSolderCreamLogPageData(): Promise<FetchSolderCreamLog
       .select('id, source_name, row_count, imported_at, note')
       .order('imported_at', { ascending: false })
       .limit(20),
-    supabase
-      .from('solder_cream_equipment_logs')
-      .select(
-        'id, import_id, source_row, recorded_at, equipment_type, equipment_id, lot_number, event_type, temperature, mix_seconds, result, note, created_at',
-      )
-      .order('recorded_at', { ascending: false })
-      .limit(500),
+    fetchAllSolderCreamEquipmentLogs(supabase),
   ])
 
   if (importsResult.error) {
     return { ok: false, reason: 'query', detail: importsResult.error.message }
   }
-  if (logsResult.error) {
-    return { ok: false, reason: 'query', detail: logsResult.error.message }
+  if (!logsResult.ok) {
+    return { ok: false, reason: 'query', detail: logsResult.detail }
   }
 
   return {
     ok: true,
     imports: (importsResult.data || []).map(mapImportRow),
-    logs: (logsResult.data || []).map(mapLogRow),
+    logs: logsResult.logs,
   }
 }
 
