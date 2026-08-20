@@ -74,14 +74,14 @@ function parseEquipmentMessage(message: string, activeMixLot: string | null): Pa
 
   const events: ParsedEquipmentEvent[] = []
 
-  if (/자재\s*입고|입고\s*완료/.test(trimmed)) {
+  if (/입고\s*완료/.test(trimmed)) {
     for (const lot of extractLots(trimmed)) {
       events.push({
         eventType: 'store',
         equipmentType: 'fridge',
         lotNumber: lot,
         mixSeconds: null,
-        result: /완료/.test(trimmed) ? 'OK' : '',
+        result: 'OK',
         note: trimmed,
       })
     }

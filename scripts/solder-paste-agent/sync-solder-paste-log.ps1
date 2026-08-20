@@ -72,15 +72,25 @@ function Send-LogFile([string]$Path, [string]$SourceName) {
   } | ConvertTo-Json -Compress
 
   try {
-    $response = Invoke-RestMethod `
+    $http = Invoke-WebRequest `
       -Uri $erpUrl `
       -Method Post `
       -ContentType 'application/json; charset=utf-8' `
       -Headers @{
         'X-Solder-Paste-Key' = $ingestKey
       } `
-      -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
+      -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
+      -UseBasicParsing
+    $statusCode = [int]$http.StatusCode
+    $responseText = [string]$http.Content
   } catch {
+    $statusCode = -1
+    if ($_.Exception.Response) {
+      try {
+        $statusCode = [int]$_.Exception.Response.StatusCode
+      } catch {}
+    }
+
     $detail = $_.Exception.Message
     if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
       $detail = $_.ErrorDetails.Message
@@ -91,13 +101,20 @@ function Send-LogFile([string]$Path, [string]$SourceName) {
         $detail = $reader.ReadToEnd()
       } catch {}
     }
-    throw $detail
+
+    throw "status=$statusCode body=$detail"
+  }
+
+  try {
+    $response = $responseText | ConvertFrom-Json
+  } catch {
+    throw "status=$statusCode body=$responseText"
   }
 
   if ($response.skipped) {
     Write-Log "SKIP unchanged $SourceName"
   } else {
-    Write-Log "OK $SourceName rows=$($response.rowCount)"
+    Write-Log "OK $SourceName status=$statusCode rows=$($response.rowCount)"
   }
 
   $state[$SourceName] = Get-FileSha256 -Path $Path
