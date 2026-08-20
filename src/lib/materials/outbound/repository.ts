@@ -896,7 +896,11 @@ export async function previewOrderReel(input: {
   scanCode: string
 }): Promise<ReelPreviewResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return missingEnvResult()
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
   }
   return previewMaterialReel(input)
 }

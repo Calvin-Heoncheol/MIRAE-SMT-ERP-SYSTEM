@@ -33,7 +33,7 @@ export type SaveMaterialInboundResult =
 
 export type DeleteMaterialInboundResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 const INBOUND_LINES_SELECT = `
           id,

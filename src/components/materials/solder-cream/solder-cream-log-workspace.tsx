@@ -6,7 +6,6 @@ import { SolderCreamLogImportModal } from '@/components/materials/solder-cream/s
 import { ErpButton } from '@/components/ui/erp-button'
 import { PageShell } from '@/components/ui/page-shell'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import type { FetchSolderCreamLogPageResult } from '@/lib/materials/solder-cream/repository'
 import type { SolderCreamLotStatus } from '@/lib/materials/solder-cream/types'
@@ -94,13 +93,17 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
   return (
     <PageShell>
       {result.ok ? (
-        <WorkspaceHeader
-          title="솔더페이스트"
-          description="설비 PC가 D:\\Log\\년\\월\\일.txt 로그를 자동 전송합니다. 수동 가져오기도 가능합니다."
-          actions={
+        <>
+          <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-lg font-semibold text-slate-900">솔더페이스트</h1>
+              <p className="mt-1 text-sm text-slate-600">
+                설비 PC가 D:\Log\년\월\일.txt 로그를 자동 전송합니다. 수동 가져오기도 가능합니다.
+              </p>
+            </div>
             <ErpButton onClick={() => setImportOpen(true)}>가져오기</ErpButton>
-          }
-        />
+          </div>
+        </>
       ) : null}
 
       {!result.ok ? <SolderCreamLogFetchError result={result} /> : null}
@@ -148,7 +151,7 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="LOT·설비·이벤트 검색"
-                className={`w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 ${erpSearchFocusClass('smt')}`}
+                className={`w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 ${erpSearchFocusClass('sky')}`}
               />
             ) : null}
           </div>
@@ -209,9 +212,11 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                     ) : (
                       <tr>
                         <td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-500">
-                          {formatEmptyListMessage(
-                            query ? '검색 결과가 없습니다.' : '가져온 설비 로그가 없습니다.',
-                          )}
+                          {formatEmptyListMessage({
+                            hasQuery: Boolean(query),
+                            emptyLabel: '가져온 설비 로그가 없습니다.',
+                            actionHint: '가져오기 또는 설비 PC 에이전트로 로그를 전송하세요.',
+                          })}
                         </td>
                       </tr>
                     )}
@@ -271,9 +276,11 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                     ) : (
                       <tr>
                         <td colSpan={8} className="px-3 py-8 text-center text-sm text-slate-500">
-                          {formatEmptyListMessage(
-                            query ? '검색 결과가 없습니다.' : '가져온 설비 로그가 없습니다.',
-                          )}
+                          {formatEmptyListMessage({
+                            hasQuery: Boolean(query),
+                            emptyLabel: '가져온 설비 로그가 없습니다.',
+                            actionHint: '가져오기 또는 설비 PC 에이전트로 로그를 전송하세요.',
+                          })}
                         </td>
                       </tr>
                     )}
@@ -312,7 +319,10 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                     ) : (
                       <tr>
                         <td colSpan={4} className="px-3 py-8 text-center text-sm text-slate-500">
-                          {formatEmptyListMessage('가져오기 이력이 없습니다.')}
+                          {formatEmptyListMessage({
+                            hasQuery: false,
+                            emptyLabel: '가져오기 이력이 없습니다.',
+                          })}
                         </td>
                       </tr>
                     )}

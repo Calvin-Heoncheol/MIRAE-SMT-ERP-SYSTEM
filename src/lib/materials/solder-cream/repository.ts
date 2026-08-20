@@ -152,18 +152,33 @@ export async function importSolderCreamLogFile(input: {
     return { ok: false, reason: 'auth', detail: auth.detail }
   }
 
-  return ingestSolderCreamLogFile({
+  const result = await ingestSolderCreamLogFile({
     sourceName: input.sourceName,
     text: input.text,
     note: input.note,
     replaceSameSource: false,
   })
+
+  if (!result.ok) return result
+  if (result.skipped) {
+    return {
+      ok: false,
+      reason: 'duplicate',
+      detail: result.detail,
+    }
+  }
+
+  return {
+    ok: true,
+    importId: result.importId,
+    rowCount: result.rowCount,
+  }
 }
 
 export type IngestSolderCreamLogResult =
-  | { ok: true; importId: string; rowCount: number; skipped?: false }
   | { ok: true; skipped: true; rowCount: 0; detail: string }
-  | ImportSolderCreamLogResult
+  | { ok: true; skipped: false; importId: string; rowCount: number }
+  | Extract<ImportSolderCreamLogResult, { ok: false }>
 
 /** 설비 PC 에이전트·수동 가져오기 공통 */
 export async function ingestSolderCreamLogFile(input: {
@@ -255,6 +270,7 @@ export async function ingestSolderCreamLogFile(input: {
 
   return {
     ok: true,
+    skipped: false,
     importId: importRow.id,
     rowCount: parsed.rows.length,
   }
