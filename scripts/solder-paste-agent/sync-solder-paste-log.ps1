@@ -37,6 +37,10 @@ if (-not $logRoot -or -not $erpUrl -or -not $ingestKey) {
   throw 'config.json needs logRoot, erpUrl, ingestKey'
 }
 
+if ($ingestKey -match 'same-as-vercel|SOLDER_PASTE_INGEST_KEY|placeholder|여기에|동일') {
+  throw 'config.json ingestKey is still a placeholder. Set it to the same value as Vercel SOLDER_PASTE_INGEST_KEY.'
+}
+
 $stateDir = Join-Path $env:ProgramData 'MiraeSolderPasteAgent'
 $statePath = Join-Path $stateDir 'state.json'
 if (-not (Test-Path -LiteralPath $stateDir)) {
@@ -58,18 +62,59 @@ function Get-FileSha256([string]$Path) {
   return $hash.Hash.ToLowerInvariant()
 }
 
+# Keep only lines the ERP parser cares about. Full day logs are mostly door/rotation noise.
+function Get-RelevantLogText([string]$RawText) {
+  $lines = $RawText -split "`r?`n"
+  $kept = New-Object System.Collections.Generic.List[string]
+  foreach ($line in $lines) {
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+    if ($line -notmatch '^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}') { continue }
+    if (
+      $line -match '[A-Z]-P[FB]-\d{6}' -or
+      $line -match '입고|꺼내기|교반|출고|경보|상온|WaitOutbound|错误|오류|알람'
+    ) {
+      $kept.Add($line.TrimEnd())
+    }
+  }
+  return ($kept -join "`n")
+}
+
+$script:JsonSerializer = $null
+try {
+  Add-Type -AssemblyName System.Web.Extensions -ErrorAction Stop
+  $script:JsonSerializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+  $script:JsonSerializer.MaxJsonLength = 64MB
+} catch {
+  $script:JsonSerializer = $null
+}
+
+function ConvertTo-IngestJson([hashtable]$Payload) {
+  if ($null -ne $script:JsonSerializer) {
+    return $script:JsonSerializer.Serialize($Payload)
+  }
+  return ($Payload | ConvertTo-Json -Compress -Depth 5)
+}
+
 function Send-LogFile([string]$Path, [string]$SourceName) {
-  $content = Get-Content -LiteralPath $Path -Raw -Encoding Default
-  if ([string]::IsNullOrWhiteSpace($content)) {
+  $raw = Get-Content -LiteralPath $Path -Raw -Encoding Default
+  if ([string]::IsNullOrWhiteSpace($raw)) {
     Write-Log "SKIP empty $SourceName"
     return
   }
 
-  $body = @{
+  $content = Get-RelevantLogText -RawText $raw
+  if ([string]::IsNullOrWhiteSpace($content)) {
+    Write-Log "SKIP no-events $SourceName"
+    return
+  }
+
+  $body = ConvertTo-IngestJson @{
     text = $content
     sourceName = $SourceName
     sourcePath = $Path
-  } | ConvertTo-Json -Compress
+  }
+  $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+  Write-Log "SEND $SourceName bytes=$($bytes.Length) lines=$(($content -split "`n").Count)"
 
   try {
     $http = Invoke-WebRequest `
@@ -79,8 +124,9 @@ function Send-LogFile([string]$Path, [string]$SourceName) {
       -Headers @{
         'X-Solder-Paste-Key' = $ingestKey
       } `
-      -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
-      -UseBasicParsing
+      -Body $bytes `
+      -UseBasicParsing `
+      -MaximumRedirection 0
     $statusCode = [int]$http.StatusCode
     $responseText = [string]$http.Content
   } catch {
@@ -102,7 +148,15 @@ function Send-LogFile([string]$Path, [string]$SourceName) {
       } catch {}
     }
 
+    if ($statusCode -ge 300 -and $statusCode -lt 400) {
+      throw "status=$statusCode redirect (check ingestKey) body=$detail"
+    }
+
     throw "status=$statusCode body=$detail"
+  }
+
+  if ($statusCode -ge 300 -and $statusCode -lt 400) {
+    throw "status=$statusCode redirect (check ingestKey) body=$responseText"
   }
 
   try {

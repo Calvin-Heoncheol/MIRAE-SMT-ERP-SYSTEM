@@ -7,6 +7,20 @@ import { normalizeAuthDepartment, normalizeAuthRole } from '@/lib/auth/types'
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
+  const pathname = request.nextUrl.pathname
+  const isLoginPage = pathname === '/login' || pathname.startsWith('/login/')
+  const isForbiddenPage = pathname === '/forbidden' || pathname.startsWith('/forbidden/')
+  const isSolderPasteIngestApi = pathname === '/api/solder-paste/logs'
+  const isPublicAsset =
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/branding') ||
+    pathname === '/favicon.ico'
+
+  // 설비 로그 수신은 로그인 가드/세션 갱신 대상이 아님 (대용량 POST).
+  if (isPublicAsset || isSolderPasteIngestApi) {
+    return supabaseResponse
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
@@ -34,31 +48,6 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  const pathname = request.nextUrl.pathname
-  const isLoginPage = pathname === '/login' || pathname.startsWith('/login/')
-  const isForbiddenPage = pathname === '/forbidden' || pathname.startsWith('/forbidden/')
-  const isSolderPasteIngestApi =
-    pathname === '/api/solder-paste/logs' && request.method === 'POST'
-  const isPublicAsset =
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/branding') ||
-    pathname === '/favicon.ico'
-
-  if (isPublicAsset) {
-    return supabaseResponse
-  }
-
-  if (isSolderPasteIngestApi) {
-    const ingestKey = process.env.SOLDER_PASTE_INGEST_KEY?.trim()
-    const provided =
-      request.headers.get('x-solder-paste-key')?.trim() ||
-      request.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() ||
-      ''
-    if (ingestKey && provided === ingestKey) {
-      return supabaseResponse
-    }
-  }
 
   if (!user && !isLoginPage) {
     const redirectUrl = request.nextUrl.clone()
