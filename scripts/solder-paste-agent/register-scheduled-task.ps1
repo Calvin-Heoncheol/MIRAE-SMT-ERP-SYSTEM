@@ -14,15 +14,18 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$scriptPath = Join-Path $PSScriptRoot 'sync-solder-paste-log.ps1'
+$scriptPath = Join-Path $PSScriptRoot 'sync-solder-paste-log.bat'
 if (-not (Test-Path -LiteralPath $scriptPath)) {
-  throw "sync-solder-paste-log.ps1 을 찾을 수 없습니다: $scriptPath"
+  $scriptPath = Join-Path $PSScriptRoot 'sync-solder-paste-log.ps1'
+}
+if (-not (Test-Path -LiteralPath $scriptPath)) {
+  throw "sync-solder-paste-log.bat 또는 .ps1 을 찾을 수 없습니다."
 }
 
 $taskName = 'MiraeSolderPasteLogSync'
 $action = New-ScheduledTaskAction `
-  -Execute 'powershell.exe' `
-  -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -ConfigPath `"$ConfigPath`""
+  -Execute $scriptPath `
+  -WorkingDirectory $PSScriptRoot
 
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes) -RepetitionDuration ([TimeSpan]::MaxValue)
 

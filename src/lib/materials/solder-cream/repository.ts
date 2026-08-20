@@ -88,9 +88,9 @@ function mapLogRow(row: {
 }
 
 function mapInsertRows(importId: string, rows: SolderCreamLogImportRow[]) {
-  return rows.map((row) => ({
+  return rows.map((row, index) => ({
     import_id: importId,
-    source_row: row.sourceRow,
+    source_row: index + 1,
     recorded_at: row.recordedAt,
     equipment_type: row.equipmentType,
     equipment_id: row.equipmentId,
@@ -98,9 +98,24 @@ function mapInsertRows(importId: string, rows: SolderCreamLogImportRow[]) {
     event_type: row.eventType,
     temperature: row.temperature,
     mix_seconds: row.mixSeconds,
-    result: row.result,
-    note: row.note,
+    result: (row.result || '').slice(0, 200),
+    note: (row.note || '').slice(0, 500),
   }))
+}
+
+async function insertLogRows(
+  supabase: NonNullable<ReturnType<typeof createSupabaseClient>>,
+  importId: string,
+  rows: SolderCreamLogImportRow[],
+) {
+  const payload = mapInsertRows(importId, rows)
+  const chunkSize = 200
+  for (let offset = 0; offset < payload.length; offset += chunkSize) {
+    const chunk = payload.slice(offset, offset + chunkSize)
+    const { error } = await supabase.from('solder_cream_equipment_logs').insert(chunk)
+    if (error) return error
+  }
+  return null
 }
 
 export async function fetchSolderCreamLogPageData(): Promise<FetchSolderCreamLogPageResult> {
@@ -259,9 +274,7 @@ export async function ingestSolderCreamLogFile(input: {
     }
   }
 
-  const { error: logsError } = await supabase
-    .from('solder_cream_equipment_logs')
-    .insert(mapInsertRows(importRow.id, parsed.rows))
+  const logsError = await insertLogRows(supabase, importRow.id, parsed.rows)
 
   if (logsError) {
     await supabase.from('solder_cream_log_imports').delete().eq('id', importRow.id)

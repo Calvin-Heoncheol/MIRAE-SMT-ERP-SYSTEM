@@ -9,7 +9,14 @@ export type SolderCreamEventType =
   | 'discard'
   | 'unknown'
 
-export type SolderCreamLotStatus = 'ready' | 'mixed' | 'opened' | 'cold' | 'alarm' | 'unknown'
+export type SolderCreamLotStatus =
+  | 'cold'
+  | 'opened'
+  | 'mixed'
+  | 'ready'
+  | 'discarded'
+  | 'alarm'
+  | 'unknown'
 
 export type SolderCreamLogImportRow = {
   sourceRow: number
@@ -57,3 +64,14 @@ export type SolderCreamLotSummary = {
   lastMixSeconds: number | null
   eventCount: number
 }
+
+export type SolderCreamStatusRow = {
+  barcode: string
+  manufacturedAt: string | null
+  expiresAt: string | null
+  lastInboundAt: string | null
+  lastEventAt: string | null
+  inboundCount: number
+  status: SolderCreamLotStatus
+}
+

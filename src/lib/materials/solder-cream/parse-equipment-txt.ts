@@ -10,8 +10,10 @@ export const EQUIPMENT_LOT_PATTERN = /[A-Z]-P[FB]-\d{6}(?:-\d+)?(?:#\d+)?/g
 const EQUIPMENT_LINE_PATTERN = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+) (.+)$/
 
 function parseEquipmentTimestamp(value: string) {
-  const normalized = value.trim().replace(' ', 'T')
-  const date = new Date(normalized)
+  const match = value.trim().match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?$/)
+  if (!match) return ''
+  const ms = (match[3] || '000').slice(0, 3).padEnd(3, '0')
+  const date = new Date(`${match[1]}T${match[2]}.${ms}+09:00`)
   if (Number.isNaN(date.getTime())) return ''
   return date.toISOString()
 }

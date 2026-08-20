@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { SolderCreamLogFetchError } from '@/components/materials/solder-cream/solder-cream-log-fetch-error'
 import { SolderCreamLogImportModal } from '@/components/materials/solder-cream/solder-cream-log-import-modal'
+import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { ErpButton } from '@/components/ui/erp-button'
 import { PageShell } from '@/components/ui/page-shell'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -10,12 +11,15 @@ import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import type { FetchSolderCreamLogPageResult } from '@/lib/materials/solder-cream/repository'
 import type { SolderCreamLotStatus } from '@/lib/materials/solder-cream/types'
 import {
-  buildSolderCreamLotSummaries,
+  buildSolderCreamStatusRows,
+  formatSolderCreamDate,
   formatSolderCreamDateTime,
+  matchesSolderCreamFridgeSearch,
   matchesSolderCreamSearch,
   SOLDER_CREAM_EQUIPMENT_LABELS,
   SOLDER_CREAM_EVENT_LABELS,
   SOLDER_CREAM_LOT_STATUS_LABELS,
+  type SolderCreamStatusFilter,
 } from '@/lib/materials/solder-cream/utils'
 import {
   ERP_TABLE_CLASS,
@@ -35,26 +39,25 @@ type SolderCreamLogWorkspaceProps = {
   result: FetchSolderCreamLogPageResult
 }
 
-type ViewMode = 'lots' | 'logs' | 'imports'
+type ViewMode = 'status' | 'history'
 
 const VIEW_OPTIONS: { value: ViewMode; label: string }[] = [
-  { value: 'lots', label: 'LOT 현황' },
-  { value: 'logs', label: '로그 전체' },
-  { value: 'imports', label: '가져오기 이력' },
+  { value: 'status', label: '솔더페이스트 현황' },
+  { value: 'history', label: '이력' },
 ]
 
 function lotStatusTone(status: SolderCreamLotStatus): ErpStatusTone {
   switch (status) {
     case 'ready':
       return 'success'
-    case 'alarm':
-      return 'danger'
     case 'mixed':
       return 'info'
     case 'opened':
       return 'warning'
-    case 'cold':
+    case 'discarded':
       return 'neutral'
+    case 'cold':
+      return 'info'
     default:
       return 'neutral'
   }
@@ -62,33 +65,41 @@ function lotStatusTone(status: SolderCreamLotStatus): ErpStatusTone {
 
 export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps) {
   const { afterSave } = useSaveFeedback()
-  const [view, setView] = useState<ViewMode>('lots')
+  const [view, setView] = useState<ViewMode>('status')
+  const [statusFilter, setStatusFilter] = useState<SolderCreamStatusFilter>('all')
   const [search, setSearch] = useState('')
   const [importOpen, setImportOpen] = useState(false)
 
   const logs = result.ok ? result.logs : []
-  const imports = result.ok ? result.imports : []
   const query = search.trim()
 
-  const lotSummaries = useMemo(() => buildSolderCreamLotSummaries(logs), [logs])
+  const statusRows = useMemo(() => buildSolderCreamStatusRows(logs), [logs])
 
-  const filteredLots = useMemo(() => {
-    if (!query) return lotSummaries
-    const q = query.toLowerCase()
-    return lotSummaries.filter(
-      (row) =>
-        row.lotNumber.toLowerCase().includes(q) ||
-        SOLDER_CREAM_LOT_STATUS_LABELS[row.status].toLowerCase().includes(q),
-    )
-  }, [lotSummaries, query])
+  const statusCounts = useMemo(() => {
+    const counts: Record<SolderCreamStatusFilter, number> = {
+      all: statusRows.length,
+      cold: 0,
+      opened: 0,
+      mixed: 0,
+      ready: 0,
+    }
+    for (const row of statusRows) {
+      if (row.status in counts) counts[row.status as SolderCreamStatusFilter] += 1
+    }
+    return counts
+  }, [statusRows])
+
+  const filteredStatusRows = useMemo(() => {
+    const byStatus =
+      statusFilter === 'all' ? statusRows : statusRows.filter((row) => row.status === statusFilter)
+    if (!query) return byStatus
+    return byStatus.filter((row) => matchesSolderCreamFridgeSearch(row, query))
+  }, [statusRows, statusFilter, query])
 
   const filteredLogs = useMemo(
     () => logs.filter((row) => matchesSolderCreamSearch(row, query)),
     [logs, query],
   )
-
-  const readyCount = lotSummaries.filter((row) => row.status === 'ready').length
-  const alarmCount = lotSummaries.filter((row) => row.status === 'alarm').length
 
   return (
     <PageShell>
@@ -110,23 +121,6 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
 
       {result.ok ? (
         <div className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-            <span>
-              LOT <strong className="text-slate-900">{lotSummaries.length}</strong>개
-            </span>
-            <span>
-              사용 가능 <strong className="text-emerald-700">{readyCount}</strong>개
-            </span>
-            {alarmCount ? (
-              <span>
-                알람 <strong className="text-rose-700">{alarmCount}</strong>개
-              </span>
-            ) : null}
-            <span>
-              로그 <strong className="text-slate-900">{logs.length}</strong>건
-            </span>
-          </div>
-
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1">
               {VIEW_OPTIONS.map((option) => (
@@ -146,39 +140,90 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
               ))}
             </div>
 
-            {view !== 'imports' ? (
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="LOT·설비·이벤트 검색"
-                className={`w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 ${erpSearchFocusClass('sky')}`}
-              />
-            ) : null}
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={view === 'status' ? '품목 바코드·상태 검색' : 'LOT·설비·이벤트 검색'}
+              className={`w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 ${erpSearchFocusClass('sky')}`}
+            />
           </div>
+
+          {view === 'status' ? (
+            <FilterChipBar
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: 'all', label: '전체', count: statusCounts.all },
+                {
+                  value: 'cold',
+                  label: SOLDER_CREAM_LOT_STATUS_LABELS.cold,
+                  count: statusCounts.cold,
+                  tone: STATUS_FILTER_TONES.waiting,
+                },
+                {
+                  value: 'opened',
+                  label: SOLDER_CREAM_LOT_STATUS_LABELS.opened,
+                  count: statusCounts.opened,
+                  tone: STATUS_FILTER_TONES.progress,
+                },
+                {
+                  value: 'mixed',
+                  label: SOLDER_CREAM_LOT_STATUS_LABELS.mixed,
+                  count: statusCounts.mixed,
+                  tone: STATUS_FILTER_TONES.progress,
+                },
+                {
+                  value: 'ready',
+                  label: SOLDER_CREAM_LOT_STATUS_LABELS.ready,
+                  count: statusCounts.ready,
+                  tone: STATUS_FILTER_TONES.done,
+                },
+              ]}
+            />
+          ) : null}
 
           <div className={ERP_TABLE_WRAP_CLASS}>
             <div className={ERP_TABLE_SCROLL_CLASS}>
-              {view === 'lots' ? (
+              {view === 'status' ? (
                 <table className={ERP_TABLE_CLASS}>
                   <thead className={ERP_TABLE_HEAD_CLASS}>
                     <tr>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>LOT</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-center`}>No.</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>품목 바코드</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>제조일자</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>유통기한</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>입고시간</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-center`}>입고횟수</th>
                       <th className={`${ERP_TABLE_TH_CLASS} text-left`}>상태</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>최근 이벤트</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>최근 시각</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-right`}>온도</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-right`}>교반초</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-right`}>이벤트 수</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredLots.length ? (
-                      filteredLots.map((row) => (
-                        <tr key={row.lotNumber} className={ERP_TABLE_ROW_CLASS}>
+                    {filteredStatusRows.length ? (
+                      filteredStatusRows.map((row, index) => (
+                        <tr key={row.barcode} className={ERP_TABLE_ROW_CLASS}>
+                          <td
+                            className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-center tabular-nums text-slate-500`}
+                          >
+                            {index + 1}
+                          </td>
                           <td
                             className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-xs font-semibold text-blue-800`}
                           >
-                            {row.lotNumber}
+                            {row.barcode}
+                          </td>
+                          <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-700`}>
+                            {formatSolderCreamDate(row.manufacturedAt)}
+                          </td>
+                          <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-700`}>
+                            {formatSolderCreamDate(row.expiresAt)}
+                          </td>
+                          <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-600`}>
+                            {row.lastInboundAt ? formatSolderCreamDateTime(row.lastInboundAt) : '—'}
+                          </td>
+                          <td
+                            className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-center tabular-nums text-slate-600`}
+                          >
+                            {row.inboundCount}
                           </td>
                           <td className={ERP_TABLE_TD_CLASS}>
                             <StatusBadge
@@ -186,36 +231,15 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                               tone={lotStatusTone(row.status)}
                             />
                           </td>
-                          <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                            {SOLDER_CREAM_EVENT_LABELS[row.lastEventType]}
-                          </td>
-                          <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-600`}>
-                            {formatSolderCreamDateTime(row.lastRecordedAt)}
-                          </td>
-                          <td
-                            className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-right tabular-nums text-slate-600`}
-                          >
-                            {row.lastTemperature ?? '—'}
-                          </td>
-                          <td
-                            className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-right tabular-nums text-slate-600`}
-                          >
-                            {row.lastMixSeconds ?? '—'}
-                          </td>
-                          <td
-                            className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-right tabular-nums text-slate-600`}
-                          >
-                            {row.eventCount}
-                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
                         <td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-500">
                           {formatEmptyListMessage({
-                            hasQuery: Boolean(query),
-                            emptyLabel: '가져온 설비 로그가 없습니다.',
-                            actionHint: '가져오기 또는 설비 PC 에이전트로 로그를 전송하세요.',
+                            hasQuery: Boolean(query) || statusFilter !== 'all',
+                            emptyLabel: '표시할 솔더페이스트가 없습니다.',
+                            actionHint: '설비 로그 동기화 후 다시 확인하세요.',
                           })}
                         </td>
                       </tr>
@@ -224,7 +248,7 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                 </table>
               ) : null}
 
-              {view === 'logs' ? (
+              {view === 'history' ? (
                 <table className={ERP_TABLE_CLASS}>
                   <thead className={ERP_TABLE_HEAD_CLASS}>
                     <tr>
@@ -280,48 +304,6 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                             hasQuery: Boolean(query),
                             emptyLabel: '가져온 설비 로그가 없습니다.',
                             actionHint: '가져오기 또는 설비 PC 에이전트로 로그를 전송하세요.',
-                          })}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              ) : null}
-
-              {view === 'imports' ? (
-                <table className={ERP_TABLE_CLASS}>
-                  <thead className={ERP_TABLE_HEAD_CLASS}>
-                    <tr>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>가져온 시각</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>파일명</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-right`}>행 수</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>비고</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {imports.length ? (
-                      imports.map((row) => (
-                        <tr key={row.id} className={ERP_TABLE_ROW_CLASS}>
-                          <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-600`}>
-                            {formatSolderCreamDateTime(row.importedAt)}
-                          </td>
-                          <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                            {row.sourceName || '—'}
-                          </td>
-                          <td
-                            className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-right tabular-nums`}
-                          >
-                            {row.rowCount}
-                          </td>
-                          <td className={ERP_TABLE_TD_CLASS}>{row.note || '—'}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={4} className="px-3 py-8 text-center text-sm text-slate-500">
-                          {formatEmptyListMessage({
-                            hasQuery: false,
-                            emptyLabel: '가져오기 이력이 없습니다.',
                           })}
                         </td>
                       </tr>

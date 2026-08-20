@@ -45,15 +45,22 @@ export async function POST(request: NextRequest) {
       sourcePath: body.sourcePath,
     }) || 'equipment.txt'
 
-  const result = await ingestSolderCreamLogFile({
-    sourceName,
-    text,
-    note: body.sourcePath ? `agent:${body.sourcePath}` : 'agent',
-    replaceSameSource: true,
-  })
+  let result: Awaited<ReturnType<typeof ingestSolderCreamLogFile>>
+  try {
+    result = await ingestSolderCreamLogFile({
+      sourceName,
+      text,
+      note: body.sourcePath ? `agent:${body.sourcePath}` : 'agent',
+      replaceSameSource: true,
+    })
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : '로그 저장 중 오류가 발생했습니다.'
+    return NextResponse.json({ ok: false, detail, reason: 'query' }, { status: 500 })
+  }
 
   if (!result.ok) {
-    const status = result.reason === 'validation' ? 400 : 500
+    const status =
+      result.reason === 'validation' ? 400 : result.reason === 'duplicate' ? 409 : 500
     return NextResponse.json({ ok: false, detail: result.detail, reason: result.reason }, { status })
   }
 

@@ -131,8 +131,15 @@ function normalizeEventType(value: string): SolderCreamEventType {
 function parseRecordedAt(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return ''
-  const normalized = trimmed.replace(/\./g, '-').replace(/\//g, '-')
-  const date = new Date(normalized)
+  const match = trimmed.match(
+    /^(\d{4})[.\/-](\d{2})[.\/-](\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.(\d+))?$/,
+  )
+  if (match) {
+    const ms = (match[5] || '000').slice(0, 3).padEnd(3, '0')
+    const date = new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}.${ms}+09:00`)
+    if (!Number.isNaN(date.getTime())) return date.toISOString()
+  }
+  const date = new Date(trimmed.replace(/\./g, '-').replace(/\//g, '-'))
   if (Number.isNaN(date.getTime())) return ''
   return date.toISOString()
 }

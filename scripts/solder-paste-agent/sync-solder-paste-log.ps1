@@ -59,7 +59,7 @@ function Get-FileSha256([string]$Path) {
 }
 
 function Send-LogFile([string]$Path, [string]$SourceName) {
-  $content = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+  $content = Get-Content -LiteralPath $Path -Raw -Encoding Default
   if ([string]::IsNullOrWhiteSpace($content)) {
     Write-Log "SKIP empty $SourceName"
     return
@@ -71,14 +71,28 @@ function Send-LogFile([string]$Path, [string]$SourceName) {
     sourcePath = $Path
   } | ConvertTo-Json -Compress
 
-  $response = Invoke-RestMethod `
-    -Uri $erpUrl `
-    -Method Post `
-    -Headers @{
-      'Content-Type' = 'application/json'
-      'X-Solder-Paste-Key' = $ingestKey
-    } `
-    -Body $body
+  try {
+    $response = Invoke-RestMethod `
+      -Uri $erpUrl `
+      -Method Post `
+      -ContentType 'application/json; charset=utf-8' `
+      -Headers @{
+        'X-Solder-Paste-Key' = $ingestKey
+      } `
+      -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
+  } catch {
+    $detail = $_.Exception.Message
+    if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+      $detail = $_.ErrorDetails.Message
+    } elseif ($_.Exception.Response) {
+      try {
+        $stream = $_.Exception.Response.GetResponseStream()
+        $reader = New-Object System.IO.StreamReader($stream)
+        $detail = $reader.ReadToEnd()
+      } catch {}
+    }
+    throw $detail
+  }
 
   if ($response.skipped) {
     Write-Log "SKIP unchanged $SourceName"
