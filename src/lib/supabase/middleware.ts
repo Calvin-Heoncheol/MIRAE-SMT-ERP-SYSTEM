@@ -10,14 +10,12 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const isLoginPage = pathname === '/login' || pathname.startsWith('/login/')
   const isForbiddenPage = pathname === '/forbidden' || pathname.startsWith('/forbidden/')
-  const isSolderPasteIngestApi = pathname === '/api/solder-paste/logs'
   const isPublicAsset =
     pathname.startsWith('/_next') ||
     pathname.startsWith('/branding') ||
     pathname === '/favicon.ico'
 
-  // 설비 로그 수신은 로그인 가드/세션 갱신 대상이 아님 (대용량 POST).
-  if (isPublicAsset || isSolderPasteIngestApi) {
+  if (isPublicAsset) {
     return supabaseResponse
   }
 

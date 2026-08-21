@@ -3,16 +3,17 @@ import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import { parseSolderCreamLogText } from './parse-log-file'
 import type {
+  SolderCreamEditableLotStatus,
   SolderCreamEquipmentLog,
-  SolderCreamLogImport,
   SolderCreamLogImportRow,
+  SolderCreamLotStatusOverride,
 } from './types'
 
 export type FetchSolderCreamLogPageResult =
   | {
       ok: true
-      imports: SolderCreamLogImport[]
       logs: SolderCreamEquipmentLog[]
+      statusOverrides: SolderCreamLotStatusOverride[]
     }
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
@@ -26,22 +27,6 @@ export type ImportSolderCreamLogResult =
 
 function hashText(text: string) {
   return createHash('sha256').update(text, 'utf8').digest('hex')
-}
-
-function mapImportRow(row: {
-  id: string
-  source_name: string
-  row_count: number
-  imported_at: string
-  note: string
-}): SolderCreamLogImport {
-  return {
-    id: row.id,
-    sourceName: row.source_name || '',
-    rowCount: row.row_count ?? 0,
-    importedAt: row.imported_at,
-    note: row.note || '',
-  }
 }
 
 function mapLogRow(row: {
@@ -144,6 +129,38 @@ async function fetchAllSolderCreamEquipmentLogs(
   return { ok: true as const, logs }
 }
 
+function mapStatusOverride(row: {
+  lot_number: string
+  status: string
+  note: string
+  updated_at: string
+}): SolderCreamLotStatusOverride | null {
+  if (row.status !== 'cold' && row.status !== 'discarded' && row.status !== 'scrapped') {
+    return null
+  }
+  return {
+    lotNumber: row.lot_number || '',
+    status: row.status,
+    note: row.note || '',
+    updatedAt: row.updated_at,
+  }
+}
+
+async function fetchAllSolderCreamLotStatusOverrides(
+  supabase: NonNullable<ReturnType<typeof createSupabaseClient>>,
+) {
+  const { data, error } = await supabase
+    .from('solder_cream_lot_status')
+    .select('lot_number, status, note, updated_at')
+    .order('updated_at', { ascending: false })
+
+  if (error) return { ok: false as const, detail: error.message }
+  const overrides = (data || [])
+    .map(mapStatusOverride)
+    .filter((row): row is SolderCreamLotStatusOverride => Boolean(row?.lotNumber))
+  return { ok: true as const, overrides }
+}
+
 export async function fetchSolderCreamLogPageData(): Promise<FetchSolderCreamLogPageResult> {
   const supabase = createSupabaseClient()
   if (!supabase) {
@@ -154,27 +171,106 @@ export async function fetchSolderCreamLogPageData(): Promise<FetchSolderCreamLog
     }
   }
 
-  const [importsResult, logsResult] = await Promise.all([
-    supabase
-      .from('solder_cream_log_imports')
-      .select('id, source_name, row_count, imported_at, note')
-      .order('imported_at', { ascending: false })
-      .limit(20),
+  const [logsResult, overridesResult] = await Promise.all([
     fetchAllSolderCreamEquipmentLogs(supabase),
+    fetchAllSolderCreamLotStatusOverrides(supabase),
   ])
 
-  if (importsResult.error) {
-    return { ok: false, reason: 'query', detail: importsResult.error.message }
-  }
   if (!logsResult.ok) {
     return { ok: false, reason: 'query', detail: logsResult.detail }
+  }
+  if (!overridesResult.ok) {
+    const missingStatusTable =
+      overridesResult.detail.includes('solder_cream_lot_status') ||
+      overridesResult.detail.includes('schema cache')
+    if (!missingStatusTable) {
+      return { ok: false, reason: 'query', detail: overridesResult.detail }
+    }
   }
 
   return {
     ok: true,
-    imports: (importsResult.data || []).map(mapImportRow),
     logs: logsResult.logs,
+    statusOverrides: overridesResult.ok ? overridesResult.overrides : [],
   }
+}
+
+export type UpsertSolderCreamLotStatusResult =
+  | { ok: true }
+  | { ok: false; reason: 'env' | 'query' | 'auth' | 'validation'; detail: string }
+
+export async function upsertSolderCreamLotStatus(input: {
+  lotNumber: string
+  status: SolderCreamEditableLotStatus
+  note?: string
+}): Promise<UpsertSolderCreamLotStatusResult> {
+  const auth = await assertCanWrite({ module: 'production_smt', action: 'update' })
+  if (!auth.ok) {
+    return { ok: false, reason: 'auth', detail: auth.detail }
+  }
+
+  const lotNumber = input.lotNumber.trim()
+  if (!lotNumber) {
+    return { ok: false, reason: 'validation', detail: 'LOT가 없습니다.' }
+  }
+  if (input.status !== 'cold' && input.status !== 'discarded' && input.status !== 'scrapped') {
+    return { ok: false, reason: 'validation', detail: '상태를 확인해 주세요.' }
+  }
+
+  const supabase = createSupabaseClient()
+  if (!supabase) {
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
+  }
+
+  const { error } = await supabase.from('solder_cream_lot_status').upsert(
+    {
+      lot_number: lotNumber,
+      status: input.status,
+      note: (input.note || '').trim().slice(0, 500),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'lot_number' },
+  )
+
+  if (error) {
+    return { ok: false, reason: 'query', detail: error.message }
+  }
+
+  return { ok: true }
+}
+
+export async function clearSolderCreamLotStatus(
+  lotNumber: string,
+): Promise<UpsertSolderCreamLotStatusResult> {
+  const auth = await assertCanWrite({ module: 'production_smt', action: 'update' })
+  if (!auth.ok) {
+    return { ok: false, reason: 'auth', detail: auth.detail }
+  }
+
+  const lot = lotNumber.trim()
+  if (!lot) {
+    return { ok: false, reason: 'validation', detail: 'LOT가 없습니다.' }
+  }
+
+  const supabase = createSupabaseClient()
+  if (!supabase) {
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
+  }
+
+  const { error } = await supabase.from('solder_cream_lot_status').delete().eq('lot_number', lot)
+  if (error) {
+    return { ok: false, reason: 'query', detail: error.message }
+  }
+
+  return { ok: true }
 }
 
 export async function importSolderCreamLogFile(input: {
@@ -210,12 +306,46 @@ export async function importSolderCreamLogFile(input: {
   }
 }
 
+export type DeleteSolderCreamLogResult =
+  | { ok: true }
+  | { ok: false; reason: 'env' | 'query' | 'auth' | 'validation'; detail: string }
+
+export async function deleteSolderCreamEquipmentLogs(
+  logIds: string[],
+): Promise<DeleteSolderCreamLogResult> {
+  const auth = await assertCanWrite({ module: 'production_smt', action: 'delete' })
+  if (!auth.ok) {
+    return { ok: false, reason: 'auth', detail: auth.detail }
+  }
+
+  const ids = [...new Set(logIds.map((id) => id.trim()).filter(Boolean))]
+  if (!ids.length) {
+    return { ok: false, reason: 'validation', detail: '삭제할 이력을 선택해 주세요.' }
+  }
+
+  const supabase = createSupabaseClient()
+  if (!supabase) {
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
+  }
+
+  const { error } = await supabase.from('solder_cream_equipment_logs').delete().in('id', ids)
+  if (error) {
+    return { ok: false, reason: 'query', detail: error.message }
+  }
+
+  return { ok: true }
+}
+
 export type IngestSolderCreamLogResult =
   | { ok: true; skipped: true; rowCount: 0; detail: string }
   | { ok: true; skipped: false; importId: string; rowCount: number }
   | Extract<ImportSolderCreamLogResult, { ok: false }>
 
-/** 설비 PC 에이전트·수동 가져오기 공통 */
+/** 수동 가져오기 공통 */
 export async function ingestSolderCreamLogFile(input: {
   sourceName: string
   text: string

@@ -8,7 +8,7 @@ export const APPROVAL_CATEGORIES = [
     href: '/approvals/consumables',
     description: '제품에 직접 들어가거나 생산을 위해 계속 소비되는 자재 관련 지출입니다.',
     examples:
-      '솔더페이스트(납), 세척제, SMT 노즐, 피더 부품, 와이퍼 roll, 정전기 방지 용품(지그, 장갑, 제전복) 등',
+      '솔더크림(납), 세척제, SMT 노즐, 피더 부품, 와이퍼 roll, 정전기 방지 용품(지그, 장갑, 제전복) 등',
   },
   {
     slug: 'equipment-purchase',
@@ -203,7 +203,7 @@ const EQUIPMENT_PURCHASE_INTRO_PLACEHOLDER = `■ 구매 목적: 신규 고속 �
 품의 하오니 검토 후 재가하여 주시기 바랍니다.`
 
 const CONSUMABLES_INTRO_PLACEHOLDER = `■ 구매 목적: SMT 양산 투입용 부자재/소모품 선구매
-■ 사용 계획: 솔더페이스트, 노즐, 세척제 등 생산 일정에 맞춰 순차 사용
+■ 사용 계획: 솔더크림, 노즐, 세척제 등 생산 일정에 맞춰 순차 사용
 
 품의 하오니 검토 후 재가하여 주시기 바랍니다.`
 

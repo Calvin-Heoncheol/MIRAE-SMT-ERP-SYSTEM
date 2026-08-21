@@ -2,6 +2,7 @@ import type {
   SolderCreamEquipmentLog,
   SolderCreamEventType,
   SolderCreamLotStatus,
+  SolderCreamLotStatusOverride,
   SolderCreamLotSummary,
   SolderCreamStatusRow,
 } from './types'
@@ -24,22 +25,12 @@ export const SOLDER_CREAM_EVENT_LABELS: Record<SolderCreamEventType, string> = {
 
 export const SOLDER_CREAM_LOT_STATUS_LABELS: Record<SolderCreamLotStatus, string> = {
   cold: '냉장 보관중',
-  opened: '상온 보관중',
-  mixed: '교반중',
-  ready: '교반완료',
   discarded: '출고',
-  alarm: '알람',
+  scrapped: '폐기',
   unknown: '미확인',
 }
 
-export const SOLDER_CREAM_STATUS_FILTERS = [
-  'all',
-  'cold',
-  'opened',
-  'mixed',
-  'ready',
-  'discarded',
-] as const
+export const SOLDER_CREAM_STATUS_FILTERS = ['all', 'cold', 'discarded', 'scrapped'] as const
 
 export type SolderCreamStatusFilter = (typeof SOLDER_CREAM_STATUS_FILTERS)[number]
 
@@ -57,29 +48,15 @@ export function formatSolderCreamDateTime(value: string) {
   })
 }
 
-function deriveLotStatus(events: SolderCreamEquipmentLog[]): SolderCreamLotStatus {
-  if (!events.length) return 'unknown'
-
-  const sorted = [...events]
-    .filter((event) => event.eventType !== 'alarm')
+/** 퇴근 후 로그 기준 — 입고/출고만 보고 보관중·출고로 나눈다. */
+export function deriveLotStatus(events: SolderCreamEquipmentLog[]): SolderCreamLotStatus {
+  const relevant = events
+    .filter((event) => event.eventType === 'store' || event.eventType === 'discard')
     .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
-  const latest = sorted[sorted.length - 1]
+
+  const latest = relevant[relevant.length - 1]
   if (!latest) return 'unknown'
-
-  if (latest.eventType === 'discard') return 'discarded'
-  if (latest.eventType === 'mix_complete') return 'ready'
-  if (latest.eventType === 'mix_start') return 'mixed'
-  if (latest.eventType === 'open') return 'opened'
-  if (latest.eventType === 'store') return 'cold'
-
-  const hasMixComplete = sorted.some((row) => row.eventType === 'mix_complete')
-  const hasOpen = sorted.some((row) => row.eventType === 'open')
-  const hasStore = sorted.some((row) => row.eventType === 'store')
-
-  if (hasMixComplete) return 'ready'
-  if (hasOpen) return 'opened'
-  if (hasStore) return 'cold'
-  return 'unknown'
+  return latest.eventType === 'discard' ? 'discarded' : 'cold'
 }
 
 export function formatSolderCreamDate(value: string | null) {
@@ -118,16 +95,19 @@ export function estimateExpiryDateFromManufacture(manufacturedAt: string | null)
 
 const STATUS_SORT_ORDER: Record<SolderCreamLotStatus, number> = {
   cold: 0,
-  opened: 1,
-  mixed: 2,
-  ready: 3,
-  alarm: 4,
-  unknown: 5,
-  discarded: 6,
+  discarded: 1,
+  scrapped: 2,
+  unknown: 3,
 }
 
-export function buildSolderCreamStatusRows(logs: SolderCreamEquipmentLog[]): SolderCreamStatusRow[] {
+export function buildSolderCreamStatusRows(
+  logs: SolderCreamEquipmentLog[],
+  overrides: SolderCreamLotStatusOverride[] = [],
+): SolderCreamStatusRow[] {
   const map = new Map<string, SolderCreamEquipmentLog[]>()
+  const overrideByLot = new Map(
+    overrides.map((row) => [row.lotNumber.trim(), row] as const),
+  )
 
   for (const log of logs) {
     const lot = log.lotNumber.trim()
@@ -137,36 +117,48 @@ export function buildSolderCreamStatusRows(logs: SolderCreamEquipmentLog[]): Sol
     map.set(lot, list)
   }
 
+  for (const override of overrides) {
+    const lot = override.lotNumber.trim()
+    if (!lot || map.has(lot)) continue
+    map.set(lot, [])
+  }
+
   return [...map.entries()]
     .map(([barcode, events]) => {
-      const storeEvents = events
-        .filter((event) => event.eventType === 'store')
-        .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime())
+      const storeEvents = events.filter((event) => event.eventType === 'store')
       const latest = [...events].sort(
         (a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime(),
       )[0]
       const manufacturedAt = parseManufactureDateFromBarcode(barcode)
+      const derivedStatus = deriveLotStatus(events)
+      const override = overrideByLot.get(barcode)
+      const status = override?.status ?? derivedStatus
 
       return {
         barcode,
         manufacturedAt,
         expiresAt: estimateExpiryDateFromManufacture(manufacturedAt),
-        lastInboundAt: storeEvents[0]?.recordedAt ?? null,
-        lastEventAt: latest?.recordedAt ?? null,
+        lastEventAt: latest?.recordedAt ?? override?.updatedAt ?? null,
         inboundCount: storeEvents.length,
-        status: deriveLotStatus(events),
+        status,
+        derivedStatus,
+        manualStatus: Boolean(override),
+        note: override?.note || '',
       }
     })
-    .filter((row) => row.status !== 'alarm')
+    .filter((row) => row.status !== 'unknown')
     .sort((a, b) => {
       const statusDiff = STATUS_SORT_ORDER[a.status] - STATUS_SORT_ORDER[b.status]
       if (statusDiff !== 0) return statusDiff
-      return (b.lastEventAt || b.lastInboundAt || '').localeCompare(a.lastEventAt || a.lastInboundAt || '')
+      return (b.lastEventAt || '').localeCompare(a.lastEventAt || '')
     })
 }
 
-export function buildSolderCreamFridgeRows(logs: SolderCreamEquipmentLog[]): SolderCreamStatusRow[] {
-  return buildSolderCreamStatusRows(logs).filter((row) => row.status === 'cold')
+export function buildSolderCreamFridgeRows(
+  logs: SolderCreamEquipmentLog[],
+  overrides: SolderCreamLotStatusOverride[] = [],
+): SolderCreamStatusRow[] {
+  return buildSolderCreamStatusRows(logs, overrides).filter((row) => row.status === 'cold')
 }
 
 export function matchesSolderCreamFridgeSearch(row: SolderCreamStatusRow, query: string) {
@@ -176,6 +168,7 @@ export function matchesSolderCreamFridgeSearch(row: SolderCreamStatusRow, query:
     row.barcode,
     row.manufacturedAt,
     row.expiresAt,
+    row.note,
     SOLDER_CREAM_LOT_STATUS_LABELS[row.status],
   ]
     .join(' ')
@@ -217,6 +210,7 @@ export function isMissingSolderCreamLogTable(detail: string) {
   return (
     detail.includes('solder_cream_log_imports') ||
     detail.includes('solder_cream_equipment_logs') ||
+    detail.includes('solder_cream_lot_status') ||
     detail.includes('schema cache') ||
     detail.includes('relationship')
   )

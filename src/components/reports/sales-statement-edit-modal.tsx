@@ -1,17 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import type { BusinessPartner } from '@/lib/partners/types'
 import type { SalesReportShipmentRow, SalesReportStatementGroup } from '@/lib/reports/sales-report'
-import {
-  deleteStatementLines,
-  updateStatementLines,
-} from '@/lib/reports/statement-edit'
+import { updateStatementLines } from '@/lib/reports/statement-edit'
 import {
   ERP_FIELD_INPUT_CLASS,
   ERP_FIELD_LABEL_CLASS,
@@ -88,7 +84,6 @@ export function SalesStatementEditModal({
   onClose,
   onSaved,
 }: SalesStatementEditModalProps) {
-  const canDelete = useCanDeleteRecords()
   const isLegacy = group?.source === 'legacy' || group?.lines.some((line) => line.source === 'legacy')
   const [partners, setPartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(false)
@@ -96,7 +91,6 @@ export function SalesStatementEditModal({
   const [customer, setCustomer] = useState('')
   const [drafts, setDrafts] = useState<LineDraft[]>([])
   const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -106,7 +100,6 @@ export function SalesStatementEditModal({
     setDrafts(group.lines.map(toDraft))
     setError(null)
     setSaving(false)
-    setDeleting(false)
   }, [open, group])
 
   useEffect(() => {
@@ -188,34 +181,6 @@ export function SalesStatementEditModal({
     onClose()
   }
 
-  async function handleDelete() {
-    if (!group) return
-    const label = group.shipmentId || group.customer || '이 거래명세서'
-    if (!window.confirm(`${label}\n거래명세서 내역을 삭제하시겠습니까?`)) return
-
-    setDeleting(true)
-    setError(null)
-
-    const result = await deleteStatementLines(
-      drafts.map((line) => ({
-        source: line.source,
-        deliveryId: line.deliveryId,
-        orderNumber: line.orderId || line.orderNumber,
-        orderLineId: line.orderLineId,
-        productCode: line.productCode,
-      })),
-    )
-
-    setDeleting(false)
-    if (!result.ok) {
-      setError(result.detail)
-      return
-    }
-
-    onSaved?.('거래명세서 내역을 삭제했습니다.')
-    onClose()
-  }
-
   const cellInputClass =
     'h-8 w-full min-w-0 rounded-md border border-slate-200 px-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
 
@@ -230,23 +195,12 @@ export function SalesStatementEditModal({
       }
       size="xl"
       onClose={onClose}
-      closeOnEscape={!saving && !deleting}
+      closeOnEscape={!saving}
       footer={
         <>
-          {canDelete ? (
-            <ErpButton
-              variant="danger"
-              className="mr-auto"
-              disabled={saving || deleting}
-              loading={deleting}
-              onClick={() => void handleDelete()}
-            >
-              삭제
-            </ErpButton>
-          ) : null}
-          <CancelButton disabled={saving || deleting} />
+          <CancelButton disabled={saving} />
           <ErpButton
-            disabled={saving || deleting || !drafts.length}
+            disabled={saving || !drafts.length}
             loading={saving}
             onClick={() => void handleSave()}
           >

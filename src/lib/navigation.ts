@@ -69,7 +69,7 @@ export const NAV_ITEMS: NavItem[] = [
           { label: '생산계획', href: '/production/plan?tab=smt' },
           { label: '생산이력', href: '/production/history?team=생산1팀' },
           { label: '메탈마스크&스퀴즈', href: '/smt/metal-masks' },
-          { label: '솔더페이스트', href: '/smt/solder-paste' },
+          { label: '솔더크림', href: '/smt/solder-paste' },
         ],
       },
       {

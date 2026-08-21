@@ -124,7 +124,7 @@ function normalizeEventType(value: string): SolderCreamEventType {
     return 'mix_complete'
   }
   if (/alarm|ng|fail|error|알람|이상/.test(raw)) return 'alarm'
-  if (/discard|dispose|폐기|반납/.test(raw)) return 'discard'
+  if (/discard|dispose|폐기|반납|출고/.test(raw)) return 'discard'
   return 'unknown'
 }
 
@@ -147,7 +147,7 @@ function parseRecordedAt(value: string) {
 export function solderCreamLogSampleRows() {
   return [
     ['2026-08-20 08:10:00', '냉장고', 'FR-01', 'MRL-250820-0001', '냉장입고', '5', '', 'OK', ''],
-    ['2026-08-20 09:05:00', '교반기', 'MX-01', 'MRL-250820-0001', '교반완료', '', '180', 'OK', ''],
+    ['2026-08-20 18:40:00', '냉장고', 'FR-01', 'MRL-250820-0001', '출고', '', '', '출고', ''],
   ]
 }
 
@@ -180,7 +180,7 @@ export function parseSolderCreamLogText(text: string): ParseSolderCreamLogResult
     if (!rows.length) {
       return {
         ok: false,
-        detail: '설비 TXT에서 솔더페이스트 이벤트(입고·교반·출고 등)를 찾지 못했습니다.',
+        detail: '설비 TXT에서 입고 완료·자재 출고 이벤트를 찾지 못했습니다.',
       }
     }
     return { ok: true, rows }
@@ -259,5 +259,12 @@ export function parseSolderCreamLogText(text: string): ParseSolderCreamLogResult
     return { ok: false, detail: '가져올 로그 행이 없습니다.' }
   }
 
-  return { ok: true, rows }
+  const inboundOutbound = rows.filter(
+    (row) => row.eventType === 'store' || row.eventType === 'discard',
+  )
+  if (!inboundOutbound.length) {
+    return { ok: false, detail: '입고·출고 이벤트가 없습니다.' }
+  }
+
+  return { ok: true, rows: inboundOutbound }
 }

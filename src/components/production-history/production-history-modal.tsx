@@ -1,22 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import type { ProductionHistoryRow } from '@/lib/production-history/types'
 import { formatProductionHistoryRecordAt } from '@/lib/production-history/utils'
-import { deletePostProcessProductionRecord } from '@/lib/post-process/repository'
 import { formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
-import { deleteSmtProductionRecord } from '@/lib/smt/repository'
 import { ERP_TEXT_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type ProductionHistoryModalProps = {
   open: boolean
   row: ProductionHistoryRow | null
   onClose: () => void
-  onDeleted?: () => void
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -28,51 +23,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function ProductionHistoryModal({
-  open,
-  row,
-  onClose,
-  onDeleted,
-}: ProductionHistoryModalProps) {
-  const canDelete = useCanDeleteRecords()
-  const [deleting, setDeleting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!open) return
-    setError(null)
-    setDeleting(false)
-  }, [open, row?.id, row?.module])
-
+export function ProductionHistoryModal({ open, row, onClose }: ProductionHistoryModalProps) {
   if (!row) return null
-
-  async function handleDelete() {
-    if (!row) return
-    if (
-      !window.confirm(
-        `${formatInternalCodeLabel(row.orderNumber)} · ${row.productName || row.productCode}\n` +
-          `양품 ${row.quantity.toLocaleString('ko-KR')}대 기록을 삭제하시겠습니까?`,
-      )
-    ) {
-      return
-    }
-
-    setDeleting(true)
-    setError(null)
-
-    const result =
-      row.module === 'smt'
-        ? await deleteSmtProductionRecord(row.id)
-        : await deletePostProcessProductionRecord(row.id)
-    setDeleting(false)
-
-    if (!result.ok) {
-      setError(result.detail)
-      return
-    }
-
-    onDeleted?.()
-  }
 
   return (
     <ErpModal
@@ -81,20 +33,10 @@ export function ProductionHistoryModal({
       description={`${row.team} · ${formatInternalCodeLabel(row.orderNumber)} · ${row.customer || '—'}`}
       size="form"
       onClose={onClose}
-      closeOnEscape={!deleting}
       footer={
-        <div className="flex w-full items-center justify-between gap-3">
-          {canDelete ? (
-            <ErpButton type="button" variant="danger" disabled={deleting} onClick={() => void handleDelete()}>
-              {deleting ? '삭제 중…' : '삭제'}
-            </ErpButton>
-          ) : (
-            <span />
-          )}
-          <ErpButton type="button" variant="secondary" disabled={deleting} onClick={onClose}>
-            닫기
-          </ErpButton>
-        </div>
+        <ErpButton type="button" variant="secondary" onClick={onClose}>
+          닫기
+        </ErpButton>
       }
     >
       <dl>
@@ -125,12 +67,6 @@ export function ProductionHistoryModal({
         <DetailRow label="등록자" value={row.createdByName || '-'} />
         <DetailRow label="비고" value={row.note || '-'} />
       </dl>
-
-      {error ? (
-        <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-          {error}
-        </p>
-      ) : null}
     </ErpModal>
   )
 }
