@@ -30,21 +30,15 @@ const BUCKET_BADGE_CLASS: Record<OutboundMaterialBucket, string> = {
   ETC: 'bg-slate-100 text-slate-700',
 }
 
-function isShortageLine(line: { remainingQuantity: number; onHandQuantity: number }) {
-  return (line.onHandQuantity ?? 0) < line.remainingQuantity
-}
-
 function countMaterials(actions: MaterialOutboundNeedCard[]) {
   const ids = new Set<string>()
-  const shortageIds = new Set<string>()
   for (const action of actions) {
     for (const line of action.lines) {
       if (!line.materialId) continue
       ids.add(line.materialId)
-      if (isShortageLine(line)) shortageIds.add(line.materialId)
     }
   }
-  return { materialCount: ids.size, shortageCount: shortageIds.size }
+  return { materialCount: ids.size }
 }
 
 function groupActionsByProduct(actions: MaterialOutboundNeedCard[]) {
@@ -198,15 +192,6 @@ export function OutboundNeedsTable({ cards, emptyMessage, onIssued }: OutboundNe
                       <span className="font-semibold tabular-nums text-slate-900">
                         {group.materialCount.toLocaleString('ko-KR')}종
                       </span>
-                      <span className="mx-1.5 text-slate-300">·</span>
-                      부족{' '}
-                      <span
-                        className={`font-semibold tabular-nums ${
-                          group.shortageCount > 0 ? 'text-rose-600' : 'text-emerald-700'
-                        }`}
-                      >
-                        {group.shortageCount.toLocaleString('ko-KR')}종
-                      </span>
                     </p>
                     <ul className="mt-3 flex flex-1 flex-col gap-2">
                       {group.actions.map((action) => {
@@ -223,15 +208,6 @@ export function OutboundNeedsTable({ cards, emptyMessage, onIssued }: OutboundNe
                             />
                             <p className="text-xs text-slate-500">
                               자재 {stats.materialCount.toLocaleString('ko-KR')}종
-                              <span className="mx-1.5 text-slate-300">·</span>
-                              부족{' '}
-                              <span
-                                className={`font-semibold tabular-nums ${
-                                  stats.shortageCount > 0 ? 'text-rose-600' : 'text-emerald-700'
-                                }`}
-                              >
-                                {stats.shortageCount.toLocaleString('ko-KR')}종
-                              </span>
                             </p>
                           </div>
                           <button

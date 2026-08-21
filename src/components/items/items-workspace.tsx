@@ -27,8 +27,6 @@ type ItemsWorkspaceProps = {
   result: FetchItemsResult
 }
 
-type ItemCategoryFilter = ItemCategory | 'all'
-
 type ModalState =
   | { open: false }
   | { open: true; mode: 'create'; initialCategory: ItemCategory | null }
@@ -38,26 +36,22 @@ type ModalState =
 export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
   const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState<ItemCategoryFilter>('all')
+  const [categoryFilter, setCategoryFilter] = useState<ItemCategory>(ITEM_CATEGORIES[0])
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
 
   const items = result.ok ? result.items : []
   const query = search.trim()
-  const hasActiveFilter = Boolean(query) || categoryFilter !== 'all'
+  const hasActiveFilter = Boolean(query)
 
   const filtered = useMemo(() => {
     const searched = filterItemsForSearch(items, query)
-    if (categoryFilter === 'all') return searched
     return searched.filter((item) => item.itemCategory === categoryFilter)
   }, [items, query, categoryFilter])
 
   const categoryCounts = useMemo(() => {
     const searched = filterItemsForSearch(items, query)
-    const counts = { all: searched.length, 1: 0, 2: 0, 3: 0, 4: 0 } as Record<
-      ItemCategoryFilter,
-      number
-    >
+    const counts = { 1: 0, 2: 0, 3: 0, 4: 0 } as Record<ItemCategory, number>
     for (const item of searched) {
       counts[item.itemCategory] += 1
     }
@@ -65,14 +59,12 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
   }, [items, query])
 
   const categoryFilterOptions = useMemo(
-    () => [
-      { value: 'all' as const, label: '전체', count: categoryCounts.all },
-      ...ITEM_CATEGORIES.map((category) => ({
+    () =>
+      ITEM_CATEGORIES.map((category) => ({
         value: category,
         label: ITEM_CATEGORY_LABELS[category],
         count: categoryCounts[category],
       })),
-    ],
     [categoryCounts],
   )
 
@@ -81,7 +73,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     setModal({
       open: true,
       mode: 'create',
-      initialCategory: categoryFilter === 'all' ? null : categoryFilter,
+      initialCategory: categoryFilter,
     })
   }
 
@@ -90,7 +82,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     setModal({
       open: true,
       mode: 'bulk',
-      initialCategory: categoryFilter === 'all' ? null : categoryFilter,
+      initialCategory: categoryFilter,
     })
   }
 
@@ -112,10 +104,8 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
   }
 
   async function handleExcelDownload() {
-    const hideMaterialDetailColumns =
-      categoryFilter !== 'all' && isProductItemCategory(categoryFilter)
-    const showProductionProcessColumn =
-      categoryFilter === 'all' || categoryFilter === 3 || categoryFilter === 4
+    const hideMaterialDetailColumns = isProductItemCategory(categoryFilter)
+    const showProductionProcessColumn = categoryFilter === 3 || categoryFilter === 4
     const processAndPriceColumns = showProductionProcessColumn
       ? [
           {

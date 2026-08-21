@@ -59,6 +59,16 @@ function lineRemaining(
   return Math.max(0, Math.min(line.remainingQuantity, need - issued - pendingQty))
 }
 
+function countShortageLines(action: MaterialOutboundNeedCard, units: number) {
+  if (units < 1) return 0
+  let shortageCount = 0
+  for (const line of action.lines) {
+    const need = sessionNeed(action, line, units)
+    if ((line.onHandQuantity ?? 0) < need) shortageCount += 1
+  }
+  return shortageCount
+}
+
 export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundScanModalProps) {
   const [scan, setScan] = useState('')
   const [issueUnits, setIssueUnits] = useState('')
@@ -117,6 +127,18 @@ export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundS
   )
   const canIssue = allCovered && pending.length > 0
 
+  const previewUnits = canWork ? sessionUnits : Math.floor(Number(issueUnits) || 0)
+  const sessionShortage = useMemo(() => {
+    if (!action || previewUnits < 1) {
+      return { materialCount: action?.lines.length ?? 0, shortageCount: 0 }
+    }
+    return {
+      materialCount: action.lines.length,
+      shortageCount: countShortageLines(action, previewUnits),
+    }
+  }, [action, previewUnits])
+  const hasShortage = sessionShortage.shortageCount > 0
+
   function goToScan() {
     if (!action) return
     const units = Math.floor(Number(issueUnits) || 0)
@@ -136,7 +158,9 @@ export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundS
     setSessionUnits(units)
     setWorkReady(true)
     setPending([])
-    window.setTimeout(() => scanRef.current?.focus(), 40)
+    window.setTimeout(() => {
+      if (countShortageLines(action, units) <= 0) scanRef.current?.focus()
+    }, 40)
   }
 
   async function submitScan() {
@@ -144,6 +168,11 @@ export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundS
     if (!canWork) {
       setError('이번 불출 대수를 입력하세요.')
       unitsRef.current?.focus()
+      return
+    }
+    if (countShortageLines(action, sessionUnits) > 0) {
+      playScanSound('error')
+      setError('재고 부족 자재가 있어 LOT 스캔을 할 수 없습니다.')
       return
     }
     const code = scan.trim()
@@ -194,7 +223,7 @@ export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundS
     )
     if (remaining <= 0) {
       playScanSound('error')
-      setError('이 자재는 이미 잔량 0입니다.')
+      setError('이미 충분합니다. 이 자재는 더 스캔할 필요가 없습니다.')
       return
     }
 
@@ -315,6 +344,26 @@ export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundS
                   <span className="shrink-0 text-sm font-medium text-slate-500">대</span>
                 </div>
               </label>
+              {previewUnits >= 1 ? (
+                <p className="mt-2 text-sm text-slate-600">
+                  자재{' '}
+                  <span className="font-semibold tabular-nums text-slate-900">
+                    {sessionShortage.materialCount.toLocaleString('ko-KR')}종
+                  </span>
+                  <span className="mx-1.5 text-slate-300">·</span>
+                  부족{' '}
+                  <span
+                    className={`font-semibold tabular-nums ${
+                      sessionShortage.shortageCount > 0 ? 'text-rose-600' : 'text-emerald-700'
+                    }`}
+                  >
+                    {sessionShortage.shortageCount.toLocaleString('ko-KR')}종
+                  </span>
+                  <span className="ml-1 text-xs text-slate-400">
+                    ({previewUnits.toLocaleString('ko-KR')}대 기준)
+                  </span>
+                </p>
+              ) : null}
               <button
                 type="button"
                 disabled={saving}
@@ -350,40 +399,57 @@ export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundS
             ) : (
               <>
                 <div className="shrink-0 border-b border-slate-100 p-4">
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-slate-500">내부 LOT 스캔</span>
-                    <input
-                      ref={scanRef}
-                      type="text"
-                      value={scan}
-                      disabled={saving}
-                      onChange={(event) => {
-                        setScan(event.target.value)
-                        setError('')
-                        setOkMessage('')
-                      }}
-                      onKeyDown={handleScanKey}
-                      placeholder="릴에 붙인 LOT 라벨을 스캔하세요"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3.5 font-mono text-lg outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 disabled:bg-slate-100"
-                    />
-                  </label>
+                  {hasShortage ? (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3.5">
+                      <p className="text-sm font-semibold text-rose-700">
+                        부족 자재가 있어 스캔할 수 없습니다
+                      </p>
+                      <p className="mt-1 text-xs text-rose-600">
+                        부족 {sessionShortage.shortageCount.toLocaleString('ko-KR')}종 · 이번 불출
+                        대수를 줄이거나 재고를 확인하세요.
+                      </p>
+                    </div>
+                  ) : (
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-slate-500">
+                        내부 LOT 스캔
+                      </span>
+                      <input
+                        ref={scanRef}
+                        type="text"
+                        value={scan}
+                        disabled={saving}
+                        onChange={(event) => {
+                          setScan(event.target.value)
+                          setError('')
+                          setOkMessage('')
+                        }}
+                        onKeyDown={handleScanKey}
+                        placeholder="릴에 붙인 LOT 라벨을 스캔하세요"
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3.5 font-mono text-lg outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 disabled:bg-slate-100"
+                      />
+                    </label>
+                  )}
                 </div>
 
                 <div className={`min-h-0 flex-1 ${ERP_TABLE_WRAP_CLASS}`}>
                   <div className={ERP_TABLE_SCROLL_CLASS}>
-                    <table className="w-full min-w-[520px] table-fixed border-collapse">
+                    <table className="w-full min-w-[600px] table-fixed border-collapse">
                       <thead className="sticky top-0 z-[1] bg-slate-50">
                         <tr>
-                          <th className="w-[28%] px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
+                          <th className="w-[24%] px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                             품목코드
                           </th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                             자재
                           </th>
-                          <th className="w-[16%] px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
+                          <th className="w-[14%] px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
+                            현재고
+                          </th>
+                          <th className="w-[14%] px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                             소요
                           </th>
-                          <th className="w-[16%] px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
+                          <th className="w-[14%] px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                             잔량
                           </th>
                         </tr>
@@ -397,22 +463,62 @@ export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundS
                             sessionUnits,
                             pendingQtyByMaterial.get(line.materialId) ?? 0,
                           )
+                          const onHand = line.onHandQuantity ?? 0
+                          const filled = remaining <= 0
+                          const short = !filled && onHand < need
+                          const rowClass = filled
+                            ? 'bg-emerald-50'
+                            : short
+                              ? 'bg-rose-50'
+                              : ''
+                          const codeClass = filled
+                            ? 'text-emerald-800'
+                            : short
+                              ? 'text-rose-800'
+                              : 'text-blue-800'
+                          const textClass = filled
+                            ? 'text-emerald-800'
+                            : short
+                              ? 'text-rose-800'
+                              : 'text-slate-800'
+                          const numClass = filled
+                            ? 'font-semibold text-emerald-700'
+                            : short
+                              ? 'font-semibold text-rose-700'
+                              : 'text-slate-600'
+                          const remainClass = filled
+                            ? 'text-emerald-700'
+                            : short
+                              ? 'text-rose-700'
+                              : 'text-slate-900'
                           return (
-                            <tr key={line.materialId} className="border-t border-slate-100">
+                            <tr
+                              key={line.materialId}
+                              className={['border-t border-slate-100', rowClass].join(' ')}
+                            >
                               <td
-                                className={`px-3 py-2.5 font-mono text-sm font-medium text-blue-800 ${ERP_TABLE_TD_WRAP_CLASS}`}
+                                className={`px-3 py-2.5 font-mono text-sm font-medium ${codeClass} ${ERP_TABLE_TD_WRAP_CLASS}`}
                               >
                                 {line.materialCode || line.materialId}
                               </td>
                               <td
-                                className={`px-3 py-2.5 text-sm text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}
+                                className={`px-3 py-2.5 text-sm ${textClass} ${ERP_TABLE_TD_WRAP_CLASS}`}
                               >
                                 {line.materialName || line.materialCode}
                               </td>
-                              <td className="px-3 py-2.5 text-right text-sm tabular-nums text-slate-600">
+                              <td
+                                className={`px-3 py-2.5 text-right text-sm tabular-nums ${numClass}`}
+                              >
+                                {onHand.toLocaleString('ko-KR')}
+                              </td>
+                              <td
+                                className={`px-3 py-2.5 text-right text-sm tabular-nums ${numClass}`}
+                              >
                                 {need.toLocaleString('ko-KR')}
                               </td>
-                              <td className="px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900">
+                              <td
+                                className={`px-3 py-2.5 text-right text-sm font-semibold tabular-nums ${remainClass}`}
+                              >
                                 {remaining.toLocaleString('ko-KR')}
                               </td>
                             </tr>

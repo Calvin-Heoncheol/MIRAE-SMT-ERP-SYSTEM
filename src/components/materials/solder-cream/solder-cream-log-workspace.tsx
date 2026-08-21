@@ -14,10 +14,12 @@ import type { FetchSolderCreamLogPageResult } from '@/lib/materials/solder-cream
 import type { SolderCreamLotStatus, SolderCreamStatusRow } from '@/lib/materials/solder-cream/types'
 import {
   buildSolderCreamStatusRows,
+  estimateExpiryDateFromManufacture,
   formatSolderCreamDate,
   formatSolderCreamDateTime,
   matchesSolderCreamFridgeSearch,
   matchesSolderCreamSearch,
+  parseManufactureDateFromBarcode,
   SOLDER_CREAM_EVENT_LABELS,
   SOLDER_CREAM_LOT_STATUS_LABELS,
   type SolderCreamStatusFilter,
@@ -179,9 +181,6 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
           <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-lg font-semibold text-slate-900">솔더크림</h1>
-              <p className="mt-1 text-sm text-slate-600">
-                일 종료 후 설비 로그 파일(D:\Log\년\월\일.txt)을 가져와 현황·이력을 갱신합니다.
-              </p>
             </div>
             <div className="flex items-center gap-2">
               {view === 'history' ? (
@@ -230,7 +229,7 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder={view === 'status' ? '품목 바코드·상태 검색' : 'LOT·설비·이벤트 검색'}
+              placeholder={view === 'status' ? '품목 바코드·상태 검색' : 'LOT·이벤트 검색'}
               className={`w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 ${erpSearchFocusClass('sky')}`}
             />
           </div>
@@ -279,11 +278,16 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                   </thead>
                   <tbody>
                     {filteredStatusRows.length ? (
-                      filteredStatusRows.map((row, index) => (
+                      filteredStatusRows.map((row, index) => {
+                        const canScrap = row.status === 'discarded'
+                        return (
                         <tr
                           key={row.barcode}
-                          className={`${ERP_TABLE_ROW_CLASS} cursor-pointer hover:bg-slate-50`}
-                          onClick={() => setEditRow(row)}
+                          className={[
+                            ERP_TABLE_ROW_CLASS,
+                            canScrap ? 'cursor-pointer hover:bg-slate-50' : '',
+                          ].join(' ')}
+                          onClick={canScrap ? () => setEditRow(row) : undefined}
                         >
                           <td
                             className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-center tabular-nums text-slate-500`}
@@ -313,7 +317,8 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                             />
                           </td>
                         </tr>
-                      ))
+                        )
+                      })
                     ) : (
                       <tr>
                         <td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-500">
@@ -345,15 +350,17 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                       </th>
                       <th className={`${ERP_TABLE_TH_CLASS} text-left`}>기록시각</th>
                       <th className={`${ERP_TABLE_TH_CLASS} text-left`}>LOT</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>제조일자</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>유통기한</th>
                       <th className={`${ERP_TABLE_TH_CLASS} text-left`}>이벤트</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>결과</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>비고</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredLogs.length ? (
                       filteredLogs.map((row) => {
                         const selected = selectedIds.has(row.id)
+                        const manufacturedAt = parseManufactureDateFromBarcode(row.lotNumber)
+                        const expiresAt = estimateExpiryDateFromManufacture(manufacturedAt)
                         return (
                           <tr key={row.id} className={ERP_TABLE_ROW_CLASS}>
                             <td
@@ -378,13 +385,19 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                             >
                               {row.lotNumber}
                             </td>
-                            <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
+                            <td
+                              className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-600`}
+                            >
+                              {formatSolderCreamDate(manufacturedAt)}
+                            </td>
+                            <td
+                              className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-600`}
+                            >
+                              {formatSolderCreamDate(expiresAt)}
+                            </td>
+                            <td className={ERP_TABLE_TD_CLASS}>
                               {SOLDER_CREAM_EVENT_LABELS[row.eventType]}
                             </td>
-                            <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                              {row.result || '—'}
-                            </td>
-                            <td className={ERP_TABLE_TD_CLASS}>{row.note || '—'}</td>
                           </tr>
                         )
                       })
