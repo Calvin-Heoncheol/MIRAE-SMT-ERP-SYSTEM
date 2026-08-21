@@ -1,10 +1,14 @@
+import { buildMaterialLabelsZpl } from '@/lib/materials/build-material-label-zpl'
+import { getLabelPrintSettings } from '@/lib/materials/label-print-settings'
+import { sendZplViaBrowserPrint } from '@/lib/materials/zebra-browser-print'
+
 export type MaterialLabelPrintItem = {
   id: string
   materialName: string
   customer?: string
   package?: string
   specification?: string
-  /** 내부 자재 LOT (MRL-…). 있으면 품목코드 아래에 LOT 바코드를 넣는다 */
+  /** 내부 자재 LOT (MRL-…). 당분간 라벨에는 미출력 */
   lotNumber?: string
   /** 라벨 매수 (기본 1) */
   copies?: number
@@ -17,6 +21,8 @@ export type PrintMaterialLabelsOptions = {
   heightMm?: number
   /** true면 창을 연 뒤 인쇄 대화상자를 바로 연다 */
   autoPrint?: boolean
+  /** false면 Browser Print(ZPL)를 건너뛰고 브라우저 인쇄만 사용 */
+  preferBrowserPrint?: boolean
 }
 
 function escapeHtml(value: string) {
@@ -36,12 +42,8 @@ function truncateText(value: string, maxLength: number) {
 function buildLabelHtml(items: MaterialLabelPrintItem[]) {
   const labels: {
     id: string
-    lotNumber: string
-    lotLabel: string
-    customer: string
     name: string
     spec: string
-    pkg: string
   }[] = []
 
   for (const item of items) {
@@ -49,28 +51,17 @@ function buildLabelHtml(items: MaterialLabelPrintItem[]) {
     const id = item.id.trim()
     if (!id) continue
 
-    const customer = truncateText(item.customer || '', 18)
     const name = truncateText(item.materialName, 22)
     const spec = truncateText(item.specification || '', 24)
-    const pkg = truncateText(item.package || '', 18)
-    const lotNumber = item.lotNumber?.trim() || ''
-    const lotLabel = truncateText(lotNumber, 28)
 
     for (let index = 0; index < copies; index += 1) {
-      labels.push({ id, lotNumber, lotLabel, customer, name, spec, pkg })
+      labels.push({ id, name, spec })
     }
   }
 
   return labels
-    .map((label, index) => {
-      const lotBlock = label.lotNumber
-        ? `
-      <div class="label-lot-wrap">
-        <div class="lot-qr" data-code="${escapeHtml(label.lotNumber)}"></div>
-        <p class="label-lot">${escapeHtml(label.lotLabel)}</p>
-      </div>`
-        : ''
-      return `
+    .map(
+      (label, index) => `
     <section class="label" data-index="${index}">
       <div class="label-head">
         ${label.name ? `<p class="label-name">${escapeHtml(label.name)}</p>` : ''}
@@ -80,9 +71,8 @@ function buildLabelHtml(items: MaterialLabelPrintItem[]) {
         <svg class="barcode barcode-pn" data-code="${escapeHtml(label.id)}"></svg>
         <p class="label-id">${escapeHtml(label.id)}</p>
       </div>
-      ${lotBlock}
-    </section>`
-    })
+    </section>`,
+    )
     .join('')
 }
 
@@ -94,6 +84,11 @@ function buildPrintHtml(
   const widthMm = options.widthMm ?? 40
   const heightMm = options.heightMm ?? 30
   const title = escapeHtml(options.title ?? '자재 바코드 라벨')
+  const scale = Math.min(Math.max(Math.min(widthMm / 40, heightMm / 30), 0.4), 2)
+  const namePt = Math.max(5, 6.5 * scale)
+  const specPt = Math.max(4.5, 5.5 * scale)
+  const idPt = Math.max(5, 7 * scale)
+  const barcodeMm = Math.max(4, Math.min(heightMm * 0.34, 14 * scale))
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -101,7 +96,6 @@ function buildPrintHtml(
   <meta charset="utf-8" />
   <title>${title}</title>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"><\/script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -138,12 +132,13 @@ function buildPrintHtml(
     .label {
       width: ${widthMm}mm;
       height: ${heightMm}mm;
-      padding: 1mm 1.6mm 0.8mm;
+      padding: ${Math.max(0.4, 1 * scale)}mm ${Math.max(0.6, 1.6 * scale)}mm;
       border: 0.2mm dashed #cbd5e1;
       background: #fff;
       display: flex;
       flex-direction: column;
       align-items: stretch;
+      justify-content: flex-start;
       overflow: hidden;
       page-break-inside: avoid;
     }
@@ -156,52 +151,26 @@ function buildPrintHtml(
       margin-bottom: 0.4mm;
     }
     .label-barcode {
-      flex-shrink: 0;
+      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
       width: 100%;
+      min-height: 0;
     }
     .barcode-pn {
       width: 100%;
-      height: 9.2mm;
+      height: ${barcodeMm}mm;
     }
-    .label-lot-wrap {
-      width: 100%;
-      margin-top: auto;
-      padding-top: 0.5mm;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 1.2mm;
-    }
-    .lot-qr {
-      width: 8.8mm;
-      height: 8.8mm;
-      flex-shrink: 0;
-    }
-    .lot-qr svg {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    .label-id,
-    .label-lot {
+    .label-id {
       font-family: ui-monospace, Consolas, monospace;
       font-weight: 700;
       line-height: 1.05;
       word-break: break-all;
-    }
-    .label-id {
-      font-size: 7pt;
+      font-size: ${idPt}pt;
       text-align: center;
-    }
-    .label-lot {
-      min-width: 0;
-      flex: 1;
-      font-size: 6pt;
-      text-align: left;
-      color: #0f172a;
+      margin-top: 0.4mm;
     }
     .label-name,
     .label-spec {
@@ -212,13 +181,13 @@ function buildPrintHtml(
       text-overflow: ellipsis;
     }
     .label-name {
-      font-size: 6.5pt;
+      font-size: ${namePt}pt;
       font-weight: 700;
       line-height: 1.1;
       color: #111;
     }
     .label-spec {
-      font-size: 5.5pt;
+      font-size: ${specPt}pt;
       line-height: 1.1;
       color: #334155;
     }
@@ -257,30 +226,18 @@ function buildPrintHtml(
   <script>
     (function () {
       var nodes = document.querySelectorAll('.barcode');
+      var barHeight = ${Math.round(barcodeMm * 3.78)};
       nodes.forEach(function (node) {
         var code = node.getAttribute('data-code') || '';
         if (!code || typeof JsBarcode === 'undefined') return;
         try {
           JsBarcode(node, code, {
             format: 'CODE128',
-            width: 1.35,
-            height: 40,
+            width: ${Math.max(1, Number((1.35 * scale).toFixed(2)))},
+            height: barHeight,
             displayValue: false,
             margin: 0,
           });
-        } catch (error) {
-          console.error(error);
-        }
-      });
-      var lots = document.querySelectorAll('.lot-qr');
-      lots.forEach(function (node) {
-        var code = node.getAttribute('data-code') || '';
-        if (!code || typeof qrcode === 'undefined') return;
-        try {
-          var qr = qrcode(0, 'M');
-          qr.addData(code);
-          qr.make();
-          node.innerHTML = qr.createSvgTag(2, 0);
         } catch (error) {
           console.error(error);
         }
@@ -295,7 +252,7 @@ function buildPrintHtml(
 }
 
 /** 품목코드 바코드 라벨을 iframe으로 인쇄한다. (팝업 불필요) */
-export function printMaterialLabels(
+export function printMaterialLabelsHtml(
   items: MaterialLabelPrintItem[],
   options: PrintMaterialLabelsOptions = {},
 ) {
@@ -341,9 +298,54 @@ export function printMaterialLabels(
   }
 }
 
-/** 입고 스캔 직후 해당 릴 라벨 1장 */
-export function printInboundReelLabel(item: MaterialLabelPrintItem) {
-  printMaterialLabels([{ ...item, copies: 1 }], {
+/**
+ * Browser Print(ZPL) 우선, 실패 시 브라우저 인쇄로 폴백.
+ * `preferBrowserPrint: false` 이면 항상 HTML 인쇄.
+ */
+export async function printMaterialLabels(
+  items: MaterialLabelPrintItem[],
+  options: PrintMaterialLabelsOptions = {},
+): Promise<'zpl' | 'html'> {
+  const printable = items.filter((item) => item.id.trim())
+  if (!printable.length) {
+    window.alert('출력할 자재코드가 없습니다.')
+    return 'html'
+  }
+
+  const settings = getLabelPrintSettings()
+  const widthMm = options.widthMm ?? settings.widthMm
+  const heightMm = options.heightMm ?? settings.heightMm
+  const preferBrowserPrint =
+    options.preferBrowserPrint !== undefined
+      ? options.preferBrowserPrint
+      : settings.preferBrowserPrint
+
+  if (preferBrowserPrint) {
+    const zpl = buildMaterialLabelsZpl(printable, {
+      widthMm,
+      heightMm,
+      dpi: settings.dpi,
+    })
+    if (zpl) {
+      const result = await sendZplViaBrowserPrint(zpl)
+      if (result.ok) return 'zpl'
+      // 에이전트/프린터가 없으면 조용히 HTML 폴백. 전송 실패만 안내.
+      if (result.reason === 'write') {
+        const useHtml = window.confirm(
+          `라벨 프린터 전송에 실패했습니다.\n${result.detail}\n\n브라우저 인쇄창으로 대신 출력할까요?`,
+        )
+        if (!useHtml) return 'html'
+      }
+    }
+  }
+
+  printMaterialLabelsHtml(printable, { ...options, widthMm, heightMm })
+  return 'html'
+}
+
+/** 입고 수량 확정 후 해당 릴 라벨 1장 (ZPL 우선) */
+export async function printInboundReelLabel(item: MaterialLabelPrintItem) {
+  return printMaterialLabels([{ ...item, copies: 1 }], {
     autoPrint: true,
     title: '자재 바코드 라벨',
   })

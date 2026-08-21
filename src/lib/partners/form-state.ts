@@ -84,7 +84,7 @@ export function formToPartnerPayload(form: PartnerFormState): BusinessPartnerPay
     businessType: form.businessType,
     address: form.address,
     phone: form.phone,
-    tradeRole: form.tradeRole,
+    tradeRole: 'both',
     paymentTermType,
     paymentDepositPercent: paymentTermType === 'installment' ? deposit : 0,
     paymentNetDays: paymentTermType === 'net' ? netDays : 0,

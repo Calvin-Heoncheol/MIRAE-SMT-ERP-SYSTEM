@@ -61,11 +61,11 @@ export function ReceivablesPaymentModal({
 
   if (!row) return null
 
-  async function handleSave(fullRemaining = false) {
+  async function handleSave() {
     if (!row) return
-    const amount = fullRemaining ? row.remaining : Math.round(Number(amountText.replace(/[^\d]/g, '')) || 0)
+    const amount = Math.round(Number(amountText.replace(/[^\d]/g, '')) || 0)
     if (amount <= 0) {
-      setError(fullRemaining ? '입금할 잔액이 없습니다.' : '입금 금액을 입력하세요.')
+      setError('입금 금액을 입력하세요.')
       return
     }
 
@@ -83,7 +83,7 @@ export function ReceivablesPaymentModal({
       setError(result.detail)
       return
     }
-    onSaved(fullRemaining || amount >= row.remaining ? '전액 입금으로 기록했습니다.' : '입금을 기록했습니다.')
+    onSaved(amount >= row.remaining ? '입금완료로 기록했습니다.' : '입금을 기록했습니다.')
   }
 
   async function handleDelete(paymentId: string) {
@@ -109,20 +109,9 @@ export function ReceivablesPaymentModal({
       size="md"
       closeOnEscape={!busy}
       footer={
-        <>
-          {row.remaining > 0 ? (
-            <ErpButton
-              variant="secondary"
-              disabled={busy || paymentsMissing}
-              onClick={() => void handleSave(true)}
-            >
-              전액 입금
-            </ErpButton>
-          ) : null}
-          <ErpButton disabled={busy || paymentsMissing} loading={saving} onClick={() => void handleSave(false)}>
-            확인
-          </ErpButton>
-        </>
+        <ErpButton disabled={busy || paymentsMissing} loading={saving} onClick={() => void handleSave()}>
+          확인
+        </ErpButton>
       }
     >
       <div className="space-y-4">

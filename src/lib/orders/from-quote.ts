@@ -33,7 +33,7 @@ export function buildOrderPayloadFromQuote(
   if (!partner) {
     return {
       ok: false,
-      detail: '거래처등록에 등록된 매출 고객사만 발주서로 전환할 수 있습니다.',
+      detail: '거래처등록에 등록된 거래처만 발주서로 전환할 수 있습니다.',
     }
   }
 

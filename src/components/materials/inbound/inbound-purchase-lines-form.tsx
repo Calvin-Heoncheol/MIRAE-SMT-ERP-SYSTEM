@@ -26,6 +26,7 @@ import {
 } from '@/lib/materials/inbound/scan-guards'
 import type { Material } from '@/lib/materials/types'
 import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
+import { MaterialLabelSettingsButton } from '@/components/materials/material-label-settings-button'
 import { printInboundReelLabel } from '@/lib/materials/print-material-labels'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
@@ -230,18 +231,6 @@ export function InboundPurchaseLinesForm({
       })
       setScanCode('')
       markJustScanned(lotNumber)
-      if (printOnScan) {
-        printInboundReelLabel({
-          id: matched.material
-            ? formatMaterialDisplayCode(matched.material)
-            : matched.line.materialCode || matched.line.materialId,
-          materialName: matched.material?.materialName || matched.line.materialName,
-          customer: matched.material?.customer || '',
-          package: matched.material?.package || '',
-          specification: matched.material?.specification || matched.line.specification,
-          lotNumber,
-        })
-      }
       return
     }
 
@@ -263,18 +252,6 @@ export function InboundPurchaseLinesForm({
     })
     setScanCode('')
     markJustScanned(lotNumber)
-    if (printOnScan) {
-      printInboundReelLabel({
-        id: matched.material
-          ? formatMaterialDisplayCode(matched.material)
-          : matched.line.materialCode || matched.line.materialId,
-        materialName: matched.material?.materialName || matched.line.materialName,
-        customer: matched.material?.customer || '',
-        package: matched.material?.package || '',
-        specification: matched.material?.specification || matched.line.specification,
-        lotNumber,
-      })
-    }
   }
 
   function rejectQtyBarcodeInput(lineId: string, index: number) {
@@ -334,6 +311,22 @@ export function InboundPurchaseLinesForm({
       tone: 'success',
       text: '수량 반영됨 — 다음 바코드를 스캔해 주세요.',
     })
+    if (printOnScan) {
+      const item = items[index]
+      if (item) {
+        const material = materials.find((row) => row.id === item.materialId)
+        void printInboundReelLabel({
+          id: material
+            ? formatMaterialDisplayCode(material)
+            : item.materialCode || item.materialId,
+          materialName: material?.materialName || item.materialName,
+          customer: material?.customer || '',
+          package: material?.package || '',
+          specification: material?.specification || item.specification,
+          lotNumber: item.lotNumber,
+        })
+      }
+    }
     setLastScannedKey((current) => (current === lineId ? null : current))
     event.currentTarget.blur()
     scanDeduperRef.current.reset()
@@ -382,8 +375,9 @@ export function InboundPurchaseLinesForm({
               onChange={(event) => setPrintOnScan(event.target.checked)}
               className="h-3.5 w-3.5 rounded border-slate-300"
             />
-            스캔 시 라벨
+            수량 확정 시 라벨
           </label>
+          <MaterialLabelSettingsButton />
           </div>
         </div>
         <label className="block">

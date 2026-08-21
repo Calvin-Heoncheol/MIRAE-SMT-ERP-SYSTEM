@@ -4,7 +4,9 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { ReceivablesPaymentModal } from '@/components/accounting/receivables-payment-modal'
 import { ReceivablesTable } from '@/components/accounting/receivables-table'
+import { useBusy } from '@/components/ui/busy-provider'
 import { DateRangeFilter } from '@/components/ui/date-range-filter'
+import { ErpButton } from '@/components/ui/erp-button'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
 import { FilterChipBar, STATUS_FILTER_TONES, type FilterChipTone } from '@/components/ui/filter-chip'
@@ -12,11 +14,13 @@ import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
-import type { FetchReceivablesResult } from '@/lib/accounting/repository'
+import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
+import { createStatementPayment, type FetchReceivablesResult } from '@/lib/accounting/repository'
 import type { ReceivableRow, ReceivableStatusFilter } from '@/lib/accounting/types'
 import { RECEIVABLE_STATUS_LABELS } from '@/lib/accounting/types'
 import { filterReceivableRows, summarizeReceivables } from '@/lib/accounting/utils'
 import { downloadExcel } from '@/lib/excel/export'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 import { currentMonthRange } from '@/lib/reports/period'
 import { DATE_RANGE_FILTER_LABEL } from '@/lib/ui/date-range'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
@@ -58,12 +62,16 @@ export function ReceivablesWorkspace({
 }: ReceivablesWorkspaceProps) {
   const router = useRouter()
   const { afterSave } = useSaveFeedback()
+  const busyUi = useBusy()
+  const { notifyAuthOrFailure, toast } = useWriteFailureToast()
   const [isPending, startTransition] = useTransition()
   const [startDate, setStartDate] = useState(initialStartDate)
   const [endDate, setEndDate] = useState(initialEndDate)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<ReceivableStatusFilter>('open')
   const [modal, setModal] = useState<ModalState>({ open: false })
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [markingPaid, setMarkingPaid] = useState(false)
 
   useEffect(() => {
     setStartDate(initialStartDate)
@@ -71,6 +79,7 @@ export function ReceivablesWorkspace({
   }, [initialStartDate, initialEndDate])
 
   const rows = result.ok ? result.rows : []
+  const paymentsMissing = result.ok ? result.paymentsMissing : false
 
   const filtered = useMemo(
     () => filterReceivableRows(rows, search, statusFilter),
@@ -83,6 +92,19 @@ export function ReceivablesWorkspace({
   )
 
   const kpi = useMemo(() => summarizeReceivables(searched), [searched])
+
+  const selectableRows = useMemo(
+    () => filtered.filter((row) => row.remaining > 0),
+    [filtered],
+  )
+
+  const selectedRows = useMemo(
+    () => selectableRows.filter((row) => selectedIds.has(row.shipmentId)),
+    [selectableRows, selectedIds],
+  )
+  const selectedCount = selectedRows.length
+  const allSelectableSelected =
+    selectableRows.length > 0 && selectableRows.every((row) => selectedIds.has(row.shipmentId))
 
   const statusOptions = useMemo(
     () => [
@@ -130,6 +152,7 @@ export function ReceivablesWorkspace({
   function applyDateRange(nextStart: string, nextEnd: string) {
     setStartDate(nextStart)
     setEndDate(nextEnd)
+    setSelectedIds(new Set())
     startTransition(() => router.push(buildReceivablesHref(nextStart, nextEnd)))
   }
 
@@ -140,6 +163,7 @@ export function ReceivablesWorkspace({
     }
     setStartDate(value)
     if (value && endDate) {
+      setSelectedIds(new Set())
       startTransition(() => router.push(buildReceivablesHref(value, endDate)))
     }
   }
@@ -151,8 +175,85 @@ export function ReceivablesWorkspace({
     }
     setEndDate(value)
     if (startDate && value) {
+      setSelectedIds(new Set())
       startTransition(() => router.push(buildReceivablesHref(startDate, value)))
     }
+  }
+
+  function toggleSelectAll() {
+    if (allSelectableSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        for (const row of selectableRows) next.delete(row.shipmentId)
+        return next
+      })
+      return
+    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const row of selectableRows) next.add(row.shipmentId)
+      return next
+    })
+  }
+
+  function toggleSelectOne(shipmentId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(shipmentId)) next.delete(shipmentId)
+      else next.add(shipmentId)
+      return next
+    })
+  }
+
+  async function handleMarkPaid() {
+    if (markingPaid || selectedCount === 0 || paymentsMissing) return
+    if (
+      !window.confirm(
+        `선택한 ${selectedCount}건을 잔액 전액 입금완료로 기록할까요?\n입금일은 오늘(${todayYmdSeoul()})로 저장됩니다.`,
+      )
+    ) {
+      return
+    }
+
+    setMarkingPaid(true)
+    const paidDate = todayYmdSeoul()
+    let successCount = 0
+    let lastError: { ok: false; reason: string; detail: string } | null = null
+
+    await busyUi.run(async () => {
+      for (const row of selectedRows) {
+        if (row.remaining <= 0) continue
+        const result = await createStatementPayment({
+          shipmentId: row.shipmentId,
+          paidDate,
+          amount: row.remaining,
+        })
+        if (!result.ok) {
+          lastError = result
+          break
+        }
+        successCount += 1
+      }
+    })
+
+    setMarkingPaid(false)
+
+    if (lastError) {
+      if (!notifyAuthOrFailure(lastError)) {
+        toast.error(
+          successCount > 0 ? `${successCount}건 반영 후 오류` : '입금완료 실패',
+          lastError.detail,
+        )
+      }
+      if (successCount > 0) {
+        setSelectedIds(new Set())
+        afterSave(`${successCount}건을 입금완료로 기록했습니다.`, { refresh: true })
+      }
+      return
+    }
+
+    setSelectedIds(new Set())
+    afterSave(`${successCount}건을 입금완료로 기록했습니다.`, { refresh: true })
   }
 
   async function handleExcelDownload() {
@@ -165,6 +266,7 @@ export function ReceivablesWorkspace({
         { header: '품목', value: (row) => row.productName, width: 26 },
         { header: '발행일', value: (row) => row.issueDate, width: 12 },
         { header: '입금예정일', value: (row) => row.expectedDate || '', width: 12 },
+        { header: '입금일', value: (row) => row.paidDate || '', width: 12 },
         { header: '공급가액', value: (row) => row.amount, width: 12 },
         { header: '입금액', value: (row) => row.paidAmount, width: 12 },
         { header: '잔액', value: (row) => row.remaining, width: 12 },
@@ -227,11 +329,25 @@ export function ReceivablesWorkspace({
                     {' · '}
                     {filtered.length.toLocaleString('ko-KR')}건
                   </p>
+                  <ErpButton
+                    disabled={selectedCount === 0 || markingPaid || paymentsMissing || isPending}
+                    loading={markingPaid}
+                    onClick={() => void handleMarkPaid()}
+                  >
+                    {selectedCount > 0 ? `입금완료 (${selectedCount})` : '입금완료'}
+                  </ErpButton>
                   <ExcelDownloadButton onDownload={handleExcelDownload} disabled={!result.ok || isPending} />
                 </>
               }
               filters={
-                <FilterChipBar options={statusOptions} value={statusFilter} onChange={setStatusFilter} />
+                <FilterChipBar
+                  options={statusOptions}
+                  value={statusFilter}
+                  onChange={(value) => {
+                    setStatusFilter(value)
+                    setSelectedIds(new Set())
+                  }}
+                />
               }
             />
 
@@ -243,6 +359,11 @@ export function ReceivablesWorkspace({
                 actionHint: '영업관리 거래명세서에서 출하 내역을 확인하세요.',
               })}
               onRowClick={(row) => setModal({ open: true, shipmentId: row.shipmentId })}
+              selectedIds={selectedIds}
+              onToggleSelectAll={toggleSelectAll}
+              onToggleSelectOne={toggleSelectOne}
+              selectionDisabled={markingPaid}
+              allSelectableSelected={allSelectableSelected}
             />
           </div>
         )}
@@ -251,7 +372,7 @@ export function ReceivablesWorkspace({
       <ReceivablesPaymentModal
         open={modal.open}
         row={activeRow}
-        paymentsMissing={result.ok ? result.paymentsMissing : false}
+        paymentsMissing={paymentsMissing}
         onClose={closeModal}
         onSaved={handleSaved}
       />

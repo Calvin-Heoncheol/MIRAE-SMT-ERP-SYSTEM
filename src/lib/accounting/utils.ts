@@ -86,6 +86,7 @@ export function buildReceivableRow(input: {
     ? input.snapshot!
     : snapshotFromPartner(input.partner)
   const expectedDate = computeExpectedPaymentDate(issueDate, terms)
+  const paidDate = relatedPayments[0]?.paidDate || null
 
   return {
     shipmentId: input.group.shipmentId,
@@ -99,6 +100,7 @@ export function buildReceivableRow(input: {
     amount,
     paidAmount,
     remaining: Math.max(0, amount - paidAmount),
+    paidDate,
     status: resolveReceivableStatus({
       amount,
       paidAmount,
@@ -117,6 +119,7 @@ export function receivableSearchHaystack(row: ReceivableRow) {
     row.orderNumber,
     row.issueDate,
     row.expectedDate || '',
+    row.paidDate || '',
     row.paymentTermLabel,
     RECEIVABLE_STATUS_LABELS[row.status],
   ]

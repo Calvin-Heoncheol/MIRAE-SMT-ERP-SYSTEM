@@ -31,6 +31,7 @@ import {
 } from '@/lib/materials/inbound/scan-guards'
 import type { Material } from '@/lib/materials/types'
 import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
+import { MaterialLabelSettingsButton } from '@/components/materials/material-label-settings-button'
 import { printInboundReelLabel } from '@/lib/materials/print-material-labels'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
@@ -309,16 +310,6 @@ export function InboundDirectLinesForm({
         : formatMaterialDisplayCode(material),
     })
     markJustScanned(key)
-    if (printOnScan) {
-      printInboundReelLabel({
-        id: formatMaterialDisplayCode(material),
-        materialName: material.materialName,
-        customer: material.customer,
-        package: material.package,
-        specification: material.specification,
-        lotNumber,
-      })
-    }
   }
 
   function handleScan(rawCode: string) {
@@ -417,6 +408,22 @@ export function InboundDirectLinesForm({
     qtyBurstRef.current.reset()
     setScanMessage(null)
     patchItem(index, { quantityPerReel: String(qty) })
+    if (printOnScan) {
+      const item = items[index]
+      if (item) {
+        const material = materials.find((row) => row.id === item.materialId)
+        void printInboundReelLabel({
+          id: material
+            ? formatMaterialDisplayCode(material)
+            : item.materialCode || item.materialId,
+          materialName: material?.materialName || item.materialName,
+          customer: material?.customer || '',
+          package: material?.package || '',
+          specification: material?.specification || item.specification,
+          lotNumber: item.lotNumber,
+        })
+      }
+    }
     setLastScannedKey(null)
     event.currentTarget.blur()
     scanDeduperRef.current.reset()
@@ -457,8 +464,9 @@ export function InboundDirectLinesForm({
               onChange={(event) => setPrintOnScan(event.target.checked)}
               className="h-3.5 w-3.5 rounded border-slate-300"
             />
-            스캔 시 라벨
+            수량 확정 시 라벨
           </label>
+          <MaterialLabelSettingsButton />
           </div>
         </div>
         <label className="block">
@@ -518,7 +526,7 @@ export function InboundDirectLinesForm({
       {labelPrintItems.length > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-4 py-2">
           <p className="text-xs text-slate-600">
-            입고 라인 기준으로 품목코드·내부 LOT 바코드 라벨을 출력합니다. LOT가 있으면 릴마다 1장입니다.
+            입고 라인 기준으로 품목코드 바코드 라벨을 출력합니다. LOT가 있으면 릴마다 1장입니다.
           </p>
           <MaterialLabelPrintButton items={labelPrintItems} />
         </div>

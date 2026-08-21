@@ -1,6 +1,7 @@
 import type {
   SolderCreamEquipmentLog,
   SolderCreamEventType,
+  SolderCreamHistoryLotRow,
   SolderCreamLotStatus,
   SolderCreamLotStatusOverride,
   SolderCreamLotSummary,
@@ -171,6 +172,66 @@ export function matchesSolderCreamFridgeSearch(row: SolderCreamStatusRow, query:
     row.note,
     SOLDER_CREAM_LOT_STATUS_LABELS[row.status],
   ]
+    .join(' ')
+    .toLowerCase()
+    .includes(q)
+}
+
+const HISTORY_ROUND_COUNT = 3
+
+function takeRoundTimes(times: string[]): [string | null, string | null, string | null] {
+  return [
+    times[0] ?? null,
+    times[1] ?? null,
+    times[2] ?? null,
+  ]
+}
+
+/** 입고·출고 이력을 LOT별 1~3차 시각으로 펼친다. */
+export function buildSolderCreamHistoryLotRows(
+  logs: SolderCreamEquipmentLog[],
+): SolderCreamHistoryLotRow[] {
+  const map = new Map<string, SolderCreamEquipmentLog[]>()
+
+  for (const log of logs) {
+    if (log.eventType !== 'store' && log.eventType !== 'discard') continue
+    const lot = log.lotNumber.trim()
+    if (!lot || lot === 'SYSTEM') continue
+    const list = map.get(lot) || []
+    list.push(log)
+    map.set(lot, list)
+  }
+
+  return [...map.entries()]
+    .map(([lotNumber, events]) => {
+      const storeTimes = events
+        .filter((event) => event.eventType === 'store')
+        .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
+        .map((event) => event.recordedAt)
+      const discardTimes = events
+        .filter((event) => event.eventType === 'discard')
+        .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
+        .map((event) => event.recordedAt)
+      const manufacturedAt = parseManufactureDateFromBarcode(lotNumber)
+      const allTimes = [...storeTimes, ...discardTimes].sort((a, b) => b.localeCompare(a))
+
+      return {
+        lotNumber,
+        manufacturedAt,
+        expiresAt: estimateExpiryDateFromManufacture(manufacturedAt),
+        storeAt: takeRoundTimes(storeTimes.slice(0, HISTORY_ROUND_COUNT)),
+        discardAt: takeRoundTimes(discardTimes.slice(0, HISTORY_ROUND_COUNT)),
+        logIds: events.map((event) => event.id),
+        lastEventAt: allTimes[0] ?? null,
+      }
+    })
+    .sort((a, b) => (b.lastEventAt || '').localeCompare(a.lastEventAt || ''))
+}
+
+export function matchesSolderCreamHistoryLotSearch(row: SolderCreamHistoryLotRow, query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return [row.lotNumber, row.manufacturedAt, row.expiresAt, ...row.storeAt, ...row.discardAt]
     .join(' ')
     .toLowerCase()
     .includes(q)

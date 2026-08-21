@@ -21,11 +21,8 @@ import {
   PARTNER_PAYMENT_TERM_TYPE_HINTS,
   PARTNER_PAYMENT_TERM_TYPE_LABELS,
   PARTNER_PAYMENT_TERM_TYPES,
-  PARTNER_TRADE_ROLES,
-  PARTNER_TRADE_ROLE_LABELS,
   type BusinessPartner,
   type PartnerPaymentTermType,
-  type PartnerTradeRole,
 } from '@/lib/partners/types'
 import { formatBusinessRegNo } from '@/lib/partners/utils'
 
@@ -220,20 +217,6 @@ function PartnerModalContent({
             onChange={(event) => updateForm('phone', event.target.value)}
             className="w-full rounded-lg border border-slate-200 px-3 py-2"
           />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">매입/매출</span>
-          <select
-            value={form.tradeRole}
-            onChange={(event) => updateForm('tradeRole', event.target.value as PartnerTradeRole)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2"
-          >
-            {PARTNER_TRADE_ROLES.map((role) => (
-              <option key={role} value={role}>
-                {PARTNER_TRADE_ROLE_LABELS[role]}
-              </option>
-            ))}
-          </select>
         </label>
         <div className="space-y-3">
           <label className="block text-sm">

@@ -247,7 +247,7 @@ export function SalesStatementEditModal({
                   onPartnerSelect={(partner) => setCustomer(partner.name)}
                 />
                 <p className="mt-1 text-xs text-slate-500">
-                  {partnersLoading ? '거래처 목록을 불러오는 중…' : '매출 거래처만 선택할 수 있습니다.'}
+                  {partnersLoading ? '거래처 목록을 불러오는 중…' : '거래처를 선택하세요.'}
                 </p>
               </label>
             ) : (

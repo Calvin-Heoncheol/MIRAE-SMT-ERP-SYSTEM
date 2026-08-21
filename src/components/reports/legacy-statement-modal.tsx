@@ -149,7 +149,7 @@ export function LegacyStatementModal({
       return
     }
     if (!resolved && partners.length > 0) {
-      setError('거래처등록에 있는 매출 고객사를 선택해 주세요.')
+      setError('거래처등록에 있는 거래처를 선택해 주세요.')
       return
     }
     if (!shipDate.trim()) {
@@ -234,7 +234,7 @@ export function LegacyStatementModal({
             <p className="mt-1 text-xs text-slate-500">
               {partnersLoading
                 ? '거래처 목록을 불러오는 중…'
-                : '거래처등록의 매출 거래처만 선택할 수 있습니다.'}
+                : '거래처등록의 거래처를 검색해 선택하세요.'}
             </p>
           </label>
           <label className="block text-sm">

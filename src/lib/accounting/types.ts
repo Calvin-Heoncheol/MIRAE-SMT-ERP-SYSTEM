@@ -41,6 +41,8 @@ export type ReceivableRow = {
   amount: number
   paidAmount: number
   remaining: number
+  /** 최근 입금일 (없으면 null) */
+  paidDate: string | null
   status: ReceivableStatus
   payments: StatementPayment[]
 }

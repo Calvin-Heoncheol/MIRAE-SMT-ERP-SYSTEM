@@ -21,9 +21,23 @@ type ReceivablesTableProps = {
   rows: ReceivableRow[]
   emptyMessage: string
   onRowClick: (row: ReceivableRow) => void
+  selectedIds: Set<string>
+  onToggleSelectAll: () => void
+  onToggleSelectOne: (shipmentId: string) => void
+  selectionDisabled?: boolean
+  allSelectableSelected?: boolean
 }
 
-export function ReceivablesTable({ rows, emptyMessage, onRowClick }: ReceivablesTableProps) {
+export function ReceivablesTable({
+  rows,
+  emptyMessage,
+  onRowClick,
+  selectedIds,
+  onToggleSelectAll,
+  onToggleSelectOne,
+  selectionDisabled = false,
+  allSelectableSelected = false,
+}: ReceivablesTableProps) {
   if (!rows.length) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
@@ -32,17 +46,30 @@ export function ReceivablesTable({ rows, emptyMessage, onRowClick }: Receivables
     )
   }
 
+  const hasSelectable = rows.some((row) => row.remaining > 0)
+
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className={`${ERP_TABLE_CLASS} min-w-[1080px]`}>
+        <table className={`${ERP_TABLE_CLASS} min-w-[1180px]`}>
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
+              <th className={`${ERP_TABLE_TH_CLASS} w-10 text-center`}>
+                <input
+                  type="checkbox"
+                  checked={allSelectableSelected}
+                  disabled={!hasSelectable || selectionDisabled}
+                  onChange={onToggleSelectAll}
+                  aria-label="전체 선택"
+                  className="size-4 accent-slate-700"
+                />
+              </th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>출하번호</th>
               <th className={ERP_TABLE_TH_CLASS}>고객사</th>
               <th className={ERP_TABLE_TH_CLASS}>품목</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>발행일</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>입금예정일</th>
+              <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>입금일</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-right`}>공급가액</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-right`}>입금액</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-right`}>잔액</th>
@@ -52,12 +79,27 @@ export function ReceivablesTable({ rows, emptyMessage, onRowClick }: Receivables
           <tbody>
             {rows.map((row) => {
               const overdueDate = row.status === 'overdue' && row.expectedDate
+              const selectable = row.remaining > 0
+              const selected = selectedIds.has(row.shipmentId)
               return (
                 <tr
                   key={row.shipmentId}
                   className={`${ERP_TABLE_ROW_CLASS} cursor-pointer`}
                   onClick={() => onRowClick(row)}
                 >
+                  <td
+                    className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-center`}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={!selectable || selectionDisabled}
+                      onChange={() => onToggleSelectOne(row.shipmentId)}
+                      aria-label={`${row.shipmentId} 선택`}
+                      className="size-4 accent-slate-700"
+                    />
+                  </td>
                   <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-semibold text-slate-800`}>
                     {row.shipmentId}
                   </td>
@@ -70,6 +112,9 @@ export function ReceivablesTable({ rows, emptyMessage, onRowClick }: Receivables
                     }`}
                   >
                     {row.expectedDate || '-'}
+                  </td>
+                  <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
+                    {row.paidDate || '-'}
                   </td>
                   <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-right tabular-nums`}>
                     {formatOrderMoney(row.amount)}

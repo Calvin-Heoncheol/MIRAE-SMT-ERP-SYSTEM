@@ -8,9 +8,8 @@ import { ErpButton } from '@/components/ui/erp-button'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchBusinessPartnersResult } from '@/lib/partners/repository'
-import { PARTNER_TRADE_ROLE_LABELS } from '@/lib/partners/types'
-import { formatBusinessRegNo, formatPartnerPaymentTermLabel } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
+import { formatBusinessRegNo, formatPartnerPaymentTermLabel } from '@/lib/partners/utils'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
@@ -35,7 +34,6 @@ function matchesQuery(partner: BusinessPartner, query: string) {
     partner.address,
     partner.phone,
     formatPartnerPaymentTermLabel(partner),
-    PARTNER_TRADE_ROLE_LABELS[partner.tradeRole],
   ]
     .join(' ')
     .toLowerCase()

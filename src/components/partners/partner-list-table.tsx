@@ -2,7 +2,6 @@
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ErpTableHead, ErpTableShell, ErpTableTd, ErpTableTh } from '@/components/ui/erp-table'
-import { PARTNER_TRADE_ROLE_LABELS } from '@/lib/partners/types'
 import { formatBusinessRegNo, formatPartnerPaymentTermLabel } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { ERP_TABLE_ROW_CLASS } from '@/lib/ui/tokens'
@@ -28,7 +27,7 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
   }
 
   return (
-    <ErpTableShell tableClassName="min-w-[1180px]">
+    <ErpTableShell tableClassName="min-w-[1080px]">
       <ErpTableHead>
         <tr>
           <ErpTableTh>사업자번호</ErpTableTh>
@@ -38,7 +37,6 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
           <ErpTableTh>주소</ErpTableTh>
           <ErpTableTh>전화</ErpTableTh>
           <ErpTableTh>결제조건</ErpTableTh>
-          <ErpTableTh align="center">매입/매출</ErpTableTh>
         </tr>
       </ErpTableHead>
       <tbody>
@@ -59,9 +57,6 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
             </ErpTableTd>
             <ErpTableTd className="text-slate-700">{cell(partner.phone)}</ErpTableTd>
             <ErpTableTd className="text-slate-700">{cell(formatPartnerPaymentTermLabel(partner))}</ErpTableTd>
-            <ErpTableTd align="center" className="font-medium text-slate-700">
-              {PARTNER_TRADE_ROLE_LABELS[partner.tradeRole]}
-            </ErpTableTd>
           </tr>
         ))}
       </tbody>

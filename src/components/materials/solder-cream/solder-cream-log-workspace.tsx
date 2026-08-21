@@ -11,16 +11,18 @@ import { StatusBadge } from '@/components/ui/status-badge'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { deleteSolderCreamEquipmentLogs } from '@/lib/materials/solder-cream/repository'
 import type { FetchSolderCreamLogPageResult } from '@/lib/materials/solder-cream/repository'
-import type { SolderCreamLotStatus, SolderCreamStatusRow } from '@/lib/materials/solder-cream/types'
+import type {
+  SolderCreamHistoryLotRow,
+  SolderCreamLotStatus,
+  SolderCreamStatusRow,
+} from '@/lib/materials/solder-cream/types'
 import {
+  buildSolderCreamHistoryLotRows,
   buildSolderCreamStatusRows,
-  estimateExpiryDateFromManufacture,
   formatSolderCreamDate,
   formatSolderCreamDateTime,
   matchesSolderCreamFridgeSearch,
-  matchesSolderCreamSearch,
-  parseManufactureDateFromBarcode,
-  SOLDER_CREAM_EVENT_LABELS,
+  matchesSolderCreamHistoryLotSearch,
   SOLDER_CREAM_LOT_STATUS_LABELS,
   type SolderCreamStatusFilter,
 } from '@/lib/materials/solder-cream/utils'
@@ -103,22 +105,24 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
     return byStatus.filter((row) => matchesSolderCreamFridgeSearch(row, query))
   }, [statusRows, statusFilter, query])
 
-  const filteredLogs = useMemo(
-    () =>
-      logs.filter(
-        (row) =>
-          (row.eventType === 'store' || row.eventType === 'discard') &&
-          matchesSolderCreamSearch(row, query),
-      ),
-    [logs, query],
+  const historyRows = useMemo(() => buildSolderCreamHistoryLotRows(logs), [logs])
+
+  const filteredHistoryRows = useMemo(
+    () => historyRows.filter((row) => matchesSolderCreamHistoryLotSearch(row, query)),
+    [historyRows, query],
   )
 
   const selectedCount = useMemo(
-    () => filteredLogs.reduce((count, row) => (selectedIds.has(row.id) ? count + 1 : count), 0),
-    [filteredLogs, selectedIds],
+    () =>
+      filteredHistoryRows.reduce(
+        (count, row) => (selectedIds.has(row.lotNumber) ? count + 1 : count),
+        0,
+      ),
+    [filteredHistoryRows, selectedIds],
   )
   const allFilteredSelected =
-    filteredLogs.length > 0 && filteredLogs.every((row) => selectedIds.has(row.id))
+    filteredHistoryRows.length > 0 &&
+    filteredHistoryRows.every((row) => selectedIds.has(row.lotNumber))
 
   function setViewMode(next: ViewMode) {
     setView(next)
@@ -129,33 +133,34 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
     if (allFilteredSelected) {
       setSelectedIds((prev) => {
         const next = new Set(prev)
-        for (const row of filteredLogs) next.delete(row.id)
+        for (const row of filteredHistoryRows) next.delete(row.lotNumber)
         return next
       })
       return
     }
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      for (const row of filteredLogs) next.add(row.id)
+      for (const row of filteredHistoryRows) next.add(row.lotNumber)
       return next
     })
   }
 
-  function toggleSelectOne(id: string) {
+  function toggleSelectOne(lotNumber: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(lotNumber)) next.delete(lotNumber)
+      else next.add(lotNumber)
       return next
     })
   }
 
   async function handleDeleteSelected() {
     if (deleting || selectedCount === 0) return
-    const ids = filteredLogs.filter((row) => selectedIds.has(row.id)).map((row) => row.id)
+    const selectedLots = filteredHistoryRows.filter((row) => selectedIds.has(row.lotNumber))
+    const ids = selectedLots.flatMap((row) => row.logIds)
     if (
       !window.confirm(
-        `선택한 이력 ${ids.length}건을 삭제할까요?\n현황도 함께 다시 계산됩니다.`,
+        `선택한 LOT ${selectedLots.length}건의 이력을 삭제할까요?\n현황도 함께 다시 계산됩니다.`,
       )
     ) {
       return
@@ -171,7 +176,39 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
     }
 
     setSelectedIds(new Set())
-    afterDelete(`이력 ${ids.length}건을 삭제했습니다.`)
+    afterDelete(`LOT ${selectedLots.length}건 이력을 삭제했습니다.`)
+  }
+
+  function formatRoundTime(value: string | null) {
+    return value ? formatSolderCreamDateTime(value) : '—'
+  }
+
+  function renderRoundCells(
+    times: SolderCreamHistoryLotRow['storeAt'],
+    tone: 'store' | 'discard',
+  ) {
+    const cellTone =
+      tone === 'store'
+        ? 'bg-sky-50/80 text-sky-900'
+        : 'bg-amber-50/80 text-amber-950'
+    const edge =
+      tone === 'store'
+        ? 'border-l border-sky-200'
+        : 'border-l border-amber-200'
+    return times.map((value, index) => (
+      <td
+        key={`${tone}-${index}`}
+        className={[
+          ERP_TABLE_TD_CLASS,
+          ERP_TABLE_TD_FIXED_CLASS,
+          'whitespace-nowrap text-xs',
+          cellTone,
+          index === 0 ? edge : '',
+        ].join(' ')}
+      >
+        {formatRoundTime(value)}
+      </td>
+    ))
   }
 
   return (
@@ -229,7 +266,7 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder={view === 'status' ? '품목 바코드·상태 검색' : 'LOT·이벤트 검색'}
+              placeholder={view === 'status' ? '품목 바코드·상태 검색' : 'LOT 검색'}
               className={`w-full max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 ${erpSearchFocusClass('sky')}`}
             />
           </div>
@@ -335,34 +372,76 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
               ) : null}
 
               {view === 'history' ? (
-                <table className={ERP_TABLE_CLASS}>
+                <table className={`${ERP_TABLE_CLASS} table-fixed`}>
+                  <colgroup>
+                    <col className="w-10" />
+                    <col className="w-[18%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[13%]" />
+                  </colgroup>
                   <thead className={ERP_TABLE_HEAD_CLASS}>
                     <tr>
-                      <th className={`${ERP_TABLE_TH_CLASS} w-10 text-center`}>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-center`} rowSpan={2}>
                         <input
                           type="checkbox"
                           checked={allFilteredSelected}
-                          disabled={!filteredLogs.length || deleting}
+                          disabled={!filteredHistoryRows.length || deleting}
                           onChange={toggleSelectAll}
                           aria-label="전체 선택"
                           className="size-4 accent-slate-700"
                         />
                       </th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>기록시각</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>LOT</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>제조일자</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>유통기한</th>
-                      <th className={`${ERP_TABLE_TH_CLASS} text-left`}>이벤트</th>
+                      <th className={`${ERP_TABLE_TH_CLASS} text-left`} rowSpan={2}>
+                        LOT
+                      </th>
+                      <th
+                        className={`${ERP_TABLE_TH_CLASS} border-l border-sky-200 bg-sky-50 text-center text-sky-800`}
+                        colSpan={3}
+                      >
+                        입고
+                      </th>
+                      <th
+                        className={`${ERP_TABLE_TH_CLASS} border-l border-amber-200 bg-amber-50 text-center text-amber-900`}
+                        colSpan={3}
+                      >
+                        출고
+                      </th>
+                    </tr>
+                    <tr>
+                      <th
+                        className={`${ERP_TABLE_TH_CLASS} border-l border-sky-200 bg-sky-50/80 text-left text-sky-700`}
+                      >
+                        1차
+                      </th>
+                      <th className={`${ERP_TABLE_TH_CLASS} bg-sky-50/80 text-left text-sky-700`}>
+                        2차
+                      </th>
+                      <th className={`${ERP_TABLE_TH_CLASS} bg-sky-50/80 text-left text-sky-700`}>
+                        3차
+                      </th>
+                      <th
+                        className={`${ERP_TABLE_TH_CLASS} border-l border-amber-200 bg-amber-50/80 text-left text-amber-800`}
+                      >
+                        1차
+                      </th>
+                      <th className={`${ERP_TABLE_TH_CLASS} bg-amber-50/80 text-left text-amber-800`}>
+                        2차
+                      </th>
+                      <th className={`${ERP_TABLE_TH_CLASS} bg-amber-50/80 text-left text-amber-800`}>
+                        3차
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredLogs.length ? (
-                      filteredLogs.map((row) => {
-                        const selected = selectedIds.has(row.id)
-                        const manufacturedAt = parseManufactureDateFromBarcode(row.lotNumber)
-                        const expiresAt = estimateExpiryDateFromManufacture(manufacturedAt)
+                    {filteredHistoryRows.length ? (
+                      filteredHistoryRows.map((row) => {
+                        const selected = selectedIds.has(row.lotNumber)
                         return (
-                          <tr key={row.id} className={ERP_TABLE_ROW_CLASS}>
+                          <tr key={row.lotNumber} className={ERP_TABLE_ROW_CLASS}>
                             <td
                               className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-center`}
                             >
@@ -370,40 +449,24 @@ export function SolderCreamLogWorkspace({ result }: SolderCreamLogWorkspaceProps
                                 type="checkbox"
                                 checked={selected}
                                 disabled={deleting}
-                                onChange={() => toggleSelectOne(row.id)}
+                                onChange={() => toggleSelectOne(row.lotNumber)}
                                 aria-label={`${row.lotNumber} 이력 선택`}
                                 className="size-4 accent-slate-700"
                               />
-                            </td>
-                            <td
-                              className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-600`}
-                            >
-                              {formatSolderCreamDateTime(row.recordedAt)}
                             </td>
                             <td
                               className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-xs font-semibold text-blue-800`}
                             >
                               {row.lotNumber}
                             </td>
-                            <td
-                              className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-600`}
-                            >
-                              {formatSolderCreamDate(manufacturedAt)}
-                            </td>
-                            <td
-                              className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-slate-600`}
-                            >
-                              {formatSolderCreamDate(expiresAt)}
-                            </td>
-                            <td className={ERP_TABLE_TD_CLASS}>
-                              {SOLDER_CREAM_EVENT_LABELS[row.eventType]}
-                            </td>
+                            {renderRoundCells(row.storeAt, 'store')}
+                            {renderRoundCells(row.discardAt, 'discard')}
                           </tr>
                         )
                       })
                     ) : (
                       <tr>
-                        <td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-500">
+                        <td colSpan={8} className="px-3 py-8 text-center text-sm text-slate-500">
                           {formatEmptyListMessage({
                             hasQuery: Boolean(query),
                             emptyLabel: '가져온 설비 로그가 없습니다.',

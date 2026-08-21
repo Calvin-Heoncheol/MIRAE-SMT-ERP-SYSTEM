@@ -168,7 +168,7 @@ function OrderModalContent({
   async function handleSave() {
     const resolvedPartner = resolvePartnerFromInput(salesPartners, form.customer)
     if (!resolvedPartner) {
-      setSaveError('거래처등록에 등록된 매출 고객사만 선택할 수 있습니다.')
+      setSaveError('거래처등록에 등록된 거래처만 선택할 수 있습니다.')
       return
     }
 
@@ -312,10 +312,10 @@ function OrderModalContent({
           />
           <p className="mt-1 text-xs text-slate-500">
             {partnersLoading
-              ? '매출 거래처 목록을 불러오는 중...'
+              ? '거래처 목록을 불러오는 중...'
               : salesPartners.length === 0
-                ? '등록된 매출 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
-                : '거래처등록의 매출·매입/매출 거래처만 선택할 수 있습니다.'}
+                ? '등록된 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
+                : '거래처등록의 거래처를 검색해 선택하세요.'}
           </p>
         </label>
         <label className="block text-sm">

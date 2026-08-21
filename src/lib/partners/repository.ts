@@ -88,36 +88,9 @@ export async function fetchBusinessPartners(): Promise<FetchBusinessPartnersResu
   }
 }
 
-/** 발주서 등 매출 거래처 선택용 — trade_role 이 sales 또는 both 인 거래처만 */
+/** 발주서 등 거래처 선택용 */
 export async function fetchSalesBusinessPartners(): Promise<FetchBusinessPartnersResult> {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return missingEnvResult()
-  }
-
-  try {
-    const supabase = createSupabaseClient()
-    const { data, error } = await supabase
-      .from('business_partners')
-      .select('*')
-      .eq('is_active', true)
-      .in('trade_role', ['sales', 'both'])
-      .order('name', { ascending: true })
-
-    if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
-    }
-
-    return {
-      ok: true,
-      partners: (data || []).map((row) => mapBusinessPartnerRecord(row)),
-    }
-  } catch (error) {
-    return {
-      ok: false,
-      reason: 'query',
-      detail: error instanceof Error ? error.message : String(error),
-    }
-  }
+  return fetchBusinessPartners()
 }
 
 /** 거래명세서 등 — 상호명으로 활성 거래처 1건 조회 */
@@ -146,36 +119,9 @@ export async function findActiveBusinessPartnerByName(
   }
 }
 
-/** 공급사·발주 등 매입 거래처 선택용 — trade_role 이 purchase 또는 both 인 거래처만 */
+/** 공급사·발주 등 거래처 선택용 */
 export async function fetchPurchaseBusinessPartners(): Promise<FetchBusinessPartnersResult> {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return missingEnvResult()
-  }
-
-  try {
-    const supabase = createSupabaseClient()
-    const { data, error } = await supabase
-      .from('business_partners')
-      .select('*')
-      .eq('is_active', true)
-      .in('trade_role', ['purchase', 'both'])
-      .order('name', { ascending: true })
-
-    if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
-    }
-
-    return {
-      ok: true,
-      partners: (data || []).map((row) => mapBusinessPartnerRecord(row)),
-    }
-  } catch (error) {
-    return {
-      ok: false,
-      reason: 'query',
-      detail: error instanceof Error ? error.message : String(error),
-    }
-  }
+  return fetchBusinessPartners()
 }
 
 export async function createBusinessPartner(

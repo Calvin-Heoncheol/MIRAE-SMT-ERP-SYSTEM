@@ -80,3 +80,15 @@ export type SolderCreamStatusRow = {
   manualStatus: boolean
   note: string
 }
+
+/** 이력 탭 — LOT별 입고·출고 1~3차 시각 */
+export type SolderCreamHistoryLotRow = {
+  lotNumber: string
+  manufacturedAt: string | null
+  expiresAt: string | null
+  storeAt: [string | null, string | null, string | null]
+  discardAt: [string | null, string | null, string | null]
+  /** 이 LOT에 묶인 로그 id (삭제용) */
+  logIds: string[]
+  lastEventAt: string | null
+}

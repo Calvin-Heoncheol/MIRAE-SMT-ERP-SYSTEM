@@ -17,6 +17,7 @@ import {
   SCAN_DEDUP_MESSAGE,
 } from '@/lib/materials/inbound/scan-guards'
 import { createMaterialInbound } from '@/lib/materials/inbound/repository'
+import { MaterialLabelSettingsButton } from '@/components/materials/material-label-settings-button'
 import { printInboundReelLabel } from '@/lib/materials/print-material-labels'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
 import type { Material, MaterialSupplyType, MaterialType } from '@/lib/materials/types'
@@ -269,16 +270,6 @@ export function InboundScanPanel({
       text: parsed.vendorLot ? `${displayCode} · 제조 ${parsed.vendorLot}` : displayCode || material.materialName,
     })
     markJustScanned(key)
-    if (printOnScan) {
-      printInboundReelLabel({
-        id: displayCode || material.id,
-        materialName: material.materialName,
-        customer: material.customer,
-        package: material.package,
-        specification: material.specification,
-        lotNumber,
-      })
-    }
   }
 
   function handleScan(rawCode: string) {
@@ -387,6 +378,20 @@ export function InboundScanPanel({
     qtyBurstRef.current.reset()
     setMessage(null)
     patchLine(key, { quantityPerReel: String(qty) })
+    if (printOnScan) {
+      const line = lines.find((item) => item.key === key)
+      if (line) {
+        const material = materials.find((row) => row.id === line.materialId)
+        void printInboundReelLabel({
+          id: line.materialCode || line.materialId,
+          materialName: line.materialName,
+          customer: material?.customer || '',
+          package: line.package,
+          specification: line.specification,
+          lotNumber: line.lotNumber,
+        })
+      }
+    }
     setLastScannedKey(null)
     event.currentTarget.blur()
     scanDeduperRef.current.reset()
@@ -567,8 +572,9 @@ export function InboundScanPanel({
                 onChange={(event) => setPrintOnScan(event.target.checked)}
                 className="h-3.5 w-3.5 rounded border-slate-300"
               />
-              스캔 시 라벨
+              수량 확정 시 라벨
             </label>
+            <MaterialLabelSettingsButton />
             </div>
           </div>
           <label className="block">

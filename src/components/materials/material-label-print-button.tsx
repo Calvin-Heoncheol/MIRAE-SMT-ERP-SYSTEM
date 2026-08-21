@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { MaterialLabelSettingsButton } from '@/components/materials/material-label-settings-button'
 import { printMaterialLabels, type MaterialLabelPrintItem } from '@/lib/materials/print-material-labels'
 
 type MaterialLabelPrintButtonProps = {
@@ -23,7 +24,7 @@ export function MaterialLabelPrintButton({
 
   function handlePrint() {
     const count = Math.max(1, Math.floor(Number(copies) || 1))
-    printMaterialLabels(
+    void printMaterialLabels(
       printableItems.map((item) => ({
         ...item,
         copies: item.copies ?? count,
@@ -37,6 +38,7 @@ export function MaterialLabelPrintButton({
 
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className}`}>
+      <MaterialLabelSettingsButton />
       {!usesPerItemCopies ? (
         <label className="flex items-center gap-1.5 text-sm text-slate-600">
           <span className="font-medium">매수</span>

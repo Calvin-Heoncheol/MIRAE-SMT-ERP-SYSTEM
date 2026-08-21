@@ -508,7 +508,6 @@ export function SalesReportWorkspace({
       <LegacyStatementModal
         open={legacyOpen}
         onClose={() => setLegacyOpen(false)}
-        defaultShipDate={initialStartDate}
         onSaved={(message) => {
           setSaveMessage(message ?? '과거 거래명세서를 등록했습니다.')
           startTransition(() => {
