@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
-import { formatInternalCodeLabel } from '@/lib/orders/utils'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionPlanStatus } from '@/lib/production-plan/schedule'
 import type { PostProcessPlanBlock, PostProcessPlanOrderCandidate } from '@/lib/post-process/plan/types'
 import type { PostProcessTeam } from '@/lib/post-process/teams'
@@ -88,7 +88,7 @@ function PostProcessPlanFormModalInner({
       size="form"
       title={title}
       description={[
-        formatInternalCodeLabel(order.orderNumber),
+        displayOrderPoNumber(order.customerPoNumber, order.orderNumber),
         order.customer || '—',
         order.productSummary,
       ].join(' · ')}
@@ -270,7 +270,8 @@ export function PostProcessPlanFormModal({
               </option>
               {unplanned.map((candidate) => (
                 <option key={candidate.assemblyGroupId} value={candidate.assemblyGroupId}>
-                  {formatInternalCodeLabel(candidate.orderNumber)} · {candidate.customer} ·{' '}
+                  {displayOrderPoNumber(candidate.customerPoNumber, candidate.orderNumber)} ·{' '}
+                  {candidate.customer} ·{' '}
                   {candidate.productSummary} (미배정 {candidate.unplannedRemaining})
                 </option>
               ))}

@@ -6,7 +6,7 @@ import { filterSmtPlanOrderCandidates } from '@/components/smt/smt-plan-order-si
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { suggestPlanQuantityFromMaterial } from '@/lib/materials/material-inbound-status'
-import { formatInternalCodeLabel } from '@/lib/orders/utils'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionPlanStatus } from '@/lib/production-plan/schedule'
 import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
 import type { SmtPlanBlock, SmtPlanOrderCandidate } from '@/lib/smt/plan/types'
@@ -143,7 +143,7 @@ function SmtPlanCandidatePicker({
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="발주ID, 고객사, 제품명 검색…"
+          placeholder="발주번호, 고객사, 제품명 검색…"
           className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
           autoFocus
         />
@@ -171,7 +171,8 @@ function SmtPlanCandidatePicker({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="min-w-0 truncate text-[11px] text-slate-500">
-                      {candidate.customer || '—'} · {formatInternalCodeLabel(candidate.orderNumber)}
+                      {candidate.customer || '—'} ·{' '}
+                      {displayOrderPoNumber(candidate.customerPoNumber, candidate.orderNumber)}
                     </p>
                     {dueLabel ? (
                       <span
@@ -344,7 +345,7 @@ function SmtPlanFormModalInner({
       size="md"
       title={title}
       description={[
-        formatInternalCodeLabel(order.orderNumber),
+        displayOrderPoNumber(order.customerPoNumber, order.orderNumber),
         order.customer || '—',
         `${order.productSummary}${splitPcbSides ? ' · 양면' : ''}`,
       ].join(' · ')}

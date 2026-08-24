@@ -4,10 +4,17 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { parseSolderCreamLogText } from '@/lib/materials/solder-cream/parse-log-file'
-import { importSolderCreamLogFile } from '@/lib/materials/solder-cream/repository'
-import type { SolderCreamLogImportRow } from '@/lib/materials/solder-cream/types'
+import {
+  fetchRecentSolderCreamLogImports,
+  importSolderCreamLogFile,
+} from '@/lib/materials/solder-cream/repository'
+import type {
+  SolderCreamLogImport,
+  SolderCreamLogImportRow,
+} from '@/lib/materials/solder-cream/types'
 import {
   formatSolderCreamDateTime,
+  isMissingSolderCreamLogTable,
   SOLDER_CREAM_EQUIPMENT_LABELS,
   SOLDER_CREAM_EVENT_LABELS,
 } from '@/lib/materials/solder-cream/utils'
@@ -43,6 +50,27 @@ function SolderCreamLogImportModalContent({
   const [error, setError] = useState('')
   const [hint, setHint] = useState('')
   const [importing, setImporting] = useState(false)
+  const [recentImports, setRecentImports] = useState<SolderCreamLogImport[]>([])
+  const [recentLoading, setRecentLoading] = useState(true)
+  const [recentError, setRecentError] = useState('')
+
+  async function loadRecentImports() {
+    setRecentLoading(true)
+    setRecentError('')
+    const result = await fetchRecentSolderCreamLogImports(10)
+    setRecentLoading(false)
+    if (!result.ok) {
+      if (isMissingSolderCreamLogTable(result.detail)) {
+        setRecentImports([])
+        setRecentError('')
+        return
+      }
+      setRecentImports([])
+      setRecentError(result.detail)
+      return
+    }
+    setRecentImports(result.imports)
+  }
 
   useEffect(() => {
     setSourceName('')
@@ -50,6 +78,7 @@ function SolderCreamLogImportModalContent({
     setPreviewRows([])
     setError('')
     setHint('')
+    void loadRecentImports()
   }, [])
 
   const previewSummary = useMemo(() => {
@@ -165,6 +194,51 @@ function SolderCreamLogImportModalContent({
               <p className="text-xs font-medium text-emerald-700">{previewSummary}</p>
             ) : null}
           </div>
+        </div>
+
+        <div className="overflow-hidden rounded-lg border border-slate-200">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
+            <p className="text-xs font-semibold text-slate-600">최근 불러온 로그</p>
+            <span className="text-[11px] text-slate-400">최대 10건</span>
+          </div>
+          {recentLoading ? (
+            <p className="px-3 py-4 text-xs text-slate-500">불러오는 중…</p>
+          ) : recentError ? (
+            <p className="px-3 py-4 text-xs text-rose-600">{recentError}</p>
+          ) : !recentImports.length ? (
+            <p className="px-3 py-4 text-xs text-slate-500">아직 가져온 로그가 없습니다.</p>
+          ) : (
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-white">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">
+                    파일명
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">
+                    가져온 시각
+                  </th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold text-slate-500">
+                    건수
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentImports.map((item) => (
+                  <tr key={item.id} className="border-t border-slate-100">
+                    <td className="px-3 py-2 font-mono text-xs font-medium text-slate-800">
+                      {item.sourceName}
+                    </td>
+                    <td className="px-3 py-2 text-xs tabular-nums text-slate-600">
+                      {formatSolderCreamDateTime(item.importedAt)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-xs tabular-nums text-slate-700">
+                      {item.rowCount.toLocaleString('ko-KR')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {previewRows.length ? (

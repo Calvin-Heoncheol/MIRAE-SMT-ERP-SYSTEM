@@ -1,7 +1,7 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import type { DeliveryAvailability } from '@/lib/delivery/utils'
 import type { OrderListGroup } from '@/lib/orders/types'
-import { formatInternalCodeLabel } from '@/lib/orders/utils'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import {
   daysUntilYmd,
   formatDeliveryCountdown,
@@ -92,7 +92,7 @@ export function buildDeliveryDueNotifications(input: {
     if (readyToShip) {
       return {
         key: `sales:ship:${order.orderId}`,
-        label: `${formatInternalCodeLabel(order.orderNumber)} · ${order.customer || '—'}`,
+        label: `${displayOrderPoNumber(order.customerPoNumber, order.orderNumber)} · ${order.customer || '—'}`,
         detail: `출하 가능 ${shippable.toLocaleString('ko-KR')}대 · 납기 ${order.deliveryDate} (${countdown})`,
         href: '/delivery/input',
         tone: daysUntil < 0 ? ('danger' as const) : ('warn' as const),
@@ -102,7 +102,7 @@ export function buildDeliveryDueNotifications(input: {
 
     return {
       key: `production:due:${order.orderId}`,
-      label: `${formatInternalCodeLabel(order.orderNumber)} · ${order.customer || '—'}`,
+      label: `${displayOrderPoNumber(order.customerPoNumber, order.orderNumber)} · ${order.customer || '—'}`,
       detail: `납기 ${order.deliveryDate} (${countdown}) · 생산 진행 필요`,
       href: '/production/status',
       tone: daysUntil < 0 ? ('danger' as const) : ('warn' as const),

@@ -2,7 +2,7 @@
 
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
-import { formatInternalCodeLabel } from '@/lib/orders/utils'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionHistoryRow } from '@/lib/production-history/types'
 import { formatProductionHistoryRecordAt } from '@/lib/production-history/utils'
 import { formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
@@ -30,7 +30,7 @@ export function ProductionHistoryModal({ open, row, onClose }: ProductionHistory
     <ErpModal
       open={open}
       title="생산이력 상세"
-      description={`${row.team} · ${formatInternalCodeLabel(row.orderNumber)} · ${row.customer || '—'}`}
+      description={`${row.team} · ${displayOrderPoNumber(row.customerPoNumber, row.orderNumber)} · ${row.customer || '—'}`}
       size="form"
       onClose={onClose}
       footer={
@@ -42,7 +42,10 @@ export function ProductionHistoryModal({ open, row, onClose }: ProductionHistory
       <dl>
         <DetailRow label="팀" value={row.team} />
         <DetailRow label="기록일" value={formatProductionHistoryRecordAt(row)} />
-        <DetailRow label="발주ID" value={formatInternalCodeLabel(row.orderNumber)} />
+        <DetailRow
+          label="발주번호"
+          value={displayOrderPoNumber(row.customerPoNumber, row.orderNumber) || '-'}
+        />
         <DetailRow label="고객사" value={row.customer || '-'} />
         <DetailRow label="제품명" value={row.productName || '-'} />
         <DetailRow label="품목코드" value={row.productCode || '-'} />

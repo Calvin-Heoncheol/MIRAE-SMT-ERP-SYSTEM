@@ -9,6 +9,7 @@ export type DeliveryShippableOption = {
   uiKey: string
   assemblyGroupId: string
   orderNumber: string
+  customerPoNumber: string
   customer: string
   productId?: string
   productCode: string
@@ -23,6 +24,7 @@ export type DeliveryRegisterItemForm = {
   uiKey: string
   assemblyGroupId: string
   orderNumber: string
+  customerPoNumber: string
   customer: string
   productCode: string
   productName: string
@@ -48,6 +50,7 @@ export function emptyDeliveryRegisterItemForm(): DeliveryRegisterItemForm {
     uiKey: '',
     assemblyGroupId: '',
     orderNumber: '',
+    customerPoNumber: '',
     customer: '',
     productCode: '',
     productName: '',
@@ -91,6 +94,7 @@ export function buildDeliveryShippableOptions(
       uiKey: order.uiKey,
       assemblyGroupId,
       orderNumber: order.orderNumber,
+      customerPoNumber: order.customerPoNumber || '',
       customer: order.customer,
       productId: order.productId,
       productCode: order.productCode,
@@ -119,6 +123,7 @@ export function applyShippableOptionToItem(
     uiKey: option.uiKey,
     assemblyGroupId: option.assemblyGroupId,
     orderNumber: option.orderNumber,
+    customerPoNumber: option.customerPoNumber || '',
     customer: option.customer,
     productCode: option.productCode,
     productName: option.productName,

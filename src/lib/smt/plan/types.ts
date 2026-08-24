@@ -25,6 +25,7 @@ export type SmtPlanOrderCandidate = {
   orderId: string
   orderLineId: string
   orderNumber: string
+  customerPoNumber: string
   customer: string
   productSummary: string
   deliveryDate: string
@@ -47,6 +48,7 @@ export type SmtPlanOrderCandidate = {
 
 export type SmtPlanBlock = SmtProductionPlan & {
   orderNumber: string
+  customerPoNumber: string
   customer: string
   productSummary: string
   deliveryDate: string

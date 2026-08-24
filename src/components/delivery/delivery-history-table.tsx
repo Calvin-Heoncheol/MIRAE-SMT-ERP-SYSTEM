@@ -1,5 +1,6 @@
 import { EmptyListState } from '@/components/ui/empty-list-state'
 
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import { ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
@@ -37,7 +38,7 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
                 출하번호
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                발주ID
+                발주번호
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 고객사
@@ -73,7 +74,7 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
                   {cell(row.shipmentId || row.id)}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm font-medium text-slate-900">
-                  {cell(row.orderNumber)}
+                  {cell(displayOrderPoNumber(row.customerPoNumber, row.orderNumber))}
                 </td>
                 <td className="px-3 py-2.5 text-sm text-slate-700">{cell(row.customer)}</td>
                 <td className="px-3 py-2.5 text-sm font-medium text-slate-900">{cell(row.productName)}</td>

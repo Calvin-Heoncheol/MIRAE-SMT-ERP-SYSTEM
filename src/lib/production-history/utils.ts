@@ -49,6 +49,7 @@ export function filterProductionHistory(
       row.recordDate,
       formatProductionHistoryRecordAt(row),
       row.orderNumber,
+      row.customerPoNumber,
       row.customer,
       row.productName,
       row.productCode,

@@ -107,7 +107,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="발주ID, 고객사, 품목 검색…"
+          searchPlaceholder="발주번호, 고객사, 품목 검색…"
           accent="slate"
         />
 
@@ -132,7 +132,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="불출번호, 발주ID, 자재명, 자재코드 검색…"
+          searchPlaceholder="불출번호, 발주번호, 자재명, 자재코드 검색…"
           accent="slate"
         />
 

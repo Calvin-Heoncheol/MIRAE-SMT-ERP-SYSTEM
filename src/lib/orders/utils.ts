@@ -202,6 +202,14 @@ export function formatInternalCodeLabel(code: string) {
   return `${value.slice(0, 8)}…${value.slice(-4)}`
 }
 
+/** 화면 표시용 발주번호 — 고객 PO 우선, 없으면 내부 발주ID */
+export function displayOrderPoNumber(
+  customerPoNumber: string | undefined | null,
+  orderId: string | undefined | null,
+) {
+  return String(customerPoNumber || '').trim() || String(orderId || '').trim()
+}
+
 export function filterOrdersForSearch(orders: OrderListGroup[], query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return orders

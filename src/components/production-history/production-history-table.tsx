@@ -2,6 +2,7 @@
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import { formatProductionHistoryRecordAt } from '@/lib/production-history/utils'
 import { formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
 import type { ProductionHistoryRow } from '@/lib/production-history/types'
@@ -55,7 +56,7 @@ export function ProductionHistoryTable({
         <table
           className={[
             'w-full border-collapse',
-            showSmtColumns ? 'min-w-[1040px]' : 'min-w-[900px]',
+            showSmtColumns ? 'min-w-[1140px]' : 'min-w-[1000px]',
           ].join(' ')}
         >
           <thead className="sticky top-0 z-[1] bg-slate-50">
@@ -79,7 +80,7 @@ export function ProductionHistoryTable({
                 팀
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                발주ID
+                발주번호
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">고객사</th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">제품명</th>
@@ -98,6 +99,9 @@ export function ProductionHistoryTable({
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                 불량
+              </th>
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
+                LOT
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 등록자
@@ -129,7 +133,7 @@ export function ProductionHistoryTable({
                         checked={selected}
                         disabled={selectionDisabled}
                         onChange={() => onToggleSelectOne?.(key)}
-                        aria-label={`${row.orderNumber} 생산이력 선택`}
+                        aria-label={`${displayOrderPoNumber(row.customerPoNumber, row.orderNumber)} 생산이력 선택`}
                         className="size-4 accent-slate-700"
                       />
                     </td>
@@ -141,7 +145,7 @@ export function ProductionHistoryTable({
                     {row.team}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-sm font-medium text-slate-900">
-                    {cell(row.orderNumber)}
+                    {cell(displayOrderPoNumber(row.customerPoNumber, row.orderNumber))}
                   </td>
                   <td className="px-3 py-2.5 text-sm text-slate-700">{cell(row.customer)}</td>
                   <td className="px-3 py-2.5 text-sm font-medium text-slate-900">
@@ -162,6 +166,9 @@ export function ProductionHistoryTable({
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-right text-sm tabular-nums text-slate-600">
                     {row.defectQuantity > 0 ? row.defectQuantity.toLocaleString('ko-KR') : '-'}
+                  </td>
+                  <td className="max-w-[10rem] px-3 py-2.5 text-xs tabular-nums text-slate-600">
+                    {cell(row.lotLabel)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
                     {cell(row.createdByName)}

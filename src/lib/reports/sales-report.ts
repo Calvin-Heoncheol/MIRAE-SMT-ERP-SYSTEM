@@ -1,5 +1,5 @@
 import { fetchOrders } from '@/lib/orders/repository'
-import { addDaysYmd } from '@/lib/orders/utils'
+import { addDaysYmd, displayOrderPoNumber } from '@/lib/orders/utils'
 import {
   ensureLegacyShipmentNumber,
   isLegacyShipmentNote,
@@ -170,7 +170,7 @@ type GroupInfo = {
 }
 
 function displayPoNumber(customerPoNumber: string | undefined, orderId: string) {
-  return String(customerPoNumber || '').trim() || String(orderId || '').trim()
+  return displayOrderPoNumber(customerPoNumber, orderId)
 }
 
 const IN_CHUNK_SIZE = 150

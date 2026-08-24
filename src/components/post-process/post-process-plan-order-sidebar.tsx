@@ -1,7 +1,7 @@
 'use client'
 
 import { MaterialInboundStatusBadge } from '@/components/materials/material-inbound-status-badge'
-import { formatInternalCodeLabel } from '@/lib/orders/utils'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import { POST_PROCESS_PLAN_DRAG_MIME } from '@/lib/post-process/plan/config'
 import type {
   CandidateSmtStatus,
@@ -77,6 +77,7 @@ export function filterPostProcessPlanOrderCandidates(
   return candidates.filter((candidate) => {
     const haystack = [
       candidate.orderNumber,
+      candidate.customerPoNumber,
       candidate.customer,
       candidate.productSummary,
       candidate.deliveryDate,
@@ -115,7 +116,7 @@ export function PostProcessPlanOrderSidebar({
           type="search"
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="발주ID, 고객사, 제품명 검색…"
+          placeholder="발주번호, 고객사, 제품명 검색…"
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
         />
       </div>
@@ -158,7 +159,8 @@ export function PostProcessPlanOrderSidebar({
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="min-w-0 truncate text-[11px] text-slate-500">
-                    {candidate.customer || '—'} · {formatInternalCodeLabel(candidate.orderNumber)}
+                    {candidate.customer || '—'} ·{' '}
+                    {displayOrderPoNumber(candidate.customerPoNumber, candidate.orderNumber)}
                   </p>
                   {dueLabel ? (
                     <span

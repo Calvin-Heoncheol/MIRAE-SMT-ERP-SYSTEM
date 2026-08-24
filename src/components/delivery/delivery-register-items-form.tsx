@@ -33,6 +33,7 @@ function clearItemProduct(item: DeliveryRegisterItemForm): DeliveryRegisterItemF
     uiKey: '',
     assemblyGroupId: '',
     orderNumber: '',
+    customerPoNumber: '',
     customer: '',
     productCode: item.productCode,
     productName: '',

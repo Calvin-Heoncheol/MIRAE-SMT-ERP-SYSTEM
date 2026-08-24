@@ -72,6 +72,8 @@ function ItemBulkModalContent({
   onSaved?: (message?: string) => void
 }) {
   const pasteRef = useRef<HTMLTextAreaElement>(null)
+  const tableScrollRef = useRef<HTMLDivElement>(null)
+  const errorRowRef = useRef<HTMLTableRowElement>(null)
   const toast = useToast()
   const [category, setCategory] = useState<ItemCategory>(initialCategory ?? 1)
   const [rows, setRows] = useState<ItemFormState[]>(() => [
@@ -79,6 +81,8 @@ function ItemBulkModalContent({
   ])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  /** 검증 실패 시 테이블에서 강조할 행 (0-based, rows 기준) */
+  const [errorRowIndex, setErrorRowIndex] = useState<number | null>(null)
   const [duplicateCodes, setDuplicateCodes] = useState<string[]>([])
   const [canSkipExisting, setCanSkipExisting] = useState(false)
   const pendingPayloadsRef = useRef<ItemPayload[] | null>(null)
@@ -87,6 +91,8 @@ function ItemBulkModalContent({
   const columns = itemBulkColumns(category)
   const inputClassName =
     'w-full min-w-0 rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
+  const errorInputClassName =
+    'w-full min-w-0 rounded-lg border border-red-400 bg-red-50/80 px-2.5 py-2 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100'
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -124,10 +130,27 @@ function ItemBulkModalContent({
     pendingPayloadsRef.current = null
   }
 
+  function clearValidationHighlight() {
+    setErrorRowIndex(null)
+  }
+
+  function focusErrorRow(index: number) {
+    setErrorRowIndex(index)
+    window.requestAnimationFrame(() => {
+      errorRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
+
+  useEffect(() => {
+    if (errorRowIndex == null) return
+    errorRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [errorRowIndex])
+
   function changeCategory(next: ItemCategory) {
     setCategory(next)
     setRows([defaultItemBulkRow(next)])
     setSaveError(null)
+    clearValidationHighlight()
     clearDuplicateState()
     if (pasteRef.current) pasteRef.current.value = ''
   }
@@ -136,6 +159,10 @@ function ItemBulkModalContent({
     setRows((current) =>
       current.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
     )
+    if (errorRowIndex === index) {
+      setSaveError(null)
+      clearValidationHighlight()
+    }
     clearDuplicateState()
   }
 
@@ -148,6 +175,8 @@ function ItemBulkModalContent({
       if (current.length <= 1) return [defaultItemBulkRow(category)]
       return current.filter((_, rowIndex) => rowIndex !== index)
     })
+    setSaveError(null)
+    clearValidationHighlight()
     clearDuplicateState()
   }
 
@@ -156,6 +185,7 @@ function ItemBulkModalContent({
     if (!parsed.length) return
     setRows(parsed)
     setSaveError(null)
+    clearValidationHighlight()
     clearDuplicateState()
   }
 
@@ -194,34 +224,42 @@ function ItemBulkModalContent({
     event.preventDefault()
     setRows(next)
     setSaveError(null)
+    clearValidationHighlight()
     clearDuplicateState()
   }
 
   function buildPayloads(): ItemPayload[] | null {
-    const filled = rows.filter((row) => !isEmptyItemBulkRow(row))
-    if (!filled.length) {
+    const filledIndexes = rows
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => !isEmptyItemBulkRow(row))
+
+    if (!filledIndexes.length) {
       setSaveError('등록할 품목을 입력하거나 붙여넣어 주세요.')
+      clearValidationHighlight()
       clearDuplicateState()
       return null
     }
 
     const payloads: ItemPayload[] = []
-    for (let index = 0; index < filled.length; index += 1) {
-      const form = resolveRowCustomer({ ...filled[index], itemCategory: category })
+    for (const { row, index } of filledIndexes) {
+      const form = resolveRowCustomer({ ...row, itemCategory: category })
       const validationError = validateItemForm(form, { isCreate: true })
       if (validationError) {
         setSaveError(`${index + 1}행: ${validationError}`)
+        focusErrorRow(index)
         clearDuplicateState()
         return null
       }
       payloads.push(formToItemPayload(form))
     }
+    clearValidationHighlight()
     return payloads
   }
 
   async function runCreate(payloads: ItemPayload[], skipExisting: boolean) {
     setSaving(true)
     setSaveError(null)
+    clearValidationHighlight()
 
     const result = await createItems(payloads, { skipExisting })
     setSaving(false)
@@ -233,6 +271,14 @@ function ItemBulkModalContent({
           : ''
       const detail = `${prefix}${result.detail}`
       setSaveError(detail)
+
+      const rowMatch = detail.match(/(\d+)\s*행/)
+      if (rowMatch) {
+        const rowNumber = Number(rowMatch[1])
+        if (Number.isFinite(rowNumber) && rowNumber >= 1 && rowNumber <= rows.length) {
+          focusErrorRow(rowNumber - 1)
+        }
+      }
 
       if (result.duplicateCodes?.length) {
         setDuplicateCodes(result.duplicateCodes)
@@ -355,10 +401,30 @@ function ItemBulkModalContent({
             <ErpRowAddButton onClick={addRow} disabled={saving} title="품목 행 추가" />
           </div>
 
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
+          {saveError && !duplicateCodes.length ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (errorRowIndex != null) focusErrorRow(errorRowIndex)
+              }}
+              className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-100"
+            >
+              {saveError}
+              {errorRowIndex != null ? (
+                <span className="mt-0.5 block text-xs font-medium text-red-600">
+                  빨간 행을 확인해 주세요. (클릭하면 해당 행으로 이동)
+                </span>
+              ) : null}
+            </button>
+          ) : null}
+
+          <div ref={tableScrollRef} className="overflow-x-auto rounded-lg border border-slate-200">
             <table className="min-w-full border-collapse text-sm">
-              <thead className="bg-slate-50">
+              <thead className="sticky top-0 z-[1] bg-slate-50">
                 <tr>
+                  <th className="whitespace-nowrap px-2 py-2 text-center text-sm font-semibold text-slate-500">
+                    #
+                  </th>
                   {columns.map((column) => (
                     <th
                       key={column.key}
@@ -372,8 +438,28 @@ function ItemBulkModalContent({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, index) => (
-                  <tr key={index} className="border-t border-slate-100">
+                {rows.map((row, index) => {
+                  const isErrorRow = errorRowIndex === index
+                  const rowInputClass = isErrorRow ? errorInputClassName : inputClassName
+                  return (
+                  <tr
+                    key={index}
+                    ref={isErrorRow ? errorRowRef : undefined}
+                    className={[
+                      'border-t',
+                      isErrorRow
+                        ? 'border-red-200 bg-red-50 ring-2 ring-inset ring-red-300'
+                        : 'border-slate-100',
+                    ].join(' ')}
+                  >
+                    <td
+                      className={[
+                        'whitespace-nowrap px-2 py-2 text-center align-top text-xs tabular-nums',
+                        isErrorRow ? 'font-bold text-red-700' : 'text-slate-400',
+                      ].join(' ')}
+                    >
+                      {index + 1}
+                    </td>
                     {columns.map((column) => (
                       <td key={column.key} className="px-3 py-2 align-top">
                         {column.key === 'customerName' ? (
@@ -382,7 +468,7 @@ function ItemBulkModalContent({
                             partners={salesPartners}
                             placeholder="거래처명 검색"
                             ariaLabel={`${index + 1}행 고객사`}
-                            inputClassName={inputClassName}
+                            inputClassName={rowInputClass}
                             onValueChange={(value) =>
                               patchRow(index, { customerName: value, customerId: '' })
                             }
@@ -401,7 +487,7 @@ function ItemBulkModalContent({
                                 materialType: event.target.value as ItemMaterialType,
                               })
                             }
-                            className={inputClassName}
+                            className={rowInputClass}
                           >
                             <option value="">선택</option>
                             {ITEM_MATERIAL_TYPE_OPTIONS.map((value) => (
@@ -418,7 +504,7 @@ function ItemBulkModalContent({
                                 supplyType: event.target.value as ItemSupplyType,
                               })
                             }
-                            className={inputClassName}
+                            className={rowInputClass}
                           >
                             <option value="">선택</option>
                             {ITEM_SUPPLY_TYPE_OPTIONS.map((value) => (
@@ -435,7 +521,7 @@ function ItemBulkModalContent({
                                 processType: event.target.value as ItemProcessType,
                               })
                             }
-                            className={inputClassName}
+                            className={rowInputClass}
                           >
                             <option value="">선택</option>
                             {ITEM_PROCESS_TYPES.map((value) => (
@@ -452,7 +538,7 @@ function ItemBulkModalContent({
                                 pcbSideMode: event.target.value as ItemPcbSideMode,
                               })
                             }
-                            className={inputClassName}
+                            className={rowInputClass}
                           >
                             <option value="">선택</option>
                             {ITEM_PCB_SIDE_MODES.map((value) => (
@@ -468,7 +554,7 @@ function ItemBulkModalContent({
                               patchRow(index, { [column.key]: event.target.value } as Partial<ItemFormState>)
                             }
                             onPaste={(event) => handleColumnPaste(index, column.key, event)}
-                            className={`${inputClassName}${
+                            className={`${rowInputClass}${
                               column.key === 'id' || column.key === 'mpn' ? ' font-mono' : ''
                             }`}
                           />
@@ -487,7 +573,8 @@ function ItemBulkModalContent({
                       </button>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -525,12 +612,6 @@ function ItemBulkModalContent({
                 </p>
               )}
             </div>
-          ) : null}
-
-          {saveError && !duplicateCodes.length ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {saveError}
-            </p>
           ) : null}
         </div>
 

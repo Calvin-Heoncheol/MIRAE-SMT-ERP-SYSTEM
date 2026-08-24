@@ -222,7 +222,7 @@ function OrderModalContent({
 
   async function handleDelete() {
     if (!order) return
-    if (!window.confirm(`${order.orderNumber} 발주서를 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) {
+    if (!window.confirm(`${order.customerPoNumber || order.orderNumber} 발주서를 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) {
       return
     }
 

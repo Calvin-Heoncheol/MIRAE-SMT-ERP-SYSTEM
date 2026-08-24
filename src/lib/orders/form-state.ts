@@ -1,4 +1,13 @@
+let orderItemRowKeyCounter = 0
+
+export function createOrderItemRowKey() {
+  orderItemRowKeyCounter += 1
+  return `order-item-${Date.now()}-${orderItemRowKeyCounter}`
+}
+
 export type OrderItemForm = {
+  /** React key·행 연결용 (저장하지 않음) */
+  rowKey: string
   productId: string
   productCode: string
   productName: string
@@ -26,6 +35,7 @@ export type OrderFormState = {
 
 export function defaultOrderItemForm(deliveryDate = ''): OrderItemForm {
   return {
+    rowKey: createOrderItemRowKey(),
     productId: '',
     productCode: '',
     productName: '',
@@ -39,6 +49,7 @@ export function defaultOrderItemForm(deliveryDate = ''): OrderItemForm {
 
 export function defaultAdhocOrderItemForm(deliveryDate = ''): OrderItemForm {
   return {
+    rowKey: createOrderItemRowKey(),
     productId: '',
     productCode: '',
     productName: '',
@@ -63,13 +74,13 @@ export function orderItemsFromDetail(
 ) {
   if (!items.length) return [defaultOrderItemForm(fallbackDeliveryDate)]
   return items.map((item) => ({
+    rowKey: createOrderItemRowKey(),
     productId: item.productId || '',
     productCode: item.productCode || '',
     productName: item.productName || '',
     quantity: String(item.quantity || 0),
     unitPrice: String(item.unitPrice || 0),
     deliveryDate: String(item.deliveryDate || fallbackDeliveryDate || '').trim(),
-    // product_id 없으면 마스터 미연결 일회성 행으로 간주
     isAdhoc: !String(item.productId || '').trim(),
     quoteId: '',
   }))

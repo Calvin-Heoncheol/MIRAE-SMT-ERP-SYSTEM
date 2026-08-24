@@ -31,7 +31,10 @@ export type ProductionStatusProductLine = {
 
 export type ProductionStatusLine = {
   orderId: string
+  /** 내부 발주ID (MRO-…) */
   orderNumber: string
+  /** 고객 발주번호(PO) — 화면 표시용 */
+  customerPoNumber: string
   customer: string
   productName: string
   /** 펼친 행에 쓰는 제품 수 */

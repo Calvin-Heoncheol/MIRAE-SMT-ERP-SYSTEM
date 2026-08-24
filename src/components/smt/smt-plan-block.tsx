@@ -1,6 +1,7 @@
 'use client'
 
-import { formatInternalCodeLabel, todayYmdSeoul } from '@/lib/orders/utils'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 import { formatPlanDateRangeLabel } from '@/lib/production-plan/schedule'
 import type { SmtPlanBlock } from '@/lib/smt/plan/types'
 import {
@@ -83,7 +84,7 @@ export function SmtPlanBlockCard({
     >
       <div className="flex items-start justify-between gap-1">
         <p className="min-w-0 truncate text-[10px] text-slate-500">
-          {plan.customer || '—'} · {formatInternalCodeLabel(plan.orderNumber)}
+          {plan.customer || '—'} · {displayOrderPoNumber(plan.customerPoNumber, plan.orderNumber)}
         </p>
         <div className="flex shrink-0 items-center gap-1">
           {plan.planStatus === 'draft' ? (

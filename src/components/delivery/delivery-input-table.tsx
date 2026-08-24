@@ -3,6 +3,7 @@
 import { DeliveryDueBadge } from '@/components/ui/delivery-due-badge'
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionProductName } from '@/lib/production-input/utils'
 import type { DeliveryAvailability } from '@/lib/delivery/utils'
@@ -82,7 +83,7 @@ export function DeliveryInputTable({
                   ].join(' ')}
                 >
                   <td className={`${ERP_TABLE_TD_CLASS} font-mono text-xs font-semibold text-slate-800`}>
-                    {order.orderNumber}
+                    {displayOrderPoNumber(order.customerPoNumber, order.orderNumber)}
                   </td>
                   <td className={`${ERP_TABLE_TD_CLASS} text-slate-700`}>{order.customer || '—'}</td>
                   <td className={`${ERP_TABLE_TD_CLASS} font-medium text-slate-900`}>

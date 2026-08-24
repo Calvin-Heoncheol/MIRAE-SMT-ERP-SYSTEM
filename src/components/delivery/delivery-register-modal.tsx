@@ -17,7 +17,8 @@ import {
   printDeliveryStatement,
 } from '@/lib/delivery/print-delivery-statement'
 import { createDeliveryShipment } from '@/lib/delivery/repository'
-import { todayYmdSeoul } from '@/lib/orders/utils'
+import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
+import { CATCH_UP_LOT_WARNING } from '@/lib/production-lots/types'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type DeliveryRegisterModalProps = {
@@ -63,6 +64,7 @@ function DeliveryRegisterModalContent({
   const [saving, setSaving] = useState(false)
   const [printing, setPrinting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveWarning, setSaveWarning] = useState<string | null>(null)
   const [lastShipmentId, setLastShipmentId] = useState<string | null>(null)
   const [lastShipMeta, setLastShipMeta] = useState<{
     date: string
@@ -88,7 +90,7 @@ function DeliveryRegisterModalContent({
       customer: lastShipMeta.customer,
       note: lastShipMeta.note,
       shippedLines: lastShipMeta.lines.map((line) => ({
-        orderNumber: line.orderNumber,
+        orderNumber: displayOrderPoNumber(line.customerPoNumber, line.orderNumber),
         productCode: line.productCode,
         productName: line.productName,
         qty: Math.floor(Number(line.quantity) || 0),
@@ -125,6 +127,7 @@ function DeliveryRegisterModalContent({
 
     setSaving(true)
     setSaveError(null)
+    setSaveWarning(null)
 
     const shipNote = note.trim()
     const result = await busyUi.run(() =>
@@ -145,6 +148,10 @@ function DeliveryRegisterModalContent({
     if (!result.ok) {
       if (!notifyAuthOrFailure(result)) setSaveError(result.detail)
       return
+    }
+
+    if (result.usedCatchUp) {
+      setSaveWarning(CATCH_UP_LOT_WARNING)
     }
 
     setLastShipmentId(result.shipmentId)
@@ -176,6 +183,7 @@ function DeliveryRegisterModalContent({
       footer={
         <div className="flex w-full flex-col gap-3">
           {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+          {saveWarning ? <p className="text-sm text-amber-800">{saveWarning}</p> : null}
           {shipped ? (
             <p className="text-sm text-emerald-700">
               출하 완료 · 명세서 번호 <span className="font-mono font-semibold">{lastShipmentId}</span>

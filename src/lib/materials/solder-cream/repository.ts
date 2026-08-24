@@ -5,6 +5,7 @@ import { parseSolderCreamLogText } from './parse-log-file'
 import type {
   SolderCreamEditableLotStatus,
   SolderCreamEquipmentLog,
+  SolderCreamLogImport,
   SolderCreamLogImportRow,
   SolderCreamLotStatusOverride,
 } from './types'
@@ -192,6 +193,45 @@ export async function fetchSolderCreamLogPageData(): Promise<FetchSolderCreamLog
     ok: true,
     logs: logsResult.logs,
     statusOverrides: overridesResult.ok ? overridesResult.overrides : [],
+  }
+}
+
+export type FetchRecentSolderCreamLogImportsResult =
+  | { ok: true; imports: SolderCreamLogImport[] }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export async function fetchRecentSolderCreamLogImports(
+  limit = 10,
+): Promise<FetchRecentSolderCreamLogImportsResult> {
+  const supabase = createSupabaseClient()
+  if (!supabase) {
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
+  }
+
+  const take = Math.min(50, Math.max(1, Math.floor(Number(limit) || 10)))
+  const { data, error } = await supabase
+    .from('solder_cream_log_imports')
+    .select('id, source_name, row_count, imported_at, note')
+    .order('imported_at', { ascending: false })
+    .limit(take)
+
+  if (error) {
+    return { ok: false, reason: 'query', detail: error.message }
+  }
+
+  return {
+    ok: true,
+    imports: (data || []).map((row) => ({
+      id: String(row.id || ''),
+      sourceName: String(row.source_name || '').trim() || '(이름 없음)',
+      rowCount: Math.max(0, Math.floor(Number(row.row_count) || 0)),
+      importedAt: String(row.imported_at || ''),
+      note: String(row.note || ''),
+    })),
   }
 }
 

@@ -13,6 +13,8 @@ import {
   updateDeliveryRecord,
 } from '@/lib/delivery/repository'
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
+import { CATCH_UP_LOT_WARNING } from '@/lib/production-lots/types'
 import { ERP_DANGER_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 type DeliveryHistoryModalProps = {
@@ -153,6 +155,10 @@ export function DeliveryHistoryModal({
       return
     }
 
+    if (result.usedCatchUp) {
+      window.alert(CATCH_UP_LOT_WARNING)
+    }
+
     onSaved?.()
   }
 
@@ -255,7 +261,9 @@ export function DeliveryHistoryModal({
               <span className="mb-1 block font-medium text-slate-600">주문 / 고객 / 조립제품</span>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
                 <p>
-                  <span className="font-semibold text-slate-900">{row.orderNumber}</span>
+                  <span className="font-semibold text-slate-900">
+                    {displayOrderPoNumber(row.customerPoNumber, row.orderNumber)}
+                  </span>
                   <span className="text-slate-400"> · </span>
                   {row.customer || '-'}
                 </p>
@@ -264,8 +272,13 @@ export function DeliveryHistoryModal({
                   {row.productCode || '-'} · 목표 {row.targetQuantity.toLocaleString('ko-KR')}대
                 </p>
                 {row.lotLabel ? (
-                  <p className="mt-1 text-xs tabular-nums text-slate-600">{row.lotLabel}</p>
-                ) : null}
+                  <p className="mt-1 text-xs tabular-nums text-slate-600">
+                    LOT {row.lotLabel}
+                    <span className="text-slate-400"> · 수량 저장 시 FIFO로 다시 배정</span>
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-400">수량 저장 시 LOT가 FIFO로 배정됩니다.</p>
+                )}
               </div>
             </div>
             <label className="block text-sm">

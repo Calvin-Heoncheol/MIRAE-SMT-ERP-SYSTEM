@@ -18,7 +18,10 @@ export type ProductionHistoryRow = {
   team: ProductionHistoryTeam
   recordDate: string
   createdAt: string
+  /** 내부 발주ID (MRO-…) */
   orderNumber: string
+  /** 고객 발주번호(PO) — 화면 표시용 */
+  customerPoNumber: string
   customer: string
   productName: string
   productCode: string

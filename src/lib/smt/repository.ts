@@ -546,10 +546,12 @@ type SmtProductionHistoryRecordRow = {
           | {
               id: string
               customer: string
+              customer_po_number?: string | null
             }
           | {
               id: string
               customer: string
+              customer_po_number?: string | null
             }[]
           | null
       }
@@ -561,10 +563,12 @@ type SmtProductionHistoryRecordRow = {
           | {
               id: string
               customer: string
+              customer_po_number?: string | null
             }
           | {
               id: string
               customer: string
+              customer_po_number?: string | null
             }[]
           | null
       }[]
@@ -597,6 +601,7 @@ function mapSmtProductionHistoryRow(row: SmtProductionHistoryRecordRow): SmtProd
     createdAt: record.createdAt,
     orderLineId: record.orderLineId,
     orderNumber: order.id || '',
+    customerPoNumber: String(order.customer_po_number || '').trim(),
     customer: order.customer || '',
     productName: orderLine.product_name || '',
     productCode: orderLine.product_code || '',
@@ -648,7 +653,8 @@ async function fetchSmtProductionRecords(options?: {
           quantity,
           orders (
             id,
-            customer
+            customer,
+            customer_po_number
           )
         )
       `

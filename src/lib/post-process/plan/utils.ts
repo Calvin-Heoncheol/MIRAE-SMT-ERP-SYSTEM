@@ -75,6 +75,7 @@ export function buildPostProcessPlanOrderCandidates(
         orderId: line.orderId,
         assemblyGroupId,
         orderNumber: line.orderNumber,
+        customerPoNumber: line.customerPoNumber || '',
         customer: line.customer,
         productSummary: formatProductionProductName(line),
         deliveryDate,
@@ -115,6 +116,7 @@ export function buildPostProcessPlanBlocks(
       return {
         ...plan,
         orderNumber: line?.orderNumber || order?.orderNumber || '',
+        customerPoNumber: line?.customerPoNumber || order?.customerPoNumber || '',
         customer: line?.customer || order?.customer || '',
         productSummary: line
           ? formatProductionProductName(line)

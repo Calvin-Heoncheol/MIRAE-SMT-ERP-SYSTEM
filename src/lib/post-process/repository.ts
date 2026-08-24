@@ -515,8 +515,8 @@ type PostProcessProductionHistoryRecordRow = {
           | { id: string; name: string }[]
           | null
         orders:
-          | { id: string; customer: string }
-          | { id: string; customer: string }[]
+          | { id: string; customer: string; customer_po_number?: string | null }
+          | { id: string; customer: string; customer_po_number?: string | null }[]
           | null
       }
     | {
@@ -528,8 +528,8 @@ type PostProcessProductionHistoryRecordRow = {
           | { id: string; name: string }[]
           | null
         orders:
-          | { id: string; customer: string }
-          | { id: string; customer: string }[]
+          | { id: string; customer: string; customer_po_number?: string | null }
+          | { id: string; customer: string; customer_po_number?: string | null }[]
           | null
       }[]
     | null
@@ -559,6 +559,7 @@ function mapPostProcessProductionHistoryRow(
     createdAt: record.createdAt,
     assemblyGroupId: record.assemblyGroupId,
     orderNumber: order.id || assemblyGroup.order_id || '',
+    customerPoNumber: String(order.customer_po_number || '').trim(),
     customer: order.customer || '',
     productName: product?.name || assemblyGroup.parent_product_id || '',
     productCode: product?.id || assemblyGroup.parent_product_id || '',
@@ -610,7 +611,8 @@ async function fetchPostProcessProductionRecords(options?: {
           ),
           orders (
             id,
-            customer
+            customer,
+            customer_po_number
           )
         )
       `

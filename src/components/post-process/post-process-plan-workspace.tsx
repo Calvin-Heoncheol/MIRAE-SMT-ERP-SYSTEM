@@ -66,6 +66,7 @@ export function PostProcessPlanWorkspace({
         orderId: plan.orderId,
         assemblyGroupId: plan.assemblyGroupId,
         orderNumber: plan.orderNumber,
+        customerPoNumber: plan.customerPoNumber || '',
         customer: plan.customer,
         productSummary: plan.productSummary,
         deliveryDate: plan.deliveryDate,

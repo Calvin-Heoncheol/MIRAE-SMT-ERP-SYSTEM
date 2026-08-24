@@ -256,6 +256,7 @@ export function buildProductionStatusLines(
     return {
       orderId: order.orderId,
       orderNumber: order.orderNumber,
+      customerPoNumber: order.customerPoNumber || '',
       customer: order.customer,
       productName,
       productCount: products.length,
@@ -285,7 +286,7 @@ export function matchesProductionStatusSearch(line: ProductionStatusLine, query:
   const productNames = line.products.map((product) => product.productName).join(' ')
   const productCodes = line.products.map((product) => product.productCode).join(' ')
   const versions = line.products.map((product) => product.version).join(' ')
-  return [line.orderNumber, line.customer, line.productName, productNames, productCodes, versions]
+  return [line.orderNumber, line.customerPoNumber, line.customer, line.productName, productNames, productCodes, versions]
     .join(' ')
     .toLowerCase()
     .includes(q)

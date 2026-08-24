@@ -195,6 +195,7 @@ export function buildSmtPlanOrderCandidates(
         orderId: line.orderId,
         orderLineId: line.orderLineId,
         orderNumber: line.orderNumber,
+        customerPoNumber: line.customerPoNumber || '',
         customer: line.customer,
         productSummary: formatProductionProductName(line),
         deliveryDate,
@@ -238,6 +239,7 @@ export function buildSmtPlanBlocks(
       return {
         ...plan,
         orderNumber: order.orderNumber,
+        customerPoNumber: order.customerPoNumber || '',
         customer: order.customer,
         productSummary: line
           ? formatProductionProductName(line)

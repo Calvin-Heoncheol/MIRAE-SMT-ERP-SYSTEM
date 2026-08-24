@@ -239,7 +239,7 @@ export function MaterialPurchaseOrdersWorkspace({
           searchPlaceholder={
             panel === 'suggestion'
               ? '자재코드, 자재명, MPN, 공급사 검색…'
-              : '발주ID, 고객사, 제품명 검색…'
+              : '발주번호, 고객사, 제품명 검색…'
           }
           accent="slate"
           filters={

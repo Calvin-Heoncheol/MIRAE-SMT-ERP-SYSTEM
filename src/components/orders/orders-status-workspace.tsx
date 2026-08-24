@@ -104,7 +104,7 @@ export function OrdersStatusWorkspace({ result }: OrdersStatusWorkspaceProps) {
       <WorkspaceHeader
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="발주ID, 고객사, 품목코드, 제품명 검색…"
+        searchPlaceholder="발주번호, 고객사, 품목코드, 제품명 검색…"
         accent="slate"
         inlineFilters={
           <DateRangeFilter

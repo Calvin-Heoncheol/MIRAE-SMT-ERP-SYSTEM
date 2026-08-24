@@ -83,9 +83,8 @@ export function assemblyGroupIsDeliveryEligible(
 
 /**
  * 출하·재고용 생산완료 상한.
- * - SMD만 → SMT 수량
- * - DIP만 → 후공정 수량
- * - SMD+DIP → min(SMT, 후공정)
+ * - 조립제품: SMD만 → SMT / DIP만 → 후공정 / SMD+DIP → min(SMT, 후공정)
+ * - 반제품: 후공정이 있어도 SMT 실적 기준으로 출하 가능 (후공정 ≠ 완제품)
  */
 export function resolveAssemblyProductionCap(input: {
   group: OrderAssemblyGroup
@@ -95,6 +94,11 @@ export function resolveAssemblyProductionCap(input: {
   quotes?: QuoteListItem[]
   order?: OrderListGroup
 }) {
+  const parent =
+    input.productById[input.group.parentProductId] ||
+    input.productById[String(input.group.parentProductCode || '').trim()]
+  const isSemiFinished = parent?.productKind !== 'assembly'
+
   const needsSmt = assemblyGroupIncludesSmt(
     input.group,
     input.productById,
@@ -109,6 +113,15 @@ export function resolveAssemblyProductionCap(input: {
   )
   const smtSets = Math.max(0, Math.floor(input.smtSets))
   const postProduced = Math.max(0, Math.floor(input.postProduced))
+
+  // 반제품: SMT가 있으면 SMT 기준 출하 (후공정 유무와 무관)
+  if (isSemiFinished) {
+    if (needsSmt) return smtSets
+    if (needsPost) return postProduced
+    if (smtSets > 0) return smtSets
+    if (postProduced > 0) return postProduced
+    return 0
+  }
 
   if (needsSmt && needsPost) return Math.min(smtSets, postProduced)
   if (needsSmt) return smtSets
@@ -244,6 +257,7 @@ export function buildProductionOrderLines(
         orderLineId,
         orderId: order.orderId,
         orderNumber: order.orderNumber,
+        customerPoNumber: order.customerPoNumber || '',
         orderDate: order.orderDate,
         deliveryDate: item.deliveryDate || order.deliveryDate,
         customer: order.customer,
@@ -366,6 +380,7 @@ function buildAssemblyGroupProductionLines(
       orderId: order.orderId,
       assemblyGroupId: group.id,
       orderNumber: order.orderNumber,
+      customerPoNumber: order.customerPoNumber || '',
       orderDate: order.orderDate,
       deliveryDate: order.deliveryDate,
       customer: order.customer,
@@ -506,6 +521,7 @@ export function filterProductionOrders(orders: ProductionOrderLine[], query: str
     const version = resolveProductionProductVersion(order)
     const haystack = [
       order.orderNumber,
+      order.customerPoNumber,
       order.customer,
       order.productName,
       order.productCode,

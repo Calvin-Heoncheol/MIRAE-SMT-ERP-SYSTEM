@@ -12,7 +12,10 @@ export type ProductionOrderLine = {
   orderId: string
   /** 후공정·출하 — order_assembly_groups.id */
   assemblyGroupId?: string
+  /** 내부 발주ID (MRO-…) — 조인·키용 */
   orderNumber: string
+  /** 고객 발주번호(PO) — 화면 표시용 */
+  customerPoNumber: string
   orderDate: string
   deliveryDate: string
   customer: string

@@ -122,7 +122,7 @@ export function MaterialPurchaseOrdersListWorkspace({
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="구매발주번호, 발주ID, 공급사, 자재명, MPN 검색…"
+          searchPlaceholder="구매발주번호, 발주번호, 공급사, 자재명, MPN 검색…"
           accent="slate"
           actions={<ErpButton onClick={openCreate}>새 구매발주</ErpButton>}
           filters={

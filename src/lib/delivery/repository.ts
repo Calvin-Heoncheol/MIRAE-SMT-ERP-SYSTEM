@@ -29,6 +29,7 @@ import { fetchSmtCumulativeCounts } from '@/lib/smt/repository'
 import {
   fetchLotLabelsByDeliveryIds,
   persistDeliveryRecordLots,
+  replaceDeliveryRecordLots,
 } from '@/lib/production-lots/repository'
 import type { LotAllocation } from '@/lib/production-lots/types'
 import { createSupabaseClient } from '@/lib/supabase'
@@ -59,15 +60,15 @@ export type FetchDeliveryCumulativeCountsResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type CreateDeliveryRecordResult =
-  | { ok: true; record: DeliveryRecord; cumulative: number }
+  | { ok: true; record: DeliveryRecord; cumulative: number; usedCatchUp?: boolean }
   | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type CreateDeliveryShipmentResult =
-  | { ok: true; shipmentId: string; records: DeliveryRecord[] }
+  | { ok: true; shipmentId: string; records: DeliveryRecord[]; usedCatchUp?: boolean }
   | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type UpdateDeliveryRecordResult =
-  | { ok: true; record: DeliveryRecord; cumulative: number }
+  | { ok: true; record: DeliveryRecord; cumulative: number; usedCatchUp?: boolean }
   | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 export type DeleteDeliveryRecordResult =
@@ -485,6 +486,7 @@ export async function createDeliveryRecord(
         ok: true,
         record,
         cumulative: Math.max(0, Math.floor(Number(payload.cumulative) || currentTotal + quantity)),
+        usedCatchUp: lotsResult.ok ? lotsResult.usedCatchUp : undefined,
       }
     }
 
@@ -567,6 +569,7 @@ export async function createDeliveryRecord(
       ok: true,
       record,
       cumulative: currentTotal + quantity,
+      usedCatchUp: lotsResult.ok ? lotsResult.usedCatchUp : undefined,
     }
   } catch (error) {
     return {
@@ -673,6 +676,7 @@ export async function createDeliveryShipment(
     const recordDate = input.recordDate?.trim() || todayYmdSeoul()
     const note = input.note?.trim() || ''
     const records: DeliveryRecord[] = []
+    let usedCatchUp = false
 
     // 1) 첫 라인 등록 → 그 id 를 명세서 묶음번호(shipment_id)로 사용
     for (let index = 0; index < lines.length; index += 1) {
@@ -695,6 +699,7 @@ export async function createDeliveryShipment(
         return { ok: false, reason: result.reason, detail: result.detail }
       }
 
+      if (result.usedCatchUp) usedCatchUp = true
       records.push(result.record)
     }
 
@@ -720,6 +725,7 @@ export async function createDeliveryShipment(
       ok: true,
       shipmentId,
       records: records.map((record) => ({ ...record, shipmentId })),
+      usedCatchUp: usedCatchUp || undefined,
     }
   } catch (error) {
     return {
@@ -971,10 +977,33 @@ export async function updateDeliveryRecord(
       }
     }
 
+    const assemblyGroupId = String(existing.assembly_group_id || '').trim()
+    const lotsResult = await replaceDeliveryRecordLots({
+      deliveryRecordId: id,
+      assemblyGroupId,
+      quantity,
+      preferDate: recordDate,
+    })
+    if (!lotsResult.ok && lotsResult.reason === 'validation') {
+      await supabase
+        .from('delivery_records')
+        .update({
+          record_date: existing.record_date,
+          quantity: existing.quantity,
+          note: existing.note || '',
+        })
+        .eq('id', id)
+      return { ok: false, reason: 'validation', detail: lotsResult.detail }
+    }
+    if (!lotsResult.ok && lotsResult.reason === 'query') {
+      return { ok: false, reason: 'query', detail: lotsResult.detail }
+    }
+
     return {
       ok: true,
       record: mapDeliveryRecord(updated),
       cumulative: validation.cumulative,
+      usedCatchUp: lotsResult.ok ? lotsResult.usedCatchUp : undefined,
     }
   } catch (error) {
     return {
@@ -1037,8 +1066,8 @@ type DeliveryHistoryRecordRow = {
           | { id: string; name: string }[]
           | null
         orders:
-          | { id: string; customer: string }
-          | { id: string; customer: string }[]
+          | { id: string; customer: string; customer_po_number?: string | null }
+          | { id: string; customer: string; customer_po_number?: string | null }[]
           | null
       }
     | {
@@ -1050,8 +1079,8 @@ type DeliveryHistoryRecordRow = {
           | { id: string; name: string }[]
           | null
         orders:
-          | { id: string; customer: string }
-          | { id: string; customer: string }[]
+          | { id: string; customer: string; customer_po_number?: string | null }
+          | { id: string; customer: string; customer_po_number?: string | null }[]
           | null
       }[]
     | null
@@ -1080,6 +1109,7 @@ function mapDeliveryHistoryRow(row: DeliveryHistoryRecordRow): DeliveryHistoryRo
     recordDate: record.recordDate,
     createdAt: record.createdAt,
     orderNumber: order.id || assemblyGroup.order_id || '',
+    customerPoNumber: String(order.customer_po_number || '').trim(),
     customer: order.customer || '',
     productName: product?.name || assemblyGroup.parent_product_id || '',
     productCode: product?.id || assemblyGroup.parent_product_id || '',
@@ -1142,7 +1172,8 @@ async function fetchDeliveryRecords(options?: {
           ),
           orders (
             id,
-            customer
+            customer,
+            customer_po_number
           )
         )
       `
@@ -1166,7 +1197,8 @@ async function fetchDeliveryRecords(options?: {
           ),
           orders (
             id,
-            customer
+            customer,
+            customer_po_number
           )
         )
       `

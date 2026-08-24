@@ -11,7 +11,11 @@ import { describeDeliveryBlockReason } from '@/lib/delivery/utils'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionProductName } from '@/lib/production-input/utils'
 import type { DeliveryCartLine } from '@/lib/delivery/types'
-import { todayYmdSeoul } from '@/lib/orders/utils'
+import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
+import { fetchAvailableLots } from '@/lib/production-lots/repository'
+import type { ProductionLot } from '@/lib/production-lots/types'
+import { CATCH_UP_LOT_WARNING } from '@/lib/production-lots/types'
+import { allocateLotsFifo } from '@/lib/production-lots/utils'
 import { useToast } from '@/components/ui/toast-provider'
 
 export type DeliveryShipmentDelta = {
@@ -38,6 +42,16 @@ function registerMaxFor(availability: DeliveryAvailability | null, cartedForGrou
   return Math.min(remaining, shippableLeft)
 }
 
+function fifoPreviewLabel(lots: ProductionLot[], quantity: number) {
+  const qty = Math.max(0, Math.floor(Number(quantity) || 0))
+  if (qty < 1 || !lots.length) return ''
+  const allocated = allocateLotsFifo(lots, qty)
+  if (!allocated.length) return ''
+  return allocated
+    .map((line) => `${line.lotId} × ${line.quantity.toLocaleString('ko-KR')}`)
+    .join(' · ')
+}
+
 export function DeliveryInputShipPanel({
   order,
   availability,
@@ -59,7 +73,8 @@ export function DeliveryInputShipPanel({
   const [lastShipMeta, setLastShipMeta] = useState<{ date: string; customer: string; note: string } | null>(
     null,
   )
-  const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null)
+  const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'err' | 'warn' } | null>(null)
+  const [lotsByGroup, setLotsByGroup] = useState<Record<string, ProductionLot[]>>({})
 
   const assemblyGroupId = order?.assemblyGroupId || order?.orderLineId || ''
   const cartedForSelected = useMemo(() => {
@@ -73,10 +88,59 @@ export function DeliveryInputShipPanel({
   const canAdd = Boolean(order && assemblyGroupId && registerMax > 0 && availability)
   const cartTotalQty = cart.reduce((sum, line) => sum + line.quantity, 0)
 
+  const groupIdsKey = useMemo(() => {
+    const ids = new Set<string>()
+    if (assemblyGroupId) ids.add(assemblyGroupId)
+    for (const line of cart) {
+      if (line.assemblyGroupId) ids.add(line.assemblyGroupId)
+    }
+    return [...ids].sort().join('|')
+  }, [assemblyGroupId, cart])
+
   useEffect(() => {
     setAddQty(registerMax > 0 ? String(registerMax) : '')
     setMessage(null)
   }, [order?.uiKey, registerMax])
+
+  useEffect(() => {
+    let cancelled = false
+    const groupIds = groupIdsKey ? groupIdsKey.split('|').filter(Boolean) : []
+    if (!groupIds.length) {
+      setLotsByGroup({})
+      return
+    }
+
+    void (async () => {
+      const next: Record<string, ProductionLot[]> = {}
+      await Promise.all(
+        groupIds.map(async (groupId) => {
+          const result = await fetchAvailableLots(groupId)
+          if (result.ok) next[groupId] = result.lots
+          else next[groupId] = []
+        }),
+      )
+      if (!cancelled) setLotsByGroup(next)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [groupIdsKey])
+
+  const selectedFifoPreview = useMemo(() => {
+    const qty = Math.floor(Number(addQty) || 0)
+    if (!assemblyGroupId || qty < 1) return ''
+    return fifoPreviewLabel(lotsByGroup[assemblyGroupId] || [], qty)
+  }, [addQty, assemblyGroupId, lotsByGroup])
+
+  const cartFifoByKey = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const line of cart) {
+      const label = fifoPreviewLabel(lotsByGroup[line.assemblyGroupId] || [], line.quantity)
+      if (label) map[line.key] = label
+    }
+    return map
+  }, [cart, lotsByGroup])
 
   function handleAddToCart() {
     if (!order || !availability) return
@@ -109,6 +173,7 @@ export function DeliveryInputShipPanel({
       uiKey: order.uiKey,
       assemblyGroupId,
       orderNumber: order.orderNumber,
+      customerPoNumber: order.customerPoNumber || '',
       customer: order.customer,
       productCode: order.productCode,
       productName: formatProductionProductName(order),
@@ -140,7 +205,7 @@ export function DeliveryInputShipPanel({
       customer,
       note: shipNote,
       shippedLines: lines.map((line) => ({
-        orderNumber: line.orderNumber,
+        orderNumber: displayOrderPoNumber(line.customerPoNumber, line.orderNumber),
         productCode: line.productCode,
         productName: line.productName,
         qty: line.quantity,
@@ -221,6 +286,10 @@ export function DeliveryInputShipPanel({
       '출하 확정 완료',
       `명세서 ${result.shipmentId} · ${snapshot.length}품목 · ${cartTotalQty.toLocaleString('ko-KR')}개`,
     )
+    if (result.usedCatchUp) {
+      setMessage({ text: CATCH_UP_LOT_WARNING, kind: 'warn' })
+      toast.info('LOT 보충', CATCH_UP_LOT_WARNING)
+    }
 
     if (printAfter) {
       const printed = await printShipment(result.shipmentId, shipDate, customer, shipNote, snapshot)
@@ -252,13 +321,11 @@ export function DeliveryInputShipPanel({
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-4">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-slate-500">
-              선택 품목 · 추가
-            </p>
+            <p className="text-xs font-semibold text-slate-500">선택 품목 · 추가</p>
             {order ? (
               <>
                 <p className="mt-1 text-sm text-slate-500">
-                  {order.customer} · {order.orderNumber}
+                  {order.customer} · {displayOrderPoNumber(order.customerPoNumber, order.orderNumber)}
                 </p>
                 <h3 className="mt-0.5 text-lg font-bold text-slate-900">
                   {formatProductionProductName(order)}
@@ -332,6 +399,13 @@ export function DeliveryInputShipPanel({
             </p>
           </div>
         ) : null}
+
+        {selectedFifoPreview ? (
+          <p className="mt-3 text-xs text-slate-500">
+            <span className="font-semibold text-slate-600">LOT FIFO 미리보기</span>
+            <span className="ml-2 tabular-nums">{selectedFifoPreview}</span>
+          </p>
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -340,7 +414,7 @@ export function DeliveryInputShipPanel({
             <h3 className="text-base font-bold text-slate-900">출하목록</h3>
             <p className="text-xs text-slate-500">
               {cart.length
-                ? `${cart.length}품목 · 합계 ${cartTotalQty.toLocaleString('ko-KR')}개`
+                ? `${cart.length}품목 · 합계 ${cartTotalQty.toLocaleString('ko-KR')}개 · 확정 시 LOT는 FIFO 자동 배정`
                 : '추가한 품목이 여기에 모입니다. 출하 확정 시 명세서 1장으로 출력됩니다.'}
             </p>
           </div>
@@ -370,10 +444,17 @@ export function DeliveryInputShipPanel({
               <tbody>
                 {cart.map((line) => (
                   <tr key={line.key} className="border-t border-slate-100">
-                    <td className="whitespace-nowrap px-3 py-2 text-slate-700">{line.orderNumber}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-slate-700">
+                      {displayOrderPoNumber(line.customerPoNumber, line.orderNumber)}
+                    </td>
                     <td className="px-3 py-2 font-medium text-slate-900">
                       <span className="block">{line.productName}</span>
                       <span className="text-xs font-normal text-slate-400">{line.productCode}</span>
+                      {cartFifoByKey[line.key] ? (
+                        <span className="mt-0.5 block text-[11px] font-normal tabular-nums text-slate-500">
+                          LOT {cartFifoByKey[line.key]}
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2 text-right">
                       <input
@@ -474,6 +555,9 @@ export function DeliveryInputShipPanel({
 
         {message?.kind === 'err' ? (
           <p className="mt-3 text-sm font-medium text-red-700">{message.text}</p>
+        ) : null}
+        {message?.kind === 'warn' ? (
+          <p className="mt-3 text-sm font-medium text-amber-800">{message.text}</p>
         ) : null}
       </div>
     </div>

@@ -79,7 +79,7 @@ export function DefectHandlingWorkspace({ result }: DefectHandlingWorkspaceProps
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="발주ID, 고객사, 제품, 불량사유, 대처 검색…"
+          searchPlaceholder="발주번호, 고객사, 제품, 불량사유, 대처 검색…"
           accent="slate"
           filters={
             <FilterChipBar

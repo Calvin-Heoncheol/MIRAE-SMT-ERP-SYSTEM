@@ -3,16 +3,12 @@
 import { type Dispatch, type SetStateAction, useEffect, useRef } from 'react'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { ProductCombobox } from '@/components/orders/product-combobox'
-import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { parseItemVersionCode } from '@/lib/items/version-code'
-import {
-  defaultAdhocOrderItemForm,
-  defaultOrderItemForm,
-  type OrderItemForm,
-} from '@/lib/orders/form-state'
+import { defaultOrderItemForm, type OrderItemForm } from '@/lib/orders/form-state'
 import { computeLineAmount } from '@/lib/orders/utils'
 import type { Product } from '@/lib/products/types'
 import { findProductsByCode, findProductsByName } from '@/lib/products/utils'
+import { ERP_ROW_ADD_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 type OrderItemsFormProps = {
   items: OrderItemForm[]
@@ -37,7 +33,6 @@ function applyProductToItem(item: OrderItemForm, product: Product): OrderItemFor
   }
 }
 
-/** 같은 코드/이름으로 버전이 여럿인 후보 목록 */
 function productVersionCandidates(item: OrderItemForm, products: Product[], customer: string): Product[] {
   if (item.isAdhoc || item.productId) return []
   const code = item.productCode.trim()
@@ -55,9 +50,7 @@ function productVersionCandidates(item: OrderItemForm, products: Product[], cust
 
 function productVersionLabel(item: OrderItemForm, products: Product[]) {
   if (item.isAdhoc) return null
-  const byId = item.productId
-    ? products.find((product) => product.id === item.productId)
-    : null
+  const byId = item.productId ? products.find((product) => product.id === item.productId) : null
   if (byId?.version) return byId.version
   const byCode = products.find(
     (product) =>
@@ -86,7 +79,6 @@ export function OrderItemsForm({
     }, 50)
   }
 
-  // 품목 기본 단가가 나중에 로드되면, 단가 0인 행만 채움
   useEffect(() => {
     onChange((current) => {
       let changed = false
@@ -111,19 +103,17 @@ export function OrderItemsForm({
   }
 
   function addRow() {
-    onChange([...items, defaultOrderItemForm()])
-  }
-
-  function addAdhocRow() {
-    onChange([...items, defaultAdhocOrderItemForm()])
+    onChange((current) => [...current, defaultOrderItemForm()])
   }
 
   function removeRow(index: number) {
-    if (items.length <= 1) return
+    const target = items[index]
+    if (!target) return
+    const productRows = items.filter((item) => !item.isAdhoc)
+    if (!target.isAdhoc && productRows.length <= 1) return
     onChange(items.filter((_, itemIndex) => itemIndex !== index))
   }
 
-  /** 드롭다운에서 품목 선택 — 버전이 여럿이면 productId를 비워 버전 컬럼 select 활성화 */
   function selectProduct(index: number, product: Product) {
     const sameCode = products.filter(
       (p) => p.productCode === product.productCode && (!product.productName || p.productName === product.productName),
@@ -141,7 +131,6 @@ export function OrderItemsForm({
     )
   }
 
-  /** 버전 컬럼 select에서 확정 선택 — productId 포함해서 완전 확정 (단가 자동 세팅) */
   function confirmVersion(index: number, product: Product) {
     onChange((current) =>
       current.map((item, itemIndex) =>
@@ -153,32 +142,21 @@ export function OrderItemsForm({
   const inputClassName =
     'w-full min-w-0 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100'
 
+  const columnCount = 7
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-bold text-slate-900">제품</h3>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={addAdhocRow}
-            className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
-            title="품목등록에 없는 일회성 금액·품목"
-          >
-            + 임시 품목
-          </button>
-          <ErpRowAddButton onClick={addRow} title="제품 추가" />
-        </div>
-      </div>
+      <h3 className="text-sm font-bold text-slate-900">제품</h3>
 
       <div className="overflow-hidden rounded-lg border border-slate-200">
         <table className="w-full table-fixed border-collapse text-sm">
           <colgroup>
             <col className="w-[16%]" />
-            <col className="w-[24%]" />
+            <col className="w-[26%]" />
             <col className="w-[8%]" />
             <col className="w-[10%]" />
             <col className="w-[18%]" />
-            <col className="w-[12%]" />
+            <col className="w-[14%]" />
             <col className="w-10" />
           </colgroup>
           <thead className="bg-slate-50">
@@ -198,14 +176,12 @@ export function OrderItemsForm({
               const version = productVersionLabel(item, products)
               const versionCandidates = productVersionCandidates(item, products, customer)
               const isAdhoc = Boolean(item.isAdhoc)
+              const canRemove = isAdhoc || items.filter((row) => !row.isAdhoc).length > 1
 
               return (
                 <tr
-                  key={index}
-                  className={[
-                    'border-t border-slate-100',
-                    isAdhoc ? 'bg-amber-50/40' : '',
-                  ].join(' ')}
+                  key={item.rowKey}
+                  className={['border-t border-slate-100', isAdhoc ? 'bg-amber-50/40' : ''].join(' ')}
                 >
                   <td className="px-2 py-2 align-top">
                     {isAdhoc ? (
@@ -289,7 +265,11 @@ export function OrderItemsForm({
                     )}
                   </td>
                   <td className="px-2 py-2 align-top text-center">
-                    {versionCandidates.length > 1 ? (
+                    {isAdhoc ? (
+                      <div className="flex h-[34px] items-center justify-center text-xs text-slate-300">
+                        —
+                      </div>
+                    ) : versionCandidates.length > 1 ? (
                       <select
                         aria-label={`${index + 1}행 버전 선택`}
                         defaultValue=""
@@ -323,7 +303,9 @@ export function OrderItemsForm({
                   </td>
                   <td className="px-2 py-2 align-top">
                     <QuoteNumericInput
-                      ref={(el) => { quantityRefs.current[index] = el }}
+                      ref={(el) => {
+                        quantityRefs.current[index] = el
+                      }}
                       min={0}
                       value={String(item.quantity)}
                       onChange={(quantity) => patchItem(index, { quantity })}
@@ -347,7 +329,7 @@ export function OrderItemsForm({
                     <button
                       type="button"
                       onClick={() => removeRow(index)}
-                      disabled={items.length <= 1}
+                      disabled={!canRemove}
                       className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label={`${index + 1}행 삭제`}
                     >
@@ -358,11 +340,26 @@ export function OrderItemsForm({
               )
             })}
           </tbody>
+          <tfoot>
+            <tr className="border-t border-slate-200 bg-slate-50/80">
+              <td colSpan={columnCount} className="px-2 py-2">
+                <button
+                  type="button"
+                  onClick={addRow}
+                  className={ERP_ROW_ADD_BUTTON_CLASS}
+                  title="행 추가"
+                  aria-label="행 추가"
+                >
+                  + 행 추가
+                </button>
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
       <p className="text-xs text-slate-500">
         제품을 선택하면 품목의 기본 단가가 자동으로 들어갑니다. 이번 발주만 다르면 단가를 직접
-        고치면 됩니다. 임시 품목은 이 발주에만 반영됩니다.
+        고치면 됩니다.
       </p>
     </div>
   )

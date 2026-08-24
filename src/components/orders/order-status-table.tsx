@@ -3,7 +3,7 @@
 import { DeliveryDueBadge } from '@/components/ui/delivery-due-badge'
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import type { DeliveryAvailability } from '@/lib/delivery/utils'
-import { formatInternalCodeLabel } from '@/lib/orders/utils'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import { getProgressPercent } from '@/lib/production-input/utils'
 import type {
   ProductionStatusLine,
@@ -31,6 +31,7 @@ type OrderStatusTableProps = {
 type ShipmentRow = {
   key: string
   orderNumber: string
+  customerPoNumber: string
   customer: string
   productName: string
   productCode: string
@@ -121,6 +122,7 @@ function buildShipmentRows(
         rows.push({
           key: `${line.orderId}:${product.key}`,
           orderNumber: line.orderNumber,
+          customerPoNumber: line.customerPoNumber,
           customer: line.customer,
           productName: product.productName,
           productCode: product.productCode,
@@ -136,6 +138,7 @@ function buildShipmentRows(
     rows.push({
       key: line.orderId,
       orderNumber: line.orderNumber,
+      customerPoNumber: line.customerPoNumber,
       customer: line.customer,
       productName: line.productName,
       productCode: '',
@@ -202,9 +205,9 @@ export function OrderStatusTable({
                 <tr key={row.key} className={ERP_TABLE_ROW_CLASS}>
                   <td
                     className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-sm font-bold text-slate-900`}
-                    title={row.orderNumber}
+                    title={displayOrderPoNumber(row.customerPoNumber, row.orderNumber)}
                   >
-                    {formatInternalCodeLabel(row.orderNumber)}
+                    {displayOrderPoNumber(row.customerPoNumber, row.orderNumber) || '—'}
                   </td>
                   <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-semibold text-slate-800`}>
                     {row.customer || '—'}

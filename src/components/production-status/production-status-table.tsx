@@ -2,7 +2,7 @@
 
 import { DeliveryDueBadge } from '@/components/ui/delivery-due-badge'
 import { EmptyListState } from '@/components/ui/empty-list-state'
-import { formatInternalCodeLabel } from '@/lib/orders/utils'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type {
   ProductionStatusLine,
   ProductionStatusProductLine,
@@ -263,9 +263,9 @@ function OrderStatusRows({
       <tr className={ERP_TABLE_ROW_CLASS}>
         <td
           className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-sm font-bold text-slate-900`}
-          title={line.orderNumber}
+          title={displayOrderPoNumber(line.customerPoNumber, line.orderNumber)}
         >
-          {formatInternalCodeLabel(line.orderNumber)}
+          {displayOrderPoNumber(line.customerPoNumber, line.orderNumber) || '—'}
         </td>
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-semibold text-slate-800`}>
           {line.customer || '—'}
@@ -314,9 +314,9 @@ function OrderStatusRows({
           <tr key={`${line.orderId}:${product.key}`} className={ERP_TABLE_ROW_CLASS}>
             <td
               className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-sm font-bold text-slate-900`}
-              title={line.orderNumber}
+              title={displayOrderPoNumber(line.customerPoNumber, line.orderNumber)}
             >
-              {formatInternalCodeLabel(line.orderNumber)}
+              {displayOrderPoNumber(line.customerPoNumber, line.orderNumber) || '—'}
             </td>
             <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-semibold text-slate-800`}>
               {line.customer || '—'}

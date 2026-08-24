@@ -2,6 +2,7 @@
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { DeliveryShippableOption } from '@/lib/delivery/register-form'
 
 type DeliveryShippableListTableProps = {
@@ -50,7 +51,7 @@ export function DeliveryShippableListTable({
                   {option.customer || '—'}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2.5 font-mono text-sm text-slate-700">
-                  {option.orderNumber || '—'}
+                  {displayOrderPoNumber(option.customerPoNumber, option.orderNumber) || '—'}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2.5 font-mono text-sm font-semibold text-slate-800">
                   {option.productCode || '—'}

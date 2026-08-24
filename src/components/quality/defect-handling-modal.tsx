@@ -93,7 +93,7 @@ export function DefectHandlingModal({ open, row, onClose, onSaved }: DefectHandl
       <div className="space-y-4">
         <dl className="rounded-xl border border-slate-200 bg-slate-50/60 px-3.5">
           <DetailRow label="상태" value={formatDefectStatus(row.status)} />
-          <DetailRow label="발주서" value={formatInternalCodeLabel(row.orderNumber)} />
+          <DetailRow label="발주번호" value={formatInternalCodeLabel(row.orderNumber)} />
           <DetailRow label="고객사" value={row.customer || '-'} />
           <DetailRow label="제품" value={row.productName || row.productCode || '-'} />
           <DetailRow label="공정" value={processDetail || '-'} />

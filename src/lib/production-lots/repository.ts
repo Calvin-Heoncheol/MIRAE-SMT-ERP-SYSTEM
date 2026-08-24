@@ -65,7 +65,7 @@ async function loadGroupSnapshot(assemblyGroupId: string) {
   const { data, error } = await supabase
     .from('order_assembly_groups')
     .select(
-      'id, order_id, parent_product_id, items!order_assembly_groups_parent_product_id_fkey(id, name, process_type), order_assembly_group_lines(order_line_id, child_product_id, quantity_per)',
+      'id, order_id, parent_product_id, items!order_assembly_groups_parent_product_id_fkey(id, name, process_type, item_category), order_assembly_group_lines(order_line_id, child_product_id, quantity_per)',
     )
     .eq('id', assemblyGroupId)
     .maybeSingle()
@@ -87,6 +87,8 @@ async function loadGroupSnapshot(assemblyGroupId: string) {
     productCode: String(item?.id || data.parent_product_id || ''),
     productName: String(item?.name || ''),
     processType: item?.process_type,
+    /** 4=조립제품, 그 외(3 등)=반제품 */
+    isAssembly: Number(item?.item_category) === 4,
     lines: lines.map((line) => ({
       orderLineId: String(line.order_line_id || ''),
       childProductId: String(line.child_product_id || ''),
@@ -146,7 +148,10 @@ async function computeSmtSetsForGroup(lines: Array<{ orderLineId: string; childP
   return Math.max(0, minSets)
 }
 
-async function fetchLotsWithShipped(assemblyGroupId: string): Promise<
+async function fetchLotsWithShipped(
+  assemblyGroupId: string,
+  options: { excludeDeliveryRecordId?: string } = {},
+): Promise<
   | { ok: true; lots: ProductionLot[] }
   | { ok: false; reason: 'query'; detail: string }
 > {
@@ -167,7 +172,7 @@ async function fetchLotsWithShipped(assemblyGroupId: string): Promise<
 
   const { data: shippedRows, error: shippedError } = await supabase
     .from('delivery_record_lots')
-    .select('lot_id, quantity')
+    .select('delivery_record_id, lot_id, quantity')
     .in(
       'lot_id',
       lots.map((lot) => lot.id),
@@ -178,8 +183,10 @@ async function fetchLotsWithShipped(assemblyGroupId: string): Promise<
     return { ok: false, reason: 'query', detail: shippedError.message }
   }
 
+  const excludeId = String(options.excludeDeliveryRecordId || '').trim()
   const shippedByLot = new Map<string, number>()
   for (const row of shippedRows || []) {
+    if (excludeId && String(row.delivery_record_id || '').trim() === excludeId) continue
     const lotId = String(row.lot_id)
     shippedByLot.set(lotId, (shippedByLot.get(lotId) || 0) + Math.max(0, Math.floor(Number(row.quantity) || 0)))
   }
@@ -295,15 +302,30 @@ export async function syncFinishedGoodsLots(input: {
 
     const supabase = createSupabaseClient()
     const needsPost = processTypeIncludesPostProcess(snapshot.processType as ProductProcessType)
+    const isSemiFinished = !snapshot.isAssembly
     let produced = 0
 
-    if (needsPost) {
+    if (needsPost && !isSemiFinished) {
+      // 조립제품: 후공정 완료 기준 LOT
       const { data, error } = await supabase
         .from('post_process_production_records')
         .select('quantity')
         .eq('assembly_group_id', assemblyGroupId)
       if (error) return { ok: false, reason: 'query', detail: error.message }
       produced = (data || []).reduce((sum, row) => sum + Math.max(0, Math.floor(Number(row.quantity) || 0)), 0)
+    } else if (needsPost && isSemiFinished) {
+      // 반제품: 후공정이 있어도 SMT 기준으로 LOT (반제품 출고). 후공정만 있으면 후공정.
+      const smtSets = await computeSmtSetsForGroup(snapshot.lines)
+      if (processTypeIncludesSmt(snapshot.processType as ProductProcessType) || smtSets > 0) {
+        produced = smtSets
+      } else {
+        const { data, error } = await supabase
+          .from('post_process_production_records')
+          .select('quantity')
+          .eq('assembly_group_id', assemblyGroupId)
+        if (error) return { ok: false, reason: 'query', detail: error.message }
+        produced = (data || []).reduce((sum, row) => sum + Math.max(0, Math.floor(Number(row.quantity) || 0)), 0)
+      }
     } else {
       produced = await computeSmtSetsForGroup(snapshot.lines)
     }
@@ -366,7 +388,13 @@ export async function syncLotsForSmtOrderLine(input: {
     if (!assemblyGroupId) continue
     const snapshot = await loadGroupSnapshot(assemblyGroupId)
     if (!snapshot.ok) continue
-    if (processTypeIncludesPostProcess(snapshot.processType as ProductProcessType)) continue
+    // 조립제품+후공정: SMT만으로는 LOT 안 만듦. 반제품은 SMT에서도 LOT 생성.
+    if (
+      processTypeIncludesPostProcess(snapshot.processType as ProductProcessType) &&
+      snapshot.isAssembly
+    ) {
+      continue
+    }
     const result = await syncFinishedGoodsLots({
       assemblyGroupId,
       preferDate: input.preferDate,
@@ -409,8 +437,10 @@ export async function prepareLotAllocations(input: {
   quantity: number
   preferDate?: string
   allocations?: LotAllocation[]
+  /** 출하 수정 시 — 해당 출하 기록의 기존 LOT 배정을 잔량에 다시 포함 */
+  excludeDeliveryRecordId?: string
 }): Promise<
-  | { ok: true; allocations: LotAllocation[] }
+  | { ok: true; allocations: LotAllocation[]; usedCatchUp?: boolean }
   | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
 > {
   const quantity = Math.max(0, Math.floor(Number(input.quantity) || 0))
@@ -422,9 +452,24 @@ export async function prepareLotAllocations(input: {
   })
   if (!sync.ok && sync.reason === 'validation') return sync
 
-  let available = await fetchAvailableLots(input.assemblyGroupId)
+  const excludeDeliveryRecordId = String(input.excludeDeliveryRecordId || '').trim() || undefined
+
+  async function loadAvailable() {
+    if (excludeDeliveryRecordId) {
+      const withShipped = await fetchLotsWithShipped(input.assemblyGroupId, { excludeDeliveryRecordId })
+      if (!withShipped.ok) return withShipped
+      return {
+        ok: true as const,
+        lots: withShipped.lots.filter((lot) => lot.remaining > 0),
+      }
+    }
+    return fetchAvailableLots(input.assemblyGroupId)
+  }
+
+  let available = await loadAvailable()
   if (!available.ok) return available
 
+  let usedCatchUp = false
   const remaining = available.lots.reduce((sum, lot) => sum + lot.remaining, 0)
   if (remaining < quantity) {
     const snapshot = await loadGroupSnapshot(input.assemblyGroupId)
@@ -437,7 +482,8 @@ export async function prepareLotAllocations(input: {
         source: 'catch_up',
       })
       if (catchUp.ok) {
-        const refreshed = await fetchAvailableLots(input.assemblyGroupId)
+        usedCatchUp = true
+        const refreshed = await loadAvailable()
         if (refreshed.ok) available = refreshed
       }
     }
@@ -470,6 +516,7 @@ export async function prepareLotAllocations(input: {
     }
     return {
       ok: true,
+      usedCatchUp,
       allocations: requested.map((line) => ({
         ...line,
         quantity: Math.max(0, Math.floor(Number(line.quantity) || 0)),
@@ -487,7 +534,7 @@ export async function prepareLotAllocations(input: {
       detail: `배정할 LOT 잔량이 부족합니다. (필요 ${quantity.toLocaleString('ko-KR')})`,
     }
   }
-  return { ok: true, allocations }
+  return { ok: true, allocations, usedCatchUp }
 }
 
 export async function persistDeliveryRecordLots(input: {
@@ -496,12 +543,14 @@ export async function persistDeliveryRecordLots(input: {
   quantity: number
   preferDate?: string
   allocations?: LotAllocation[]
+  excludeDeliveryRecordId?: string
 }): Promise<LotSyncResult> {
   const prepared = await prepareLotAllocations({
     assemblyGroupId: input.assemblyGroupId,
     quantity: input.quantity,
     preferDate: input.preferDate,
     allocations: input.allocations,
+    excludeDeliveryRecordId: input.excludeDeliveryRecordId,
   })
   if (!prepared.ok) {
     if (prepared.reason === 'env' || isMissingProductionLotsTable(prepared.detail)) {
@@ -509,10 +558,86 @@ export async function persistDeliveryRecordLots(input: {
     }
     return prepared
   }
-  return saveDeliveryRecordLots({
+  const saved = await saveDeliveryRecordLots({
     deliveryRecordId: input.deliveryRecordId,
     allocations: prepared.allocations,
   })
+  if (!saved.ok) return saved
+  return { ok: true, usedCatchUp: prepared.usedCatchUp }
+}
+
+/** 출하 수량 변경 시 기존 LOT 배정을 지우고 FIFO(또는 지정)로 다시 배정 */
+export async function replaceDeliveryRecordLots(input: {
+  deliveryRecordId: string
+  assemblyGroupId: string
+  quantity: number
+  preferDate?: string
+  allocations?: LotAllocation[]
+}): Promise<LotSyncResult> {
+  const deliveryRecordId = String(input.deliveryRecordId || '').trim()
+  const assemblyGroupId = String(input.assemblyGroupId || '').trim()
+  if (!deliveryRecordId || !assemblyGroupId) return { ok: true }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data: existingLinks, error: existingError } = await supabase
+      .from('delivery_record_lots')
+      .select('lot_id, quantity')
+      .eq('delivery_record_id', deliveryRecordId)
+
+    if (existingError) {
+      if (isMissingProductionLotsTable(existingError.message)) return { ok: true }
+      return { ok: false, reason: 'query', detail: existingError.message }
+    }
+
+    const prepared = await prepareLotAllocations({
+      assemblyGroupId,
+      quantity: input.quantity,
+      preferDate: input.preferDate,
+      allocations: input.allocations,
+      excludeDeliveryRecordId: deliveryRecordId,
+    })
+    if (!prepared.ok) {
+      if (prepared.reason === 'env' || isMissingProductionLotsTable(prepared.detail)) {
+        return { ok: true }
+      }
+      return prepared
+    }
+
+    const { error: deleteError } = await supabase
+      .from('delivery_record_lots')
+      .delete()
+      .eq('delivery_record_id', deliveryRecordId)
+
+    if (deleteError) {
+      if (isMissingProductionLotsTable(deleteError.message)) return { ok: true }
+      return { ok: false, reason: 'query', detail: deleteError.message }
+    }
+
+    const saved = await saveDeliveryRecordLots({
+      deliveryRecordId,
+      allocations: prepared.allocations,
+    })
+    if (!saved.ok) {
+      const restoreRows = (existingLinks || [])
+        .map((row) => ({
+          delivery_record_id: deliveryRecordId,
+          lot_id: String(row.lot_id || '').trim(),
+          quantity: Math.max(0, Math.floor(Number(row.quantity) || 0)),
+        }))
+        .filter((row) => row.lot_id && row.quantity > 0)
+      if (restoreRows.length) {
+        await supabase.from('delivery_record_lots').insert(restoreRows)
+      }
+      return saved
+    }
+
+    return { ok: true, usedCatchUp: prepared.usedCatchUp }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    if (isMissingProductionLotsTable(detail)) return { ok: true }
+    return { ok: false, reason: 'query', detail }
+  }
 }
 
 export async function saveDeliveryRecordLots(input: {
@@ -643,13 +768,9 @@ export function resolveHistoryLotIds(
     ...(orderLineId ? index.groupIdsByOrderLineId[orderLineId] || [] : []),
   ]
 
+  // 기록일과 LOT 생산일이 일치할 때만 연결 (그룹 전체 LOT 추정 fallback 제거)
   for (const id of groupIds) {
     for (const lot of index.lotsByGroupDate[`${id}|${date}`] || []) ids.add(lot)
-  }
-  if (!ids.size) {
-    for (const id of groupIds) {
-      for (const lot of index.lotsByGroup[id] || []) ids.add(lot)
-    }
   }
   if (!ids.size && orderNumber && date) {
     for (const lot of index.lotsByOrderDate[`${orderNumber}|${date}`] || []) ids.add(lot)

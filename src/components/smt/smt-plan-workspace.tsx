@@ -56,6 +56,7 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
         orderId: plan.orderId,
         orderLineId: plan.orderLineId,
         orderNumber: plan.orderNumber,
+        customerPoNumber: plan.customerPoNumber || '',
         customer: plan.customer,
         productSummary: plan.productSummary,
         deliveryDate: plan.deliveryDate,

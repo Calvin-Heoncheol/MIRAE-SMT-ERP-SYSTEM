@@ -46,7 +46,7 @@ export function DefectHandlingTable({ rows, emptyMessage, onRowClick }: DefectHa
                 공정
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                발주ID
+                발주번호
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 고객사

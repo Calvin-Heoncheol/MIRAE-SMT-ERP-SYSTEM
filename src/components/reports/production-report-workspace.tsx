@@ -140,7 +140,7 @@ export function ProductionReportWorkspace({
     const detailColumns: ExcelColumn<ProductionReportDetailRow>[] = [
       { header: '기록일', value: (row) => row.recordDate, width: 12 },
       { header: '팀', value: (row) => row.team, width: 10 },
-      { header: '발주ID', value: (row) => row.orderNumber, width: 22 },
+      { header: '발주번호', value: (row) => row.orderNumber, width: 22 },
       { header: '고객사', value: (row) => row.customer, width: 18 },
       { header: '제품명', value: (row) => row.productName, width: 26 },
       { header: '수량', value: (row) => row.quantity, width: 10 },

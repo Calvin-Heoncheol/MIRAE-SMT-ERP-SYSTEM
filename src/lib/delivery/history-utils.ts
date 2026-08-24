@@ -7,6 +7,7 @@ export function filterDeliveryHistory<
     id: string
     shipmentId?: string
     orderNumber: string
+    customerPoNumber?: string
     customer: string
     productName: string
     productCode: string
@@ -24,6 +25,7 @@ export function filterDeliveryHistory<
       row.id,
       row.shipmentId,
       row.orderNumber,
+      row.customerPoNumber,
       row.customer,
       row.productName,
       row.productCode,

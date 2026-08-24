@@ -19,7 +19,7 @@ import {
 } from '@/lib/production-input/utils'
 import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
 import { useToast } from '@/components/ui/toast-provider'
-import { todayYmdSeoul } from '@/lib/orders/utils'
+import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
 
 function formatSmtPlanChipLabel(plan: SmtPlanBlock) {
   const side = plan.pcbSide === 'TOP' || plan.pcbSide === 'BOT' ? plan.pcbSide : '단면'
@@ -421,7 +421,9 @@ export function ProductionInputPanel({
             <span className="min-w-0" aria-hidden />
           )}
           {order && !embedded ? (
-            <span className="truncate text-xs font-medium text-slate-400">{order.orderNumber}</span>
+            <span className="truncate text-xs font-medium text-slate-400">
+              {displayOrderPoNumber(order.customerPoNumber, order.orderNumber)}
+            </span>
           ) : null}
         </div>
       ) : null}
@@ -434,7 +436,9 @@ export function ProductionInputPanel({
                 <p className="text-sm text-slate-500">
                   <span className="font-medium text-slate-700">{order.customer || '—'}</span>
                   <span className="mx-2 text-slate-300">·</span>
-                  <span className="font-mono text-slate-600">{order.orderNumber}</span>
+                  <span className="font-mono text-slate-600">
+                    {displayOrderPoNumber(order.customerPoNumber, order.orderNumber)}
+                  </span>
                 </p>
               ) : null}
               <div className={[embedded ? 'mt-0' : 'mt-2', 'flex flex-wrap items-center gap-2'].join(' ')}>

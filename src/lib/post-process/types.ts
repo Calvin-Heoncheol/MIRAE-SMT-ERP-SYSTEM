@@ -33,7 +33,10 @@ export type PostProcessProductionHistoryRow = {
   recordDate: string
   createdAt: string
   assemblyGroupId: string
+  /** 내부 발주ID (MRO-…) */
   orderNumber: string
+  /** 고객 발주번호(PO) */
+  customerPoNumber: string
   customer: string
   productName: string
   productCode: string

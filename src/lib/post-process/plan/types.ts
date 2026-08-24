@@ -35,6 +35,7 @@ export type PostProcessPlanOrderCandidate = {
   orderId: string
   assemblyGroupId: string
   orderNumber: string
+  customerPoNumber: string
   customer: string
   productSummary: string
   deliveryDate: string
@@ -53,6 +54,7 @@ export type PostProcessPlanOrderCandidate = {
 
 export type PostProcessPlanBlock = PostProcessProductionPlan & {
   orderNumber: string
+  customerPoNumber: string
   customer: string
   productSummary: string
   deliveryDate: string

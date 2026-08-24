@@ -215,7 +215,7 @@ export function MaterialPurchaseAssistPanel({
             onChange={(event) => setSearch(event.target.value)}
             placeholder={
               mode === 'order'
-                ? '발주ID, 고객사, 제품명 검색…'
+                ? '발주번호, 고객사, 제품명 검색…'
                 : '자재코드, 자재명, 공급사 검색…'
             }
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
