@@ -217,10 +217,10 @@ export function ReceivablesWorkspace({
 
     setMarkingPaid(true)
     const paidDate = todayYmdSeoul()
-    let successCount = 0
-    let lastError: { ok: false; reason: string; detail: string } | null = null
 
-    await busyUi.run(async () => {
+    const { successCount, lastError } = await busyUi.run(async () => {
+      let successCount = 0
+      let lastError: { ok: false; reason: string; detail: string } | null = null
       for (const row of selectedRows) {
         if (row.remaining <= 0) continue
         const result = await createStatementPayment({
@@ -234,6 +234,7 @@ export function ReceivablesWorkspace({
         }
         successCount += 1
       }
+      return { successCount, lastError }
     })
 
     setMarkingPaid(false)

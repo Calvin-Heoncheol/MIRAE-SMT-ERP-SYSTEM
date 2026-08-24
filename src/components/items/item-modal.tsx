@@ -526,7 +526,7 @@ function ItemModalContent({
                 ? '품목구분 선택 후 표시'
                 : isRequiredManualCode
                   ? '고객사 품목코드'
-                  : form.itemCategory !== '' && isOptionalItemCodeCategory(form.itemCategory)
+                  : isOptionalItemCodeCategory(form.itemCategory)
                     ? '비우면 품목명으로 자동'
                     : '자동 생성'
             }

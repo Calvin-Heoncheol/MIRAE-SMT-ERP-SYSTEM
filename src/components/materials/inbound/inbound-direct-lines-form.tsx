@@ -415,7 +415,7 @@ export function InboundDirectLinesForm({
         void printInboundReelLabel({
           id: material
             ? formatMaterialDisplayCode(material)
-            : item.materialCode || item.materialId,
+            : item.materialId,
           materialName: material?.materialName || item.materialName,
           customer: material?.customer || '',
           package: material?.package || '',
