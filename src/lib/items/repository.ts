@@ -241,6 +241,7 @@ function resolveCreateItemBaseCode(
     }
   }
 
+  // 부자재·반제품: 비우면 품목명으로 자동
   const baseCode = typedCode || payload.name.trim()
   if (!baseCode) {
     return { ok: false, detail: '품목명을 입력해 주세요.' }

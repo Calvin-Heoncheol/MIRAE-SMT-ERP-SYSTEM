@@ -7,6 +7,7 @@ import type {
 } from './types'
 import {
   isManualItemCodeCategory,
+  isOptionalItemCodeCategory,
   isProductItemCategory,
   isRawMaterialItemCategory,
   isSemiFinishedItemCategory,
@@ -132,7 +133,9 @@ export function validateItemForm(form: ItemFormState, options?: { isCreate?: boo
   if (isManualItemCodeCategory(category) && !form.id.trim()) {
     return '품목코드를 입력해 주세요.'
   }
-  if (!options?.isCreate && !form.id.trim()) return '품목코드를 찾을 수 없습니다.'
+  if (!options?.isCreate && !form.id.trim() && !isOptionalItemCodeCategory(category)) {
+    return '품목코드를 찾을 수 없습니다.'
+  }
   if (isRawMaterialItemCategory(category) && !form.materialType) {
     return '공정구분을 선택해 주세요.'
   }

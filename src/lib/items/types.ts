@@ -110,19 +110,19 @@ export function deriveItemProcessType(smdUnitPrice: number, dipUnitPrice: number
   return ''
 }
 
-/** 원자재(1)·반제품(3)·조립제품(4): 품목코드 필수 직접 입력 */
+/** 원자재(1)·조립제품(4): 품목코드 필수 직접 입력. 반제품(3)은 비우면 품목명으로 자동 */
 export function isManualItemCodeCategory(category: ItemCategory) {
-  return category === 1 || category === 3 || category === 4
+  return category === 1 || category === 4
 }
 
-/** 예전: 반·조립제품 코드 선택 입력(비우면 품명). 더 이상 사용하지 않음. */
-export function isOptionalItemCodeCategory(_category: ItemCategory) {
-  return false
+/** 반제품: 코드 직접 입력 가능, 비우면 저장 시 품목명으로 채움 */
+export function isOptionalItemCodeCategory(category: ItemCategory) {
+  return category === 3
 }
 
 /** 생성 시 품목코드 입력란 편집 가능 (원자재·반제품·조립제품) */
 export function canEditItemCodeOnCreate(category: ItemCategory) {
-  return isManualItemCodeCategory(category)
+  return category === 1 || category === 3 || category === 4
 }
 
 export const ITEM_CATEGORY_CODE_PREFIX: Record<ItemCategory, string | null> = {

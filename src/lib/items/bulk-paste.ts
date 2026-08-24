@@ -46,7 +46,10 @@ const PRODUCT_BULK_COLUMNS: ItemBulkColumn[] = [
 ]
 
 const SEMI_FINISHED_BULK_COLUMNS: ItemBulkColumn[] = [
-  ...PRODUCT_BULK_COLUMNS,
+  { key: 'customerName', label: '고객사', required: true },
+  { key: 'id', label: '품목코드' },
+  { key: 'name', label: '품목명', required: true },
+  { key: 'version', label: '버전' },
   { key: 'processType', label: '생산 공정', required: true },
   { key: 'pcbSideMode', label: '면', required: true },
 ]
@@ -77,7 +80,7 @@ export function itemBulkPasteSampleValues(category: ItemCategory): string[] {
     return ['미래전자', '', '나사 M3', 'SUS', '', '', '도급']
   }
   if (category === 3) {
-    return ['미래전자', 'SFG-CUSTOM', '메인보드', 'A1', 'SMD', '단면']
+    return ['미래전자', '', '메인보드', 'A1', 'SMD', '단면']
   }
   if (category === 4) {
     return ['미래전자', 'FG-CUSTOM', '조립제품 A', 'V1']

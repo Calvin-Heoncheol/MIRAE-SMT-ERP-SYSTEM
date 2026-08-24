@@ -29,6 +29,7 @@ import {
   ITEM_PROCESS_TYPES,
   type ItemPcbSideMode,
   isManualItemCodeCategory,
+  isOptionalItemCodeCategory,
   canEditItemCodeOnCreate,
   isProductItemCategory,
   isRawMaterialItemCategory,
@@ -77,7 +78,7 @@ function resolvePreviewItemCode(
   category: ItemCategory | '',
   existingItems: Item[],
 ): string {
-  if (!category || isManualItemCodeCategory(category)) {
+  if (!category || isManualItemCodeCategory(category) || isOptionalItemCodeCategory(category)) {
     return ''
   }
   return nextItemCodeForCategory(existingItems, category) ?? ''
@@ -140,7 +141,13 @@ function ItemModalContent({
       ? canEditItemCodeOnCreate(form.itemCategory)
       : !isRawMaterialItemCategory(form.itemCategory))
   const autoPreviewCode = useMemo(() => {
-    if (form.itemCategory === '' || isManualItemCodeCategory(form.itemCategory)) return ''
+    if (
+      form.itemCategory === '' ||
+      isManualItemCodeCategory(form.itemCategory) ||
+      isOptionalItemCodeCategory(form.itemCategory)
+    ) {
+      return ''
+    }
     return nextItemCodeForCategory(existingItems, form.itemCategory) ?? ''
   }, [form.itemCategory, existingItems])
   const previewItemCode = autoPreviewCode
@@ -174,7 +181,8 @@ function ItemModalContent({
     if (!isCreate) return
     if (
       form.itemCategory === '' ||
-      isManualItemCodeCategory(form.itemCategory)
+      isManualItemCodeCategory(form.itemCategory) ||
+      isOptionalItemCodeCategory(form.itemCategory)
     ) {
       return
     }
@@ -199,7 +207,7 @@ function ItemModalContent({
       if (isCreate) {
         if (!value) {
           next.id = ''
-        } else if (isManualItemCodeCategory(value)) {
+        } else if (isManualItemCodeCategory(value) || isOptionalItemCodeCategory(value)) {
           next.id = ''
         } else {
           next.id = resolvePreviewItemCode(value, existingItems)
@@ -518,7 +526,9 @@ function ItemModalContent({
                 ? '품목구분 선택 후 표시'
                 : isRequiredManualCode
                   ? '고객사 품목코드'
-                  : '자동 생성'
+                  : form.itemCategory !== '' && isOptionalItemCodeCategory(form.itemCategory)
+                    ? '비우면 품목명으로 자동'
+                    : '자동 생성'
             }
             readOnly={!canEditCode}
             className={`${ERP_FIELD_INPUT_CLASS} font-mono ${
@@ -527,7 +537,9 @@ function ItemModalContent({
           />
           {isCreate ? (
             <p className="mt-1 text-xs text-slate-500">
-              내부 품목ID는 저장 시 MR-00001 형식으로 자동 발급됩니다.
+              {form.itemCategory !== '' && isOptionalItemCodeCategory(form.itemCategory)
+                ? '품목코드를 비우면 품목명과 같은 값으로 저장됩니다. 내부 품목ID는 MR-00001 형식으로 자동 발급됩니다.'
+                : '내부 품목ID는 저장 시 MR-00001 형식으로 자동 발급됩니다.'}
             </p>
           ) : null}
         </label>
