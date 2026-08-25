@@ -438,9 +438,9 @@ export function InboundPurchaseLinesForm({
               <th className="px-3 py-2 text-right font-semibold text-slate-600">잔량</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">수량</th>
               <th className="px-3 py-2 text-right font-semibold text-slate-600">입고수량</th>
-            </tr>
-          </thead>
-          <tbody>
+          </tr>
+        </thead>
+        <tbody>
             {items.map((item, index) => {
               const rowKey = item.lotNumber || `${item.purchaseOrderLineId}-${index}`
               const isLatest = lastScannedKey === rowKey || lastScannedKey === item.lotNumber
@@ -488,14 +488,14 @@ export function InboundPurchaseLinesForm({
                     {cell(material?.supplyType || '')}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-700">
-                    {item.orderedQuantity.toLocaleString('ko-KR')}
-                  </td>
+                {item.orderedQuantity.toLocaleString('ko-KR')}
+              </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-500">
-                    {item.receivedQuantity.toLocaleString('ko-KR')}
-                  </td>
+                {item.receivedQuantity.toLocaleString('ko-KR')}
+              </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-amber-700">
-                    {item.remainingQuantity.toLocaleString('ko-KR')}
-                  </td>
+                {item.remainingQuantity.toLocaleString('ko-KR')}
+              </td>
                   <td className="w-[96px] px-2 py-2">
                     <input
                       type="text"
@@ -531,16 +531,16 @@ export function InboundPurchaseLinesForm({
                         inputClassName,
                         isLatest ? 'border-emerald-400 ring-2 ring-emerald-200' : '',
                       ].join(' ')}
-                    />
-                  </td>
+                />
+              </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-slate-900">
                     {(Number(item.quantity) || 0).toLocaleString('ko-KR')}
                   </td>
-                </tr>
+            </tr>
               )
             })}
-          </tbody>
-        </table>
+        </tbody>
+      </table>
       </div>
     </div>
   )

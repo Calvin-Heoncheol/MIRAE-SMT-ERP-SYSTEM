@@ -1,12 +1,15 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DeliveryRegisterItemsForm } from '@/components/delivery/delivery-register-items-form'
+import { DeliveryShippablePicker } from '@/components/delivery/delivery-shippable-picker'
 import { useBusy } from '@/components/ui/busy-provider'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
+  allocationsForRegisterQuantity,
+  applyShippableOptionToItem,
   emptyDeliveryRegisterItemForm,
   validateDeliveryRegisterItems,
   type DeliveryRegisterItemForm,
@@ -18,6 +21,7 @@ import {
 } from '@/lib/delivery/print-delivery-statement'
 import { createDeliveryShipment } from '@/lib/delivery/repository'
 import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
+import { fetchAvailableLots, syncFinishedGoodsLots } from '@/lib/production-lots/repository'
 import { CATCH_UP_LOT_WARNING } from '@/lib/production-lots/types'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
@@ -41,6 +45,23 @@ function CancelButton({ disabled }: { disabled?: boolean }) {
   )
 }
 
+function filledRegisterItems(items: DeliveryRegisterItemForm[] | null | undefined) {
+  return (items || []).filter((item) => item.assemblyGroupId.trim() && item.productCode.trim())
+}
+
+async function attachLotsToItem(item: DeliveryRegisterItemForm): Promise<DeliveryRegisterItemForm> {
+  await syncFinishedGoodsLots({ assemblyGroupId: item.assemblyGroupId })
+  const result = await fetchAvailableLots(item.assemblyGroupId)
+  const lots = result.ok ? result.lots : []
+  return {
+    ...item,
+    availableLots: lots,
+    allocations: item.lotManual
+      ? item.allocations
+      : allocationsForRegisterQuantity(lots, Number(item.quantity)),
+  }
+}
+
 function DeliveryRegisterModalContent({
   options,
   initialItems,
@@ -51,16 +72,9 @@ function DeliveryRegisterModalContent({
   const { notifyAuthOrFailure } = useWriteFailureToast()
   const [recordDate, setRecordDate] = useState(todayYmdSeoul)
   const [note, setNote] = useState('')
-  const [items, setItems] = useState<DeliveryRegisterItemForm[]>(() => {
-    if (initialItems?.length) {
-      return initialItems
-    }
-    return [
-      emptyDeliveryRegisterItemForm(),
-      emptyDeliveryRegisterItemForm(),
-      emptyDeliveryRegisterItemForm(),
-    ]
-  })
+  const [items, setItems] = useState<DeliveryRegisterItemForm[]>(() =>
+    filledRegisterItems(initialItems),
+  )
   const [saving, setSaving] = useState(false)
   const [printing, setPrinting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -78,7 +92,52 @@ function DeliveryRegisterModalContent({
     return first?.customer.trim() || ''
   }, [items])
 
+  const selectedIds = useMemo(
+    () => new Set(items.map((item) => item.assemblyGroupId).filter(Boolean)),
+    [items],
+  )
+
   const shipped = Boolean(lastShipmentId && lastShipMeta)
+
+  useEffect(() => {
+    const seed = filledRegisterItems(initialItems)
+    if (!seed.length) return
+    let cancelled = false
+    void (async () => {
+      const withLots = await Promise.all(seed.map((item) => attachLotsToItem(item)))
+      if (!cancelled) setItems(withLots)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [initialItems])
+
+  async function handleToggle(option: DeliveryShippableOption, checked: boolean) {
+    if (shipped || saving || printing) return
+    setSaveError(null)
+
+    if (!checked) {
+      setItems((current) =>
+        current.filter((item) => item.assemblyGroupId !== option.assemblyGroupId),
+      )
+      return
+    }
+
+    if (lockedCustomer && option.customer !== lockedCustomer) {
+      setSaveError('같은 고객사 품목만 함께 출하할 수 있습니다.')
+      return
+    }
+
+    if (selectedIds.has(option.assemblyGroupId)) return
+
+    const pending = applyShippableOptionToItem(emptyDeliveryRegisterItemForm(), option)
+    setItems((current) => [...current, pending])
+
+    const withLots = await attachLotsToItem(pending)
+    setItems((current) =>
+      current.map((item) => (item.key === pending.key ? withLots : item)),
+    )
+  }
 
   async function printLastStatement() {
     if (!lastShipmentId || !lastShipMeta) return false
@@ -175,11 +234,12 @@ function DeliveryRegisterModalContent({
   return (
     <ErpModal
       open
-      size="lg"
+      size="wide"
       title="출하 등록"
-      description="완제품·반제품 코드로 출하할 수 있습니다. LOT은 FIFO로 채워지며 수정 가능합니다."
+      description="왼쪽에서 출하가능 품목을 체크하고, 오른쪽에서 수량·LOT을 확인한 뒤 출하하세요."
       onClose={onClose}
       closeOnEscape={!busy}
+      contentClassName="min-h-0 flex-1 overflow-hidden p-0"
       footer={
         <div className="flex w-full flex-col gap-3">
           {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
@@ -210,37 +270,50 @@ function DeliveryRegisterModalContent({
         </div>
       }
     >
-      <div className="grid grid-cols-1 gap-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>출하일</span>
-            <input
-              type="date"
-              value={recordDate}
-              disabled={shipped || busy}
-              onChange={(event) => setRecordDate(event.target.value)}
-              className={ERP_FIELD_INPUT_CLASS}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>비고</span>
-            <input
-              value={note}
-              disabled={shipped || busy}
-              onChange={(event) => setNote(event.target.value)}
-              className={ERP_FIELD_INPUT_CLASS}
-              placeholder="선택"
-            />
-          </label>
-        </div>
+      <div className="grid min-h-[min(72dvh,760px)] grid-cols-1 lg:grid-cols-[minmax(300px,38%)_minmax(0,1fr)]">
+        <aside className="flex min-h-[280px] flex-col border-b border-slate-200 lg:min-h-0 lg:border-b-0 lg:border-r lg:border-slate-200">
+          <DeliveryShippablePicker
+            options={options}
+            selectedIds={selectedIds}
+            lockedCustomer={lockedCustomer}
+            disabled={shipped || busy}
+            onToggle={(option, checked) => void handleToggle(option, checked)}
+          />
+        </aside>
 
-        <DeliveryRegisterItemsForm
-          items={items}
-          options={options}
-          lockedCustomer={lockedCustomer}
-          disabled={shipped || busy}
-          onChange={setItems}
-        />
+        <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>출하일</span>
+              <input
+                type="date"
+                value={recordDate}
+                disabled={shipped || busy}
+                onChange={(event) => setRecordDate(event.target.value)}
+                className={ERP_FIELD_INPUT_CLASS}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>비고</span>
+              <input
+                value={note}
+                disabled={shipped || busy}
+                onChange={(event) => setNote(event.target.value)}
+                className={ERP_FIELD_INPUT_CLASS}
+                placeholder="선택"
+              />
+            </label>
+          </div>
+
+          <DeliveryRegisterItemsForm
+            items={items}
+            options={options}
+            lockedCustomer={lockedCustomer}
+            disabled={shipped || busy}
+            productSelectMode="fixed"
+            onChange={setItems}
+          />
+        </div>
       </div>
     </ErpModal>
   )

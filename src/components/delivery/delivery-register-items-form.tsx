@@ -24,6 +24,8 @@ type DeliveryRegisterItemsFormProps = {
   options: DeliveryShippableOption[]
   lockedCustomer: string
   disabled?: boolean
+  /** fixed: 왼쪽 출하가능 체크로 품목 선택 (코드 검색 숨김) */
+  productSelectMode?: 'combobox' | 'fixed'
   onChange: Dispatch<SetStateAction<DeliveryRegisterItemForm[]>>
 }
 
@@ -50,9 +52,11 @@ export function DeliveryRegisterItemsForm({
   options,
   lockedCustomer,
   disabled = false,
+  productSelectMode = 'combobox',
   onChange,
 }: DeliveryRegisterItemsFormProps) {
   const [editingLotKey, setEditingLotKey] = useState<string | null>(null)
+  const fixedProducts = productSelectMode === 'fixed'
 
   function optionsForRow(index: number) {
     const currentId = items[index]?.assemblyGroupId.trim()
@@ -79,7 +83,7 @@ export function DeliveryRegisterItemsForm({
   }
 
   function removeRow(index: number) {
-    if (items.length <= 1) return
+    if (!fixedProducts && items.length <= 1) return
     const removed = items[index]
     if (removed && editingLotKey === removed.key) setEditingLotKey(null)
     onChange(items.filter((_, itemIndex) => itemIndex !== index))
@@ -134,14 +138,22 @@ export function DeliveryRegisterItemsForm({
     'w-full min-w-0 rounded border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
   const readOnlyClassName = `${inputClassName} bg-slate-50 text-slate-600`
 
+  if (fixedProducts && !items.length) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+        왼쪽에서 출하할 품목을 체크하세요.
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-bold text-slate-900">출하 품목</h3>
-        {!disabled ? <ErpRowAddButton onClick={addRow} title="행 추가" /> : null}
+        {!disabled && !fixedProducts ? <ErpRowAddButton onClick={addRow} title="행 추가" /> : null}
       </div>
 
-      {lockedCustomer ? (
+      {lockedCustomer && !fixedProducts ? (
         <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
           고객사 잠금: <span className="font-semibold">{lockedCustomer}</span> — 같은 고객사만
           추가됩니다.
@@ -149,7 +161,12 @@ export function DeliveryRegisterItemsForm({
       ) : null}
 
       <div className="overflow-x-auto rounded-lg border border-slate-300">
-        <table className="min-w-[1080px] w-full border-collapse text-sm">
+        <table
+          className={[
+            'w-full border-collapse text-sm',
+            fixedProducts ? 'min-w-[720px]' : 'min-w-[1080px]',
+          ].join(' ')}
+        >
           <thead className="bg-slate-100">
             <tr>
               <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
@@ -194,23 +211,32 @@ export function DeliveryRegisterItemsForm({
               return (
                 <tr key={item.key} className="border-t border-slate-200 bg-white">
                   <td className="px-2 py-1.5 align-top">
-                    <DeliveryShippableCombobox
-                      value={item.productCode}
-                      options={rowOptions}
-                      placeholder="코드 검색"
-                      ariaLabel={`${index + 1}행 품목코드`}
-                      disabled={disabled}
-                      inputClassName={`${disabled ? readOnlyClassName : inputClassName} min-w-[120px]`}
-                      onValueChange={(productCode) => {
-                        const exact = findExactShippableOptions(rowOptions, productCode)
-                        if (exact.length === 1) {
-                          void selectOption(index, exact[0]!)
-                          return
-                        }
-                        patchItem(index, { ...clearItemProduct(item), productCode })
-                      }}
-                      onOptionSelect={(option) => void selectOption(index, option)}
-                    />
+                    {fixedProducts ? (
+                      <input
+                        value={item.productCode}
+                        readOnly
+                        className={`${readOnlyClassName} min-w-[100px] font-mono`}
+                        aria-label={`${index + 1}행 품목코드`}
+                      />
+                    ) : (
+                      <DeliveryShippableCombobox
+                        value={item.productCode}
+                        options={rowOptions}
+                        placeholder="코드 검색"
+                        ariaLabel={`${index + 1}행 품목코드`}
+                        disabled={disabled}
+                        inputClassName={`${disabled ? readOnlyClassName : inputClassName} min-w-[120px]`}
+                        onValueChange={(productCode) => {
+                          const exact = findExactShippableOptions(rowOptions, productCode)
+                          if (exact.length === 1) {
+                            void selectOption(index, exact[0]!)
+                            return
+                          }
+                          patchItem(index, { ...clearItemProduct(item), productCode })
+                        }}
+                        onOptionSelect={(option) => void selectOption(index, option)}
+                      />
+                    )}
                   </td>
                   <td className="px-2 py-1.5 align-top">
                     <input
@@ -292,7 +318,7 @@ export function DeliveryRegisterItemsForm({
                     />
                   </td>
                   <td className="px-1 py-1.5 text-center align-top">
-                    {!disabled && items.length > 1 ? (
+                    {!disabled && (fixedProducts || items.length > 1) ? (
                       <button
                         type="button"
                         onClick={() => removeRow(index)}

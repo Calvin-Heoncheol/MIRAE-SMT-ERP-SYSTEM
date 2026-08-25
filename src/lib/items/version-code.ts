@@ -258,6 +258,7 @@ export function itemToVersionUpPayload(
     specification: item.specification,
     package: item.package,
     mpn: item.mpn,
+    alternateMpns: item.alternateMpns || [],
     customerId: item.customerId,
     materialType: item.materialType,
     supplyType: item.supplyType,

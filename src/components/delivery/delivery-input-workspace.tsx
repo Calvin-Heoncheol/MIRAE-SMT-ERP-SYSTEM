@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DeliveryHistoryFetchError } from '@/components/delivery/delivery-history-fetch-error'
 import { DeliveryHistoryModal } from '@/components/delivery/delivery-history-modal'
@@ -43,11 +43,7 @@ type HistoryModalState =
 
 function seedItemsFromOption(option: DeliveryShippableOption | null): DeliveryRegisterItemForm[] | null {
   if (!option) return null
-  return [
-    applyShippableOptionToItem(emptyDeliveryRegisterItemForm(), option),
-    emptyDeliveryRegisterItemForm(),
-    emptyDeliveryRegisterItemForm(),
-  ]
+  return [applyShippableOptionToItem(emptyDeliveryRegisterItemForm(), option)]
 }
 
 export function DeliveryInputWorkspace({
@@ -62,6 +58,7 @@ export function DeliveryInputWorkspace({
   const [search, setSearch] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const openedInitialUiKey = useRef(false)
   const [historyModal, setHistoryModal] = useState<HistoryModalState>({ open: false })
   const [historyModalSession, setHistoryModalSession] = useState(0)
   const [registerOpen, setRegisterOpen] = useState(false)
@@ -83,11 +80,11 @@ export function DeliveryInputWorkspace({
   )
 
   const dateRange = useMemo(() => ({ startDate, endDate }), [startDate, endDate])
-  const filtered = useMemo(
+  const filteredHistory = useMemo(
     () => filterDeliveryHistory(rows, search, dateRange),
     [rows, search, dateRange],
   )
-  const hasActiveFilter = Boolean(search.trim()) || hasDateRangeFilter(dateRange)
+  const hasHistoryFilter = Boolean(search.trim()) || hasDateRangeFilter(dateRange)
 
   function openRegister(seed?: DeliveryShippableOption | null) {
     const matched =
@@ -144,6 +141,16 @@ export function DeliveryInputWorkspace({
     router.refresh()
   }
 
+  useEffect(() => {
+    if (!initialUiKey || openedInitialUiKey.current) return
+    const matched = shippableOptions.find((option) => option.uiKey === initialUiKey)
+    if (!matched) return
+    openedInitialUiKey.current = true
+    setRegisterSession((value) => value + 1)
+    setRegisterInitialItems(seedItemsFromOption(matched))
+    setRegisterOpen(true)
+  }, [initialUiKey, shippableOptions])
+
   if (!historyResult.ok) {
     return <DeliveryHistoryFetchError result={historyResult} />
   }
@@ -158,7 +165,7 @@ export function DeliveryInputWorkspace({
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="출하번호, LOT, 발주번호, 고객사, 품목명, 출하일 검색…"
+          searchPlaceholder="명세서, 발주번호, 고객사, 품목, 출하일 검색…"
           accent="sky"
           inlineFilters={
             <DateRangeFilter
@@ -173,9 +180,9 @@ export function DeliveryInputWorkspace({
         />
 
         <DeliveryHistoryTable
-          rows={filtered}
+          rows={filteredHistory}
           emptyMessage={formatEmptyListMessage({
-            hasQuery: hasActiveFilter,
+            hasQuery: hasHistoryFilter,
             emptyLabel: '등록된 출하 이력이 없습니다',
             actionHint: '오른쪽 상단에서 출하 등록하세요',
           })}

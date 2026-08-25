@@ -1,4 +1,5 @@
 import { createSupabaseClient } from '@/lib/supabase'
+import { parseItemMpnFields } from '@/lib/items/utils'
 import type { CreateMaterialPayload, Material, MaterialAlternateMpn, MaterialPayload } from './types'
 import {
   mapItemRowToMaterial,
@@ -123,14 +124,54 @@ export async function updateMaterial(id: string, payload: MaterialPayload): Prom
 }
 
 export async function addAlternateMpn(
-  _materialId: string,
-  _mpn: string,
+  materialId: string,
+  mpn: string,
   _sortOrder = 0,
 ): Promise<AddAlternateMpnResult> {
-  return {
-    ok: false,
-    reason: 'query',
-    detail: '대체 MPN은 기초등록 → 품목등록의 MPN 필드로 관리합니다.',
+  const id = materialId.trim()
+  const nextMpn = mpn.trim()
+  if (!id || !nextMpn) {
+    return { ok: false, reason: 'query', detail: '자재와 대체 MPN을 입력해 주세요.' }
+  }
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase.from('items').select('mpn').eq('id', id).maybeSingle()
+    if (error) return { ok: false, reason: 'query', detail: error.message }
+    if (!data) return { ok: false, reason: 'query', detail: '자재를 찾을 수 없습니다.' }
+
+    const parsed = parseItemMpnFields(String(data.mpn || ''))
+    const already =
+      parsed.mpn.toLowerCase() === nextMpn.toLowerCase() ||
+      parsed.alternateMpns.some((value) => value.toLowerCase() === nextMpn.toLowerCase())
+    if (already) {
+      return { ok: false, reason: 'duplicate', detail: '이미 등록된 MPN입니다.' }
+    }
+
+    const encoded = [parsed.mpn, ...parsed.alternateMpns, nextMpn].filter(Boolean).join('\n')
+    const { error: updateError } = await supabase.from('items').update({ mpn: encoded }).eq('id', id)
+    if (updateError) return { ok: false, reason: 'query', detail: updateError.message }
+
+    return {
+      ok: true,
+      row: {
+        id: `${id}:${nextMpn}`,
+        materialId: id,
+        mpn: nextMpn,
+        sortOrder: parsed.alternateMpns.length,
+        note: '',
+        createdAt: new Date().toISOString(),
+      },
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
   }
 }
 

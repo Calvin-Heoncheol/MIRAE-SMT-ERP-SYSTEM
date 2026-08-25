@@ -4,7 +4,11 @@ import { type Dispatch, type SetStateAction, useEffect, useRef } from 'react'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { ProductCombobox } from '@/components/orders/product-combobox'
 import { parseItemVersionCode } from '@/lib/items/version-code'
-import { defaultOrderItemForm, type OrderItemForm } from '@/lib/orders/form-state'
+import {
+  defaultAdhocOrderItemForm,
+  defaultOrderItemForm,
+  type OrderItemForm,
+} from '@/lib/orders/form-state'
 import { computeLineAmount } from '@/lib/orders/utils'
 import type { Product } from '@/lib/products/types'
 import { findProductsByCode, findProductsByName } from '@/lib/products/utils'
@@ -106,6 +110,10 @@ export function OrderItemsForm({
     onChange((current) => [...current, defaultOrderItemForm()])
   }
 
+  function addAdhocRow() {
+    onChange((current) => [...current, defaultAdhocOrderItemForm()])
+  }
+
   function removeRow(index: number) {
     const target = items[index]
     if (!target) return
@@ -194,8 +202,8 @@ export function OrderItemsForm({
                             quoteId: '',
                           })
                         }
-                        placeholder="선택 (예: TEMP)"
-                        aria-label={`${index + 1}행 임시 제품코드`}
+                        placeholder="코드 (선택)"
+                        aria-label={`${index + 1}행 추가 작업 코드`}
                         className={inputClassName}
                       />
                     ) : (
@@ -233,12 +241,12 @@ export function OrderItemsForm({
                               quoteId: '',
                             })
                           }
-                          placeholder="예: 특별할증, 추가가공비"
-                          aria-label={`${index + 1}행 임시 제품명`}
+                          placeholder="예: 추가가공비, 특별할증"
+                          aria-label={`${index + 1}행 추가 작업명`}
                           className={inputClassName}
                         />
                         <span className="inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
-                          임시
+                          추가 작업
                         </span>
                       </div>
                     ) : (
@@ -343,15 +351,26 @@ export function OrderItemsForm({
           <tfoot>
             <tr className="border-t border-slate-200 bg-slate-50/80">
               <td colSpan={columnCount} className="px-2 py-2">
-                <button
-                  type="button"
-                  onClick={addRow}
-                  className={ERP_ROW_ADD_BUTTON_CLASS}
-                  title="행 추가"
-                  aria-label="행 추가"
-                >
-                  + 행 추가
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={addRow}
+                    className={ERP_ROW_ADD_BUTTON_CLASS}
+                    title="행 추가"
+                    aria-label="행 추가"
+                  >
+                    + 행 추가
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addAdhocRow}
+                    className={ERP_ROW_ADD_BUTTON_CLASS}
+                    title="추가 작업"
+                    aria-label="추가 작업"
+                  >
+                    + 추가 작업
+                  </button>
+                </div>
               </td>
             </tr>
           </tfoot>
@@ -359,7 +378,8 @@ export function OrderItemsForm({
       </div>
       <p className="text-xs text-slate-500">
         제품을 선택하면 품목의 기본 단가가 자동으로 들어갑니다. 이번 발주만 다르면 단가를 직접
-        고치면 됩니다.
+        고치면 됩니다. 추가 작업은 품목등록 없이 금액만 넣으며, 생산에는 반영되지 않고
+        거래명세서에만 표시됩니다.
       </p>
     </div>
   )

@@ -1,5 +1,10 @@
 import type { OrderItemForm } from './form-state'
-import { findProductsByName, resolveOrderLineProduct } from '@/lib/products/utils'
+import {
+  findProductsByCode,
+  findProductsByName,
+  resolveOrderLineProduct,
+  uniqueProductNames,
+} from '@/lib/products/utils'
 import type { Product } from '@/lib/products/types'
 import { computeLineAmount } from './utils'
 
@@ -80,6 +85,14 @@ export function validateOrderItems(
           message: `${index + 1}행 제품명이 등록 정보와 다릅니다. 목록에서 다시 선택하세요.`,
         }
       }
+      const sameCodeProducts = findProductsByCode(products, item.productCode, customer)
+      const sameCodeNames = uniqueProductNames(sameCodeProducts)
+      if (sameCodeNames.length > 1 && !item.productName) {
+        return {
+          ok: false as const,
+          message: `${index + 1}행 같은 제품코드에 제품명이 ${sameCodeNames.length}개 있습니다. 드롭다운에서 제품명을 선택하세요.`,
+        }
+      }
       const sameNameVersions = findProductsByName(products, item.productName, customer)
       if (sameNameVersions.length > 1) {
         return {
@@ -89,7 +102,7 @@ export function validateOrderItems(
       }
       return {
         ok: false as const,
-        message: `${index + 1}행 해당 제품은 등록되어 있지 않습니다. 임시 품목으로 추가하거나 제품명을 확인해 주세요.`,
+        message: `${index + 1}행 해당 제품은 등록되어 있지 않습니다. 추가 작업으로 넣거나 제품명을 확인해 주세요.`,
       }
     }
 

@@ -7,6 +7,7 @@ import {
 } from '@/lib/app-config'
 import { parseItemVersionCode, stripTrailingVersionFromName } from '@/lib/items/version-code'
 import { fetchOrderById } from '@/lib/orders/repository'
+import { isBillingOnlyOrderItem } from '@/lib/orders/utils'
 import { findActiveBusinessPartnerByName } from '@/lib/partners/repository'
 import type { DeliveryStatementData, DeliveryStatementLine } from './types'
 
@@ -582,6 +583,43 @@ function statementLinesFromOrderItems(
     .filter((item) => item.qty > 0 || item.supplyAmount > 0)
 }
 
+/** 품목등록 없는 추가 작업(금액 전용) 라인 — 출하 없이 명세에만 붙인다. */
+function billingOnlyStatementLinesFromOrder(
+  order: NonNullable<Awaited<ReturnType<typeof fetchOrderById>>>,
+  fallbackOrderNumber = '',
+): DeliveryStatementLine[] {
+  return order.items
+    .filter((item) => !item.derivedFromLineId && isBillingOnlyOrderItem(item))
+    .map((item) => {
+      const qty = Math.max(0, Math.floor(Number(item.quantity) || 0))
+      const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+      const supplyAmount =
+        Math.max(0, Math.round(Number(item.orderAmount) || 0)) || Math.round(qty * unitPrice)
+      return {
+        orderNumber: order.orderNumber || fallbackOrderNumber,
+        productCode: String(item.productCode || '').trim() || 'TEMP',
+        productName: String(item.productName || '').trim(),
+        qty,
+        unitPrice,
+        supplyAmount,
+      }
+    })
+    .filter((item) => item.productName && (item.qty > 0 || item.supplyAmount > 0))
+}
+
+function appendBillingOnlyLinesOnce(
+  items: DeliveryStatementLine[],
+  order: NonNullable<Awaited<ReturnType<typeof fetchOrderById>>> | null | undefined,
+  orderNumber: string,
+  appendedOrders: Set<string>,
+) {
+  if (!order) return
+  const key = order.orderNumber || orderNumber
+  if (!key || appendedOrders.has(key)) return
+  appendedOrders.add(key)
+  items.push(...billingOnlyStatementLinesFromOrder(order, orderNumber))
+}
+
 /**
  * 거래명세서 품목 = 이번 출하 건에 포함된 품목만 (출하 수량·단가)
  */
@@ -663,6 +701,8 @@ export async function buildDeliveryStatementDataFromOrder(input: {
     }
   })
 
+  appendBillingOnlyLinesOnce(items, order, orderNumber, new Set())
+
   if (!items.some((item) => item.productName || item.productCode)) {
     return { ok: false, detail: '출하 품목 정보를 찾을 수 없습니다.' }
   }
@@ -736,12 +776,15 @@ export async function buildDeliveryStatementDataFromShipment(input: {
 
   const items: DeliveryStatementLine[] = []
   const expandedOrders = new Set<string>()
+  const billingAppendedOrders = new Set<string>()
   for (const line of shippedLines) {
     const order = await getOrder(line.orderNumber)
     if (order && isCollapsedProductLabel(line.productName)) {
       if (!expandedOrders.has(order.orderNumber)) {
         items.push(...statementLinesFromOrderItems(order, line.orderNumber))
         expandedOrders.add(order.orderNumber)
+        // 전체 라인 전개에 추가 작업이 이미 포함됨
+        billingAppendedOrders.add(order.orderNumber)
       }
       continue
     }
@@ -773,6 +816,11 @@ export async function buildDeliveryStatementDataFromShipment(input: {
       unitPrice,
       supplyAmount: Math.round(qty * unitPrice),
     })
+  }
+
+  for (const orderNumber of [...new Set(shippedLines.map((line) => line.orderNumber).filter(Boolean))]) {
+    const order = await getOrder(orderNumber)
+    appendBillingOnlyLinesOnce(items, order, orderNumber, billingAppendedOrders)
   }
 
   if (!items.some((item) => item.productName || item.productCode)) {

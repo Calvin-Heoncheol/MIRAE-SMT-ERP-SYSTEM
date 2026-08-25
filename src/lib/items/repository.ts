@@ -6,8 +6,14 @@ import {
   buildItemChangeDetail,
   buildItemChangeTitle,
 } from '@/lib/change-logs/utils'
+import { syncFinishedParentsUsingChild } from '@/lib/bom/repository'
 import type { Item, ItemPayload, UpdateItemPayload } from './types'
-import { isManualItemCodeCategory, isRawMaterialItemCategory, isFinishedItemCategory } from './types'
+import {
+  isManualItemCodeCategory,
+  isRawMaterialItemCategory,
+  isFinishedItemCategory,
+  isSemiFinishedItemCategory,
+} from './types'
 import {
   mapItemRecord,
   normalizeItemCategory,
@@ -54,15 +60,18 @@ function mapDuplicateError(detail: string, itemCode?: string) {
         ? `이미 등록된 원자재 품목코드입니다: ${code}`
         : '이미 등록된 원자재 품목코드입니다.'
     }
+    if (detail.includes('items_base_code_version_uidx')) {
+      return '같은 품목코드·버전은 품목명이 달라도 지금은 등록이 막혀 있습니다. Supabase에서 migrate-items-unique-code-name-version.sql 을 실행해 주세요.'
+    }
     if (detail.includes('items_base_code_name_version_uidx')) {
       return code
         ? `이미 등록된 품목입니다 (품목코드·품명·버전 동일): ${code}`
         : '이미 등록된 품목입니다. 품목코드·품명·버전이 모두 같은 행이 있습니다.'
     }
     if (code) {
-      return `이미 등록된 품목코드입니다: ${code}`
+      return `이미 등록된 품목입니다: ${code}`
     }
-    return '이미 등록된 품목코드·품명·버전입니다. 품명 또는 버전을 바꿔 주세요.'
+    return '이미 등록된 품목코드·품명·버전입니다. 품명을 바꾸면 같은 코드·버전으로도 등록할 수 있습니다.'
   }
   return detail
 }
@@ -746,6 +755,20 @@ export async function updateItem(
         afterData,
       })
       changeLogWarning = formatChangeLogWarning(changeLogResult)
+    }
+
+    if (
+      isSemiFinishedItemCategory(payload.itemCategory) &&
+      (!beforeItem || beforeItem.unitPrice !== updatePayload.unitPrice)
+    ) {
+      const cascade = await syncFinishedParentsUsingChild(key)
+      if (!cascade.ok) {
+        return {
+          ok: false,
+          reason: 'query',
+          detail: `품목은 저장됐지만 조립제품 단가 반영에 실패했습니다. ${cascade.detail}`,
+        }
+      }
     }
 
     return { ok: true, id: key, changeLogWarning }

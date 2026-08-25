@@ -8,6 +8,7 @@ import type {
   MaterialSupplyType,
   MaterialType,
 } from './types'
+import { parseItemMpnFields } from '@/lib/items/utils'
 
 export function normalizeMaterialType(value: string): MaterialType {
   const trimmed = value.trim()
@@ -98,6 +99,7 @@ export function mapItemRowToMaterial(row: {
   specification: string
   package?: string | null
   mpn: string
+  alternate_mpns?: string[] | null
   material_type?: string | null
   supply_type?: string | null
   customer?: string | null
@@ -117,6 +119,7 @@ export function mapItemRowToMaterial(row: {
   const supplyType = row.supply_type?.trim()
   const normalizedSupplyType =
     supplyType === '도급' || supplyType === '사급' ? supplyType : ''
+  const mpns = parseItemMpnFields(row.mpn || '', row.alternate_mpns)
 
   return {
     id: row.id,
@@ -126,9 +129,16 @@ export function mapItemRowToMaterial(row: {
     materialName: row.name || '',
     specification: row.specification || '',
     type,
-    mpn: (row.mpn || '').trim(),
-    alternateMpns: [],
-    alternateMpnRows: [],
+    mpn: mpns.mpn,
+    alternateMpns: mpns.alternateMpns,
+    alternateMpnRows: mpns.alternateMpns.map((mpn, index) => ({
+      id: `${row.id}:${index}`,
+      materialId: row.id,
+      mpn,
+      sortOrder: index,
+      note: '',
+      createdAt: row.created_at,
+    })),
     supplier: (row.supplier || '').trim(),
     supplyType: normalizedSupplyType,
     moq: 0,

@@ -171,6 +171,18 @@ export function findProductById(products: Product[], id: string) {
   return products.find((product) => product.isActive && product.id === want) ?? null
 }
 
+export function uniqueProductNames(products: Product[]) {
+  const seen = new Set<string>()
+  const names: string[] = []
+  for (const product of products) {
+    const name = product.productName.trim()
+    if (!name || seen.has(name)) continue
+    seen.add(name)
+    names.push(name)
+  }
+  return names
+}
+
 export function findProductsByName(products: Product[], name: string, customer: string) {
   const want = name.trim()
   if (!want) return [] as Product[]

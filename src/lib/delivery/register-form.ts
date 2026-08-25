@@ -11,6 +11,7 @@ export type DeliveryShippableOption = {
   orderNumber: string
   customerPoNumber: string
   customer: string
+  deliveryDate: string
   productId?: string
   productCode: string
   productName: string
@@ -96,6 +97,7 @@ export function buildDeliveryShippableOptions(
       orderNumber: order.orderNumber,
       customerPoNumber: order.customerPoNumber || '',
       customer: order.customer,
+      deliveryDate: order.deliveryDate || '',
       productId: order.productId,
       productCode: order.productCode,
       productName: formatProductionProductName(order),
@@ -202,7 +204,9 @@ function shippableOptionSearchValues(option: DeliveryShippableOption) {
     option.productName,
     option.productVersion || '',
     option.orderNumber,
+    option.customerPoNumber,
     option.customer,
+    option.deliveryDate,
     option.assemblyGroupId,
     parseItemVersionCode(option.productCode).base,
     parseItemVersionCode(option.productId || '').base,

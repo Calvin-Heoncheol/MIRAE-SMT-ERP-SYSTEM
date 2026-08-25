@@ -143,6 +143,8 @@ export type Item = {
   specification: string
   package: string
   mpn: string
+  /** 같은 자재의 다른 메이커 품번. 다른 부품이 아님 */
+  alternateMpns: string[]
   customerId: string
   customerName: string
   materialType: ItemMaterialType
@@ -170,6 +172,7 @@ export type ItemPayload = {
   specification: string
   package: string
   mpn: string
+  alternateMpns: string[]
   customerId: string
   materialType: ItemMaterialType
   supplyType: ItemSupplyType
@@ -196,6 +199,7 @@ export const ITEM_COLUMN_LABELS = {
   specification: '사양',
   package: '패키지',
   mpn: 'MPN',
+  alternateMpns: '대체 MPN',
   materialType: '공정구분',
   supplyType: '도급/사급',
   supplier: '공급사',

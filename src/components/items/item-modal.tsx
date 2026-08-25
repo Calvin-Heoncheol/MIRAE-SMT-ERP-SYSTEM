@@ -44,7 +44,7 @@ import {
 import { nextItemCodeForCategory, itemFromPayload, displayItemUnitPrice, formatItemUnitPrice } from '@/lib/items/utils'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import type { BusinessPartner } from '@/lib/partners/types'
-import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
+import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS, ERP_ROW_ADD_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 type ItemModalProps = {
   open: boolean
@@ -224,6 +224,7 @@ function ItemModalContent({
         next.package = ''
         next.specification = ''
         next.mpn = ''
+        next.alternateMpns = []
       }
       return next
     })
@@ -563,7 +564,8 @@ function ItemModalContent({
               className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
             />
             <p className="mt-1 text-xs text-slate-500">
-              같은 품목코드라도 버전이 다르면 별도 품목으로 관리됩니다.
+              같은 품목코드·버전이라도 품목명이 다르면 별도 품목으로 등록됩니다. 품목코드·품명·버전이
+              모두 같을 때만 중복입니다.
             </p>
           </label>
         ) : null}
@@ -703,6 +705,51 @@ function ItemModalContent({
                 className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
               />
             </label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className={ERP_FIELD_LABEL_CLASS}>대체 MPN</span>
+                <button
+                  type="button"
+                  className={ERP_ROW_ADD_BUTTON_CLASS}
+                  onClick={() => updateForm('alternateMpns', [...form.alternateMpns, ''])}
+                >
+                  + 추가
+                </button>
+              </div>
+              {form.alternateMpns.length ? (
+                <div className="space-y-2">
+                  {form.alternateMpns.map((mpn, index) => (
+                    <div key={`alt-mpn-${index}`} className="flex items-center gap-2">
+                      <input
+                        value={mpn}
+                        onChange={(event) => {
+                          const next = [...form.alternateMpns]
+                          next[index] = event.target.value
+                          updateForm('alternateMpns', next)
+                        }}
+                        placeholder="같은 부품의 다른 메이커 품번"
+                        className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateForm(
+                            'alternateMpns',
+                            form.alternateMpns.filter((_, itemIndex) => itemIndex !== index),
+                          )
+                        }
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                        aria-label={`대체 MPN ${index + 1} 삭제`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500">릴 바코드만 다른 같은 부품이면 여기에 추가하세요.</p>
+              )}
+            </div>
             <label className="block text-sm">
               <span className={ERP_FIELD_LABEL_CLASS}>도급/사급</span>
               <select

@@ -337,7 +337,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
       value: dueSoonOrders,
       unit: '건',
       hint: `D-${DUE_SOON_DAYS} 이내·지연`,
-      href: '/orders/status',
+      href: '/orders/progress',
       tone: (dueSoonOrders ?? 0) > 0 ? 'rose' : 'default',
     },
     {
@@ -346,7 +346,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
       value: unshippedOrders,
       unit: '건',
       hint: '출하 미완료',
-      href: '/orders/status',
+      href: '/orders/progress',
       tone: (unshippedOrders ?? 0) > 0 ? 'amber' : 'default',
     },
     {

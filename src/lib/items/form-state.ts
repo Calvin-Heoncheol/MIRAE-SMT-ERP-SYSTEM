@@ -12,7 +12,7 @@ import {
   isRawMaterialItemCategory,
   isSemiFinishedItemCategory,
 } from './types'
-import { normalizeItemCategory } from './utils'
+import { normalizeItemCategory, normalizeAlternateMpns } from './utils'
 import {
   normalizeVersionLabel,
   parseItemVersionCode,
@@ -29,6 +29,7 @@ export type ItemFormState = {
   specification: string
   package: string
   mpn: string
+  alternateMpns: string[]
   customerId: string
   customerName: string
   processType: ItemProcessType
@@ -91,6 +92,7 @@ export function emptyItemForm(): ItemFormState {
     specification: '',
     package: '',
     mpn: '',
+    alternateMpns: [],
     customerId: '',
     customerName: '',
     processType: '',
@@ -112,6 +114,7 @@ export function itemToForm(item: Item): ItemFormState {
     specification: item.specification,
     package: item.package,
     mpn: item.mpn,
+    alternateMpns: item.alternateMpns || [],
     customerId: item.customerId,
     customerName: item.customerName,
     processType: item.processType,
@@ -178,7 +181,8 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     name: form.name.trim(),
     specification: form.specification.trim(),
     package: form.package.trim(),
-    mpn: form.mpn.trim(),
+    mpn: isProduct ? '' : form.mpn.trim(),
+    alternateMpns: isProduct ? [] : normalizeAlternateMpns(form.alternateMpns, form.mpn),
     customerId: form.customerId.trim(),
     materialType: isRawMaterial ? form.materialType : '',
     supplyType: isProduct ? '' : form.supplyType,

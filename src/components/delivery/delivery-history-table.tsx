@@ -28,14 +28,11 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="min-w-[1100px] w-full border-collapse">
+        <table className="min-w-[840px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 출하일
-              </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                출하번호
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 발주번호
@@ -44,19 +41,13 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
                 고객사
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                품목명
+                품목
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                출하수량
+                수량
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                LOT
-              </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                등록자
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                비고
+                명세서
               </th>
             </tr>
           </thead>
@@ -69,23 +60,27 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
                   onRowClick ? 'cursor-pointer' : ''
                 }`}
               >
-                <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">{cell(row.recordDate)}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-sm font-semibold tabular-nums text-slate-800">
-                  {cell(row.shipmentId || row.id)}
+                <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
+                  {cell(row.recordDate)}
                 </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-sm font-medium text-slate-900">
                   {cell(displayOrderPoNumber(row.customerPoNumber, row.orderNumber))}
                 </td>
                 <td className="px-3 py-2.5 text-sm text-slate-700">{cell(row.customer)}</td>
-                <td className="px-3 py-2.5 text-sm font-medium text-slate-900">{cell(row.productName)}</td>
+                <td className="px-3 py-2.5 text-sm font-medium text-slate-900">
+                  <span className="block">{cell(row.productName)}</span>
+                  {row.productCode ? (
+                    <span className="mt-0.5 block text-[11px] font-normal text-slate-400">
+                      {row.productCode}
+                    </span>
+                  ) : null}
+                </td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-right text-sm font-bold tabular-nums text-slate-900">
                   {row.quantity.toLocaleString('ko-KR')}
                 </td>
-                <td className="px-3 py-2.5 text-xs tabular-nums text-slate-700">{cell(row.lotLabel)}</td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
-                  {cell(row.createdByName)}
+                <td className="whitespace-nowrap px-3 py-2.5 text-sm font-semibold tabular-nums text-slate-800">
+                  {cell(row.shipmentId || row.id)}
                 </td>
-                <td className="px-3 py-2.5 text-sm text-slate-600">{cell(row.note)}</td>
               </tr>
             ))}
           </tbody>
@@ -94,4 +89,3 @@ export function DeliveryHistoryTable({ rows, emptyMessage, onRowClick }: Deliver
     </div>
   )
 }
-

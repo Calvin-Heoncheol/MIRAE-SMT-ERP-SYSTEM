@@ -24,6 +24,62 @@ export function isCanonicalItemInternalId(id: string) {
   return ITEM_INTERNAL_ID_RE.test(id.trim())
 }
 
+export function splitItemMpnTokens(value: string) {
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+}
+
+export function normalizeAlternateMpns(values: unknown, primaryMpn = '') {
+  const primary = primaryMpn.trim().toLowerCase()
+  const seen = new Set<string>()
+  const result: string[] = []
+  const list = Array.isArray(values) ? values : []
+  for (const raw of list) {
+    const token = String(raw || '').trim()
+    if (!token) continue
+    const key = token.toLowerCase()
+    if (key === primary || seen.has(key)) continue
+    seen.add(key)
+    result.push(token)
+  }
+  return result
+}
+
+/** 기본 MPN + 대체 MPN. 컬럼이 없거나 비어 있으면 mpn 칸의 공백 구분 값을 사용 */
+export function parseItemMpnFields(mpn: string, alternateMpns?: unknown) {
+  const raw = String(mpn || '').trim()
+  const tokens = splitItemMpnTokens(raw)
+  const fromColumn = Array.isArray(alternateMpns)
+    ? normalizeAlternateMpns(alternateMpns, tokens[0] || raw)
+    : null
+
+  if (fromColumn && fromColumn.length > 0) {
+    return {
+      mpn: tokens[0] || raw,
+      alternateMpns: fromColumn,
+    }
+  }
+
+  if (tokens.length > 1) {
+    return {
+      mpn: tokens[0],
+      alternateMpns: normalizeAlternateMpns(tokens.slice(1), tokens[0]),
+    }
+  }
+
+  return {
+    mpn: raw,
+    alternateMpns: fromColumn || [],
+  }
+}
+
+export function isMissingAlternateMpnsColumn(detail: string) {
+  return detail.includes('alternate_mpns')
+}
+
 const LEGACY_CATEGORY_MAP: Record<string, ItemCategory> = {
   raw_material: 1,
   sub_material: 2,
@@ -109,6 +165,7 @@ export function mapItemRecord(row: {
   specification: string
   package?: string | null
   mpn: string
+  alternate_mpns?: string[] | null
   customer_id?: string | null
   customer_reg_no?: string | null
   customer_name?: string | null
@@ -142,6 +199,7 @@ export function mapItemRecord(row: {
   const resolvedMaterial = isProduct ? materialUnitPrice : 0
   const resolvedOther = isProduct ? otherUnitPrice : 0
   const { baseCode, version } = resolveBaseCodeAndVersion(row)
+  const mpns = parseItemMpnFields(row.mpn || '', row.alternate_mpns)
 
   return {
     id: row.id || '',
@@ -150,7 +208,8 @@ export function mapItemRecord(row: {
     name: row.name || '',
     specification: row.specification || '',
     package: (row.package || '').trim(),
-    mpn: row.mpn || '',
+    mpn: mpns.mpn,
+    alternateMpns: mpns.alternateMpns,
     customerId: (row.customer_id || '').trim(),
     customerName: (row.customer_name || '').trim(),
     materialType: normalizeItemMaterialType(row.material_type),
@@ -184,7 +243,7 @@ export function toItemInsertRow(payload: ItemPayload) {
     name: payload.name.trim(),
     specification: payload.specification.trim(),
     package: payload.package.trim(),
-    mpn: payload.mpn.trim(),
+    mpn: [payload.mpn.trim(), ...normalizeAlternateMpns(payload.alternateMpns, payload.mpn)].filter(Boolean).join('\n'),
     customer_id: payload.customerId.trim() || null,
     material_type: payload.materialType,
     supply_type: payload.supplyType,
@@ -212,7 +271,7 @@ export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
     name: payload.name.trim(),
     specification: payload.specification.trim(),
     package: payload.package.trim(),
-    mpn: payload.mpn.trim(),
+    mpn: [payload.mpn.trim(), ...normalizeAlternateMpns(payload.alternateMpns, payload.mpn)].filter(Boolean).join('\n'),
     customer_id: payload.customerId.trim() || null,
     material_type: payload.materialType,
     supply_type: payload.supplyType,
@@ -269,6 +328,7 @@ export function itemFromPayload(
     specification: payload.specification,
     package: payload.package,
     mpn: payload.mpn,
+    alternateMpns: payload.alternateMpns || [],
     customerId: payload.customerId,
     customerName: (options?.customerName || '').trim(),
     materialType: payload.materialType,
@@ -300,6 +360,7 @@ export function itemSearchHaystack(item: Item) {
     item.specification,
     item.package,
     item.mpn,
+    ...(item.alternateMpns || []),
     item.processType,
     item.pcbSideMode,
     item.pcbSideMode ? ITEM_PCB_SIDE_MODE_LABELS[item.pcbSideMode as ItemPcbSideModeValue] : '',
