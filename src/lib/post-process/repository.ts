@@ -577,8 +577,10 @@ export async function fetchPostProcessProductionHistory(): Promise<FetchPostProc
   return fetchPostProcessProductionRecords()
 }
 
-export async function fetchPostProcessTodayProduction(): Promise<FetchPostProcessProductionHistoryResult> {
-  return fetchPostProcessProductionRecords({ recordDate: todayYmdSeoul() })
+export async function fetchPostProcessTodayProduction(
+  recordDate: string = todayYmdSeoul(),
+): Promise<FetchPostProcessProductionHistoryResult> {
+  return fetchPostProcessProductionRecords({ recordDate })
 }
 
 async function fetchPostProcessProductionRecords(options?: {

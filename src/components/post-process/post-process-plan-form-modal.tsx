@@ -1,12 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { MaterialInboundStatusBadge } from '@/components/materials/material-inbound-status-badge'
+import { filterPostProcessPlanOrderCandidates } from '@/components/post-process/post-process-plan-order-sidebar'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionPlanStatus } from '@/lib/production-plan/schedule'
 import type { PostProcessPlanBlock, PostProcessPlanOrderCandidate } from '@/lib/post-process/plan/types'
+import {
+  formatCalendarDayLabel,
+  formatDeliveryCountdown,
+  getDeliveryUrgencyTone,
+} from '@/lib/post-process/plan/utils'
 import type { PostProcessTeam } from '@/lib/post-process/teams'
+import { ERP_BADGE_COMPACT_CLASS } from '@/lib/ui/tokens'
 
 export type PostProcessPlanFormValues = {
   id?: string
@@ -49,6 +57,164 @@ function resolveMax(
     return remaining
   }
   return fallbackMax
+}
+
+function urgencyBadgeClass(daysUntilDelivery: number | null) {
+  const tone = getDeliveryUrgencyTone(daysUntilDelivery)
+  if (tone === 'overdue') return 'bg-rose-100 text-rose-700'
+  if (tone === 'urgent') return 'bg-amber-100 text-amber-800'
+  return 'bg-slate-100 text-slate-600'
+}
+
+function SmtStatusChip({
+  smt,
+}: {
+  smt: NonNullable<PostProcessPlanOrderCandidate['smt']>
+}) {
+  const base = ERP_BADGE_COMPACT_CLASS
+  if (smt.status === 'done') {
+    return <span className={`${base} bg-emerald-50 text-emerald-700 ring-emerald-200`}>SMT 완료</span>
+  }
+  if (smt.status === 'planned') {
+    return (
+      <span className={`${base} bg-sky-50 text-sky-700 ring-sky-200`}>
+        SMT {smt.lastPlannedDate ? `${formatCalendarDayLabel(smt.lastPlannedDate)} ` : ''}완료예정
+      </span>
+    )
+  }
+  if (smt.status === 'partial') {
+    return (
+      <span className={`${base} bg-amber-50 text-amber-800 ring-amber-200 tabular-nums`}>
+        SMT 일부 {smt.coveredQuantity.toLocaleString('ko-KR')}/
+        {smt.targetQuantity.toLocaleString('ko-KR')}
+      </span>
+    )
+  }
+  return <span className={`${base} bg-rose-50 text-rose-700 ring-rose-200`}>SMT 미계획</span>
+}
+
+function PostProcessPlanCandidatePicker({
+  title,
+  description,
+  candidates,
+  onPick,
+  onClose,
+}: {
+  title: string
+  description?: string
+  candidates: PostProcessPlanOrderCandidate[]
+  onPick: (candidate: PostProcessPlanOrderCandidate) => void
+  onClose: () => void
+}) {
+  const [search, setSearch] = useState('')
+  const filtered = useMemo(
+    () => filterPostProcessPlanOrderCandidates(candidates, search),
+    [candidates, search],
+  )
+
+  return (
+    <ErpModal
+      open
+      size="lg"
+      title={title || '생산계획 등록'}
+      description={description || '생산할 발주서 카드를 선택한 뒤 계획 수량을 입력합니다.'}
+      onClose={onClose}
+      contentClassName="flex min-h-[min(68dvh,720px)] flex-1 flex-col overflow-hidden px-5 py-4"
+      footer={
+        <div className="flex w-full items-center justify-between gap-2">
+          <span className="text-xs tabular-nums text-slate-500">
+            미배정 {candidates.length.toLocaleString('ko-KR')}건
+            {search.trim() ? ` · 검색 ${filtered.length.toLocaleString('ko-KR')}건` : ''}
+          </span>
+          <ErpButton variant="secondary" onClick={onClose}>
+            취소
+          </ErpButton>
+        </div>
+      }
+    >
+      <div className="mb-3 shrink-0">
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="발주번호, 고객사, 제품명 검색…"
+          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+          autoFocus
+        />
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="py-10 text-center text-sm text-slate-500">
+          {search.trim() ? '검색 결과가 없습니다.' : '지금 계획할 발주서가 없습니다.'}
+        </p>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((candidate) => {
+              const dueLabel = formatDeliveryCountdown(candidate.daysUntilDelivery)
+              return (
+                <button
+                  key={candidate.assemblyGroupId}
+                  type="button"
+                  onClick={() => onPick(candidate)}
+                  className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-sm transition hover:border-slate-400 hover:bg-slate-50 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-200"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 truncate text-[11px] text-slate-500">
+                      {candidate.customer || '—'} ·{' '}
+                      {displayOrderPoNumber(candidate.customerPoNumber, candidate.orderNumber)}
+                    </p>
+                    {dueLabel ? (
+                      <span
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${urgencyBadgeClass(candidate.daysUntilDelivery)}`}
+                      >
+                        {dueLabel}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <p className="mt-1 text-sm font-bold leading-snug text-slate-900">
+                    {candidate.productSummary}
+                  </p>
+
+                  <p className="mt-2 text-[12px] tabular-nums text-slate-600">
+                    목표{' '}
+                    <span className="font-semibold text-slate-800">
+                      {candidate.target.toLocaleString('ko-KR')}
+                    </span>
+                    <span className="mx-1 text-slate-300">·</span>
+                    기계획{' '}
+                    <span className="font-semibold text-slate-800">
+                      {candidate.plannedTotal.toLocaleString('ko-KR')}
+                    </span>
+                    <span className="mx-1 text-slate-300">·</span>
+                    미배정{' '}
+                    <span className="font-bold text-sky-700">
+                      {candidate.unplannedRemaining.toLocaleString('ko-KR')}
+                    </span>
+                  </p>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {candidate.smt ? <SmtStatusChip smt={candidate.smt} /> : null}
+                    {candidate.materialStatus ? (
+                      <MaterialInboundStatusBadge
+                        status={candidate.materialStatus}
+                        expectedReadyDate={candidate.materialExpectedReadyDate}
+                      />
+                    ) : null}
+                  </div>
+
+                  <span className="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-slate-800 px-2.5 py-1.5 text-[12px] font-bold text-white">
+                    선택 · 계획수량 입력
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </ErpModal>
+  )
 }
 
 function PostProcessPlanFormModalInner({
@@ -195,11 +361,39 @@ function PostProcessPlanFormModalInner({
             }
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
             required
+            autoFocus
           />
           {sideMax != null ? (
             <span className="mt-1 block text-xs text-slate-400">
               최대 {sideMax.toLocaleString('ko-KR')}대
+              {'unplannedRemaining' in order ? (
+                <>
+                  {' '}
+                  · 목표 {order.target.toLocaleString('ko-KR')} · 기계획{' '}
+                  {order.plannedTotal.toLocaleString('ko-KR')}
+                </>
+              ) : null}
             </span>
+          ) : null}
+          {sideMax != null && sideMax > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                Math.min(sideMax, Math.max(1, Math.floor(sideMax * 0.25))),
+                Math.min(sideMax, Math.max(1, Math.floor(sideMax * 0.5))),
+                sideMax,
+              ]
+                .filter((qty, index, list) => list.indexOf(qty) === index)
+                .map((qty) => (
+                  <button
+                    key={qty}
+                    type="button"
+                    onClick={() => setValues((current) => ({ ...current, plannedQuantity: qty }))}
+                    className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-white"
+                  >
+                    {qty === sideMax ? `전량 ${qty.toLocaleString('ko-KR')}` : qty.toLocaleString('ko-KR')}
+                  </button>
+                ))}
+            </div>
           ) : null}
         </label>
 
@@ -237,48 +431,19 @@ export function PostProcessPlanFormModal({
   const unplanned = candidates.filter((c) => c.unplannedRemaining > 0)
 
   if (!order) {
+    const cellHint = initialValues.plannedDate ? `일자 ${initialValues.plannedDate}` : null
     return (
-      <ErpModal
-        open
-        size="form"
+      <PostProcessPlanCandidatePicker
         title={title || '생산계획 등록'}
-        description="캘린더에 넣을 미배정 발주서를 선택하세요."
-        onClose={onClose}
-        footer={
-          <ErpButton variant="secondary" onClick={onClose}>
-            취소
-          </ErpButton>
+        description={
+          cellHint
+            ? `${cellHint} · 발주서 카드를 선택한 뒤 계획 수량을 입력합니다.`
+            : '발주서 카드를 선택한 뒤 계획 수량을 입력합니다.'
         }
-      >
-        {unplanned.length === 0 ? (
-          <p className="text-sm text-slate-600">미배정 발주서가 없습니다.</p>
-        ) : (
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-600">발주서 / 품목</span>
-            <select
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
-              defaultValue=""
-              onChange={(event) => {
-                const candidate = unplanned.find(
-                  (item) => item.assemblyGroupId === event.target.value,
-                )
-                if (candidate) onPickCandidate?.(candidate)
-              }}
-            >
-              <option value="" disabled>
-                선택하세요
-              </option>
-              {unplanned.map((candidate) => (
-                <option key={candidate.assemblyGroupId} value={candidate.assemblyGroupId}>
-                  {displayOrderPoNumber(candidate.customerPoNumber, candidate.orderNumber)} ·{' '}
-                  {candidate.customer} ·{' '}
-                  {candidate.productSummary} (미배정 {candidate.unplannedRemaining})
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </ErpModal>
+        candidates={unplanned}
+        onPick={(candidate) => onPickCandidate?.(candidate)}
+        onClose={onClose}
+      />
     )
   }
 

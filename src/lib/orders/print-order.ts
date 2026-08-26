@@ -6,8 +6,8 @@ import {
   COMPANY_QUOTE_EMAIL_DOMESTIC,
   COMPANY_TEL,
 } from '@/lib/app-config'
-import type { OrderListGroup } from '@/lib/orders/types'
-import { formatOrderDate, formatOrderMoney } from '@/lib/orders/utils'
+import type { OrderCurrency, OrderListGroup } from '@/lib/orders/types'
+import { formatOrderDate, formatOrderMoney, normalizeOrderCurrency } from '@/lib/orders/utils'
 
 export type OrderPrintLine = {
   productCode: string
@@ -25,6 +25,7 @@ export type OrderPrintData = {
   deliveryDate: string
   customer: string
   category: string
+  currency?: OrderCurrency
   items: OrderPrintLine[]
   note?: string
   customerPoNumber?: string
@@ -118,6 +119,8 @@ export function buildOrderHtml(
 
   const totalQuantity = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0)
   const totalAmount = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.orderAmount) || 0), 0)
+  const currency = normalizeOrderCurrency(data.currency)
+  const moneyPrefix = currency === 'USD' ? '$' : '₩'
 
   const rows = data.items
     .map((item, index) => {
@@ -131,8 +134,8 @@ export function buildOrderHtml(
         <td class="mono">${code}</td>
         <td class="name">${name}</td>
         <td class="num">${qty}</td>
-        <td class="num">₩${unitPrice}</td>
-        <td class="num amt">₩${amount}</td>
+        <td class="num">${moneyPrefix}${unitPrice}</td>
+        <td class="num amt">${moneyPrefix}${amount}</td>
       </tr>`
     })
     .join('')
@@ -501,7 +504,7 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
       </div>
       <div class="row grand">
         <span class="label">금액 합계</span>
-        <span class="value">${escapeHtml(formatOrderMoney(totalAmount))}</span>
+        <span class="value">${escapeHtml(formatOrderMoney(totalAmount, currency))}</span>
       </div>
     </div>
   </div>
@@ -606,6 +609,7 @@ export function buildOrderPrintData(order: OrderListGroup): OrderPrintData {
     deliveryDate: order.deliveryDate,
     customer: order.customer,
     category: order.category,
+    currency: normalizeOrderCurrency(order.currency),
     note: order.note,
     customerPoNumber: order.customerPoNumber,
     items: order.items.map((item) => ({

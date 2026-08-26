@@ -94,7 +94,7 @@ export const NAV_ITEMS: NavItem[] = [
         label: '생산4팀',
         href: '/post-process/input?team=생산4팀',
         children: [
-          { label: '생산등록', href: '/post-process/input?team=생산4팀' },
+          { label: '생산등록 (수동)', href: '/post-process/input?team=생산4팀' },
           { label: '생산계획', href: '/production/plan?tab=생산4팀' },
           { label: '생산이력', href: '/production/history?team=생산4팀' },
         ],
@@ -111,6 +111,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '입고이력', href: '/materials/inbound/history' },
       { label: '자재불출', href: '/materials/outbound' },
       { label: '불출이력', href: '/materials/outbound/history' },
+      { label: '라벨 출력', href: '/materials/labels' },
     ],
   },
   {
@@ -200,6 +201,7 @@ const NAV_EXACT_CHILD_PATHS = [
   '/materials/inventory',
   '/materials/inbound',
   '/materials/outbound',
+  '/materials/labels',
 ] as const
 
 export function isNavChildActive(pathname: string, href: string, search?: NavSearch | null) {

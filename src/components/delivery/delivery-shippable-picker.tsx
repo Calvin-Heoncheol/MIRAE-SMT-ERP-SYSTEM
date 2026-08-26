@@ -37,7 +37,7 @@ export function DeliveryShippablePicker({
   )
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="shrink-0 space-y-2 border-b border-slate-200 px-4 py-3">
         <div className="flex items-baseline justify-between gap-2">
           <h3 className="text-sm font-bold text-slate-900">출하가능</h3>

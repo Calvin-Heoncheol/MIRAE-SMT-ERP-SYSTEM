@@ -1,25 +1,31 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { ProductionLabelPrintModal } from '@/components/production-input/production-label-print-modal'
+import { useToast } from '@/components/ui/toast-provider'
+import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import type { PostProcessPlanBlock } from '@/lib/post-process/plan/types'
 import { createPostProcessProductionRecord } from '@/lib/post-process/repository'
 import type { PostProcessTeam } from '@/lib/post-process/teams'
-import { buildSmtCountKey, buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
-import { createSmtProductionRecord } from '@/lib/smt/repository'
-import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
-import type { SmtPlanBlock } from '@/lib/smt/plan/types'
-import type { SmtPcbSide } from '@/lib/smt/types'
+import {
+  buildProductionLabelBase,
+  type ProductionLabelPayload,
+} from '@/lib/production-input/production-label-code'
 import type { ProductionInputConfig, ProductionOrderLine } from '@/lib/production-input/types'
 import {
   formatProductionProductName,
   getStackedProgressWidths,
   resolveProductionSideCount,
 } from '@/lib/production-input/utils'
+import { buildSmtCountKey, buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
+import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
+import type { SmtPlanBlock } from '@/lib/smt/plan/types'
+import { createSmtProductionRecord } from '@/lib/smt/repository'
+import type { SmtPcbSide } from '@/lib/smt/types'
 import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
-import { useToast } from '@/components/ui/toast-provider'
-import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
+import { playScanSound } from '@/lib/ui/toast-sound'
 
 function formatSmtPlanChipLabel(plan: SmtPlanBlock) {
   const side = plan.pcbSide === 'TOP' || plan.pcbSide === 'BOT' ? plan.pcbSide : '단면'
@@ -91,6 +97,7 @@ export function ProductionInputPanel({
   const [recordDate, setRecordDate] = useState(() => todayYmdSeoul())
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ text: string; kind: 'ok' | 'err' } | null>(null)
+  const [labelModalOpen, setLabelModalOpen] = useState(false)
   const isGoodMode = qtyMode === 'good'
   const qtyModeLabel = isGoodMode ? '양품' : '불량'
 
@@ -145,6 +152,49 @@ export function ProductionInputPanel({
   const bumpPlusDisabled =
     qtyInputDisabled || (isGoodMode && qtyNumber >= remaining)
 
+  const jobLabelPayload = useMemo((): ProductionLabelPayload | null => {
+    if (!order) return null
+    if (showLineSelector && !lockToPlan && (lineNo == null || lineNo < 1)) return null
+    if (smtPlan?.id) {
+      return { kind: 'smt_plan', planId: smtPlan.id }
+    }
+    if (postProcessPlan?.id) {
+      return { kind: 'post_plan', planId: postProcessPlan.id }
+    }
+    if (isPostProcess) {
+      if (!assemblyGroupId) return null
+      return {
+        kind: 'post_order',
+        assemblyGroupId,
+        team: postProcessTeam || '생산2팀',
+      }
+    }
+    if (!order.orderLineId) return null
+    return {
+      kind: 'smt_order',
+      orderLineId: order.orderLineId,
+      pcbSide,
+      lineNo: lineNo != null && lineNo >= 1 ? lineNo : null,
+    }
+  }, [
+    order,
+    showLineSelector,
+    lockToPlan,
+    lineNo,
+    smtPlan?.id,
+    postProcessPlan?.id,
+    isPostProcess,
+    assemblyGroupId,
+    postProcessTeam,
+    pcbSide,
+  ])
+
+  const jobLabelBaseCode = jobLabelPayload ? buildProductionLabelBase(jobLabelPayload) : ''
+
+  useEffect(() => {
+    if (!order) setLabelModalOpen(false)
+  }, [order?.uiKey, plan?.id])
+
   useEffect(() => {
     if (smtPlan) {
       setActiveSide(
@@ -186,37 +236,55 @@ export function ProductionInputPanel({
     setMessage(null)
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(options?: {
+    quantity?: number
+    fromScan?: boolean
+    note?: string
+  }) {
     if (!order) return
 
     if (showLineSelector && !lockToPlan && (lineNo == null || lineNo < 1 || lineNo > 7)) {
       setMessage({ text: 'SMT 라인을 선택하세요.', kind: 'err' })
-      return
+      if (options?.fromScan) playScanSound('error')
+      return false
     }
 
     const resolvedRecordDate = recordDate.trim()
     if (!/^\d{4}-\d{2}-\d{2}$/.test(resolvedRecordDate)) {
       setMessage({ text: '생산일을 입력하세요.', kind: 'err' })
-      return
+      if (options?.fromScan) playScanSound('error')
+      return false
     }
 
-    const value = Math.max(0, Math.floor(Number(qty) || 0))
+    const scanMode = Boolean(options?.fromScan)
+    const effectiveMode = scanMode ? 'good' : qtyMode
+    const effectiveIsGood = effectiveMode === 'good'
+    const effectiveLabel = effectiveIsGood ? '양품' : '불량'
+    const value =
+      options?.quantity != null
+        ? Math.max(0, Math.floor(options.quantity))
+        : Math.max(0, Math.floor(Number(qty) || 0))
     if (value < 1) {
-      setMessage({ text: `${qtyModeLabel} 수량을 입력하세요.`, kind: 'err' })
-      return
+      setMessage({ text: `${effectiveLabel} 수량을 입력하세요.`, kind: 'err' })
+      if (scanMode) playScanSound('error')
+      return false
     }
 
     const trimmedDefectReason = defectReason.trim()
-    if (!isGoodMode && !trimmedDefectReason) {
+    if (!effectiveIsGood && !trimmedDefectReason) {
       setMessage({ text: '불량사유를 입력하세요.', kind: 'err' })
-      return
+      return false
     }
 
-    const goodQuantity = isGoodMode ? value : 0
-    const defectQuantity = isGoodMode ? 0 : value
-    const note = isGoodMode ? undefined : trimmedDefectReason
+    const goodQuantity = effectiveIsGood ? value : 0
+    const defectQuantity = effectiveIsGood ? 0 : value
+    const note = options?.note?.trim()
+      ? options.note.trim()
+      : effectiveIsGood
+        ? undefined
+        : trimmedDefectReason
 
-    if (isGoodMode && target > 0 && goodQuantity > remaining) {
+    if (effectiveIsGood && target > 0 && goodQuantity > remaining) {
       setMessage({
         text: lockToPlan
           ? `계획 남은 수량(${remaining.toLocaleString('ko-KR')})을 초과할 수 없습니다.`
@@ -225,18 +293,20 @@ export function ProductionInputPanel({
             : `${pcbSide} 면 남은 수량(${remaining.toLocaleString('ko-KR')})을 초과할 수 없습니다.`,
         kind: 'err',
       })
-      return
+      if (scanMode) playScanSound('error')
+      return false
     }
 
     setSaving(true)
     setMessage(null)
 
     function formatRegisterOk(cumulativeOrPlanText: string) {
-      return `${qtyModeLabel} ${value.toLocaleString('ko-KR')}개 등록 · ${cumulativeOrPlanText}`
+      return `${effectiveLabel} ${value.toLocaleString('ko-KR')}개 등록 · ${cumulativeOrPlanText}`
     }
 
     function showRegisterOk(text: string) {
-      toast.success('생산 등록 완료', text)
+      toast.success(scanMode ? '스캔 등록' : '생산 등록 완료', text)
+      if (scanMode) playScanSound('success')
     }
 
     if (isPostProcess) {
@@ -254,7 +324,8 @@ export function ProductionInputPanel({
       if (!result.ok) {
         setMessage({ text: result.detail, kind: 'err' })
         toast.error('생산 등록 실패', result.detail)
-        return
+        if (scanMode) playScanSound('error')
+        return false
       }
 
       onCountUpdated(assemblyGroupId, result.cumulative, result.defectCumulative)
@@ -277,7 +348,7 @@ export function ProductionInputPanel({
             : `누적 ${result.cumulative.toLocaleString('ko-KR')}`,
         ),
       )
-      return
+      return true
     }
 
     const resolvedLineNo =
@@ -302,7 +373,8 @@ export function ProductionInputPanel({
     if (!result.ok) {
       setMessage({ text: result.detail, kind: 'err' })
       toast.error('생산 등록 실패', result.detail)
-      return
+      if (scanMode) playScanSound('error')
+      return false
     }
 
     const countKey = buildSmtCountKey(order.orderLineId, pcbSide)
@@ -327,6 +399,7 @@ export function ProductionInputPanel({
           : `누적 ${result.cumulative.toLocaleString('ko-KR')}`,
       ),
     )
+    return true
   }
 
   const progressLabel = lockToPlan ? '계획 진행' : isDual ? `${pcbSide} 진행` : '진행'
@@ -416,7 +489,14 @@ export function ProductionInputPanel({
       {showPanelHeader ? (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5 sm:px-4">
           {headerTeamBadge ? (
-            <span className={headerTeamBadgeClass}>{headerTeamBadge}</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className={headerTeamBadgeClass}>{headerTeamBadge}</span>
+              {isPostProcess && postProcessTeam === '생산4팀' ? (
+                <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
+                  생산등록 (수동)
+                </span>
+              ) : null}
+            </div>
           ) : (
             <span className="min-w-0" aria-hidden />
           )}
@@ -441,22 +521,39 @@ export function ProductionInputPanel({
                   </span>
                 </p>
               ) : null}
-              <div className={[embedded ? 'mt-0' : 'mt-2', 'flex flex-wrap items-center gap-2'].join(' ')}>
-                <h2 className="text-xl font-bold leading-snug text-slate-900 break-keep sm:text-2xl">
-                  {formatProductionProductName(order)}
-                </h2>
-                {lockToPlan && sideLabel ? (
-                  <span className="inline-flex shrink-0 items-center rounded-lg bg-slate-900 px-2.5 py-0.5 text-lg font-bold leading-none tracking-wide text-white sm:text-xl">
-                    {sideLabel}
-                  </span>
-                ) : !isPostProcess && order.splitPcbSides ? (
-                  <span className="inline-flex shrink-0 items-center rounded-lg bg-sky-100 px-2.5 py-0.5 text-lg font-bold leading-none text-sky-800 sm:text-xl">
-                    양면
-                  </span>
-                ) : !isPostProcess ? (
-                  <span className="inline-flex shrink-0 items-center rounded-lg bg-slate-100 px-2.5 py-0.5 text-lg font-bold leading-none text-slate-600 sm:text-xl">
-                    단면
-                  </span>
+              <div
+                className={[
+                  embedded ? 'mt-0' : 'mt-2',
+                  'flex flex-wrap items-center justify-between gap-2',
+                ].join(' ')}
+              >
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h2 className="text-xl font-bold leading-snug text-slate-900 break-keep sm:text-2xl">
+                    {formatProductionProductName(order)}
+                  </h2>
+                  {lockToPlan && sideLabel ? (
+                    <span className="inline-flex shrink-0 items-center rounded-lg bg-slate-900 px-2.5 py-0.5 text-lg font-bold leading-none tracking-wide text-white sm:text-xl">
+                      {sideLabel}
+                    </span>
+                  ) : !isPostProcess && order.splitPcbSides ? (
+                    <span className="inline-flex shrink-0 items-center rounded-lg bg-sky-100 px-2.5 py-0.5 text-lg font-bold leading-none text-sky-800 sm:text-xl">
+                      양면
+                    </span>
+                  ) : !isPostProcess ? (
+                    <span className="inline-flex shrink-0 items-center rounded-lg bg-slate-100 px-2.5 py-0.5 text-lg font-bold leading-none text-slate-600 sm:text-xl">
+                      단면
+                    </span>
+                  ) : null}
+                </div>
+                {jobLabelBaseCode ? (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => setLabelModalOpen(true)}
+                    className="h-9 shrink-0 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    라벨 출력
+                  </button>
                 ) : null}
               </div>
 
@@ -607,7 +704,7 @@ export function ProductionInputPanel({
                 </label>
               </div>
 
-              <p className="text-sm font-bold text-slate-800">수량 입력</p>
+              <p className="mb-3 text-sm font-bold text-slate-800">수량 입력</p>
 
               <div
                 className="mt-3 grid grid-cols-2 gap-2"
@@ -767,6 +864,27 @@ export function ProductionInputPanel({
               ) : null}
             </div>
           </section>
+
+          <ProductionLabelPrintModal
+            open={labelModalOpen && Boolean(jobLabelPayload)}
+            onClose={() => setLabelModalOpen(false)}
+            labelBaseCode={jobLabelBaseCode}
+            productLabel={formatProductionProductName(order)}
+            orderLabel={[
+              displayOrderPoNumber(order.customerPoNumber, order.orderNumber),
+              sideLabel,
+              !isPostProcess && (smtPlan?.lineNo ?? lineNo)
+                ? `L${smtPlan?.lineNo ?? lineNo}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+            remaining={remaining}
+            assemblyGroupId={isPostProcess ? assemblyGroupId : undefined}
+            team={isPostProcess ? postProcessTeam || postProcessPlan?.team : undefined}
+            planId={isPostProcess ? postProcessPlan?.id ?? null : null}
+            saving={saving}
+          />
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto overscroll-contain p-3 sm:p-4">

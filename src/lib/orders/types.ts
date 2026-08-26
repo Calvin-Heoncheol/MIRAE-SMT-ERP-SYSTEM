@@ -4,6 +4,16 @@ export type OrderCategory = '양산' | '샘플' | '자재'
 
 export const ORDER_CATEGORIES: OrderCategory[] = ['양산', '샘플', '자재']
 
+/** 발주서 표시 통화 */
+export type OrderCurrency = 'KRW' | 'USD'
+
+export const ORDER_CURRENCIES: OrderCurrency[] = ['KRW', 'USD']
+
+export const ORDER_CURRENCY_LABELS: Record<OrderCurrency, string> = {
+  KRW: '원화 (KRW)',
+  USD: '달러 (USD)',
+}
+
 export type OrderLineItem = {
   lineId?: string
   productId?: string | null
@@ -25,6 +35,8 @@ export type OrderListGroup = {
   deliveryDate: string
   customer: string
   category: OrderCategory
+  /** 표시 통화 — 기본 KRW */
+  currency: OrderCurrency
   note: string
   /** 발주번호(고객 PO/NO) — 발주ID와 별도 */
   customerPoNumber: string
@@ -59,6 +71,7 @@ export type OrderRecord = {
   delivery_date: string | null
   customer: string
   category: string
+  currency?: string | null
   source: string
   source_quote_id: string | null
   note?: string
@@ -80,6 +93,7 @@ export type OrderRowPayload = {
   delivery_date: string
   customer: string
   category: OrderCategory
+  currency?: OrderCurrency
   note?: string
   customer_po_number?: string
   source?: string

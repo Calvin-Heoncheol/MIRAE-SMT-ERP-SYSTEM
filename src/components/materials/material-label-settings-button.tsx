@@ -20,7 +20,7 @@ type MaterialLabelSettingsButtonProps = {
 
 const PREVIEW_SAMPLE = {
   name: '세라믹콘덴서',
-  spec: '100nF 50V 0402',
+  spec: '100nF 50V 0402, 0402',
   id: 'C0402-100N',
 }
 
@@ -72,8 +72,8 @@ function LabelPreview({ widthMm, heightMm }: { widthMm: number; heightMm: number
   const compact = heightMm < 22 || widthMm < 28
   const contentScale = Math.min(Math.max(Math.min(widthMm / 40, heightMm / 30), 0.4), 2)
   const barcodeBoxH = Math.max(16, Math.min(previewH * 0.42, 28 * contentScale))
-  const nameSize = Math.max(7, 10 * contentScale)
-  const specSize = Math.max(6, 8 * contentScale)
+  const nameSize = Math.max(9, 12 * contentScale)
+  const specSize = Math.max(8, 10 * contentScale)
   const idSize = Math.max(7, 9 * contentScale)
 
   return (
@@ -169,7 +169,7 @@ function MaterialLabelSettingsModal({
     <ErpModal
       open={open}
       title="바코드 라벨 용지 설정"
-      description="이 PC에만 저장됩니다. ZM400 실물 용지와 같은 크기로 맞춰 주세요."
+      description="실제 라벨지 크기·프린터 DPI와 같아야 선명합니다. (예: 40×30mm + 203dpi)"
       onClose={onClose}
       size="form"
       footer={

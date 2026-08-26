@@ -2,6 +2,8 @@ type KpiStatCardProps = {
   label: string
   value: number | string | null
   unit?: string
+  /** 메인 값 아래 보조 표기 (예: 달러 합계) */
+  secondary?: string | null
   hint?: string
   tone?: 'default' | 'sky' | 'emerald' | 'amber' | 'slate' | 'rose'
   className?: string
@@ -21,12 +23,14 @@ export function KpiStatCard({
   label,
   value,
   unit,
+  secondary,
   hint,
   tone = 'default',
   className = '',
 }: KpiStatCardProps) {
   const display =
     value == null ? '–' : typeof value === 'number' ? value.toLocaleString('ko-KR') : value
+  const secondaryText = String(secondary || '').trim()
 
   return (
     <div
@@ -42,6 +46,11 @@ export function KpiStatCard({
         {display}
         {unit ? <span className="ml-1 text-[11px] font-semibold text-slate-400">{unit}</span> : null}
       </p>
+      {secondaryText ? (
+        <p className="mt-1 text-[12px] leading-none font-semibold tabular-nums text-slate-600">
+          {secondaryText}
+        </p>
+      ) : null}
       {hint ? (
         <p className="mt-1 truncate text-[10px] leading-none font-medium text-slate-500">{hint}</p>
       ) : null}

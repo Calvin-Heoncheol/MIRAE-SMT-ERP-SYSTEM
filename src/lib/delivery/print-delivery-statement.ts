@@ -7,7 +7,8 @@ import {
 } from '@/lib/app-config'
 import { parseItemVersionCode, stripTrailingVersionFromName } from '@/lib/items/version-code'
 import { fetchOrderById } from '@/lib/orders/repository'
-import { isBillingOnlyOrderItem } from '@/lib/orders/utils'
+import type { OrderCurrency } from '@/lib/orders/types'
+import { isBillingOnlyOrderItem, normalizeOrderCurrency } from '@/lib/orders/utils'
 import { findActiveBusinessPartnerByName } from '@/lib/partners/repository'
 import type { DeliveryStatementData, DeliveryStatementLine } from './types'
 
@@ -165,6 +166,8 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
   const { qty, supply } = sumStatementTotals(items)
   const vat = 0
   const total = supply + vat
+  const currency = normalizeOrderCurrency(data.currency)
+  const moneyPrefix = currency === 'USD' ? '$' : '₩'
   const roleLabel = role === 'supplier' ? '공급자용' : '공급받는자용'
 
   return `<section class="statement-copy">
@@ -222,7 +225,7 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
     <tr class="amount-row">
       <th class="party-label">합계금액</th>
       <td colspan="3" class="party-value total-amount-cell">
-        <span class="won">₩</span>
+        <span class="currency">${moneyPrefix}</span>
         <span class="total-amount">${formatNumber(total)}</span>
       </td>
       <th class="party-label">전화</th>
@@ -390,6 +393,7 @@ body {
 .parties .total-amount-cell {
   white-space: nowrap;
 }
+.parties .currency { font-size: 14px; font-weight: 800; margin-right: 4px; }
 .parties .won { font-size: 14px; font-weight: 800; margin-right: 4px; }
 .parties .total-amount {
   font-size: 17px;
@@ -720,6 +724,7 @@ export async function buildDeliveryStatementDataFromOrder(input: {
       customerAddress: contact.address,
       customerPhone: contact.phone,
       note: String(input.note || '').trim(),
+      currency: normalizeOrderCurrency(order.currency),
       items,
     },
   }
@@ -831,6 +836,14 @@ export async function buildDeliveryStatementDataFromShipment(input: {
   const customer = String(input.customer || '').trim()
   const contact = await resolveCustomerContact(customer)
 
+  const currencies: OrderCurrency[] = []
+  for (const orderNumber of uniqueOrders) {
+    const order = await getOrder(orderNumber)
+    if (order) currencies.push(normalizeOrderCurrency(order.currency))
+  }
+  const currency: OrderCurrency =
+    currencies.length > 0 && currencies.every((value) => value === 'USD') ? 'USD' : 'KRW'
+
   return {
     ok: true,
     data: {
@@ -841,6 +854,7 @@ export async function buildDeliveryStatementDataFromShipment(input: {
       customerAddress: contact.address,
       customerPhone: contact.phone,
       note: String(input.note || '').trim(),
+      currency,
       items,
     },
   }

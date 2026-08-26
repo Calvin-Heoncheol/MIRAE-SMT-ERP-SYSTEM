@@ -24,6 +24,7 @@ import {
   type FetchSalesReportResult,
   type SalesReportStatementGroup,
 } from '@/lib/reports/sales-report'
+import { formatOrderMoney } from '@/lib/orders/utils'
 import { deleteStatementLines } from '@/lib/reports/statement-edit'
 import { DATE_RANGE_FILTER_LABEL } from '@/lib/ui/date-range'
 import {
@@ -112,10 +113,24 @@ export function SalesReportWorkspace({
     () => filteredShipments.reduce((sum, row) => sum + row.quantity, 0),
     [filteredShipments],
   )
-  const filteredShipAmount = useMemo(
-    () => filteredShipments.reduce((sum, row) => sum + row.amount, 0),
+  const filteredShipAmountKrw = useMemo(
+    () =>
+      filteredShipments
+        .filter((row) => !row.currencyMixed && row.currency === 'KRW')
+        .reduce((sum, row) => sum + row.amount, 0),
     [filteredShipments],
   )
+  const filteredShipAmountUsd = useMemo(
+    () =>
+      filteredShipments
+        .filter((row) => !row.currencyMixed && row.currency === 'USD')
+        .reduce((sum, row) => sum + row.amount, 0),
+    [filteredShipments],
+  )
+
+  function usdSecondary(amountUsd: number) {
+    return amountUsd > 0 ? formatOrderMoney(amountUsd, 'USD') : null
+  }
 
   const monthRange = currentMonthRange()
 
@@ -290,19 +305,24 @@ export function SalesReportWorkspace({
             label="발주 건수"
             value={data.totalOrderCount}
             unit="건"
-            hint="발주일 기준"
           />
-          <KpiStatCard label="발주 금액" value={data.totalOrderAmount} unit="원" />
+          <KpiStatCard
+            label="발주 금액"
+            value={data.totalOrderAmount}
+            unit="원"
+          />
           <KpiStatCard
             label="출하 수량"
             value={search.trim() ? filteredShipQty : data.totalShippedQuantity}
             unit="EA"
-            hint="출하일 기준"
           />
           <KpiStatCard
             label="출하 금액"
-            value={search.trim() ? filteredShipAmount : data.totalShippedAmount}
+            value={search.trim() ? filteredShipAmountKrw : data.totalShippedAmount}
             unit="원"
+            secondary={usdSecondary(
+              search.trim() ? filteredShipAmountUsd : data.totalShippedAmountUsd,
+            )}
           />
         </div>
       ) : null}
@@ -477,12 +497,16 @@ export function SalesReportWorkspace({
                             <td
                               className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums text-slate-700`}
                             >
-                              {row.unitPriceMixed ? '—' : formatCount(row.unitPrice)}
+                              {row.unitPriceMixed
+                                ? '—'
+                                : formatOrderMoney(row.unitPrice, row.currency)}
                             </td>
                             <td
                               className={`${ERP_TABLE_TD_CLASS} text-right font-semibold tabular-nums text-slate-900`}
                             >
-                              {formatCount(row.amount)}
+                              {row.currencyMixed
+                                ? formatCount(row.amount)
+                                : formatOrderMoney(row.amount, row.currency)}
                             </td>
                           </tr>
                         )

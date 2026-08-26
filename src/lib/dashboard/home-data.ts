@@ -67,6 +67,7 @@ export type HomeHeadlineMetric = {
 }
 
 export type HomeDashboardData = {
+  todayYmd: string
   todayLabel: string
   headline: HomeHeadlineMetric[]
   attention: HomeAttentionItem[]
@@ -100,6 +101,110 @@ function sortAttention(items: HomeAttentionItem[]) {
     if (a.tone !== b.tone) return a.tone === 'danger' ? -1 : 1
     return DEPARTMENT_SORT[a.department] - DEPARTMENT_SORT[b.department]
   })
+}
+
+export function formatHomeDateLabel(ymd: string) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  }).format(new Date(`${ymd}T12:00:00+09:00`))
+}
+
+function isValidYmd(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(`${value}T12:00:00+09:00`)
+  return !Number.isNaN(date.getTime())
+}
+
+type SmtTodayResult = Awaited<ReturnType<typeof fetchSmtTodayProduction>>
+type PostTodayResult = Awaited<ReturnType<typeof fetchPostProcessTodayProduction>>
+
+export function buildHomeProductionTeams(
+  smtTodayResult: SmtTodayResult,
+  postTodayResult: PostTodayResult,
+): HomeProductionTeam[] {
+  const smtRows: HomeTeamProductionRow[] = smtTodayResult.ok
+    ? smtTodayResult.rows.map((row) => {
+        const bits: string[] = []
+        if (row.lineNo != null) bits.push(`L${row.lineNo}`)
+        if (row.pcbSide && row.pcbSide !== 'SINGLE') bits.push(row.pcbSide)
+        return {
+          id: row.id,
+          createdAt: row.createdAt,
+          orderNumber: row.orderNumber,
+          customer: row.customer,
+          productName: row.productName,
+          productCode: row.productCode,
+          quantity: Math.max(0, row.quantity),
+          detail: bits.length ? bits.join(' · ') : undefined,
+        }
+      })
+    : []
+
+  const smtTeamQuantity = smtRows.reduce((sum, row) => sum + row.quantity, 0)
+
+  return [
+    {
+      team: '생산1팀',
+      todayQuantity: smtTeamQuantity,
+      href: '/production/history?team=생산1팀',
+      rows: smtRows,
+    },
+    ...POST_PROCESS_TEAMS.map((team) => {
+      const teamRows: HomeTeamProductionRow[] = postTodayResult.ok
+        ? postTodayResult.rows
+            // 팀이 비어 있거나 잘못된 값은 생산2팀으로 정규화 (이력·리포트와 동일)
+            .filter((row) => normalizePostProcessTeam(row.team) === team)
+            .map((row) => ({
+              id: row.id,
+              createdAt: row.createdAt,
+              orderNumber: row.orderNumber,
+              customer: row.customer,
+              productName: row.productName,
+              productCode: row.productCode,
+              quantity: Math.max(0, row.quantity),
+            }))
+        : []
+      const todayQuantity = teamRows.reduce((sum, row) => sum + row.quantity, 0)
+      return {
+        team: team as string,
+        todayQuantity,
+        href: `/production/history?team=${encodeURIComponent(team)}`,
+        rows: teamRows,
+      }
+    }),
+  ]
+}
+
+/** 특정 일자 팀별 생산 (대시보드 날짜 선택용) */
+export async function fetchHomeTeamProduction(recordDate: string): Promise<{
+  ok: true
+  recordDate: string
+  dateLabel: string
+  teams: HomeProductionTeam[]
+} | {
+  ok: false
+  message: string
+}> {
+  const date = recordDate.trim()
+  if (!isValidYmd(date)) {
+    return { ok: false, message: '날짜 형식이 올바르지 않습니다.' }
+  }
+
+  const [smtTodayResult, postTodayResult] = await Promise.all([
+    fetchSmtTodayProduction(date),
+    fetchPostProcessTodayProduction(date),
+  ])
+
+  return {
+    ok: true,
+    recordDate: date,
+    dateLabel: formatHomeDateLabel(date),
+    teams: buildHomeProductionTeams(smtTodayResult, postTodayResult),
+  }
 }
 
 export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
@@ -216,26 +321,6 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     }
   }
 
-  const smtRows: HomeTeamProductionRow[] = smtTodayResult.ok
-    ? smtTodayResult.rows.map((row) => {
-        const bits: string[] = []
-        if (row.lineNo != null) bits.push(`L${row.lineNo}`)
-        if (row.pcbSide && row.pcbSide !== 'SINGLE') bits.push(row.pcbSide)
-        return {
-          id: row.id,
-          createdAt: row.createdAt,
-          orderNumber: row.orderNumber,
-          customer: row.customer,
-          productName: row.productName,
-          productCode: row.productCode,
-          quantity: Math.max(0, row.quantity),
-          detail: bits.length ? bits.join(' · ') : undefined,
-        }
-      })
-    : []
-
-  const smtTeamQuantity = smtRows.reduce((sum, row) => sum + row.quantity, 0)
-
   const todayDefectQuantity =
     (smtTodayResult.ok
       ? smtTodayResult.rows.reduce((sum, row) => sum + Math.max(0, row.defectQuantity), 0)
@@ -244,37 +329,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
       ? postTodayResult.rows.reduce((sum, row) => sum + Math.max(0, row.defectQuantity), 0)
       : 0)
 
-  const productionTeams: HomeProductionTeam[] = [
-    {
-      team: '생산1팀',
-      todayQuantity: smtTeamQuantity,
-      href: '/production/history?team=생산1팀',
-      rows: smtRows,
-    },
-    ...POST_PROCESS_TEAMS.map((team) => {
-      const teamRows: HomeTeamProductionRow[] = postTodayResult.ok
-        ? postTodayResult.rows
-            // 팀이 비어 있거나 잘못된 값은 생산2팀으로 정규화 (이력·리포트와 동일)
-            .filter((row) => normalizePostProcessTeam(row.team) === team)
-            .map((row) => ({
-              id: row.id,
-              createdAt: row.createdAt,
-              orderNumber: row.orderNumber,
-              customer: row.customer,
-              productName: row.productName,
-              productCode: row.productCode,
-              quantity: Math.max(0, row.quantity),
-            }))
-        : []
-      const todayQuantity = teamRows.reduce((sum, row) => sum + row.quantity, 0)
-      return {
-        team: team as string,
-        todayQuantity,
-        href: `/production/history?team=${encodeURIComponent(team)}`,
-        rows: teamRows,
-      }
-    }),
-  ]
+  const productionTeams = buildHomeProductionTeams(smtTodayResult, postTodayResult)
 
   const outboundPending = outboundPendingResult.ok
     ? outboundPendingResult.pending.smd +
@@ -372,13 +427,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     },
   ]
 
-  const todayLabel = new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'short',
-  }).format(new Date(`${today}T12:00:00+09:00`))
+  const todayLabel = formatHomeDateLabel(today)
 
   const changeLogsStatus = !changeLogsResult.ok
     ? changeLogsResult.reason === 'missing_table'
@@ -389,6 +438,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     : ('ok' as const)
 
   return {
+    todayYmd: today,
     todayLabel,
     headline,
     attention: sortAttention(attention),

@@ -1,5 +1,5 @@
 import { paymentTermSnapshotFromDbRow } from '@/lib/partners/payment-term-snapshot'
-import type { OrderCategory, OrderLineItem, OrderListGroup, OrderRecord } from './types'
+import type { OrderCategory, OrderCurrency, OrderLineItem, OrderListGroup, OrderRecord } from './types'
 import { ORDER_CATEGORIES } from './types'
 
 export const ORDER_CODE_MAX_LENGTH = 100
@@ -31,8 +31,17 @@ export function validateOrderCodeInput(
   return { ok: true, code }
 }
 
-export function formatOrderMoney(amount: number) {
-  return `₩${Math.round(Number(amount) || 0).toLocaleString('ko-KR')}`
+export function normalizeOrderCurrency(value: string | null | undefined): OrderCurrency {
+  return String(value || '').trim().toUpperCase() === 'USD' ? 'USD' : 'KRW'
+}
+
+export function formatOrderMoney(amount: number, currency: OrderCurrency = 'KRW') {
+  const value = Math.round(Number(amount) || 0).toLocaleString('ko-KR')
+  return currency === 'USD' ? `$${value}` : `₩${value}`
+}
+
+export function orderCurrencySymbol(currency: OrderCurrency = 'KRW') {
+  return currency === 'USD' ? '$' : '₩'
 }
 
 /**
@@ -161,6 +170,7 @@ export function mapOrderRecord(
     deliveryDate: earliestDeliveryDate(items.map((item) => item.deliveryDate)) || headerDeliveryDate,
     customer: record.customer || '',
     category: normalizeOrderCategory(record.category),
+    currency: normalizeOrderCurrency(record.currency),
     note: record.note || '',
     customerPoNumber: record.customer_po_number || '',
     source: record.source || 'manual',

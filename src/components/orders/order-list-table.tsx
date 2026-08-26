@@ -101,7 +101,7 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
                 <td
                   className={`px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900 ${ERP_TABLE_TD_FIXED_CLASS}`}
                 >
-                  {formatOrderMoney(order.totalAmount)}
+                  {formatOrderMoney(order.totalAmount, order.currency)}
                 </td>
                 <td className={`px-3 py-2.5 text-center ${ERP_TABLE_TD_FIXED_CLASS}`}>
                   <OrderCategoryBadge category={order.category} />

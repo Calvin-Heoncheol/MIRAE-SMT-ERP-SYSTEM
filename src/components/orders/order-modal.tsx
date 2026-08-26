@@ -19,9 +19,9 @@ import {
 } from '@/lib/orders/form-state'
 import { buildOrderPrintData, printOrder } from '@/lib/orders/print-order'
 import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
-import { ORDER_CATEGORIES } from '@/lib/orders/types'
-import type { OrderListGroup, OrderRowPayload } from '@/lib/orders/types'
-import { todayYmdSeoul } from '@/lib/orders/utils'
+import { ORDER_CATEGORIES, ORDER_CURRENCIES, ORDER_CURRENCY_LABELS } from '@/lib/orders/types'
+import type { OrderCurrency, OrderListGroup, OrderRowPayload } from '@/lib/orders/types'
+import { normalizeOrderCurrency, todayYmdSeoul } from '@/lib/orders/utils'
 import { hasOrderUnitPriceChange } from '@/lib/change-logs/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
@@ -57,6 +57,7 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
       deliveryDate: order.deliveryDate || '',
       customer: order.customer || '',
       category: order.category,
+      currency: normalizeOrderCurrency(order.currency),
       note: order.note || '',
       customerPoNumber: order.customerPoNumber || '',
     }
@@ -67,6 +68,7 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
     deliveryDate: '',
     customer: '',
     category: '양산',
+    currency: 'KRW',
     note: '',
     customerPoNumber: '',
   }
@@ -190,6 +192,7 @@ function OrderModalContent({
       delivery_date: headerDeliveryDate,
       customer: customerName,
       category: form.category,
+      currency: normalizeOrderCurrency(form.currency),
       note: form.note,
       customer_po_number: form.customerPoNumber,
       source: order?.source || 'manual',
@@ -338,7 +341,7 @@ function OrderModalContent({
         </label>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>구분</span>
           <select
@@ -349,6 +352,22 @@ function OrderModalContent({
             {ORDER_CATEGORIES.map((category) => (
               <option key={category} value={category}>
                 {category}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>통화</span>
+          <select
+            value={form.currency}
+            onChange={(event) =>
+              updateForm('currency', event.target.value as OrderCurrency)
+            }
+            className={ERP_FIELD_INPUT_CLASS}
+          >
+            {ORDER_CURRENCIES.map((currency) => (
+              <option key={currency} value={currency}>
+                {ORDER_CURRENCY_LABELS[currency]}
               </option>
             ))}
           </select>
@@ -378,6 +397,7 @@ function OrderModalContent({
           items={items}
           customer={resolvePartnerFromInput(salesPartners, form.customer)?.name ?? form.customer}
           products={products}
+          currency={form.currency}
           onChange={setItems}
         />
       </div>

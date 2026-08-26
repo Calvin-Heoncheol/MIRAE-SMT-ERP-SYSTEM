@@ -9,6 +9,7 @@ create table if not exists public.orders (
   delivery_date date,
   customer text not null default '',
   category text not null default '양산' check (category in ('양산', '샘플', '자재')),
+  currency text not null default 'KRW' check (currency in ('KRW', 'USD')),
   source text not null default 'manual',
   source_quote_id text references public.quotations(id) on delete set null,
   note text not null default '',
@@ -186,6 +187,11 @@ alter table public.orders
   add column if not exists created_by_name text not null default '';
 alter table public.orders
   add column if not exists customer_po_number text not null default '';
+alter table public.orders
+  add column if not exists currency text not null default 'KRW';
+alter table public.orders drop constraint if exists orders_currency_check;
+alter table public.orders
+  add constraint orders_currency_check check (currency in ('KRW', 'USD'));
 alter table public.orders
   add column if not exists payment_term_type text not null default '',
   add column if not exists payment_deposit_percent integer not null default 0,

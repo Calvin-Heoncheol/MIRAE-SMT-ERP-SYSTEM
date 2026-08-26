@@ -56,7 +56,7 @@ export function ProductionHistoryTable({
         <table
           className={[
             'w-full border-collapse',
-            showSmtColumns ? 'min-w-[1140px]' : 'min-w-[1000px]',
+            showSmtColumns ? 'min-w-[980px]' : 'min-w-[860px]',
           ].join(' ')}
         >
           <thead className="sticky top-0 z-[1] bg-slate-50">
@@ -101,12 +101,8 @@ export function ProductionHistoryTable({
                 불량
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                LOT
-              </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 등록자
               </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">비고</th>
             </tr>
           </thead>
           <tbody>
@@ -167,13 +163,9 @@ export function ProductionHistoryTable({
                   <td className="whitespace-nowrap px-3 py-2.5 text-right text-sm tabular-nums text-slate-600">
                     {row.defectQuantity > 0 ? row.defectQuantity.toLocaleString('ko-KR') : '-'}
                   </td>
-                  <td className="max-w-[10rem] px-3 py-2.5 text-xs tabular-nums text-slate-600">
-                    {cell(row.lotLabel)}
-                  </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-700">
                     {cell(row.createdByName)}
                   </td>
-                  <td className="px-3 py-2.5 text-sm text-slate-500">{cell(row.note)}</td>
                 </tr>
               )
             })}

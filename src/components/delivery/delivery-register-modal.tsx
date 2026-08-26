@@ -236,10 +236,10 @@ function DeliveryRegisterModalContent({
       open
       size="wide"
       title="출하 등록"
-      description="왼쪽에서 출하가능 품목을 체크하고, 오른쪽에서 수량·LOT을 확인한 뒤 출하하세요."
+      description="왼쪽에서 출하가능 품목을 체크하고, 오른쪽에서 수량을 확인한 뒤 출하하세요."
       onClose={onClose}
       closeOnEscape={!busy}
-      contentClassName="min-h-0 flex-1 overflow-hidden p-0"
+      contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
       footer={
         <div className="flex w-full flex-col gap-3">
           {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
@@ -270,8 +270,8 @@ function DeliveryRegisterModalContent({
         </div>
       }
     >
-      <div className="grid min-h-[min(72dvh,760px)] grid-cols-1 lg:grid-cols-[minmax(300px,38%)_minmax(0,1fr)]">
-        <aside className="flex min-h-[280px] flex-col border-b border-slate-200 lg:min-h-0 lg:border-b-0 lg:border-r lg:border-slate-200">
+      <div className="grid h-[min(72dvh,760px)] min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(300px,38%)_minmax(0,1fr)]">
+        <aside className="flex min-h-0 max-h-[42dvh] flex-col overflow-hidden border-b border-slate-200 lg:max-h-none lg:border-b-0 lg:border-r lg:border-slate-200">
           <DeliveryShippablePicker
             options={options}
             selectedIds={selectedIds}

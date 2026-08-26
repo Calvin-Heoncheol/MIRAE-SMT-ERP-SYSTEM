@@ -43,7 +43,7 @@ function buildLabelHtml(items: MaterialLabelPrintItem[]) {
   const labels: {
     id: string
     name: string
-    spec: string
+    specLine: string
   }[] = []
 
   for (const item of items) {
@@ -52,10 +52,13 @@ function buildLabelHtml(items: MaterialLabelPrintItem[]) {
     if (!id) continue
 
     const name = truncateText(item.materialName, 22)
-    const spec = truncateText(item.specification || '', 24)
+    const specLine = truncateText(
+      [item.specification || '', item.package || ''].map((v) => v.trim()).filter(Boolean).join(', '),
+      32,
+    )
 
     for (let index = 0; index < copies; index += 1) {
-      labels.push({ id, name, spec })
+      labels.push({ id, name, specLine })
     }
   }
 
@@ -65,7 +68,7 @@ function buildLabelHtml(items: MaterialLabelPrintItem[]) {
     <section class="label" data-index="${index}">
       <div class="label-head">
         ${label.name ? `<p class="label-name">${escapeHtml(label.name)}</p>` : ''}
-        ${label.spec ? `<p class="label-spec">${escapeHtml(label.spec)}</p>` : ''}
+        ${label.specLine ? `<p class="label-spec">${escapeHtml(label.specLine)}</p>` : ''}
       </div>
       <div class="label-barcode">
         <svg class="barcode barcode-pn" data-code="${escapeHtml(label.id)}"></svg>
@@ -85,10 +88,11 @@ function buildPrintHtml(
   const heightMm = options.heightMm ?? 30
   const title = escapeHtml(options.title ?? '자재 바코드 라벨')
   const scale = Math.min(Math.max(Math.min(widthMm / 40, heightMm / 30), 0.4), 2)
-  const namePt = Math.max(5, 6.5 * scale)
-  const specPt = Math.max(4.5, 5.5 * scale)
-  const idPt = Math.max(5, 7 * scale)
-  const barcodeMm = Math.max(4, Math.min(heightMm * 0.34, 14 * scale))
+  const namePt = Math.max(6, 7.2 * scale)
+  const specPt = Math.max(5.5, 6.5 * scale)
+  const idPt = Math.max(7, 8.5 * scale)
+  const barcodeMm = Math.max(3.5, Math.min(heightMm * 0.28, 11 * scale))
+  const barcodeBarWidth = Math.max(1.2, Number((1.55 * scale).toFixed(2)))
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -132,13 +136,13 @@ function buildPrintHtml(
     .label {
       width: ${widthMm}mm;
       height: ${heightMm}mm;
-      padding: ${Math.max(0.4, 1 * scale)}mm ${Math.max(0.6, 1.6 * scale)}mm;
+      padding: ${Math.max(0.5, 1 * scale)}mm ${Math.max(0.8, 1.4 * scale)}mm;
       border: 0.2mm dashed #cbd5e1;
       background: #fff;
       display: flex;
       flex-direction: column;
       align-items: stretch;
-      justify-content: flex-start;
+      justify-content: center;
       overflow: hidden;
       page-break-inside: avoid;
     }
@@ -147,8 +151,10 @@ function buildPrintHtml(
       width: 100%;
       display: flex;
       flex-direction: column;
+      align-items: center;
       gap: 0.2mm;
       margin-bottom: 0.4mm;
+      text-align: center;
     }
     .label-barcode {
       flex: 1;
@@ -165,12 +171,15 @@ function buildPrintHtml(
     }
     .label-id {
       font-family: ui-monospace, Consolas, monospace;
-      font-weight: 700;
+      font-weight: 800;
       line-height: 1.05;
       word-break: break-all;
       font-size: ${idPt}pt;
+      letter-spacing: 0.02em;
       text-align: center;
       margin-top: 0.4mm;
+      -webkit-font-smoothing: none;
+      text-rendering: geometricPrecision;
     }
     .label-name,
     .label-spec {
@@ -233,10 +242,12 @@ function buildPrintHtml(
         try {
           JsBarcode(node, code, {
             format: 'CODE128',
-            width: ${Math.max(1, Number((1.35 * scale).toFixed(2)))},
+            width: ${barcodeBarWidth},
             height: barHeight,
             displayValue: false,
             margin: 0,
+            marginLeft: 0,
+            marginRight: 0,
           });
         } catch (error) {
           console.error(error);

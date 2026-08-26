@@ -83,8 +83,9 @@ export function assemblyGroupIsDeliveryEligible(
 
 /**
  * 출하·재고용 생산완료 상한.
- * - 조립제품: SMD만 → SMT / DIP만 → 후공정 / SMD+DIP → min(SMT, 후공정)
- * - 반제품: 후공정이 있어도 SMT 실적 기준으로 출하 가능 (후공정 ≠ 완제품)
+ * - SMD+후공정 모두 필요 → 조립/반제품 무관하게 min(SMT, 후공정)
+ * - 조립제품: SMD만 → SMT / 후공정만 → 후공정
+ * - 반제품(단일 공정): SMT만 또는 후공정만 해당 실적
  */
 export function resolveAssemblyProductionCap(input: {
   group: OrderAssemblyGroup
@@ -97,7 +98,8 @@ export function resolveAssemblyProductionCap(input: {
   const parent =
     input.productById[input.group.parentProductId] ||
     input.productById[String(input.group.parentProductCode || '').trim()]
-  const isSemiFinished = parent?.productKind !== 'assembly'
+  // 품목을 못 찾으면 반제품으로 단정하지 않음 (후공정 병목이 무시되는 것을 방지)
+  const isSemiFinished = Boolean(parent) && parent.productKind !== 'assembly'
 
   const needsSmt = assemblyGroupIncludesSmt(
     input.group,
@@ -114,7 +116,9 @@ export function resolveAssemblyProductionCap(input: {
   const smtSets = Math.max(0, Math.floor(input.smtSets))
   const postProduced = Math.max(0, Math.floor(input.postProduced))
 
-  // 반제품: SMT가 있으면 SMT 기준 출하 (후공정 유무와 무관)
+  // SMD·후공정이 모두 필요하면 병목(min) — 반제품이어도 동일
+  if (needsSmt && needsPost) return Math.min(smtSets, postProduced)
+
   if (isSemiFinished) {
     if (needsSmt) return smtSets
     if (needsPost) return postProduced
@@ -123,7 +127,6 @@ export function resolveAssemblyProductionCap(input: {
     return 0
   }
 
-  if (needsSmt && needsPost) return Math.min(smtSets, postProduced)
   if (needsSmt) return smtSets
   if (needsPost) return postProduced
   // 공정구분이 비어 있어도 생산실적이 있으면 출하 가능

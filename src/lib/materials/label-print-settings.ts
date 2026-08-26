@@ -29,6 +29,9 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
 
 const STORAGE_KEY = 'mirae.materialLabelPrintSettings'
 
+/** 용지 설정 저장 시 미리보기 등에서 구독 */
+export const LABEL_PRINT_SETTINGS_CHANGED = 'mirae:label-print-settings'
+
 let remembered: LabelPrintSettings | null = null
 
 function clampMm(value: number, fallback: number) {
@@ -68,6 +71,7 @@ export function setLabelPrintSettings(next: Partial<LabelPrintSettings>) {
   } catch {
     // 메모리만 유지
   }
+  window.dispatchEvent(new Event(LABEL_PRINT_SETTINGS_CHANGED))
   return merged
 }
 

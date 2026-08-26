@@ -4,7 +4,8 @@ import { useCallback, useMemo, useState } from 'react'
 import { SmtPlanCalendar } from '@/components/smt/smt-plan-calendar'
 import { SmtPlanFetchError } from '@/components/smt/smt-plan-fetch-error'
 import { SmtPlanFormModal, type SmtPlanFormValues } from '@/components/smt/smt-plan-form-modal'
-import { addDaysYmd } from '@/lib/orders/utils'
+import { ErpButton } from '@/components/ui/erp-button'
+import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
 import { suggestPlanQuantityFromMaterial } from '@/lib/materials/material-inbound-status'
 import {
   deleteSmtProductionPlan,
@@ -142,6 +143,14 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
         note: '',
       },
     })
+  }
+
+  function openAddPlanModal() {
+    const today = todayYmdSeoul()
+    const weekDates = data?.weekDates ?? []
+    const plannedDate = weekDates.includes(today) ? today : weekStart
+    const lineNo = data?.lineNos?.[0] ?? 1
+    openCreateFromCell(plannedDate, lineNo)
   }
 
   function handlePickCandidate(order: SmtPlanOrderCandidate) {
@@ -285,9 +294,14 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
               <span className="text-sm font-semibold text-slate-700">
                 {formatWeekRangeLabel(weekStart)}
               </span>
-              <span className="text-xs text-slate-500">빈 칸을 클릭해 계획을 추가하세요</span>
+              <span className="text-xs text-slate-500">
+                「계획 추가」또는 빈 칸 클릭 → 발주서 선택 → 수량 입력
+              </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <ErpButton type="button" onClick={openAddPlanModal} disabled={loading}>
+                계획 추가
+              </ErpButton>
               <div className="mr-1 flex flex-wrap gap-1 text-[10px] font-semibold text-slate-500">
                 <span className="rounded bg-sky-100 px-1.5 py-0.5 text-sky-700 ring-1 ring-sky-200">
                   예정
@@ -351,7 +365,7 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
               ? '생산계획 수정'
               : modal.mode === 'move'
                 ? '생산계획 이동'
-                : '이번 차 등록'
+                : '생산계획 등록'
             : ''
         }
         order={modal.open ? modal.order : null}

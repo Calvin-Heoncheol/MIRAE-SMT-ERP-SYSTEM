@@ -72,6 +72,8 @@ export type DeliveryHistoryRow = {
   lotLabel: string
 }
 
+import type { OrderCurrency } from '@/lib/orders/types'
+
 export type DeliveryStatementLine = {
   orderNumber?: string
   productCode: string
@@ -92,6 +94,8 @@ export type DeliveryStatementData = {
   /** 거래처 마스터 전화 */
   customerPhone?: string
   note: string
+  /** 표시 통화 — 발주서 통화 기준 (기본 KRW) */
+  currency?: OrderCurrency
   /** 이번 출하(명세) 품목 */
   items: DeliveryStatementLine[]
 }

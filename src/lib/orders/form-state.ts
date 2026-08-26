@@ -1,3 +1,5 @@
+import type { OrderCurrency } from './types'
+
 let orderItemRowKeyCounter = 0
 
 export function createOrderItemRowKey() {
@@ -28,6 +30,8 @@ export type OrderFormState = {
   deliveryDate: string
   customer: string
   category: '양산' | '샘플' | '자재'
+  /** 표시 통화 — 기본 KRW */
+  currency: OrderCurrency
   note: string
   /** 발주번호(고객 PO/NO) */
   customerPoNumber: string

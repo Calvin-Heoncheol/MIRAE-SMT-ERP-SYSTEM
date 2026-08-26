@@ -21,8 +21,8 @@ import { fetchQuotePaymentSnapshot } from '@/lib/quotes/repository'
 import { createSupabaseClient } from '@/lib/supabase'
 import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { syncAssemblyGroupsForOrder } from '@/lib/assembly/repository'
-import type { OrderListGroup, OrderRecord, OrderRowPayload } from './types'
-import { groupOrdersFromRecords } from './utils'
+import type { OrderCurrency, OrderListGroup, OrderRecord, OrderRowPayload } from './types'
+import { groupOrdersFromRecords, normalizeOrderCurrency } from './utils'
 
 export type FetchOrdersResult =
   | { ok: true; orders: OrderListGroup[] }
@@ -46,6 +46,26 @@ function missingEnvResult(): SaveOrderResult {
 
 function isMissingOrdersTable(detail: string) {
   return detail.includes('orders') || detail.includes('order_lines') || detail.includes('schema cache')
+}
+
+function isMissingOrdersCurrencyColumn(detail: string) {
+  return (
+    detail.includes('currency') &&
+    (detail.includes('schema cache') ||
+      detail.includes('does not exist') ||
+      detail.includes('Could not find'))
+  )
+}
+
+async function persistOrderCurrency(orderId: string, currency: OrderCurrency) {
+  const supabase = createSupabaseClient()
+  const { error } = await supabase
+    .from('orders')
+    .update({ currency: normalizeOrderCurrency(currency) })
+    .eq('id', orderId)
+  if (error && !isMissingOrdersCurrencyColumn(error.message)) {
+    console.warn('[orders] currency patch failed:', error.message)
+  }
 }
 
 function mapOrderSaveError(detail: string) {
@@ -219,6 +239,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
     const paymentSnapshot = await resolveOrderPaymentSnapshot(payload)
 
     // 발주ID는 항상 자동 발급 (MRO-YYMMDD-NN). payload.id 는 무시.
+    const currency = normalizeOrderCurrency(payload.currency)
     const header = {
       id: null as string | null,
       order_date: payload.order_date,
@@ -229,6 +250,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       source_quote_id: payload.source_quote_id || null,
       note: payload.note?.trim() || '',
       customer_po_number: payload.customer_po_number?.trim() || '',
+      currency,
     }
     const lines = orderLinesJson(payload.items)
 
@@ -251,6 +273,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
         }
       }
       await persistPaymentTermSnapshot('orders', orderId, paymentSnapshot)
+      await persistOrderCurrency(orderId, currency)
       await syncAssemblyGroupsForOrder(orderId)
       return { ok: true, orderId, orderNumber: orderId }
     }
@@ -269,6 +292,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       source_quote_id: payload.source_quote_id || null,
       note: payload.note?.trim() || '',
       customer_po_number: payload.customer_po_number?.trim() || '',
+      currency,
       ...paymentTermSnapshotToDbRow(paymentSnapshot),
     }
 
@@ -287,6 +311,17 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       ;({ data: inserted, error } = await supabase
         .from('orders')
         .insert(omitPaymentTermSnapshotFields(insertRow))
+        .select('id')
+        .single())
+    }
+
+    if (error && isMissingOrdersCurrencyColumn(error.message)) {
+      const { currency: _ignored, ...withoutCurrency } = insertRow as typeof insertRow & {
+        currency?: string
+      }
+      ;({ data: inserted, error } = await supabase
+        .from('orders')
+        .insert(omitPaymentTermSnapshotFields(stripCreatedByFields(withoutCurrency)))
         .select('id')
         .single())
     }
@@ -341,6 +376,7 @@ export async function updateOrder(
         beforeGroup?.paymentTerms || paymentTermSnapshotFromDbRow(existing as OrderRecord),
       partnerSnapshot: await fetchPaymentTermSnapshotForCustomer(payload.customer),
     })
+    const currency = normalizeOrderCurrency(payload.currency)
     const header = {
       order_date: payload.order_date,
       delivery_date: payload.delivery_date || null,
@@ -348,6 +384,7 @@ export async function updateOrder(
       category: payload.category,
       note: payload.note?.trim() || '',
       customer_po_number: payload.customer_po_number?.trim() || '',
+      currency,
     }
     const lines = orderLinesJson(payload.items)
 
@@ -362,18 +399,28 @@ export async function updateOrder(
         return { ok: false, reason: 'query', detail: mapOrderSaveError(rpcError.message) }
       }
 
-      const { error: updateError } = await supabase
+      const updatePayload: Record<string, unknown> = {
+        order_date: payload.order_date,
+        delivery_date: payload.delivery_date || null,
+        customer: payload.customer,
+        category: payload.category,
+        note: payload.note?.trim() || '',
+        customer_po_number: payload.customer_po_number?.trim() || '',
+        currency,
+        updated_at: new Date().toISOString(),
+      }
+      let { error: updateError } = await supabase
         .from('orders')
-        .update({
-          order_date: payload.order_date,
-          delivery_date: payload.delivery_date || null,
-          customer: payload.customer,
-          category: payload.category,
-          note: payload.note?.trim() || '',
-          customer_po_number: payload.customer_po_number?.trim() || '',
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', existing.id)
+
+      if (updateError && isMissingOrdersCurrencyColumn(updateError.message)) {
+        const { currency: _ignored, ...withoutCurrency } = updatePayload
+        ;({ error: updateError } = await supabase
+          .from('orders')
+          .update(withoutCurrency)
+          .eq('id', existing.id))
+      }
 
       if (updateError) return { ok: false, reason: 'query', detail: updateError.message }
 
@@ -384,6 +431,7 @@ export async function updateOrder(
     }
 
     await persistPaymentTermSnapshot('orders', existing.id, paymentSnapshot)
+    await persistOrderCurrency(existing.id, currency)
     await syncAssemblyGroupsForOrder(existing.id)
 
     const afterTotalAmount = payload.items.reduce(

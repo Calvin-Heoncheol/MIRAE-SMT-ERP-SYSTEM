@@ -13,7 +13,9 @@ import {
   updateDeliveryRecord,
 } from '@/lib/delivery/repository'
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
-import { displayOrderPoNumber } from '@/lib/orders/utils'
+import { fetchOrderById } from '@/lib/orders/repository'
+import type { OrderCurrency } from '@/lib/orders/types'
+import { displayOrderPoNumber, formatOrderMoney, normalizeOrderCurrency } from '@/lib/orders/utils'
 import { CATCH_UP_LOT_WARNING } from '@/lib/production-lots/types'
 import { ERP_DANGER_BUTTON_CLASS } from '@/lib/ui/tokens'
 
@@ -46,6 +48,7 @@ export function DeliveryHistoryModal({
   const [quantity, setQuantity] = useState('')
   const [note, setNote] = useState('')
   const [unitPrice, setUnitPrice] = useState('0')
+  const [currency, setCurrency] = useState<OrderCurrency>('KRW')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -56,12 +59,16 @@ export function DeliveryHistoryModal({
     setQuantity(String(row.quantity))
     setNote(row.note)
     setUnitPrice('0')
+    setCurrency('KRW')
     setSaveError(null)
 
     void fetchOrderLineUnitPrice(row.orderNumber, row.productCode).then((result) => {
       if (result.ok && result.unitPrice > 0) {
         setUnitPrice(String(result.unitPrice))
       }
+    })
+    void fetchOrderById(row.orderNumber).then((order) => {
+      if (order) setCurrency(normalizeOrderCurrency(order.currency))
     })
   }, [open, row])
 
@@ -295,7 +302,7 @@ export function DeliveryHistoryModal({
             <div className="block text-sm">
               <span className="mb-1 block font-medium text-slate-600">공급가액 (거래명세서)</span>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-base font-bold tabular-nums text-slate-800">
-                ₩{formatMoneyInput(supplyAmount)}
+                {formatOrderMoney(supplyAmount, currency)}
               </div>
             </div>
             <label className="block text-sm sm:col-span-2">

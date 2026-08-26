@@ -7,7 +7,8 @@ import {
   PostProcessPlanFormModal,
   type PostProcessPlanFormValues,
 } from '@/components/post-process/post-process-plan-form-modal'
-import { addDaysYmd } from '@/lib/orders/utils'
+import { ErpButton } from '@/components/ui/erp-button'
+import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
 import {
   deletePostProcessProductionPlan,
   fetchPostProcessPlanPageData,
@@ -158,6 +159,13 @@ export function PostProcessPlanWorkspace({
     })
   }
 
+  function openAddPlanModal() {
+    const today = todayYmdSeoul()
+    const weekDates = data?.weekDates ?? []
+    const plannedDate = weekDates.includes(today) ? today : weekStart
+    openCreateFromCell(plannedDate)
+  }
+
   function handlePickCandidate(order: PostProcessPlanOrderCandidate) {
     if (!modal.open || modal.mode !== 'create') return
     openCreateModal(order, modal.initialValues.plannedDate)
@@ -300,9 +308,14 @@ export function PostProcessPlanWorkspace({
               <span className="text-sm font-semibold text-slate-700">
                 {formatWeekRangeLabel(weekStart)}
               </span>
-              <span className="text-xs text-slate-500">빈 칸을 클릭해 계획을 추가하세요</span>
+              <span className="text-xs text-slate-500">
+                「계획 추가」또는 빈 칸 클릭 → 발주서 선택 → 수량 입력
+              </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <ErpButton type="button" onClick={openAddPlanModal} disabled={loading}>
+                계획 추가
+              </ErpButton>
               <div className="mr-1 flex flex-wrap gap-1 text-[10px] font-semibold text-slate-500">
                 <span className="rounded bg-sky-50 px-1.5 py-0.5 text-sky-700 ring-1 ring-sky-100">
                   예정

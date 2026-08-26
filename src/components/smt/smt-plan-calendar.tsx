@@ -104,10 +104,21 @@ export function SmtPlanCalendar({
               return (
                 <th
                   key={date}
-                  className={`min-w-[120px] border-b border-r border-slate-200 px-2 py-2 text-center last:border-r-0 ${isToday ? 'bg-slate-100' : ''}`}
+                  className={`min-w-[120px] border-b border-r px-2 py-2 text-center last:border-r-0 ${
+                    isToday
+                      ? 'border-sky-300 bg-sky-100 ring-2 ring-inset ring-sky-400'
+                      : 'border-slate-200'
+                  }`}
                 >
-                  <p className="text-[11px] font-semibold text-slate-500">{formatWeekdayLabel(date)}</p>
-                  <p className={`text-sm font-bold ${isToday ? 'text-slate-900' : 'text-slate-800'}`}>
+                  <p
+                    className={`text-[11px] font-semibold ${isToday ? 'text-sky-700' : 'text-slate-500'}`}
+                  >
+                    {formatWeekdayLabel(date)}
+                    {isToday ? ' · 오늘' : ''}
+                  </p>
+                  <p
+                    className={`text-sm font-extrabold tabular-nums ${isToday ? 'text-sky-950' : 'text-slate-800'}`}
+                  >
                     {formatCalendarDayLabel(date)}
                   </p>
                 </th>
@@ -130,7 +141,11 @@ export function SmtPlanCalendar({
                 return (
                   <td
                     key={key}
-                    className={`min-h-[110px] cursor-pointer border-r border-slate-100 align-top p-1.5 last:border-r-0 hover:bg-slate-50/80 ${isToday ? 'bg-slate-50/40' : ''} ${isDropTarget ? 'bg-slate-100/80 ring-2 ring-inset ring-slate-300' : ''}`}
+                    className={`min-h-[110px] cursor-pointer border-r align-top p-1.5 last:border-r-0 hover:bg-slate-50/80 ${
+                      isToday
+                        ? 'border-sky-200 bg-sky-50/70'
+                        : 'border-slate-100'
+                    } ${isDropTarget ? 'bg-slate-100/80 ring-2 ring-inset ring-slate-300' : ''}`}
                     onClick={() => onCellClick({ plannedDate, lineNo })}
                     onDragOver={(event) => handleDragOver(event, key)}
                     onDragLeave={() => setDragOverCell((current) => (current === key ? null : current))}

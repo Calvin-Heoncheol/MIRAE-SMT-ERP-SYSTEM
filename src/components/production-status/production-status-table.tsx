@@ -137,6 +137,10 @@ export function isProductionComplete(input: {
   return smtDone && postDone
 }
 
+export function isProductProductionComplete(product: ProductionStatusProductLine) {
+  return isProductionComplete(product)
+}
+
 function ProductionLineStatusBadge({
   smtTarget,
   smtProduced,
@@ -309,7 +313,7 @@ function OrderStatusRows({
   return (
     <>
       {line.products.map((product) => {
-        const done = isProductionComplete(product)
+        const done = isProductProductionComplete(product)
         return (
           <tr key={`${line.orderId}:${product.key}`} className={ERP_TABLE_ROW_CLASS}>
             <td
@@ -380,9 +384,11 @@ function OrderStatusRows({
 /** 주문 내 생산 대상 제품이 모두 완료되면 true (대상없음 행은 무시) */
 export function isProductionStatusLineComplete(line: ProductionStatusLine) {
   if (line.products.length > 0) {
-    const targets = line.products.filter(hasProductionTarget)
+    const targets = line.products.filter(
+      (product) => hasProductionTarget(product) || product.smtChildren.length > 0,
+    )
     if (!targets.length) return isProductionComplete(line)
-    return targets.every(isProductionComplete)
+    return targets.every(isProductProductionComplete)
   }
   return isProductionComplete(line)
 }
@@ -407,8 +413,8 @@ export function filterProductionStatusLineByStatus(
   }
 
   const products = line.products.filter((product) => {
-    if (!hasProductionTarget(product)) return false
-    const done = isProductionComplete(product)
+    if (!hasProductionTarget(product) && product.smtChildren.length === 0) return false
+    const done = isProductProductionComplete(product)
     return statusFilter === 'done' ? done : !done
   })
   if (!products.length) return null

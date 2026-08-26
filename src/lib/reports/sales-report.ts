@@ -1,5 +1,6 @@
 import { fetchOrders } from '@/lib/orders/repository'
-import { addDaysYmd, displayOrderPoNumber } from '@/lib/orders/utils'
+import type { OrderCurrency } from '@/lib/orders/types'
+import { addDaysYmd, displayOrderPoNumber, normalizeOrderCurrency } from '@/lib/orders/utils'
 import {
   ensureLegacyShipmentNumber,
   isLegacyShipmentNote,
@@ -36,6 +37,8 @@ export type SalesReportShipmentRow = {
   quantity: number
   unitPrice: number
   amount: number
+  /** 발주서 표시 통화 */
+  currency: OrderCurrency
   source: 'delivery' | 'legacy'
   orderLineId: string
 }
@@ -55,6 +58,8 @@ export type SalesReportStatementGroup = {
   unitPrice: number
   unitPriceMixed: boolean
   amount: number
+  currency: OrderCurrency
+  currencyMixed: boolean
   source: 'delivery' | 'legacy'
   lines: SalesReportShipmentRow[]
 }
@@ -99,6 +104,7 @@ export function groupSalesReportShipments(
       ...new Set(sortedLines.map((line) => line.productCode.trim()).filter(Boolean)),
     ]
     const prices = [...new Set(sortedLines.map((line) => line.unitPrice))]
+    const currencies = [...new Set(sortedLines.map((line) => normalizeOrderCurrency(line.currency)))]
     const sources = [...new Set(sortedLines.map((line) => line.source))]
     result.push({
       recordDate,
@@ -115,6 +121,8 @@ export function groupSalesReportShipments(
       unitPrice: prices.length === 1 ? prices[0]! : 0,
       unitPriceMixed: prices.length !== 1,
       amount: sortedLines.reduce((sum, line) => sum + line.amount, 0),
+      currency: currencies.length === 1 ? currencies[0]! : 'KRW',
+      currencyMixed: currencies.length !== 1,
       source: sources.length === 1 ? sources[0]! : first.source,
       lines: sortedLines,
     })
@@ -139,9 +147,15 @@ export type SalesReportData = {
   startDate: string
   endDate: string
   totalOrderCount: number
+  /** 원화 발주 금액 합 */
   totalOrderAmount: number
+  /** 달러 발주 금액 합 */
+  totalOrderAmountUsd: number
   totalShippedQuantity: number
+  /** 원화 출하 금액 합 */
   totalShippedAmount: number
+  /** 달러 출하 금액 합 */
+  totalShippedAmountUsd: number
   customers: SalesReportCustomerRow[]
   daily: SalesReportDailyRow[]
   shipments: SalesReportShipmentRow[]
@@ -167,6 +181,7 @@ type GroupInfo = {
   parentProductId: string
   productName: string
   itemUnitPrice: number
+  currency: OrderCurrency
 }
 
 function displayPoNumber(customerPoNumber: string | undefined, orderId: string) {
@@ -312,6 +327,7 @@ export async function fetchSalesReportData(
           parentProductId: String(row.parent_product_id ?? '').trim(),
           productName: String(item?.name ?? '').trim() || String(row.parent_product_id ?? ''),
           itemUnitPrice: Math.max(0, Math.round(Number(item?.unit_price) || 0)),
+          currency: normalizeOrderCurrency(orderById.get(orderId)?.currency),
         })
       }
     }
@@ -383,6 +399,7 @@ export async function fetchSalesReportData(
         quantity,
         unitPrice,
         amount: quantity * unitPrice,
+        currency: info?.currency ?? 'KRW',
         source: 'delivery',
         orderLineId: '',
       })
@@ -421,6 +438,7 @@ export async function fetchSalesReportData(
           quantity,
           unitPrice,
           amount,
+          currency: normalizeOrderCurrency(order.currency),
           source: 'legacy',
           orderLineId: item.lineId || '',
         })
@@ -496,17 +514,31 @@ export async function fetchSalesReportData(
 
     const daily = [...dailyMap.values()]
 
+    const allOrders = [...periodOrders, ...legacyOrders]
+    const totalOrderAmount = allOrders
+      .filter((order) => normalizeOrderCurrency(order.currency) === 'KRW')
+      .reduce((sum, order) => sum + Math.max(0, Math.round(order.totalAmount)), 0)
+    const totalOrderAmountUsd = allOrders
+      .filter((order) => normalizeOrderCurrency(order.currency) === 'USD')
+      .reduce((sum, order) => sum + Math.max(0, Math.round(order.totalAmount)), 0)
+    const totalShippedAmount = shipments
+      .filter((row) => row.currency === 'KRW')
+      .reduce((sum, row) => sum + row.amount, 0)
+    const totalShippedAmountUsd = shipments
+      .filter((row) => row.currency === 'USD')
+      .reduce((sum, row) => sum + row.amount, 0)
+
     return {
       ok: true,
       data: {
         startDate,
         endDate,
-        totalOrderCount: periodOrders.length + legacyOrders.length,
-        totalOrderAmount:
-          periodOrders.reduce((sum, order) => sum + Math.max(0, Math.round(order.totalAmount)), 0) +
-          legacyOrders.reduce((sum, order) => sum + Math.max(0, Math.round(order.totalAmount)), 0),
+        totalOrderCount: allOrders.length,
+        totalOrderAmount,
+        totalOrderAmountUsd,
         totalShippedQuantity: shipments.reduce((sum, row) => sum + row.quantity, 0),
-        totalShippedAmount: shipments.reduce((sum, row) => sum + row.amount, 0),
+        totalShippedAmount,
+        totalShippedAmountUsd,
         customers,
         daily,
         shipments,

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { ErpModal } from '@/components/ui/erp-modal'
 import type {
   HomeAttentionItem,
@@ -10,9 +10,15 @@ import type {
   HomeProductionTeam,
   HomeTeamProductionRow,
 } from '@/lib/dashboard/home-data'
+import { loadHomeTeamProductionAction } from '@/lib/dashboard/actions'
 import type { ChangeLogRecord } from '@/lib/change-logs/types'
 import { ChangeLogDetailText } from '@/components/change-logs/change-log-detail-text'
-import { ERP_BADGE_COMPACT_CLASS, ERP_SECONDARY_BUTTON_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
+import {
+  ERP_BADGE_COMPACT_CLASS,
+  ERP_FIELD_INPUT_CLASS,
+  ERP_SECONDARY_BUTTON_CLASS,
+  ERP_TABLE_TD_WRAP_CLASS,
+} from '@/lib/ui/tokens'
 
 const DEPARTMENT_LABEL = {
   production: '생산',
@@ -222,11 +228,11 @@ function AttentionPanel({ items }: { items: HomeAttentionItem[] }) {
 
 function TeamProductionModal({
   team,
-  todayLabel,
+  dateLabel,
   onClose,
 }: {
   team: HomeProductionTeam | null
-  todayLabel: string
+  dateLabel: string
   onClose: () => void
 }) {
   const rows = useMemo(() => {
@@ -238,10 +244,10 @@ function TeamProductionModal({
     <ErpModal
       open={Boolean(team)}
       size="md"
-      title={team ? `${team.team} · 오늘 생산` : '오늘 생산'}
+      title={team ? `${team.team} · 생산 내역` : '생산 내역'}
       description={
         team
-          ? `${todayLabel} · 합계 ${team.todayQuantity.toLocaleString('ko-KR')} EA · ${rows.length}건`
+          ? `${dateLabel} · 합계 ${team.todayQuantity.toLocaleString('ko-KR')} EA · ${rows.length}건`
           : undefined
       }
       onClose={onClose}
@@ -263,7 +269,7 @@ function TeamProductionModal({
     >
       {!team || rows.length === 0 ? (
         <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-          오늘 등록된 생산이 없습니다.
+          해당 날짜에 등록된 생산이 없습니다.
         </p>
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200">
@@ -311,15 +317,48 @@ function TeamProductionModal({
 }
 
 function TeamProduction({
-  teams,
-  todayLabel,
+  initialTeams,
+  initialDateYmd,
+  initialDateLabel,
 }: {
-  teams: HomeProductionTeam[]
-  todayLabel: string
+  initialTeams: HomeProductionTeam[]
+  initialDateYmd: string
+  initialDateLabel: string
 }) {
   const [selectedTeam, setSelectedTeam] = useState<HomeProductionTeam | null>(null)
+  const [recordDate, setRecordDate] = useState(initialDateYmd)
+  const [dateLabel, setDateLabel] = useState(initialDateLabel)
+  const [teams, setTeams] = useState(initialTeams)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  useEffect(() => {
+    setRecordDate(initialDateYmd)
+    setDateLabel(initialDateLabel)
+    setTeams(initialTeams)
+    setSelectedTeam(null)
+    setError(null)
+  }, [initialDateYmd, initialDateLabel, initialTeams])
+
+  function handleDateChange(nextDate: string) {
+    if (!nextDate || nextDate === recordDate) return
+    setRecordDate(nextDate)
+    setSelectedTeam(null)
+    setError(null)
+    startTransition(async () => {
+      const result = await loadHomeTeamProductionAction(nextDate)
+      if (!result.ok) {
+        setError(result.message)
+        return
+      }
+      setTeams(result.teams)
+      setDateLabel(result.dateLabel)
+    })
+  }
+
   const total = teams.reduce((sum, team) => sum + team.todayQuantity, 0)
   const max = Math.max(...teams.map((team) => team.todayQuantity), 1)
+  const isToday = recordDate === initialDateYmd
 
   return (
     <>
@@ -331,9 +370,35 @@ function TeamProduction({
               합계 {total.toLocaleString('ko-KR')} EA
             </p>
           </div>
-          <p className="mt-1 text-xs font-semibold text-slate-500">{todayLabel}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={recordDate}
+              max={initialDateYmd}
+              onChange={(event) => handleDateChange(event.target.value)}
+              className={`${ERP_FIELD_INPUT_CLASS} h-8 w-[9.5rem] px-2 py-1 text-xs`}
+              aria-label="생산 조회 날짜"
+            />
+            {!isToday ? (
+              <button
+                type="button"
+                onClick={() => handleDateChange(initialDateYmd)}
+                className="rounded-md px-2 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-50"
+              >
+                오늘
+              </button>
+            ) : null}
+            {pending ? (
+              <span className="text-xs text-slate-400">불러오는 중…</span>
+            ) : (
+              <span className="text-xs font-semibold text-slate-500">{dateLabel}</span>
+            )}
+          </div>
+          {error ? <p className="mt-1.5 text-xs text-rose-600">{error}</p> : null}
         </header>
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
+        <div
+          className={`flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3 ${pending ? 'opacity-60' : ''}`}
+        >
           {teams.map((team) => {
             const width = total <= 0 ? 0 : Math.round((team.todayQuantity / max) * 100)
             return (
@@ -360,7 +425,7 @@ function TeamProduction({
 
       <TeamProductionModal
         team={selectedTeam}
-        todayLabel={todayLabel}
+        dateLabel={dateLabel}
         onClose={() => setSelectedTeam(null)}
       />
     </>
@@ -387,7 +452,11 @@ export function HomeDashboard({ data }: { data: HomeDashboardData }) {
             message={data.changeLogsMessage}
           />
         </div>
-        <TeamProduction teams={data.productionTeams} todayLabel={data.todayLabel} />
+        <TeamProduction
+          initialTeams={data.productionTeams}
+          initialDateYmd={data.todayYmd}
+          initialDateLabel={data.todayLabel}
+        />
       </div>
     </div>
   )

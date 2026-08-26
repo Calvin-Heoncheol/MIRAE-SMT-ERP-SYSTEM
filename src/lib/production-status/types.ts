@@ -3,6 +3,21 @@ import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-inp
 
 export type ProductionStatusStage = 'smt' | 'post_process' | 'delivery'
 
+/** 조립제품 행에 중첩되는 BOM 반제품 SMT 진행 */
+export type ProductionStatusSmtChild = {
+  key: string
+  productName: string
+  productCode: string
+  version: string
+  quantity: number
+  smtTarget: number
+  smtProduced: number
+  smtDefected: number
+  smtPercent: number
+  smtDefectPercent: number
+  smtOrderLineIds: string[]
+}
+
 /** 주문 내 제품(라인)별 진행 — 펼친 행 */
 export type ProductionStatusProductLine = {
   key: string
@@ -27,6 +42,8 @@ export type ProductionStatusProductLine = {
   smtOrderLineIds: string[]
   /** 모달 후공정·출하 필터 */
   assemblyGroupIds: string[]
+  /** 조립제품: 구성 반제품 SMT (부모 행 요약 + 펼침) */
+  smtChildren: ProductionStatusSmtChild[]
 }
 
 export type ProductionStatusLine = {
@@ -60,7 +77,7 @@ export type ProductionStatusLine = {
 
 export type ProductionStatusPageData = {
   lines: ProductionStatusLine[]
-  /** 계획 없이 바로 입력용 */
+  /** 클릭 없이 바로 입력용 */
   smtOrders: ProductionOrderLine[]
   postOrders: ProductionOrderLine[]
   deliveryOrders: ProductionOrderLine[]

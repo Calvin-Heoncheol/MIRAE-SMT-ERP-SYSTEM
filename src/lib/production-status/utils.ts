@@ -1,4 +1,5 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
+import { computeAssemblySmtSets } from '@/lib/delivery/utils'
 import { matchesDateRange, type DateRangeFilterValue } from '@/lib/ui/date-range'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { formatProductSummary, isBillingOnlyOrderItem } from '@/lib/orders/utils'
@@ -12,7 +13,11 @@ import {
 } from '@/lib/production-input/utils'
 import type { Product } from '@/lib/products/types'
 import type { QuoteListItem } from '@/lib/quotes/types'
-import type { ProductionStatusLine, ProductionStatusProductLine } from './types'
+import type {
+  ProductionStatusLine,
+  ProductionStatusProductLine,
+  ProductionStatusSmtChild,
+} from './types'
 
 function groupSmtLinesByOrderNumber(smtLines: ProductionOrderLine[]) {
   const map = new Map<string, ProductionOrderLine[]>()
@@ -42,9 +47,83 @@ function resolveItemProductId(item: OrderListGroup['items'][number]) {
   return String(item.productId || '').trim()
 }
 
+function buildSmtChildFromLine(
+  smtLine: ProductionOrderLine,
+  smtCounts: ProductionCounts,
+  smtDefectCounts: ProductionCounts,
+): ProductionStatusSmtChild {
+  const smtTarget = Math.max(0, Math.floor(smtLine.quantity))
+  const smtProduced = resolveProductionCount(smtLine, smtCounts)
+  const smtDefected = resolveProductionDefectCount(smtLine, smtDefectCounts)
+  const smtStack = getStackedProgressWidths(smtProduced, smtDefected, smtTarget)
+
+  return {
+    key: `smt:${smtLine.orderLineId}`,
+    productName: smtLine.productName.trim() || '—',
+    productCode: smtLine.productCode.trim(),
+    version: (smtLine.productVersion || '').trim(),
+    quantity: smtTarget,
+    smtTarget,
+    smtProduced,
+    smtDefected,
+    smtPercent: smtStack.goodPercent,
+    smtDefectPercent: smtStack.defectPercent,
+    smtOrderLineIds: [smtLine.orderLineId],
+  }
+}
+
+function aggregateSmtChildren(children: ProductionStatusSmtChild[]) {
+  let smtTarget = 0
+  let smtProduced = 0
+  let smtDefected = 0
+  const smtOrderLineIds: string[] = []
+
+  for (const child of children) {
+    smtTarget += child.smtTarget
+    smtProduced += child.smtProduced
+    smtDefected += child.smtDefected
+    smtOrderLineIds.push(...child.smtOrderLineIds)
+  }
+
+  const smtStack = getStackedProgressWidths(smtProduced, smtDefected, smtTarget)
+  return {
+    smtTarget,
+    smtProduced,
+    smtDefected,
+    smtPercent: smtStack.goodPercent,
+    smtDefectPercent: smtStack.defectPercent,
+    smtOrderLineIds,
+  }
+}
+
+/** 조립제품 SMT: 발주수량(세트) 대비 min(구성 반제품) */
+function resolveAssemblySmtProgress(
+  assembly: OrderAssemblyGroup,
+  children: ProductionStatusSmtChild[],
+  smtCounts: ProductionCounts,
+  productById: Record<string, Product>,
+) {
+  const smtTarget = Math.max(0, Math.floor(assembly.targetQuantity))
+  const smtProduced = Math.min(
+    smtTarget,
+    computeAssemblySmtSets(assembly, smtCounts, productById),
+  )
+  const smtStack = getStackedProgressWidths(smtProduced, 0, smtTarget)
+  const smtOrderLineIds = children.flatMap((child) => child.smtOrderLineIds)
+
+  return {
+    smtTarget,
+    smtProduced,
+    smtDefected: 0,
+    smtPercent: smtStack.goodPercent,
+    smtDefectPercent: smtStack.defectPercent,
+    smtOrderLineIds,
+  }
+}
+
 /**
  * 주문 라인(실제 제품) 단위로 펼침 행을 만든다.
- * 조립제품 조립 그룹 부모명으로 반제품 A·B를 합치지 않는다.
+ * 조립제품은 구성 반제품 SMT를 자식으로 중첩하고, 반제품 단독 주문은 기존처럼 한 줄로 둔다.
  */
 function buildProductLinesForOrder(
   order: OrderListGroup,
@@ -70,31 +149,73 @@ function buildProductLinesForOrder(
   }
 
   const products: ProductionStatusProductLine[] = []
-  const coveredSmtLineIds = new Set<string>()
+  const nestedSmtLineIds = new Set<string>()
 
   for (const item of order.items) {
     // 임시 품목(금액 전용)은 생산현황 행으로 펼치지 않음
     if (isBillingOnlyOrderItem(item)) continue
+    // BOM 전개 반제품은 조립제품 행의 구성 SMT로만 표시
+    if (String(item.derivedFromLineId || '').trim()) continue
 
     const lineId = item.lineId?.trim() || ''
     const productId = resolveItemProductId(item)
     const smtLine = lineId ? smtByLineId.get(lineId) : undefined
-    if (smtLine) coveredSmtLineIds.add(lineId)
 
     const parentAssembly = productId ? assemblyByParentProductId.get(productId) : undefined
     const childAssembly = lineId ? assemblyByChildLineId.get(lineId) : undefined
     const assembly = parentAssembly ?? childAssembly
+    const master = productId ? productById[productId] : undefined
+
+    const smtChildren: ProductionStatusSmtChild[] = []
+    if (parentAssembly) {
+      for (const assemblyLine of parentAssembly.lines) {
+        const childLineId = String(assemblyLine.orderLineId || '').trim()
+        if (!childLineId || childLineId === lineId) continue
+        const childSmt = smtByLineId.get(childLineId)
+        if (!childSmt) continue
+        if (nestedSmtLineIds.has(childLineId)) continue
+        nestedSmtLineIds.add(childLineId)
+        smtChildren.push(buildSmtChildFromLine(childSmt, smtCounts, smtDefectCounts))
+      }
+    }
 
     let smtTarget = 0
     let smtProduced = 0
     let smtDefected = 0
-    const smtOrderLineIds: string[] = []
+    let smtPercent = 0
+    let smtDefectPercent = 0
+    let smtOrderLineIds: string[] = []
 
-    if (smtLine) {
+    if (smtChildren.length > 0 && parentAssembly) {
+      // 조립제품: A+B+C 합산이 아니라 발주수량 대비 세트(min)
+      const aggregated = resolveAssemblySmtProgress(
+        parentAssembly,
+        smtChildren,
+        smtCounts,
+        productById,
+      )
+      smtTarget = aggregated.smtTarget
+      smtProduced = aggregated.smtProduced
+      smtDefected = aggregated.smtDefected
+      smtPercent = aggregated.smtPercent
+      smtDefectPercent = aggregated.smtDefectPercent
+      smtOrderLineIds = aggregated.smtOrderLineIds
+    } else if (smtLine) {
       smtTarget = Math.max(0, Math.floor(smtLine.quantity))
       smtProduced = resolveProductionCount(smtLine, smtCounts)
       smtDefected = resolveProductionDefectCount(smtLine, smtDefectCounts)
-      smtOrderLineIds.push(smtLine.orderLineId)
+      const smtStack = getStackedProgressWidths(smtProduced, smtDefected, smtTarget)
+      smtPercent = smtStack.goodPercent
+      smtDefectPercent = smtStack.defectPercent
+      smtOrderLineIds = [smtLine.orderLineId]
+    } else if (smtChildren.length > 0) {
+      const aggregated = aggregateSmtChildren(smtChildren)
+      smtTarget = aggregated.smtTarget
+      smtProduced = aggregated.smtProduced
+      smtDefected = aggregated.smtDefected
+      smtPercent = aggregated.smtPercent
+      smtDefectPercent = aggregated.smtDefectPercent
+      smtOrderLineIds = aggregated.smtOrderLineIds
     }
 
     let postTarget = 0
@@ -118,10 +239,8 @@ function buildProductLinesForOrder(
     }
 
     const quantity = Math.max(0, Math.floor(item.quantity))
-    const smtStack = getStackedProgressWidths(smtProduced, smtDefected, smtTarget)
     const postStack = getStackedProgressWidths(postProduced, postDefected, postTarget)
 
-    const master = productId ? productById[productId] : undefined
     products.push({
       key: `item:${lineId || productId || item.productName}`,
       productName:
@@ -132,8 +251,8 @@ function buildProductLinesForOrder(
       smtTarget,
       smtProduced,
       smtDefected,
-      smtPercent: smtStack.goodPercent,
-      smtDefectPercent: smtStack.defectPercent,
+      smtPercent,
+      smtDefectPercent,
       postTarget,
       postProduced,
       postDefected,
@@ -144,29 +263,27 @@ function buildProductLinesForOrder(
       deliveryPercent: getProgressPercent(deliveryProduced, deliveryTarget),
       smtOrderLineIds,
       assemblyGroupIds,
+      smtChildren,
     })
   }
 
-  // 조립제품 주문에서 BOM 전개된 반제품 SMT 라인 — 주문 라인과 별도로 표시
+  // 주문 라인·조립 자식에 묶이지 않은 SMT 라인만 단독 행으로 유지
   for (const smtLine of orderSmtLines) {
-    if (coveredSmtLineIds.has(smtLine.orderLineId)) continue
+    if (nestedSmtLineIds.has(smtLine.orderLineId)) continue
+    if (products.some((product) => product.smtOrderLineIds.includes(smtLine.orderLineId))) continue
 
-    const smtTarget = Math.max(0, Math.floor(smtLine.quantity))
-    const smtProduced = resolveProductionCount(smtLine, smtCounts)
-    const smtDefected = resolveProductionDefectCount(smtLine, smtDefectCounts)
-    const smtStack = getStackedProgressWidths(smtProduced, smtDefected, smtTarget)
-
+    const child = buildSmtChildFromLine(smtLine, smtCounts, smtDefectCounts)
     products.push({
-      key: `smt:${smtLine.orderLineId}`,
-      productName: smtLine.productName.trim() || '—',
-      productCode: smtLine.productCode.trim(),
-      version: (smtLine.productVersion || '').trim(),
-      quantity: smtTarget,
-      smtTarget,
-      smtProduced,
-      smtDefected,
-      smtPercent: smtStack.goodPercent,
-      smtDefectPercent: smtStack.defectPercent,
+      key: child.key,
+      productName: child.productName,
+      productCode: child.productCode,
+      version: child.version,
+      quantity: child.quantity,
+      smtTarget: child.smtTarget,
+      smtProduced: child.smtProduced,
+      smtDefected: child.smtDefected,
+      smtPercent: child.smtPercent,
+      smtDefectPercent: child.smtDefectPercent,
       postTarget: 0,
       postProduced: 0,
       postDefected: 0,
@@ -175,8 +292,9 @@ function buildProductLinesForOrder(
       deliveryTarget: 0,
       deliveryProduced: 0,
       deliveryPercent: 0,
-      smtOrderLineIds: [smtLine.orderLineId],
+      smtOrderLineIds: child.smtOrderLineIds,
       assemblyGroupIds: [],
+      smtChildren: [],
     })
   }
 
@@ -283,9 +401,15 @@ export function buildProductionStatusLines(
 export function matchesProductionStatusSearch(line: ProductionStatusLine, query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  const productNames = line.products.map((product) => product.productName).join(' ')
-  const productCodes = line.products.map((product) => product.productCode).join(' ')
-  const versions = line.products.map((product) => product.version).join(' ')
+  const productNames = line.products
+    .flatMap((product) => [product.productName, ...product.smtChildren.map((child) => child.productName)])
+    .join(' ')
+  const productCodes = line.products
+    .flatMap((product) => [product.productCode, ...product.smtChildren.map((child) => child.productCode)])
+    .join(' ')
+  const versions = line.products
+    .flatMap((product) => [product.version, ...product.smtChildren.map((child) => child.version)])
+    .join(' ')
   return [line.orderNumber, line.customerPoNumber, line.customer, line.productName, productNames, productCodes, versions]
     .join(' ')
     .toLowerCase()

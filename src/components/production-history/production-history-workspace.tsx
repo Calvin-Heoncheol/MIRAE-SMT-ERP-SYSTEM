@@ -175,7 +175,7 @@ export function ProductionHistoryWorkspace({
             setSearch(value)
             setSelectedIds(new Set())
           }}
-          searchPlaceholder="출하번호, LOT, 발주번호, 고객사, 제품명 검색…"
+          searchPlaceholder="출하번호, 발주번호, 고객사, 제품명 검색…"
           accent="slate"
           inlineFilters={
             <DateRangeFilter

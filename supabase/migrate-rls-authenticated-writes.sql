@@ -142,6 +142,7 @@ select public._erp_reset_table_rls('smt_production_records', 'ops');
 select public._erp_reset_table_rls('smt_production_plans', 'ops');
 select public._erp_reset_table_rls('post_process_production_records', 'ops');
 select public._erp_reset_table_rls('post_process_production_plans', 'ops');
+select public._erp_reset_table_rls('production_unit_labels', 'ops');
 select public._erp_reset_table_rls('production_plan_close_logs', 'ops');
 select public._erp_reset_table_rls('quality_defect_handlings', 'ops');
 select public._erp_reset_table_rls('metal_mask_assets', 'ops');

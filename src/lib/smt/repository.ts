@@ -620,8 +620,10 @@ export async function fetchSmtProductionHistory(): Promise<FetchSmtProductionHis
   return fetchSmtProductionRecords()
 }
 
-export async function fetchSmtTodayProduction(): Promise<FetchSmtTodayProductionResult> {
-  return fetchSmtProductionRecords({ recordDate: todayYmdSeoul() })
+export async function fetchSmtTodayProduction(
+  recordDate: string = todayYmdSeoul(),
+): Promise<FetchSmtTodayProductionResult> {
+  return fetchSmtProductionRecords({ recordDate })
 }
 
 async function fetchSmtProductionRecords(options?: {

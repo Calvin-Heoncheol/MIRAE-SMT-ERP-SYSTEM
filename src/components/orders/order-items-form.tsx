@@ -9,7 +9,8 @@ import {
   defaultOrderItemForm,
   type OrderItemForm,
 } from '@/lib/orders/form-state'
-import { computeLineAmount } from '@/lib/orders/utils'
+import { computeLineAmount, formatOrderMoney, orderCurrencySymbol } from '@/lib/orders/utils'
+import type { OrderCurrency } from '@/lib/orders/types'
 import type { Product } from '@/lib/products/types'
 import { findProductsByCode, findProductsByName } from '@/lib/products/utils'
 import { ERP_ROW_ADD_BUTTON_CLASS } from '@/lib/ui/tokens'
@@ -18,6 +19,7 @@ type OrderItemsFormProps = {
   items: OrderItemForm[]
   customer: string
   products: Product[]
+  currency?: OrderCurrency
   onChange: Dispatch<SetStateAction<OrderItemForm[]>>
 }
 
@@ -72,8 +74,10 @@ export function OrderItemsForm({
   items,
   customer,
   products,
+  currency = 'KRW',
   onChange,
 }: OrderItemsFormProps) {
+  const moneySymbol = orderCurrencySymbol(currency)
   const quantityRefs = useRef<(HTMLInputElement | null)[]>([])
 
   function focusQuantity(index: number) {
@@ -173,8 +177,12 @@ export function OrderItemsForm({
               <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600">제품명</th>
               <th className="px-2 py-2 text-center text-xs font-semibold text-slate-600">버전</th>
               <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">수량</th>
-              <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">단가</th>
-              <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">금액</th>
+              <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">
+                단가 ({moneySymbol})
+              </th>
+              <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">
+                금액 ({moneySymbol})
+              </th>
               <th className="px-1 py-2" />
             </tr>
           </thead>
@@ -330,7 +338,7 @@ export function OrderItemsForm({
                   </td>
                   <td className="px-2 py-2 text-right text-sm font-medium tabular-nums text-slate-800 align-top">
                     <div className="flex h-[34px] items-center justify-end">
-                      {amount.toLocaleString('ko-KR')}
+                      {formatOrderMoney(amount, currency)}
                     </div>
                   </td>
                   <td className="px-1 py-2 text-center align-top">

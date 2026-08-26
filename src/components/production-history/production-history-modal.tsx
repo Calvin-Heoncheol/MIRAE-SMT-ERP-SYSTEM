@@ -49,7 +49,6 @@ export function ProductionHistoryModal({ open, row, onClose }: ProductionHistory
         <DetailRow label="고객사" value={row.customer || '-'} />
         <DetailRow label="제품명" value={row.productName || '-'} />
         <DetailRow label="품목코드" value={row.productCode || '-'} />
-        <DetailRow label="LOT" value={row.lotLabel || '-'} />
         <DetailRow label="출하번호" value={row.shipmentLabel || '-'} />
         {row.module === 'smt' ? (
           <>
@@ -68,7 +67,6 @@ export function ProductionHistoryModal({ open, row, onClose }: ProductionHistory
           }
         />
         <DetailRow label="등록자" value={row.createdByName || '-'} />
-        <DetailRow label="비고" value={row.note || '-'} />
       </dl>
     </ErpModal>
   )
