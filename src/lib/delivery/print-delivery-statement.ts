@@ -832,7 +832,13 @@ export async function buildDeliveryStatementDataFromShipment(input: {
     return { ok: false, detail: '출하 품목 정보를 찾을 수 없습니다.' }
   }
 
-  const uniqueOrders = [...new Set(items.map((item) => item.orderNumber).filter(Boolean))]
+  const uniqueOrders = [
+    ...new Set(
+      items
+        .map((item) => String(item.orderNumber || '').trim())
+        .filter((orderNumber): orderNumber is string => Boolean(orderNumber)),
+    ),
+  ]
   const customer = String(input.customer || '').trim()
   const contact = await resolveCustomerContact(customer)
 
