@@ -7,14 +7,16 @@ import {
   buildItemChangeTitle,
 } from '@/lib/change-logs/utils'
 import { syncFinishedParentsUsingChild } from '@/lib/bom/repository'
-import type { Item, ItemPayload, UpdateItemPayload } from './types'
+import type { Item, ItemCategory, ItemPayload, UpdateItemPayload } from './types'
 import {
-  isManualItemCodeCategory,
+  ITEM_CATEGORY_CODE_PREFIX,
   isRawMaterialItemCategory,
   isFinishedItemCategory,
   isSemiFinishedItemCategory,
 } from './types'
 import {
+  findMaxItemCodeSequence,
+  formatItemCode,
   mapItemRecord,
   normalizeItemCategory,
   toItemInsertRow,
@@ -47,6 +49,9 @@ function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }
 }
 
 function mapDuplicateError(detail: string, itemCode?: string) {
+  if (detail.includes('items_product_customer_code_version_uidx')) {
+    return '같은 고객사·품목코드·버전이 이미 있습니다.'
+  }
   if (
     detail.includes('items_pkey') ||
     detail.includes('items_base_code_version_uidx') ||
@@ -228,38 +233,57 @@ async function clearUnusedAssemblyGroupsForItem(
   return { ok: true }
 }
 
+async function fetchNextBaseCodeForCategory(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  category: ItemCategory,
+  reserved: string[] = [],
+): Promise<{ ok: true; baseCode: string } | { ok: false; detail: string }> {
+  const prefix = ITEM_CATEGORY_CODE_PREFIX[category]
+  if (!prefix) {
+    return { ok: false, detail: '품목구분에 맞는 코드 접두사가 없습니다.' }
+  }
+
+  const { data, error } = await supabase
+    .from('items')
+    .select('id, base_code')
+    .ilike('base_code', `${prefix}%`)
+
+  if (error) {
+    return { ok: false, detail: error.message }
+  }
+
+  const existing = (data || []).map((row) => ({
+    id: String(row.id || ''),
+    baseCode: String(row.base_code || '').trim(),
+  }))
+  for (const code of reserved) {
+    existing.push({ id: '', baseCode: code })
+  }
+
+  return {
+    ok: true,
+    baseCode: formatItemCode(prefix, findMaxItemCodeSequence(existing, prefix) + 1),
+  }
+}
+
 function resolveCreateItemBaseCode(
   payload: ItemPayload,
-): { ok: true; baseCode: string; version: string } | { ok: false; detail: string } {
+): { ok: true; baseCode: string; version: string; needsAutoCode: boolean } | { ok: false; detail: string } {
   const category = normalizeItemCategory(payload.itemCategory)
   if (!category) {
     return { ok: false, detail: '품목구분을 선택해 주세요.' }
   }
 
   const typedCode = payload.baseCode.trim() || payload.id.trim()
-  if (isManualItemCodeCategory(category)) {
-    if (!typedCode) {
-      return { ok: false, detail: '품목코드를 입력해 주세요.' }
-    }
-    return {
-      ok: true,
-      baseCode: typedCode,
-      version: isRawMaterialItemCategory(category)
-        ? ''
-        : normalizeVersionLabel(payload.version),
-    }
+  const version = isRawMaterialItemCategory(category)
+    ? ''
+    : normalizeVersionLabel(payload.version)
+
+  if (typedCode) {
+    return { ok: true, baseCode: typedCode, version, needsAutoCode: false }
   }
 
-  // 부자재·반제품: 비우면 품목명으로 자동
-  const baseCode = typedCode || payload.name.trim()
-  if (!baseCode) {
-    return { ok: false, detail: '품목명을 입력해 주세요.' }
-  }
-  return {
-    ok: true,
-    baseCode,
-    version: normalizeVersionLabel(payload.version),
-  }
+  return { ok: true, baseCode: '', version, needsAutoCode: true }
 }
 
 const ITEMS_PAGE_SIZE = 1000
@@ -361,10 +385,23 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
       return { ok: false, reason: 'validation', detail: resolved.detail }
     }
 
+    let baseCode = resolved.baseCode
+    if (resolved.needsAutoCode) {
+      const category = normalizeItemCategory(payload.itemCategory)
+      if (!category) {
+        return { ok: false, reason: 'validation', detail: '품목구분을 선택해 주세요.' }
+      }
+      const allocated = await fetchNextBaseCodeForCategory(supabase, category)
+      if (!allocated.ok) {
+        return { ok: false, reason: 'query', detail: allocated.detail }
+      }
+      baseCode = allocated.baseCode
+    }
+
     const isRaw = isRawMaterialItemCategory(payload.itemCategory)
 
     if (isRaw) {
-      const rawCheck = await assertRawMaterialBaseCodeAvailable(supabase, resolved.baseCode)
+      const rawCheck = await assertRawMaterialBaseCodeAvailable(supabase, baseCode)
       if (!rawCheck.ok) {
         return { ok: false, reason: 'validation', detail: rawCheck.detail }
       }
@@ -373,7 +410,7 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
     const insertPayload: ItemPayload = {
       ...payload,
       id: '',
-      baseCode: resolved.baseCode,
+      baseCode,
       version: resolved.version,
     }
     const { data, error } = await supabase
@@ -558,6 +595,9 @@ export async function createItems(
   }
 
   const prepared: ItemPayload[] = []
+  const autoReservedByCategory: Partial<Record<ItemCategory, string[]>> = {}
+  const supabase = createSupabaseClient()
+
   for (let index = 0; index < payloads.length; index += 1) {
     const built = buildCreateInsertPayload(payloads[index])
     if (!built.ok) {
@@ -568,7 +608,34 @@ export async function createItems(
         savedCount: 0,
       }
     }
-    prepared.push(built.payload)
+
+    let row = built.payload
+    if (!row.baseCode.trim()) {
+      const category = normalizeItemCategory(row.itemCategory)
+      if (!category) {
+        return {
+          ok: false,
+          reason: 'validation',
+          detail: `${index + 1}행: 품목구분을 선택해 주세요.`,
+          savedCount: 0,
+        }
+      }
+      const reserved = autoReservedByCategory[category] || []
+      const allocated = await fetchNextBaseCodeForCategory(supabase, category, reserved)
+      if (!allocated.ok) {
+        return {
+          ok: false,
+          reason: 'query',
+          detail: `${index + 1}행: ${allocated.detail}`,
+          savedCount: 0,
+        }
+      }
+      reserved.push(allocated.baseCode)
+      autoReservedByCategory[category] = reserved
+      row = { ...row, baseCode: allocated.baseCode }
+    }
+
+    prepared.push(row)
   }
 
   const dedupCounts = new Map<string, { count: number; label: string }>()
@@ -605,7 +672,6 @@ export async function createItems(
   }
 
   try {
-    const supabase = createSupabaseClient()
     const existingResult = await fetchExistingItemIdentities(
       supabase,
       prepared.map((row) => row.baseCode),

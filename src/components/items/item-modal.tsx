@@ -1,13 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { EntityChangeHistoryButton } from '@/components/change-logs/entity-change-history-button'
 import { useBusy } from '@/components/ui/busy-provider'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { RequiredMark } from '@/components/ui/required-mark'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { createItem, deleteItem, setItemActive, updateItem } from '@/lib/items/repository'
 import {
@@ -21,6 +24,7 @@ import {
 import {
   ITEM_CATEGORIES,
   ITEM_CATEGORY_LABELS,
+  ITEM_CATEGORY_CODE_PREFIX,
   ITEM_MATERIAL_TYPE_OPTIONS,
   ITEM_SUPPLY_TYPE_OPTIONS,
   ITEM_PCB_SIDE_MODE_LABELS,
@@ -28,8 +32,6 @@ import {
   ITEM_PROCESS_TYPE_LABELS,
   ITEM_PROCESS_TYPES,
   type ItemPcbSideMode,
-  isManualItemCodeCategory,
-  isOptionalItemCodeCategory,
   canEditItemCodeOnCreate,
   isProductItemCategory,
   isRawMaterialItemCategory,
@@ -78,9 +80,7 @@ function resolvePreviewItemCode(
   category: ItemCategory | '',
   existingItems: Item[],
 ): string {
-  if (!category || isManualItemCodeCategory(category) || isOptionalItemCodeCategory(category)) {
-    return ''
-  }
+  if (!category) return ''
   return nextItemCodeForCategory(existingItems, category) ?? ''
 }
 
@@ -120,6 +120,8 @@ function ItemModalContent({
   onDeleted,
 }: Omit<ItemModalProps, 'open'>) {
   const isCreate = mode === 'create'
+  const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const [form, setForm] = useState<ItemFormState>(() =>
     item ? itemToForm(item) : createFormWithCategory(initialCategory, existingItems, initialValues),
   )
@@ -133,21 +135,13 @@ function ItemModalContent({
   const busyUi = useBusy()
   const { notifyAuthOrFailure, toast } = useWriteFailureToast()
 
-  const isRequiredManualCode =
-    form.itemCategory !== '' && isManualItemCodeCategory(form.itemCategory)
   const canEditCode =
     form.itemCategory !== '' &&
     (isCreate
       ? canEditItemCodeOnCreate(form.itemCategory)
       : !isRawMaterialItemCategory(form.itemCategory))
   const autoPreviewCode = useMemo(() => {
-    if (
-      form.itemCategory === '' ||
-      isManualItemCodeCategory(form.itemCategory) ||
-      isOptionalItemCodeCategory(form.itemCategory)
-    ) {
-      return ''
-    }
+    if (form.itemCategory === '') return ''
     return nextItemCodeForCategory(existingItems, form.itemCategory) ?? ''
   }, [form.itemCategory, existingItems])
   const previewItemCode = autoPreviewCode
@@ -179,16 +173,11 @@ function ItemModalContent({
 
   useEffect(() => {
     if (!isCreate) return
-    if (
-      form.itemCategory === '' ||
-      isManualItemCodeCategory(form.itemCategory) ||
-      isOptionalItemCodeCategory(form.itemCategory)
-    ) {
-      return
-    }
+    if (form.itemCategory === '') return
     setForm((current) => {
+      if (current.id.trim()) return current
       const nextCode = resolvePreviewItemCode(current.itemCategory, existingItems)
-      if (current.id === nextCode) return current
+      if (!nextCode || current.id === nextCode) return current
       return { ...current, id: nextCode }
     })
   }, [isCreate, form.itemCategory, existingItems])
@@ -205,13 +194,7 @@ function ItemModalContent({
         pcbSideMode: value && isSemiFinishedItemCategory(value) ? 'single' : '',
       }
       if (isCreate) {
-        if (!value) {
-          next.id = ''
-        } else if (isManualItemCodeCategory(value) || isOptionalItemCodeCategory(value)) {
-          next.id = ''
-        } else {
-          next.id = resolvePreviewItemCode(value, existingItems)
-        }
+        next.id = value ? resolvePreviewItemCode(value, existingItems) : ''
       }
       if (!value || !isProductItemCategory(value)) {
         next.version = ''
@@ -307,7 +290,16 @@ function ItemModalContent({
     if (!item) return
     const codeLabel =
       item.baseCode && item.baseCode !== item.id ? `${item.baseCode} / ${item.id}` : item.id
-    if (!window.confirm(`${item.name} (${codeLabel}) 품목을 삭제하시겠습니까?`)) return
+    if (
+      !(await confirm({
+        title: '품목 삭제',
+        message: `${item.name} (${codeLabel}) 품목을 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
 
     setDeleting(true)
     setSaveError(null)
@@ -326,8 +318,9 @@ function ItemModalContent({
   async function handleDeactivate() {
     if (!item) return
     if (
-      !window.confirm(
-        [
+      !(await confirm({
+        title: '품목 사용중지',
+        message: [
           `${item.name} (${item.id}) 을(를) 사용중지할까요?`,
           '',
           '· 발주·생산 이력은 그대로 유지됩니다.',
@@ -335,7 +328,9 @@ function ItemModalContent({
           '· BOM 등록 목록에서는 숨겨집니다.',
           '· 실수로 만든 버전을 없애고 싶을 때 삭제 대신 이 방법을 권장합니다.',
         ].join('\n'),
-      )
+        confirmLabel: '사용중지',
+        tone: 'default',
+      }))
     ) {
       return
     }
@@ -356,13 +351,16 @@ function ItemModalContent({
   async function handleActivate() {
     if (!item) return
     if (
-      !window.confirm(
-        [
+      !(await confirm({
+        title: '품목 재사용',
+        message: [
           `${item.name} (${item.id}) 을(를) 다시 사용중으로 바꿀까요?`,
           '',
           '· BOM 등록 목록에도 다시 표시됩니다.',
         ].join('\n'),
-      )
+        confirmLabel: '확인',
+        tone: 'default',
+      }))
     ) {
       return
     }
@@ -403,14 +401,18 @@ function ItemModalContent({
           <div className="flex justify-between gap-2">
             {!isCreate ? (
               <div className="flex flex-wrap gap-2">
-                <ErpButton
-                  variant="danger"
-                  onClick={() => void handleDelete()}
-                  disabled={busy}
-                  loading={deleting}
-                >
-                  삭제
-                </ErpButton>
+                {canDelete ? (
+                  <ErpButton
+                    variant="danger"
+                    onClick={() => void handleDelete()}
+                    disabled={busy}
+                    loading={deleting}
+                  >
+                    삭제
+                  </ErpButton>
+                ) : (
+                  <span />
+                )}
                 {item?.isActive !== false ? (
                   <ErpButton
                     variant="secondary"
@@ -453,17 +455,13 @@ function ItemModalContent({
             <span className={ERP_FIELD_LABEL_CLASS + ' !mb-0'}>상태</span>
             <StatusBadge
               label={item.isActive === false ? '사용중지' : '사용중'}
-              className={
-                item.isActive === false
-                  ? 'bg-slate-200 text-slate-600'
-                  : 'bg-emerald-100 text-emerald-800'
-              }
+              tone={item.isActive === false ? 'neutral' : 'success'}
             />
           </div>
         ) : null}
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>
-            품목구분 <span className="text-red-500">*</span>
+            품목구분 <RequiredMark />
           </span>
           <select
             value={form.itemCategory === '' ? '' : String(form.itemCategory)}
@@ -484,7 +482,7 @@ function ItemModalContent({
         </label>
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>
-            고객사명 <span className="text-red-500">*</span>
+            고객사명 <RequiredMark />
           </span>
           <CustomerCombobox
             value={form.customerName}
@@ -517,7 +515,7 @@ function ItemModalContent({
         </label>
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>
-            품목코드 {isRequiredManualCode ? <span className="text-red-500">*</span> : null}
+            품목코드
           </span>
           <input
             value={canEditCode ? form.id : displayItemCode}
@@ -525,11 +523,9 @@ function ItemModalContent({
             placeholder={
               form.itemCategory === ''
                 ? '품목구분 선택 후 표시'
-                : isRequiredManualCode
-                  ? '고객사 품목코드'
-                  : isOptionalItemCodeCategory(form.itemCategory)
-                    ? '비우면 품목명으로 자동'
-                    : '자동 생성'
+                : isCreate
+                  ? `${ITEM_CATEGORY_CODE_PREFIX[form.itemCategory]}0001 형식 자동`
+                  : '품목코드'
             }
             readOnly={!canEditCode}
             className={`${ERP_FIELD_INPUT_CLASS} font-mono ${
@@ -538,15 +534,14 @@ function ItemModalContent({
           />
           {isCreate ? (
             <p className="mt-1 text-xs text-slate-500">
-              {form.itemCategory !== '' && isOptionalItemCodeCategory(form.itemCategory)
-                ? '품목코드를 비우면 품목명과 같은 값으로 저장됩니다. 내부 품목ID는 MR-00001 형식으로 자동 발급됩니다.'
-                : '내부 품목ID는 저장 시 MR-00001 형식으로 자동 발급됩니다.'}
+              품목코드는 구분별 자동채번입니다 (원자재 MA-, 부자재 SM-, 반제품 SFG-, 조립제품 FG-).
+              직접 수정할 수 있습니다. 내부 품목ID는 저장 시 MR-00001 형식으로 발급됩니다.
             </p>
           ) : null}
         </label>
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>
-            품목명 <span className="text-red-500">*</span>
+            품목명 <RequiredMark />
           </span>
           <input
             value={form.name}
@@ -572,7 +567,7 @@ function ItemModalContent({
         {showProductProcessTypeField ? (
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>
-              생산 공정 <span className="text-red-500">*</span>
+              생산 공정 <RequiredMark />
             </span>
             <select
               value={form.processType}
@@ -598,7 +593,7 @@ function ItemModalContent({
             <span className={ERP_FIELD_LABEL_CLASS}>
               면
               {form.processType === 'smt' || form.processType === 'smt_post' ? (
-                <span className="text-red-500"> *</span>
+                <RequiredMark />
               ) : null}
             </span>
             <select
@@ -658,7 +653,7 @@ function ItemModalContent({
         {showRawMaterialTypeField ? (
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>
-              공정구분 <span className="text-red-500">*</span>
+              공정구분 <RequiredMark />
             </span>
             <select
               value={form.materialType}

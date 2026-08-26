@@ -5,6 +5,7 @@ import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { LeaveRequestFormDocument } from '@/components/leave-requests/leave-request-form-document'
 import { DocumentPrintActions } from '@/components/documents/document-print-actions'
 import { ErpButton } from '@/components/ui/erp-button'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { isApprovalDepartment, normalizeApprovalDepartment } from '@/lib/approvals/departments'
 import { toggleSignoff, type ApprovalSignoffRole } from '@/lib/approvals/signoffs'
@@ -66,6 +67,7 @@ export function LeaveRequestModal({
   onSignoffComplete,
 }: LeaveRequestModalProps) {
   const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const [form, setForm] = useState<LeaveRequestFormState>(createDefaultLeaveRequestForm())
   const [saving, setSaving] = useState(false)
   const [signing, setSigning] = useState(false)
@@ -127,7 +129,17 @@ export function LeaveRequestModal({
   }
 
   async function handleDelete() {
-    if (!request || !window.confirm('이 휴가원을 삭제할까요?')) return
+    if (!request) return
+    if (
+      !(await confirm({
+        title: '휴가원 삭제',
+        message: '이 휴가원을 삭제할까요?\n삭제 후에는 복구할 수 없습니다.',
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
 
     setSaving(true)
     const result = await deleteLeaveRequests([request.id])

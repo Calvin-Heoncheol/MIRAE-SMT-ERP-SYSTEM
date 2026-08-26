@@ -45,8 +45,9 @@ export function orderCurrencySymbol(currency: OrderCurrency = 'KRW') {
 }
 
 /**
- * 품목마스터에 없는 임시(금액 전용) 라인.
- * product_id 가 없으면 생산·조립·실적에 올리지 않는다.
+ * 금액 전용(추가작업) 라인.
+ * product_id 가 없으면 생산·조립·출하가능·실적 집계에서 제외한다.
+ * 폼의 isAdhoc 과 동일 규칙 — 판별은 항상 이 헬퍼를 쓴다.
  */
 export function isBillingOnlyOrderItem(item: {
   productId?: string | null
@@ -54,6 +55,7 @@ export function isBillingOnlyOrderItem(item: {
   return !String(item.productId || '').trim()
 }
 
+/** DB order_lines 행용 (snake_case) */
 export function isBillingOnlyOrderLine(line: {
   product_id?: string | null
 }) {

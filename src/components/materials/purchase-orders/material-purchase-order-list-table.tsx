@@ -1,27 +1,30 @@
 ﻿'use client'
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
+import { ErpTableHead, ErpTableShell, ErpTableTd, ErpTableTh } from '@/components/ui/erp-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import {
   formatInternalCodeLabel,
   formatMaterialPurchaseOrderMoney,
   formatMaterialSummary,
-  getMaterialPurchaseInboundStatusClassName,
   getMaterialPurchaseInboundStatusLabel,
   resolveMaterialPurchaseInboundStatus,
+  type MaterialPurchaseInboundStatus,
 } from '@/lib/materials/purchase-orders/utils'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
-import {
-  ERP_TABLE_SCROLL_CLASS,
-  ERP_TABLE_TD_FIXED_CLASS,
-  ERP_TABLE_TD_WRAP_CLASS,
-  ERP_TABLE_WRAP_CLASS,
-} from '@/lib/ui/tokens'
+import { ERP_TABLE_ROW_CLASS } from '@/lib/ui/tokens'
+import type { ErpStatusTone } from '@/lib/ui/tokens'
 
 type MaterialPurchaseOrderListTableProps = {
   orders: MaterialPurchaseOrderListGroup[]
   emptyMessage: string
   onSelectOrder?: (order: MaterialPurchaseOrderListGroup) => void
+}
+
+function inboundStatusTone(status: MaterialPurchaseInboundStatus): ErpStatusTone {
+  if (status === 'done') return 'success'
+  if (status === 'partial') return 'warning'
+  return 'neutral'
 }
 
 /** 목록은 핵심 열만 — 커버수량·등록자는 상세 모달에서 확인 */
@@ -39,96 +42,70 @@ export function MaterialPurchaseOrderListTable({
   }
 
   return (
-    <div className={ERP_TABLE_WRAP_CLASS}>
-      <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="min-w-[900px] w-full border-collapse">
-          <thead className="sticky top-0 z-[1] bg-slate-50">
-            <tr>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                구매발주일
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                납기일
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                구매발주번호
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                연결 발주서
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                공급사
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                자재
-              </th>
-              <th className="min-w-[72px] whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                수량합계
-              </th>
-              <th className="min-w-[96px] whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                구매발주금액
-              </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
-                상태
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => {
-              const inboundStatus = resolveMaterialPurchaseInboundStatus(order)
+    <ErpTableShell tableClassName="min-w-[640px] md:min-w-[900px]">
+      <ErpTableHead>
+        <tr>
+          <ErpTableTh>구매발주일</ErpTableTh>
+          <ErpTableTh className="hidden sm:table-cell">납기일</ErpTableTh>
+          <ErpTableTh>구매발주번호</ErpTableTh>
+          <ErpTableTh className="hidden md:table-cell">연결 발주서</ErpTableTh>
+          <ErpTableTh>공급사</ErpTableTh>
+          <ErpTableTh className="hidden lg:table-cell">자재</ErpTableTh>
+          <ErpTableTh align="right">수량합계</ErpTableTh>
+          <ErpTableTh align="right" className="hidden sm:table-cell">
+            구매발주금액
+          </ErpTableTh>
+          <ErpTableTh align="center">상태</ErpTableTh>
+        </tr>
+      </ErpTableHead>
+      <tbody>
+        {orders.map((order) => {
+          const inboundStatus = resolveMaterialPurchaseInboundStatus(order)
 
-              return (
-                <tr
-                  key={order.orderNumber}
-                  className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
-                  onClick={() => onSelectOrder?.(order)}
-                >
-                  <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                    {order.orderDate || '-'}
-                  </td>
-                  <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                    {order.deliveryDate || '-'}
-                  </td>
-                  <td
-                    className={`px-3 py-2.5 font-mono text-xs text-slate-800 ${ERP_TABLE_TD_FIXED_CLASS}`}
-                    title={order.orderNumber}
-                  >
-                    {formatInternalCodeLabel(order.orderNumber)}
-                  </td>
-                  <td
-                    className={`px-3 py-2.5 font-mono text-xs text-slate-800 ${ERP_TABLE_TD_FIXED_CLASS}`}
-                    title={order.sourceOrderId || undefined}
-                  >
-                    {order.sourceOrderId ? formatInternalCodeLabel(order.sourceOrderId) : '—'}
-                  </td>
-                  <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {order.supplier || '-'}
-                  </td>
-                  <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {formatMaterialSummary(order)}
-                  </td>
-                  <td
-                    className={`px-3 py-2.5 text-right text-sm tabular-nums text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}
-                  >
-                    {order.totalQuantity.toLocaleString('ko-KR')}
-                  </td>
-                  <td
-                    className={`px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900 ${ERP_TABLE_TD_FIXED_CLASS}`}
-                  >
-                    {formatMaterialPurchaseOrderMoney(order.totalAmount)}
-                  </td>
-                  <td className={`px-3 py-2.5 text-center ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                    <StatusBadge
-                      label={getMaterialPurchaseInboundStatusLabel(inboundStatus)}
-                      className={getMaterialPurchaseInboundStatusClassName(inboundStatus)}
-                    />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+          return (
+            <tr
+              key={order.orderNumber}
+              className={`${ERP_TABLE_ROW_CLASS} cursor-pointer`}
+              onClick={() => onSelectOrder?.(order)}
+            >
+              <ErpTableTd className="text-slate-700">{order.orderDate || '-'}</ErpTableTd>
+              <ErpTableTd className="hidden text-slate-700 sm:table-cell">
+                {order.deliveryDate || '-'}
+              </ErpTableTd>
+              <ErpTableTd className="font-mono text-xs text-slate-800" title={order.orderNumber}>
+                {formatInternalCodeLabel(order.orderNumber)}
+              </ErpTableTd>
+              <ErpTableTd
+                className="hidden font-mono text-xs text-slate-800 md:table-cell"
+                title={order.sourceOrderId || undefined}
+              >
+                {order.sourceOrderId ? formatInternalCodeLabel(order.sourceOrderId) : '—'}
+              </ErpTableTd>
+              <ErpTableTd text="wrap" className="max-w-[140px] text-slate-700">
+                {order.supplier || '-'}
+              </ErpTableTd>
+              <ErpTableTd text="wrap" className="hidden max-w-[180px] text-slate-700 lg:table-cell">
+                {formatMaterialSummary(order)}
+              </ErpTableTd>
+              <ErpTableTd align="right" className="tabular-nums text-slate-700">
+                {order.totalQuantity.toLocaleString('ko-KR')}
+              </ErpTableTd>
+              <ErpTableTd
+                align="right"
+                className="hidden font-semibold tabular-nums text-slate-900 sm:table-cell"
+              >
+                {formatMaterialPurchaseOrderMoney(order.totalAmount)}
+              </ErpTableTd>
+              <ErpTableTd align="center">
+                <StatusBadge
+                  label={getMaterialPurchaseInboundStatusLabel(inboundStatus)}
+                  tone={inboundStatusTone(inboundStatus)}
+                />
+              </ErpTableTd>
+            </tr>
+          )
+        })}
+      </tbody>
+    </ErpTableShell>
   )
 }

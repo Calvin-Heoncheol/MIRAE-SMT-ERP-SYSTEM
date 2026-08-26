@@ -93,7 +93,7 @@ function centeredTextLine(y: number, fontH: number, width: number, text: string)
 
 /**
  * 자재 라벨 1장 ZPL.
- * 표시: 품목명 · 규격, 패키지 (가운데) + 바코드 + 코드
+ * 표시: 품목명 · 규격, 패키지 (가운데) + 바코드 + 코드 + (있으면) LOT
  */
 export function buildMaterialLabelZpl(
   item: MaterialLabelPrintItem,
@@ -121,12 +121,16 @@ export function buildMaterialLabelZpl(
   const pkgRaw = sanitizeZplField(item.package || '')
   const specLineRaw = [specRaw, pkgRaw].filter(Boolean).join(', ')
   const spec = showText ? truncateText(specLineRaw, specMax) : ''
+  const lotRaw = sanitizeZplField(String(item.lotNumber || '').trim())
+  const lot = showText && lotRaw ? truncateText(`LOT ${lotRaw}`, clamp(Math.round(22 + widthMm * 0.2), 16, 40)) : ''
   const hasHeader = Boolean(name || spec)
 
   const nameH = name ? clamp(Math.round(17 * scale), 14, 32) : 0
   const specH = spec ? clamp(Math.round(15 * scale), 13, 28) : 0
-  const idH = snapFontDots(clamp(Math.round((hasHeader ? 22 : 28) * scale), 20, 38))
+  const idH = snapFontDots(clamp(Math.round((hasHeader ? 20 : 26) * scale), 18, 36))
   const idW = Math.max(18, Math.round(idH * 0.88))
+  const lotH = lot ? snapFontDots(clamp(Math.round(14 * scale), 12, 24)) : 0
+  const lotW = lot ? Math.max(14, Math.round(lotH * 0.85)) : 0
   const gap = clamp(Math.round(2.5 * scale), 2, 6)
 
   const moduleW = resolveModuleWidth(width, id.length)
@@ -141,9 +145,9 @@ export function buildMaterialLabelZpl(
   const barcodeXClamped = Math.min(barcodeX, Math.max(2, width - symbolWidth - 2))
 
   const headerBlock = (name ? nameH + gap : 0) + (spec ? specH + gap : 0)
-  const footerBlock = gap + idH
+  const footerBlock = gap + idH + (lot ? gap + lotH : 0)
   const barcodeBudget = Math.max(16, printableHeight - headerBlock - footerBlock)
-  const barcodeRatio = hasHeader ? 0.2 : 0.28
+  const barcodeRatio = hasHeader ? (lot ? 0.17 : 0.2) : 0.28
   const barH = clamp(Math.round(height * barcodeRatio), 16, barcodeBudget)
   const contentH = headerBlock + barH + footerBlock
   const contentTop =
@@ -191,6 +195,18 @@ export function buildMaterialLabelZpl(
     const idField = `^A0N,${idH},${idW}^FD${id}^FS`
     blocks.push(`^FO${idX},${y}${idField}`)
     blocks.push(`^FO${idX},${y}${idField}`)
+    y += idH
+
+    if (lot) {
+      y += gap
+      const lotApproxWidth = Math.round(lot.length * lotW * 0.62)
+      const lotX = Math.max(
+        2,
+        Math.round((width - lotApproxWidth) / 2) - CENTER_LEFT_NUDGE_DOTS,
+      )
+      const lotField = `^A0N,${lotH},${lotW}^FD${lot}^FS`
+      blocks.push(`^FO${lotX},${y}${lotField}`)
+    }
 
     blocks.push('^XZ')
     lines.push(blocks.join('\n'))

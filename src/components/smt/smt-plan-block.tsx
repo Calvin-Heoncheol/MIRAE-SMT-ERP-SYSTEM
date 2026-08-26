@@ -1,5 +1,6 @@
 'use client'
 
+import { StatusBadge } from '@/components/ui/status-badge'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { formatPlanDateRangeLabel } from '@/lib/production-plan/schedule'
@@ -30,17 +31,17 @@ function executionClass(status: SmtPlanExecutionStatus, daysUntilDelivery: numbe
   return 'border-sky-200 bg-sky-50'
 }
 
-function executionBadgeClass(status: SmtPlanExecutionStatus) {
-  if (status === 'done') return 'bg-emerald-100 text-emerald-800'
-  if (status === 'progress') return 'bg-amber-100 text-amber-800'
-  return 'bg-sky-100 text-sky-800'
+function executionTone(status: SmtPlanExecutionStatus): 'success' | 'warning' | 'info' {
+  if (status === 'done') return 'success'
+  if (status === 'progress') return 'warning'
+  return 'info'
 }
 
-function urgencyBadgeClass(daysUntilDelivery: number | null) {
+function urgencyTone(daysUntilDelivery: number | null): 'danger' | 'warning' | 'neutral' {
   const tone = getDeliveryUrgencyTone(daysUntilDelivery)
-  if (tone === 'overdue') return 'bg-rose-100 text-rose-700'
-  if (tone === 'urgent') return 'bg-amber-100 text-amber-800'
-  return 'bg-slate-100 text-slate-600'
+  if (tone === 'overdue') return 'danger'
+  if (tone === 'urgent') return 'warning'
+  return 'neutral'
 }
 
 function progressBarClass(status: SmtPlanExecutionStatus) {
@@ -88,17 +89,19 @@ export function SmtPlanBlockCard({
         </p>
         <div className="flex shrink-0 items-center gap-1">
           {plan.planStatus === 'draft' ? (
-            <span className="rounded px-1 py-0.5 text-[9px] font-bold bg-slate-200 text-slate-700">
-              가계획
-            </span>
+            <StatusBadge label="가계획" tone="neutral" className="!px-1 !py-0.5 !text-[9px]" />
           ) : null}
-          <span className={`rounded px-1 py-0.5 text-[9px] font-bold ${executionBadgeClass(status)}`}>
-            {status === 'done' ? '완료' : status === 'progress' ? '진행' : '예정'}
-          </span>
+          <StatusBadge
+            label={status === 'done' ? '완료' : status === 'progress' ? '진행' : '예정'}
+            tone={executionTone(status)}
+            className="!px-1 !py-0.5 !text-[9px]"
+          />
           {dueLabel ? (
-            <span className={`rounded px-1 py-0.5 text-[9px] font-bold ${urgencyBadgeClass(daysUntilDelivery)}`}>
-              {dueLabel}
-            </span>
+            <StatusBadge
+              label={dueLabel}
+              tone={urgencyTone(daysUntilDelivery)}
+              className="!px-1 !py-0.5 !text-[9px]"
+            />
           ) : null}
         </div>
       </div>

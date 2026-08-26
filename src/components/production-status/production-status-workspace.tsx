@@ -31,7 +31,7 @@ type ProductionStatusWorkspaceProps = {
 }
 
 type QuickInputState = {
-  stage: ProductionStatusStage
+  stage: Exclude<ProductionStatusStage, 'delivery'>
   line: ProductionStatusLine
   product?: ProductionStatusProductLine
 } | null
@@ -113,6 +113,7 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
     stage: ProductionStatusStage,
     product?: ProductionStatusProductLine,
   ) {
+    if (stage === 'delivery') return
     setQuickInput({ stage, line, product })
   }
 
@@ -185,10 +186,8 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
         product={quickInput?.product ?? null}
         smtOrders={data!.smtOrders}
         postOrders={data!.postOrders}
-        deliveryOrders={data!.deliveryOrders}
         smtCounts={data!.smtCounts}
         postCounts={data!.postCounts}
-        deliveryAvailabilityByGroupId={data!.deliveryAvailabilityByGroupId}
         onClose={() => setQuickInput(null)}
         onRegistered={handleRegistered}
       />

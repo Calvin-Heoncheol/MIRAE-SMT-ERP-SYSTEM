@@ -85,7 +85,7 @@ export function plannedSideKey(orderLineId: string, pcbSide: SmtPcbSide) {
   return `${orderLineId}:${pcbSide}`
 }
 
-function sumPlannedQuantityByLineSide(plans: SmtProductionPlan[]) {
+function sumPlannedQuantityByLineSide(plans: Array<Pick<SmtProductionPlan, 'orderLineId' | 'pcbSide' | 'plannedQuantity'>>) {
   const map = new Map<string, number>()
   for (const plan of plans) {
     if (!plan.orderLineId) continue
@@ -94,6 +94,12 @@ function sumPlannedQuantityByLineSide(plans: SmtProductionPlan[]) {
     map.set(key, (map.get(key) ?? 0) + plan.plannedQuantity)
   }
   return map
+}
+
+export function buildPlannedQuantityByLineSide(
+  plans: Array<Pick<SmtProductionPlan, 'orderLineId' | 'pcbSide' | 'plannedQuantity'>>,
+) {
+  return sumPlannedQuantityByLineSide(plans)
 }
 
 export function getUnplannedRemainingForSide(
@@ -149,10 +155,11 @@ export function buildSmtPlanOrderCandidates(
   orders: OrderListGroup[],
   smtLines: ProductionOrderLine[],
   smtCounts: ProductionCounts,
-  allPlans: SmtProductionPlan[],
+  allPlans: Array<Pick<SmtProductionPlan, 'orderLineId' | 'pcbSide' | 'plannedQuantity'>> | Map<string, number>,
   options?: { onlyUnplanned?: boolean },
 ): SmtPlanOrderCandidate[] {
-  const plannedBySide = sumPlannedQuantityByLineSide(allPlans)
+  const plannedBySide =
+    allPlans instanceof Map ? allPlans : sumPlannedQuantityByLineSide(allPlans)
   const orderById = Object.fromEntries(orders.map((order) => [order.orderId, order]))
   const today = todayYmdSeoul()
   const onlyUnplanned = options?.onlyUnplanned !== false

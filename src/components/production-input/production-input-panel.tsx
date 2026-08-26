@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { ProductionLabelPrintModal } from '@/components/production-input/production-label-print-modal'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { useToast } from '@/components/ui/toast-provider'
 import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
@@ -413,9 +414,7 @@ export function ProductionInputPanel({
   /** SMT=생산1팀, 후공정=생산2/3/4팀 — 발주서 미선택 empty state에서도 표시 */
   const headerTeamBadge = isPostProcess ? (postProcessTeam ?? null) : '생산1팀'
   const showPanelHeader = Boolean(headerTeamBadge || (order && !embedded))
-  const headerTeamBadgeClass = isPostProcess
-    ? 'rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200'
-    : 'rounded-lg bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-800 ring-1 ring-sky-200'
+  const headerTeamTone = isPostProcess ? ('success' as const) : ('info' as const)
 
   const planControls = showPlanControls ? (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -490,11 +489,9 @@ export function ProductionInputPanel({
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5 sm:px-4">
           {headerTeamBadge ? (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span className={headerTeamBadgeClass}>{headerTeamBadge}</span>
+              <StatusBadge label={headerTeamBadge} tone={headerTeamTone} className="!rounded-lg !px-3 !py-1.5 !text-sm" />
               {isPostProcess && postProcessTeam === '생산4팀' ? (
-                <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
-                  생산등록 (수동)
-                </span>
+                <StatusBadge label="생산등록 (수동)" tone="warning" className="!rounded-lg !px-2.5 !py-1 !text-xs" />
               ) : null}
             </div>
           ) : (

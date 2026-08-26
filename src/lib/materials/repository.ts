@@ -1,3 +1,4 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import { parseItemMpnFields } from '@/lib/items/utils'
 import type { CreateMaterialPayload, Material, MaterialAlternateMpn, MaterialPayload } from './types'
@@ -14,15 +15,15 @@ export type FetchMaterialsResult =
 
 export type SaveMaterialResult =
   | { ok: true; id: string }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 export type DeleteMaterialResult =
   | { ok: true }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 export type AddAlternateMpnResult =
   | { ok: true; row: MaterialAlternateMpn }
-  | { ok: false; reason: 'env' | 'query' | 'duplicate'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'duplicate' | 'auth'; detail: string }
 
 export type RemoveAlternateMpnResult =
   | { ok: true }
@@ -73,6 +74,9 @@ export async function createMaterial(payload: CreateMaterialPayload): Promise<Sa
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'master', action: 'create' })
+  if (!gate.ok) return gate
+
   const id = payload.id.trim()
   if (!id) {
     return { ok: false, reason: 'query', detail: '자재코드를 입력해 주세요.' }
@@ -105,6 +109,9 @@ export async function updateMaterial(id: string, payload: MaterialPayload): Prom
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'master', action: 'update' })
+  if (!gate.ok) return gate
+
   try {
     const supabase = createSupabaseClient()
     const { error } = await supabase.from('items').update(toItemMaterialUpdateRow(payload)).eq('id', id)
@@ -136,6 +143,9 @@ export async function addAlternateMpn(
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'master', action: 'update' })
+  if (!gate.ok) return gate
 
   try {
     const supabase = createSupabaseClient()
@@ -187,6 +197,9 @@ export async function deleteMaterial(id: string): Promise<DeleteMaterialResult> 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'master', action: 'delete' })
+  if (!gate.ok) return gate
 
   try {
     const supabase = createSupabaseClient()

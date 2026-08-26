@@ -11,7 +11,9 @@ import {
   allocationsForRegisterQuantity,
   applyShippableOptionToItem,
   emptyDeliveryRegisterItemForm,
+  isBillingRegisterItem,
   validateDeliveryRegisterItems,
+  withBillingCompanionItems,
   type DeliveryRegisterItemForm,
   type DeliveryShippableOption,
 } from '@/lib/delivery/register-form'
@@ -20,7 +22,8 @@ import {
   printDeliveryStatement,
 } from '@/lib/delivery/print-delivery-statement'
 import { createDeliveryShipment } from '@/lib/delivery/repository'
-import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
+import type { DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 import { fetchAvailableLots, syncFinishedGoodsLots } from '@/lib/production-lots/repository'
 import { CATCH_UP_LOT_WARNING } from '@/lib/production-lots/types'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
@@ -28,6 +31,7 @@ import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 type DeliveryRegisterModalProps = {
   open: boolean
   options: DeliveryShippableOption[]
+  billingOnlyLines?: DeliveryBillingOnlyLine[]
   initialItems?: DeliveryRegisterItemForm[] | null
   onClose: () => void
   onShipped?: (payload: {
@@ -46,10 +50,14 @@ function CancelButton({ disabled }: { disabled?: boolean }) {
 }
 
 function filledRegisterItems(items: DeliveryRegisterItemForm[] | null | undefined) {
-  return (items || []).filter((item) => item.assemblyGroupId.trim() && item.productCode.trim())
+  return (items || []).filter(
+    (item) =>
+      !isBillingRegisterItem(item) && item.assemblyGroupId.trim() && item.productCode.trim(),
+  )
 }
 
 async function attachLotsToItem(item: DeliveryRegisterItemForm): Promise<DeliveryRegisterItemForm> {
+  if (isBillingRegisterItem(item)) return item
   await syncFinishedGoodsLots({ assemblyGroupId: item.assemblyGroupId })
   const result = await fetchAvailableLots(item.assemblyGroupId)
   const lots = result.ok ? result.lots : []
@@ -64,6 +72,7 @@ async function attachLotsToItem(item: DeliveryRegisterItemForm): Promise<Deliver
 
 function DeliveryRegisterModalContent({
   options,
+  billingOnlyLines = [],
   initialItems,
   onClose,
   onShipped,
@@ -73,7 +82,7 @@ function DeliveryRegisterModalContent({
   const [recordDate, setRecordDate] = useState(todayYmdSeoul)
   const [note, setNote] = useState('')
   const [items, setItems] = useState<DeliveryRegisterItemForm[]>(() =>
-    filledRegisterItems(initialItems),
+    withBillingCompanionItems(filledRegisterItems(initialItems), billingOnlyLines),
   )
   const [saving, setSaving] = useState(false)
   const [printing, setPrinting] = useState(false)
@@ -88,29 +97,35 @@ function DeliveryRegisterModalContent({
   } | null>(null)
 
   const lockedCustomer = useMemo(() => {
-    const first = items.find((item) => item.customer.trim())
+    const first = items.find((item) => !isBillingRegisterItem(item) && item.customer.trim())
     return first?.customer.trim() || ''
   }, [items])
 
   const selectedIds = useMemo(
-    () => new Set(items.map((item) => item.assemblyGroupId).filter(Boolean)),
+    () =>
+      new Set(
+        items
+          .filter((item) => !isBillingRegisterItem(item))
+          .map((item) => item.assemblyGroupId)
+          .filter(Boolean),
+      ),
     [items],
   )
 
   const shipped = Boolean(lastShipmentId && lastShipMeta)
 
   useEffect(() => {
-    const seed = filledRegisterItems(initialItems)
+    const seed = withBillingCompanionItems(filledRegisterItems(initialItems), billingOnlyLines)
     if (!seed.length) return
     let cancelled = false
     void (async () => {
       const withLots = await Promise.all(seed.map((item) => attachLotsToItem(item)))
-      if (!cancelled) setItems(withLots)
+      if (!cancelled) setItems(withBillingCompanionItems(withLots, billingOnlyLines))
     })()
     return () => {
       cancelled = true
     }
-  }, [initialItems])
+  }, [initialItems, billingOnlyLines])
 
   async function handleToggle(option: DeliveryShippableOption, checked: boolean) {
     if (shipped || saving || printing) return
@@ -118,7 +133,13 @@ function DeliveryRegisterModalContent({
 
     if (!checked) {
       setItems((current) =>
-        current.filter((item) => item.assemblyGroupId !== option.assemblyGroupId),
+        withBillingCompanionItems(
+          current.filter(
+            (item) =>
+              isBillingRegisterItem(item) || item.assemblyGroupId !== option.assemblyGroupId,
+          ),
+          billingOnlyLines,
+        ),
       )
       return
     }
@@ -131,11 +152,16 @@ function DeliveryRegisterModalContent({
     if (selectedIds.has(option.assemblyGroupId)) return
 
     const pending = applyShippableOptionToItem(emptyDeliveryRegisterItemForm(), option)
-    setItems((current) => [...current, pending])
+    setItems((current) =>
+      withBillingCompanionItems([...current, pending], billingOnlyLines),
+    )
 
     const withLots = await attachLotsToItem(pending)
     setItems((current) =>
-      current.map((item) => (item.key === pending.key ? withLots : item)),
+      withBillingCompanionItems(
+        current.map((item) => (item.key === pending.key ? withLots : item)),
+        billingOnlyLines,
+      ),
     )
   }
 
@@ -143,13 +169,14 @@ function DeliveryRegisterModalContent({
     if (!lastShipmentId || !lastShipMeta) return false
     setPrinting(true)
     setSaveError(null)
+    // orderNumber 는 발주 ID (고객 PO 아님) — 추가작업 라인 조회에 필요
     const built = await buildDeliveryStatementDataFromShipment({
       shipmentId: lastShipmentId,
       shipDate: lastShipMeta.date,
       customer: lastShipMeta.customer,
       note: lastShipMeta.note,
       shippedLines: lastShipMeta.lines.map((line) => ({
-        orderNumber: displayOrderPoNumber(line.customerPoNumber, line.orderNumber),
+        orderNumber: line.orderNumber,
         productCode: line.productCode,
         productName: line.productName,
         qty: Math.floor(Number(line.quantity) || 0),
@@ -311,7 +338,12 @@ function DeliveryRegisterModalContent({
             lockedCustomer={lockedCustomer}
             disabled={shipped || busy}
             productSelectMode="fixed"
-            onChange={setItems}
+            onChange={(next) => {
+              setItems((current) => {
+                const resolved = typeof next === 'function' ? next(current) : next
+                return withBillingCompanionItems(resolved, billingOnlyLines)
+              })
+            }}
           />
         </div>
       </div>
@@ -322,6 +354,7 @@ function DeliveryRegisterModalContent({
 export function DeliveryRegisterModal({
   open,
   options,
+  billingOnlyLines,
   initialItems,
   onClose,
   onShipped,
@@ -330,6 +363,7 @@ export function DeliveryRegisterModal({
   return (
     <DeliveryRegisterModalContent
       options={options}
+      billingOnlyLines={billingOnlyLines}
       initialItems={initialItems}
       onClose={onClose}
       onShipped={onShipped}

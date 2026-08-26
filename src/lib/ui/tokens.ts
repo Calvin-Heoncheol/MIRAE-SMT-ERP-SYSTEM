@@ -111,7 +111,33 @@ export const ERP_BADGE_COMPACT_CLASS =
 export const ERP_TEXT_WRAP_CLASS =
   'min-w-0 whitespace-normal break-keep [overflow-wrap:break-word]'
 
-export const ERP_TABLE_ROW_CLASS = 'border-t border-slate-100 hover:bg-slate-50/80'
+export const ERP_TABLE_ROW_CLASS =
+  'border-t border-slate-100 even:bg-slate-50/60 hover:bg-slate-50/80'
+
+/** 모달·페이지 공통 오버레이 (ErpModal과 동일) */
+export const ERP_MODAL_OVERLAY_CLASS = 'bg-slate-900/45'
+
+/** 경고·주의 안내 박스 (amber) */
+export const ERP_WARNING_BOX_CLASS =
+  'rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900'
+
+/** 성공 안내 박스 */
+export const ERP_SUCCESS_BOX_CLASS =
+  'rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800'
+
+/** 위험/오류 인라인 박스 (배너보다 조밀) */
+export const ERP_DANGER_BOX_CLASS =
+  'rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800'
+
+/**
+ * 입력 위젯 규칙
+ * - 마스터 참조(거래처·품목·자재·발주서): Combobox
+ * - 고정 enum(대략 5개 이하): native select
+ */
+export const ERP_INPUT_WIDGET_RULE =
+  'master→combobox · fixed-enum→select' as const
+
+/** radius 스케일: 필드/버튼 lg · 표 wrap·empty xl · 모달 2xl · 칩 full · compact badge md */
 
 /** 폼 필드 공통 */
 export const ERP_FIELD_LABEL_CLASS = 'mb-1 block font-medium text-slate-600'

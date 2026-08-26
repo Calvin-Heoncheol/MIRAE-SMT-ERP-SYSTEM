@@ -5,6 +5,7 @@ import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ExpenseReportFormDocument } from '@/components/expense-reports/expense-report-form-document'
 import { DocumentPrintActions } from '@/components/documents/document-print-actions'
 import { ErpButton } from '@/components/ui/erp-button'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { isApprovalDepartment, normalizeApprovalDepartment } from '@/lib/approvals/departments'
 import { resolveApprovalDateFromSignoffs, toggleSignoff, type ApprovalSignoffRole } from '@/lib/approvals/signoffs'
@@ -68,6 +69,7 @@ export function ExpenseReportModal({
   onSignoffComplete,
 }: ExpenseReportModalProps) {
   const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const [form, setForm] = useState<ExpenseReportFormState>(createDefaultExpenseReportForm())
   const [saving, setSaving] = useState(false)
   const [signing, setSigning] = useState(false)
@@ -121,7 +123,17 @@ export function ExpenseReportModal({
   }
 
   async function handleDelete() {
-    if (!report || !window.confirm('이 지출결의서를 삭제할까요?')) return
+    if (!report) return
+    if (
+      !(await confirm({
+        title: '지출결의서 삭제',
+        message: '이 지출결의서를 삭제할까요?\n삭제 후에는 복구할 수 없습니다.',
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
 
     setSaving(true)
     const result = await deleteExpenseReports([report.id])

@@ -38,12 +38,7 @@ function cell(value: string) {
 
 function BomStatusBadge({ registered }: { registered: boolean }) {
   return (
-    <StatusBadge
-      label={registered ? '등록완료' : '미등록'}
-      className={
-        registered ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-      }
-    />
+    <StatusBadge label={registered ? '등록완료' : '미등록'} tone={registered ? 'success' : 'warning'} />
   )
 }
 

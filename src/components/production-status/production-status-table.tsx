@@ -187,7 +187,6 @@ function StageCells({
   deliveryTarget,
   onSmtClick,
   onPostClick,
-  onDeliveryClick,
 }: {
   smtPercent: number
   smtDefectPercent: number
@@ -204,7 +203,6 @@ function StageCells({
   deliveryTarget: number
   onSmtClick?: () => void
   onPostClick?: () => void
-  onDeliveryClick?: () => void
 }) {
   return (
     <>
@@ -232,7 +230,6 @@ function StageCells({
         label="출하"
         empty={deliveryTarget <= 0}
         detail={deliveryDetail(deliveryProduced, deliveryTarget)}
-        onClick={onDeliveryClick}
       />
     </>
   )
@@ -320,11 +317,6 @@ function OrderStatusRows({
           deliveryTarget={line.deliveryTarget}
           onSmtClick={onStageClick ? () => onStageClick(line, 'smt') : undefined}
           onPostClick={onStageClick ? () => onStageClick(line, 'post_process') : undefined}
-          onDeliveryClick={
-            onStageClick && line.deliveryTarget > 0
-              ? () => onStageClick(line, 'delivery')
-              : undefined
-          }
         />
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
           <ProductionLineStatusBadge
@@ -388,11 +380,6 @@ function OrderStatusRows({
               onPostClick={
                 onStageClick && product.postTarget > 0
                   ? () => onStageClick(line, 'post_process', product)
-                  : undefined
-              }
-              onDeliveryClick={
-                onStageClick && product.deliveryTarget > 0
-                  ? () => onStageClick(line, 'delivery', product)
                   : undefined
               }
             />

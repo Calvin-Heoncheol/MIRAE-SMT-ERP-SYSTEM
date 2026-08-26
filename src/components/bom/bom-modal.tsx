@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { BomChildItemCombobox } from '@/components/bom/bom-child-item-combobox'
 import { ItemModal } from '@/components/items/item-modal'
 import { useBusy } from '@/components/ui/busy-provider'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
@@ -30,7 +32,6 @@ import {
 import {
   childItemsForParent,
   describeBomRule,
-  formatItemOptionLabel,
   parentItemsForBom,
 } from '@/lib/bom/utils'
 import type { BomGroup } from '@/lib/bom/types'
@@ -75,6 +76,8 @@ function BomModalContent({
   onVersioned,
 }: Omit<BomModalProps, 'open'>) {
   const isCreate = mode === 'create'
+  const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const [form, setForm] = useState<BomFormState>(() =>
     group ? bomGroupToForm(group) : emptyBomForm(initialParentProductId),
   )
@@ -216,7 +219,7 @@ function BomModalContent({
     closeRegisterModal()
   }
 
-  function applyPaste() {
+  async function applyPaste() {
     if (!selectedParent) {
       setPasteHint('부모 품목을 먼저 선택해 주세요.')
       setPasteUnresolved([])
@@ -233,10 +236,16 @@ function BomModalContent({
 
     const hasExisting = form.lines.some((line) => line.childProductId.trim())
     if (hasExisting) {
-      const confirmed = window.confirm(
-        `현재 구성 ${form.lines.filter((line) => line.childProductId.trim()).length}건을 붙여넣기 ${resolved.lines.length}건으로 바꿀까요?`,
-      )
-      if (!confirmed) return
+      if (
+        !(await confirm({
+          title: '붙여넣기 교체',
+          message: `현재 구성 ${form.lines.filter((line) => line.childProductId.trim()).length}건을 붙여넣기 ${resolved.lines.length}건으로 바꿀까요?`,
+          confirmLabel: '교체',
+          tone: 'default',
+        }))
+      ) {
+        return
+      }
     }
 
     setForm((current) => ({ ...current, lines: resolved.lines }))
@@ -276,7 +285,16 @@ function BomModalContent({
 
   async function handleDelete() {
     if (!group) return
-    if (!window.confirm(`${group.parentProductId} BOM 구성을 삭제할까요?`)) return
+    if (
+      !(await confirm({
+        title: 'BOM 삭제',
+        message: `${group.parentProductId} BOM 구성을 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
 
     setDeleting(true)
     setSaveError(null)
@@ -300,20 +318,26 @@ function BomModalContent({
       return
     }
 
-    const confirmed = window.confirm(
-      [
-        'BOM 버전업을 진행할까요?',
-        '',
-        `품목코드: ${selectedParent.baseCode || selectedParent.id}`,
-        `구버전: ${selectedParent.version || '—'}`,
-        `신버전: ${versionLabel}`,
-        '',
-        '· 같은 품목코드로 새 버전 행을 만들고 BOM을 복사합니다.',
-        '· 구버전은 그대로 유지됩니다.',
-        '· 완료 후 신버전 BOM을 바로 수정할 수 있습니다.',
-      ].join('\n'),
-    )
-    if (!confirmed) return
+    if (
+      !(await confirm({
+        title: 'BOM 버전업',
+        message: [
+          'BOM 버전업을 진행할까요?',
+          '',
+          `품목코드: ${selectedParent.baseCode || selectedParent.id}`,
+          `구버전: ${selectedParent.version || '—'}`,
+          `신버전: ${versionLabel}`,
+          '',
+          '· 같은 품목코드로 새 버전 행을 만들고 BOM을 복사합니다.',
+          '· 구버전은 그대로 유지됩니다.',
+          '· 완료 후 신버전 BOM을 바로 수정할 수 있습니다.',
+        ].join('\n'),
+        confirmLabel: '버전업',
+        tone: 'default',
+      }))
+    ) {
+      return
+    }
 
     setVersioning(true)
     setSaveError(null)
@@ -369,14 +393,18 @@ function BomModalContent({
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             {!isCreate ? (
               <div className="flex flex-wrap gap-2">
-                <ErpButton
-                  variant="danger"
-                  disabled={busy}
-                  loading={deleting}
-                  onClick={() => void handleDelete()}
-                >
-                  BOM 삭제
-                </ErpButton>
+                {canDelete ? (
+                  <ErpButton
+                    variant="danger"
+                    disabled={busy}
+                    loading={deleting}
+                    onClick={() => void handleDelete()}
+                  >
+                    BOM 삭제
+                  </ErpButton>
+                ) : (
+                  <span />
+                )}
                 <ErpButton
                   variant="secondary"
                   disabled={busy || !normalizedVersionInput}
@@ -403,25 +431,20 @@ function BomModalContent({
         <div className="space-y-3">
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>부모 품목</span>
-            <select
+            <BomChildItemCombobox
               value={form.parentProductId}
+              items={availableParents}
               disabled={!isCreate}
-              onChange={(event) =>
+              placeholder="부모 품목 검색"
+              ariaLabel="부모 품목"
+              onItemSelect={(item) =>
                 setForm((current) => ({
                   ...current,
-                  parentProductId: event.target.value,
+                  parentProductId: item?.id || '',
                   lines: [createBomFormLine()],
                 }))
               }
-              className={ERP_FIELD_INPUT_CLASS}
-            >
-              <option value="">부모 품목 선택</option>
-              {availableParents.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {formatItemOptionLabel(item)}
-                </option>
-              ))}
-            </select>
+            />
             {selectedParent ? (
               <p className="mt-1.5 text-xs text-slate-500">{describeBomRule(selectedParent.itemCategory)}</p>
             ) : null}
@@ -490,7 +513,7 @@ function BomModalContent({
               <ErpButton
                 variant="secondary"
                 disabled={busy || !pasteText.trim()}
-                onClick={applyPaste}
+                onClick={() => void applyPaste()}
               >
                 붙여넣기 적용
               </ErpButton>

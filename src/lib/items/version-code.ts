@@ -5,7 +5,7 @@ import type { Item } from '@/lib/items/types'
  * - 0302C210-V1 → V1
  * - 0302C210-REV2 → REV2
  * - ABC-A1 → A1
- * - SFG-001 (숫자만 있는 구간)은 버전으로 보지 않음
+ * - SFG-0001 (숫자만 있는 구간)은 버전으로 보지 않음
  */
 const VERSION_SUFFIX_RE = /^(.+)-([A-Za-z][A-Za-z0-9]*)$/
 

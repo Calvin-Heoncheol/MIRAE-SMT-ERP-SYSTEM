@@ -3,6 +3,7 @@ import { processTypeIncludesPostProcess, processTypeIncludesSmt } from '@/lib/qu
 import { isSplitProductPcbSideMode, normalizeProductPcbSideMode } from '@/lib/products/utils'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import { normalizeSmtPlanPcbSide } from '@/lib/smt/plan/utils'
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { LotAllocation, LotSyncResult, ProductionLot } from './types'
@@ -13,6 +14,15 @@ function missingEnvResult(): LotSyncResult {
     ok: false,
     reason: 'env',
     detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+  }
+}
+
+function missingProductionLotsMigrationResult(): LotSyncResult {
+  return {
+    ok: false,
+    reason: 'query',
+    detail:
+      '생산 LOT 테이블이 없습니다. Supabase에서 supabase/migrate-production-lots.sql 을 실행해 주세요.',
   }
 }
 
@@ -282,7 +292,7 @@ async function reduceLots(lots: ProductionLot[], quantity: number): Promise<LotS
   return { ok: true }
 }
 
-export async function syncFinishedGoodsLots(input: {
+async function syncFinishedGoodsLotsCore(input: {
   assemblyGroupId: string
   preferDate?: string
 }): Promise<LotSyncResult> {
@@ -332,7 +342,7 @@ export async function syncFinishedGoodsLots(input: {
 
     const lotsResult = await fetchLotsWithShipped(assemblyGroupId)
     if (!lotsResult.ok) {
-      if (isMissingProductionLotsTable(lotsResult.detail)) return { ok: true }
+      if (isMissingProductionLotsTable(lotsResult.detail)) return missingProductionLotsMigrationResult()
       return lotsResult
     }
 
@@ -360,15 +370,27 @@ export async function syncFinishedGoodsLots(input: {
     return reduceLots(lotsResult.lots, -delta)
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    if (isMissingProductionLotsTable(detail)) return { ok: true }
+    if (isMissingProductionLotsTable(detail)) return missingProductionLotsMigrationResult()
     return { ok: false, reason: 'query', detail }
   }
+}
+
+export async function syncFinishedGoodsLots(input: {
+  assemblyGroupId: string
+  preferDate?: string
+}): Promise<LotSyncResult> {
+  const gate = await assertCanWrite({ module: 'production_smt', action: 'create' })
+  if (!gate.ok) return gate
+  return syncFinishedGoodsLotsCore(input)
 }
 
 export async function syncLotsForSmtOrderLine(input: {
   orderLineId: string
   preferDate?: string
 }): Promise<LotSyncResult> {
+  const gate = await assertCanWrite({ module: 'production_smt', action: 'create' })
+  if (!gate.ok) return gate
+
   const orderLineId = String(input.orderLineId || '').trim()
   if (!orderLineId) return { ok: true }
 
@@ -379,7 +401,7 @@ export async function syncLotsForSmtOrderLine(input: {
     .eq('order_line_id', orderLineId)
 
   if (error) {
-    if (isMissingProductionLotsTable(error.message)) return { ok: true }
+    if (isMissingProductionLotsTable(error.message)) return missingProductionLotsMigrationResult()
     return { ok: false, reason: 'query', detail: error.message }
   }
 
@@ -395,11 +417,13 @@ export async function syncLotsForSmtOrderLine(input: {
     ) {
       continue
     }
-    const result = await syncFinishedGoodsLots({
+    const result = await syncFinishedGoodsLotsCore({
       assemblyGroupId,
       preferDate: input.preferDate,
     })
     if (!result.ok && result.reason === 'validation') return result
+    if (!result.ok && isMissingProductionLotsTable(result.detail)) return result
+    if (!result.ok && result.reason === 'query') return result
   }
   return { ok: true }
 }
@@ -446,11 +470,16 @@ export async function prepareLotAllocations(input: {
   const quantity = Math.max(0, Math.floor(Number(input.quantity) || 0))
   if (quantity < 1) return { ok: true, allocations: [] }
 
-  const sync = await syncFinishedGoodsLots({
+  const sync = await syncFinishedGoodsLotsCore({
     assemblyGroupId: input.assemblyGroupId,
     preferDate: input.preferDate,
   })
   if (!sync.ok && sync.reason === 'validation') return sync
+  if (!sync.ok && isMissingProductionLotsTable(sync.detail)) {
+    return missingProductionLotsMigrationResult()
+  }
+  if (!sync.ok && sync.reason === 'query') return sync
+  if (!sync.ok && sync.reason === 'env') return sync
 
   const excludeDeliveryRecordId = String(input.excludeDeliveryRecordId || '').trim() || undefined
 
@@ -545,6 +574,9 @@ export async function persistDeliveryRecordLots(input: {
   allocations?: LotAllocation[]
   excludeDeliveryRecordId?: string
 }): Promise<LotSyncResult> {
+  const gate = await assertCanWrite({ module: 'sales', action: 'create' })
+  if (!gate.ok) return gate
+
   const prepared = await prepareLotAllocations({
     assemblyGroupId: input.assemblyGroupId,
     quantity: input.quantity,
@@ -553,12 +585,11 @@ export async function persistDeliveryRecordLots(input: {
     excludeDeliveryRecordId: input.excludeDeliveryRecordId,
   })
   if (!prepared.ok) {
-    if (prepared.reason === 'env' || isMissingProductionLotsTable(prepared.detail)) {
-      return { ok: true }
-    }
+    if (prepared.reason === 'env') return prepared
+    if (isMissingProductionLotsTable(prepared.detail)) return missingProductionLotsMigrationResult()
     return prepared
   }
-  const saved = await saveDeliveryRecordLots({
+  const saved = await saveDeliveryRecordLotsCore({
     deliveryRecordId: input.deliveryRecordId,
     allocations: prepared.allocations,
   })
@@ -574,6 +605,9 @@ export async function replaceDeliveryRecordLots(input: {
   preferDate?: string
   allocations?: LotAllocation[]
 }): Promise<LotSyncResult> {
+  const gate = await assertCanWrite({ module: 'sales', action: 'create' })
+  if (!gate.ok) return gate
+
   const deliveryRecordId = String(input.deliveryRecordId || '').trim()
   const assemblyGroupId = String(input.assemblyGroupId || '').trim()
   if (!deliveryRecordId || !assemblyGroupId) return { ok: true }
@@ -586,7 +620,7 @@ export async function replaceDeliveryRecordLots(input: {
       .eq('delivery_record_id', deliveryRecordId)
 
     if (existingError) {
-      if (isMissingProductionLotsTable(existingError.message)) return { ok: true }
+      if (isMissingProductionLotsTable(existingError.message)) return missingProductionLotsMigrationResult()
       return { ok: false, reason: 'query', detail: existingError.message }
     }
 
@@ -598,9 +632,8 @@ export async function replaceDeliveryRecordLots(input: {
       excludeDeliveryRecordId: deliveryRecordId,
     })
     if (!prepared.ok) {
-      if (prepared.reason === 'env' || isMissingProductionLotsTable(prepared.detail)) {
-        return { ok: true }
-      }
+      if (prepared.reason === 'env') return prepared
+      if (isMissingProductionLotsTable(prepared.detail)) return missingProductionLotsMigrationResult()
       return prepared
     }
 
@@ -610,11 +643,11 @@ export async function replaceDeliveryRecordLots(input: {
       .eq('delivery_record_id', deliveryRecordId)
 
     if (deleteError) {
-      if (isMissingProductionLotsTable(deleteError.message)) return { ok: true }
+      if (isMissingProductionLotsTable(deleteError.message)) return missingProductionLotsMigrationResult()
       return { ok: false, reason: 'query', detail: deleteError.message }
     }
 
-    const saved = await saveDeliveryRecordLots({
+    const saved = await saveDeliveryRecordLotsCore({
       deliveryRecordId,
       allocations: prepared.allocations,
     })
@@ -635,12 +668,22 @@ export async function replaceDeliveryRecordLots(input: {
     return { ok: true, usedCatchUp: prepared.usedCatchUp }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    if (isMissingProductionLotsTable(detail)) return { ok: true }
+    if (isMissingProductionLotsTable(detail)) return missingProductionLotsMigrationResult()
     return { ok: false, reason: 'query', detail }
   }
 }
 
 export async function saveDeliveryRecordLots(input: {
+  deliveryRecordId: string
+  allocations: LotAllocation[]
+}): Promise<LotSyncResult> {
+  const gate = await assertCanWrite({ module: 'sales', action: 'create' })
+  if (!gate.ok) return gate
+
+  return saveDeliveryRecordLotsCore(input)
+}
+
+async function saveDeliveryRecordLotsCore(input: {
   deliveryRecordId: string
   allocations: LotAllocation[]
 }): Promise<LotSyncResult> {
@@ -659,13 +702,13 @@ export async function saveDeliveryRecordLots(input: {
     const supabase = createSupabaseClient()
     const { error } = await supabase.from('delivery_record_lots').insert(rows)
     if (error) {
-      if (isMissingProductionLotsTable(error.message)) return { ok: true }
+      if (isMissingProductionLotsTable(error.message)) return missingProductionLotsMigrationResult()
       return { ok: false, reason: 'query', detail: error.message }
     }
     return { ok: true }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    if (isMissingProductionLotsTable(detail)) return { ok: true }
+    if (isMissingProductionLotsTable(detail)) return missingProductionLotsMigrationResult()
     return { ok: false, reason: 'query', detail }
   }
 }

@@ -1,22 +1,18 @@
 -- =============================================================================
--- RLS: anon 공개 쓰기 제거 → 로그인(authenticated) 필수
+-- P0 RLS 보강: harden 누락 테이블 + profiles role/department 잠금
 -- =============================================================================
 -- 적용 전제
---   1) setup-profiles.sql / migrate-profiles-rls-fix.sql 적용됨
---   2) 앱 AUTH_ENABLED=true (로그인 세션 JWT 필요)
---   3) 앱 createSupabaseClient 가 브라우저에서 세션을 포함함 (최신 코드)
+--   1) setup-profiles.sql (또는 migrate-profiles-rls-fix.sql)
+--   2) migrate-rls-authenticated-writes.sql (권장, 없어도 헬퍼를 다시 만듦)
+--   3) AUTH_ENABLED=true
 --
--- 정책 요약
---   · SELECT: 기존과 같이 공개(RSC anon 조회 호환)
---   · INSERT/UPDATE: 로그인 사용자
---   · DELETE: 팀장(manager) 이상
---   · 기초등록(items / business_partners / bom_items): 관리자(admin)만 쓰기
+-- 이 파일은
+--   · statement_payments / production_lots / delivery_record_lots /
+--     production_plan_board_items / solder_cream_* / quality 등 누락 테이블 쓰기 harden
+--   · profiles: 본인이 role·department 를 올리지 못하게 트리거
+-- SELECT 는 RSC anon 호환을 위해 using(true) 유지 (SECURITY.md 동일).
 --
--- 수금·LOT·계획보드·솔더크림 등 후속 테이블 + profiles role 잠금은
--- migrate-rls-p0-harden.sql 을 이어서 실행하세요.
---
--- Supabase SQL Editor에서 한 번 실행하세요. 없는 테이블은 건너뜁니다.
--- 상세: supabase/SECURITY.md
+-- Supabase SQL Editor에서 한 번 실행하세요.
 -- =============================================================================
 
 create or replace function public.is_profile_admin()
@@ -79,6 +75,7 @@ begin
 
   execute format('alter table public.%I enable row level security', p_table);
 
+  -- SELECT 공개 (RSC anon)
   execute format(
     'create policy %I on public.%I for select using (true)',
     p_table || '_select_all',
@@ -121,42 +118,7 @@ begin
 end;
 $$;
 
--- 기초등록 (admin만 쓰기)
-select public._erp_reset_table_rls('items', 'master');
-select public._erp_reset_table_rls('business_partners', 'master');
-select public._erp_reset_table_rls('bom_items', 'master');
-
--- 업무 테이블 (로그인 쓰기 / 팀장 이상 삭제)
-select public._erp_reset_table_rls('orders', 'ops');
-select public._erp_reset_table_rls('order_lines', 'ops');
-select public._erp_reset_table_rls('order_assembly_groups', 'ops');
-select public._erp_reset_table_rls('order_assembly_group_lines', 'ops');
-select public._erp_reset_table_rls('quotations', 'ops');
-select public._erp_reset_table_rls('new_company_inquiries', 'ops');
-select public._erp_reset_table_rls('delivery_records', 'ops');
-select public._erp_reset_table_rls('material_purchase_orders', 'ops');
-select public._erp_reset_table_rls('material_purchase_order_lines', 'ops');
-select public._erp_reset_table_rls('material_purchase_need_deleted_orders', 'ops');
-select public._erp_reset_table_rls('material_inbound_records', 'ops');
-select public._erp_reset_table_rls('material_inbound_lines', 'ops');
-select public._erp_reset_table_rls('material_outbound_records', 'ops');
-select public._erp_reset_table_rls('material_outbound_lines', 'ops');
-select public._erp_reset_table_rls('smt_production_records', 'ops');
-select public._erp_reset_table_rls('smt_production_plans', 'ops');
-select public._erp_reset_table_rls('post_process_production_records', 'ops');
-select public._erp_reset_table_rls('post_process_production_plans', 'ops');
-select public._erp_reset_table_rls('production_unit_labels', 'ops');
-select public._erp_reset_table_rls('production_plan_close_logs', 'ops');
-select public._erp_reset_table_rls('quality_defect_handlings', 'ops');
-select public._erp_reset_table_rls('metal_mask_assets', 'ops');
-select public._erp_reset_table_rls('metal_mask_usage_logs', 'ops');
-select public._erp_reset_table_rls('squeegee_assets', 'ops');
-select public._erp_reset_table_rls('squeegee_usage_logs', 'ops');
-select public._erp_reset_table_rls('approvals', 'ops');
-select public._erp_reset_table_rls('expense_reports', 'ops');
-select public._erp_reset_table_rls('leave_requests', 'ops');
-
--- 이후 추가된 업무 테이블 (누락 harden)
+-- ── 누락 업무 테이블 (로그인 쓰기 / 팀장 이상 삭제) ──────────────────────────
 select public._erp_reset_table_rls('statement_payments', 'ops');
 select public._erp_reset_table_rls('production_lots', 'ops');
 select public._erp_reset_table_rls('delivery_record_lots', 'ops');
@@ -164,8 +126,74 @@ select public._erp_reset_table_rls('production_plan_board_items', 'ops');
 select public._erp_reset_table_rls('solder_cream_lot_status', 'ops');
 select public._erp_reset_table_rls('solder_cream_log_imports', 'ops');
 select public._erp_reset_table_rls('solder_cream_equipment_logs', 'ops');
+select public._erp_reset_table_rls('production_unit_labels', 'ops');
+select public._erp_reset_table_rls('quality_defect_handlings', 'ops');
+select public._erp_reset_table_rls('production_plan_close_logs', 'ops');
+
+-- 변경이력: INSERT 만 authenticated (SELECT 공개 유지)
+do $$
+begin
+  if to_regclass('public.entity_change_logs') is null then
+    raise notice 'skip missing table: entity_change_logs';
+    return;
+  end if;
+
+  alter table public.entity_change_logs enable row level security;
+
+  drop policy if exists "entity_change_logs public insert" on public.entity_change_logs;
+  drop policy if exists entity_change_logs_insert_auth on public.entity_change_logs;
+  drop policy if exists "entity_change_logs public read" on public.entity_change_logs;
+  drop policy if exists entity_change_logs_select_auth on public.entity_change_logs;
+  drop policy if exists entity_change_logs_select_all on public.entity_change_logs;
+
+  create policy "entity_change_logs public read"
+    on public.entity_change_logs for select using (true);
+
+  create policy entity_change_logs_insert_auth
+    on public.entity_change_logs
+    for insert
+    to authenticated
+    with check (auth.uid() is not null);
+end $$;
 
 drop function if exists public._erp_reset_table_rls(text, text);
 
-comment on function public.is_profile_manager_or_admin() is
-  'RLS용 — profiles.role 이 admin 또는 manager';
+-- ── profiles: 본인 role / department 승격·변경 차단 ─────────────────────────
+create or replace function public.enforce_profile_safe_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_jwt_role text := coalesce(auth.jwt() ->> 'role', '');
+begin
+  -- service_role(Admin API) 또는 관리자 프로필은 전부 허용
+  if v_jwt_role = 'service_role' or public.is_profile_admin() then
+    return NEW;
+  end if;
+
+  if NEW.role is distinct from OLD.role then
+    raise exception 'PROFILE_ROLE_LOCKED'
+      using errcode = '42501',
+            hint = '역할은 관리자만 변경할 수 있습니다.';
+  end if;
+
+  if NEW.department is distinct from OLD.department then
+    raise exception 'PROFILE_DEPARTMENT_LOCKED'
+      using errcode = '42501',
+            hint = '부서는 관리자만 변경할 수 있습니다.';
+  end if;
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_enforce_profile_safe_update on public.profiles;
+create trigger trg_enforce_profile_safe_update
+  before update on public.profiles
+  for each row
+  execute function public.enforce_profile_safe_update();
+
+comment on function public.enforce_profile_safe_update() is
+  'profiles: 비관리자 본인이 role/department 를 바꾸지 못하게 함 (service_role·admin 제외)';

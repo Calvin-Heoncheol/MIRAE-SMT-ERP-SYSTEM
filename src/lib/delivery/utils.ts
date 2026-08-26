@@ -1,4 +1,6 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
+import type { OrderListGroup } from '@/lib/orders/types'
+import { isBillingOnlyOrderItem } from '@/lib/orders/utils'
 import type { Product, ProductPcbSideMode } from '@/lib/products/types'
 import { isSplitProductPcbSideMode } from '@/lib/products/utils'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
@@ -22,10 +24,49 @@ export type DeliveryAvailability = {
   needsPost: boolean
 }
 
+export type DeliveryBillingOnlyLine = {
+  orderLineId: string
+  orderNumber: string
+  customerPoNumber: string
+  customer: string
+  productCode: string
+  productName: string
+  quantity: number
+  unitPrice: number
+}
+
 export type DeliveryInputPageData = {
   orders: ProductionOrderLine[]
+  /** 발주 추가작업(금액 전용) — 출하 시 명세에 별도 행으로 붙음 */
+  billingOnlyLines: DeliveryBillingOnlyLine[]
   deliveryCounts: Record<string, number>
   availabilityByGroupId: Record<string, DeliveryAvailability>
+}
+
+/** 발주서의 추가작업(금액 전용) 라인을 출하 UI용으로 추출 */
+export function buildDeliveryBillingOnlyLines(orders: OrderListGroup[]): DeliveryBillingOnlyLine[] {
+  const lines: DeliveryBillingOnlyLine[] = []
+  for (const order of orders) {
+    for (const item of order.items || []) {
+      if (item.derivedFromLineId) continue
+      if (!isBillingOnlyOrderItem(item)) continue
+      const orderLineId = String(item.lineId || '').trim()
+      if (!orderLineId) continue
+      const productName = String(item.productName || '').trim()
+      if (!productName) continue
+      lines.push({
+        orderLineId,
+        orderNumber: order.orderNumber,
+        customerPoNumber: order.customerPoNumber || '',
+        customer: order.customer,
+        productCode: String(item.productCode || '').trim() || 'TEMP',
+        productName,
+        quantity: Math.max(0, Math.floor(Number(item.quantity) || 0)),
+        unitPrice: Math.max(0, Math.round(Number(item.unitPrice) || 0)),
+      })
+    }
+  }
+  return lines
 }
 
 export function resolveSmtProducedForLine(

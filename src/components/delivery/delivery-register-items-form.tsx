@@ -13,6 +13,7 @@ import {
   computeDeliveryLineAmount,
   emptyDeliveryRegisterItemForm,
   findExactShippableOptions,
+  isBillingRegisterItem,
 } from '@/lib/delivery/register-form'
 import { syncFinishedGoodsLots } from '@/lib/production-lots/repository'
 
@@ -79,7 +80,8 @@ export function DeliveryRegisterItemsForm({
   }
 
   function removeRow(index: number) {
-    if (!fixedProducts && items.length <= 1) return
+    if (isBillingRegisterItem(items[index]!)) return
+    if (!fixedProducts && items.filter((item) => !isBillingRegisterItem(item)).length <= 1) return
     onChange(items.filter((_, itemIndex) => itemIndex !== index))
   }
 
@@ -152,16 +154,33 @@ export function DeliveryRegisterItemsForm({
                 Number(item.unitPrice),
               )
               const rowOptions = optionsForRow(index)
+              const billing = isBillingRegisterItem(item)
+              const rowLocked = disabled || billing
+              const nameLabel = item.productName
+                ? item.productVersion?.trim()
+                  ? `${item.productName} · ${item.productVersion.trim()}`
+                  : item.productName
+                : ''
               return (
-                <tr key={item.key} className="border-t border-slate-200 bg-white">
+                <tr
+                  key={item.key}
+                  className={`border-t border-slate-200 ${billing ? 'bg-amber-50/70' : 'bg-white'}`}
+                >
                   <td className="px-2 py-1.5 align-top">
-                    {fixedProducts ? (
-                      <input
-                        value={item.productCode}
-                        readOnly
-                        className={`${readOnlyClassName} min-w-[100px] font-mono`}
-                        aria-label={`${index + 1}행 품목코드`}
-                      />
+                    {fixedProducts || billing ? (
+                      <div className="space-y-1">
+                        {billing ? (
+                          <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
+                            추가작업
+                          </span>
+                        ) : null}
+                        <input
+                          value={item.productCode}
+                          readOnly
+                          className={`${readOnlyClassName} min-w-[100px] font-mono`}
+                          aria-label={`${index + 1}행 품목코드`}
+                        />
+                      </div>
                     ) : (
                       <DeliveryShippableCombobox
                         value={item.productCode}
@@ -184,13 +203,7 @@ export function DeliveryRegisterItemsForm({
                   </td>
                   <td className="px-2 py-1.5 align-top">
                     <input
-                      value={
-                        item.productName
-                          ? item.productVersion?.trim()
-                            ? `${item.productName} · ${item.productVersion.trim()}`
-                            : item.productName
-                          : ''
-                      }
+                      value={nameLabel}
                       readOnly
                       className={readOnlyClassName}
                       placeholder="자동"
@@ -201,16 +214,16 @@ export function DeliveryRegisterItemsForm({
                     <input
                       type="number"
                       min={0}
-                      max={item.maxQuantity > 0 ? item.maxQuantity : undefined}
+                      max={!billing && item.maxQuantity > 0 ? item.maxQuantity : undefined}
                       value={item.quantity}
                       placeholder={
-                        item.maxQuantity > 0
+                        !billing && item.maxQuantity > 0
                           ? `가능 ${item.maxQuantity.toLocaleString('ko-KR')}`
                           : '수량'
                       }
-                      disabled={disabled}
+                      disabled={rowLocked}
                       onChange={(event) => patchQuantity(index, event.target.value)}
-                      className={`${disabled ? readOnlyClassName : inputClassName} min-w-[88px] text-right tabular-nums placeholder:text-slate-400`}
+                      className={`${rowLocked ? readOnlyClassName : inputClassName} min-w-[88px] text-right tabular-nums placeholder:text-slate-400`}
                       aria-label={`${index + 1}행 수량`}
                     />
                   </td>
@@ -218,9 +231,10 @@ export function DeliveryRegisterItemsForm({
                     <QuoteNumericInput
                       min={0}
                       value={String(item.unitPrice)}
-                      onChange={(unitPrice) => patchItem(index, { unitPrice })}
-                      readOnly={disabled}
-                      className={`${disabled ? readOnlyClassName : inputClassName} min-w-[88px] text-right tabular-nums`}
+                      onChange={() => {}}
+                      readOnly
+                      className={`${readOnlyClassName} min-w-[88px] text-right tabular-nums`}
+                      aria-label={`${index + 1}행 단가`}
                     />
                   </td>
                   <td className="px-2 py-1.5 align-top">
@@ -232,7 +246,10 @@ export function DeliveryRegisterItemsForm({
                     />
                   </td>
                   <td className="px-1 py-1.5 text-center align-top">
-                    {!disabled && (fixedProducts || items.length > 1) ? (
+                    {!disabled &&
+                    !billing &&
+                    (fixedProducts ||
+                      items.filter((row) => !isBillingRegisterItem(row)).length > 1) ? (
                       <button
                         type="button"
                         onClick={() => removeRow(index)}
@@ -249,6 +266,9 @@ export function DeliveryRegisterItemsForm({
           </tbody>
         </table>
       </div>
+      <p className="mt-2 text-xs text-slate-500">
+        단가는 발주서 기준이며 여기서는 수정할 수 없습니다.
+      </p>
     </div>
   )
 }

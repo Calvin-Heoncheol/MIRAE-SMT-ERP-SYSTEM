@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ErpButton } from '@/components/ui/erp-button'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal } from '@/components/ui/erp-modal'
 import {
   AUTH_DEPARTMENTS,
@@ -100,6 +102,8 @@ function UsersModalContent({
   onDeleted,
 }: UsersModalProps) {
   const isCreate = mode === 'create'
+  const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const [form, setForm] = useState<FormState>(() =>
     user ? userToForm(user) : emptyForm(),
   )
@@ -155,9 +159,12 @@ function UsersModalContent({
   async function handleDelete() {
     if (!user) return
     if (
-      !window.confirm(
-        `${user.displayName || user.email} 계정을 삭제하시겠습니까?\n로그인할 수 없게 됩니다.`,
-      )
+      !(await confirm({
+        title: '사용자 삭제',
+        message: `${user.displayName || user.email} 계정을 삭제할까요?\n로그인할 수 없게 됩니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
     ) {
       return
     }
@@ -191,7 +198,7 @@ function UsersModalContent({
       closeOnEscape={!busy}
       footer={
         <div className="flex w-full items-center justify-between gap-3">
-          {!isCreate ? (
+          {!isCreate && canDelete ? (
             <ErpButton type="button" variant="danger" disabled={busy} onClick={() => void handleDelete()}>
               {deleting ? '삭제 중…' : '삭제'}
             </ErpButton>

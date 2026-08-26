@@ -2,9 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ErpModal } from '@/components/ui/erp-modal'
-import { createDeliveryRecord } from '@/lib/delivery/repository'
-import type { DeliveryAvailability } from '@/lib/delivery/utils'
-import { describeDeliveryBlockReason } from '@/lib/delivery/utils'
 import { createPostProcessProductionRecord } from '@/lib/post-process/repository'
 import { DEFAULT_POST_PROCESS_TEAM } from '@/lib/post-process/teams'
 import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-input/types'
@@ -30,25 +27,24 @@ import {
 
 /** 생산현황(총관리자)에서 등록한 이력 비고 */
 export const ADMIN_DIRECT_PRODUCTION_NOTE = '생산실사(관리자)'
-export const ADMIN_DIRECT_DELIVERY_NOTE = '직접출하(관리자)'
+
+type ProductionQuickStage = Exclude<ProductionStatusStage, 'delivery'>
 
 type ProductionStatusQuickInputModalProps = {
   open: boolean
-  stage: ProductionStatusStage
+  stage: ProductionQuickStage
   line: ProductionStatusLine | null
   product?: ProductionStatusProductLine | null
   smtOrders: ProductionOrderLine[]
   postOrders: ProductionOrderLine[]
-  deliveryOrders: ProductionOrderLine[]
   smtCounts: ProductionCounts
   postCounts: ProductionCounts
-  deliveryAvailabilityByGroupId: Record<string, DeliveryAvailability>
   onClose: () => void
   onRegistered: () => void
 }
 
 const STAGE_META: Record<
-  ProductionStatusStage,
+  ProductionQuickStage,
   { title: string; description: string; empty: string }
 > = {
   smt: {
@@ -61,11 +57,6 @@ const STAGE_META: Record<
     description: '생산계획·팀 선택 없이 수량만 등록합니다. 이력 비고에 「생산실사(관리자)」가 기록됩니다.',
     empty: '이 발주서에 후공정 대상이 없습니다.',
   },
-  delivery: {
-    title: '출하 직접 입력 (총관리자)',
-    description: '출하 가능 수량 범위에서 등록합니다. 이력 비고에 「직접출하(관리자)」가 기록됩니다.',
-    empty: '이 발주서에 출하 대상이 없습니다.',
-  },
 }
 
 export function ProductionStatusQuickInputModal({
@@ -75,17 +66,14 @@ export function ProductionStatusQuickInputModal({
   product = null,
   smtOrders,
   postOrders,
-  deliveryOrders,
   smtCounts,
   postCounts,
-  deliveryAvailabilityByGroupId,
   onClose,
   onRegistered,
 }: ProductionStatusQuickInputModalProps) {
   const [selectedKey, setSelectedKey] = useState('')
   const [localSmtCounts, setLocalSmtCounts] = useState(smtCounts)
   const [localPostCounts, setLocalPostCounts] = useState(postCounts)
-  const [localAvailability, setLocalAvailability] = useState(deliveryAvailabilityByGroupId)
   const [activeSide, setActiveSide] = useState<SmtPcbSide>('TOP')
   const [qty, setQty] = useState('')
   const [saving, setSaving] = useState(false)
@@ -100,65 +88,37 @@ export function ProductionStatusQuickInputModal({
         return product.smtOrderLineIds.includes(order.orderLineId)
       })
     }
-    if (stage === 'post_process') {
-      return postOrders.filter((order) => {
-        if (order.orderId !== line.orderId) return false
-        if (!product) return true
-        const groupId = order.assemblyGroupId || order.orderLineId
-        return product.assemblyGroupIds.includes(groupId)
-      })
-    }
-    return deliveryOrders.filter((order) => {
+    return postOrders.filter((order) => {
       if (order.orderId !== line.orderId) return false
       if (!product) return true
       const groupId = order.assemblyGroupId || order.orderLineId
       return product.assemblyGroupIds.includes(groupId)
     })
-  }, [deliveryOrders, line, postOrders, product, smtOrders, stage])
+  }, [line, postOrders, product, smtOrders, stage])
 
   useEffect(() => {
     if (!open) return
     setLocalSmtCounts(smtCounts)
     setLocalPostCounts(postCounts)
-    setLocalAvailability(deliveryAvailabilityByGroupId)
     setSelectedKey(orderTargets[0]?.uiKey || '')
     setQty('')
     setMessage(null)
     setActiveSide('TOP')
-  }, [deliveryAvailabilityByGroupId, open, orderTargets, postCounts, smtCounts])
+  }, [open, orderTargets, postCounts, smtCounts])
 
   const selectedOrder = orderTargets.find((order) => order.uiKey === selectedKey) ?? null
   const meta = STAGE_META[stage]
   const isDual = Boolean(selectedOrder?.splitPcbSides) && stage === 'smt'
   const pcbSide: SmtPcbSide = isDual ? (activeSide === 'BOT' ? 'BOT' : 'TOP') : 'SINGLE'
 
-  const produced =
-    stage === 'delivery'
-      ? selectedOrder
-        ? localAvailability[selectedOrder.assemblyGroupId || selectedOrder.orderLineId]?.shipped ?? 0
-        : 0
-      : selectedOrder
-        ? stage === 'smt'
-          ? resolveProductionSideCount(selectedOrder, localSmtCounts, pcbSide)
-          : resolveProductionCount(selectedOrder, localPostCounts)
-        : 0
-
-  const target = selectedOrder?.quantity ?? 0
-  const remaining = Math.max(0, target - produced)
-
-  const deliveryAvailability =
-    selectedOrder && stage === 'delivery'
-      ? localAvailability[selectedOrder.assemblyGroupId || selectedOrder.orderLineId] ?? null
-      : null
-
-  const deliveryRegisterMax = deliveryAvailability
-    ? Math.min(
-        Math.max(0, deliveryAvailability.targetQuantity - deliveryAvailability.shipped),
-        deliveryAvailability.shippable,
-      )
+  const produced = selectedOrder
+    ? stage === 'smt'
+      ? resolveProductionSideCount(selectedOrder, localSmtCounts, pcbSide)
+      : resolveProductionCount(selectedOrder, localPostCounts)
     : 0
 
-  const registerMax = stage === 'delivery' ? deliveryRegisterMax : remaining
+  const target = selectedOrder?.quantity ?? 0
+  const registerMax = Math.max(0, target - produced)
   const percent = getProgressPercent(produced, target)
 
   useEffect(() => {
@@ -183,9 +143,7 @@ export function ProductionStatusQuickInputModal({
         text:
           registerMax > 0
             ? `남은 수량(${registerMax.toLocaleString('ko-KR')})을 초과할 수 없습니다.`
-            : stage === 'delivery' && deliveryAvailability
-              ? describeDeliveryBlockReason(deliveryAvailability)
-              : '등록 가능한 수량이 없습니다.',
+            : '등록 가능한 수량이 없습니다.',
         kind: 'err',
       })
       return
@@ -218,62 +176,25 @@ export function ProductionStatusQuickInputModal({
       return
     }
 
-    if (stage === 'post_process') {
-      const assemblyGroupId = selectedOrder.assemblyGroupId || selectedOrder.orderLineId
-      const result = await createPostProcessProductionRecord({
-        assemblyGroupId,
-        quantity: value,
-        note: ADMIN_DIRECT_PRODUCTION_NOTE,
-        source: 'manual',
-        team: DEFAULT_POST_PROCESS_TEAM,
-      })
-      setSaving(false)
-      if (!result.ok) {
-        setMessage({ text: result.detail, kind: 'err' })
-        return
-      }
-      setLocalPostCounts((prev) => ({ ...prev, [assemblyGroupId]: result.cumulative }))
-      setMessage({
-        text: `${value.toLocaleString('ko-KR')}개 등록 · 누적 ${result.cumulative.toLocaleString('ko-KR')}`,
-        kind: 'ok',
-      })
-      setQty('')
-      onRegistered()
-      return
-    }
-
-    if (!deliveryAvailability) {
-      setSaving(false)
-      setMessage({ text: '출하 가능 정보를 불러오지 못했습니다.', kind: 'err' })
-      return
-    }
-
     const assemblyGroupId = selectedOrder.assemblyGroupId || selectedOrder.orderLineId
-    const result = await createDeliveryRecord({
+    const result = await createPostProcessProductionRecord({
       assemblyGroupId,
       quantity: value,
-      note: ADMIN_DIRECT_DELIVERY_NOTE,
+      note: ADMIN_DIRECT_PRODUCTION_NOTE,
+      source: 'manual',
+      team: DEFAULT_POST_PROCESS_TEAM,
     })
     setSaving(false)
     if (!result.ok) {
       setMessage({ text: result.detail, kind: 'err' })
       return
     }
-
-    const nextAvailability: DeliveryAvailability = {
-      ...deliveryAvailability,
-      shipped: result.cumulative,
-      shippable: Math.max(0, deliveryAvailability.productionCap - result.cumulative),
-    }
-    setLocalAvailability((prev) => ({ ...prev, [assemblyGroupId]: nextAvailability }))
+    setLocalPostCounts((prev) => ({ ...prev, [assemblyGroupId]: result.cumulative }))
     setMessage({
-      text: `출하번호 ${result.record.id} · ${value.toLocaleString('ko-KR')}개 등록`,
+      text: `${value.toLocaleString('ko-KR')}개 등록 · 누적 ${result.cumulative.toLocaleString('ko-KR')}`,
       kind: 'ok',
     })
-    setQty(nextAvailability.shippable > 0 ? String(Math.min(
-      Math.max(0, nextAvailability.targetQuantity - nextAvailability.shipped),
-      nextAvailability.shippable,
-    )) : '')
+    setQty('')
     onRegistered()
   }
 
@@ -301,13 +222,10 @@ export function ProductionStatusQuickInputModal({
             <ul className="max-h-40 overflow-y-auto sm:max-h-none sm:h-[calc(26rem-2rem)]">
               {orderTargets.map((order) => {
                 const selected = order.uiKey === selectedKey
-                const done =
-                  stage === 'delivery'
-                    ? localAvailability[order.assemblyGroupId || order.orderLineId]?.shipped ?? 0
-                    : resolveProductionCount(
-                        order,
-                        stage === 'smt' ? localSmtCounts : localPostCounts,
-                      )
+                const done = resolveProductionCount(
+                  order,
+                  stage === 'smt' ? localSmtCounts : localPostCounts,
+                )
                 return (
                   <li key={order.uiKey}>
                     <button

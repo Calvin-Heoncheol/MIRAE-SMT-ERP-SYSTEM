@@ -6,11 +6,11 @@ import type {
   UpdateItemPayload,
 } from './types'
 import {
-  isManualItemCodeCategory,
-  isOptionalItemCodeCategory,
+  isMaterialItemCategory,
   isProductItemCategory,
   isRawMaterialItemCategory,
   isSemiFinishedItemCategory,
+  ITEM_SUPPLY_TYPE_OPTIONS,
 } from './types'
 import { normalizeItemCategory, normalizeAlternateMpns } from './utils'
 import {
@@ -133,14 +133,17 @@ export function validateItemForm(form: ItemFormState, options?: { isCreate?: boo
   if (!form.customerId.trim()) {
     return '고객사를 거래처 목록에서 선택해 주세요.'
   }
-  if (isManualItemCodeCategory(category) && !form.id.trim()) {
-    return '품목코드를 입력해 주세요.'
-  }
-  if (!options?.isCreate && !form.id.trim() && !isOptionalItemCodeCategory(category)) {
+  if (!options?.isCreate && !form.id.trim()) {
     return '품목코드를 찾을 수 없습니다.'
   }
   if (isRawMaterialItemCategory(category) && !form.materialType) {
     return '공정구분을 선택해 주세요.'
+  }
+  if (isMaterialItemCategory(category)) {
+    const supplyType = String(form.supplyType || '').trim()
+    if (!ITEM_SUPPLY_TYPE_OPTIONS.includes(supplyType as (typeof ITEM_SUPPLY_TYPE_OPTIONS)[number])) {
+      return '도급/사급을 선택해 주세요.'
+    }
   }
   if (isSemiFinishedItemCategory(category) && !form.processType) {
     return '생산 공정(SMD/후공정)을 선택해 주세요.'
@@ -163,10 +166,7 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
 
   const isRawMaterial = isRawMaterialItemCategory(itemCategory)
   const isProduct = isProductItemCategory(itemCategory)
-  const baseCodeInput = (
-    form.id.trim() ||
-    (isManualItemCodeCategory(itemCategory) ? '' : form.name.trim())
-  ).trim()
+  const baseCodeInput = form.id.trim()
   const { baseCode, version } = resolveItemCodeParts({
     codeOrId: baseCodeInput,
     version: form.version,

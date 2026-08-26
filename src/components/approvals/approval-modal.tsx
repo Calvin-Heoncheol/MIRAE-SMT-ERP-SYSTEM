@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ApprovalFormDocument } from '@/components/approvals/approval-form-document'
 import { ErpButton } from '@/components/ui/erp-button'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal } from '@/components/ui/erp-modal'
 import type { ApprovalCategory } from '@/lib/approvals/categories'
 import {
@@ -67,6 +68,7 @@ export function ApprovalModal({
   onSignoffComplete,
 }: ApprovalModalProps) {
   const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const [selectedCategory, setSelectedCategory] = useState<ApprovalCategory>(category)
   const [form, setForm] = useState<ApprovalFormState>(createDefaultApprovalForm())
   const [saving, setSaving] = useState(false)
@@ -123,7 +125,17 @@ export function ApprovalModal({
   }
 
   async function handleDelete() {
-    if (!approval || !window.confirm('이 품의서를 삭제할까요?')) return
+    if (!approval) return
+    if (
+      !(await confirm({
+        title: '품의서 삭제',
+        message: '이 품의서를 삭제할까요?\n삭제 후에는 복구할 수 없습니다.',
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
 
     setSaving(true)
     await deleteApprovalAttachmentFiles(form.attachmentFiles.map((file) => file.path))

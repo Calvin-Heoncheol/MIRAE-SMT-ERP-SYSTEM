@@ -114,25 +114,54 @@ export async function fetchSmtCumulativeCounts(): Promise<FetchSmtCumulativeCoun
 
   try {
     const supabase = createSupabaseClient()
+    const PAGE_SIZE = 1000
     let usedLegacyTotals = false
-    let { data, error } = await supabase
-      .from('smt_production_totals')
-      .select('order_line_id, pcb_side, total_quantity, total_defect_quantity')
+    const rows: {
+      order_line_id?: string | null
+      pcb_side?: string | null
+      total_quantity?: number | null
+      total_defect_quantity?: number | null
+    }[] = []
+    let from = 0
 
-    if (error && isMissingSmtDefectQuantityColumn(error.message)) {
-      usedLegacyTotals = true
-      ;({ data, error } = await supabase
-        .from('smt_production_totals')
-        .select('order_line_id, pcb_side, total_quantity'))
-    }
+    for (;;) {
+      const to = from + PAGE_SIZE - 1
+      let data: typeof rows | null = null
+      let error: { message: string } | null = null
 
-    if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
+      if (usedLegacyTotals) {
+        ;({ data, error } = await supabase
+          .from('smt_production_totals')
+          .select('order_line_id, pcb_side, total_quantity')
+          .range(from, to))
+      } else {
+        ;({ data, error } = await supabase
+          .from('smt_production_totals')
+          .select('order_line_id, pcb_side, total_quantity, total_defect_quantity')
+          .range(from, to))
+
+        if (error && isMissingSmtDefectQuantityColumn(error.message)) {
+          usedLegacyTotals = true
+          ;({ data, error } = await supabase
+            .from('smt_production_totals')
+            .select('order_line_id, pcb_side, total_quantity')
+            .range(from, to))
+        }
+      }
+
+      if (error) {
+        return { ok: false, reason: 'query', detail: error.message }
+      }
+
+      const page = data || []
+      rows.push(...page)
+      if (page.length < PAGE_SIZE) break
+      from += PAGE_SIZE
     }
 
     const counts: Record<string, number> = {}
     const defectCounts: Record<string, number> = {}
-    for (const row of data || []) {
+    for (const row of rows) {
       const orderLineId = String(row.order_line_id || '').trim()
       if (!orderLineId) continue
       const pcbSideRaw = String(row.pcb_side || 'SINGLE').toUpperCase()
@@ -143,7 +172,7 @@ export async function fetchSmtCumulativeCounts(): Promise<FetchSmtCumulativeCoun
       if (!usedLegacyTotals) {
         defectCounts[key] = Math.max(
           0,
-          Math.floor(Number((row as { total_defect_quantity?: number }).total_defect_quantity) || 0),
+          Math.floor(Number(row.total_defect_quantity) || 0),
         )
       }
     }
@@ -694,7 +723,7 @@ async function fetchSmtProductionRecords(options?: {
 
     const rows: SmtProductionHistoryRow[] = []
     for (const row of data || []) {
-      const mapped = mapSmtProductionHistoryRow(row as unknown as SmtProductionHistoryRecordRow)
+      const mapped = mapSmtProductionHistoryRow(row as SmtProductionHistoryRecordRow)
       if (mapped) rows.push(mapped)
     }
 

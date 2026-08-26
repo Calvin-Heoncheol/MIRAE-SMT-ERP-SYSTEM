@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { deleteSolderCreamEquipmentLogs } from '@/lib/materials/solder-cream/repository'
@@ -85,6 +86,7 @@ export function SolderCreamLotHistoryModal({
   onDeleted,
   onRequestScrap,
 }: SolderCreamLotHistoryModalProps) {
+  const confirm = useErpConfirm()
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
 
@@ -99,9 +101,12 @@ export function SolderCreamLotHistoryModal({
   async function handleDelete() {
     if (!historyRow?.logIds.length || deleting) return
     if (
-      !window.confirm(
-        `${lotNumber} LOT 이력을 삭제할까요?\n현황도 함께 다시 계산됩니다.`,
-      )
+      !(await confirm({
+        title: 'LOT 이력 삭제',
+        message: `${lotNumber} LOT 이력을 삭제할까요?\n현황도 함께 다시 계산됩니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
     ) {
       return
     }

@@ -1,14 +1,17 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import type { BusinessPartner } from '@/lib/partners/types'
 import type { SalesReportShipmentRow, SalesReportStatementGroup } from '@/lib/reports/sales-report'
-import { updateStatementLines } from '@/lib/reports/statement-edit'
+import { deleteStatementLines, updateStatementLines } from '@/lib/reports/statement-edit'
 import {
+  ERP_DANGER_BUTTON_CLASS,
   ERP_FIELD_INPUT_CLASS,
   ERP_FIELD_LABEL_CLASS,
   ERP_SECONDARY_BUTTON_CLASS,
@@ -20,6 +23,7 @@ type SalesStatementEditModalProps = {
   group: SalesReportStatementGroup | null
   onClose: () => void
   onSaved?: (message?: string) => void
+  onDeleted?: (message?: string) => void
 }
 
 type LineDraft = {
@@ -83,7 +87,10 @@ export function SalesStatementEditModal({
   group,
   onClose,
   onSaved,
+  onDeleted,
 }: SalesStatementEditModalProps) {
+  const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const isLegacy = group?.source === 'legacy' || group?.lines.some((line) => line.source === 'legacy')
   const [partners, setPartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(false)
@@ -91,6 +98,7 @@ export function SalesStatementEditModal({
   const [customer, setCustomer] = useState('')
   const [drafts, setDrafts] = useState<LineDraft[]>([])
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -100,6 +108,7 @@ export function SalesStatementEditModal({
     setDrafts(group.lines.map(toDraft))
     setError(null)
     setSaving(false)
+    setDeleting(false)
   }, [open, group])
 
   useEffect(() => {
@@ -181,8 +190,46 @@ export function SalesStatementEditModal({
     onClose()
   }
 
+  async function handleDelete() {
+    if (!group || !drafts.length) return
+    if (
+      !(await confirm({
+        title: '거래명세서 삭제',
+        message: `출하번호 ${group.shipmentId} 명세 ${drafts.length}건을 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
+
+    setDeleting(true)
+    setError(null)
+
+    const result = await deleteStatementLines(
+      drafts.map((line) => ({
+        source: line.source,
+        deliveryId: line.deliveryId,
+        orderNumber: line.orderId || line.orderNumber,
+        orderLineId: line.orderLineId,
+        productCode: line.productCode,
+      })),
+    )
+
+    setDeleting(false)
+    if (!result.ok) {
+      setError(result.detail)
+      return
+    }
+
+    onDeleted?.('거래명세서 내역을 삭제했습니다.')
+    onClose()
+  }
+
+  const busy = saving || deleting
   const cellInputClass =
     'h-8 w-full min-w-0 rounded-md border border-slate-200 px-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
+  const cellReadOnlyClass = `${cellInputClass} bg-slate-50 text-slate-600`
 
   return (
     <ErpModal
@@ -191,22 +238,36 @@ export function SalesStatementEditModal({
       description={
         isLegacy
           ? '과거 명세서입니다. 출하일·고객사는 같은 발주서에 함께 반영됩니다.'
-          : '출하일·수량·단가를 품목별로 수정합니다. 단가는 발주서 품목 단가에도 반영됩니다.'
+          : '출하일·수량을 품목별로 수정합니다. 단가는 발주서 기준으로 표시되며 여기서는 수정할 수 없습니다.'
       }
       size="xl"
       onClose={onClose}
-      closeOnEscape={!saving}
+      closeOnEscape={!busy}
       footer={
-        <>
-          <CancelButton disabled={saving} />
-          <ErpButton
-            disabled={saving || !drafts.length}
-            loading={saving}
-            onClick={() => void handleSave()}
-          >
-            저장
-          </ErpButton>
-        </>
+        <div className="flex w-full flex-wrap items-center justify-between gap-2">
+          <div>
+            {canDelete ? (
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                disabled={busy || !drafts.length}
+                className={ERP_DANGER_BUTTON_CLASS}
+              >
+                {deleting ? '삭제 중…' : '삭제'}
+              </button>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <CancelButton disabled={busy} />
+            <ErpButton
+              disabled={busy || !drafts.length}
+              loading={saving}
+              onClick={() => void handleSave()}
+            >
+              저장
+            </ErpButton>
+          </div>
+        </div>
       }
     >
       {group ? (
@@ -326,15 +387,10 @@ export function SalesStatementEditModal({
                           type="text"
                           inputMode="numeric"
                           value={line.unitPrice}
-                          onChange={(event) =>
-                            patchDraft(index, { unitPrice: event.target.value.replace(/[^\d,]/g, '') })
-                          }
-                          onBlur={() =>
-                            patchDraft(index, {
-                              unitPrice: formatMoneyInput(parseMoneyInput(line.unitPrice)),
-                            })
-                          }
-                          className={`${cellInputClass} text-right tabular-nums`}
+                          readOnly
+                          tabIndex={-1}
+                          className={`${cellReadOnlyClass} text-right tabular-nums`}
+                          aria-label={`${index + 1}행 단가`}
                         />
                       </td>
                       <td className="px-2 py-2 text-right font-semibold tabular-nums text-slate-900">

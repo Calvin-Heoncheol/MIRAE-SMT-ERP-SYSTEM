@@ -9,7 +9,7 @@ import {
   defaultOrderItemForm,
   type OrderItemForm,
 } from '@/lib/orders/form-state'
-import { computeLineAmount, formatOrderMoney, orderCurrencySymbol } from '@/lib/orders/utils'
+import { computeLineAmount, formatOrderMoney, isBillingOnlyOrderItem, orderCurrencySymbol } from '@/lib/orders/utils'
 import type { OrderCurrency } from '@/lib/orders/types'
 import type { Product } from '@/lib/products/types'
 import { findProductsByCode, findProductsByName } from '@/lib/products/utils'
@@ -28,6 +28,17 @@ function unitPriceFromProduct(product: Product) {
 }
 
 function applyProductToItem(item: OrderItemForm, product: Product): OrderItemForm {
+  if (item.isAdhoc) {
+    return {
+      ...item,
+      productId: product.id,
+      productCode: product.productCode,
+      productName: product.productName,
+      // 추가작업 단가는 직접 입력 (마스터 단가 덮어쓰지 않음)
+      quoteId: '',
+      isAdhoc: true,
+    }
+  }
   return {
     ...item,
     productId: product.id,
@@ -40,7 +51,7 @@ function applyProductToItem(item: OrderItemForm, product: Product): OrderItemFor
 }
 
 function productVersionCandidates(item: OrderItemForm, products: Product[], customer: string): Product[] {
-  if (item.isAdhoc || item.productId) return []
+  if (item.productId) return []
   const code = item.productCode.trim()
   const name = item.productName.trim()
   if (code) {
@@ -55,7 +66,6 @@ function productVersionCandidates(item: OrderItemForm, products: Product[], cust
 }
 
 function productVersionLabel(item: OrderItemForm, products: Product[]) {
-  if (item.isAdhoc) return null
   const byId = item.productId ? products.find((product) => product.id === item.productId) : null
   if (byId?.version) return byId.version
   const byCode = products.find(
@@ -91,7 +101,7 @@ export function OrderItemsForm({
     onChange((current) => {
       let changed = false
       const next = current.map((item) => {
-        if (item.isAdhoc || !item.productId) return item
+        if (item.isAdhoc || isBillingOnlyOrderItem(item)) return item
         if (Math.round(Number(item.unitPrice) || 0) > 0) return item
         const product = products.find((entry) => entry.id === item.productId)
         if (!product) return item
@@ -200,71 +210,36 @@ export function OrderItemsForm({
                   className={['border-t border-slate-100', isAdhoc ? 'bg-amber-50/40' : ''].join(' ')}
                 >
                   <td className="px-2 py-2 align-top">
-                    {isAdhoc ? (
-                      <input
-                        value={item.productCode}
-                        onChange={(event) =>
-                          patchItem(index, {
-                            productCode: event.target.value,
-                            productId: '',
-                            quoteId: '',
-                          })
-                        }
-                        placeholder="코드 (선택)"
-                        aria-label={`${index + 1}행 추가 작업 코드`}
-                        className={inputClassName}
-                      />
-                    ) : (
-                      <ProductCombobox
-                        value={item.productCode}
-                        products={products}
-                        customer={customer}
-                        field="code"
-                        placeholder="코드 검색"
-                        ariaLabel={`${index + 1}행 제품코드`}
-                        inputClassName={inputClassName}
-                        onValueChange={(productCode) =>
-                          patchItem(index, {
-                            productCode,
-                            productId: '',
-                            productName: '',
-                            quoteId: '',
-                            unitPrice: '0',
-                          })
-                        }
-                        onProductSelect={(product) => selectProduct(index, product)}
-                        onVersionResolved={() => focusQuantity(index)}
-                      />
-                    )}
+                    <ProductCombobox
+                      value={item.productCode}
+                      products={products}
+                      customer={customer}
+                      field="code"
+                      placeholder={isAdhoc ? '코드 검색 (추가작업)' : '코드 검색'}
+                      ariaLabel={`${index + 1}행 ${isAdhoc ? '추가작업 ' : ''}제품코드`}
+                      inputClassName={inputClassName}
+                      onValueChange={(productCode) =>
+                        patchItem(index, {
+                          productCode,
+                          productId: '',
+                          productName: '',
+                          quoteId: '',
+                          ...(isAdhoc ? {} : { unitPrice: '0' }),
+                        })
+                      }
+                      onProductSelect={(product) => selectProduct(index, product)}
+                      onVersionResolved={() => focusQuantity(index)}
+                    />
                   </td>
                   <td className="px-2 py-2 align-top">
-                    {isAdhoc ? (
-                      <div className="space-y-1">
-                        <input
-                          value={item.productName}
-                          onChange={(event) =>
-                            patchItem(index, {
-                              productName: event.target.value,
-                              productId: '',
-                              quoteId: '',
-                            })
-                          }
-                          placeholder="예: 추가가공비, 특별할증"
-                          aria-label={`${index + 1}행 추가 작업명`}
-                          className={inputClassName}
-                        />
-                        <span className="inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
-                          추가 작업
-                        </span>
-                      </div>
-                    ) : (
+                    <div className="space-y-1">
                       <ProductCombobox
                         value={item.productName}
                         products={products}
                         customer={customer}
                         field="name"
-                        placeholder="제품명"
-                        ariaLabel={`${index + 1}행 제품명`}
+                        placeholder={isAdhoc ? '제품명 (추가작업)' : '제품명'}
+                        ariaLabel={`${index + 1}행 ${isAdhoc ? '추가작업 ' : ''}제품명`}
                         inputClassName={inputClassName}
                         onValueChange={(productName) =>
                           patchItem(index, {
@@ -272,20 +247,21 @@ export function OrderItemsForm({
                             productId: '',
                             productCode: '',
                             quoteId: '',
-                            unitPrice: '0',
+                            ...(isAdhoc ? {} : { unitPrice: '0' }),
                           })
                         }
                         onProductSelect={(product) => selectProduct(index, product)}
                         onVersionResolved={() => focusQuantity(index)}
                       />
-                    )}
+                      {isAdhoc ? (
+                        <span className="inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                          추가 작업
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-2 py-2 align-top text-center">
-                    {isAdhoc ? (
-                      <div className="flex h-[34px] items-center justify-center text-xs text-slate-300">
-                        —
-                      </div>
-                    ) : versionCandidates.length > 1 ? (
+                    {versionCandidates.length > 1 ? (
                       <select
                         aria-label={`${index + 1}행 버전 선택`}
                         defaultValue=""
@@ -385,9 +361,9 @@ export function OrderItemsForm({
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        제품을 선택하면 품목의 기본 단가가 자동으로 들어갑니다. 이번 발주만 다르면 단가를 직접
-        고치면 됩니다. 추가 작업은 품목등록 없이 금액만 넣으며, 생산에는 반영되지 않고
-        거래명세서에만 표시됩니다.
+        제품·추가 작업 모두 품목등록에 있는 항목만 저장됩니다. 추가 작업은 같은 제품코드여도
+        별도 행으로 두며, 생산에는 반영되지 않고 거래명세서에만 표시됩니다. 단가는 발주서에서만
+        수정하며, 출하·거래명세서에는 자동 반영됩니다.
       </p>
     </div>
   )

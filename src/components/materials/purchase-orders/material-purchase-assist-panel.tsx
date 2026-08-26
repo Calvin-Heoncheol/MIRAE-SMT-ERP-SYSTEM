@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import type { BomEdge } from '@/lib/materials/outbound/types'
 import type { Material } from '@/lib/materials/types'
 import { buildOrderPurchaseMaterialPreview } from '@/lib/materials/purchase-orders/need-utils'
@@ -8,7 +9,7 @@ import type {
   MaterialPurchaseSuggestionLine,
   OrderPurchaseCard,
 } from '@/lib/materials/purchase-orders/types'
-import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 export type PurchaseAssistFillPayload = {
   items: {
@@ -54,6 +55,7 @@ export function MaterialPurchaseAssistPanel({
   onClose,
   onFill,
 }: MaterialPurchaseAssistPanelProps) {
+  const confirm = useErpConfirm()
   const [search, setSearch] = useState('')
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<Set<string>>(
     () => new Set(suggestionLines.map((line) => line.materialId)),
@@ -96,7 +98,7 @@ export function MaterialPurchaseAssistPanel({
     return String(remainingQuantity)
   }
 
-  function applyOrderProduct(card: OrderPurchaseCard, orderLineId: string) {
+  async function applyOrderProduct(card: OrderPurchaseCard, orderLineId: string) {
     const product = card.products.find((item) => item.orderLineId === orderLineId)
     if (!product || !product.hasBom || product.remainingQuantity <= 0) return
 
@@ -106,10 +108,16 @@ export function MaterialPurchaseAssistPanel({
       return
     }
     if (purchaseQuantity > product.remainingQuantity) {
-      const ok = window.confirm(
-        `잔량(${product.remainingQuantity.toLocaleString('ko-KR')})보다 많은 수량입니다. 그대로 진행할까요?`,
-      )
-      if (!ok) return
+      if (
+        !(await confirm({
+          title: '잔량 초과 구매발주',
+          message: `잔량(${product.remainingQuantity.toLocaleString('ko-KR')})보다 많은 수량입니다. 그대로 진행할까요?`,
+          confirmLabel: '확인',
+          tone: 'default',
+        }))
+      ) {
+        return
+      }
     }
 
     const preview = buildOrderPurchaseMaterialPreview({
@@ -300,7 +308,7 @@ export function MaterialPurchaseAssistPanel({
                               </label>
                               <button
                                 type="button"
-                                onClick={() => applyOrderProduct(card, product.orderLineId)}
+                                onClick={() => void applyOrderProduct(card, product.orderLineId)}
                                 className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900"
                               >
                                 BOM 채우기
@@ -325,7 +333,7 @@ export function MaterialPurchaseAssistPanel({
           ) : (
             <div className="overflow-x-auto rounded-lg border border-slate-300">
               <table className="min-w-[880px] w-full border-collapse text-sm">
-                <thead className="bg-slate-100">
+                <thead className={ERP_TABLE_HEAD_CLASS}>
                   <tr>
                     <th className="px-3 py-2 text-left">
                       <input

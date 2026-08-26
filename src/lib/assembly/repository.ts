@@ -235,7 +235,12 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
     )
     if (!derivedResult.ok) {
       if (derivedResult.detail.includes('derived_from_line_id')) {
-        return { ok: true, groupCount: 0 }
+        return {
+          ok: false,
+          reason: 'query',
+          detail:
+            '조립 파생 라인 컬럼(derived_from_line_id)이 없습니다. supabase/setup-bom.sql 또는 조립 그룹 마이그레이션을 적용하세요.',
+        }
       }
       return { ok: false, reason: 'query', detail: derivedResult.detail }
     }
@@ -255,7 +260,12 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
 
     if (existingError) {
       if (isMissingAssemblyTable(existingError.message)) {
-        return { ok: true, groupCount: 0 }
+        return {
+          ok: false,
+          reason: 'query',
+          detail:
+            '조립 그룹 테이블이 없습니다. supabase/setup-bom.sql 또는 조립 그룹 마이그레이션을 적용하세요.',
+        }
       }
       return { ok: false, reason: 'query', detail: existingError.message }
     }
@@ -318,10 +328,19 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
           .single()
 
         if (insertGroupError || !inserted?.id) {
+          const detail = insertGroupError?.message || '조립 그룹 저장에 실패했습니다.'
+          if (isMissingAssemblyTable(detail)) {
+            return {
+              ok: false,
+              reason: 'query',
+              detail:
+                '조립 그룹 테이블이 없습니다. supabase/setup-bom.sql 또는 조립 그룹 마이그레이션을 적용하세요.',
+            }
+          }
           return {
             ok: false,
             reason: 'query',
-            detail: insertGroupError?.message || '조립 그룹 저장에 실패했습니다.',
+            detail,
           }
         }
 
@@ -340,6 +359,14 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
       )
 
       if (insertLinesError) {
+        if (isMissingAssemblyTable(insertLinesError.message)) {
+          return {
+            ok: false,
+            reason: 'query',
+            detail:
+              '조립 그룹 테이블이 없습니다. supabase/setup-bom.sql 또는 조립 그룹 마이그레이션을 적용하세요.',
+          }
+        }
         return { ok: false, reason: 'query', detail: insertLinesError.message }
       }
     }

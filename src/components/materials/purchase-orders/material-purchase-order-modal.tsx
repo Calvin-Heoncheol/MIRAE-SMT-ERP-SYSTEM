@@ -7,6 +7,9 @@ import {
   type PurchaseAssistFillPayload,
 } from '@/components/materials/purchase-orders/material-purchase-assist-panel'
 import { MaterialPurchaseOrderItemsForm } from '@/components/materials/purchase-orders/material-purchase-order-items-form'
+import { ErpButton } from '@/components/ui/erp-button'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
+import { ErpModal } from '@/components/ui/erp-modal'
 import { validateMaterialPurchaseOrderItems } from '@/lib/materials/purchase-orders/build-payload'
 import {
   defaultMaterialPurchaseOrderItemForm,
@@ -38,7 +41,12 @@ import type { BomEdge } from '@/lib/materials/outbound/types'
 import { fetchMaterials } from '@/lib/materials/repository'
 import type { Material } from '@/lib/materials/types'
 import { resolveMaterialByInventoryCode } from '@/lib/materials/utils'
-import { ERP_DANGER_BUTTON_CLASS, ERP_PRIMARY_BUTTON_CLASS, ERP_SECONDARY_BUTTON_CLASS } from '@/lib/ui/tokens'
+import {
+  ERP_FIELD_INPUT_CLASS,
+  ERP_FIELD_LABEL_CLASS,
+  ERP_WARNING_BOX_CLASS,
+  ERP_TABLE_HEAD_CLASS,
+} from '@/lib/ui/tokens'
 
 type MaterialPurchaseOrderModalProps = {
   open: boolean
@@ -102,6 +110,7 @@ function MaterialPurchaseOrderModalContent({
   onDeleted,
 }: Omit<MaterialPurchaseOrderModalProps, 'open'>) {
   const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const [form, setForm] = useState<MaterialPurchaseOrderFormState>(() =>
     createInitialForm(order, initialSupplier),
   )
@@ -154,6 +163,7 @@ function MaterialPurchaseOrderModalContent({
   const readOnly = mode === 'edit' && Boolean(order?.hasInbound)
   /** 발주서/제안에서 시드된 신규 구매발주 — 자재코드·공급사·수량·단가 잠금 */
   const lockSeededFields = mode === 'create' && Boolean(initialItems?.length)
+  const busy = saving || deleting
 
   async function ensureRegisterData() {
     if (registerLoaded) return true
@@ -254,18 +264,6 @@ function MaterialPurchaseOrderModalContent({
       return changed ? next : current
     })
   }, [materials, lockSeededFields])
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !deleting) onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = ''
-    }
-  }, [onClose, deleting])
 
   function updateForm<K extends keyof MaterialPurchaseOrderFormState>(
     key: K,
@@ -385,7 +383,14 @@ function MaterialPurchaseOrderModalContent({
 
   async function handleDelete() {
     if (!order || readOnly) return
-    if (!window.confirm(`${order.orderNumber} 구매발주를 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) {
+    if (
+      !(await confirm({
+        title: '구매발주 삭제',
+        message: `${order.orderNumber} 구매발주를 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
       return
     }
 
@@ -404,273 +409,252 @@ function MaterialPurchaseOrderModalContent({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-      <div className="relative flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
-          <h2 className="text-lg font-bold text-slate-900">
-            {mode === 'edit'
-              ? `구매발주 수정 (${items.length}개 품목)`
-              : '신규 구매발주'}
-          </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            {mode === 'create' && !readOnly ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void openAssist('order')}
-                  disabled={assistLoading || saving || deleting}
-                  className={`${ERP_SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
-                >
-                  {assistLoading && assistMode == null ? '불러오는 중…' : '발주서'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void openAssist('stock')}
-                  disabled={assistLoading || saving || deleting}
-                  className={`${ERP_SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
-                >
-                  재고현황
-                </button>
-              </>
-            ) : null}
-            {mode === 'edit' && !readOnly && canDelete ? (
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting || saving}
-                className={ERP_DANGER_BUTTON_CLASS}
-              >
-                {deleting ? '삭제 중...' : '삭제'}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={deleting}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
-              aria-label="닫기"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto overflow-y-auto p-6">
-          {readOnly ? (
-            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              입고 이력이 있는 구매발주는 수정·삭제할 수 없습니다.
-            </div>
-          ) : null}
-
-          {assistError ? (
-            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              {assistError}
-            </div>
-          ) : null}
-
-          {mode === 'create' && coverProductQuantity != null && coverProductQuantity > 0 ? (
-            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
-              이 구매발주서가 커버하는 제품 수량:{' '}
-              <span className="font-bold tabular-nums">
-                {coverProductQuantity.toLocaleString('ko-KR')}
-              </span>
-              개 (발주서 카드의 구매발주 수량에 합산됩니다)
-              {coverSourceOrderId ? (
-                <span className="ml-2 font-mono text-xs text-slate-500">({coverSourceOrderId})</span>
-              ) : null}
-            </div>
-          ) : null}
-
-          {mode === 'edit' && order?.coveredProductQuantity ? (
-            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
-              부분 구매발주 · 커버 제품 수량{' '}
-              <span className="font-bold tabular-nums">
-                {order.coveredProductQuantity.toLocaleString('ko-KR')}
-              </span>
-              개
-              {order.sourceOrderId ? (
-                <span className="ml-2 font-mono text-xs text-slate-500">
-                  ({order.sourceOrderId})
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {mode === 'edit' && order ? (
-              <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-medium text-slate-600">구매발주번호</span>
-                <input
-                  value={order.orderNumber}
-                  readOnly
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600"
-                />
-              </label>
-            ) : null}
-            {(mode === 'edit' ? order?.sourceOrderId : coverSourceOrderId) ? (
-              <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-medium text-slate-600">구분 · 연결 발주서</span>
-                <input
-                  value={`부분 구매발주 · ${(mode === 'edit' ? order?.sourceOrderId : coverSourceOrderId) || ''}`}
-                  readOnly
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs text-slate-600"
-                />
-              </label>
-            ) : mode === 'edit' ? (
-              <label className="block text-sm sm:col-span-2">
-                <span className="mb-1 block font-medium text-slate-600">구분</span>
-                <input
-                  value="자재별 구매발주"
-                  readOnly
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
-                />
-              </label>
-            ) : null}
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">구매발주일</span>
-              <input
-                type="date"
-                value={form.orderDate}
-                onChange={(event) => updateForm('orderDate', event.target.value)}
-                readOnly={readOnly}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">공급사</span>
-              <input
-                value={form.supplier}
-                onChange={(event) => updateForm('supplier', event.target.value)}
-                readOnly={readOnly || lockSeededFields}
-                placeholder="공급사명"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50 read-only:bg-slate-50"
-              />
-            </label>
-            <label className="block text-sm sm:col-span-2">
-              <span className="mb-1 block font-medium text-slate-600">기본 납기일</span>
-              <input
-                type="date"
-                value={form.deliveryDate}
-                onChange={(event) => updateForm('deliveryDate', event.target.value)}
-                readOnly={readOnly}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 disabled:bg-slate-50"
-              />
-              <span className="mt-1 block text-xs text-slate-500">
-                행에 비어 있는 납기일자를 채우고, 목록 요약에도 사용됩니다.
-              </span>
-            </label>
-          </div>
-
-          <div className="mt-6">
-            {readOnly ? <h3 className="mb-3 text-sm font-bold text-slate-900">구매발주 품목</h3> : null}
-            {readOnly ? (
-              <div className="overflow-x-auto rounded-lg border border-slate-300">
-                <table className="min-w-[760px] w-full border-collapse text-sm">
-                  <thead className="bg-slate-100">
-                    <tr>
-                      <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
-                        품목코드
-                      </th>
-                      <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
-                        품목명
-                      </th>
-                      <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
-                        규격
-                      </th>
-                      <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
-                        수량
-                      </th>
-                      <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
-                        단가
-                      </th>
-                      <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
-                        공급가액
-                      </th>
-                      <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
-                        납기일자
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {order?.items.map((item, index) => (
-                      <tr key={item.lineId || index} className="border-t border-slate-200">
-                        <td className="px-2.5 py-2 text-center">{item.materialCode || '-'}</td>
-                        <td className="px-2.5 py-2">{item.materialName}</td>
-                        <td className="px-2.5 py-2">{item.specification || '-'}</td>
-                        <td className="px-2.5 py-2 text-right tabular-nums">
-                          {item.quantity.toLocaleString('ko-KR')}
-                        </td>
-                        <td className="px-2.5 py-2 text-right tabular-nums">
-                          {item.unitPrice.toLocaleString('ko-KR')}
-                        </td>
-                        <td className="px-2.5 py-2 text-right tabular-nums">
-                          {item.orderAmount.toLocaleString('ko-KR')}
-                        </td>
-                        <td className="px-2.5 py-2 text-center tabular-nums">
-                          {item.deliveryDate || order?.deliveryDate || '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <MaterialPurchaseOrderItemsForm
-                items={items}
-                supplier={form.supplier}
-                materials={materials}
-                defaultDeliveryDate={form.deliveryDate}
-                lockSeededFields={lockSeededFields}
-                onChange={setItems}
-                onSupplierSuggest={suggestSupplier}
-              />
-            )}
-          </div>
-
-          {saveError ? <p className="mt-4 text-sm text-red-600">{saveError}</p> : null}
-        </div>
-
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving || deleting}
-            className={`${ERP_SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
-          >
-            {readOnly ? '닫기' : '취소'}
-          </button>
-          {mode === 'edit' && order ? (
-            <button
-              type="button"
-              onClick={handlePrintOnly}
-              disabled={saving || deleting}
-              className={`${ERP_SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
-            >
-              구매발주서 출력
-            </button>
-          ) : null}
-          {!readOnly ? (
+    <>
+      <ErpModal
+        open
+        size="lg"
+        title={
+          mode === 'edit' ? `구매발주 수정 (${items.length}개 품목)` : '신규 구매발주'
+        }
+        onClose={onClose}
+        closeOnEscape={!busy}
+        headerActions={
+          mode === 'create' && !readOnly ? (
             <>
-              <button
-                type="button"
-                onClick={() => void handleSave(false)}
-                disabled={saving || deleting}
-                className={`${ERP_PRIMARY_BUTTON_CLASS} disabled:opacity-50`}
+              <ErpButton
+                variant="secondary"
+                onClick={() => void openAssist('order')}
+                disabled={assistLoading || busy}
               >
-                {saving ? '저장 중...' : '저장'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSave(true)}
-                disabled={saving || deleting}
-                className={`${ERP_SECONDARY_BUTTON_CLASS} disabled:opacity-50`}
+                {assistLoading && assistMode == null ? '불러오는 중…' : '발주서'}
+              </ErpButton>
+              <ErpButton
+                variant="secondary"
+                onClick={() => void openAssist('stock')}
+                disabled={assistLoading || busy}
               >
-                {saving ? '저장 중...' : '저장 후 구매발주서'}
-              </button>
+                재고현황
+              </ErpButton>
             </>
+          ) : undefined
+        }
+        footer={
+          <div className="flex w-full flex-col gap-2">
+            {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+            <div className="flex w-full flex-wrap items-center justify-between gap-2">
+              {mode === 'edit' && !readOnly && canDelete ? (
+                <ErpButton
+                  variant="danger"
+                  onClick={() => void handleDelete()}
+                  disabled={busy}
+                  loading={deleting}
+                >
+                  삭제
+                </ErpButton>
+              ) : (
+                <span />
+              )}
+              <div className="flex flex-wrap gap-2">
+                <ErpButton variant="secondary" onClick={onClose} disabled={busy}>
+                  {readOnly ? '닫기' : '취소'}
+                </ErpButton>
+                {mode === 'edit' && order ? (
+                  <ErpButton
+                    variant="secondary"
+                    onClick={handlePrintOnly}
+                    disabled={busy}
+                  >
+                    구매발주서 출력
+                  </ErpButton>
+                ) : null}
+                {!readOnly ? (
+                  <>
+                    <ErpButton
+                      onClick={() => void handleSave(false)}
+                      disabled={busy}
+                      loading={saving}
+                    >
+                      저장
+                    </ErpButton>
+                    <ErpButton
+                      variant="secondary"
+                      onClick={() => void handleSave(true)}
+                      disabled={busy}
+                    >
+                      {saving ? '저장 중...' : '저장 후 구매발주서'}
+                    </ErpButton>
+                  </>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        }
+      >
+        {readOnly ? (
+          <div className={`mb-4 ${ERP_WARNING_BOX_CLASS}`}>
+            입고 이력이 있는 구매발주는 수정·삭제할 수 없습니다.
+          </div>
+        ) : null}
+
+        {assistError ? <div className={`mb-4 ${ERP_WARNING_BOX_CLASS}`}>{assistError}</div> : null}
+
+        {mode === 'create' && coverProductQuantity != null && coverProductQuantity > 0 ? (
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
+            이 구매발주서가 커버하는 제품 수량:{' '}
+            <span className="font-bold tabular-nums">
+              {coverProductQuantity.toLocaleString('ko-KR')}
+            </span>
+            개 (발주서 카드의 구매발주 수량에 합산됩니다)
+            {coverSourceOrderId ? (
+              <span className="ml-2 font-mono text-xs text-slate-500">({coverSourceOrderId})</span>
+            ) : null}
+          </div>
+        ) : null}
+
+        {mode === 'edit' && order?.coveredProductQuantity ? (
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
+            부분 구매발주 · 커버 제품 수량{' '}
+            <span className="font-bold tabular-nums">
+              {order.coveredProductQuantity.toLocaleString('ko-KR')}
+            </span>
+            개
+            {order.sourceOrderId ? (
+              <span className="ml-2 font-mono text-xs text-slate-500">({order.sourceOrderId})</span>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {mode === 'edit' && order ? (
+            <label className="block text-sm sm:col-span-2">
+              <span className={ERP_FIELD_LABEL_CLASS}>구매발주번호</span>
+              <input
+                value={order.orderNumber}
+                readOnly
+                className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-mono text-xs text-slate-600`}
+              />
+            </label>
           ) : null}
+          {(mode === 'edit' ? order?.sourceOrderId : coverSourceOrderId) ? (
+            <label className="block text-sm sm:col-span-2">
+              <span className={ERP_FIELD_LABEL_CLASS}>구분 · 연결 발주서</span>
+              <input
+                value={`부분 구매발주 · ${(mode === 'edit' ? order?.sourceOrderId : coverSourceOrderId) || ''}`}
+                readOnly
+                className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-mono text-xs text-slate-600`}
+              />
+            </label>
+          ) : mode === 'edit' ? (
+            <label className="block text-sm sm:col-span-2">
+              <span className={ERP_FIELD_LABEL_CLASS}>구분</span>
+              <input
+                value="자재별 구매발주"
+                readOnly
+                className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 text-slate-600`}
+              />
+            </label>
+          ) : null}
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>구매발주일</span>
+            <input
+              type="date"
+              value={form.orderDate}
+              onChange={(event) => updateForm('orderDate', event.target.value)}
+              readOnly={readOnly}
+              className={ERP_FIELD_INPUT_CLASS}
+            />
+          </label>
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>공급사</span>
+            <input
+              value={form.supplier}
+              onChange={(event) => updateForm('supplier', event.target.value)}
+              readOnly={readOnly || lockSeededFields}
+              placeholder="공급사명"
+              className={`${ERP_FIELD_INPUT_CLASS} read-only:bg-slate-50`}
+            />
+          </label>
+          <label className="block text-sm sm:col-span-2">
+            <span className={ERP_FIELD_LABEL_CLASS}>기본 납기일</span>
+            <input
+              type="date"
+              value={form.deliveryDate}
+              onChange={(event) => updateForm('deliveryDate', event.target.value)}
+              readOnly={readOnly}
+              className={ERP_FIELD_INPUT_CLASS}
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              행에 비어 있는 납기일자를 채우고, 목록 요약에도 사용됩니다.
+            </span>
+          </label>
         </div>
-      </div>
+
+        <div className="mt-6">
+          {readOnly ? <h3 className="mb-3 text-sm font-bold text-slate-900">구매발주 품목</h3> : null}
+          {readOnly ? (
+            <div className="overflow-x-auto rounded-lg border border-slate-300">
+              <table className="min-w-[760px] w-full border-collapse text-sm">
+                <thead className={ERP_TABLE_HEAD_CLASS}>
+                  <tr>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                      품목코드
+                    </th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                      품목명
+                    </th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                      규격
+                    </th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                      수량
+                    </th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                      단가
+                    </th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                      공급가액
+                    </th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                      납기일자
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {order?.items.map((item, index) => (
+                    <tr key={item.lineId || index} className="border-t border-slate-200">
+                      <td className="px-2.5 py-2 text-center">{item.materialCode || '-'}</td>
+                      <td className="px-2.5 py-2">{item.materialName}</td>
+                      <td className="px-2.5 py-2">{item.specification || '-'}</td>
+                      <td className="px-2.5 py-2 text-right tabular-nums">
+                        {item.quantity.toLocaleString('ko-KR')}
+                      </td>
+                      <td className="px-2.5 py-2 text-right tabular-nums">
+                        {item.unitPrice.toLocaleString('ko-KR')}
+                      </td>
+                      <td className="px-2.5 py-2 text-right tabular-nums">
+                        {item.orderAmount.toLocaleString('ko-KR')}
+                      </td>
+                      <td className="px-2.5 py-2 text-center tabular-nums">
+                        {item.deliveryDate || order?.deliveryDate || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <MaterialPurchaseOrderItemsForm
+              items={items}
+              supplier={form.supplier}
+              materials={materials}
+              defaultDeliveryDate={form.deliveryDate}
+              lockSeededFields={lockSeededFields}
+              onChange={setItems}
+              onSupplierSuggest={suggestSupplier}
+            />
+          )}
+        </div>
+      </ErpModal>
 
       {assistMode ? (
         <MaterialPurchaseAssistPanel
@@ -684,7 +668,7 @@ function MaterialPurchaseOrderModalContent({
           onFill={applyAssistFill}
         />
       ) : null}
-    </div>
+    </>
   )
 }
 

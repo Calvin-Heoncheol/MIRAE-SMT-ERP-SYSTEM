@@ -46,6 +46,7 @@ import type {
 import type { DeliveryInputPageData } from './utils'
 import {
   buildDeliveryAvailabilityMap,
+  buildDeliveryBillingOnlyLines,
   buildDeliveryInputOrders,
   computeDeliveryAvailability,
   describeDeliveryBlockReason,
@@ -78,6 +79,15 @@ export type DeleteDeliveryRecordResult =
 export type FetchOrderLineUnitPriceResult =
   | { ok: true; unitPrice: number }
   | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export type FetchOrderLineUnitPricesResult =
+  | { ok: true; prices: number[] }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+type OrderLineUnitPriceLookup = {
+  orderId: string
+  productId: string
+}
 
 export type FetchDeliveryHistoryResult =
   | { ok: true; rows: DeliveryHistoryRow[] }
@@ -177,30 +187,49 @@ function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }
 }
 
 function mapDeliveryRecord(row: {
-  id: string
-  shipment_id?: string | null
-  record_date: string
-  assembly_group_id: string
-  quantity: number
-  source: string
-  note: string
-  created_by?: string | null
-  created_by_name?: string | null
-  created_at: string
+  id?: unknown
+  shipment_id?: unknown
+  record_date?: unknown
+  assembly_group_id?: unknown
+  quantity?: unknown
+  source?: unknown
+  note?: unknown
+  created_by?: unknown
+  created_by_name?: unknown
+  created_at?: unknown
 }): DeliveryRecord {
-  const id = row.id
+  const id = String(row.id || '').trim()
   const shipmentId = String(row.shipment_id || id || '').trim() || id
   return {
     id,
     shipmentId,
     recordDate: String(row.record_date || '').slice(0, 10),
-    assemblyGroupId: row.assembly_group_id,
+    assemblyGroupId: String(row.assembly_group_id || '').trim(),
     quantity: Math.max(0, Math.floor(Number(row.quantity) || 0)),
     source: row.source === 'manual' ? 'manual' : 'manual',
-    note: row.note || '',
-    createdBy: row.created_by ?? null,
+    note: String(row.note || ''),
+    createdBy: row.created_by == null ? null : String(row.created_by),
     createdByName: String(row.created_by_name || '').trim(),
-    createdAt: row.created_at,
+    createdAt: String(row.created_at || ''),
+  }
+}
+
+function parseInsertDeliveryRpcPayload(value: unknown): {
+  record: DeliveryRecord
+  cumulative: number
+} | null {
+  const payload =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null
+  if (!payload?.record || typeof payload.record !== 'object' || Array.isArray(payload.record)) {
+    return null
+  }
+  const record = mapDeliveryRecord(payload.record as Parameters<typeof mapDeliveryRecord>[0])
+  if (!record.id) return null
+  return {
+    record,
+    cumulative: Math.max(0, Math.floor(Number(payload.cumulative) || 0)),
   }
 }
 
@@ -275,6 +304,7 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
         productById,
         quotesResult.quotes,
       ),
+      billingOnlyLines: buildDeliveryBillingOnlyLines(ordersResult.orders),
       deliveryCounts,
       availabilityByGroupId,
     },
@@ -461,11 +491,11 @@ export async function createDeliveryRecord(
     })
 
     if (!rpcError) {
-      const payload = rpcData as { record?: Record<string, unknown>; cumulative?: number } | null
-      if (!payload?.record) {
+      const parsed = parseInsertDeliveryRpcPayload(rpcData)
+      if (!parsed) {
         return { ok: false, reason: 'query', detail: '출하 기록 저장에 실패했습니다.' }
       }
-      const record = mapDeliveryRecord(payload.record as Parameters<typeof mapDeliveryRecord>[0])
+      const { record } = parsed
       await persistPaymentTermSnapshot(
         'delivery_records',
         record.id,
@@ -485,7 +515,10 @@ export async function createDeliveryRecord(
       return {
         ok: true,
         record,
-        cumulative: Math.max(0, Math.floor(Number(payload.cumulative) || currentTotal + quantity)),
+        cumulative: Math.max(
+          0,
+          Math.floor(Number(parsed.cumulative) || currentTotal + quantity),
+        ),
         usedCatchUp: lotsResult.ok ? lotsResult.usedCatchUp : undefined,
       }
     }
@@ -844,62 +877,120 @@ async function validateDeliveryQuantityChange(
   return { ok: true, targetQty, cumulative: adjustedTotal }
 }
 
-export async function fetchOrderLineUnitPrice(
-  orderId: string,
-  productId: string,
-): Promise<FetchOrderLineUnitPriceResult> {
+function matchOrderLineUnitPrice(
+  lines: Array<{
+    unit_price?: number | null
+    product_id?: string | null
+    product_code?: string | null
+    derived_from_line_id?: string | null
+  }>,
+  productCode: string,
+) {
+  const usable = lines.filter((line) => !line.derived_from_line_id)
+  // 추가작업(product_id 없음)과 같은 코드여도 제품 단가만 우선
+  const match =
+    usable.find(
+      (line) =>
+        Boolean(String(line.product_id || '').trim()) &&
+        (line.product_id === productCode || line.product_code === productCode),
+    ) ||
+    usable.find((line) => line.product_id === productCode || line.product_code === productCode)
+
+  return Math.max(0, Math.round(Number(match?.unit_price) || 0))
+}
+
+/** 출하·명세서 모달용 — 주문/품목 단가를 1~2회 조회로 배치 해석 */
+export async function fetchOrderLineUnitPrices(
+  lookups: OrderLineUnitPriceLookup[],
+): Promise<FetchOrderLineUnitPricesResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
 
-  const orderNumber = String(orderId || '').trim()
-  const productCode = String(productId || '').trim()
-  if (!productCode) {
-    return { ok: true, unitPrice: 0 }
+  if (!lookups.length) {
+    return { ok: true, prices: [] }
   }
 
   try {
     const supabase = createSupabaseClient()
+    const normalized = lookups.map((entry) => ({
+      orderId: String(entry.orderId || '').trim(),
+      productId: String(entry.productId || '').trim(),
+    }))
 
-    if (orderNumber) {
+    const orderIds = [...new Set(normalized.map((entry) => entry.orderId).filter(Boolean))]
+    const linesByOrderId = new Map<
+      string,
+      Array<{
+        unit_price?: number | null
+        product_id?: string | null
+        product_code?: string | null
+        derived_from_line_id?: string | null
+      }>
+    >()
+
+    if (orderIds.length > 0) {
       const { data, error } = await supabase
         .from('order_lines')
-        .select('unit_price, product_id, product_code, derived_from_line_id')
-        .eq('order_id', orderNumber)
+        .select('order_id, unit_price, product_id, product_code, derived_from_line_id')
+        .in('order_id', orderIds)
 
       if (error) {
         return { ok: false, reason: 'query', detail: error.message }
       }
 
-      const lines = data || []
-      const match =
-        lines.find(
-          (line) =>
-            !line.derived_from_line_id &&
-            (line.product_id === productCode || line.product_code === productCode),
-        ) ||
-        lines.find((line) => line.product_id === productCode || line.product_code === productCode)
-
-      const fromOrderLine = Math.max(0, Math.round(Number(match?.unit_price) || 0))
-      if (fromOrderLine > 0) {
-        return { ok: true, unitPrice: fromOrderLine }
+      for (const line of data || []) {
+        const orderId = String(line.order_id || '').trim()
+        if (!orderId) continue
+        const list = linesByOrderId.get(orderId) ?? []
+        list.push(line)
+        linesByOrderId.set(orderId, list)
       }
     }
 
-    const { data: item, error: itemError } = await supabase
-      .from('items')
-      .select('unit_price')
-      .eq('id', productCode)
-      .maybeSingle()
+    const prices = normalized.map(() => 0)
+    const missingProductIds = new Set<string>()
 
-    if (itemError) {
-      return { ok: false, reason: 'query', detail: itemError.message }
+    for (let index = 0; index < normalized.length; index += 1) {
+      const { orderId, productId } = normalized[index]!
+      if (!productId) continue
+
+      if (orderId) {
+        const fromOrderLine = matchOrderLineUnitPrice(linesByOrderId.get(orderId) || [], productId)
+        if (fromOrderLine > 0) {
+          prices[index] = fromOrderLine
+          continue
+        }
+      }
+      missingProductIds.add(productId)
     }
 
-    return {
-      ok: true,
-      unitPrice: Math.max(0, Math.round(Number(item?.unit_price) || 0)),
+    if (missingProductIds.size > 0) {
+      const { data: items, error: itemError } = await supabase
+        .from('items')
+        .select('id, unit_price')
+        .in('id', [...missingProductIds])
+
+      if (itemError) {
+        return { ok: false, reason: 'query', detail: itemError.message }
+      }
+
+      const priceByItemId = new Map(
+        (items || []).map((item) => [
+          String(item.id || '').trim(),
+          Math.max(0, Math.round(Number(item.unit_price) || 0)),
+        ]),
+      )
+
+      for (let index = 0; index < normalized.length; index += 1) {
+        if ((prices[index] || 0) > 0) continue
+        const productId = normalized[index]!.productId
+        if (!productId) continue
+        prices[index] = priceByItemId.get(productId) || 0
+      }
     }
+
+    return { ok: true, prices }
   } catch (error) {
     return {
       ok: false,
@@ -907,6 +998,15 @@ export async function fetchOrderLineUnitPrice(
       detail: error instanceof Error ? error.message : String(error),
     }
   }
+}
+
+export async function fetchOrderLineUnitPrice(
+  orderId: string,
+  productId: string,
+): Promise<FetchOrderLineUnitPriceResult> {
+  const result = await fetchOrderLineUnitPrices([{ orderId, productId }])
+  if (!result.ok) return result
+  return { ok: true, unitPrice: result.prices[0] || 0 }
 }
 
 export async function updateDeliveryRecord(

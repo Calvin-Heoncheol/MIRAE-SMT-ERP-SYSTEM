@@ -1,6 +1,16 @@
 import { matchesDateRange, type DateRangeFilterValue } from '@/lib/ui/date-range'
+import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 
 export const DELIVERY_HISTORY_PAGE_SIZE = 20
+
+export type DeliveryHistoryShipmentGroup = {
+  shipmentId: string
+  recordDate: string
+  customer: string
+  productName: string
+  quantity: number
+  lines: DeliveryHistoryRow[]
+}
 
 export function filterDeliveryHistory<
   T extends {
@@ -36,6 +46,57 @@ export function filterDeliveryHistory<
       .join(' ')
       .toLowerCase()
       .includes(q)
+  })
+}
+
+/** 같은 출하번호(shipmentId)를 한 행으로 묶음 */
+export function groupDeliveryHistoryByShipment(
+  rows: DeliveryHistoryRow[],
+): DeliveryHistoryShipmentGroup[] {
+  const groups = new Map<string, DeliveryHistoryRow[]>()
+  for (const row of rows) {
+    const key = String(row.shipmentId || row.id || '').trim()
+    if (!key) continue
+    const list = groups.get(key) || []
+    list.push(row)
+    groups.set(key, list)
+  }
+
+  const result: DeliveryHistoryShipmentGroup[] = []
+  for (const [shipmentId, lines] of groups) {
+    const sorted = [...lines].sort((a, b) => {
+      const byDate = b.recordDate.localeCompare(a.recordDate)
+      if (byDate !== 0) return byDate
+      return String(b.id).localeCompare(String(a.id))
+    })
+    const first = sorted[0]!
+    const recordDate = sorted.reduce(
+      (latest, line) => (line.recordDate > latest ? line.recordDate : latest),
+      first.recordDate,
+    )
+    const productNames = [
+      ...new Set(sorted.map((line) => line.productName.trim()).filter(Boolean)),
+    ]
+    result.push({
+      shipmentId,
+      recordDate,
+      customer: first.customer,
+      productName:
+        productNames.length <= 1
+          ? productNames[0] || ''
+          : `${productNames[0]} 외 ${productNames.length - 1}건`,
+      quantity: sorted.reduce(
+        (sum, line) => sum + Math.max(0, Math.floor(Number(line.quantity) || 0)),
+        0,
+      ),
+      lines: sorted,
+    })
+  }
+
+  return result.sort((a, b) => {
+    const byDate = b.recordDate.localeCompare(a.recordDate)
+    if (byDate !== 0) return byDate
+    return b.shipmentId.localeCompare(a.shipmentId)
   })
 }
 

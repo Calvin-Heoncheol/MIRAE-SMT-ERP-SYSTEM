@@ -187,13 +187,30 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     return missingEnv()
   }
 
-  const [productsResult, ordersResult, confirmResult, onHandResult, quotesResult] = await Promise.all([
-    fetchProducts(false),
-    fetchOrders({ includeDerivedLines: true }),
-    fetchConfirmRows(),
-    fetchOnHandByMaterialId(),
-    fetchQuotes(),
-  ])
+  let productsResult: Awaited<ReturnType<typeof fetchProducts>>
+  let ordersResult: Awaited<ReturnType<typeof fetchOrders>>
+  let confirmResult: Awaited<ReturnType<typeof fetchConfirmRows>>
+  let onHandResult: Awaited<ReturnType<typeof fetchOnHandByMaterialId>>
+  let quotesResult: Awaited<ReturnType<typeof fetchQuotes>>
+  let bomEdges: BomEdge[]
+
+  try {
+    ;[productsResult, ordersResult, confirmResult, onHandResult, quotesResult, bomEdges] =
+      await Promise.all([
+        fetchProducts(false),
+        fetchOrders({ includeDerivedLines: true }),
+        fetchConfirmRows(),
+        fetchOnHandByMaterialId(),
+        fetchQuotes(),
+        fetchBomEdges(),
+      ])
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : 'BOM 조회에 실패했습니다.',
+    }
+  }
 
   if (!productsResult.ok) return productsResult
   if (!ordersResult.ok) return ordersResult
@@ -201,17 +218,6 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
   if (!quotesResult.ok) return quotesResult
   if (!onHandResult.ok) {
     return { ok: false, reason: 'query', detail: onHandResult.detail }
-  }
-
-  let bomEdges: BomEdge[] = []
-  try {
-    bomEdges = await fetchBomEdges()
-  } catch (error) {
-    return {
-      ok: false,
-      reason: 'query',
-      detail: error instanceof Error ? error.message : 'BOM 조회에 실패했습니다.',
-    }
   }
 
   const productById = Object.fromEntries(productsResult.products.map((p) => [p.id, p]))

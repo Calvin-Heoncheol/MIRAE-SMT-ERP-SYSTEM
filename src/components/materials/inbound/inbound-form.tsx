@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { InboundDirectLinesForm } from '@/components/materials/inbound/inbound-direct-lines-form'
 import { InboundPurchaseLinesForm } from '@/components/materials/inbound/inbound-purchase-lines-form'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
+import { ErpButton } from '@/components/ui/erp-button'
 import { buildMaterialInboundPayload } from '@/lib/materials/inbound/build-payload'
 import {
   createMaterialInbound,
@@ -29,7 +31,7 @@ import {
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { Material } from '@/lib/materials/types'
 import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-orders/types'
-import { ERP_DANGER_BUTTON_CLASS } from '@/lib/ui/tokens'
+import { ERP_DANGER_BOX_CLASS, ERP_SUCCESS_BOX_CLASS, ERP_WARNING_BOX_CLASS } from '@/lib/ui/tokens'
 
 export type InboundFormProps = {
   mode: 'create' | 'edit'
@@ -71,6 +73,7 @@ export function InboundForm({
   onMaterialsChanged,
 }: InboundFormProps) {
   const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const isEdit = mode === 'edit'
   const isPage = variant === 'page'
   const [form, setForm] = useState<MaterialInboundFormState>(() =>
@@ -211,9 +214,12 @@ export function InboundForm({
   async function handleDelete() {
     if (!inbound) return
     if (
-      !window.confirm(
-        `${inbound.inboundNumber} 입고 전표를 삭제하시겠습니까?\n삭제 후 재고·구매발주 입고수량이 함께 반영됩니다.`,
-      )
+      !(await confirm({
+        title: '입고 전표 삭제',
+        message: `${inbound.inboundNumber} 입고 전표를 삭제할까요?\n삭제 후 재고·구매발주 입고수량이 함께 반영됩니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
     ) {
       return
     }
@@ -308,7 +314,7 @@ export function InboundForm({
               </select>
             </label>
             {!isEdit && !selectablePurchaseOrders.length ? (
-              <p className="mt-2 text-sm text-amber-700">입고 가능한 구매발주가 없습니다.</p>
+              <div className={`mt-2 ${ERP_WARNING_BOX_CLASS}`}>입고 가능한 구매발주가 없습니다.</div>
             ) : null}
           </div>
         ) : null}
@@ -334,16 +340,8 @@ export function InboundForm({
           />
         )}
 
-        {saveError ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-            {saveError}
-          </div>
-        ) : null}
-        {saveOk ? (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            {saveOk}
-          </div>
-        ) : null}
+        {saveError ? <div className={ERP_DANGER_BOX_CLASS}>{saveError}</div> : null}
+        {saveOk ? <div className={ERP_SUCCESS_BOX_CLASS}>{saveOk}</div> : null}
       </div>
 
       <div
@@ -357,43 +355,32 @@ export function InboundForm({
         </p>
         <div className="flex items-center justify-end gap-2">
           {isEdit && canDelete ? (
-            <button
-              type="button"
+            <ErpButton
+              variant="danger"
               onClick={() => void handleDelete()}
               disabled={deleting || saving}
-              className={ERP_DANGER_BUTTON_CLASS}
+              loading={deleting}
             >
-              {deleting ? '삭제 중…' : '삭제'}
-            </button>
+              삭제
+            </ErpButton>
           ) : null}
           {onCancel && !isPage ? (
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={saving || deleting}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
+            <ErpButton variant="secondary" onClick={onCancel} disabled={saving || deleting}>
               취소
-            </button>
+            </ErpButton>
           ) : null}
           {isPage && !isEdit ? (
-            <button
-              type="button"
-              onClick={resetCreateForm}
-              disabled={saving}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
+            <ErpButton variant="secondary" onClick={resetCreateForm} disabled={saving}>
               초기화
-            </button>
+            </ErpButton>
           ) : null}
-          <button
-            type="button"
+          <ErpButton
             onClick={() => void handleSave()}
             disabled={saving || deleting || !hasInboundType}
-            className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-900 disabled:opacity-50"
+            loading={saving}
           >
-            {saving ? '저장 중…' : isEdit ? '저장' : '등록'}
-          </button>
+            {isEdit ? '저장' : '등록'}
+          </ErpButton>
         </div>
       </div>
     </>

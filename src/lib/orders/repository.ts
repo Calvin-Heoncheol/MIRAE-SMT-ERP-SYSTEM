@@ -21,6 +21,7 @@ import { fetchQuotePaymentSnapshot } from '@/lib/quotes/repository'
 import { createSupabaseClient } from '@/lib/supabase'
 import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { syncAssemblyGroupsForOrder } from '@/lib/assembly/repository'
+import { parseOrderRecord, parseOrderRecords } from '@/lib/db/parse-row'
 import type { OrderCurrency, OrderListGroup, OrderRecord, OrderRowPayload } from './types'
 import { groupOrdersFromRecords, normalizeOrderCurrency } from './utils'
 
@@ -63,8 +64,13 @@ async function persistOrderCurrency(orderId: string, currency: OrderCurrency) {
     .from('orders')
     .update({ currency: normalizeOrderCurrency(currency) })
     .eq('id', orderId)
-  if (error && !isMissingOrdersCurrencyColumn(error.message)) {
-    console.warn('[orders] currency patch failed:', error.message)
+  if (error) {
+    if (isMissingOrdersCurrencyColumn(error.message)) {
+      throw new Error(
+        '발주서 통화(currency) 컬럼이 없습니다. Supabase에서 supabase/migrate-orders-currency.sql 을 실행해 주세요.',
+      )
+    }
+    throw new Error(error.message)
   }
 }
 
@@ -78,10 +84,124 @@ function mapOrderSaveError(detail: string) {
   if (detail.includes('ORDER_NOT_FOUND')) {
     return `발주서를 찾을 수 없습니다: ${detail.split(':').slice(1).join(':') || ''}`.trim()
   }
+  if (detail.includes('LINE_HAS_PRODUCTION')) {
+    const parts = detail.split(':')
+    const code = (parts[1] || '').trim()
+    const name = (parts[2] || '').trim()
+    const label = [code, name].filter(Boolean).join(' ')
+    return label
+      ? `생산 실적·계획이 있는 품목(${label})은 발주서에서 삭제할 수 없습니다.`
+      : '생산 실적·계획이 있는 품목은 발주서에서 삭제할 수 없습니다.'
+  }
   if (detail.includes('AUTH_REQUIRED')) {
     return '로그인이 필요합니다.'
   }
   return detail
+}
+
+function orderLinesJson(items: OrderRowPayload['items']) {
+  return items.map((item) => ({
+    id: item.lineId?.trim() || null,
+    product_id: item.productId || null,
+    product_code: item.productCode || item.productId || '',
+    product_name: item.productName,
+    quantity: item.quantity,
+    unit_price: item.unitPrice,
+    order_amount: item.orderAmount,
+    delivery_date: item.deliveryDate?.trim() || null,
+  }))
+}
+
+async function replaceOrderLinesSafely(orderId: string, items: OrderRowPayload['items']) {
+  const supabase = createSupabaseClient()
+  const { data: existingLines, error: fetchError } = await supabase
+    .from('order_lines')
+    .select('id, product_code, product_name, derived_from_line_id')
+    .eq('order_id', orderId)
+
+  if (fetchError) throw new Error(fetchError.message)
+
+  const keepIds = new Set(
+    items.map((item) => String(item.lineId || '').trim()).filter(Boolean),
+  )
+  const uiLines = (existingLines || []).filter((line) => !line.derived_from_line_id)
+  const toRemove = uiLines.filter((line) => !keepIds.has(String(line.id)))
+
+  for (const line of toRemove) {
+    const lineId = String(line.id)
+    const { count: smtCount, error: smtError } = await supabase
+      .from('smt_production_records')
+      .select('id', { count: 'exact', head: true })
+      .eq('order_line_id', lineId)
+    if (smtError) throw new Error(smtError.message)
+    if ((smtCount || 0) > 0) {
+      throw new Error(`LINE_HAS_PRODUCTION:${line.product_code || ''}:${line.product_name || ''}`)
+    }
+
+    const { count: planCount, error: planError } = await supabase
+      .from('smt_production_plans')
+      .select('id', { count: 'exact', head: true })
+      .eq('order_line_id', lineId)
+    if (planError) throw new Error(planError.message)
+    if ((planCount || 0) > 0) {
+      throw new Error(`LINE_HAS_PRODUCTION:${line.product_code || ''}:${line.product_name || ''}`)
+    }
+  }
+
+  if (toRemove.length) {
+    const { error: deleteUiError } = await supabase
+      .from('order_lines')
+      .delete()
+      .in(
+        'id',
+        toRemove.map((line) => String(line.id)),
+      )
+    if (deleteUiError) throw new Error(deleteUiError.message)
+  }
+
+  const { error: deleteDerivedError } = await supabase
+    .from('order_lines')
+    .delete()
+    .eq('order_id', orderId)
+    .not('derived_from_line_id', 'is', null)
+  if (deleteDerivedError) throw new Error(deleteDerivedError.message)
+
+  const remainingUi = uiLines.filter((line) => keepIds.has(String(line.id)))
+  for (let index = 0; index < remainingUi.length; index += 1) {
+    const line = remainingUi[index]!
+    const { error } = await supabase
+      .from('order_lines')
+      .update({ line_seq: -1000 - index })
+      .eq('id', String(line.id))
+      .eq('order_id', orderId)
+    if (error) throw new Error(error.message)
+  }
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index]!
+    const lineId = String(item.lineId || '').trim()
+    const row = {
+      line_seq: index,
+      product_id: item.productId || null,
+      product_code: item.productCode || item.productId || '',
+      product_name: item.productName,
+      quantity: item.quantity,
+      unit_price: item.unitPrice,
+      order_amount: item.orderAmount,
+      delivery_date: item.deliveryDate?.trim() || null,
+    }
+
+    if (lineId && remainingUi.some((line) => String(line.id) === lineId)) {
+      const { error } = await supabase.from('order_lines').update(row).eq('id', lineId).eq('order_id', orderId)
+      if (error) throw new Error(error.message)
+    } else {
+      const { error } = await supabase.from('order_lines').insert({
+        order_id: orderId,
+        ...row,
+      })
+      if (error) throw new Error(error.message)
+    }
+  }
 }
 
 async function resolveOrderPaymentSnapshot(payload: OrderRowPayload): Promise<PaymentTermSnapshot> {
@@ -91,18 +211,6 @@ async function resolveOrderPaymentSnapshot(payload: OrderRowPayload): Promise<Pa
     : paymentTermSnapshotFromDbRow(null)
   const fromPartner = await fetchPaymentTermSnapshotForCustomer(payload.customer)
   return firstNonEmptyPaymentTermSnapshot(fromPayload, fromQuote, fromPartner)
-}
-
-function orderLinesJson(items: OrderRowPayload['items']) {
-  return items.map((item) => ({
-    product_id: item.productId || null,
-    product_code: item.productCode || item.productId || '',
-    product_name: item.productName,
-    quantity: item.quantity,
-    unit_price: item.unitPrice,
-    order_amount: item.orderAmount,
-    delivery_date: item.deliveryDate?.trim() || null,
-  }))
 }
 
 async function insertOrderLines(orderId: string, items: OrderRowPayload['items']) {
@@ -140,25 +248,38 @@ export async function fetchOrders(options?: {
 
   try {
     const supabase = createSupabaseClient()
-    let query = supabase
-      .from('orders')
-      .select('*, order_lines(*)')
-      .order('order_date', { ascending: false })
-      .order('created_at', { ascending: false })
+    const PAGE_SIZE = 1000
+    const records: OrderRecord[] = []
+    let from = 0
 
-    if (options?.legacyOnly) {
-      query = query.eq('source', 'legacy_statement')
-    } else if (!options?.includeLegacyStatements) {
-      query = query.neq('source', 'legacy_statement')
+    for (;;) {
+      const to = from + PAGE_SIZE - 1
+      let query = supabase
+        .from('orders')
+        .select('*, order_lines(*)')
+        .order('order_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(from, to)
+
+      if (options?.legacyOnly) {
+        query = query.eq('source', 'legacy_statement')
+      } else if (!options?.includeLegacyStatements) {
+        query = query.neq('source', 'legacy_statement')
+      }
+
+      const { data, error } = await query
+
+      if (error) {
+        return { ok: false, reason: 'query', detail: error.message }
+      }
+
+      const rows = parseOrderRecords(data)
+      records.push(...rows)
+      if (rows.length < PAGE_SIZE) break
+      from += PAGE_SIZE
     }
 
-    const { data, error } = await query
-
-    if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
-    }
-
-    const orders = groupOrdersFromRecords((data || []) as OrderRecord[], {
+    const orders = groupOrdersFromRecords(records, {
       includeDerivedLines: options?.includeDerivedLines,
     })
     return { ok: true, orders }
@@ -184,7 +305,9 @@ export async function fetchOrderById(orderId: string): Promise<OrderListGroup | 
     .maybeSingle()
 
   if (error || !data) return null
-  return groupOrdersFromRecords([data as OrderRecord])[0] ?? null
+  const record = parseOrderRecord(data)
+  if (!record) return null
+  return groupOrdersFromRecords([record])[0] ?? null
 }
 
 /** 견적에서 이미 전환된 발주서 번호 (있으면) */
@@ -274,7 +397,10 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       }
       await persistPaymentTermSnapshot('orders', orderId, paymentSnapshot)
       await persistOrderCurrency(orderId, currency)
-      await syncAssemblyGroupsForOrder(orderId)
+      const assemblySync = await syncAssemblyGroupsForOrder(orderId)
+      if (!assemblySync.ok) {
+        return { ok: false, reason: assemblySync.reason, detail: assemblySync.detail }
+      }
       return { ok: true, orderId, orderNumber: orderId }
     }
 
@@ -316,14 +442,12 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
     }
 
     if (error && isMissingOrdersCurrencyColumn(error.message)) {
-      const { currency: _ignored, ...withoutCurrency } = insertRow as typeof insertRow & {
-        currency?: string
+      return {
+        ok: false,
+        reason: 'query',
+        detail:
+          '발주서 통화(currency) 컬럼이 없습니다. Supabase에서 supabase/migrate-orders-currency.sql 을 실행해 주세요.',
       }
-      ;({ data: inserted, error } = await supabase
-        .from('orders')
-        .insert(omitPaymentTermSnapshotFields(stripCreatedByFields(withoutCurrency)))
-        .select('id')
-        .single())
     }
 
     if (error || !inserted?.id) {
@@ -332,7 +456,10 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
 
     await persistPaymentTermSnapshot('orders', inserted.id, paymentSnapshot)
     await insertOrderLines(inserted.id, payload.items)
-    await syncAssemblyGroupsForOrder(inserted.id)
+    const assemblySync = await syncAssemblyGroupsForOrder(inserted.id)
+    if (!assemblySync.ok) {
+      return { ok: false, reason: assemblySync.reason, detail: assemblySync.detail }
+    }
     return { ok: true, orderId: inserted.id, orderNumber: inserted.id }
   } catch (error) {
     return {
@@ -368,12 +495,17 @@ export async function updateOrder(
       return { ok: false, reason: 'query', detail: `발주서를 찾을 수 없습니다: ${orderId}` }
     }
 
-    const beforeGroup = groupOrdersFromRecords([existing as OrderRecord])[0]
+    const existingRecord = parseOrderRecord(existing)
+    if (!existingRecord) {
+      return { ok: false, reason: 'query', detail: `발주서를 찾을 수 없습니다: ${orderId}` }
+    }
+
+    const beforeGroup = groupOrdersFromRecords([existingRecord])[0]
     const paymentSnapshot = resolvePaymentTermSnapshotForUpdate({
-      previousCustomer: beforeGroup?.customer || String(existing.customer || ''),
+      previousCustomer: beforeGroup?.customer || existingRecord.customer,
       nextCustomer: payload.customer,
       previousSnapshot:
-        beforeGroup?.paymentTerms || paymentTermSnapshotFromDbRow(existing as OrderRecord),
+        beforeGroup?.paymentTerms || paymentTermSnapshotFromDbRow(existingRecord),
       partnerSnapshot: await fetchPaymentTermSnapshotForCustomer(payload.customer),
     })
     const currency = normalizeOrderCurrency(payload.currency)
@@ -415,24 +547,25 @@ export async function updateOrder(
         .eq('id', existing.id)
 
       if (updateError && isMissingOrdersCurrencyColumn(updateError.message)) {
-        const { currency: _ignored, ...withoutCurrency } = updatePayload
-        ;({ error: updateError } = await supabase
-          .from('orders')
-          .update(withoutCurrency)
-          .eq('id', existing.id))
+        return {
+          ok: false,
+          reason: 'query',
+          detail:
+            '발주서 통화(currency) 컬럼이 없습니다. Supabase에서 supabase/migrate-orders-currency.sql 을 실행해 주세요.',
+        }
       }
 
       if (updateError) return { ok: false, reason: 'query', detail: updateError.message }
 
-      const { error: deleteError } = await supabase.from('order_lines').delete().eq('order_id', existing.id)
-      if (deleteError) return { ok: false, reason: 'query', detail: deleteError.message }
-
-      await insertOrderLines(existing.id, payload.items)
+      await replaceOrderLinesSafely(existing.id, payload.items)
     }
 
     await persistPaymentTermSnapshot('orders', existing.id, paymentSnapshot)
     await persistOrderCurrency(existing.id, currency)
-    await syncAssemblyGroupsForOrder(existing.id)
+    const assemblySync = await syncAssemblyGroupsForOrder(existing.id)
+    if (!assemblySync.ok) {
+      return { ok: false, reason: assemblySync.reason, detail: assemblySync.detail }
+    }
 
     const afterTotalAmount = payload.items.reduce(
       (sum, item) => sum + Math.max(0, Math.round(Number(item.orderAmount) || 0)),

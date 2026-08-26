@@ -89,7 +89,16 @@ export function DefectHandlingModal({ open, row, onClose, onSaved }: DefectHandl
     .join(' · ')
 
   return (
-    <ErpModal open={open} title="불량 대처" onClose={onClose} size="md">
+    <ErpModal open={open} title="불량 대처" onClose={onClose} size="md" footer={
+      <>
+        <ErpButton variant="secondary" onClick={onClose} disabled={saving}>
+          닫기
+        </ErpButton>
+        <ErpButton onClick={() => void handleSave()} disabled={saving} loading={saving}>
+          대처 저장
+        </ErpButton>
+      </>
+    }>
       <div className="space-y-4">
         <dl className="rounded-xl border border-slate-200 bg-slate-50/60 px-3.5">
           <DetailRow label="상태" value={formatDefectStatus(row.status)} />
@@ -148,15 +157,6 @@ export function DefectHandlingModal({ open, row, onClose, onSaved }: DefectHandl
         </label>
 
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
-
-        <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-          <ErpButton variant="secondary" onClick={onClose} disabled={saving}>
-            닫기
-          </ErpButton>
-          <ErpButton onClick={() => void handleSave()} disabled={saving} loading={saving}>
-            대처 저장
-          </ErpButton>
-        </div>
       </div>
     </ErpModal>
   )

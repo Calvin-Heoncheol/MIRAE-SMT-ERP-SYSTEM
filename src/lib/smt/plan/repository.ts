@@ -15,7 +15,7 @@ import {
 } from '@/lib/materials/material-inbound-status'
 import { fetchBomEdges } from '@/lib/materials/outbound/repository'
 import { fetchOrders } from '@/lib/orders/repository'
-import { todayYmdSeoul } from '@/lib/orders/utils'
+import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import { buildProductionOrderLines } from '@/lib/production-input/utils'
 import { fetchQuotes } from '@/lib/quotes/repository'
@@ -41,6 +41,7 @@ import {
   getWeekDates,
   getWeekEndYmd,
   normalizeSmtPlanPcbSide,
+  buildPlannedQuantityByLineSide,
 } from './utils'
 
 export type FetchSmtPlanPageResult =
@@ -196,24 +197,52 @@ export async function fetchSmtProductionPlansForDate(
 export async function fetchAllSmtProductionPlans(): Promise<
   { ok: true; plans: SmtProductionPlan[] } | { ok: false; reason: 'env' | 'query'; detail: string }
 > {
+  return fetchSmtProductionPlansOverlappingRange(null, null)
+}
+
+/**
+ * 주간 화면에 필요한 계획만 로드.
+ * planned_date / planned_end_date 가 구간과 겹치는 행.
+ */
+export async function fetchSmtProductionPlansOverlappingRange(
+  rangeStart: string | null,
+  rangeEnd: string | null,
+): Promise<
+  { ok: true; plans: SmtProductionPlan[] } | { ok: false; reason: 'env' | 'query'; detail: string }
+> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
 
   try {
     const supabase = createSupabaseClient()
-    let { data, error } = await supabase
+    let query = supabase
       .from('smt_production_plans')
       .select(SMT_PLAN_SELECT)
       .order('planned_date', { ascending: true })
       .order('line_no', { ascending: true })
 
+    if (rangeStart && rangeEnd) {
+      // 장기간 계획이 주간에 걸칠 수 있어 시작일 버퍼 후 메모리에서 겹침 필터
+      const bufferedStart = addDaysYmd(rangeStart, -120)
+      query = query.gte('planned_date', bufferedStart).lte('planned_date', rangeEnd)
+    }
+
+    let { data, error } = await query
+
     if (error && (isMissingCreatedByColumn(error.message) || isMissingPlanScheduleColumns(error.message))) {
-      const legacy = await supabase
+      let legacyQuery = supabase
         .from('smt_production_plans')
         .select(SMT_PLAN_SELECT_LEGACY)
         .order('planned_date', { ascending: true })
         .order('line_no', { ascending: true })
+
+      if (rangeStart && rangeEnd) {
+        const bufferedStart = addDaysYmd(rangeStart, -120)
+        legacyQuery = legacyQuery.gte('planned_date', bufferedStart).lte('planned_date', rangeEnd)
+      }
+
+      const legacy = await legacyQuery
       data = legacy.data as typeof data
       error = legacy.error
     }
@@ -229,7 +258,69 @@ export async function fetchAllSmtProductionPlans(): Promise<
       return { ok: false, reason: 'query', detail: error.message }
     }
 
-    return { ok: true, plans: (data || []).map(mapSmtProductionPlan) }
+    let plans = (data || []).map(mapSmtProductionPlan)
+    if (rangeStart && rangeEnd) {
+      plans = plans.filter((plan) =>
+        planOverlapsWeek(plan.plannedDate, plan.plannedEndDate, rangeStart, rangeEnd),
+      )
+    }
+    return { ok: true, plans }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+/** 후보 잔량 계산용 — 전체 계획의 수량만 가볍게 집계 */
+export async function fetchSmtPlannedQuantityByLineSide(): Promise<
+  | { ok: true; plannedBySide: Map<string, number> }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return missingEnvResult()
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const PAGE_SIZE = 1000
+    const rows: Array<{ order_line_id?: string | null; pcb_side?: string | null; planned_quantity: number }> =
+      []
+    let from = 0
+
+    for (;;) {
+      const to = from + PAGE_SIZE - 1
+      const { data, error } = await supabase
+        .from('smt_production_plans')
+        .select('order_line_id, pcb_side, planned_quantity')
+        .range(from, to)
+
+      if (error) {
+        if (isMissingSmtPlanTable(error.message)) {
+          return { ok: true, plannedBySide: new Map() }
+        }
+        const schemaDetail = planSchemaErrorDetail(error.message)
+        if (schemaDetail) {
+          return { ok: false, reason: 'query', detail: schemaDetail }
+        }
+        return { ok: false, reason: 'query', detail: error.message }
+      }
+
+      rows.push(...(data || []))
+      if ((data || []).length < PAGE_SIZE) break
+      from += PAGE_SIZE
+    }
+
+    const plannedBySide = buildPlannedQuantityByLineSide(
+      rows.map((row) => ({
+        orderLineId: String(row.order_line_id || '').trim(),
+        pcbSide: normalizeSmtPlanPcbSide(row.pcb_side),
+        plannedQuantity: Math.max(0, Math.floor(Number(row.planned_quantity) || 0)),
+      })),
+    )
+    return { ok: true, plannedBySide }
   } catch (error) {
     return {
       ok: false,
@@ -369,36 +460,44 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
   // 과거 미완료 계획 자동 마감 후 조회 (실패해도 화면은 계속)
   await closeIncompletePastSmtPlans()
 
-  const ordersResult = await fetchOrders()
-  if (!ordersResult.ok) {
-    return ordersResult
-  }
-
   const productsResult = await fetchProducts()
   if (!productsResult.ok) {
     return productsResult
   }
 
   const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
+  const weekDates = getWeekDates(weekStart)
+  const weekEnd = getWeekEndYmd(weekStart)
 
-  const [smtCountsResult, smtOrdersResult, allPlansResult, assemblyResult, deliveryCountsResult, quotesResult] =
-    await Promise.all([
-      fetchSmtCumulativeCounts(),
-      fetchOrders({ includeDerivedLines: true }),
-      fetchAllSmtProductionPlans(),
-      fetchAssemblyGroups(productById),
-      fetchDeliveryCumulativeCounts(),
-      fetchQuotes(),
-    ])
+  const [
+    smtCountsResult,
+    ordersResult,
+    weekPlansResult,
+    plannedTotalsResult,
+    assemblyResult,
+    deliveryCountsResult,
+    quotesResult,
+  ] = await Promise.all([
+    fetchSmtCumulativeCounts(),
+    fetchOrders({ includeDerivedLines: true }),
+    fetchSmtProductionPlansOverlappingRange(weekStart, weekEnd),
+    fetchSmtPlannedQuantityByLineSide(),
+    fetchAssemblyGroups(productById),
+    fetchDeliveryCumulativeCounts(),
+    fetchQuotes(),
+  ])
 
   if (!smtCountsResult.ok) {
     return smtCountsResult
   }
-  if (!smtOrdersResult.ok) {
-    return smtOrdersResult
+  if (!ordersResult.ok) {
+    return ordersResult
   }
-  if (!allPlansResult.ok) {
-    return allPlansResult
+  if (!weekPlansResult.ok) {
+    return weekPlansResult
+  }
+  if (!plannedTotalsResult.ok) {
+    return plannedTotalsResult
   }
   if (!assemblyResult.ok) {
     return assemblyResult
@@ -410,11 +509,16 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
     return quotesResult
   }
 
-  const [onHandResult, pendingResult, bomEdges] = await Promise.all([
+  const [onHandResult, pendingResult, bomEdges, progressResult] = await Promise.all([
     fetchOnHandByMaterialId(),
     fetchPendingInboundByMaterialId(),
     fetchBomEdges().catch(() => [] as Awaited<ReturnType<typeof fetchBomEdges>>),
+    fetchSmtPlanProgressRange(weekStart, weekEnd),
   ])
+
+  if (!progressResult.ok) {
+    return progressResult
+  }
 
   const onHandByMaterialId = onHandResult.ok ? onHandResult.onHandByMaterialId : new Map<string, number>()
   const pendingByMaterialId = pendingResult.ok
@@ -425,15 +529,14 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
     : new Map<string, string>()
   const edgesByParent = buildBomEdgesByParent(bomEdges)
 
-  const weekDates = getWeekDates(weekStart)
-  const weekEnd = getWeekEndYmd(weekStart)
-  const progressResult = await fetchSmtPlanProgressRange(weekStart, weekEnd)
-  if (!progressResult.ok) {
-    return progressResult
-  }
+  // 파생라인 제외 헤더용 — 동일 fetch 결과를 재사용
+  const ordersWithoutDerived = ordersResult.orders.map((order) => ({
+    ...order,
+    items: order.items.filter((item) => !String(item.derivedFromLineId || '').trim()),
+  }))
 
   const smtLines = buildProductionOrderLines(
-    smtOrdersResult.orders,
+    ordersResult.orders,
     'SMT',
     productById,
     'smt',
@@ -445,16 +548,13 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
     deliveryCountsResult.counts,
   )
 
-  const weekPlans = allPlansResult.plans.filter((plan) =>
-    planOverlapsWeek(plan.plannedDate, plan.plannedEndDate, weekStart, weekEnd),
-  )
-
+  const weekPlans = weekPlansResult.plans
   const lineById = Object.fromEntries(productionOrders.map((line) => [line.orderLineId, line]))
   const planCandidates: SmtPlanOrderCandidate[] = buildSmtPlanOrderCandidates(
-    ordersResult.orders,
+    ordersWithoutDerived,
     productionOrders,
     smtCountsResult.counts,
-    allPlansResult.plans,
+    plannedTotalsResult.plannedBySide,
     { onlyUnplanned: false },
   ).map((candidate) => {
     const line = lineById[candidate.orderLineId]
@@ -482,7 +582,7 @@ export async function fetchSmtPlanPageData(weekStart: string): Promise<FetchSmtP
       weekStart,
       weekDates,
       lineNos: [...SMT_PLAN_LINE_NOS],
-      plans: buildSmtPlanBlocks(weekPlans, ordersResult.orders, smtLines),
+      plans: buildSmtPlanBlocks(weekPlans, ordersWithoutDerived, smtLines),
       productionOrders,
       counts: smtCountsResult.counts,
       planCandidates,

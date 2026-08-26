@@ -2,6 +2,7 @@
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { OrderCategoryBadge } from '@/components/orders/order-category-badge'
+import { ErpTableHead, ErpTableShell, ErpTableTd, ErpTableTh } from '@/components/ui/erp-table'
 import {
   formatInternalCodeLabel,
   formatOrderDeliverySummary,
@@ -9,12 +10,7 @@ import {
   formatProductSummary,
 } from '@/lib/orders/utils'
 import type { OrderListGroup } from '@/lib/orders/types'
-import {
-  ERP_TABLE_SCROLL_CLASS,
-  ERP_TABLE_TD_FIXED_CLASS,
-  ERP_TABLE_TD_WRAP_CLASS,
-  ERP_TABLE_WRAP_CLASS,
-} from '@/lib/ui/tokens'
+import { ERP_TABLE_ROW_CLASS } from '@/lib/ui/tokens'
 
 type OrderListTableProps = {
   orders: OrderListGroup[]
@@ -32,88 +28,67 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
   }
 
   return (
-    <div className={ERP_TABLE_WRAP_CLASS}>
-      <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="min-w-[1040px] w-full border-collapse">
-          <thead className="sticky top-0 z-[1] bg-slate-50">
-            <tr>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                발주일
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                납기일
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                발주번호
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                고객사
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                제품
-              </th>
-              <th className="min-w-[72px] whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                수량
-              </th>
-              <th className="min-w-[96px] whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                발주금액
-              </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
-                구분
-              </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                등록자
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => (
-              <tr
-                key={order.orderNumber}
-                className="cursor-pointer border-t border-slate-100 hover:bg-slate-50"
-                onClick={() => onSelectOrder?.(order)}
-              >
-                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                  {order.orderDate || '-'}
-                </td>
-                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                  {formatOrderDeliverySummary(order)}
-                </td>
-                <td
-                  className={`px-3 py-2.5 font-mono text-xs text-emerald-800 ${ERP_TABLE_TD_FIXED_CLASS}`}
-                  title={order.customerPoNumber || undefined}
-                >
-                  {order.customerPoNumber?.trim()
-                    ? formatInternalCodeLabel(order.customerPoNumber)
-                    : '—'}
-                </td>
-                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                  {order.customer || '-'}
-                </td>
-                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                  {formatProductSummary(order)}
-                </td>
-                <td
-                  className={`px-3 py-2.5 text-right text-sm tabular-nums text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}
-                >
-                  {order.totalQuantity.toLocaleString('ko-KR')}
-                </td>
-                <td
-                  className={`px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900 ${ERP_TABLE_TD_FIXED_CLASS}`}
-                >
-                  {formatOrderMoney(order.totalAmount, order.currency)}
-                </td>
-                <td className={`px-3 py-2.5 text-center ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                  <OrderCategoryBadge category={order.category} />
-                </td>
-                <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                  {order.createdByName || '-'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <ErpTableShell tableClassName="min-w-[720px] md:min-w-[1040px]">
+      <ErpTableHead>
+        <tr>
+          <ErpTableTh>발주일</ErpTableTh>
+          <ErpTableTh className="hidden sm:table-cell">납기일</ErpTableTh>
+          <ErpTableTh>발주번호</ErpTableTh>
+          <ErpTableTh>고객사</ErpTableTh>
+          <ErpTableTh className="hidden md:table-cell">제품</ErpTableTh>
+          <ErpTableTh align="right">수량</ErpTableTh>
+          <ErpTableTh align="right" className="hidden sm:table-cell">
+            발주금액
+          </ErpTableTh>
+          <ErpTableTh align="center" className="hidden lg:table-cell">
+            구분
+          </ErpTableTh>
+          <ErpTableTh className="hidden lg:table-cell">등록자</ErpTableTh>
+        </tr>
+      </ErpTableHead>
+      <tbody>
+        {orders.map((order) => (
+          <tr
+            key={order.orderNumber}
+            className={`${ERP_TABLE_ROW_CLASS} cursor-pointer`}
+            onClick={() => onSelectOrder?.(order)}
+          >
+            <ErpTableTd className="text-slate-700">{order.orderDate || '-'}</ErpTableTd>
+            <ErpTableTd className="hidden text-slate-700 sm:table-cell">
+              {formatOrderDeliverySummary(order)}
+            </ErpTableTd>
+            <ErpTableTd
+              className="font-mono text-xs text-emerald-800"
+              title={order.customerPoNumber || undefined}
+            >
+              {order.customerPoNumber?.trim()
+                ? formatInternalCodeLabel(order.customerPoNumber)
+                : '—'}
+            </ErpTableTd>
+            <ErpTableTd text="wrap" className="max-w-[160px] text-slate-700">
+              {order.customer || '-'}
+            </ErpTableTd>
+            <ErpTableTd text="wrap" className="hidden max-w-[200px] text-slate-700 md:table-cell">
+              {formatProductSummary(order)}
+            </ErpTableTd>
+            <ErpTableTd align="right" className="tabular-nums text-slate-700">
+              {order.totalQuantity.toLocaleString('ko-KR')}
+            </ErpTableTd>
+            <ErpTableTd
+              align="right"
+              className="hidden font-semibold tabular-nums text-slate-900 sm:table-cell"
+            >
+              {formatOrderMoney(order.totalAmount, order.currency)}
+            </ErpTableTd>
+            <ErpTableTd align="center" className="hidden lg:table-cell">
+              <OrderCategoryBadge category={order.category} />
+            </ErpTableTd>
+            <ErpTableTd className="hidden text-slate-700 lg:table-cell">
+              {order.createdByName || '-'}
+            </ErpTableTd>
+          </tr>
+        ))}
+      </tbody>
+    </ErpTableShell>
   )
 }

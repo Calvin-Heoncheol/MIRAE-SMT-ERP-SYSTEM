@@ -110,27 +110,31 @@ export function deriveItemProcessType(smdUnitPrice: number, dipUnitPrice: number
   return ''
 }
 
-/** 원자재(1)·조립제품(4): 품목코드 필수 직접 입력. 반제품(3)은 비우면 품목명으로 자동 */
-export function isManualItemCodeCategory(category: ItemCategory) {
-  return category === 1 || category === 4
+/** 예전: 원자재·조립은 수동 입력 필수. 지금은 전 구분 자동채번(MA/SM/SFG/FG) */
+export function isManualItemCodeCategory(_category: ItemCategory) {
+  return false
 }
 
-/** 반제품: 코드 직접 입력 가능, 비우면 저장 시 품목명으로 채움 */
-export function isOptionalItemCodeCategory(category: ItemCategory) {
-  return category === 3
+/** 예전: 반제품은 비우면 품목명. 지금은 자동채번이라 사용하지 않음 */
+export function isOptionalItemCodeCategory(_category: ItemCategory) {
+  return false
 }
 
-/** 생성 시 품목코드 입력란 편집 가능 (원자재·반제품·조립제품) */
-export function canEditItemCodeOnCreate(category: ItemCategory) {
-  return category === 1 || category === 3 || category === 4
+/** 생성 시 품목코드 입력란 편집 가능 (자동값을 직접 바꿔도 됨) */
+export function canEditItemCodeOnCreate(_category: ItemCategory) {
+  return true
 }
 
-export const ITEM_CATEGORY_CODE_PREFIX: Record<ItemCategory, string | null> = {
-  1: null,
-  2: 'SUB-',
+/** 표시용 품목코드 자동채번 접두사 */
+export const ITEM_CATEGORY_CODE_PREFIX: Record<ItemCategory, string> = {
+  1: 'MA-',
+  2: 'SM-',
   3: 'SFG-',
   4: 'FG-',
 }
+
+/** MA-0001 / SM-0001 / SFG-0001 / FG-0001 */
+export const ITEM_CATEGORY_CODE_PAD = 4
 
 export type Item = {
   /** 내부 PK. MR-00001 자동채번, 수정 불가 */

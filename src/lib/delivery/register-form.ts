@@ -1,6 +1,6 @@
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionProductName } from '@/lib/production-input/utils'
-import type { DeliveryAvailability } from '@/lib/delivery/utils'
+import type { DeliveryAvailability, DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
 import { parseItemVersionCode } from '@/lib/items/version-code'
 import type { LotAllocation, ProductionLot } from '@/lib/production-lots/types'
 import { allocateLotsFifo, sumLotAllocationQuantity } from '@/lib/production-lots/utils'
@@ -36,6 +36,9 @@ export type DeliveryRegisterItemForm = {
   availableLots: ProductionLot[]
   allocations: LotAllocation[]
   lotManual: boolean
+  /** 발주 추가작업(금액 전용) — 출하 수량/LOT 없음, 명세 행용 */
+  billingOnly?: boolean
+  orderLineId?: string
 }
 
 let registerItemKeySeq = 0
@@ -62,6 +65,8 @@ export function emptyDeliveryRegisterItemForm(): DeliveryRegisterItemForm {
     availableLots: [],
     allocations: [],
     lotManual: false,
+    billingOnly: false,
+    orderLineId: '',
   }
 }
 
@@ -69,6 +74,73 @@ export function computeDeliveryLineAmount(quantity: number, unitPrice: number) {
   const qty = Math.max(0, Math.floor(Number(quantity) || 0))
   const price = Math.max(0, Math.round(Number(unitPrice) || 0))
   return qty * price
+}
+
+export function billingRegisterAssemblyKey(orderLineId: string) {
+  return `billing:${String(orderLineId || '').trim()}`
+}
+
+export function isBillingRegisterItem(item: DeliveryRegisterItemForm) {
+  return Boolean(item.billingOnly)
+}
+
+export function applyBillingLineToItem(
+  item: DeliveryRegisterItemForm,
+  line: DeliveryBillingOnlyLine,
+): DeliveryRegisterItemForm {
+  const orderLineId = String(line.orderLineId || '').trim()
+  const quantity = Math.max(0, Math.floor(Number(line.quantity) || 0))
+  const unitPrice = Math.max(0, Math.round(Number(line.unitPrice) || 0))
+  return {
+    ...item,
+    billingOnly: true,
+    orderLineId,
+    uiKey: billingRegisterAssemblyKey(orderLineId),
+    assemblyGroupId: billingRegisterAssemblyKey(orderLineId),
+    orderNumber: line.orderNumber,
+    customerPoNumber: line.customerPoNumber || '',
+    customer: line.customer,
+    productCode: line.productCode,
+    productName: line.productName,
+    productVersion: null,
+    quantity: quantity > 0 ? String(quantity) : '',
+    unitPrice: String(unitPrice),
+    maxQuantity: quantity,
+    availableLots: [],
+    allocations: [],
+    lotManual: false,
+  }
+}
+
+/**
+ * 선택된 제품 출하 행이 속한 발주의 추가작업 행을 오른쪽 목록에 붙인다.
+ * (합치지 않고 별도 행 유지)
+ */
+export function withBillingCompanionItems(
+  items: DeliveryRegisterItemForm[],
+  billingLines: DeliveryBillingOnlyLine[],
+): DeliveryRegisterItemForm[] {
+  const productItems = items.filter((item) => !isBillingRegisterItem(item))
+  const orderIds = new Set(productItems.map((item) => item.orderNumber.trim()).filter(Boolean))
+
+  const previousBilling = new Map(
+    items
+      .filter((item) => isBillingRegisterItem(item) && item.orderLineId?.trim())
+      .map((item) => [item.orderLineId!.trim(), item]),
+  )
+
+  const companions: DeliveryRegisterItemForm[] = []
+  for (const line of billingLines) {
+    if (!orderIds.has(line.orderNumber)) continue
+    const existing = previousBilling.get(line.orderLineId)
+    companions.push(
+      existing
+        ? { ...applyBillingLineToItem(existing, line), key: existing.key }
+        : applyBillingLineToItem(emptyDeliveryRegisterItemForm(), line),
+    )
+  }
+
+  return [...productItems, ...companions]
 }
 
 export function buildDeliveryShippableOptions(
@@ -122,6 +194,8 @@ export function applyShippableOptionToItem(
 ): DeliveryRegisterItemForm {
   return {
     ...item,
+    billingOnly: false,
+    orderLineId: '',
     uiKey: option.uiKey,
     assemblyGroupId: option.assemblyGroupId,
     orderNumber: option.orderNumber,
@@ -149,7 +223,10 @@ export function validateDeliveryRegisterItems(
 ):
   | { ok: true; lines: DeliveryRegisterItemForm[]; customer: string }
   | { ok: false; detail: string } {
-  const filled = items.filter((item) => item.assemblyGroupId.trim() && item.productCode.trim())
+  const filled = items.filter(
+    (item) =>
+      !isBillingRegisterItem(item) && item.assemblyGroupId.trim() && item.productCode.trim(),
+  )
   if (!filled.length) {
     return { ok: false, detail: '출하할 품목을 하나 이상 선택해 주세요.' }
   }

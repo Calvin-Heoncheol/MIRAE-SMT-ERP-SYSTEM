@@ -122,6 +122,7 @@ function buildItemRows(items: DeliveryStatementLine[]) {
       <td class="c-code">${code}</td>
       <td class="c-name">${name}</td>
       <td class="c-num">${formatNumber(item.qty)}</td>
+      <td class="c-num">${formatNumber(item.unitPrice)}</td>
       <td class="c-num">${formatNumber(item.supplyAmount)}</td>
       <td class="c-num">0</td>
     </tr>`
@@ -134,6 +135,7 @@ function buildItemRows(items: DeliveryStatementLine[]) {
         <td class="c-no">&nbsp;</td>
         <td class="c-code">&nbsp;</td>
         <td class="c-name">&nbsp;</td>
+        <td class="c-num">&nbsp;</td>
         <td class="c-num">&nbsp;</td>
         <td class="c-num">&nbsp;</td>
         <td class="c-num">&nbsp;</td>
@@ -243,6 +245,7 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
           <th class="c-code">품목코드</th>
           <th class="c-name">품 목</th>
           <th class="c-num">수 량</th>
+          <th class="c-num">단 가</th>
           <th class="c-num">공급가액</th>
           <th class="c-num">세 액</th>
         </tr>
@@ -254,6 +257,7 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
         <tr class="summary-row">
           <th colspan="3">합계</th>
           <td class="c-num">${formatNumber(qty)}</td>
+          <td class="c-num">&nbsp;</td>
           <td class="c-num">${formatNumber(supply)}</td>
           <td class="c-num">${formatNumber(vat)}</td>
         </tr>
@@ -446,9 +450,9 @@ table.items tbody td {
   font-size: 11px;
   text-align: center;
 }
-table.items .c-no { width: 6%; font-variant-numeric: tabular-nums; }
-table.items .c-code { width: 18%; }
-table.items .c-name { width: 40%; }
+table.items .c-no { width: 5%; font-variant-numeric: tabular-nums; }
+table.items .c-code { width: 15%; }
+table.items .c-name { width: 32%; }
 table.items .c-num { width: 12%; font-variant-numeric: tabular-nums; }
 table.items tbody tr.empty td {
   height: 23px;
@@ -675,15 +679,29 @@ export async function buildDeliveryStatementDataFromOrder(input: {
     const code = productCode.trim().toLowerCase()
     const name = productName.trim().toLowerCase()
     if (code) {
-      const byCode = orderLines.find(
-        (item) =>
-          String(item.productCode || '').trim().toLowerCase() === code ||
-          String(item.productId || '').trim().toLowerCase() === code,
-      )
+      const byCode =
+        orderLines.find(
+          (item) =>
+            !isBillingOnlyOrderItem(item) &&
+            (String(item.productCode || '').trim().toLowerCase() === code ||
+              String(item.productId || '').trim().toLowerCase() === code),
+        ) ||
+        orderLines.find(
+          (item) =>
+            String(item.productCode || '').trim().toLowerCase() === code ||
+            String(item.productId || '').trim().toLowerCase() === code,
+        )
       if (byCode) return byCode
     }
     if (name) {
-      return orderLines.find((item) => String(item.productName || '').trim().toLowerCase() === name)
+      return (
+        orderLines.find(
+          (item) =>
+            !isBillingOnlyOrderItem(item) &&
+            String(item.productName || '').trim().toLowerCase() === name,
+        ) ||
+        orderLines.find((item) => String(item.productName || '').trim().toLowerCase() === name)
+      )
     }
     return null
   }
@@ -797,6 +815,21 @@ export async function buildDeliveryStatementDataFromShipment(input: {
     const code = line.productCode.toLowerCase()
     const name = line.productName.toLowerCase()
     const matched =
+      (code
+        ? orderLines.find(
+            (item) =>
+              !isBillingOnlyOrderItem(item) &&
+              (String(item.productCode || '').trim().toLowerCase() === code ||
+                String(item.productId || '').trim().toLowerCase() === code),
+          )
+        : null) ||
+      (name
+        ? orderLines.find(
+            (item) =>
+              !isBillingOnlyOrderItem(item) &&
+              String(item.productName || '').trim().toLowerCase() === name,
+          )
+        : null) ||
       (code
         ? orderLines.find(
             (item) =>

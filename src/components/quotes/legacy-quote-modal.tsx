@@ -9,6 +9,7 @@ import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { ExcelPasteSampleTable } from '@/components/ui/excel-paste-sample-table'
 import { useBusy } from '@/components/ui/busy-provider'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
   buildLegacyQuotePayload,
@@ -89,6 +90,7 @@ export function LegacyQuoteModal({
 }: LegacyQuoteModalProps) {
   const busyUi = useBusy()
   const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const { notifyAuthOrFailure } = useWriteFailureToast()
 
   const [createTab, setCreateTab] = useState<CreateTab>('single')
@@ -245,7 +247,16 @@ export function LegacyQuoteModal({
 
   async function handleDelete() {
     if (!quote || !canDelete) return
-    if (!window.confirm(`과거 견적서 ${quote.quoteNumber} 를 삭제할까요?`)) return
+    if (
+      !(await confirm({
+        title: '과거 견적서 삭제',
+        message: `과거 견적서 ${quote.quoteNumber} 를 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
 
     setDeleting(true)
     setError(null)

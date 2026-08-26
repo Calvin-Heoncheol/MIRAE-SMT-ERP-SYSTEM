@@ -13,6 +13,7 @@ import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import { ErpButton } from '@/components/ui/erp-button'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { useBusy } from '@/components/ui/busy-provider'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
   computeMetalMaskCostTotal,
@@ -66,7 +67,7 @@ import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
 import { formatProductOptionLabel } from '@/lib/products/utils'
-import { ERP_DANGER_BUTTON_CLASS, ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
+import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
 
 type QuoteModalProps = {
   open: boolean
@@ -273,6 +274,7 @@ function QuoteModalContent({
   onDeleted,
 }: Omit<QuoteModalProps, 'open'>) {
   const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const { profile } = useAuthProfile()
   const contactEmail = String(profile?.email || '').trim()
   const initial = createInitialState(mode, quote)
@@ -537,8 +539,16 @@ function QuoteModalContent({
   async function handleDelete() {
     if (!quote) return
 
-    const confirmMessage = `${quote.quoteNumber} 견적서를 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`
-    if (!window.confirm(confirmMessage)) return
+    if (
+      !(await confirm({
+        title: '견적서 삭제',
+        message: `${quote.quoteNumber} 견적서를 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
 
     setDeleting(true)
     setSaveError(null)
@@ -621,30 +631,18 @@ function QuoteModalContent({
               <QuoteCurrencyToggle value={displayCurrency} onChange={setDisplayCurrency} />
             ) : null}
             {mode === 'edit' ? (
-              <>
-                <PdfDownloadButton
-                  onDownload={() => handleDownloadPdf()}
-                  disabled={busy}
-                  menuItems={
-                    isDomestic
-                      ? [
-                          { label: '한글', onDownload: () => handleDownloadPdf('ko') },
-                          { label: '영문', onDownload: () => handleDownloadPdf('en') },
-                        ]
-                      : undefined
-                  }
-                />
-                {canDelete ? (
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete()}
-                    disabled={busy}
-                    className={ERP_DANGER_BUTTON_CLASS}
-                  >
-                    {deleting ? '삭제 중...' : '삭제'}
-                  </button>
-                ) : null}
-              </>
+              <PdfDownloadButton
+                onDownload={() => handleDownloadPdf()}
+                disabled={busy}
+                menuItems={
+                  isDomestic
+                    ? [
+                        { label: '한글', onDownload: () => handleDownloadPdf('ko') },
+                        { label: '영문', onDownload: () => handleDownloadPdf('en') },
+                      ]
+                    : undefined
+                }
+              />
             ) : null}
             <button
               type="button"
@@ -1011,7 +1009,19 @@ function QuoteModalContent({
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center justify-between gap-2">
+                {mode === 'edit' && canDelete ? (
+                  <ErpButton
+                    variant="danger"
+                    onClick={() => void handleDelete()}
+                    disabled={busy}
+                    loading={deleting}
+                  >
+                    삭제
+                  </ErpButton>
+                ) : (
+                  <span />
+                )}
                 <ErpButton
                   className="min-w-0 flex-1"
                   onClick={() => void handleSave()}

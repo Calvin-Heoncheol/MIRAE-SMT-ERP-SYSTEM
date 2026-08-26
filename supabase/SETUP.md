@@ -27,7 +27,9 @@
 | 출하 원자 등록 | `setup-delivery-production.sql` 하단 (= `migrate-delivery-shipment-id-fix.sql`) |
 | SMT 원자 등록 | `migrate-atomic-quantity-inserts.sql` (`insert_smt_production_atomic`) |
 | 후공정 원자 등록 | `migrate-fix-assembly-group-id-uuid-rpc.sql` (uuid 시그니처) |
-| 주문서 원자 저장 | `migrate-save-order-rpc.sql` |
+| 주문서 원자 저장 | `migrate-save-order-rpc.sql` → `migrate-orders-currency.sql` → **`migrate-save-order-line-upsert.sql`** (최종, 라인 id 유지) |
+| 입고 fingerprint·PO 락 | **`migrate-p1-inbound-fingerprint-po-lock.sql`** |
+| 반·조립 유니크 | **`migrate-p1-items-product-unique.sql`** |
 
 신규라도 SMT/후공정/주문서 RPC는 위 migrate를 **한 번** 실행한다 (테이블 setup 이후).
 

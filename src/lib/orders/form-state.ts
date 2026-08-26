@@ -1,4 +1,5 @@
 import type { OrderCurrency } from './types'
+import { isBillingOnlyOrderItem } from './utils'
 
 let orderItemRowKeyCounter = 0
 
@@ -10,6 +11,8 @@ export function createOrderItemRowKey() {
 export type OrderItemForm = {
   /** React key·행 연결용 (저장하지 않음) */
   rowKey: string
+  /** DB order_lines.id — 수정 시 라인 유지용 (신규 행은 빈 문자열) */
+  lineId?: string
   productId: string
   productCode: string
   productName: string
@@ -17,7 +20,7 @@ export type OrderItemForm = {
   unitPrice: string | number
   /** 제품(라인)별 납기일 YYYY-MM-DD */
   deliveryDate: string
-  /** 품목마스터에 없는 일회성 행 (주문에만 존재) */
+  /** 추가 작업(금액 전용) — 품목등록 필수, 저장 시 product_id 는 비움 */
   isAdhoc?: boolean
   /** 단가 출처 견적 (UI용, 저장하지 않음) */
   quoteId?: string
@@ -40,6 +43,7 @@ export type OrderFormState = {
 export function defaultOrderItemForm(deliveryDate = ''): OrderItemForm {
   return {
     rowKey: createOrderItemRowKey(),
+    lineId: '',
     productId: '',
     productCode: '',
     productName: '',
@@ -54,6 +58,7 @@ export function defaultOrderItemForm(deliveryDate = ''): OrderItemForm {
 export function defaultAdhocOrderItemForm(deliveryDate = ''): OrderItemForm {
   return {
     rowKey: createOrderItemRowKey(),
+    lineId: '',
     productId: '',
     productCode: '',
     productName: '',
@@ -67,6 +72,7 @@ export function defaultAdhocOrderItemForm(deliveryDate = ''): OrderItemForm {
 
 export function orderItemsFromDetail(
   items: {
+    lineId?: string
     productId?: string | null
     productCode: string
     productName: string
@@ -79,13 +85,14 @@ export function orderItemsFromDetail(
   if (!items.length) return [defaultOrderItemForm(fallbackDeliveryDate)]
   return items.map((item) => ({
     rowKey: createOrderItemRowKey(),
+    lineId: String(item.lineId || '').trim(),
     productId: item.productId || '',
     productCode: item.productCode || '',
     productName: item.productName || '',
     quantity: String(item.quantity || 0),
     unitPrice: String(item.unitPrice || 0),
     deliveryDate: String(item.deliveryDate || fallbackDeliveryDate || '').trim(),
-    isAdhoc: !String(item.productId || '').trim(),
+    isAdhoc: isBillingOnlyOrderItem(item),
     quoteId: '',
   }))
 }

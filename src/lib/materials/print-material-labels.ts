@@ -8,7 +8,7 @@ export type MaterialLabelPrintItem = {
   customer?: string
   package?: string
   specification?: string
-  /** 내부 자재 LOT (MRL-…). 당분간 라벨에는 미출력 */
+  /** 내부 자재 LOT (MRL-…). 있으면 라벨에 표시 */
   lotNumber?: string
   /** 라벨 매수 (기본 1) */
   copies?: number
@@ -44,6 +44,7 @@ function buildLabelHtml(items: MaterialLabelPrintItem[]) {
     id: string
     name: string
     specLine: string
+    lotNumber: string
   }[] = []
 
   for (const item of items) {
@@ -56,9 +57,10 @@ function buildLabelHtml(items: MaterialLabelPrintItem[]) {
       [item.specification || '', item.package || ''].map((v) => v.trim()).filter(Boolean).join(', '),
       32,
     )
+    const lotNumber = truncateText(String(item.lotNumber || '').trim(), 28)
 
     for (let index = 0; index < copies; index += 1) {
-      labels.push({ id, name, specLine })
+      labels.push({ id, name, specLine, lotNumber })
     }
   }
 
@@ -73,6 +75,11 @@ function buildLabelHtml(items: MaterialLabelPrintItem[]) {
       <div class="label-barcode">
         <svg class="barcode barcode-pn" data-code="${escapeHtml(label.id)}"></svg>
         <p class="label-id">${escapeHtml(label.id)}</p>
+        ${
+          label.lotNumber
+            ? `<p class="label-lot">LOT ${escapeHtml(label.lotNumber)}</p>`
+            : ''
+        }
       </div>
     </section>`,
     )
@@ -91,6 +98,7 @@ function buildPrintHtml(
   const namePt = Math.max(6, 7.2 * scale)
   const specPt = Math.max(5.5, 6.5 * scale)
   const idPt = Math.max(7, 8.5 * scale)
+  const lotPt = Math.max(5.5, 6.2 * scale)
   const barcodeMm = Math.max(3.5, Math.min(heightMm * 0.28, 11 * scale))
   const barcodeBarWidth = Math.max(1.2, Number((1.55 * scale).toFixed(2)))
 
@@ -180,6 +188,17 @@ function buildPrintHtml(
       margin-top: 0.4mm;
       -webkit-font-smoothing: none;
       text-rendering: geometricPrecision;
+    }
+    .label-lot {
+      font-family: ui-monospace, Consolas, monospace;
+      font-weight: 700;
+      line-height: 1.05;
+      word-break: break-all;
+      font-size: ${lotPt}pt;
+      letter-spacing: 0.01em;
+      text-align: center;
+      margin-top: 0.25mm;
+      color: #0f172a;
     }
     .label-name,
     .label-spec {

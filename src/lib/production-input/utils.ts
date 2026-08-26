@@ -292,7 +292,7 @@ export function buildPostProcessAssemblyLines(
   return buildAssemblyGroupProductionLines(assemblyGroups, orders, productById, 'post', quotes)
 }
 
-/** 출하용 — 조립그룹 부모 품목에 대응하는 발주서 라인 단가 */
+/** 출하용 — 조립그룹 부모 품목에 대응하는 발주서 라인 단가 (추가작업 행 제외) */
 export function resolveAssemblyGroupOrderUnitPrice(
   order: OrderListGroup,
   parentProductId: string,
@@ -300,20 +300,16 @@ export function resolveAssemblyGroupOrderUnitPrice(
 ) {
   const parentId = String(parentProductId || '').trim()
   const code = String(productCode || '').trim()
-  const items = order.items || []
+  const items = (order.items || []).filter(
+    (item) => !item.derivedFromLineId && !isBillingOnlyOrderItem(item),
+  )
 
   const match =
     items.find(
       (item) =>
-        !item.derivedFromLineId &&
-        ((parentId && item.productId === parentId) ||
-          (code && (item.productCode === code || item.productId === code))),
-    ) ||
-    items.find(
-      (item) =>
         (parentId && item.productId === parentId) ||
         (code && (item.productCode === code || item.productId === code)),
-    )
+    ) || null
 
   return Math.max(0, Math.round(Number(match?.unitPrice) || 0))
 }

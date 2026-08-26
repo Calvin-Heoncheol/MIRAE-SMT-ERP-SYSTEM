@@ -213,11 +213,7 @@ export function ItemListTable({
                   <td className="whitespace-nowrap px-3 py-2.5 text-center">
                     <StatusBadge
                       label={item.isActive === false ? '사용중지' : '사용중'}
-                      className={
-                        item.isActive === false
-                          ? 'bg-slate-200 text-slate-600'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }
+                      tone={item.isActive === false ? 'neutral' : 'success'}
                     />
                   </td>
                 </tr>

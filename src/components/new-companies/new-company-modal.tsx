@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ErpButton } from '@/components/ui/erp-button'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import {
@@ -48,6 +49,7 @@ function NewCompanyModalContent({
   onDeleted,
 }: Omit<NewCompanyModalProps, 'open'>) {
   const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const isCreate = mode === 'create'
   const [form, setForm] = useState<NewCompanyInquiryFormState>(() =>
     inquiry ? inquiryToForm(inquiry) : emptyNewCompanyInquiryForm(),
@@ -123,7 +125,16 @@ function NewCompanyModalContent({
 
   async function handleDelete() {
     if (!inquiry) return
-    if (!window.confirm(`${inquiry.companyName || '이'} 신규업체를 삭제하시겠습니까?`)) return
+    if (
+      !(await confirm({
+        title: '신규업체 삭제',
+        message: `${inquiry.companyName || '이'} 신규업체를 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
 
     setDeleting(true)
     setSaveError(null)

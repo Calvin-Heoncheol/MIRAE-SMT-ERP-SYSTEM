@@ -19,9 +19,12 @@ anon 키만으로 전 테이블 CRUD 되던 정책을 막습니다.
 1. `setup-profiles.sql` (또는 `migrate-profiles-rls-fix.sql`) 적용
 2. 앱에서 `AUTH_ENABLED=true` + 관리자 계정 로그인 확인
 3. SQL Editor에서 **`migrate-rls-authenticated-writes.sql`** 실행
-4. (감사) **`migrate-entity-change-logs-auth-insert.sql`** — 변경이력 INSERT만 authenticated
-5. (무결성) **`migrate-save-order-rpc.sql`** — 주문서 헤더+라인 원자 저장
-6. (무결성) **`migrate-atomic-quantity-inserts.sql`** — 생산·출하 동시 등록 레이스 방지
+4. (P0 보강) **`migrate-rls-p0-harden.sql`** — 누락 테이블 harden + profiles role 잠금 트리거
+5. (감사) **`migrate-entity-change-logs-auth-insert.sql`** — 변경이력 INSERT만 authenticated
+6. (무결성) **`migrate-save-order-rpc.sql`** 후 **`migrate-orders-currency.sql`**(통화) · **`migrate-save-order-line-upsert.sql`**(라인 id 유지)
+7. (무결성) **`migrate-atomic-quantity-inserts.sql`** — 생산·출하 동시 등록 레이스 방지
+8. (P1) **`migrate-p1-inbound-fingerprint-po-lock.sql`** — 릴 fingerprint 유니크 + PO 입고 원자 RPC
+9. (P1) **`migrate-p1-items-product-unique.sql`** — 반·조립 유니크(고객사+코드+버전)
 
 적용 후:
 
@@ -30,6 +33,7 @@ anon 키만으로 전 테이블 CRUD 되던 정책을 막습니다.
 - **삭제**: 팀장(manager) 이상
 - **기초등록**(품목·거래처·BOM): 관리자(admin)만
 - **변경이력 INSERT**: 로그인만 (SELECT는 공개 유지)
+- **profiles**: `trg_enforce_profile_safe_update` — 비관리자 본인의 role/department 변경 차단
 
 `AUTH_ENABLED=false` 개발 모드에서는 JWT가 없어 쓰기가 막힐 수 있습니다. RLS 적용 환경에서는 로그인을 켜 주세요.
 

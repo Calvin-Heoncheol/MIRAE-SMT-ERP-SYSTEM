@@ -7,6 +7,7 @@ import { OrderItemsForm } from '@/components/orders/order-items-form'
 import { EntityChangeHistoryButton } from '@/components/change-logs/entity-change-history-button'
 import { ChangeReasonModal } from '@/components/change-logs/change-reason-modal'
 import { useBusy } from '@/components/ui/busy-provider'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
@@ -82,6 +83,7 @@ function OrderModalContent({
   onDeleted,
 }: Omit<OrderModalProps, 'open'>) {
   const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const { profile } = useAuthProfile()
   const contactEmail = String(profile?.email || '').trim()
   const [form, setForm] = useState<OrderFormState>(() => createInitialForm(order))
@@ -198,7 +200,17 @@ function OrderModalContent({
       source: order?.source || 'manual',
       source_quote_id: order?.sourceQuoteId || null,
       items: validation.items.map(
-        ({ productId, productCode, productName, quantity, unitPrice, orderAmount, deliveryDate }) => ({
+        ({
+          lineId,
+          productId,
+          productCode,
+          productName,
+          quantity,
+          unitPrice,
+          orderAmount,
+          deliveryDate,
+        }) => ({
+          lineId,
           productId,
           productCode,
           productName,
@@ -225,7 +237,14 @@ function OrderModalContent({
 
   async function handleDelete() {
     if (!order) return
-    if (!window.confirm(`${order.customerPoNumber || order.orderNumber} 발주서를 삭제하시겠습니까?\n삭제 후에는 복구할 수 없습니다.`)) {
+    if (
+      !(await confirm({
+        title: '발주서 삭제',
+        message: `${order.customerPoNumber || order.orderNumber} 발주서를 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
       return
     }
 

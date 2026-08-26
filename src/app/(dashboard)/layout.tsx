@@ -2,6 +2,7 @@ import { SideNav } from '@/components/dashboard/side-nav'
 import { AuthProfileProvider } from '@/components/auth/auth-profile-provider'
 import { ForcePasswordChangeModal } from '@/components/auth/force-password-change-modal'
 import { BusyProvider } from '@/components/ui/busy-provider'
+import { ErpConfirmProvider } from '@/components/ui/erp-confirm'
 import { PageLocationHeader } from '@/components/ui/page-location-header'
 import { ToastProvider } from '@/components/ui/toast-provider'
 import { isAuthDisabled } from '@/lib/auth/config'
@@ -22,14 +23,16 @@ export default async function DashboardLayout({
     <AuthProfileProvider profile={profile} authDisabled={authDisabled}>
       <ToastProvider>
         <BusyProvider>
-          <div className="flex h-dvh flex-col overflow-hidden text-slate-900 lg:flex-row">
-            <SideNav profile={profile} authDisabled={authDisabled} />
-            <main className="flex min-h-0 min-w-0 w-full flex-1 flex-col gap-3 overflow-hidden px-4 py-4 lg:px-6 lg:py-5">
-              <PageLocationHeader />
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
-            </main>
-            <ForcePasswordChangeModal open={Boolean(profile?.mustChangePassword)} />
-          </div>
+          <ErpConfirmProvider>
+            <div className="flex h-dvh flex-col overflow-hidden text-slate-900 lg:flex-row">
+              <SideNav profile={profile} authDisabled={authDisabled} />
+              <main className="flex min-h-0 min-w-0 w-full flex-1 flex-col gap-3 overflow-hidden px-4 py-4 lg:px-6 lg:py-5">
+                <PageLocationHeader />
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+              </main>
+              <ForcePasswordChangeModal open={Boolean(profile?.mustChangePassword)} />
+            </div>
+          </ErpConfirmProvider>
         </BusyProvider>
       </ToastProvider>
     </AuthProfileProvider>

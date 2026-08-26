@@ -25,9 +25,12 @@ import type {
   FetchDeliveryHistoryResult,
   FetchDeliveryInputPageResult,
 } from '@/lib/delivery/repository'
-import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 import type { DeliveryAvailability } from '@/lib/delivery/utils'
-import { filterDeliveryHistory } from '@/lib/delivery/history-utils'
+import {
+  filterDeliveryHistory,
+  groupDeliveryHistoryByShipment,
+  type DeliveryHistoryShipmentGroup,
+} from '@/lib/delivery/history-utils'
 import { DATE_RANGE_FILTER_LABEL, hasDateRangeFilter } from '@/lib/ui/date-range'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
@@ -39,7 +42,7 @@ type DeliveryInputWorkspaceProps = {
 
 type HistoryModalState =
   | { open: false }
-  | { open: true; row: DeliveryHistoryRow }
+  | { open: true; group: DeliveryHistoryShipmentGroup }
 
 function seedItemsFromOption(option: DeliveryShippableOption | null): DeliveryRegisterItemForm[] | null {
   if (!option) return null
@@ -73,6 +76,7 @@ export function DeliveryInputWorkspace({
 
   const rows = historyResult.ok ? historyResult.rows : []
   const orders = inputResult.ok ? inputResult.data.orders : []
+  const billingOnlyLines = inputResult.ok ? inputResult.data.billingOnlyLines : []
 
   const shippableOptions = useMemo(
     () => buildDeliveryShippableOptions(orders, availabilityByGroupId),
@@ -83,6 +87,10 @@ export function DeliveryInputWorkspace({
   const filteredHistory = useMemo(
     () => filterDeliveryHistory(rows, search, dateRange),
     [rows, search, dateRange],
+  )
+  const historyGroups = useMemo(
+    () => groupDeliveryHistoryByShipment(filteredHistory),
+    [filteredHistory],
   )
   const hasHistoryFilter = Boolean(search.trim()) || hasDateRangeFilter(dateRange)
 
@@ -102,9 +110,9 @@ export function DeliveryInputWorkspace({
     setRegisterInitialItems(null)
   }
 
-  function openHistory(row: DeliveryHistoryRow) {
+  function openHistory(group: DeliveryHistoryShipmentGroup) {
     setHistoryModalSession((value) => value + 1)
-    setHistoryModal({ open: true, row })
+    setHistoryModal({ open: true, group })
   }
 
   function closeHistory() {
@@ -112,11 +120,11 @@ export function DeliveryInputWorkspace({
   }
 
   function handleHistorySaved(message?: string) {
-    afterSave(message ?? '출하 이력이 저장되었습니다.', { close: closeHistory })
+    afterSave(message ?? '출하 내역을 수정했습니다.', { close: closeHistory })
   }
 
   function handleHistoryDeleted(message?: string) {
-    afterDelete(message ?? '출하 이력이 삭제되었습니다.', { close: closeHistory })
+    afterDelete(message ?? '출하 내역을 삭제했습니다.', { close: closeHistory })
   }
 
   function handleShipped(payload: {
@@ -180,7 +188,7 @@ export function DeliveryInputWorkspace({
         />
 
         <DeliveryHistoryTable
-          rows={filteredHistory}
+          groups={historyGroups}
           emptyMessage={formatEmptyListMessage({
             hasQuery: hasHistoryFilter,
             emptyLabel: '등록된 출하 이력이 없습니다',
@@ -195,6 +203,7 @@ export function DeliveryInputWorkspace({
           key={`register-${registerSession}`}
           open
           options={shippableOptions}
+          billingOnlyLines={billingOnlyLines}
           initialItems={registerInitialItems}
           onClose={closeRegister}
           onShipped={handleShipped}
@@ -203,9 +212,9 @@ export function DeliveryInputWorkspace({
 
       {historyModal.open ? (
         <DeliveryHistoryModal
-          key={`${historyModal.row.id}-${historyModalSession}`}
+          key={`${historyModal.group.shipmentId}-${historyModalSession}`}
           open
-          row={historyModal.row}
+          group={historyModal.group}
           onClose={closeHistory}
           onSaved={handleHistorySaved}
           onDeleted={handleHistoryDeleted}

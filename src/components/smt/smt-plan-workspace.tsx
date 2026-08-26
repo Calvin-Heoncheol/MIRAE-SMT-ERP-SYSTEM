@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { SmtPlanCalendar } from '@/components/smt/smt-plan-calendar'
 import { SmtPlanFetchError } from '@/components/smt/smt-plan-fetch-error'
 import { SmtPlanFormModal, type SmtPlanFormValues } from '@/components/smt/smt-plan-form-modal'
 import { ErpButton } from '@/components/ui/erp-button'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
 import { suggestPlanQuantityFromMaterial } from '@/lib/materials/material-inbound-status'
 import {
@@ -37,6 +39,7 @@ type SmtPlanWorkspaceProps = {
 }
 
 export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWorkspaceProps) {
+  const canDelete = useCanDeleteRecords()
   const [weekStart, setWeekStart] = useState(initialWeekStart)
   const [data, setData] = useState<SmtPlanPageData | null>(initialResult.ok ? initialResult.data : null)
   const [error, setError] = useState(initialResult.ok ? '' : initialResult.detail)
@@ -302,16 +305,10 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
               <ErpButton type="button" onClick={openAddPlanModal} disabled={loading}>
                 계획 추가
               </ErpButton>
-              <div className="mr-1 flex flex-wrap gap-1 text-[10px] font-semibold text-slate-500">
-                <span className="rounded bg-sky-100 px-1.5 py-0.5 text-sky-700 ring-1 ring-sky-200">
-                  예정
-                </span>
-                <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-800 ring-1 ring-amber-100">
-                  진행
-                </span>
-                <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-800 ring-1 ring-emerald-100">
-                  완료 · 재배정
-                </span>
+              <div className="mr-1 flex flex-wrap gap-1">
+                <StatusBadge label="예정" tone="info" className="!text-[10px]" />
+                <StatusBadge label="진행" tone="warning" className="!text-[10px]" />
+                <StatusBadge label="완료 · 재배정" tone="success" className="!text-[10px]" />
               </div>
               <button
                 type="button"
@@ -392,8 +389,8 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
         onClose={() => setModal({ open: false })}
         onSubmit={handleSubmit}
         onDelete={
-          modal.open && modal.mode !== 'create' && modal.initialValues.id
-            ? () => handleDelete(modal.initialValues.id!)
+          modal.open && modal.mode !== 'create' && modal.initialValues.id && canDelete
+            ? () => void handleDelete(modal.initialValues.id!)
             : undefined
         }
       />

@@ -22,7 +22,7 @@ export type LotAllocation = {
 
 export type LotSyncResult =
   | { ok: true; usedCatchUp?: boolean }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
 /** catch_up LOT 생성 시 사용자에게 보여줄 안내 */
 export const CATCH_UP_LOT_WARNING =

@@ -5,6 +5,7 @@ import {
   withCreatedByFields,
 } from '@/lib/auth/created-by'
 import { createSupabaseClient } from '@/lib/supabase'
+import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { fetchMaterials } from '@/lib/materials/repository'
 import { fetchMaterialPurchaseOrders } from '@/lib/materials/purchase-orders/repository'
 import type { Material } from '@/lib/materials/types'
@@ -34,6 +35,86 @@ export type SaveMaterialInboundResult =
 export type DeleteMaterialInboundResult =
   | { ok: true }
   | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
+
+const DUPLICATE_FINGERPRINT_MESSAGE = '이미 입고된 릴 바코드입니다.'
+
+const MISSING_INBOUND_LOT_MIGRATION_MESSAGE =
+  '입고 LOT/지문 컬럼이 없습니다. Supabase에서 supabase/migrate-inbound-reel-lot.sql 을 실행해 주세요.'
+
+const MISSING_PO_INBOUND_RPC_MESSAGE =
+  '구매발주 입고 수량 갱신 RPC가 없습니다. Supabase에서 supabase/migrate-p1-inbound-fingerprint-po-lock.sql 을 실행해 주세요.'
+
+function isDuplicateFingerprintError(detail: string) {
+  const text = String(detail || '').toLowerCase()
+  return (
+    text.includes('scan_fingerprint') &&
+    (text.includes('duplicate') ||
+      text.includes('unique') ||
+      text.includes('uidx') ||
+      text.includes('23505'))
+  )
+}
+
+function mapInboundLineWriteError(detail: string): string {
+  if (isDuplicateFingerprintError(detail)) return DUPLICATE_FINGERPRINT_MESSAGE
+  if (isMissingInboundLotColumn(detail)) return MISSING_INBOUND_LOT_MIGRATION_MESSAGE
+  return detail
+}
+
+function mapPoInboundError(detail: string): string {
+  if (detail.includes('PO_INBOUND_EXCEEDED')) {
+    const remaining = detail.split(':').slice(1).join(':').trim()
+    const remainingNum = Number(remaining)
+    const remainingLabel = Number.isFinite(remainingNum)
+      ? remainingNum.toLocaleString('ko-KR')
+      : remaining || '0'
+    return `입고 수량이 구매발주 잔량을 초과합니다. (잔량 ${remainingLabel})`
+  }
+  if (
+    detail.includes('apply_po_line_inbound_qty') ||
+    (isMissingRpcFunction(detail) &&
+      (detail.includes('apply_po_line_inbound_qty') || detail.toLowerCase().includes('function')))
+  ) {
+    return MISSING_PO_INBOUND_RPC_MESSAGE
+  }
+  return detail
+}
+
+async function assertScanFingerprintsAvailable(
+  items: { scan_fingerprint?: string }[],
+  options?: { excludeInboundId?: string },
+) {
+  const fingerprints = [
+    ...new Set(
+      items
+        .map((item) => String(item.scan_fingerprint || '').trim())
+        .filter(Boolean),
+    ),
+  ]
+  if (!fingerprints.length) return
+
+  const supabase = createSupabaseClient()
+  let query = supabase
+    .from('material_inbound_lines')
+    .select('id, scan_fingerprint, inbound_id')
+    .in('scan_fingerprint', fingerprints)
+
+  const excludeInboundId = String(options?.excludeInboundId || '').trim()
+  if (excludeInboundId) {
+    query = query.neq('inbound_id', excludeInboundId)
+  }
+
+  const { data, error } = await query
+  if (error) {
+    if (isMissingInboundLotColumn(error.message)) {
+      throw new Error(MISSING_INBOUND_LOT_MIGRATION_MESSAGE)
+    }
+    throw new Error(error.message)
+  }
+  if ((data || []).length > 0) {
+    throw new Error(DUPLICATE_FINGERPRINT_MESSAGE)
+  }
+}
 
 const INBOUND_LINES_SELECT = `
           id,
@@ -194,31 +275,17 @@ async function applyPurchaseOrderInboundUpdates(
 
   for (const item of items) {
     if (!item.purchase_order_line_id) continue
-
-    const { data: line, error: fetchError } = await supabase
-      .from('material_purchase_order_lines')
-      .select('id, quantity, inbound_quantity')
-      .eq('id', item.purchase_order_line_id)
-      .maybeSingle()
-
-    if (fetchError) throw new Error(fetchError.message)
-    if (!line?.id) throw new Error('구매발주 라인을 찾을 수 없습니다.')
-
-    const ordered = Number(line.quantity) || 0
-    const received = Number(line.inbound_quantity) || 0
-    const remaining = Math.max(0, ordered - received)
     const inboundQty = Number(item.quantity) || 0
+    if (!inboundQty) continue
 
-    if (inboundQty > remaining) {
-      throw new Error(`입고 수량이 구매발주 잔량을 초과합니다. (잔량 ${remaining.toLocaleString('ko-KR')})`)
+    const { error } = await supabase.rpc('apply_po_line_inbound_qty', {
+      p_line_id: item.purchase_order_line_id,
+      p_delta: inboundQty,
+    })
+
+    if (error) {
+      throw new Error(mapPoInboundError(error.message))
     }
-
-    const { error: updateError } = await supabase
-      .from('material_purchase_order_lines')
-      .update({ inbound_quantity: received + inboundQty })
-      .eq('id', line.id)
-
-    if (updateError) throw new Error(updateError.message)
   }
 }
 
@@ -229,26 +296,17 @@ async function revertPurchaseOrderInboundUpdates(
 
   for (const item of items) {
     if (!item.purchase_order_line_id) continue
-
-    const { data: line, error: fetchError } = await supabase
-      .from('material_purchase_order_lines')
-      .select('id, inbound_quantity')
-      .eq('id', item.purchase_order_line_id)
-      .maybeSingle()
-
-    if (fetchError) throw new Error(fetchError.message)
-    if (!line?.id) throw new Error('구매발주 라인을 찾을 수 없습니다.')
-
-    const received = Number(line.inbound_quantity) || 0
     const inboundQty = Number(item.quantity) || 0
-    const nextReceived = Math.max(0, received - inboundQty)
+    if (!inboundQty) continue
 
-    const { error: updateError } = await supabase
-      .from('material_purchase_order_lines')
-      .update({ inbound_quantity: nextReceived })
-      .eq('id', line.id)
+    const { error } = await supabase.rpc('apply_po_line_inbound_qty', {
+      p_line_id: item.purchase_order_line_id,
+      p_delta: -inboundQty,
+    })
 
-    if (updateError) throw new Error(updateError.message)
+    if (error) {
+      throw new Error(mapPoInboundError(error.message))
+    }
   }
 }
 
@@ -462,6 +520,8 @@ export async function updateMaterialInbound(
       await revertPurchaseOrderInboundUpdates(oldLines)
     }
 
+    await assertScanFingerprintsAvailable(items, { excludeInboundId: inboundId })
+
     const supabase = createSupabaseClient()
     const { error: updateError } = await supabase
       .from('material_inbound_records')
@@ -497,15 +557,23 @@ export async function updateMaterialInbound(
       lineRows = items.map((item, index) => toInboundLineInsert(inboundId, item, index, true, false))
       ;({ error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows))
     }
+    if (linesError && isDuplicateFingerprintError(linesError.message)) {
+      if (existing.inbound_type === 'purchase') {
+        await applyPurchaseOrderInboundUpdates(oldLines).catch(() => undefined)
+      }
+      return { ok: false, reason: 'validation', detail: DUPLICATE_FINGERPRINT_MESSAGE }
+    }
     if (linesError && isMissingInboundLotColumn(linesError.message)) {
-      lineRows = items.map((item, index) => toInboundLineInsert(inboundId, item, index, false, false))
-      ;({ error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows))
+      if (existing.inbound_type === 'purchase') {
+        await applyPurchaseOrderInboundUpdates(oldLines).catch(() => undefined)
+      }
+      return { ok: false, reason: 'query', detail: MISSING_INBOUND_LOT_MIGRATION_MESSAGE }
     }
     if (linesError) {
       if (existing.inbound_type === 'purchase') {
         await applyPurchaseOrderInboundUpdates(oldLines).catch(() => undefined)
       }
-      return { ok: false, reason: 'query', detail: linesError.message }
+      return { ok: false, reason: 'query', detail: mapInboundLineWriteError(linesError.message) }
     }
 
     if (payload.inbound_type === 'purchase') {
@@ -534,10 +602,14 @@ export async function updateMaterialInbound(
 
     return { ok: true, inboundId, inboundNumber: inboundId }
   } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    if (detail === DUPLICATE_FINGERPRINT_MESSAGE) {
+      return { ok: false, reason: 'validation', detail }
+    }
     return {
       ok: false,
       reason: 'query',
-      detail: error instanceof Error ? error.message : String(error),
+      detail,
     }
   }
 }
@@ -660,6 +732,8 @@ export async function createMaterialInbound(
     }
 
     const supabase = createSupabaseClient()
+    await assertScanFingerprintsAvailable(items)
+
     let headerRow: Record<string, unknown> = await withCreatedByFields({
       inbound_date: payload.inbound_date,
       inbound_type: payload.inbound_type,
@@ -692,13 +766,17 @@ export async function createMaterialInbound(
       lineRows = items.map((item, index) => toInboundLineInsert(inserted.id, item, index, true, false))
       ;({ error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows))
     }
+    if (linesError && isDuplicateFingerprintError(linesError.message)) {
+      await rollbackInboundRecord(inserted.id)
+      return { ok: false, reason: 'validation', detail: DUPLICATE_FINGERPRINT_MESSAGE }
+    }
     if (linesError && isMissingInboundLotColumn(linesError.message)) {
-      lineRows = items.map((item, index) => toInboundLineInsert(inserted.id, item, index, false, false))
-      ;({ error: linesError } = await supabase.from('material_inbound_lines').insert(lineRows))
+      await rollbackInboundRecord(inserted.id)
+      return { ok: false, reason: 'query', detail: MISSING_INBOUND_LOT_MIGRATION_MESSAGE }
     }
     if (linesError) {
       await rollbackInboundRecord(inserted.id)
-      return { ok: false, reason: 'query', detail: linesError.message }
+      return { ok: false, reason: 'query', detail: mapInboundLineWriteError(linesError.message) }
     }
 
     if (payload.inbound_type === 'purchase') {
@@ -716,10 +794,14 @@ export async function createMaterialInbound(
 
     return { ok: true, inboundId: inserted.id, inboundNumber: inserted.id }
   } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    if (detail === DUPLICATE_FINGERPRINT_MESSAGE) {
+      return { ok: false, reason: 'validation', detail }
+    }
     return {
       ok: false,
       reason: 'query',
-      detail: error instanceof Error ? error.message : String(error),
+      detail,
     }
   }
 }

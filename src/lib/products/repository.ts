@@ -1,3 +1,4 @@
+import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
 import type { Product, ProductPayload } from './types'
 import { mapItemRowToProduct } from './utils'
@@ -8,7 +9,7 @@ export type FetchProductsResult =
 
 export type SaveProductResult =
   | { ok: true; id: string; productCode: string }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'auth'; detail: string }
 
 export function isMissingProductsTable(detail: string) {
   return detail.includes('items') || detail.includes('products') || detail.includes('schema cache')
@@ -59,6 +60,9 @@ export async function createProduct(payload: ProductPayload): Promise<SaveProduc
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
   }
+
+  const gate = await assertCanWrite({ module: 'master', action: 'create' })
+  if (!gate.ok) return gate
 
   try {
     const supabase = createSupabaseClient()

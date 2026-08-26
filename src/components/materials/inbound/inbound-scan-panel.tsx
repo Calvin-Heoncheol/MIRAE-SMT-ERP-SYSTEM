@@ -212,6 +212,7 @@ export function InboundScanPanel({
   }
 
   function resolvePoLine(material: Material, excludeKey?: string | null): OpenPoLine | null {
+    if (!material.supplyType) return null
     if (material.supplyType === '사급') return null
     const candidates = openPoLinesByMaterial.get(material.id) ?? []
     const reserved = reservedQuantityByPoLine(excludeKey)
@@ -223,6 +224,16 @@ export function InboundScanPanel({
   }
 
   function addMaterialToList(material: Material, rawCode: string) {
+    if (!material.supplyType) {
+      setMessage({
+        tone: 'error',
+        text: '도급/사급이 미지정인 품목입니다. 품목등록에서 설정하세요.',
+      })
+      triggerScanPulse('error')
+      focusScanInput()
+      return
+    }
+
     const parsed = parseReelBarcode(rawCode)
     if (parsed.fingerprint) {
       const existing = lines.find((line) => line.scanFingerprint === parsed.fingerprint)

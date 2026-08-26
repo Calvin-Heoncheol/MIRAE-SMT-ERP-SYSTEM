@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { MaterialCombobox } from '@/components/materials/purchase-orders/material-combobox'
+import { OrderCombobox } from '@/components/orders/order-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { buildMaterialOutboundPayload } from '@/lib/materials/outbound/build-payload'
@@ -59,6 +61,7 @@ function OutboundModalContent({
   onDeleted,
 }: Omit<OutboundModalProps, 'open'>) {
   const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const isEdit = mode === 'edit'
   const [form, setForm] = useState<MaterialOutboundFormState>(() => {
     if (outbound) return materialOutboundFormStateFromDetail(outbound)
@@ -121,7 +124,16 @@ function OutboundModalContent({
 
   async function handleDelete() {
     if (!outbound) return
-    if (!window.confirm(`${outbound.outboundNumber} 불출 전표를 삭제할까요?`)) return
+    if (
+      !(await confirm({
+        title: '불출 전표 삭제',
+        message: `${outbound.outboundNumber} 불출 전표를 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
 
     setDeleting(true)
     setError('')
@@ -205,18 +217,15 @@ function OutboundModalContent({
           <span className={ERP_FIELD_LABEL_CLASS}>
             발주서 {form.outboundType === 'production' ? '(필수)' : '(선택)'}
           </span>
-          <select
+          <OrderCombobox
             value={form.orderId}
-            onChange={(event) => setForm((current) => ({ ...current, orderId: event.target.value }))}
-            className={ERP_FIELD_INPUT_CLASS}
-          >
-            <option value="">발주서 선택</option>
-            {orders.map((order) => (
-              <option key={order.orderId} value={order.orderId}>
-                {order.orderNumber} · {order.customer}
-              </option>
-            ))}
-          </select>
+            orders={orders}
+            allowEmpty={form.outboundType !== 'production'}
+            emptyLabel={form.outboundType === 'production' ? '발주서 선택' : '발주서 없음(선택)'}
+            onOrderSelect={(order) =>
+              setForm((current) => ({ ...current, orderId: order?.orderId || '' }))
+            }
+          />
         </label>
 
         <div>

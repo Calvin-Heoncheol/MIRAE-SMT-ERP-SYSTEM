@@ -7,9 +7,10 @@ import { ReceivablesTable } from '@/components/accounting/receivables-table'
 import { useBusy } from '@/components/ui/busy-provider'
 import { DateRangeFilter } from '@/components/ui/date-range-filter'
 import { ErpButton } from '@/components/ui/erp-button'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
-import { FilterChipBar, STATUS_FILTER_TONES, type FilterChipTone } from '@/components/ui/filter-chip'
+import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
@@ -34,17 +35,8 @@ type ReceivablesWorkspaceProps = {
 
 type ModalState = { open: false } | { open: true; shipmentId: string }
 
-const OVERDUE_TONE: FilterChipTone = {
-  idleClassName: 'border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100',
-  activeClassName: 'bg-rose-600 text-white shadow-sm',
-  activeCountClassName: 'text-rose-100',
-}
-
-const PARTIAL_TONE: FilterChipTone = {
-  idleClassName: 'border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100',
-  activeClassName: 'bg-sky-600 text-white shadow-sm',
-  activeCountClassName: 'text-sky-100',
-}
+const OVERDUE_TONE = STATUS_FILTER_TONES.danger
+const PARTIAL_TONE = STATUS_FILTER_TONES.info
 
 function buildReceivablesHref(startDate: string, endDate: string) {
   const params = new URLSearchParams()
@@ -63,6 +55,7 @@ export function ReceivablesWorkspace({
   const router = useRouter()
   const { afterSave } = useSaveFeedback()
   const busyUi = useBusy()
+  const confirm = useErpConfirm()
   const { notifyAuthOrFailure, toast } = useWriteFailureToast()
   const [isPending, startTransition] = useTransition()
   const [startDate, setStartDate] = useState(initialStartDate)
@@ -208,9 +201,12 @@ export function ReceivablesWorkspace({
   async function handleMarkPaid() {
     if (markingPaid || selectedCount === 0 || paymentsMissing) return
     if (
-      !window.confirm(
-        `선택한 ${selectedCount}건을 잔액 전액 입금완료로 기록할까요?\n입금일은 오늘(${todayYmdSeoul()})로 저장됩니다.`,
-      )
+      !(await confirm({
+        title: '입금완료',
+        message: `선택한 ${selectedCount}건을 잔액 전액 입금완료로 기록할까요?\n입금일은 오늘(${todayYmdSeoul()})로 저장됩니다.`,
+        confirmLabel: '입금완료',
+        tone: 'default',
+      }))
     ) {
       return
     }

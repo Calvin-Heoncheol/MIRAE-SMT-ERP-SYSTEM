@@ -9,6 +9,7 @@ import type {
 } from './types'
 import {
   deriveItemProcessType,
+  ITEM_CATEGORY_CODE_PAD,
   ITEM_CATEGORY_CODE_PREFIX,
   ITEM_PCB_SIDE_MODE_LABELS,
   ITEM_PROCESS_TYPE_LABELS,
@@ -390,7 +391,11 @@ export function parseItemCodeSequence(prefix: string, id: string): number | null
   return Number.isFinite(num) && num > 0 ? num : null
 }
 
-export function formatItemCode(prefix: string, sequence: number, padLength = 3) {
+export function formatItemCode(
+  prefix: string,
+  sequence: number,
+  padLength = ITEM_CATEGORY_CODE_PAD,
+) {
   return `${prefix}${String(sequence).padStart(padLength, '0')}`
 }
 

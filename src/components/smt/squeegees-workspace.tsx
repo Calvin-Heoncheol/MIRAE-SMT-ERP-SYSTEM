@@ -12,6 +12,7 @@ import type { SqueegeeAsset } from '@/lib/squeegees/types'
 import { DEFAULT_SQUEEGEE_USE_LIMIT, SQUEEGEE_STATUS_LABELS } from '@/lib/squeegees/types'
 import { isSqueegeeNearLimit, squeegeeRemaining } from '@/lib/squeegees/utils'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type SqueegeesWorkspaceProps = {
@@ -187,6 +188,7 @@ function SqueegeeCreateModal({
 
 export function SqueegeesWorkspace({ result }: SqueegeesWorkspaceProps) {
   const { afterCreate, afterSave } = useSaveFeedback()
+  const confirm = useErpConfirm()
   const [search, setSearch] = useState('')
   const [showRetired, setShowRetired] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -207,7 +209,16 @@ export function SqueegeesWorkspace({ result }: SqueegeesWorkspaceProps) {
   }, [assets, query, showRetired])
 
   async function handleRetire(asset: SqueegeeAsset) {
-    if (!window.confirm(`${asset.barcode} 스퀴즈를 교체완료로 처리할까요?`)) return
+    if (
+      !(await confirm({
+        title: '스퀴즈 교체완료',
+        message: `${asset.barcode} 스퀴즈를 교체완료로 처리할까요?`,
+        confirmLabel: '교체완료',
+        tone: 'default',
+      }))
+    ) {
+      return
+    }
     setRetiringId(asset.id)
     setListMessage(null)
 

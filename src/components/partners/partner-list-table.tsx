@@ -27,16 +27,16 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
   }
 
   return (
-    <ErpTableShell tableClassName="min-w-[1080px]">
+    <ErpTableShell tableClassName="min-w-[640px] md:min-w-[1080px]">
       <ErpTableHead>
         <tr>
           <ErpTableTh>사업자번호</ErpTableTh>
           <ErpTableTh>거래처명</ErpTableTh>
-          <ErpTableTh>대표자명</ErpTableTh>
-          <ErpTableTh>업태</ErpTableTh>
-          <ErpTableTh>주소</ErpTableTh>
-          <ErpTableTh>전화</ErpTableTh>
-          <ErpTableTh>결제조건</ErpTableTh>
+          <ErpTableTh className="hidden sm:table-cell">대표자명</ErpTableTh>
+          <ErpTableTh className="hidden md:table-cell">업태</ErpTableTh>
+          <ErpTableTh className="hidden lg:table-cell">주소</ErpTableTh>
+          <ErpTableTh className="hidden sm:table-cell">전화</ErpTableTh>
+          <ErpTableTh className="hidden md:table-cell">결제조건</ErpTableTh>
         </tr>
       </ErpTableHead>
       <tbody>
@@ -50,13 +50,21 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
               {formatBusinessRegNo(partner.businessRegNo) || '-'}
             </ErpTableTd>
             <ErpTableTd className="font-medium text-slate-900">{cell(partner.name)}</ErpTableTd>
-            <ErpTableTd className="text-slate-700">{cell(partner.representativeName)}</ErpTableTd>
-            <ErpTableTd className="text-slate-700">{cell(partner.businessType)}</ErpTableTd>
-            <ErpTableTd text="wrap" className="max-w-[280px] text-slate-700">
+            <ErpTableTd className="hidden text-slate-700 sm:table-cell">
+              {cell(partner.representativeName)}
+            </ErpTableTd>
+            <ErpTableTd className="hidden text-slate-700 md:table-cell">
+              {cell(partner.businessType)}
+            </ErpTableTd>
+            <ErpTableTd text="wrap" className="hidden max-w-[280px] text-slate-700 lg:table-cell">
               {cell(partner.address)}
             </ErpTableTd>
-            <ErpTableTd className="text-slate-700">{cell(partner.phone)}</ErpTableTd>
-            <ErpTableTd className="text-slate-700">{cell(formatPartnerPaymentTermLabel(partner))}</ErpTableTd>
+            <ErpTableTd className="hidden text-slate-700 sm:table-cell">
+              {cell(partner.phone)}
+            </ErpTableTd>
+            <ErpTableTd className="hidden text-slate-700 md:table-cell">
+              {cell(formatPartnerPaymentTermLabel(partner))}
+            </ErpTableTd>
           </tr>
         ))}
       </tbody>

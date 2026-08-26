@@ -1,4 +1,5 @@
 import type { OrderLineRecord } from '@/lib/orders/types'
+import { isBillingOnlyOrderLine } from '@/lib/orders/utils'
 import type { Product } from '@/lib/products/types'
 import type {
   ComputedAssemblyGroup,
@@ -8,7 +9,8 @@ import type {
 } from './types'
 
 export function resolveLineProductId(line: Pick<OrderLineRecord, 'product_id' | 'product_code'>) {
-  // 임시 품목(TEMP 등)은 product_code 만 있으므로 조립·생산 키로 쓰지 않는다
+  // 금액 전용(추가작업)은 product_id 없음 → 조립·생산 키에서 제외
+  if (isBillingOnlyOrderLine(line)) return ''
   return String(line.product_id || '').trim()
 }
 

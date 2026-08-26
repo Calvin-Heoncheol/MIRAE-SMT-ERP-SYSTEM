@@ -11,6 +11,7 @@ import {
 import { DateRangeFilter } from '@/components/ui/date-range-filter'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { ErpButton } from '@/components/ui/erp-button'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
@@ -40,6 +41,7 @@ export function ProductionHistoryWorkspace({
   const router = useRouter()
   const pathname = usePathname()
   const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const [search, setSearch] = useState('')
   const [teamFilter, setTeamFilter] = useState<ProductionHistoryTeamFilter>(initialTeamFilter)
   const [startDate, setStartDate] = useState('')
@@ -128,9 +130,12 @@ export function ProductionHistoryWorkspace({
   async function handleDeleteSelected() {
     if (deleting || selectedCount === 0) return
     if (
-      !window.confirm(
-        `선택한 생산이력 ${selectedCount}건을 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
-      )
+      !(await confirm({
+        title: '생산이력 삭제',
+        message: `선택한 생산이력 ${selectedCount}건을 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
     ) {
       return
     }

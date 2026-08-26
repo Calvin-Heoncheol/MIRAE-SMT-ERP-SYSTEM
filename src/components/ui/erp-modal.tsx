@@ -7,6 +7,7 @@ import {
   useEffect,
   type ReactNode,
 } from 'react'
+import { ERP_MODAL_OVERLAY_CLASS } from '@/lib/ui/tokens'
 
 type ErpModalProps = {
   open: boolean
@@ -79,7 +80,7 @@ export function ErpModal({
   return (
     <ErpModalCloseContext.Provider value={requestClose}>
       <div
-        className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center bg-slate-900/45 p-3 sm:p-4`}
+        className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center ${ERP_MODAL_OVERLAY_CLASS} p-3 sm:p-4`}
       >
         <div
           role="dialog"

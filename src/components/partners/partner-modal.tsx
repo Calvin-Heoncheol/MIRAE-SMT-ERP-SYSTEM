@@ -1,8 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { useBusy } from '@/components/ui/busy-provider'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpButton } from '@/components/ui/erp-button'
+import { RequiredMark } from '@/components/ui/required-mark'
+import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
@@ -59,6 +63,8 @@ function PartnerModalContent({
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
   const busyUi = useBusy()
   const { notifyAuthOrFailure } = useWriteFailureToast()
 
@@ -110,7 +116,16 @@ function PartnerModalContent({
 
   async function handleDelete() {
     if (!partner) return
-    if (!window.confirm(`${partner.name} 거래처를 삭제하시겠습니까?`)) return
+    if (
+      !(await confirm({
+        title: '거래처 삭제',
+        message: `${partner.name} 거래처를 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
 
     setDeleting(true)
     setSaveError(null)
@@ -139,7 +154,7 @@ function PartnerModalContent({
         <div className="flex w-full flex-col gap-3">
           {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
           <div className="flex justify-between gap-2">
-            {!isCreate ? (
+            {!isCreate && canDelete ? (
               <ErpButton
                 variant="danger"
                 onClick={() => void handleDelete()}
@@ -163,7 +178,7 @@ function PartnerModalContent({
     >
       <div className="grid grid-cols-1 gap-4">
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">
+          <span className={ERP_FIELD_LABEL_CLASS}>
             사업자번호 <span className="font-normal text-slate-400">(선택)</span>
           </span>
           <input
@@ -171,35 +186,38 @@ function PartnerModalContent({
             onChange={(event) => updateForm('businessRegNo', event.target.value)}
             onBlur={() => updateForm('businessRegNo', formatBusinessRegNo(form.businessRegNo))}
             placeholder="000-00-00000"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
+            className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">거래처명</span>
+          <span className={ERP_FIELD_LABEL_CLASS}>
+            거래처명
+            <RequiredMark />
+          </span>
           <input
             value={form.name}
             onChange={(event) => updateForm('name', event.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2"
+            className={ERP_FIELD_INPUT_CLASS}
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">대표자명</span>
+          <span className={ERP_FIELD_LABEL_CLASS}>대표자명</span>
           <input
             value={form.representativeName}
             onChange={(event) => updateForm('representativeName', event.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2"
+            className={ERP_FIELD_INPUT_CLASS}
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">업태</span>
+          <span className={ERP_FIELD_LABEL_CLASS}>업태</span>
           <input
             value={form.businessType}
             onChange={(event) => updateForm('businessType', event.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2"
+            className={ERP_FIELD_INPUT_CLASS}
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">
+          <span className={ERP_FIELD_LABEL_CLASS}>
             주소 <span className="font-normal text-slate-400">(거래명세서)</span>
           </span>
           <textarea
@@ -211,20 +229,20 @@ function PartnerModalContent({
           />
         </label>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">전화</span>
+          <span className={ERP_FIELD_LABEL_CLASS}>전화</span>
           <input
             value={form.phone}
             onChange={(event) => updateForm('phone', event.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2"
+            className={ERP_FIELD_INPUT_CLASS}
           />
         </label>
         <div className="space-y-3">
           <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-600">결제조건</span>
+            <span className={ERP_FIELD_LABEL_CLASS}>결제조건</span>
             <select
               value={form.paymentTermType}
               onChange={(event) => updatePaymentTermType(event.target.value as PartnerPaymentTermType)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              className={ERP_FIELD_INPUT_CLASS}
             >
               {PARTNER_PAYMENT_TERM_TYPES.map((type) => (
                 <option key={type || 'none'} value={type}>
@@ -238,7 +256,7 @@ function PartnerModalContent({
           </label>
           {form.paymentTermType === 'installment' ? (
             <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">선금 비율 (%)</span>
+              <span className={ERP_FIELD_LABEL_CLASS}>선금 비율 (%)</span>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -256,7 +274,7 @@ function PartnerModalContent({
           ) : null}
           {form.paymentTermType === 'net' ? (
             <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">후불 일수 (Net)</span>
+              <span className={ERP_FIELD_LABEL_CLASS}>후불 일수 (Net)</span>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
@@ -271,7 +289,7 @@ function PartnerModalContent({
           ) : null}
           {form.paymentTermType === 'monthly' ? (
             <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">익월 입금일</span>
+              <span className={ERP_FIELD_LABEL_CLASS}>익월 입금일</span>
               <div className="flex items-center gap-2">
                 <input
                   type="number"

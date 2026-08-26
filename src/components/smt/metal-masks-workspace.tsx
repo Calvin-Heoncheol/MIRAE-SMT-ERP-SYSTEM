@@ -18,6 +18,7 @@ import {
 } from '@/lib/metal-masks/types'
 import { isMetalMaskNearLimit, metalMaskRemaining } from '@/lib/metal-masks/utils'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type MetalMasksWorkspaceProps = {
@@ -242,6 +243,7 @@ function MetalMaskCreateModal({
 
 export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWorkspaceProps) {
   const { afterCreate, afterSave } = useSaveFeedback()
+  const confirm = useErpConfirm()
   const [search, setSearch] = useState('')
   const [showRetired, setShowRetired] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -264,7 +266,16 @@ export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWor
   }, [assets, query, showRetired])
 
   async function handleRetire(asset: MetalMaskAsset) {
-    if (!window.confirm(`${asset.barcode} 마스크를 교체완료로 처리할까요?`)) return
+    if (
+      !(await confirm({
+        title: '마스크 교체완료',
+        message: `${asset.barcode} 마스크를 교체완료로 처리할까요?`,
+        confirmLabel: '교체완료',
+        tone: 'default',
+      }))
+    ) {
+      return
+    }
     setRetiringId(asset.id)
     setListMessage(null)
 

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
 import type { MaterialPurchaseSuggestionLine } from '@/lib/materials/purchase-orders/types'
-import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type MaterialPurchaseSuggestionTableProps = {
   lines: MaterialPurchaseSuggestionLine[]
@@ -104,7 +104,7 @@ export function MaterialPurchaseSuggestionTable({
             <col className="w-[92px]" />
             <col className="w-[96px]" />
           </colgroup>
-          <thead className="bg-slate-50">
+          <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               <th className="px-3 py-2 text-left">
                 <input

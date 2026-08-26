@@ -2,13 +2,11 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { LegacyStatementModal } from '@/components/reports/legacy-statement-modal'
 import { SalesStatementEditModal } from '@/components/reports/sales-statement-edit-modal'
 import { DateRangeFilter } from '@/components/ui/date-range-filter'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { EmptyListState } from '@/components/ui/empty-list-state'
-import { ErpButton } from '@/components/ui/erp-button'
 import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { PageShell } from '@/components/ui/page-shell'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
@@ -25,10 +23,9 @@ import {
   type SalesReportStatementGroup,
 } from '@/lib/reports/sales-report'
 import { formatOrderMoney } from '@/lib/orders/utils'
-import { deleteStatementLines } from '@/lib/reports/statement-edit'
+import { ErpButton } from '@/components/ui/erp-button'
 import { DATE_RANGE_FILTER_LABEL } from '@/lib/ui/date-range'
 import {
-  ERP_SECONDARY_BUTTON_CLASS,
   ERP_TABLE_CLASS,
   ERP_TABLE_HEAD_CLASS,
   ERP_TABLE_SCROLL_CLASS,
@@ -69,14 +66,12 @@ export function SalesReportWorkspace({
   rangeLabel,
 }: SalesReportWorkspaceProps) {
   const router = useRouter()
-  const canDelete = useCanDeleteRecords()
   const [isPending, startTransition] = useTransition()
   const data = result.ok ? result.data : null
   const [startDate, setStartDate] = useState(initialStartDate)
   const [endDate, setEndDate] = useState(initialEndDate)
   const [search, setSearch] = useState('')
   const [printing, setPrinting] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [printError, setPrintError] = useState<string | null>(null)
   const [legacyOpen, setLegacyOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<SalesReportStatementGroup | null>(null)
@@ -193,44 +188,6 @@ export function SalesReportWorkspace({
       if (next.has(key)) next.delete(key)
       else next.add(key)
       return next
-    })
-  }
-
-  async function handleDeleteSelected() {
-    if (deleting || selectedCount === 0) return
-    if (
-      !window.confirm(
-        `선택한 거래명세서 ${selectedCount}건을 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`,
-      )
-    ) {
-      return
-    }
-
-    setDeleting(true)
-    setPrintError(null)
-    setSaveMessage(null)
-
-    const lines = selectedGroups.flatMap((group) =>
-      group.lines.map((line) => ({
-        source: line.source,
-        deliveryId: line.deliveryId,
-        orderNumber: line.orderId || line.orderNumber,
-        orderLineId: line.orderLineId,
-        productCode: line.productCode,
-      })),
-    )
-    const deleteResult = await deleteStatementLines(lines)
-    setDeleting(false)
-
-    if (!deleteResult.ok) {
-      setPrintError(deleteResult.detail)
-      return
-    }
-
-    setSelectedIds(new Set())
-    setSaveMessage(`거래명세서 ${selectedCount}건을 삭제했습니다.`)
-    startTransition(() => {
-      router.refresh()
     })
   }
 
@@ -353,29 +310,14 @@ export function SalesReportWorkspace({
               {isPending ? ' · 불러오는 중…' : ''}
               {data ? ` · ${filteredShipments.length.toLocaleString('ko-KR')}건` : ''}
             </p>
-            <button
-              type="button"
+            <ErpButton
+              variant="secondary"
               onClick={() => setLegacyOpen(true)}
               disabled={isPending}
-              className={`${ERP_SECONDARY_BUTTON_CLASS} !px-3 !py-2 text-xs`}
+              className="!px-3 !py-2 text-xs"
             >
               과거 등록
-            </button>
-            {canDelete ? (
-              <ErpButton
-                variant="danger"
-                className="!px-3 !py-2 text-xs"
-                disabled={selectedCount === 0 || isPending}
-                loading={deleting}
-                onClick={() => void handleDeleteSelected()}
-              >
-                {deleting
-                  ? '삭제 중…'
-                  : selectedCount > 0
-                    ? `삭제 (${selectedCount})`
-                    : '삭제'}
-              </ErpButton>
-            ) : null}
+            </ErpButton>
             <PdfDownloadButton
               onDownload={() => void handleStatementPrint()}
               disabled={!data || printing || isPending || selectedCount === 0}
@@ -409,23 +351,23 @@ export function SalesReportWorkspace({
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
           <div className={ERP_TABLE_WRAP_CLASS}>
             <div className="shrink-0 border-b border-slate-100 px-4 py-3">
-              <h2 className="text-sm font-bold text-slate-900">거래명세서 내역</h2>
+              <h2 className="text-sm font-bold text-slate-900">거래명세서</h2>
               <p className="mt-1 text-xs text-slate-500">
-                같은 출하번호는 한 행으로 묶습니다. 체크박스로 선택 후 삭제·거래명세서 출력, 행을
-                클릭하면 내역을 수정할 수 있습니다.
+                같은 출하번호는 한 행으로 묶습니다. 체크박스로 선택 후 일괄 출력하고, 행을 클릭하면
+                수정·삭제할 수 있습니다.
               </p>
             </div>
             {filteredShipments.length ? (
               <>
                 <div className={ERP_TABLE_SCROLL_CLASS}>
-                  <table className={`${ERP_TABLE_CLASS} min-w-[960px]`}>
+                  <table className={`${ERP_TABLE_CLASS} min-w-[640px] md:min-w-[960px]`}>
                     <thead className={ERP_TABLE_HEAD_CLASS}>
                       <tr>
                         <th className={`${ERP_TABLE_TH_CLASS} w-10 text-center`}>
                           <input
                             type="checkbox"
                             checked={allFilteredSelected}
-                            disabled={deleting || printing}
+                            disabled={printing}
                             onChange={toggleSelectAll}
                             aria-label="전체 선택"
                             className="size-4 accent-slate-700"
@@ -433,12 +375,10 @@ export function SalesReportWorkspace({
                         </th>
                         <th className={`${ERP_TABLE_TH_CLASS} text-left`}>발행일</th>
                         <th className={`${ERP_TABLE_TH_CLASS} text-left`}>출하번호</th>
-                        <th className={`${ERP_TABLE_TH_CLASS} text-left`}>발주번호</th>
                         <th className={`${ERP_TABLE_TH_CLASS} text-left`}>고객사</th>
-                        <th className={`${ERP_TABLE_TH_CLASS} text-left`}>품목</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} hidden text-left md:table-cell`}>품목</th>
                         <th className={`${ERP_TABLE_TH_CLASS} text-right`}>수량</th>
-                        <th className={`${ERP_TABLE_TH_CLASS} text-right`}>단가</th>
-                        <th className={`${ERP_TABLE_TH_CLASS} text-right`}>금액</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} hidden text-right sm:table-cell`}>금액</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -458,7 +398,7 @@ export function SalesReportWorkspace({
                               <input
                                 type="checkbox"
                                 checked={selected}
-                                disabled={deleting || printing}
+                                disabled={printing}
                                 onChange={() => toggleSelectOne(key)}
                                 aria-label={`${row.shipmentId || row.orderNumber} 선택`}
                                 className="size-4 accent-slate-700"
@@ -475,17 +415,12 @@ export function SalesReportWorkspace({
                               {row.shipmentId || '—'}
                             </td>
                             <td
-                              className={`${ERP_TABLE_TD_CLASS} whitespace-nowrap font-mono text-xs text-slate-700`}
-                            >
-                              {row.orderNumber || '—'}
-                            </td>
-                            <td
                               className={`${ERP_TABLE_TD_CLASS} font-semibold text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}
                             >
                               {row.customer || '—'}
                             </td>
                             <td
-                              className={`${ERP_TABLE_TD_CLASS} text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}
+                              className={`${ERP_TABLE_TD_CLASS} hidden text-slate-800 md:table-cell ${ERP_TABLE_TD_WRAP_CLASS}`}
                             >
                               {row.productName || '—'}
                             </td>
@@ -495,14 +430,7 @@ export function SalesReportWorkspace({
                               {formatCount(row.quantity)}
                             </td>
                             <td
-                              className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums text-slate-700`}
-                            >
-                              {row.unitPriceMixed
-                                ? '—'
-                                : formatOrderMoney(row.unitPrice, row.currency)}
-                            </td>
-                            <td
-                              className={`${ERP_TABLE_TD_CLASS} text-right font-semibold tabular-nums text-slate-900`}
+                              className={`${ERP_TABLE_TD_CLASS} hidden text-right font-semibold tabular-nums text-slate-900 sm:table-cell`}
                             >
                               {row.currencyMixed
                                 ? formatCount(row.amount)
@@ -520,7 +448,7 @@ export function SalesReportWorkspace({
                 <EmptyListState
                   message={formatEmptyListMessage({
                     hasQuery: Boolean(search.trim()),
-                    emptyLabel: '기간 내 거래명세서 내역이 없습니다',
+                    emptyLabel: '기간 내 거래명세서가 없습니다',
                   })}
                 />
               </div>
@@ -545,6 +473,13 @@ export function SalesReportWorkspace({
         onClose={() => setEditingGroup(null)}
         onSaved={(message) => {
           setSaveMessage(message ?? '거래명세서 내역을 수정했습니다.')
+          startTransition(() => {
+            router.refresh()
+          })
+        }}
+        onDeleted={(message) => {
+          setSaveMessage(message ?? '거래명세서 내역을 삭제했습니다.')
+          setSelectedIds(new Set())
           startTransition(() => {
             router.refresh()
           })

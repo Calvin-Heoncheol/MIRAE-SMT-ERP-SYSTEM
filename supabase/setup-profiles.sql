@@ -145,3 +145,39 @@ create policy profiles_update_own
   with check (auth.uid() = id);
 
 grant select, update on table public.profiles to authenticated;
+
+-- 본인 프로필에서 role / department 승격·변경 차단 (service_role·admin 제외)
+create or replace function public.enforce_profile_safe_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_jwt_role text := coalesce(auth.jwt() ->> 'role', '');
+begin
+  if v_jwt_role = 'service_role' or public.is_profile_admin() then
+    return NEW;
+  end if;
+
+  if NEW.role is distinct from OLD.role then
+    raise exception 'PROFILE_ROLE_LOCKED'
+      using errcode = '42501',
+            hint = '역할은 관리자만 변경할 수 있습니다.';
+  end if;
+
+  if NEW.department is distinct from OLD.department then
+    raise exception 'PROFILE_DEPARTMENT_LOCKED'
+      using errcode = '42501',
+            hint = '부서는 관리자만 변경할 수 있습니다.';
+  end if;
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_enforce_profile_safe_update on public.profiles;
+create trigger trg_enforce_profile_safe_update
+  before update on public.profiles
+  for each row
+  execute function public.enforce_profile_safe_update();

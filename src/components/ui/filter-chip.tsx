@@ -47,6 +47,16 @@ export const STATUS_FILTER_TONES = {
     activeClassName: 'bg-emerald-700 text-white shadow-sm',
     activeCountClassName: 'text-emerald-100',
   },
+  danger: {
+    idleClassName: 'border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100',
+    activeClassName: 'bg-rose-600 text-white shadow-sm',
+    activeCountClassName: 'text-rose-100',
+  },
+  info: {
+    idleClassName: 'border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100',
+    activeClassName: 'bg-sky-600 text-white shadow-sm',
+    activeCountClassName: 'text-sky-100',
+  },
 } as const
 
 type FilterChipProps = {

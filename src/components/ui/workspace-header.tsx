@@ -22,7 +22,7 @@ type WorkspaceHeaderProps = {
 }
 
 /**
- * 1행: 검색 + 인라인필터(기간) + 액션
+ * 1행: 검색 + 인라인필터(기간) + 액션 (좁은 화면에서 wrap)
  * 2행: 칩 필터 + meta
  */
 export function WorkspaceHeader({
@@ -40,21 +40,21 @@ export function WorkspaceHeader({
 
   return (
     <div className="flex w-full shrink-0 flex-col gap-3">
-      <div className="flex w-full flex-wrap items-center gap-3">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3">
         {showSearch ? (
           <input
             type="search"
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder={searchPlaceholder ?? '검색…'}
-            className={`${ERP_SEARCH_INPUT_BASE} min-w-[12rem] flex-1 ${erpSearchFocusClass(accent)}`}
+            className={`${ERP_SEARCH_INPUT_BASE} min-w-[10rem] flex-1 basis-[12rem] ${erpSearchFocusClass(accent)}`}
           />
         ) : null}
         {inlineFilters ? (
-          <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2">{inlineFilters}</div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">{inlineFilters}</div>
         ) : null}
         {actions ? (
-          <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</div>
         ) : null}
       </div>
 
