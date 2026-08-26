@@ -46,7 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '문의업체', href: '/new-companies' },
       { label: '견적서 등록', href: '/quotations' },
       { label: '발주서 등록', href: '/orders' },
-      { label: '발주현황', href: '/orders/progress' },
+      { label: '생산현황', href: '/production/status' },
       { label: '출하등록', href: '/delivery/input' },
       { label: '거래명세서', href: '/reports/sales' },
     ],
@@ -58,9 +58,8 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     label: '생산관리',
-    href: '/production/status',
+    href: '/smt/input',
     children: [
-      { label: '생산현황', href: '/production/status' },
       {
         label: '생산1팀',
         href: '/smt/input',
@@ -195,7 +194,6 @@ export function isNavLinkActive(pathname: string, href: string, search?: NavSear
 
 const NAV_EXACT_CHILD_PATHS = [
   '/orders',
-  '/orders/progress',
   '/quotations',
   '/master/customers',
   '/materials/inventory',

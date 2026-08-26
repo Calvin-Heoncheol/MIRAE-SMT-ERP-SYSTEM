@@ -1,9 +1,8 @@
-import { OrdersProgressWorkspace } from '@/components/orders/orders-progress-workspace'
-import { fetchOrderProgressPageData } from '@/lib/orders/progress-repository'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
-export default async function OrdersProgressPage() {
-  const result = await fetchOrderProgressPageData()
-  return <OrdersProgressWorkspace result={result} />
+/** 발주현황은 생산현황으로 통합 */
+export default function OrdersProgressPage() {
+  redirect('/production/status')
 }

@@ -39,10 +39,11 @@ function MiniProgress({
 }: {
   percent: number
   defectPercent?: number
-  tone: 'sky' | 'emerald'
+  tone: 'sky' | 'emerald' | 'amber'
   detail: string
 }) {
-  const barClass = tone === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'
+  const barClass =
+    tone === 'sky' ? 'bg-sky-500' : tone === 'emerald' ? 'bg-emerald-500' : 'bg-amber-500'
   const goodWidth = Math.max(0, Math.min(100, percent))
   const defectWidth = Math.max(0, Math.min(100 - goodWidth, defectPercent))
 
@@ -72,7 +73,7 @@ function StageCell({
 }: {
   percent: number
   defectPercent?: number
-  tone: 'sky' | 'emerald'
+  tone: 'sky' | 'emerald' | 'amber'
   detail: string
   label: string
   empty?: boolean
@@ -115,6 +116,10 @@ function stageDetail(produced: number, defected: number, target: number) {
   const base = `${produced.toLocaleString('ko-KR')} / ${target.toLocaleString('ko-KR')}`
   if (defected <= 0) return base
   return `${base} · 불량 ${defected.toLocaleString('ko-KR')}`
+}
+
+function deliveryDetail(produced: number, target: number) {
+  return `${produced.toLocaleString('ko-KR')} / ${target.toLocaleString('ko-KR')}`
 }
 
 /** 생산(SMT·후공정) 목표가 있는 행만 진행 판정 대상 */
@@ -177,8 +182,12 @@ function StageCells({
   postProduced,
   postDefected,
   postTarget,
+  deliveryPercent,
+  deliveryProduced,
+  deliveryTarget,
   onSmtClick,
   onPostClick,
+  onDeliveryClick,
 }: {
   smtPercent: number
   smtDefectPercent: number
@@ -190,8 +199,12 @@ function StageCells({
   postProduced: number
   postDefected: number
   postTarget: number
+  deliveryPercent: number
+  deliveryProduced: number
+  deliveryTarget: number
   onSmtClick?: () => void
   onPostClick?: () => void
+  onDeliveryClick?: () => void
 }) {
   return (
     <>
@@ -213,6 +226,14 @@ function StageCells({
         detail={stageDetail(postProduced, postDefected, postTarget)}
         onClick={onPostClick}
       />
+      <StageCell
+        percent={deliveryPercent}
+        tone="amber"
+        label="출하"
+        empty={deliveryTarget <= 0}
+        detail={deliveryDetail(deliveryProduced, deliveryTarget)}
+        onClick={onDeliveryClick}
+      />
     </>
   )
 }
@@ -229,17 +250,17 @@ export function ProductionStatusTable({ lines, emptyMessage, onStageClick }: Pro
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className={`${ERP_TABLE_CLASS} min-w-[980px]`}>
+        <table className={`${ERP_TABLE_CLASS} min-w-[1100px]`}>
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>발주서</th>
               <th className={ERP_TABLE_TH_CLASS}>고객사</th>
-              <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>품목코드</th>
               <th className={ERP_TABLE_TH_CLASS}>제품</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>버전</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>납기</th>
               <th className={ERP_TABLE_TH_CLASS}>SMT</th>
               <th className={ERP_TABLE_TH_CLASS}>후공정</th>
+              <th className={ERP_TABLE_TH_CLASS}>출하</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>상태</th>
             </tr>
           </thead>
@@ -274,7 +295,6 @@ function OrderStatusRows({
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-semibold text-slate-800`}>
           {line.customer || '—'}
         </td>
-        <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-xs text-slate-700`}>—</td>
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-medium text-slate-900`}>
           {line.productName || '—'}
         </td>
@@ -295,8 +315,16 @@ function OrderStatusRows({
           postProduced={line.postProduced}
           postDefected={line.postDefected}
           postTarget={line.postTarget}
+          deliveryPercent={line.deliveryPercent}
+          deliveryProduced={line.deliveryProduced}
+          deliveryTarget={line.deliveryTarget}
           onSmtClick={onStageClick ? () => onStageClick(line, 'smt') : undefined}
           onPostClick={onStageClick ? () => onStageClick(line, 'post_process') : undefined}
+          onDeliveryClick={
+            onStageClick && line.deliveryTarget > 0
+              ? () => onStageClick(line, 'delivery')
+              : undefined
+          }
         />
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
           <ProductionLineStatusBadge
@@ -325,12 +353,6 @@ function OrderStatusRows({
             <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-semibold text-slate-800`}>
               {line.customer || '—'}
             </td>
-            <td
-              className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-xs text-slate-700`}
-              title={product.productCode || undefined}
-            >
-              {product.productCode || '—'}
-            </td>
             <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-medium text-slate-900`}>
               {product.productName || '—'}
             </td>
@@ -355,6 +377,9 @@ function OrderStatusRows({
               postProduced={product.postProduced}
               postDefected={product.postDefected}
               postTarget={product.postTarget}
+              deliveryPercent={product.deliveryPercent}
+              deliveryProduced={product.deliveryProduced}
+              deliveryTarget={product.deliveryTarget}
               onSmtClick={
                 onStageClick && product.smtTarget > 0
                   ? () => onStageClick(line, 'smt', product)
@@ -363,6 +388,11 @@ function OrderStatusRows({
               onPostClick={
                 onStageClick && product.postTarget > 0
                   ? () => onStageClick(line, 'post_process', product)
+                  : undefined
+              }
+              onDeliveryClick={
+                onStageClick && product.deliveryTarget > 0
+                  ? () => onStageClick(line, 'delivery', product)
                   : undefined
               }
             />

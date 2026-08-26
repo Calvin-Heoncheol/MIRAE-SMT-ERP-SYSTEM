@@ -140,13 +140,13 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
         <KpiStatCard label="진행중" value={kpi.activeCount} unit="건" tone="amber" />
         <KpiStatCard label="SMT 생산" value={kpi.smtProduced} unit="EA" tone="sky" />
         <KpiStatCard label="후공정 생산" value={kpi.postProduced} unit="EA" tone="emerald" />
-        <KpiStatCard label="출하누적" value={kpi.deliveryProduced} unit="EA" />
+        <KpiStatCard label="출하누적" value={kpi.deliveryProduced} unit="EA" tone="amber" />
       </div>
 
       <WorkspaceHeader
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="발주번호, 고객사, 품목코드, 제품명 검색…"
+        searchPlaceholder="발주번호, 고객사, 제품명 검색…"
         accent="slate"
         inlineFilters={
           <DateRangeFilter

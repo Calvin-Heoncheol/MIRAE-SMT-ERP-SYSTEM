@@ -1,5 +1,5 @@
-import type { Item, ItemCategory } from '@/lib/items/types'
-import { ITEM_CATEGORY_LABELS, isProductItemCategory } from '@/lib/items/types'
+import type { Item, ItemCategory, ItemPcbSideMode } from '@/lib/items/types'
+import { ITEM_CATEGORY_LABELS, ITEM_PCB_SIDE_MODE_LABELS, isProductItemCategory } from '@/lib/items/types'
 import type { BomGroup, BomLine, BomListRow, BomParentFilter } from './types'
 
 export function allowedChildCategories(parentCategory: ItemCategory): ItemCategory[] {
@@ -151,12 +151,19 @@ export function childItemsForParent(items: Item[], parentCategory: ItemCategory)
 }
 
 export function formatItemOptionLabel(
-  item: Pick<Item, 'id' | 'baseCode' | 'version' | 'name' | 'itemCategory'>,
+  item: Pick<Item, 'id' | 'baseCode' | 'version' | 'name' | 'itemCategory' | 'pcbSideMode'>,
 ) {
   const code = item.baseCode?.trim() || item.id
   const version = item.version?.trim()
   const codeLabel = version ? `${code} · ${version}` : code
-  return `${codeLabel} · ${item.name || '—'} (${ITEM_CATEGORY_LABELS[item.itemCategory]})`
+  if (item.itemCategory !== 3) {
+    return `${codeLabel} · ${item.name || '—'} (${ITEM_CATEGORY_LABELS[item.itemCategory]})`
+  }
+
+  // 반제품(3) 라벨을 "반제품" 대신 PCB 면(단면/양면)으로 표시합니다.
+  const pcbSide = (item.pcbSideMode || '') as ItemPcbSideMode
+  const sideLabel = pcbSide === 'double' ? ITEM_PCB_SIDE_MODE_LABELS.double : '단면'
+  return `${codeLabel} · ${item.name || '—'} (${sideLabel})`
 }
 
 export function formatBomItemCode(item: Pick<Item, 'id' | 'baseCode'>) {
