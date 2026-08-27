@@ -1,6 +1,9 @@
 import { fetchOrders } from '@/lib/orders/repository'
 import type { OrderCurrency } from '@/lib/orders/types'
 import { addDaysYmd, displayOrderPoNumber, normalizeOrderCurrency } from '@/lib/orders/utils'
+import { formatItemDisplayCode } from '@/lib/items/utils'
+import { parseItemVersionCode } from '@/lib/items/version-code'
+import { fetchProducts } from '@/lib/products/repository'
 import {
   ensureLegacyShipmentNumber,
   isLegacyShipmentNote,
@@ -179,6 +182,7 @@ type GroupInfo = {
   customerPoNumber: string
   customer: string
   parentProductId: string
+  productCode: string
   productName: string
   itemUnitPrice: number
   currency: OrderCurrency
@@ -276,14 +280,14 @@ export async function fetchSalesReportData(
       let { data, error } = await supabase
         .from('order_assembly_groups')
         .select(
-          'id, order_id, parent_product_id, items!order_assembly_groups_parent_product_id_fkey(name, unit_price), orders(customer, customer_po_number)',
+          'id, order_id, parent_product_id, items!order_assembly_groups_parent_product_id_fkey(id, name, unit_price, base_code, version), orders(customer, customer_po_number)',
         )
         .in('id', ids)
       if (error && /customer_po_number/i.test(error.message)) {
         const fallback = await supabase
           .from('order_assembly_groups')
           .select(
-            'id, order_id, parent_product_id, items!order_assembly_groups_parent_product_id_fkey(name, unit_price), orders(customer)',
+            'id, order_id, parent_product_id, items!order_assembly_groups_parent_product_id_fkey(id, name, unit_price, base_code, version), orders(customer)',
           )
           .in('id', ids)
         data = (fallback.data || []).map((row) => ({
@@ -307,8 +311,20 @@ export async function fetchSalesReportData(
       }
       for (const row of data || []) {
         const items = row.items as
-          | { name?: string | null; unit_price?: number | null }
-          | { name?: string | null; unit_price?: number | null }[]
+          | {
+              id?: string | null
+              name?: string | null
+              unit_price?: number | null
+              base_code?: string | null
+              version?: string | null
+            }
+          | {
+              id?: string | null
+              name?: string | null
+              unit_price?: number | null
+              base_code?: string | null
+              version?: string | null
+            }[]
           | null
         const item = Array.isArray(items) ? items[0] : items
         const orders = row.orders as
@@ -317,6 +333,7 @@ export async function fetchSalesReportData(
           | null
         const orderRow = Array.isArray(orders) ? orders[0] : orders
         const orderId = String(row.order_id ?? '')
+        const parentProductId = String(row.parent_product_id ?? '').trim()
         groupInfoById.set(String(row.id), {
           orderId,
           customerPoNumber:
@@ -324,8 +341,12 @@ export async function fetchSalesReportData(
             orderById.get(orderId)?.customerPoNumber.trim() ||
             '',
           customer: String(orderRow?.customer ?? '').trim(),
-          parentProductId: String(row.parent_product_id ?? '').trim(),
-          productName: String(item?.name ?? '').trim() || String(row.parent_product_id ?? ''),
+          parentProductId,
+          productCode: formatItemDisplayCode({
+            id: String(item?.id || parentProductId),
+            baseCode: String(item?.base_code || ''),
+          }),
+          productName: String(item?.name ?? '').trim() || parentProductId,
           itemUnitPrice: Math.max(0, Math.round(Number(item?.unit_price) || 0)),
           currency: normalizeOrderCurrency(orderById.get(orderId)?.currency),
         })
@@ -370,6 +391,28 @@ export async function fetchSalesReportData(
       return info.itemUnitPrice
     }
 
+    const productsResult = await fetchProducts(false)
+    if (productsResult.ok) {
+      const productById = Object.fromEntries(
+        productsResult.products.map((product) => [product.id, product]),
+      )
+      for (const info of groupInfoById.values()) {
+        const master = productById[info.parentProductId]
+        if (master?.productCode.trim()) {
+          info.productCode = master.productCode.trim()
+          continue
+        }
+        const parsed = parseItemVersionCode(info.parentProductId)
+        if (
+          parsed.base &&
+          parsed.base !== info.parentProductId &&
+          (!info.productCode.trim() || info.productCode === info.parentProductId)
+        ) {
+          info.productCode = parsed.base
+        }
+      }
+    }
+
     // ── 4. 출하 상세 행 ─────────────────────────────────────────
     const shipments: SalesReportShipmentRow[] = []
     const legacyShipmentByOrderId = new Map<string, string>()
@@ -394,7 +437,7 @@ export async function fetchSalesReportData(
         orderId,
         orderNumber: displayPoNumber(info?.customerPoNumber, orderId),
         customer: info?.customer ?? '',
-        productCode: info?.parentProductId ?? '',
+        productCode: info?.productCode ?? '',
         productName: info?.productName ?? '',
         quantity,
         unitPrice,
@@ -433,7 +476,9 @@ export async function fetchSalesReportData(
           orderId: order.orderId,
           orderNumber: displayPoNumber(order.customerPoNumber, order.orderId || order.orderNumber),
           customer: order.customer,
-          productCode: item.productCode || item.productId || '',
+          productCode:
+            String(item.productCode || '').trim() ||
+            formatItemDisplayCode({ id: String(item.productId || ''), baseCode: '' }),
           productName: item.productName || '과거 명세서',
           quantity,
           unitPrice,
@@ -544,6 +589,110 @@ export async function fetchSalesReportData(
         shipments,
       },
     }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+export type FetchLegacyStatementGroupsResult =
+  | { ok: true; groups: SalesReportStatementGroup[] }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+/** 과거 거래명세서 — 출하등록 화면 목록·인쇄용 */
+export async function fetchLegacyStatementGroups(): Promise<FetchLegacyStatementGroupsResult> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 환경변수가 필요합니다.',
+    }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const [legacyOrdersResult, deliveryQuery] = await Promise.all([
+      fetchOrders({ legacyOnly: true }),
+      supabase.from('delivery_records').select('id, shipment_id, note'),
+    ])
+
+    if (!legacyOrdersResult.ok) {
+      return legacyOrdersResult
+    }
+
+    let deliveryRows = (deliveryQuery.data || []) as DeliveryRecordRow[]
+    if (deliveryQuery.error && /shipment_id/i.test(deliveryQuery.error.message)) {
+      const legacy = await supabase.from('delivery_records').select('id, note')
+      if (legacy.error) {
+        return { ok: false, reason: 'query', detail: legacy.error.message }
+      }
+      deliveryRows = (legacy.data || []) as DeliveryRecordRow[]
+    } else if (deliveryQuery.error) {
+      return { ok: false, reason: 'query', detail: deliveryQuery.error.message }
+    }
+
+    const legacyOrders = legacyOrdersResult.orders.filter((order) => isLegacyStatementOrder(order))
+    const legacyShipmentByOrderId = new Map<string, string>()
+    for (const row of deliveryRows) {
+      const orderId = orderIdFromLegacyShipmentNote(row.note)
+      if (orderId && row.id) {
+        legacyShipmentByOrderId.set(
+          orderId,
+          String(row.shipment_id || row.id).trim() || String(row.id),
+        )
+      }
+    }
+
+    const shipments: SalesReportShipmentRow[] = []
+    for (const order of legacyOrders) {
+      const userLines = order.items.filter((item) => !item.derivedFromLineId)
+      const totalQty = userLines.reduce(
+        (sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity) || 0)),
+        0,
+      )
+      let shipmentId =
+        legacyShipmentByOrderId.get(order.orderId) ||
+        parseLegacyShipmentIdFromOrderNote(order.note)
+      if (!shipmentId) {
+        shipmentId = await ensureLegacyShipmentNumber({
+          orderId: order.orderId,
+          shipDate: order.orderDate,
+          quantity: totalQty,
+          orderNote: order.note,
+        })
+        if (shipmentId) legacyShipmentByOrderId.set(order.orderId, shipmentId)
+      }
+      const displayShipmentId = shipmentId || order.orderNumber
+      for (const item of userLines) {
+        const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
+        const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+        const amount = Math.max(0, Math.round(Number(item.orderAmount) || quantity * unitPrice))
+        if (quantity <= 0 && amount <= 0) continue
+        shipments.push({
+          recordDate: item.deliveryDate || order.orderDate,
+          deliveryId: displayShipmentId,
+          shipmentId: displayShipmentId,
+          orderId: order.orderId,
+          orderNumber: displayPoNumber(order.customerPoNumber, order.orderId || order.orderNumber),
+          customer: order.customer,
+          productCode:
+            String(item.productCode || '').trim() ||
+            formatItemDisplayCode({ id: String(item.productId || ''), baseCode: '' }),
+          productName: item.productName || '과거 명세서',
+          quantity,
+          unitPrice,
+          amount,
+          currency: normalizeOrderCurrency(order.currency),
+          source: 'legacy',
+          orderLineId: item.lineId || '',
+        })
+      }
+    }
+
+    return { ok: true, groups: groupSalesReportShipments(shipments) }
   } catch (error) {
     return {
       ok: false,
