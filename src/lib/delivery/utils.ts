@@ -270,7 +270,7 @@ type HistoryStatementLineInput = {
 type HistoryStatementProductionOrder = {
   assemblyGroupId?: string
   orderNumber: string
-  productId: string
+  productId?: string
   productCode: string
   productName: string
   unitPrice: number
