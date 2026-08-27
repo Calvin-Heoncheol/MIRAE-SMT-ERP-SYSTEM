@@ -12,7 +12,6 @@ import {
   isMultiSideSmt,
   normalizeSmtSide,
   RAW_MATERIAL_MANAGEMENT_RATE,
-  computeAuxiliaryMaterialPerUnit,
   computeSampleCostTotal,
   toBillingSmtSide,
 } from './constants'
@@ -403,11 +402,7 @@ export function calculateEstimate(
     data.includeMaterialCosts === false || matTotalRaw <= 0
       ? 0
       : matTotalRaw * RAW_MATERIAL_MANAGEMENT_RATE
-  const auxiliaryMaterialPerUnit =
-    data.includeMaterialCosts === false
-      ? 0
-      : computeAuxiliaryMaterialPerUnit(smtLaborAndInspectionTotal, dipSectionTotal, qty)
-  const auxiliaryMaterialTotal = auxiliaryMaterialPerUnit * qty
+  const auxiliaryMaterialTotal = 0
 
   const subtotalBeforeDiscount =
     laborFinal +

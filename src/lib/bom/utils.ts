@@ -1,5 +1,6 @@
-import type { Item, ItemCategory, ItemPcbSideMode } from '@/lib/items/types'
-import { ITEM_CATEGORY_LABELS, ITEM_PCB_SIDE_MODE_LABELS, isProductItemCategory } from '@/lib/items/types'
+import type { Item, ItemCategory } from '@/lib/items/types'
+import { ITEM_CATEGORY_LABELS, isProductItemCategory } from '@/lib/items/types'
+import { formatItemPcbSideModeLabel } from '@/lib/items/utils'
 import type { BomGroup, BomLine, BomListRow, BomParentFilter } from './types'
 
 export function allowedChildCategories(parentCategory: ItemCategory): ItemCategory[] {
@@ -160,9 +161,8 @@ export function formatItemOptionLabel(
     return `${codeLabel} · ${item.name || '—'} (${ITEM_CATEGORY_LABELS[item.itemCategory]})`
   }
 
-  // 반제품(3) 라벨을 "반제품" 대신 PCB 면(단면/양면)으로 표시합니다.
-  const pcbSide = (item.pcbSideMode || '') as ItemPcbSideMode
-  const sideLabel = pcbSide === 'double' ? ITEM_PCB_SIDE_MODE_LABELS.double : '단면'
+  // 반제품(3) 라벨을 "반제품" 대신 PCB 면(단면/더블/양면)으로 표시합니다.
+  const sideLabel = formatItemPcbSideModeLabel(item.pcbSideMode) || '단면'
   return `${codeLabel} · ${item.name || '—'} (${sideLabel})`
 }
 

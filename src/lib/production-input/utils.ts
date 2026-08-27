@@ -1,5 +1,9 @@
 import type { Product, ProductPcbSideMode } from '@/lib/products/types'
-import { isSplitProductPcbSideMode, normalizeProductPcbSideMode } from '@/lib/products/utils'
+import {
+  formatProductPcbSideModeLabel,
+  isSplitProductPcbSideMode,
+  normalizeProductPcbSideMode,
+} from '@/lib/products/utils'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import type { SmtPcbSide } from '@/lib/smt/types'
 import type { OrderListGroup } from '@/lib/orders/types'
@@ -240,7 +244,9 @@ export function buildProductionOrderLines(
       const labelParts: string[] = []
       if (productName) labelParts.push(productName)
       if (productCode) labelParts.push(`[${productCode}]`)
-      if (splitPcbSides) labelParts.push('양면')
+      if (productionModule === 'smt') {
+        labelParts.push(formatProductPcbSideModeLabel(pcbSideMode))
+      }
       labelParts.push(`수량${item.quantity}`)
       labelParts.push(`단가${Math.round(item.unitPrice)}`)
 
@@ -526,7 +532,8 @@ export function filterProductionOrders(orders: ProductionOrderLine[], query: str
       order.productCode,
       order.productLabel,
       version || '',
-      order.splitPcbSides ? '양면 top bot' : '',
+      formatProductPcbSideModeLabel(order.pcbSideMode),
+      order.splitPcbSides ? 'top bot' : '',
     ]
       .join(' ')
       .toLowerCase()

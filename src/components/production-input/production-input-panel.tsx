@@ -20,6 +20,7 @@ import {
   getStackedProgressWidths,
   resolveProductionSideCount,
 } from '@/lib/production-input/utils'
+import { formatProductPcbSideModeLabel } from '@/lib/products/utils'
 import { buildSmtCountKey, buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
 import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
 import type { SmtPlanBlock } from '@/lib/smt/plan/types'
@@ -532,13 +533,18 @@ export function ProductionInputPanel({
                     <span className="inline-flex shrink-0 items-center rounded-lg bg-slate-900 px-2.5 py-0.5 text-lg font-bold leading-none tracking-wide text-white sm:text-xl">
                       {sideLabel}
                     </span>
-                  ) : !isPostProcess && order.splitPcbSides ? (
-                    <span className="inline-flex shrink-0 items-center rounded-lg bg-sky-100 px-2.5 py-0.5 text-lg font-bold leading-none text-sky-800 sm:text-xl">
-                      양면
-                    </span>
                   ) : !isPostProcess ? (
-                    <span className="inline-flex shrink-0 items-center rounded-lg bg-slate-100 px-2.5 py-0.5 text-lg font-bold leading-none text-slate-600 sm:text-xl">
-                      단면
+                    <span
+                      className={[
+                        'inline-flex shrink-0 items-center rounded-lg px-2.5 py-0.5 text-lg font-bold leading-none sm:text-xl',
+                        order.pcbSideMode === 'double'
+                          ? 'bg-sky-100 text-sky-800'
+                          : order.pcbSideMode === 'duo'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-600',
+                      ].join(' ')}
+                    >
+                      {formatProductPcbSideModeLabel(order.pcbSideMode)}
                     </span>
                   ) : null}
                 </div>

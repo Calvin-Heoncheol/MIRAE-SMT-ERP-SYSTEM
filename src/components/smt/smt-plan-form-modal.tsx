@@ -8,6 +8,7 @@ import { ErpModal } from '@/components/ui/erp-modal'
 import { suggestPlanQuantityFromMaterial } from '@/lib/materials/material-inbound-status'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionPlanStatus } from '@/lib/production-plan/schedule'
+import { formatProductPcbSideModeLabel } from '@/lib/products/utils'
 import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
 import type { SmtPlanBlock, SmtPlanOrderCandidate } from '@/lib/smt/plan/types'
 import {
@@ -187,8 +188,17 @@ function SmtPlanCandidatePicker({
                     <p className="min-w-0 text-sm font-bold leading-snug text-slate-900">
                       {candidate.productSummary}
                     </p>
-                    <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                      {candidate.splitPcbSides ? '양면' : '단면'}
+                    <span
+                      className={[
+                        'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold',
+                        candidate.pcbSideMode === 'double'
+                          ? 'bg-sky-100 text-sky-800'
+                          : candidate.pcbSideMode === 'duo'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-600',
+                      ].join(' ')}
+                    >
+                      {formatProductPcbSideModeLabel(candidate.pcbSideMode)}
                     </span>
                   </div>
 
@@ -347,7 +357,9 @@ function SmtPlanFormModalInner({
       description={[
         displayOrderPoNumber(order.customerPoNumber, order.orderNumber),
         order.customer || '—',
-        `${order.productSummary}${splitPcbSides ? ' · 양면' : ''}`,
+        `${order.productSummary} · ${formatProductPcbSideModeLabel(
+          'pcbSideMode' in order ? order.pcbSideMode : splitPcbSides ? 'double' : 'single',
+        )}`,
       ].join(' · ')}
       onClose={onClose}
       closeOnEscape={!busy}

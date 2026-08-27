@@ -28,7 +28,7 @@ export type QuoteFormSnapshot = {
   productionKind?: '샘플' | '양산'
   includeSmd?: boolean
   includeDip?: boolean
-  /** false = 원자재·부자재·관리비 제외 (신규 기본) */
+  /** false = 원자재·관리비 제외 */
   includeMaterialCosts?: boolean
   /** 후공정 공정명+분 (통합) */
   postProcessLines?: PostProcessLineForm[]
@@ -68,11 +68,7 @@ export function buildQuoteDetailInfo(
   const materialCostPerUnit = includeMaterialCosts ? Number(form.materialCost) || 0 : 0
   const metalMaskCost = Number(form.metalMaskCost) || 0
   const sampleCost = result.common.sampleCost || 0
-  const auxiliaryMaterialCostPerUnit = includeMaterialCosts
-    ? result.qty > 0
-      ? result.common.auxiliaryMaterial / result.qty
-      : 0
-    : 0
+  const auxiliaryMaterialCostPerUnit = 0
   const postProcessLines: PostProcessLine[] = form.postProcessLines
     ? postProcessLinesToModels(form.postProcessLines)
     : [
@@ -98,7 +94,7 @@ export function buildQuoteDetailInfo(
       setupCost: result.common.smtSetup,
       subMaterialCost: metalMaskCost,
       sampleCost,
-      auxiliaryMaterialCost: includeMaterialCosts ? result.common.auxiliaryMaterial : 0,
+      auxiliaryMaterialCost: 0,
     },
     inputs: {
       smt: {

@@ -47,8 +47,8 @@ function breakdownPageTitle(quoteType: QuoteType) {
 
 function breakdownPageNote(quoteType: QuoteType) {
   return quoteType === 'domestic'
-    ? 'SET-UP·SMD·후공정(납땜 포함)·기타 항목별 단가·부품수(작업량)·생산수량 기준 합계입니다.'
-    : 'Itemized totals for SET-UP, SMD, post-process (incl. soldering), and other.'
+    ? 'SMD(SET-UP·실장·검사)·후공정(납땜 포함)·기타 항목별 단가·부품수(작업량)·생산수량 기준 합계입니다.'
+    : 'Itemized totals for SMD (SET-UP, placement, inspection), post-process (incl. soldering), and other.'
 }
 
 function formatAmount(
@@ -143,17 +143,15 @@ function BreakdownSectionTable({
   const showBoardColumn = section.rows.some((row) => row.boardName)
   const boardSpans = showBoardColumn ? computeBreakdownBoardRowSpans(section.rows) : []
   const isSetupSection = section.key === 'setup'
-  const showProductionQty = section.key === 'smt' || section.key === 'post'
-  const unitHeader = isSetupSection ? labels.colSetupBasis : labels.colUnit
+  const showProductionQty = false
+  const unitHeader = labels.colUnit
   const qtyHeader = isSetupSection
     ? labels.colSetupMinutes
     : section.key === 'smt'
       ? labels.colSmdWorkQty
       : section.key === 'post'
         ? labels.colPostWorkQty
-        : section.key === 'material'
-          ? labels.colProductionQty
-          : labels.colQty
+        : labels.colQty
 
   return (
     <div className={`breakdown-section-${section.key}`}>

@@ -12,6 +12,7 @@ import {
   resolveProductionCount,
   resolveProductionSideCount,
 } from '@/lib/production-input/utils'
+import { formatProductPcbSideModeLabel } from '@/lib/products/utils'
 import { SMT_PLAN_DRAG_MIME } from '@/lib/smt/plan/config'
 import {
   daysUntilYmd,
@@ -350,11 +351,13 @@ export function ProductionOrderSidebar({
                       className={stateBadgeClass(state)}
                     />
                     <StatusBadge
-                      label={order.splitPcbSides ? '양면' : '단면'}
+                      label={formatProductPcbSideModeLabel(order.pcbSideMode)}
                       className={
-                        order.splitPcbSides
+                        order.pcbSideMode === 'double'
                           ? 'bg-sky-100 text-sky-800'
-                          : 'bg-slate-100 text-slate-500'
+                          : order.pcbSideMode === 'duo'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-500'
                       }
                     />
                     {dueLabel ? (

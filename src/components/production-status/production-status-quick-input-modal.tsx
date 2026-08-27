@@ -11,6 +11,7 @@ import {
   resolveProductionCount,
   resolveProductionSideCount,
 } from '@/lib/production-input/utils'
+import { formatProductPcbSideModeLabel } from '@/lib/products/utils'
 import type {
   ProductionStatusLine,
   ProductionStatusProductLine,
@@ -243,7 +244,7 @@ export function ProductionStatusQuickInputModal({
                       </span>
                       <span className="mt-0.5 block text-[11px] tabular-nums text-slate-500">
                         {done.toLocaleString('ko-KR')} / {order.quantity.toLocaleString('ko-KR')}
-                        {order.splitPcbSides ? ' · 양면' : ''}
+                        {stage === 'smt' ? ` · ${formatProductPcbSideModeLabel(order.pcbSideMode)}` : ''}
                       </span>
                     </button>
                   </li>

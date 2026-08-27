@@ -61,7 +61,7 @@ export type QuoteDetailAmounts = {
   subMaterialCost: number
   /** 샘플 비용 (일회성, 생산수량 200대 미만 · 단면 20만 / 양면 30만) */
   sampleCost?: number
-  /** 부자재 비용 총액 (대당 × 수량) */
+  /** @deprecated 미사용 — 항상 0 */
   auxiliaryMaterialCost?: number
 }
 
@@ -96,7 +96,7 @@ export type QuoteDetailInfo = {
     materialCostPerUnit?: number
     /** 메탈마스크 총액 */
     metalMaskCost?: number
-    /** 부자재 비용(대당) — SMD+후공정 합계의 10% */
+    /** @deprecated 미사용 — 항상 0 */
     auxiliaryMaterialCostPerUnit?: number
     pcbBoardCount?: number
     specialDiscount?: number
@@ -109,7 +109,7 @@ export type QuoteDetailInfo = {
     /** 국내용/해외용 — DIP(납땜·후공정) 입력 섹션 사용 */
     includeDip?: boolean
     /**
-     * 원자재·부자재·관리비 포함 여부.
+     * 원자재·관리비 포함 여부.
      * 미설정(구 견적) = 포함. 신규 견적은 false 로 저장.
      */
     includeMaterialCosts?: boolean
@@ -175,7 +175,7 @@ export type EstimateInput = {
   metalMaskCost?: number | string
   /** 샘플 / 양산 — 표시용 구분 (금액 산정과 무관) */
   productionKind?: '샘플' | '양산'
-  /** 부자재 비용(대당) */
+  /** @deprecated 미사용 — 항상 0 */
   auxiliaryMaterialCost?: number | string
   postAssembly?: number | string
   postTest?: number | string
@@ -188,7 +188,7 @@ export type EstimateInput = {
   existingQuoteNumber?: string
   includeSmd?: boolean
   /**
-   * 원자재·부자재·관리비 포함 여부.
+   * 원자재·관리비 포함 여부.
    * 미설정 = 포함(구 견적 호환). false 이면 제외.
    */
   includeMaterialCosts?: boolean
@@ -237,7 +237,7 @@ export type EstimateResult = {
     subMaterial: number
     /** 샘플 비용 총액 (일회성, 생산수량 200대 미만 · 단면 20만 / 양면 30만) */
     sampleCost: number
-    /** 부자재 비용 총액 (대당 × 수량) */
+    /** @deprecated 미사용 — 항상 0 */
     auxiliaryMaterial: number
     materialManagement: number
     specialDiscount: number

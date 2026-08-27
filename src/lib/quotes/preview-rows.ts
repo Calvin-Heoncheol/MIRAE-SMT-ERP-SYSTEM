@@ -4,7 +4,6 @@ import {
   computeSampleCostTotal,
   getPostRate,
   getSmtPlacementMinFee,
-  getSmtSetupRate,
   getSmtUnitRates,
 } from './constants'
 import {
@@ -212,8 +211,8 @@ export function buildProcessBreakdownSections(
 ): BreakdownSectionPreview[] {
   const labels = getPreviewLabels(quoteType)
   const definitions: { key: PreviewSection; title: string }[] = [
-    { key: 'setup', title: 'SET-UP' },
-    { key: 'smt', title: 'SMD' },
+    { key: 'setup', title: 'SMD · SET-UP' },
+    { key: 'smt', title: 'SMD · 실장·검사' },
     { key: 'post', title: pdfSummarySectionLabel(labels.postProcess, quoteType) },
     { key: 'material', title: pdfSummarySectionLabel(labels.materials, quoteType) },
     { key: 'other', title: pdfSummarySectionLabel(labels.other, quoteType) },
@@ -474,11 +473,7 @@ function smtSetupDetailRowsForBoard(
   const labels = getPreviewLabels(labelType)
   const qty = result.qty || 1
   const breakdown = computeSmtSetupBillingBreakdown(board.setupPartCount, board.smtSide, quoteType)
-  const setupRate = getSmtSetupRate(quoteType)
   const isKorean = labelType === 'domestic'
-  const rateLabel = isKorean
-    ? `분당 ${setupRate.toLocaleString('ko-KR')}원`
-    : `${setupRate.toLocaleString('en-US')}/min`
 
   function setupMinutesValue(minutes: number) {
     const rounded = Math.round(minutes * 10) / 10
@@ -492,12 +487,13 @@ function smtSetupDetailRowsForBoard(
     basis: string,
     minutes: number,
   ): PreviewRow {
+    const perUnit = setupComponentPerUnit(minutes, board.setupRate, qty)
     return {
       label,
-      description: `${description} · ${rateLabel}`,
-      unitLabel: basis,
+      description: `${description} · ${basis}`,
+      unit: perUnit,
       count: setupMinutesValue(minutes),
-      amount: setupComponentPerUnit(minutes, board.setupRate, qty),
+      amount: perUnit,
       indent: 2,
     }
   }
@@ -507,23 +503,35 @@ function smtSetupDetailRowsForBoard(
     : `${breakdown.partCount.toLocaleString('en-US')} parts`
 
   return [
-    setupDetailRow(
-      labels.setupBaseTime,
-      labels.setupBaseDesc,
-      isKorean ? '고정' : 'Fixed',
-      breakdown.baseMinutes,
+    withProductionQty(
+      setupDetailRow(
+        labels.setupBaseTime,
+        labels.setupBaseDesc,
+        isKorean ? '고정' : 'Fixed',
+        breakdown.baseMinutes,
+      ),
+      qty,
+      labels,
     ),
-    setupDetailRow(
-      labels.firstArticle,
-      labels.setupFirstArticleDesc,
-      partCountLabel,
-      breakdown.firstArticleMinutes,
+    withProductionQty(
+      setupDetailRow(
+        labels.firstArticle,
+        labels.setupFirstArticleDesc,
+        partCountLabel,
+        breakdown.firstArticleMinutes,
+      ),
+      qty,
+      labels,
     ),
-    setupDetailRow(
-      labels.setting,
-      labels.setupSettingDesc,
-      partCountLabel,
-      breakdown.settingMinutes,
+    withProductionQty(
+      setupDetailRow(
+        labels.setting,
+        labels.setupSettingDesc,
+        partCountLabel,
+        breakdown.settingMinutes,
+      ),
+      qty,
+      labels,
     ),
   ]
 }
@@ -756,8 +764,7 @@ function previewMaterialRows(
   const qty = result.qty || 1
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, qty)
-  const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, qty)
-  const totalPerUnit = materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
+  const totalPerUnit = materialPerUnit + materialMgmtPerUnit
 
   if (totalPerUnit <= 0) return []
 
@@ -776,16 +783,6 @@ function previewMaterialRows(
     unit: materialPerUnit,
     count: labels.formatQty(qty),
     amount: materialPerUnit,
-    indent: 1,
-  })
-
-  rows.push({
-    label: labels.auxiliaryMaterial,
-    description:
-      labelType === 'domestic' ? 'SMD·후공정 합계의 10%' : '10% of SMD + post-process totals',
-    unit: auxiliaryPerUnit,
-    count: labels.formatQty(qty),
-    amount: auxiliaryPerUnit,
     indent: 1,
   })
 
@@ -1253,8 +1250,7 @@ export function buildPdfSummaryBreakdownLines(
 
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, qty)
-  const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, qty)
-  const materials = materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
+  const materials = materialPerUnit + materialMgmtPerUnit
   if (form.includeMaterialCosts !== false && materials > 0) {
     lines.push({
       label: pdfSummarySectionLabel(labels.materials, labelType),
@@ -1322,8 +1318,7 @@ export function buildPdfMaterialsBoardSummaryRows(
   if (form.includeMaterialCosts === false) return []
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, result.qty || 1)
-  const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, result.qty || 1)
-  const total = materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
+  const total = materialPerUnit + materialMgmtPerUnit
   if (total <= 0) return []
   return [{ label: 'Materials', unitTotal: total, total, section: 'material' as const }]
 }
@@ -1405,12 +1400,10 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
       : computeSampleCostTotal(qty, result.common.pcbBoardDetails),
     qty,
   )
-  const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, qty)
   const includeMaterial = form.includeMaterialCosts !== false
   const materialRows: PreviewMatrixMaterialRow[] = includeMaterial
     ? [
         { label: '원자재 비용', amountPerUnit: materialPerUnit },
-        { label: '부자재 비용', amountPerUnit: auxiliaryPerUnit },
         { label: '관리비', amountPerUnit: materialMgmtPerUnit },
       ]
     : []
@@ -1431,9 +1424,7 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
       rowTotalPerUnit: smtPerUnit + setupPerUnit + postPerUnit,
     },
     materialRows,
-    materialTotalPerUnit: includeMaterial
-      ? materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
-      : 0,
+    materialTotalPerUnit: includeMaterial ? materialPerUnit + materialMgmtPerUnit : 0,
     otherRows,
     otherTotalPerUnit: metalMaskPerUnit + samplePerUnit,
     grandPerUnit: result.values.grandTotal / qty,

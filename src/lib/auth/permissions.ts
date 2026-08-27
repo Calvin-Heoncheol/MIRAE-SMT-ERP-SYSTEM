@@ -102,7 +102,7 @@ export function resolveAccessModule(
   // 생산현황은 생산관리 메뉴 — 전 부서 공용 조회
   if (pathname.startsWith('/production/status')) return 'dashboard'
   if (pathname.startsWith('/reports/production')) return 'reports_production'
-  if (pathname.startsWith('/reports/sales')) return 'reports_sales'
+  if (pathname.startsWith('/reports/sales')) return 'sales'
   if (pathname.startsWith('/accounting')) return 'accounting'
   if (
     pathname.startsWith('/new-companies') ||
@@ -123,6 +123,15 @@ export function resolveAccessModule(
   if (pathname.startsWith('/materials')) return 'materials'
   if (pathname.startsWith('/quality')) return 'quality_defects'
   if (pathname.startsWith('/smt')) return 'production_smt'
+  if (pathname.startsWith('/production/input')) {
+    const team = searchParams?.get('team') || ''
+    if (team === '생산1팀' || team === 'smt') return 'production_smt'
+    if (team === '생산3팀') return 'production_post_3'
+    if (team === '생산4팀') return 'production_post_4'
+    if (team === '생산2팀') return 'production_post_2'
+    // 팀 미지정: canAccessPath 쪽에서 생산등록 모듈 보유 여부로 허용
+    return 'production_smt'
+  }
   if (pathname.startsWith('/post-process')) {
     const team = searchParams?.get('team') || ''
     if (team === '생산3팀') return 'production_post_3'
@@ -161,6 +170,19 @@ export function canAccessPath(
   if (pathname.startsWith('/post-process') && !searchParams?.get('team')) {
     const modules = getAllowedModules(profile)
     if (
+      modules.includes('production_post_2') ||
+      modules.includes('production_post_3') ||
+      modules.includes('production_post_4')
+    ) {
+      return true
+    }
+  }
+
+  // 생산등록 허브(팀 미지정): 어느 팀 입력이든 가능하면 메뉴·진입 허용
+  if (pathname.startsWith('/production/input') && !searchParams?.get('team')) {
+    const modules = getAllowedModules(profile)
+    if (
+      modules.includes('production_smt') ||
       modules.includes('production_post_2') ||
       modules.includes('production_post_3') ||
       modules.includes('production_post_4')

@@ -64,6 +64,7 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
         customer: plan.customer,
         productSummary: plan.productSummary,
         deliveryDate: plan.deliveryDate,
+        pcbSideMode: plan.pcbSideMode,
         splitPcbSides: plan.splitPcbSides,
         smtTarget: 0,
         smtProduced: 0,

@@ -275,17 +275,15 @@ function buildQuoteBreakdownTableHtml(
   } = options
   const labels = getPreviewLabels(labelType)
   const isSetupSection = sectionKey === 'setup'
-  const showProductionQty = sectionKey === 'smt' || sectionKey === 'post'
-  const unitHeader = isSetupSection ? labels.colSetupBasis : labels.colUnit
+  const showProductionQty = false
+  const unitHeader = labels.colUnit
   const qtyHeader = isSetupSection
     ? labels.colSetupMinutes
     : sectionKey === 'smt'
       ? labels.colSmdWorkQty
       : sectionKey === 'post'
         ? labels.colPostWorkQty
-        : sectionKey === 'material'
-          ? labels.colProductionQty
-          : labels.colQty
+        : labels.colQty
   const tableClass =
     variant === 'board-summary'
       ? 'quote-table line-items-table board-summary-table'
@@ -562,8 +560,8 @@ function buildQuoteDetailHeaderHtml(
   const isKorean = pdfLabelType(quote, language) === 'domestic'
   const title = isKorean ? '항목별 요약' : 'Summary Breakdown'
   const note = isKorean
-    ? 'SET-UP·SMD·후공정·자재·기타 대당합계와 생산수량 기준 합계입니다.'
-    : 'Unit totals and quantity totals for SET-UP, SMD, post-process, materials, and other.'
+    ? 'SMD(SET-UP·실장)·후공정·자재·기타 대당합계와 생산수량 기준 합계입니다.'
+    : 'Unit totals and quantity totals for SMD (SET-UP, placement), post-process, materials, and other.'
 
   return `${buildSectionPageHeaderHtml(quote, estimate, title, note)}`
 }
@@ -591,8 +589,8 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
   const isKorean = labelType === 'domestic'
   const pageTitle = isKorean ? '공정별 세부 산정내역' : 'Detailed Breakdown by Process'
   const pageNote = isKorean
-    ? 'SET-UP·SMD·후공정(납땜 포함)·자재·기타 항목별 단가·수량 기준 산정식입니다.'
-    : 'Itemized calculation for SET-UP, SMD, post-process (incl. soldering), materials, and other.'
+    ? 'SMD(SET-UP·실장·검사)·후공정(납땜 포함)·자재·기타 항목별 단가·수량 기준 산정식입니다.'
+    : 'Itemized calculation for SMD (SET-UP, placement, inspection), post-process (incl. soldering), materials, and other.'
   const postTitle = pdfSummarySectionLabel(labels.postProcess, labelType)
   const materialTitle = pdfSummarySectionLabel(labels.materials, labelType)
   const otherTitle = pdfSummarySectionLabel(labels.other, labelType)
@@ -601,8 +599,8 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
     <div class="quote-card">
       ${buildSectionPageHeaderHtml(quote, estimate, pageTitle, pageNote)}
       <div class="breakdown-sections">
-        ${buildBreakdownSectionHtml('SET-UP', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated', labelType)}
-        ${buildBreakdownSectionHtml('SMD', smtRows, quote.quoteType, 'smt', 'breakdown-section-smt', labelType)}
+        ${buildBreakdownSectionHtml('SMD · SET-UP', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated', labelType)}
+        ${buildBreakdownSectionHtml('SMD · 실장·검사', smtRows, quote.quoteType, 'smt', 'breakdown-section-smt', labelType)}
         ${buildBreakdownSectionHtml(postTitle, postRows, quote.quoteType, 'post', 'breakdown-section-separated', labelType)}
         ${buildBreakdownSectionHtml(materialTitle, materialRows, quote.quoteType, 'material', 'breakdown-section-separated', labelType)}
         ${buildBreakdownSectionHtml(otherTitle, otherRows, quote.quoteType, 'other', 'breakdown-section-separated', labelType)}

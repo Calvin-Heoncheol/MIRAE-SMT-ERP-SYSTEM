@@ -95,7 +95,7 @@ type FormState = {
   specialDiscount: string
   includeSmd: boolean
   includeDip: boolean
-  /** false = 원자재·부자재·관리비 제외 (신규 기본) */
+  /** 원자재·관리비 포함 (견적 자재 섹션) */
   includeMaterialCosts: boolean
 }
 
@@ -113,7 +113,7 @@ const INITIAL_FORM: FormState = {
   specialDiscount: '0',
   includeSmd: true,
   includeDip: true,
-  includeMaterialCosts: false,
+  includeMaterialCosts: true,
 }
 
 function inferIncludeFlags(quote: QuoteListItem): { includeSmd: boolean; includeDip: boolean } {
@@ -211,7 +211,7 @@ function createInitialState(mode: 'create' | 'edit', quote?: QuoteListItem | nul
         specialDiscount: String(input.specialDiscount || 0),
         includeSmd: flags.includeSmd,
         includeDip: flags.includeDip,
-        includeMaterialCosts: quote.detailInfo.settings?.includeMaterialCosts !== false,
+        includeMaterialCosts: true,
       },
       smtForms,
       dipForms,
@@ -301,10 +301,8 @@ function QuoteModalContent({
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [displayCurrency, setDisplayCurrency] = useState<QuoteDisplayCurrency>('usd')
-  const [dipTab, setDipTab] = useState<'solder' | 'post'>('solder')
   const [openSections, setOpenSections] = useState({
-    setup: true,
-    smt: false,
+    smt: true,
     dip: false,
     material: false,
     other: false,
@@ -371,7 +369,6 @@ function QuoteModalContent({
     )
     setSaveError(null)
     setOpenSections({
-      setup: mode !== 'edit',
       smt: mode !== 'edit',
       dip: mode !== 'edit',
       material: mode !== 'edit',
@@ -593,37 +590,22 @@ function QuoteModalContent({
     includeMaterialCosts: form.includeMaterialCosts,
     postProcessLines: form.postProcessLines,
   }
-  const sectionNumbers = form.includeMaterialCosts
-    ? {
-        setup: 1,
-        smt: 2,
-        dip: 3,
-        material: 4,
-        other: 5,
-      }
-    : {
-        setup: 1,
-        smt: 2,
-        dip: 3,
-        material: 0,
-        other: 4,
-      }
+  const sectionNumbers = {
+    smt: 1,
+    dip: 2,
+    material: 3,
+    other: 4,
+  }
 
   const qty = result?.qty || Number(form.boardQty) || 1
   const setupSectionTotal = result?.common.smtSetup || 0
-  const smdSectionTotal = Math.max(0, (result?.values.smt || 0) - (result?.common.smtSetup || 0))
+  const smdPlacementTotal = Math.max(0, (result?.values.smt || 0) - (result?.common.smtSetup || 0))
+  const smdSectionTotal = setupSectionTotal + smdPlacementTotal
   const dipSectionTotal = (result?.values.dip || 0) + (result?.values.postProcess || 0)
-  const materialSectionTotal = form.includeMaterialCosts
-    ? (Number(form.materialCost) || 0) * qty +
-      (result?.common.materialManagement || 0) +
-      (result?.common.auxiliaryMaterial || 0)
-    : 0
+  const materialSectionTotal =
+    (Number(form.materialCost) || 0) * qty + (result?.common.materialManagement || 0)
   const otherSectionTotal =
     (Number(form.metalMaskCost) || 0) + computeSampleCostTotal(form.boardQty, smtForms)
-  const auxiliaryMaterialPerUnit =
-    form.includeMaterialCosts && qty > 0
-      ? (result?.common.auxiliaryMaterial || 0) / qty
-      : 0
   const boardCount = Number(clampPcbCount(form.pcbBoardCount))
 
   const liveSummary = result
@@ -769,19 +751,19 @@ function QuoteModalContent({
               <section className="mb-3 overflow-hidden rounded-xl border border-slate-200">
                 <button
                   type="button"
-                  onClick={() => toggleSection('setup')}
+                  onClick={() => toggleSection('smt')}
                   className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
                 >
                   <h3 className="min-w-0 flex-1 text-sm font-bold text-slate-900">
-                    {sectionNumbers.setup}. SET-UP
+                    {sectionNumbers.smt}. SMD
                   </h3>
                   <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-800">
-                    {formatAmount(setupSectionTotal)}
+                    {formatAmount(smdSectionTotal)}
                   </span>
-                  <span className="shrink-0 text-slate-400">{openSections.setup ? '▴' : '▾'}</span>
+                  <span className="shrink-0 text-slate-400">{openSections.smt ? '▴' : '▾'}</span>
                 </button>
-                {openSections.setup ? (
-                  <div className="space-y-3 border-t border-slate-100 px-3.5 py-3">
+                {openSections.smt ? (
+                  <div className="space-y-4 border-t border-slate-100 px-3.5 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-medium text-slate-500">
                         PCB 보드 {boardCount}개
@@ -805,50 +787,74 @@ function QuoteModalContent({
                         </button>
                       </div>
                     </div>
-                    {smtForms.map((board, index) => (
-                      <SmtPcbBoardForm
-                        key={`setup-${index}`}
-                        board={board}
-                        mode="setup"
-                        boardIndex={index}
-                        boardCount={smtForms.length}
-                        quoteType={quoteType}
-                        displayCurrency={displayCurrency}
-                        onChange={(next) => updateSmtBoard(index, next)}
-                      />
-                    ))}
-                  </div>
-                ) : null}
-              </section>
 
-              <section className="mb-3 overflow-hidden rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => toggleSection('smt')}
-                  className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
-                >
-                  <h3 className="min-w-0 flex-1 text-sm font-bold text-slate-900">
-                    {sectionNumbers.smt}. SMD
-                  </h3>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-800">
-                    {formatAmount(smdSectionTotal)}
-                  </span>
-                  <span className="shrink-0 text-slate-400">{openSections.smt ? '▴' : '▾'}</span>
-                </button>
-                {openSections.smt ? (
-                  <div className="space-y-3 border-t border-slate-100 px-3.5 py-3">
-                    {smtForms.map((board, index) => (
-                      <SmtPcbBoardForm
-                        key={`smd-${index}`}
-                        board={board}
-                        mode="smd"
-                        boardIndex={index}
-                        boardCount={smtForms.length}
-                        quoteType={quoteType}
-                        displayCurrency={displayCurrency}
-                        onChange={(next) => updateSmtBoard(index, next)}
-                      />
-                    ))}
+                    <div className="overflow-hidden rounded-lg border border-slate-200">
+                      <div className="flex items-center gap-3 bg-slate-50 px-3 py-2.5">
+                        <h4 className="min-w-0 flex-1 text-xs font-bold tracking-wide text-slate-700">
+                          SET-UP
+                        </h4>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[10px] font-medium text-slate-500">대당</p>
+                          <p className="text-sm font-semibold tabular-nums text-slate-800">
+                            {formatAmount(qty > 0 ? setupSectionTotal / qty : 0)}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[10px] font-medium text-slate-500">합계</p>
+                          <p className="text-sm font-semibold tabular-nums text-slate-800">
+                            {formatAmount(setupSectionTotal)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-3 border-t border-slate-100 px-3 py-3">
+                        {smtForms.map((board, index) => (
+                          <SmtPcbBoardForm
+                            key={`setup-${index}`}
+                            board={board}
+                            mode="setup"
+                            boardIndex={index}
+                            boardCount={smtForms.length}
+                            quoteType={quoteType}
+                            displayCurrency={displayCurrency}
+                            onChange={(next) => updateSmtBoard(index, next)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="overflow-hidden rounded-lg border border-slate-200">
+                      <div className="flex items-center gap-3 bg-slate-50 px-3 py-2.5">
+                        <h4 className="min-w-0 flex-1 text-xs font-bold tracking-wide text-slate-700">
+                          실장·검사
+                        </h4>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[10px] font-medium text-slate-500">대당</p>
+                          <p className="text-sm font-semibold tabular-nums text-slate-800">
+                            {formatAmount(qty > 0 ? smdPlacementTotal / qty : 0)}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-[10px] font-medium text-slate-500">합계</p>
+                          <p className="text-sm font-semibold tabular-nums text-slate-800">
+                            {formatAmount(smdPlacementTotal)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-3 border-t border-slate-100 px-3 py-3">
+                        {smtForms.map((board, index) => (
+                          <SmtPcbBoardForm
+                            key={`smd-${index}`}
+                            board={board}
+                            mode="smd"
+                            boardIndex={index}
+                            boardCount={smtForms.length}
+                            quoteType={quoteType}
+                            displayCurrency={displayCurrency}
+                            onChange={(next) => updateSmtBoard(index, next)}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 ) : null}
               </section>
@@ -868,34 +874,12 @@ function QuoteModalContent({
                   <span className="shrink-0 text-slate-400">{openSections.dip ? '▴' : '▾'}</span>
                 </button>
                 {openSections.dip ? (
-                  <div className="border-t border-slate-100 px-3.5 py-3">
-                    <div className="mb-3 flex gap-1 rounded-lg bg-slate-100 p-1">
-                      <button
-                        type="button"
-                        onClick={() => setDipTab('solder')}
-                        className={
-                          dipTab === 'solder'
-                            ? 'flex-1 rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-sm'
-                            : 'flex-1 rounded-md px-3 py-1.5 text-xs font-medium text-slate-600'
-                        }
-                      >
-                        납땜
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDipTab('post')}
-                        className={
-                          dipTab === 'post'
-                            ? 'flex-1 rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-sm'
-                            : 'flex-1 rounded-md px-3 py-1.5 text-xs font-medium text-slate-600'
-                        }
-                      >
-                        후공정
-                      </button>
-                    </div>
-
-                    {dipTab === 'solder' ? (
-                      <div className="space-y-3">
+                  <div className="space-y-4 border-t border-slate-100 px-3.5 py-3">
+                    <div className="overflow-hidden rounded-lg border border-slate-200">
+                      <div className="bg-slate-50 px-3 py-2.5">
+                        <h4 className="text-xs font-bold tracking-wide text-slate-700">납땜</h4>
+                      </div>
+                      <div className="space-y-3 border-t border-slate-100 px-3 py-3">
                         {dipForms.map((board, index) => (
                           <DipPcbBoardForm
                             key={index}
@@ -908,21 +892,22 @@ function QuoteModalContent({
                           />
                         ))}
                       </div>
-                    ) : (
-                      <PostProcessLinesEditor
-                        title="후공정"
-                        ratePerMinute={getPostRate(quoteType)}
-                        lines={form.postProcessLines}
-                        quoteType={quoteType}
-                        displayCurrency={displayCurrency}
-                        onChange={(postProcessLines) => updateForm('postProcessLines', postProcessLines)}
-                      />
-                    )}
+                    </div>
+
+                    <PostProcessLinesEditor
+                      title="후공정"
+                      ratePerMinute={getPostRate(quoteType)}
+                      lines={form.postProcessLines}
+                      quoteType={quoteType}
+                      displayCurrency={displayCurrency}
+                      onChange={(postProcessLines) =>
+                        updateForm('postProcessLines', postProcessLines)
+                      }
+                    />
                   </div>
                 ) : null}
               </section>
 
-              {form.includeMaterialCosts ? (
               <section className="mb-3 overflow-hidden rounded-xl border border-slate-200">
                 <button
                   type="button"
@@ -949,27 +934,9 @@ function QuoteModalContent({
                         className="w-full rounded-lg border border-slate-200 px-3 py-2"
                       />
                     </label>
-                    <label className="block text-sm">
-                      <span className="mb-1 block font-medium text-slate-600">부자재 비용(대당)</span>
-                      <input
-                        readOnly
-                        value={
-                          Number.isFinite(auxiliaryMaterialPerUnit)
-                            ? String(
-                                Math.round(auxiliaryMaterialPerUnit * 100) / 100,
-                              )
-                            : '0'
-                        }
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700"
-                      />
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        SMD 합계 + 후공정 합계의 10% · 자동 반영
-                      </p>
-                    </label>
                   </div>
                 ) : null}
               </section>
-              ) : null}
 
               <section className="mb-1 overflow-hidden rounded-xl border border-slate-200">
                 <button

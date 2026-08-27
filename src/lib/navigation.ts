@@ -50,11 +50,6 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    label: '회계관리',
-    href: '/accounting/receivables',
-    children: [{ label: '수금현황', href: '/accounting/receivables' }],
-  },
-  {
     label: '생산관리',
     href: '/production/status',
     children: [
@@ -62,6 +57,11 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '생산등록', href: '/production/input' },
       { label: '생산이력', href: '/production/history' },
     ],
+  },
+  {
+    label: '회계관리',
+    href: '/accounting/receivables',
+    children: [{ label: '수금현황', href: '/accounting/receivables' }],
   },
   {
     label: '자재관리',

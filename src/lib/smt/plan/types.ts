@@ -1,6 +1,10 @@
 import type { MaterialInboundStatus } from '@/lib/materials/material-inbound-status'
 import type { ProductionPlanStatus } from '@/lib/production-plan/schedule'
-import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-input/types'
+import type {
+  ProductionCounts,
+  ProductionOrderLine,
+  ProductionPcbSideMode,
+} from '@/lib/production-input/types'
 import type { SmtPcbSide } from '@/lib/smt/types'
 
 export type SmtProductionPlan = {
@@ -29,6 +33,7 @@ export type SmtPlanOrderCandidate = {
   customer: string
   productSummary: string
   deliveryDate: string
+  pcbSideMode: ProductionPcbSideMode
   splitPcbSides: boolean
   smtTarget: number
   smtProduced: number
@@ -52,6 +57,7 @@ export type SmtPlanBlock = SmtProductionPlan & {
   customer: string
   productSummary: string
   deliveryDate: string
+  pcbSideMode: ProductionPcbSideMode
   splitPcbSides: boolean
 }
 

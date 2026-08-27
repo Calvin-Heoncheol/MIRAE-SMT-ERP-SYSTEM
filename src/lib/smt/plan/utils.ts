@@ -206,6 +206,7 @@ export function buildSmtPlanOrderCandidates(
         customer: line.customer,
         productSummary: formatProductionProductName(line),
         deliveryDate,
+        pcbSideMode: line.pcbSideMode,
         splitPcbSides: line.splitPcbSides,
         smtTarget,
         smtProduced,
@@ -252,6 +253,7 @@ export function buildSmtPlanBlocks(
           ? formatProductionProductName(line)
           : order.items?.[0]?.productName || order.orderNumber,
         deliveryDate: order.deliveryDate || '',
+        pcbSideMode: line?.pcbSideMode ?? 'single',
         splitPcbSides: Boolean(line?.splitPcbSides),
       }
     })

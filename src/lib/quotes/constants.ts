@@ -108,8 +108,6 @@ export const DIP_UNIT = {
 
 /** 관리비: 원자재 비용의 10% */
 export const RAW_MATERIAL_MANAGEMENT_RATE = 0.1
-/** 부자재 비용(대당): SMD 합계 + 후공정(DIP 포함) 합계의 10% */
-export const AUXILIARY_MATERIAL_RATE = 0.1
 
 /** 메탈마스크: 단면 */
 export const METAL_MASK_COST_SINGLE = 110_000
@@ -157,17 +155,6 @@ export function computeMetalMaskCostTotal(
 ) {
   if (!includeSmd || boards.length === 0) return 0
   return boards.reduce((sum, board) => sum + metalMaskCostForSide(board.smtSide), 0)
-}
-
-/** 부자재 대당 = (SMD 합계 + DIP 합계) × 10% / 생산수량 */
-export function computeAuxiliaryMaterialPerUnit(
-  smdSectionTotal: number,
-  dipSectionTotal: number,
-  qty: number,
-) {
-  const base = Math.max(0, smdSectionTotal) + Math.max(0, dipSectionTotal)
-  const safeQty = Math.max(1, Math.floor(Number(qty) || 1))
-  return (base * AUXILIARY_MATERIAL_RATE) / safeQty
 }
 
 export function getSmtPlacementMinFee(quoteType: QuoteType) {

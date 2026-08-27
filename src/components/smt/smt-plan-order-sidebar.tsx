@@ -3,6 +3,7 @@
 import { SmtPlanMaterialStatusBadge } from '@/components/materials/material-inbound-status-badge'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
 import { PRODUCTION_ORDER_PAGE_SIZE } from '@/lib/production-input/utils'
+import { formatProductPcbSideModeLabel } from '@/lib/products/utils'
 import { SMT_PLAN_DRAG_MIME } from '@/lib/smt/plan/config'
 import type { SmtPlanOrderCandidate } from '@/lib/smt/plan/types'
 import {
@@ -167,8 +168,17 @@ export function SmtPlanOrderSidebar({
                   <p className="min-w-0 truncate text-sm font-bold text-slate-900">
                     {candidate.productSummary}
                   </p>
-                  <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                    {candidate.splitPcbSides ? '양면' : '단면'}
+                  <span
+                    className={[
+                      'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold',
+                      candidate.pcbSideMode === 'double'
+                        ? 'bg-sky-100 text-sky-800'
+                        : candidate.pcbSideMode === 'duo'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-slate-100 text-slate-600',
+                    ].join(' ')}
+                  >
+                    {formatProductPcbSideModeLabel(candidate.pcbSideMode)}
                   </span>
                 </div>
 

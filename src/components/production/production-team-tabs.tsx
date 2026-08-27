@@ -28,7 +28,7 @@ export function ProductionTeamTabs({
   ariaLabel,
 }: {
   tabs: ProductionTeamTab[]
-  activeId: string
+  activeId: string | null
   ariaLabel: string
 }) {
   const { profile, authDisabled } = useAuthProfile()
@@ -47,7 +47,7 @@ export function ProductionTeamTabs({
       aria-label={ariaLabel}
     >
       {visible.map((tab) => {
-        const isActive = tab.id === activeId
+        const isActive = Boolean(activeId) && tab.id === activeId
         return (
           <Link
             key={tab.id}
@@ -55,7 +55,7 @@ export function ProductionTeamTabs({
             className={[
               'rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors',
               isActive
-                ? 'bg-slate-100 text-slate-900'
+                ? 'bg-slate-800 text-white'
                 : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
             ].join(' ')}
             aria-current={isActive ? 'page' : undefined}
