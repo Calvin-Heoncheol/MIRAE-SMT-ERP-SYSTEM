@@ -61,8 +61,8 @@ export function smtBoardToForm(board: SmtPcbBoard): SmtBoardForm {
     icPin: toNumericField(board.icPin),
     bga: toNumericField(board.bga),
     smtSide,
-    aoiEnabled: board.aoiEnabled === true,
-    pcbWashEnabled: board.pcbWashEnabled === true,
+    aoiEnabled: true,
+    pcbWashEnabled: false,
     smtTopCount: toNumericField(board.smtTopCount),
     smtBotCount: multi ? toNumericField(board.smtBotCount) : '0',
   }
@@ -80,8 +80,8 @@ export function smtBoardFormToModel(form: SmtBoardForm): SmtPcbBoard {
     icPin: parseNumericField(form.icPin),
     bga: parseNumericField(form.bga),
     smtSide,
-    aoiEnabled: form.aoiEnabled === true,
-    pcbWashEnabled: form.pcbWashEnabled === true,
+    aoiEnabled: true,
+    pcbWashEnabled: false,
     smtTopCount: parseNumericField(form.smtTopCount),
     smtBotCount: multi ? parseNumericField(form.smtBotCount) : 0,
   }

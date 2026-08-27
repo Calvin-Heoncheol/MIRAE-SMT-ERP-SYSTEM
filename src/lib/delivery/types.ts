@@ -59,7 +59,10 @@ export type DeliveryHistoryRow = {
   customerPoNumber: string
   customer: string
   productName: string
+  /** 화면·명세서용 품목코드 (품목등록 base_code) */
   productCode: string
+  /** 품목 마스터 id — 단가·매칭용 */
+  productId: string
   targetQuantity: number
   quantity: number
   /** 동일 조립그룹 기준 출하 차수 (1차, 2차…) */

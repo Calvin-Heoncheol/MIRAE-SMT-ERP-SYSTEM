@@ -83,14 +83,18 @@ export const ERP_TABLE_WRAP_CLASS =
 /** 표 본문 스크롤 — sticky thead와 함께 사용 */
 export const ERP_TABLE_SCROLL_CLASS = 'min-h-0 flex-1 overflow-auto'
 
-export const ERP_TABLE_CLASS = 'min-w-full border-collapse text-left text-sm'
+/** `.erp-data-table` — globals.css에서 th/td 패딩을 통일(px-4 / py-3). w-full로 컨테이너 폭을 채움(min-w만 있으면 넓은 화면에서 우측 공백) */
+export const ERP_TABLE_CLASS = 'erp-data-table w-full min-w-full border-collapse text-left text-sm'
 
 export const ERP_TABLE_HEAD_CLASS =
   'sticky top-0 z-[1] bg-slate-50 text-xs font-semibold text-slate-500'
 
-/** 목록 표 공통 밀도 */
-export const ERP_TABLE_TH_CLASS = 'px-3 py-2.5'
-export const ERP_TABLE_TD_CLASS = 'px-3 py-2.5'
+/** 목록 표 공통 밀도 — CSS와 동일 값(개별 유틸이 있어도 erp-data-table이 우선) */
+export const ERP_TABLE_TH_CLASS = 'px-4 py-3'
+export const ERP_TABLE_TD_CLASS = 'px-4 py-3'
+
+/** 입력·편집용 조밀 표 (모달 라인 등) */
+export const ERP_TABLE_COMPACT_CLASS = 'erp-data-table erp-data-table--compact'
 
 /** 긴 텍스트(품명·고객·비고 등) — 줄바꿈 허용, 한글 한 글자씩 끊김 방지 */
 export const ERP_TABLE_TD_WRAP_CLASS =

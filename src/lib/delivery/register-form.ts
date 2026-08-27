@@ -1,6 +1,10 @@
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionProductName } from '@/lib/production-input/utils'
 import type { DeliveryAvailability, DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
+import {
+  findBillingAnchorProductIndex,
+  resolveBillingQuantityFromShipped,
+} from '@/lib/delivery/utils'
 import { parseItemVersionCode } from '@/lib/items/version-code'
 import type { LotAllocation, ProductionLot } from '@/lib/production-lots/types'
 import { allocateLotsFifo, sumLotAllocationQuantity } from '@/lib/production-lots/utils'
@@ -84,12 +88,38 @@ export function isBillingRegisterItem(item: DeliveryRegisterItemForm) {
   return Boolean(item.billingOnly)
 }
 
+/** 출하 등록 화면 순서(제품 → 추가작업) 그대로 거래명세서 품목 입력으로 변환 */
+export function registerItemsToStatementShippedLines(items: DeliveryRegisterItemForm[]) {
+  return items
+    .filter((item) => {
+      const qty = Math.floor(Number(item.quantity) || 0)
+      if (qty < 1) return false
+      if (isBillingRegisterItem(item)) {
+        return Boolean(item.productName.trim())
+      }
+      return Boolean(item.assemblyGroupId.trim() && item.productCode.trim())
+    })
+    .map((item) => ({
+      orderNumber: item.orderNumber.trim(),
+      productCode: item.productCode.trim(),
+      productName: item.productName.trim(),
+      qty: Math.floor(Number(item.quantity) || 0),
+      unitPrice: Math.round(Number(item.unitPrice) || 0),
+      billingOnly: isBillingRegisterItem(item),
+      orderLineId: isBillingRegisterItem(item) ? String(item.orderLineId || '').trim() : undefined,
+    }))
+}
+
 export function applyBillingLineToItem(
   item: DeliveryRegisterItemForm,
   line: DeliveryBillingOnlyLine,
+  companionQuantity?: number,
 ): DeliveryRegisterItemForm {
   const orderLineId = String(line.orderLineId || '').trim()
-  const quantity = Math.max(0, Math.floor(Number(line.quantity) || 0))
+  const quantity =
+    companionQuantity != null
+      ? Math.max(0, Math.floor(Number(companionQuantity) || 0))
+      : Math.max(0, Math.floor(Number(line.quantity) || 0))
   const unitPrice = Math.max(0, Math.round(Number(line.unitPrice) || 0))
   return {
     ...item,
@@ -105,42 +135,100 @@ export function applyBillingLineToItem(
     productVersion: null,
     quantity: quantity > 0 ? String(quantity) : '',
     unitPrice: String(unitPrice),
-    maxQuantity: quantity,
+    maxQuantity: 0,
     availableLots: [],
     allocations: [],
     lotManual: false,
   }
 }
 
-/**
- * 선택된 제품 출하 행이 속한 발주의 추가작업 행을 오른쪽 목록에 붙인다.
- * (합치지 않고 별도 행 유지)
- */
-export function withBillingCompanionItems(
+/** 출하 품목에 연결된 발주 중, 아직 넣지 않은 추가작업 목록 */
+export function availableBillingLinesForRegister(
   items: DeliveryRegisterItemForm[],
   billingLines: DeliveryBillingOnlyLine[],
-): DeliveryRegisterItemForm[] {
-  const productItems = items.filter((item) => !isBillingRegisterItem(item))
-  const orderIds = new Set(productItems.map((item) => item.orderNumber.trim()).filter(Boolean))
-
-  const previousBilling = new Map(
+): DeliveryBillingOnlyLine[] {
+  const orderIds = new Set(
     items
-      .filter((item) => isBillingRegisterItem(item) && item.orderLineId?.trim())
-      .map((item) => [item.orderLineId!.trim(), item]),
+      .filter((item) => !isBillingRegisterItem(item))
+      .map((item) => item.orderNumber.trim())
+      .filter(Boolean),
+  )
+  const usedLineIds = new Set(
+    items
+      .filter((item) => isBillingRegisterItem(item))
+      .map((item) => String(item.orderLineId || '').trim())
+      .filter(Boolean),
   )
 
-  const companions: DeliveryRegisterItemForm[] = []
-  for (const line of billingLines) {
-    if (!orderIds.has(line.orderNumber)) continue
-    const existing = previousBilling.get(line.orderLineId)
-    companions.push(
-      existing
-        ? { ...applyBillingLineToItem(existing, line), key: existing.key }
-        : applyBillingLineToItem(emptyDeliveryRegisterItemForm(), line),
-    )
+  return billingLines.filter((line) => {
+    const orderNumber = line.orderNumber.trim()
+    const orderLineId = String(line.orderLineId || '').trim()
+    if (!orderNumber || !orderLineId) return false
+    if (!orderIds.has(orderNumber)) return false
+    return !usedLineIds.has(orderLineId)
+  })
+}
+
+/** 제품 출하 행이 없는 발주의 추가작업 행 제거 */
+export function pruneOrphanBillingRegisterItems(
+  items: DeliveryRegisterItemForm[],
+): DeliveryRegisterItemForm[] {
+  const orderIds = new Set(
+    items
+      .filter((item) => !isBillingRegisterItem(item))
+      .map((item) => item.orderNumber.trim())
+      .filter(Boolean),
+  )
+  return items.filter(
+    (item) => !isBillingRegisterItem(item) || orderIds.has(item.orderNumber.trim()),
+  )
+}
+
+function suggestedBillingQuantity(
+  items: DeliveryRegisterItemForm[],
+  line: DeliveryBillingOnlyLine,
+) {
+  const orderProducts = items.filter(
+    (item) =>
+      !isBillingRegisterItem(item) && item.orderNumber.trim() === line.orderNumber.trim(),
+  )
+  return resolveBillingQuantityFromShipped({
+    billingProductCode: line.productCode,
+    billingProductName: line.productName,
+    shippedLines: orderProducts.map((item) => ({
+      productCode: item.productCode,
+      productName: item.productName,
+      quantity: Math.floor(Number(item.quantity) || 0),
+    })),
+  })
+}
+
+/** 선택한 추가작업을 해당 발주 제품 행 아래에 삽입 */
+export function insertBillingRegisterItem(
+  items: DeliveryRegisterItemForm[],
+  line: DeliveryBillingOnlyLine,
+): DeliveryRegisterItemForm[] {
+  if (availableBillingLinesForRegister(items, [line]).length === 0) return items
+
+  const companion = applyBillingLineToItem(
+    emptyDeliveryRegisterItemForm(),
+    line,
+    suggestedBillingQuantity(items, line),
+  )
+
+  const productItems = items.filter((item) => !isBillingRegisterItem(item))
+  const anchorIndex = findBillingAnchorProductIndex(line, productItems)
+  if (anchorIndex < 0) {
+    return [...items, companion]
   }
 
-  return [...productItems, ...companions]
+  const anchorKey = productItems[anchorIndex]!.key
+  const result: DeliveryRegisterItemForm[] = []
+  for (const item of items) {
+    result.push(item)
+    if (item.key === anchorKey) result.push(companion)
+  }
+  return result
 }
 
 export function buildDeliveryShippableOptions(

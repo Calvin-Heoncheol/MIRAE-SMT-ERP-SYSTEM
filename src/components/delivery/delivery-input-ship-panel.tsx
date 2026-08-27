@@ -205,7 +205,7 @@ export function DeliveryInputShipPanel({
       customer,
       note: shipNote,
       shippedLines: lines.map((line) => ({
-        orderNumber: displayOrderPoNumber(line.customerPoNumber, line.orderNumber),
+        orderNumber: line.orderNumber,
         productCode: line.productCode,
         productName: line.productName,
         qty: line.quantity,
@@ -432,7 +432,7 @@ export function DeliveryInputShipPanel({
 
         {cart.length ? (
           <div className="overflow-x-auto rounded-lg border border-slate-100">
-            <table className="min-w-full border-collapse text-sm">
+            <table className="erp-data-table erp-data-table--compact min-w-full border-collapse text-sm">
               <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
                 <tr>
                   <th className="px-3 py-2 text-left">발주번호</th>

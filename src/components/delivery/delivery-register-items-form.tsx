@@ -1,6 +1,6 @@
 'use client'
 
-import { type Dispatch, type SetStateAction } from 'react'
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { DeliveryShippableCombobox } from '@/components/delivery/delivery-shippable-combobox'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
@@ -10,16 +10,20 @@ import type {
 } from '@/lib/delivery/register-form'
 import {
   applyShippableOptionToItem,
+  availableBillingLinesForRegister,
   computeDeliveryLineAmount,
   emptyDeliveryRegisterItemForm,
   findExactShippableOptions,
+  insertBillingRegisterItem,
   isBillingRegisterItem,
 } from '@/lib/delivery/register-form'
+import type { DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
 import { syncFinishedGoodsLots } from '@/lib/production-lots/repository'
 
 type DeliveryRegisterItemsFormProps = {
   items: DeliveryRegisterItemForm[]
   options: DeliveryShippableOption[]
+  billingOnlyLines?: DeliveryBillingOnlyLine[]
   lockedCustomer: string
   disabled?: boolean
   /** fixed: 왼쪽 출하가능 체크로 품목 선택 (코드 검색 숨김) */
@@ -45,15 +49,28 @@ function clearItemProduct(item: DeliveryRegisterItemForm): DeliveryRegisterItemF
   }
 }
 
+function formatBillingOptionLabel(line: DeliveryBillingOnlyLine) {
+  const code = line.productCode.trim() || 'TEMP'
+  const amount = Math.round(Number(line.unitPrice) || 0).toLocaleString('ko-KR')
+  return `${code} · ${line.productName} · 단가 ${amount}`
+}
+
 export function DeliveryRegisterItemsForm({
   items,
   options,
+  billingOnlyLines = [],
   lockedCustomer,
   disabled = false,
   productSelectMode = 'combobox',
   onChange,
 }: DeliveryRegisterItemsFormProps) {
   const fixedProducts = productSelectMode === 'fixed'
+  const [billingPickerOpen, setBillingPickerOpen] = useState(false)
+
+  const availableBilling = useMemo(
+    () => availableBillingLinesForRegister(items, billingOnlyLines),
+    [items, billingOnlyLines],
+  )
 
   function optionsForRow(index: number) {
     const currentId = items[index]?.assemblyGroupId.trim()
@@ -80,9 +97,26 @@ export function DeliveryRegisterItemsForm({
   }
 
   function removeRow(index: number) {
-    if (isBillingRegisterItem(items[index]!)) return
-    if (!fixedProducts && items.filter((item) => !isBillingRegisterItem(item)).length <= 1) return
+    const target = items[index]
+    if (!target) return
+    if (!isBillingRegisterItem(target)) {
+      if (!fixedProducts && items.filter((item) => !isBillingRegisterItem(item)).length <= 1) return
+    }
     onChange(items.filter((_, itemIndex) => itemIndex !== index))
+  }
+
+  function addBillingLine(line: DeliveryBillingOnlyLine) {
+    onChange((current) => insertBillingRegisterItem(current, line))
+    setBillingPickerOpen(false)
+  }
+
+  function handleAddBillingClick() {
+    if (!availableBilling.length) return
+    if (availableBilling.length === 1) {
+      addBillingLine(availableBilling[0]!)
+      return
+    }
+    setBillingPickerOpen((open) => !open)
   }
 
   async function selectOption(index: number, option: DeliveryShippableOption) {
@@ -113,10 +147,41 @@ export function DeliveryRegisterItemsForm({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-bold text-slate-900">출하 품목</h3>
-        {!disabled && !fixedProducts ? <ErpRowAddButton onClick={addRow} title="행 추가" /> : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {!disabled && availableBilling.length > 0 ? (
+            <button
+              type="button"
+              onClick={handleAddBillingClick}
+              className="rounded-md border border-amber-300 bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-200 disabled:opacity-50"
+              title="발주서 추가작업 행 추가"
+            >
+              + 추가작업
+            </button>
+          ) : null}
+          {!disabled && !fixedProducts ? <ErpRowAddButton onClick={addRow} title="행 추가" /> : null}
+        </div>
       </div>
+
+      {billingPickerOpen && availableBilling.length > 1 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <p className="mb-2 text-xs font-semibold text-amber-900">추가할 작업을 선택하세요</p>
+          <div className="flex flex-col gap-1.5">
+            {availableBilling.map((line) => (
+              <button
+                key={line.orderLineId}
+                type="button"
+                onClick={() => addBillingLine(line)}
+                className="rounded-md border border-amber-200 bg-white px-3 py-2 text-left text-sm text-slate-800 hover:border-amber-400 hover:bg-amber-50"
+              >
+                <span className="font-medium">{formatBillingOptionLabel(line)}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">{line.orderNumber}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {lockedCustomer && !fixedProducts ? (
         <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
@@ -126,7 +191,7 @@ export function DeliveryRegisterItemsForm({
       ) : null}
 
       <div className="overflow-x-auto rounded-lg border border-slate-300">
-        <table className="w-full min-w-[640px] border-collapse text-sm">
+        <table className="erp-data-table erp-data-table--compact w-full min-w-[640px] border-collapse text-sm">
           <thead className="bg-slate-100">
             <tr>
               <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
@@ -155,7 +220,6 @@ export function DeliveryRegisterItemsForm({
               )
               const rowOptions = optionsForRow(index)
               const billing = isBillingRegisterItem(item)
-              const rowLocked = disabled || billing
               const nameLabel = item.productName
                 ? item.productVersion?.trim()
                   ? `${item.productName} · ${item.productVersion.trim()}`
@@ -221,9 +285,9 @@ export function DeliveryRegisterItemsForm({
                           ? `가능 ${item.maxQuantity.toLocaleString('ko-KR')}`
                           : '수량'
                       }
-                      disabled={rowLocked}
+                      disabled={disabled}
                       onChange={(event) => patchQuantity(index, event.target.value)}
-                      className={`${rowLocked ? readOnlyClassName : inputClassName} min-w-[88px] text-right tabular-nums placeholder:text-slate-400`}
+                      className={`${disabled ? readOnlyClassName : inputClassName} min-w-[88px] text-right tabular-nums placeholder:text-slate-400`}
                       aria-label={`${index + 1}행 수량`}
                     />
                   </td>
@@ -247,8 +311,8 @@ export function DeliveryRegisterItemsForm({
                   </td>
                   <td className="px-1 py-1.5 text-center align-top">
                     {!disabled &&
-                    !billing &&
-                    (fixedProducts ||
+                    (billing ||
+                      fixedProducts ||
                       items.filter((row) => !isBillingRegisterItem(row)).length > 1) ? (
                       <button
                         type="button"
@@ -267,7 +331,8 @@ export function DeliveryRegisterItemsForm({
         </table>
       </div>
       <p className="mt-2 text-xs text-slate-500">
-        단가는 발주서 기준이며 여기서는 수정할 수 없습니다.
+        단가는 발주서 기준입니다. 발주에 등록된 추가작업은 「+ 추가작업」으로 미리 넣을 수 있고,
+        거래명세서에는 발주서 기준으로 자동 반영됩니다.
       </p>
     </div>
   )

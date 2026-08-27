@@ -59,6 +59,8 @@ export type PreviewFormFields = {
   materialCost: string | number
   metalMaskCost?: string | number
   productionKind?: '샘플' | '양산'
+  /** false = 자재 섹션 제외 (신규). 미설정/true = 포함 */
+  includeMaterialCosts?: boolean
   /** 통합 후공정 (공정명 + 분) */
   postProcessLines?: PreviewPostProcessLine[]
   /** @deprecated postProcessLines 사용 */
@@ -306,6 +308,7 @@ export function previewFormFromQuote(quote: QuoteListItem): PreviewFormFields {
     materialCost: input.materialCost ?? 0,
     metalMaskCost: input.metalMaskCost ?? 0,
     productionKind: input.productionKind === '샘플' ? '샘플' : '양산',
+    includeMaterialCosts: input.includeMaterialCosts !== false,
     postProcessLines,
   }
 }
@@ -449,22 +452,6 @@ function inspectionDetailRowsForBoard(
           unit: board.aoiInspectionUnit,
           count: labels.onePcb,
           amount: board.aoiInspectionUnit,
-          indent: 2,
-        },
-        qty,
-        labels,
-      ),
-    )
-  }
-
-  if (quoteType === 'domestic' && board.pcbWashUnit > 0) {
-    rows.push(
-      withProductionQty(
-        {
-          label: labels.pcbWash,
-          unit: board.pcbWashUnit,
-          count: labels.onePcb,
-          amount: board.pcbWashUnit,
           indent: 2,
         },
         qty,
@@ -763,12 +750,16 @@ function previewMaterialRows(
   quoteType: QuoteType,
   labelType: QuoteType = quoteType,
 ): PreviewRow[] {
+  if (form.includeMaterialCosts === false) return []
+
   const labels = getPreviewLabels(labelType)
   const qty = result.qty || 1
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, qty)
   const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, qty)
   const totalPerUnit = materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
+
+  if (totalPerUnit <= 0) return []
 
   const rows: PreviewRow[] = [
     {
@@ -1264,12 +1255,14 @@ export function buildPdfSummaryBreakdownLines(
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, qty)
   const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, qty)
   const materials = materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
-  lines.push({
-    label: pdfSummarySectionLabel(labels.materials, labelType),
-    unitTotal: materials,
-    total: materials * qty,
-    section: 'material',
-  })
+  if (form.includeMaterialCosts !== false && materials > 0) {
+    lines.push({
+      label: pdfSummarySectionLabel(labels.materials, labelType),
+      unitTotal: materials,
+      total: materials * qty,
+      section: 'material',
+    })
+  }
 
   const metalMaskTotal = Number(form.metalMaskCost) || result.common.subMaterial || 0
   const sampleTotal =
@@ -1326,10 +1319,12 @@ export function buildPdfMaterialsBoardSummaryRows(
   form: PreviewFormFields,
   _productName: string,
 ): PdfSummaryBreakdownLine[] {
+  if (form.includeMaterialCosts === false) return []
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, result.qty || 1)
   const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, result.qty || 1)
   const total = materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
+  if (total <= 0) return []
   return [{ label: 'Materials', unitTotal: total, total, section: 'material' as const }]
 }
 
@@ -1411,11 +1406,14 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
     qty,
   )
   const auxiliaryPerUnit = quotePerUnitTotal(result.common.auxiliaryMaterial || 0, qty)
-  const materialRows: PreviewMatrixMaterialRow[] = [
-    { label: '원자재 비용', amountPerUnit: materialPerUnit },
-    { label: '부자재 비용', amountPerUnit: auxiliaryPerUnit },
-    { label: '관리비', amountPerUnit: materialMgmtPerUnit },
-  ]
+  const includeMaterial = form.includeMaterialCosts !== false
+  const materialRows: PreviewMatrixMaterialRow[] = includeMaterial
+    ? [
+        { label: '원자재 비용', amountPerUnit: materialPerUnit },
+        { label: '부자재 비용', amountPerUnit: auxiliaryPerUnit },
+        { label: '관리비', amountPerUnit: materialMgmtPerUnit },
+      ]
+    : []
   const otherRows: PreviewMatrixMaterialRow[] = [
     { label: '메탈마스크 비용 (일회성)', amountPerUnit: metalMaskPerUnit },
   ]
@@ -1433,7 +1431,9 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
       rowTotalPerUnit: smtPerUnit + setupPerUnit + postPerUnit,
     },
     materialRows,
-    materialTotalPerUnit: materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit,
+    materialTotalPerUnit: includeMaterial
+      ? materialPerUnit + materialMgmtPerUnit + auxiliaryPerUnit
+      : 0,
     otherRows,
     otherTotalPerUnit: metalMaskPerUnit + samplePerUnit,
     grandPerUnit: result.values.grandTotal / qty,

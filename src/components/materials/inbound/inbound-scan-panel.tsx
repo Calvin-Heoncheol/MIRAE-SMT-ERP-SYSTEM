@@ -32,6 +32,8 @@ type InboundScanPanelProps = {
   purchaseOrders: MaterialPurchaseOrderListGroup[]
   onSaved: () => void
   onMaterialsChanged: () => void
+  /** 모달 등 임베드 레이아웃 — 전체 페이지 높이 대신 부모 영역에 맞춤 */
+  embedded?: boolean
 }
 
 /** 자재별 미입고 구매발주 라인 (납기 빠른 순) */
@@ -114,6 +116,7 @@ export function InboundScanPanel({
   purchaseOrders,
   onSaved,
   onMaterialsChanged,
+  embedded = false,
 }: InboundScanPanelProps) {
   const toast = useToast()
   const [scanCode, setScanCode] = useState('')
@@ -549,15 +552,30 @@ export function InboundScanPanel({
     'h-8 w-full min-w-0 rounded-md border border-slate-200 px-2 text-right text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
 
   return (
-    <div className="flex min-h-[min(70vh,720px)] flex-col">
-      <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+    <div
+      className={
+        embedded
+          ? 'flex min-h-0 flex-1 flex-col'
+          : 'flex min-h-[min(70vh,720px)] flex-col'
+      }
+    >
+      <section
+        className={[
+          'flex min-h-0 flex-1 flex-col bg-white',
+          embedded
+            ? 'overflow-hidden rounded-xl border border-slate-200'
+            : 'rounded-2xl border border-slate-200 shadow-sm',
+        ].join(' ')}
+      >
+        <div className={`shrink-0 border-b border-slate-200 bg-slate-50 ${embedded ? 'px-3 py-2.5' : 'px-4 py-3'}`}>
+          <div className={`flex flex-wrap items-center justify-between gap-2 ${embedded ? 'mb-1.5' : 'mb-2'}`}>
             <div>
               <p className="text-sm font-bold text-slate-800">바코드 스캔</p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                스캔 후 수량을 입력하고 Enter 하면 다음 바코드를 찍을 수 있습니다.
-              </p>
+              {embedded ? null : (
+                <p className="mt-0.5 text-xs text-slate-500">
+                  스캔 후 수량을 입력하고 Enter 하면 다음 바코드를 찍을 수 있습니다.
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
             <span
@@ -605,7 +623,8 @@ export function InboundScanPanel({
                 placeholder="릴 바코드 스캔 또는 품목코드·MPN 입력 후 Enter"
                 autoFocus
                 className={[
-                  'h-14 w-full rounded-xl border bg-white px-3 font-mono text-base outline-none transition',
+                  'w-full rounded-xl border bg-white px-3 font-mono text-base outline-none transition',
+                  embedded ? 'h-11' : 'h-14',
                   scanPulse?.kind === 'error'
                     ? 'border-rose-400 focus:border-rose-500'
                     : scanPulse?.kind === 'success'
@@ -619,7 +638,7 @@ export function InboundScanPanel({
             <p
               aria-live="polite"
               className={[
-                'mt-2 rounded-lg px-3 py-2 text-sm',
+                'mt-2 rounded-lg px-3 py-1.5 text-sm',
                 message.tone === 'success'
                   ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
                   : 'border border-rose-200 bg-rose-50 text-rose-800',
@@ -643,7 +662,7 @@ export function InboundScanPanel({
         </div>
 
         <div ref={tableScrollRef} className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full min-w-[1180px] border-collapse text-sm">
+          <table className="erp-data-table erp-data-table--compact w-full min-w-[1180px] border-collapse text-sm">
             <thead className="sticky top-0 bg-slate-50">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">품목코드</th>
@@ -661,7 +680,10 @@ export function InboundScanPanel({
             <tbody>
               {lines.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-16 text-center text-sm text-slate-500">
+                  <td
+                    colSpan={10}
+                    className={`px-4 text-center text-sm text-slate-500 ${embedded ? 'py-10' : 'py-16'}`}
+                  >
                     스캔한 릴이 바로 여기에 쌓입니다. 같은 릴을 다시 찍으면 알려 줍니다.
                   </td>
                 </tr>
@@ -747,7 +769,7 @@ export function InboundScanPanel({
           </table>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex shrink-0 flex-col gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-wrap items-end gap-3">
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-slate-600">입고일</span>

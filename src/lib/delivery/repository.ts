@@ -12,6 +12,7 @@ import {
   stripCreatedByFields,
   withCreatedByFields,
 } from '@/lib/auth/created-by'
+import { parseItemVersionCode } from '@/lib/items/version-code'
 import { fetchOrders } from '@/lib/orders/repository'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import {
@@ -1145,6 +1146,54 @@ export async function deleteDeliveryRecord(recordId: string): Promise<DeleteDeli
   }
 }
 
+type DeliveryHistoryItemRow = {
+  id: string
+  name: string
+  base_code?: string | null
+  version?: string | null
+}
+
+function resolveHistoryProductIdentity(
+  item: DeliveryHistoryItemRow | null | undefined,
+  parentProductId: string,
+) {
+  const productId = String(item?.id || parentProductId || '').trim()
+  if (!productId) return { productId: '', productCode: '' }
+  const baseCode = String(item?.base_code || '').trim()
+  const productCode = baseCode || parseItemVersionCode(productId).base || productId
+  return { productId, productCode }
+}
+
+async function enrichDeliveryHistoryProductCodes(rows: DeliveryHistoryRow[]) {
+  if (!rows.length) return
+  const productsResult = await fetchProducts(false)
+  if (!productsResult.ok) return
+
+  const productById = Object.fromEntries(
+    productsResult.products.map((product) => [product.id, product]),
+  )
+
+  for (const row of rows) {
+    const productId = row.productId.trim()
+    if (!productId) continue
+
+    const master = productById[productId]
+    if (master?.productCode.trim()) {
+      row.productCode = master.productCode.trim()
+      continue
+    }
+
+    const parsed = parseItemVersionCode(productId)
+    if (
+      parsed.base &&
+      parsed.base !== productId &&
+      (!row.productCode.trim() || row.productCode === productId)
+    ) {
+      row.productCode = parsed.base
+    }
+  }
+}
+
 type DeliveryHistoryRecordRow = {
   id: string
   shipment_id?: string | null
@@ -1161,10 +1210,7 @@ type DeliveryHistoryRecordRow = {
         target_quantity: number
         parent_product_id: string
         order_id: string
-        items:
-          | { id: string; name: string }
-          | { id: string; name: string }[]
-          | null
+        items: DeliveryHistoryItemRow | DeliveryHistoryItemRow[] | null
         orders:
           | { id: string; customer: string; customer_po_number?: string | null }
           | { id: string; customer: string; customer_po_number?: string | null }[]
@@ -1174,10 +1220,7 @@ type DeliveryHistoryRecordRow = {
         target_quantity: number
         parent_product_id: string
         order_id: string
-        items:
-          | { id: string; name: string }
-          | { id: string; name: string }[]
-          | null
+        items: DeliveryHistoryItemRow | DeliveryHistoryItemRow[] | null
         orders:
           | { id: string; customer: string; customer_po_number?: string | null }
           | { id: string; customer: string; customer_po_number?: string | null }[]
@@ -1201,6 +1244,10 @@ function mapDeliveryHistoryRow(row: DeliveryHistoryRecordRow): DeliveryHistoryRo
   if (!order) return null
 
   const record = mapDeliveryRecord(row)
+  const { productId, productCode } = resolveHistoryProductIdentity(
+    product,
+    assemblyGroup.parent_product_id,
+  )
 
   return {
     id: record.id,
@@ -1212,7 +1259,8 @@ function mapDeliveryHistoryRow(row: DeliveryHistoryRecordRow): DeliveryHistoryRo
     customerPoNumber: String(order.customer_po_number || '').trim(),
     customer: order.customer || '',
     productName: product?.name || assemblyGroup.parent_product_id || '',
-    productCode: product?.id || assemblyGroup.parent_product_id || '',
+    productCode,
+    productId,
     targetQuantity: Math.max(0, Math.floor(Number(assemblyGroup.target_quantity) || 0)),
     quantity: record.quantity,
     shipmentRound: 0,
@@ -1268,7 +1316,9 @@ async function fetchDeliveryRecords(options?: {
           order_id,
           items!order_assembly_groups_parent_product_id_fkey (
             id,
-            name
+            name,
+            base_code,
+            version
           ),
           orders (
             id,
@@ -1293,7 +1343,9 @@ async function fetchDeliveryRecords(options?: {
           order_id,
           items!order_assembly_groups_parent_product_id_fkey (
             id,
-            name
+            name,
+            base_code,
+            version
           ),
           orders (
             id,
@@ -1385,6 +1437,8 @@ async function fetchDeliveryRecords(options?: {
     for (const row of rows) {
       row.lotLabel = lotLabels[row.id] || ''
     }
+
+    await enrichDeliveryHistoryProductCodes(rows)
 
     return { ok: true, rows: assignShipmentRounds(rows) }
   } catch (error) {

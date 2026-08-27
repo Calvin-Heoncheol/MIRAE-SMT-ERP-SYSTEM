@@ -58,7 +58,7 @@ export function QuoteListTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="min-w-[1200px] w-full border-collapse">
+        <table className="erp-data-table min-w-[1200px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">

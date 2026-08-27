@@ -28,6 +28,8 @@ export type QuoteFormSnapshot = {
   productionKind?: '샘플' | '양산'
   includeSmd?: boolean
   includeDip?: boolean
+  /** false = 원자재·부자재·관리비 제외 (신규 기본) */
+  includeMaterialCosts?: boolean
   /** 후공정 공정명+분 (통합) */
   postProcessLines?: PostProcessLineForm[]
   /** @deprecated postProcessLines 사용 */
@@ -54,18 +56,23 @@ export function buildQuoteDetailInfo(
   quoteType: QuoteType,
   quoteStatus: QuoteStatus = 'draft',
 ): QuoteDetailInfo {
-  const sanitizedPcbBoards =
-    quoteType === 'export'
-      ? pcbBoards.map((board) => ({ ...board, pcbWashEnabled: false }))
-      : pcbBoards
+  const sanitizedPcbBoards = pcbBoards.map((board) => ({
+    ...board,
+    aoiEnabled: true,
+    pcbWashEnabled: false,
+  }))
   const b0 = sanitizedPcbBoards[0]
   const d0 = dipBoards[0]
   const qty = result.qty || 0
-  const materialCostPerUnit = Number(form.materialCost) || 0
+  const includeMaterialCosts = form.includeMaterialCosts !== false
+  const materialCostPerUnit = includeMaterialCosts ? Number(form.materialCost) || 0 : 0
   const metalMaskCost = Number(form.metalMaskCost) || 0
   const sampleCost = result.common.sampleCost || 0
-  const auxiliaryMaterialCostPerUnit =
-    result.qty > 0 ? result.common.auxiliaryMaterial / result.qty : 0
+  const auxiliaryMaterialCostPerUnit = includeMaterialCosts
+    ? result.qty > 0
+      ? result.common.auxiliaryMaterial / result.qty
+      : 0
+    : 0
   const postProcessLines: PostProcessLine[] = form.postProcessLines
     ? postProcessLinesToModels(form.postProcessLines)
     : [
@@ -87,11 +94,11 @@ export function buildQuoteDetailInfo(
       test: 0,
       packing: 0,
       materialCost: materialCostPerUnit * qty,
-      materialManagementCost: result.common.materialManagement,
+      materialManagementCost: includeMaterialCosts ? result.common.materialManagement : 0,
       setupCost: result.common.smtSetup,
       subMaterialCost: metalMaskCost,
       sampleCost,
-      auxiliaryMaterialCost: result.common.auxiliaryMaterial,
+      auxiliaryMaterialCost: includeMaterialCosts ? result.common.auxiliaryMaterial : 0,
     },
     inputs: {
       smt: {
@@ -147,6 +154,7 @@ export function buildQuoteDetailInfo(
       quoteStatus: quoteStatus === 'confirmed' ? 'confirmed' : 'draft',
       includeSmd: Boolean(form.includeSmd),
       includeDip: Boolean(form.includeDip),
+      includeMaterialCosts,
       ...(form.productId?.trim() ? { productId: form.productId.trim() } : {}),
     },
   }

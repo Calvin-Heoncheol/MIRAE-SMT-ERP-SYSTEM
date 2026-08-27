@@ -2,7 +2,6 @@ import {
   DIP_UNIT,
   getAoiUnit,
   getPostRate,
-  PCB_WASH_UNIT,
   SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
   SMT_PLACEMENT_MIN_SCORE,
   getSmtSetupBaseMinutes,
@@ -60,18 +59,17 @@ function computeSmtOtherLabor(
   )
 }
 
-function computeBoardInspection(board: SmtPcbBoard, quoteType: QuoteType = 'export') {
+function computeBoardInspection(board: SmtPcbBoard, _quoteType: QuoteType = 'export') {
   const smtSide = toBillingSmtSide(board.smtSide)
-  const aoiInspectionUnit = board.aoiEnabled ? getAoiUnit(smtSide) : 0
-  const pcbWashUnit =
-    quoteType === 'domestic' && board.pcbWashEnabled ? PCB_WASH_UNIT : 0
+  // AOI는 항상 포함. 세척(PCB wash)은 견적에서 제외.
+  const aoiInspectionUnit = getAoiUnit(smtSide)
 
   return {
     aoiInspectionUnit,
     xrayInspectionUnit: 0,
     visualInspectionUnit: 0,
-    pcbWashUnit,
-    inspectionUnit: aoiInspectionUnit + pcbWashUnit,
+    pcbWashUnit: 0,
+    inspectionUnit: aoiInspectionUnit,
   }
 }
 
@@ -214,8 +212,8 @@ export function normalizeSmtPcbBoards(data: EstimateInput): SmtPcbBoard[] {
       return {
         pcbName: String(board.pcbName || `PCB ${index + 1}`).trim() || `PCB ${index + 1}`,
         smtSide: normalizeSmtSide(board.smtSide),
-        aoiEnabled: board.aoiEnabled === true,
-        pcbWashEnabled: board.pcbWashEnabled === true,
+        aoiEnabled: true,
+        pcbWashEnabled: false,
         smtTopCount: Number(board.smtTopCount) || 0,
         smtBotCount: Number(board.smtBotCount) || 0,
         ...comp,
@@ -227,8 +225,8 @@ export function normalizeSmtPcbBoards(data: EstimateInput): SmtPcbBoard[] {
     {
       pcbName: 'PCB 1',
       smtSide: normalizeSmtSide(data.smtSide),
-      aoiEnabled: data.aoiEnabled === true,
-      pcbWashEnabled: data.pcbWashEnabled === true,
+      aoiEnabled: true,
+      pcbWashEnabled: false,
       smtTopCount: Number(data.smtTopCount) || 0,
       smtBotCount: Number(data.smtBotCount) || 0,
       ...readSmtBoardComponentFields(data),
@@ -305,7 +303,7 @@ export function aggregateSmtFromPcbBoards(pcbBoards: SmtPcbBoard[], quoteType: Q
 
     boardDetails.push({
       ...board,
-      pcbWashEnabled: quoteType === 'domestic' && board.pcbWashEnabled === true,
+      pcbWashEnabled: false,
       setupPartCount: partCount,
       setupMinutes,
       setupMinApplied,
@@ -389,7 +387,8 @@ export function calculateEstimate(
   const postTest = Number(data.postTest) || 0
   const postPacking = Number(data.postPacking) || 0
   const postProcessUnit = (postAssembly + postTest + postPacking) * getPostRate(quoteType)
-  const matUnit = Number(data.materialCost) || 0
+  const matUnit =
+    data.includeMaterialCosts === false ? 0 : Number(data.materialCost) || 0
   const metalMaskTotal = Math.max(0, Number(data.metalMaskCost) || 0)
   const sampleCostTotal = computeSampleCostTotal(qty, pcbBoards)
 
@@ -401,12 +400,13 @@ export function calculateEstimate(
   const dipSectionTotal = dipTotal + postProcessTotal
   const laborFinal = smtTotal + dipTotal + postProcessTotal
   const materialManagementTotal =
-    matTotalRaw > 0 ? matTotalRaw * RAW_MATERIAL_MANAGEMENT_RATE : 0
-  const auxiliaryMaterialPerUnit = computeAuxiliaryMaterialPerUnit(
-    smtLaborAndInspectionTotal,
-    dipSectionTotal,
-    qty,
-  )
+    data.includeMaterialCosts === false || matTotalRaw <= 0
+      ? 0
+      : matTotalRaw * RAW_MATERIAL_MANAGEMENT_RATE
+  const auxiliaryMaterialPerUnit =
+    data.includeMaterialCosts === false
+      ? 0
+      : computeAuxiliaryMaterialPerUnit(smtLaborAndInspectionTotal, dipSectionTotal, qty)
   const auxiliaryMaterialTotal = auxiliaryMaterialPerUnit * qty
 
   const subtotalBeforeDiscount =

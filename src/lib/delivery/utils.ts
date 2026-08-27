@@ -12,6 +12,28 @@ import {
   processTypeIncludesSmt,
   resolveAssemblyProductionCap,
 } from '@/lib/production-input/utils'
+import { parseItemVersionCode } from '@/lib/items/version-code'
+
+/** 거래명세서·출하 화면용 품목코드 — 내부 id 대신 품목등록 base_code 우선 */
+export function resolveStatementDisplayProductCode(input: {
+  productCode?: string
+  productId?: string
+  orderProductCode?: string
+  masterProductCode?: string
+}): string {
+  const shipped = String(input.productCode || '').trim()
+  const orderCode = String(input.orderProductCode || '').trim()
+  const productId = String(input.productId || '').trim()
+  const master = String(input.masterProductCode || '').trim()
+
+  if (master) return master
+  if (orderCode && (!shipped || shipped === productId)) return orderCode
+  if (shipped && productId && shipped !== productId) return shipped
+  if (orderCode) return orderCode
+  if (shipped) return shipped
+  if (productId) return parseItemVersionCode(productId).base || productId
+  return ''
+}
 
 export type DeliveryAvailability = {
   targetQuantity: number
@@ -67,6 +89,260 @@ export function buildDeliveryBillingOnlyLines(orders: OrderListGroup[]): Deliver
     }
   }
   return lines
+}
+
+export type BillingShippedQuantityLine = {
+  productCode: string
+  productName?: string
+  /** 발주서 product_id — 출하 이력(품목 id)과 추가작업 코드 매칭용 */
+  productId?: string
+  quantity: number
+}
+
+/**
+ * 추가작업(금액 전용) 수량 = 같은 발주에서 이번에 출하하는 제품 수량 기준.
+ * 품목코드가 같으면 해당 제품 출하 수량, TEMP 등이면 발주 출하 제품 수량 합.
+ */
+export function resolveBillingQuantityFromShipped(input: {
+  billingProductCode: string
+  billingProductName: string
+  shippedLines: BillingShippedQuantityLine[]
+}): number {
+  const billingCode = String(input.billingProductCode || '').trim().toLowerCase()
+  const billingName = String(input.billingProductName || '').trim().toLowerCase()
+  const lines = input.shippedLines
+
+  if (!lines.length) return 0
+
+  const sumQty = (matched: BillingShippedQuantityLine[]) =>
+    matched.reduce((sum, line) => sum + Math.max(0, Math.floor(Number(line.quantity) || 0)), 0)
+
+  if (billingCode && billingCode !== 'temp') {
+    const byCode = lines.filter((line) => {
+      const code = String(line.productCode || '').trim().toLowerCase()
+      const id = String(line.productId || '').trim().toLowerCase()
+      return code === billingCode || (id && id === billingCode)
+    })
+    if (byCode.length) return sumQty(byCode)
+  }
+
+  if (billingName) {
+    const byName = lines.filter(
+      (line) => String(line.productName || '').trim().toLowerCase() === billingName,
+    )
+    if (byName.length) return sumQty(byName)
+  }
+
+  if (!billingCode || billingCode === 'temp') {
+    return sumQty(lines)
+  }
+
+  return 0
+}
+
+function normalizeBillingMatchText(value: string) {
+  return String(value || '').trim().toLowerCase()
+}
+
+export function isGenericBillingProductCode(productCode: string) {
+  const code = normalizeBillingMatchText(productCode)
+  return !code || code === 'temp'
+}
+
+/** 추가작업 행이 어느 제품 출하 행 아래에 붙을지 판별 */
+export function billingLineMatchesProductRow(
+  billing: Pick<DeliveryBillingOnlyLine, 'orderNumber' | 'productCode' | 'productName'>,
+  product: Pick<BillingShippedQuantityLine, 'productCode' | 'productName' | 'productId'> & {
+    orderNumber: string
+  },
+  options?: { isLastProductRowForOrder?: boolean },
+): boolean {
+  if (billing.orderNumber.trim() !== product.orderNumber.trim()) return false
+
+  const billingCode = normalizeBillingMatchText(billing.productCode)
+  const productCode = normalizeBillingMatchText(product.productCode)
+  const productId = normalizeBillingMatchText(product.productId || '')
+  if (billingCode && billingCode !== 'temp') {
+    return (
+      billingCode === productCode || Boolean(productId && billingCode === productId)
+    )
+  }
+
+  const billingName = normalizeBillingMatchText(billing.productName)
+  const productName = normalizeBillingMatchText(product.productName)
+  if (billingName && productName) {
+    return billingName === productName
+  }
+
+  return Boolean(options?.isLastProductRowForOrder)
+}
+
+export type StatementShippedProductLine = {
+  orderNumber: string
+  productCode: string
+  productName: string
+  qty: number
+  unitPrice?: number | null
+  productId?: string
+  /** 발주서 product_code — 출하 이력(품목 id)과 추가작업 코드 매칭용 */
+  orderProductCode?: string
+}
+
+export type StatementShippedLine = StatementShippedProductLine & {
+  billingOnly?: boolean
+  orderLineId?: string
+}
+
+/** 제품 출하 행 사이에 추가작업 행을 끼워 넣는다 (출하 등록 UI와 동일 규칙) */
+export function interleaveStatementShippedLinesWithBilling(
+  productLines: StatementShippedProductLine[],
+  billingLines: DeliveryBillingOnlyLine[],
+): StatementShippedLine[] {
+  const orderIds = new Set(productLines.map((line) => line.orderNumber.trim()).filter(Boolean))
+  const matchProducts = productLines.map((line) => ({
+    orderNumber: line.orderNumber,
+    productCode: line.orderProductCode || line.productCode,
+    productName: line.productName,
+    productId: line.productId,
+  }))
+
+  const insertAfter = new Map<number, StatementShippedLine[]>()
+
+  for (const billing of billingLines) {
+    if (!orderIds.has(billing.orderNumber.trim())) continue
+
+    const anchorIndex = findBillingAnchorProductIndex(billing, matchProducts)
+    if (anchorIndex < 0) continue
+
+    const orderProducts = productLines.filter(
+      (item) => item.orderNumber.trim() === billing.orderNumber.trim(),
+    )
+    const shippedForQty = orderProducts.map((item) => ({
+      productCode: item.orderProductCode || item.productCode,
+      productName: item.productName,
+      productId: item.productId,
+      quantity: item.qty,
+    }))
+
+    let qty = resolveBillingQuantityFromShipped({
+      billingProductCode: billing.productCode,
+      billingProductName: billing.productName,
+      shippedLines: shippedForQty,
+    })
+    if (qty <= 0) {
+      qty = isGenericBillingProductCode(billing.productCode)
+        ? shippedForQty.reduce((sum, line) => sum + line.quantity, 0)
+        : (productLines[anchorIndex]?.qty ?? 0)
+    }
+    if (qty <= 0) continue
+
+    const bucket = insertAfter.get(anchorIndex) ?? []
+    bucket.push({
+      orderNumber: billing.orderNumber,
+      productCode: billing.productCode,
+      productName: billing.productName,
+      qty,
+      unitPrice: billing.unitPrice,
+      billingOnly: true,
+      orderLineId: billing.orderLineId,
+    })
+    insertAfter.set(anchorIndex, bucket)
+  }
+
+  const result: StatementShippedLine[] = []
+  productLines.forEach((product, index) => {
+    result.push({ ...product, billingOnly: false })
+    result.push(...(insertAfter.get(index) ?? []))
+  })
+  return result
+}
+
+type HistoryStatementLineInput = {
+  id: string
+  orderNumber: string
+  assemblyGroupId: string
+  productId: string
+  productCode: string
+  productName: string
+  quantity: number
+}
+
+type HistoryStatementProductionOrder = {
+  assemblyGroupId?: string
+  orderNumber: string
+  productId: string
+  productCode: string
+  productName: string
+  unitPrice: number
+}
+
+/** 출하 이력(제품 행만) + 발주 추가작업 → 거래명세서 품목 입력 */
+export function buildShipmentStatementLinesFromHistory(input: {
+  lines: HistoryStatementLineInput[]
+  unitPriceByDeliveryId?: Record<string, number>
+  billingOnlyLines: DeliveryBillingOnlyLine[]
+  productionOrders: HistoryStatementProductionOrder[]
+}): StatementShippedLine[] {
+  const productLines: StatementShippedProductLine[] = input.lines.map((line) => {
+    const production =
+      input.productionOrders.find((order) => order.assemblyGroupId === line.assemblyGroupId) ||
+      input.productionOrders.find(
+        (order) =>
+          order.orderNumber === line.orderNumber &&
+          (order.productId === line.productId || order.productCode === line.productCode),
+      )
+    const unitPrice = input.unitPriceByDeliveryId?.[line.id]
+    const productId = line.productId || production?.productId || line.productCode
+    const productCode = production?.productCode || line.productCode
+    return {
+      orderNumber: line.orderNumber,
+      productCode,
+      productName: line.productName,
+      qty: line.quantity,
+      unitPrice:
+        unitPrice != null
+          ? unitPrice
+          : production?.unitPrice != null
+            ? production.unitPrice
+            : null,
+      productId,
+      orderProductCode: production?.productCode || line.productCode,
+    }
+  })
+
+  const orderIds = new Set(productLines.map((line) => line.orderNumber.trim()).filter(Boolean))
+  const billingLines = input.billingOnlyLines.filter((line) => orderIds.has(line.orderNumber.trim()))
+
+  return interleaveStatementShippedLinesWithBilling(productLines, billingLines)
+}
+
+export function findBillingAnchorProductIndex(
+  billingLine: DeliveryBillingOnlyLine,
+  productItems: Array<
+    Pick<BillingShippedQuantityLine, 'productCode' | 'productName' | 'productId'> & {
+      orderNumber: string
+    }
+  >,
+): number {
+  const orderNumber = billingLine.orderNumber.trim()
+  const orderIndexes = productItems
+    .map((item, index) => (item.orderNumber.trim() === orderNumber ? index : -1))
+    .filter((index) => index >= 0)
+
+  if (!orderIndexes.length) return -1
+
+  for (const index of orderIndexes) {
+    const product = productItems[index]!
+    if (
+      billingLineMatchesProductRow(billingLine, product, {
+        isLastProductRowForOrder: false,
+      })
+    ) {
+      return index
+    }
+  }
+
+  return orderIndexes[orderIndexes.length - 1]!
 }
 
 export function resolveSmtProducedForLine(

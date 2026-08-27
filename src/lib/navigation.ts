@@ -46,8 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '문의업체', href: '/new-companies' },
       { label: '견적서 등록', href: '/quotations' },
       { label: '발주서 등록', href: '/orders' },
-      { label: '출하 등록', href: '/delivery/input' },
-      { label: '거래명세서', href: '/reports/sales' },
+      { label: '출하 및 거래명세서', href: '/delivery/input' },
     ],
   },
   {
@@ -60,17 +59,8 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/production/status',
     children: [
       { label: '생산현황', href: '/production/status' },
+      { label: '생산등록', href: '/production/input' },
       { label: '생산이력', href: '/production/history' },
-      { label: '1팀 · 생산등록', href: '/smt/input' },
-      { label: '1팀 · 생산계획', href: '/production/plan?tab=smt' },
-      { label: '1팀 · 메탈마스크&스퀴즈', href: '/smt/metal-masks' },
-      { label: '1팀 · 솔더크림', href: '/smt/solder-paste' },
-      { label: '2팀 · 생산등록', href: '/post-process/input?team=생산2팀' },
-      { label: '2팀 · 생산계획', href: '/production/plan?tab=생산2팀' },
-      { label: '3팀 · 생산등록', href: '/post-process/input?team=생산3팀' },
-      { label: '3팀 · 생산계획', href: '/production/plan?tab=생산3팀' },
-      { label: '4팀 · 생산등록(수동)', href: '/post-process/input?team=생산4팀' },
-      { label: '4팀 · 생산계획', href: '/production/plan?tab=생산4팀' },
     ],
   },
   {
@@ -80,7 +70,6 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '재고현황', href: '/materials/inventory' },
       { label: '구매발주', href: '/materials/purchase-orders' },
       { label: '자재입고', href: '/materials/inbound' },
-      { label: '입고이력', href: '/materials/inbound/history' },
       { label: '자재불출', href: '/materials/outbound' },
       { label: '불출이력', href: '/materials/outbound/history' },
       { label: '라벨 출력', href: '/materials/labels' },
@@ -179,7 +168,18 @@ export function isNavChildActive(pathname: string, href: string, search?: NavSea
   if (NAV_EXACT_CHILD_PATHS.includes(href as (typeof NAV_EXACT_CHILD_PATHS)[number])) {
     return pathname === href
   }
-  // 메탈마스크·스퀴즈는 동일 메뉴로 취급
+  // 생산등록: 통합 경로 + 예전 SMT/후공정 입력 URL
+  if (href === '/production/input') {
+    return (
+      pathname === '/production/input' ||
+      pathname.startsWith('/production/input/') ||
+      pathname === '/smt/input' ||
+      pathname.startsWith('/smt/input/') ||
+      pathname === '/post-process/input' ||
+      pathname.startsWith('/post-process/input/')
+    )
+  }
+  // 메탈마스크·스퀴즈는 동일 메뉴로 취급 (내비에서 잠시 숨김이어도 북마크 대응)
   if (href === '/smt/metal-masks') {
     return pathname === '/smt/metal-masks' || pathname.startsWith('/smt/metal-masks/')
       || pathname === '/smt/squeegees' || pathname.startsWith('/smt/squeegees/')

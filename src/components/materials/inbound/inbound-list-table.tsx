@@ -22,7 +22,7 @@ export function InboundListTable({ inbounds, emptyMessage, onSelectInbound }: In
   }
 
   return (
-    <ErpTableShell tableClassName="min-w-[640px] md:min-w-[1000px]">
+    <ErpTableShell tableClassName="min-w-[720px] md:min-w-[1080px]">
       <ErpTableHead>
         <tr>
           <ErpTableTh>입고번호</ErpTableTh>

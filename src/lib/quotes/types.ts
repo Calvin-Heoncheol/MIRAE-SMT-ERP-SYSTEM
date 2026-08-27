@@ -108,6 +108,11 @@ export type QuoteDetailInfo = {
     includeSmd?: boolean
     /** 국내용/해외용 — DIP(납땜·후공정) 입력 섹션 사용 */
     includeDip?: boolean
+    /**
+     * 원자재·부자재·관리비 포함 여부.
+     * 미설정(구 견적) = 포함. 신규 견적은 false 로 저장.
+     */
+    includeMaterialCosts?: boolean
     /** 품목마스터 선택 시 품목 id (주문 단가 매칭용) */
     productId?: string
     /** 미확정 / 확정 */
@@ -182,6 +187,11 @@ export type EstimateInput = {
   quoteType?: QuoteType
   existingQuoteNumber?: string
   includeSmd?: boolean
+  /**
+   * 원자재·부자재·관리비 포함 여부.
+   * 미설정 = 포함(구 견적 호환). false 이면 제외.
+   */
+  includeMaterialCosts?: boolean
   /** @deprecated legacy single-board fields */
   smtSide?: SmtSide
   aoiEnabled?: boolean

@@ -25,7 +25,7 @@ export function defaultSmtPcbBoard(index = 0): SmtPcbBoard {
     smtOdd: 0,
     smtSpecial: 0,
     smtSide: 'single',
-    aoiEnabled: false,
+    aoiEnabled: true,
     pcbWashEnabled: false,
     smtTopCount: 0,
     smtBotCount: 0,
@@ -166,6 +166,13 @@ export function toEstimateInputFromDetail(
     quoteType: quote.quoteType,
     existingQuoteNumber: quote.quoteNumber,
     includeSmd: settings.includeSmd,
+    // 미설정(구 견적) = 포함. 신규만 false
+    includeMaterialCosts: settings.includeMaterialCosts !== false,
     ...overrides,
   }
+}
+
+/** 미설정(구 견적) = 자재 비용 포함. 명시적 false 만 제외 */
+export function resolveIncludeMaterialCosts(value?: boolean | null) {
+  return value !== false
 }

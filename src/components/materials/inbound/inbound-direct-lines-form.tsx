@@ -538,7 +538,7 @@ export function InboundDirectLinesForm({
       </div>
 
       <div ref={tableScrollRef} className="min-h-0 flex-1 overflow-auto">
-        <table className="w-full min-w-[1180px] border-collapse text-sm">
+        <table className="erp-data-table erp-data-table--compact w-full min-w-[1180px] border-collapse text-sm">
           <thead className="sticky top-0 bg-slate-50">
             <tr>
               <th className="px-3 py-2 text-left font-semibold text-slate-600">품목코드</th>

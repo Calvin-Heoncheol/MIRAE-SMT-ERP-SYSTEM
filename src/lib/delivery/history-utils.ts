@@ -1,5 +1,10 @@
 import { matchesDateRange, type DateRangeFilterValue } from '@/lib/ui/date-range'
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
+import type { SalesReportStatementGroup } from '@/lib/reports/sales-report'
+import {
+  buildShipmentStatementLinesFromHistory,
+  type DeliveryBillingOnlyLine,
+} from '@/lib/delivery/utils'
 
 export const DELIVERY_HISTORY_PAGE_SIZE = 20
 
@@ -9,7 +14,51 @@ export type DeliveryHistoryShipmentGroup = {
   customer: string
   productName: string
   quantity: number
+  /** 명세서 기준 공급가액 합계 (추가작업 포함) */
+  supplyAmount?: number | null
   lines: DeliveryHistoryRow[]
+}
+
+/** 출하등록 목록 — ERP 출하 + 과거 거래명세서 */
+export type DeliveryStatementTableGroup = DeliveryHistoryShipmentGroup & {
+  source: 'delivery' | 'legacy'
+  legacyGroup?: SalesReportStatementGroup
+}
+
+export function statementTableRowKey(group: Pick<DeliveryStatementTableGroup, 'source' | 'shipmentId'>) {
+  return `${group.source}:${group.shipmentId}`
+}
+
+export function legacyStatementGroupToTableGroup(
+  group: SalesReportStatementGroup,
+): DeliveryStatementTableGroup {
+  return {
+    shipmentId: group.shipmentId,
+    recordDate: group.recordDate,
+    customer: group.customer,
+    productName: group.productName,
+    quantity: group.quantity,
+    supplyAmount: group.amount,
+    lines: [],
+    source: 'legacy',
+    legacyGroup: group,
+  }
+}
+
+export function filterStatementTableGroups(
+  groups: DeliveryStatementTableGroup[],
+  query: string,
+  dateRange: DateRangeFilterValue = {},
+) {
+  const q = query.trim().toLowerCase()
+  return groups.filter((group) => {
+    if (!matchesDateRange(group.recordDate, dateRange)) return false
+    if (!q) return true
+    return [group.shipmentId, group.customer, group.productName, group.recordDate]
+      .join(' ')
+      .toLowerCase()
+      .includes(q)
+  })
 }
 
 export function filterDeliveryHistory<
@@ -98,6 +147,44 @@ export function groupDeliveryHistoryByShipment(
     if (byDate !== 0) return byDate
     return b.shipmentId.localeCompare(a.shipmentId)
   })
+}
+
+/** 출하 이력 묶음의 거래명세서 공급가액 (제품 + 추가작업) */
+export function computeShipmentGroupSupplyAmount(
+  group: Pick<DeliveryHistoryShipmentGroup, 'lines'>,
+  input: {
+    unitPriceByDeliveryId: Record<string, number>
+    billingOnlyLines: DeliveryBillingOnlyLine[]
+    productionOrders: Array<{
+      assemblyGroupId: string
+      orderNumber: string
+      productId: string
+      productCode: string
+      productName: string
+      unitPrice: number
+    }>
+  },
+): number {
+  const statementLines = buildShipmentStatementLinesFromHistory({
+    lines: group.lines.map((line) => ({
+      id: line.id,
+      orderNumber: line.orderNumber,
+      assemblyGroupId: line.assemblyGroupId,
+      productId: line.productId,
+      productCode: line.productCode,
+      productName: line.productName,
+      quantity: line.quantity,
+    })),
+    unitPriceByDeliveryId: input.unitPriceByDeliveryId,
+    billingOnlyLines: input.billingOnlyLines,
+    productionOrders: input.productionOrders,
+  })
+
+  return statementLines.reduce((sum, line) => {
+    const qty = Math.max(0, Math.floor(Number(line.qty) || 0))
+    const price = Math.max(0, Math.round(Number(line.unitPrice) || 0))
+    return sum + qty * price
+  }, 0)
 }
 
 export function sumDeliveryHistoryQuantity<T extends { quantity: number }>(rows: T[]) {

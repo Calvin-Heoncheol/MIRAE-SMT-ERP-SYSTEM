@@ -9,6 +9,14 @@ import { parseItemVersionCode, stripTrailingVersionFromName } from '@/lib/items/
 import { fetchOrderById } from '@/lib/orders/repository'
 import type { OrderCurrency } from '@/lib/orders/types'
 import { isBillingOnlyOrderItem, normalizeOrderCurrency } from '@/lib/orders/utils'
+import {
+  billingLineMatchesProductRow,
+  buildDeliveryBillingOnlyLines,
+  interleaveStatementShippedLinesWithBilling,
+  isGenericBillingProductCode,
+  resolveBillingQuantityFromShipped,
+  resolveStatementDisplayProductCode,
+} from '@/lib/delivery/utils'
 import { findActiveBusinessPartnerByName } from '@/lib/partners/repository'
 import type { DeliveryStatementData, DeliveryStatementLine } from './types'
 
@@ -164,6 +172,7 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
   const customer = escapeHtml(data.customer.trim() || '—')
   const customerAddress = partyCell(String(data.customerAddress || ''))
   const customerPhone = partyCell(String(data.customerPhone || ''))
+  const docNo = String(data.docNo || '').trim()
   const items = (data.items || []).map(normalizeStatementLine)
   const { qty, supply } = sumStatementTotals(items)
   const vat = 0
@@ -173,6 +182,11 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
   const roleLabel = role === 'supplier' ? '공급자용' : '공급받는자용'
 
   return `<section class="statement-copy">
+  ${
+    docNo
+      ? `<div class="doc-no" aria-hidden="true">${escapeHtml(docNo)}</div>`
+      : ''
+  }
   <div class="top-row">
     <div class="title-box">
       <h1 class="doc-title">거 래 명 세 서</h1>
@@ -239,6 +253,15 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
 
   <div class="items-grow">
     <table class="items">
+      <colgroup>
+        <col class="col-no" />
+        <col class="col-code" />
+        <col class="col-name" />
+        <col class="col-num" />
+        <col class="col-num" />
+        <col class="col-num" />
+        <col class="col-num" />
+      </colgroup>
       <thead>
         <tr>
           <th class="c-no">No.</th>
@@ -306,6 +329,23 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+.doc-no {
+  position: absolute;
+  top: 1.5mm;
+  right: 2mm;
+  z-index: 1;
+  max-width: 42%;
+  color: #64748b;
+  font-size: 8px;
+  font-weight: 600;
+  font-family: ui-monospace, "Malgun Gothic", monospace;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .cut-line {
   flex: 0 0 auto;
@@ -433,11 +473,16 @@ table.items {
   table-layout: fixed;
   border: 1.5px solid #333;
 }
+table.items col.col-no { width: 6%; }
+table.items col.col-code { width: 14%; }
+table.items col.col-name { width: 36%; }
+table.items col.col-num { width: 11%; }
 table.items th,
 table.items td {
   border: 1px solid #333;
   padding: 3.5px 5px;
   vertical-align: middle;
+  overflow: hidden;
 }
 table.items thead th {
   background: #f3f4f6;
@@ -450,15 +495,18 @@ table.items tbody td {
   font-size: 11px;
   text-align: center;
 }
-table.items .c-no { width: 5%; font-variant-numeric: tabular-nums; }
-table.items .c-code { width: 15%; }
-table.items .c-name { width: 32%; }
-table.items .c-num { width: 12%; font-variant-numeric: tabular-nums; }
+table.items .c-name {
+  text-align: left;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
 table.items tbody tr.empty td {
   height: 23px;
   color: transparent;
 }
 
+table.items .c-no { font-variant-numeric: tabular-nums; }
+table.items .c-num { font-variant-numeric: tabular-nums; }
 table.items tfoot .summary-row th {
   background: #f3f4f6;
   font-size: 10px;
@@ -591,28 +639,138 @@ function statementLinesFromOrderItems(
     .filter((item) => item.qty > 0 || item.supplyAmount > 0)
 }
 
-/** 품목등록 없는 추가 작업(금액 전용) 라인 — 출하 없이 명세에만 붙인다. */
+type ShippedLineForBilling = {
+  productCode: string
+  productName: string
+  qty: number
+  productId?: string
+}
+
+type StatementShippedLineInput = {
+  orderNumber: string
+  productCode: string
+  productName: string
+  qty: number
+  unitPrice?: number | null
+  billingOnly?: boolean
+  orderLineId?: string
+}
+
+type OrderRecord = NonNullable<Awaited<ReturnType<typeof fetchOrderById>>>
+
+function isLastShippedLineForOrder<T extends { orderNumber: string }>(
+  line: T,
+  index: number,
+  allLines: T[],
+) {
+  for (let i = index + 1; i < allLines.length; i += 1) {
+    if (allLines[i]!.orderNumber === line.orderNumber) return false
+  }
+  return true
+}
+
+/** 출하 제품 행 바로 아래에 붙일 추가작업 명세 행 */
+function billingStatementLinesForShippedProduct(input: {
+  order: OrderRecord
+  orderNumber: string
+  shippedLine: ShippedLineForBilling
+  shippedLinesForOrder: ShippedLineForBilling[]
+  isLastShippedLineForOrder: boolean
+  usedBillingLineIds: Set<string>
+}): DeliveryStatementLine[] {
+  const lines: DeliveryStatementLine[] = []
+  const productRow = {
+    orderNumber: input.orderNumber,
+    productCode: input.shippedLine.productCode,
+    productName: input.shippedLine.productName,
+  }
+
+  for (const item of input.order.items) {
+    if (item.derivedFromLineId || !isBillingOnlyOrderItem(item)) continue
+    const lineId = String(item.lineId || '').trim()
+    if (!lineId || input.usedBillingLineIds.has(lineId)) continue
+
+    const productCode = String(item.productCode || '').trim() || 'TEMP'
+    const productName = String(item.productName || '').trim()
+    if (!productName) continue
+
+    if (
+      !billingLineMatchesProductRow(
+        { orderNumber: input.orderNumber, productCode, productName },
+        productRow,
+        { isLastProductRowForOrder: input.isLastShippedLineForOrder },
+      )
+    ) {
+      continue
+    }
+
+    const qty = resolveBillingQuantityFromShipped({
+      billingProductCode: productCode,
+      billingProductName: productName,
+      shippedLines: input.shippedLinesForOrder.map((line) => ({
+        productCode: line.productCode,
+        productName: line.productName,
+        productId: line.productId,
+        quantity: line.qty,
+      })),
+    })
+    const resolvedQty =
+      qty > 0
+        ? qty
+        : isGenericBillingProductCode(productCode)
+          ? input.shippedLinesForOrder.reduce((sum, line) => sum + line.qty, 0)
+          : input.shippedLine.qty
+    if (resolvedQty <= 0) continue
+
+    input.usedBillingLineIds.add(lineId)
+    const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+    lines.push({
+      orderNumber: input.order.orderNumber || input.orderNumber,
+      productCode,
+      productName,
+      qty: resolvedQty,
+      unitPrice,
+      supplyAmount: Math.round(resolvedQty * unitPrice),
+    })
+  }
+
+  return lines
+}
+
+/** @deprecated appendBillingOnlyLinesOnce 대신 billingStatementLinesForShippedProduct 사용 */
 function billingOnlyStatementLinesFromOrder(
   order: NonNullable<Awaited<ReturnType<typeof fetchOrderById>>>,
   fallbackOrderNumber = '',
+  shippedLines: ShippedLineForBilling[] = [],
 ): DeliveryStatementLine[] {
   return order.items
     .filter((item) => !item.derivedFromLineId && isBillingOnlyOrderItem(item))
     .map((item) => {
-      const qty = Math.max(0, Math.floor(Number(item.quantity) || 0))
+      const productCode = String(item.productCode || '').trim() || 'TEMP'
+      const productName = String(item.productName || '').trim()
       const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
-      const supplyAmount =
-        Math.max(0, Math.round(Number(item.orderAmount) || 0)) || Math.round(qty * unitPrice)
+      const qty = shippedLines.length
+        ? resolveBillingQuantityFromShipped({
+            billingProductCode: productCode,
+            billingProductName: productName,
+            shippedLines: shippedLines.map((line) => ({
+              productCode: line.productCode,
+              productName: line.productName,
+              quantity: line.qty,
+            })),
+          })
+        : Math.max(0, Math.floor(Number(item.quantity) || 0))
+      const supplyAmount = Math.round(qty * unitPrice)
       return {
         orderNumber: order.orderNumber || fallbackOrderNumber,
-        productCode: String(item.productCode || '').trim() || 'TEMP',
-        productName: String(item.productName || '').trim(),
+        productCode,
+        productName,
         qty,
         unitPrice,
         supplyAmount,
       }
     })
-    .filter((item) => item.productName && (item.qty > 0 || item.supplyAmount > 0))
+    .filter((item) => item.productName && item.qty > 0)
 }
 
 function appendBillingOnlyLinesOnce(
@@ -620,17 +778,38 @@ function appendBillingOnlyLinesOnce(
   order: NonNullable<Awaited<ReturnType<typeof fetchOrderById>>> | null | undefined,
   orderNumber: string,
   appendedOrders: Set<string>,
+  shippedLines: ShippedLineForBilling[] = [],
 ) {
   if (!order) return
   const key = order.orderNumber || orderNumber
   if (!key || appendedOrders.has(key)) return
   appendedOrders.add(key)
-  items.push(...billingOnlyStatementLinesFromOrder(order, orderNumber))
+  items.push(...billingOnlyStatementLinesFromOrder(order, orderNumber, shippedLines))
 }
 
 /**
  * 거래명세서 품목 = 이번 출하 건에 포함된 품목만 (출하 수량·단가)
  */
+function normalizeStatementShippedLines(lines: StatementShippedLineInput[]) {
+  return (lines || [])
+    .map((line) => ({
+      orderNumber: String(line.orderNumber || '').trim(),
+      productCode: String(line.productCode || '').trim(),
+      productName: String(line.productName || '').trim(),
+      qty: Math.max(0, Math.floor(Number(line.qty) || 0)),
+      unitPrice:
+        line.unitPrice != null ? Math.max(0, Math.round(Number(line.unitPrice) || 0)) : null,
+      billingOnly: Boolean(line.billingOnly),
+      orderLineId: String(line.orderLineId || '').trim(),
+    }))
+    .filter(
+      (line) =>
+        line.qty > 0 &&
+        (line.productCode || line.productName) &&
+        (line.billingOnly || line.orderNumber),
+    )
+}
+
 export async function buildDeliveryStatementDataFromOrder(input: {
   docNo: string
   shipDate: string
@@ -706,24 +885,57 @@ export async function buildDeliveryStatementDataFromOrder(input: {
     return null
   }
 
-  const items: DeliveryStatementLine[] = shippedLines.map((line) => {
+  const items: DeliveryStatementLine[] = []
+  const usedBillingLineIds = new Set<string>()
+  const shippedForOrder = shippedLines.map((line) => {
+    const matchedLine = matchOrderLine(line.productCode, line.productName)
+    return {
+      productCode: line.productCode,
+      productName: line.productName,
+      qty: line.qty,
+      productId: String(matchedLine?.productId || '').trim() || undefined,
+    }
+  })
+
+  shippedLines.forEach((line, index) => {
     const matched = matchOrderLine(line.productCode, line.productName)
     const unitPrice =
       line.unitPrice != null
         ? line.unitPrice
         : Math.max(0, Math.round(Number(matched?.unitPrice) || 0))
     const qty = line.qty
-    return {
+    items.push({
       orderNumber,
-      productCode: line.productCode || String(matched?.productCode || '').trim(),
+      productCode: resolveStatementDisplayProductCode({
+        productCode: line.productCode,
+        productId: matched?.productId,
+        orderProductCode: matched?.productCode,
+      }),
       productName: line.productName || String(matched?.productName || '').trim(),
       qty,
       unitPrice,
       supplyAmount: Math.round(qty * unitPrice),
-    }
+    })
+    items.push(
+      ...billingStatementLinesForShippedProduct({
+        order,
+        orderNumber,
+        shippedLine: {
+          productCode: line.productCode,
+          productName: line.productName,
+          qty: line.qty,
+          productId: String(matched?.productId || '').trim() || undefined,
+        },
+        shippedLinesForOrder: shippedForOrder,
+        isLastShippedLineForOrder: isLastShippedLineForOrder(
+          { orderNumber },
+          index,
+          shippedLines.map(() => ({ orderNumber })),
+        ),
+        usedBillingLineIds,
+      }),
+    )
   })
-
-  appendBillingOnlyLinesOnce(items, order, orderNumber, new Set())
 
   if (!items.some((item) => item.productName || item.productCode)) {
     return { ok: false, detail: '출하 품목 정보를 찾을 수 없습니다.' }
@@ -756,13 +968,7 @@ export async function buildDeliveryStatementDataFromShipment(input: {
   shipDate: string
   customer: string
   note?: string
-  shippedLines: Array<{
-    orderNumber: string
-    productCode: string
-    productName: string
-    qty: number
-    unitPrice?: number
-  }>
+  shippedLines: StatementShippedLineInput[]
 }): Promise<
   | { ok: true; data: DeliveryStatementData }
   | { ok: false; detail: string }
@@ -772,16 +978,7 @@ export async function buildDeliveryStatementDataFromShipment(input: {
     return { ok: false, detail: '명세서 번호가 없습니다.' }
   }
 
-  const shippedLines = (input.shippedLines || [])
-    .map((line) => ({
-      orderNumber: String(line.orderNumber || '').trim(),
-      productCode: String(line.productCode || '').trim(),
-      productName: String(line.productName || '').trim(),
-      qty: Math.max(0, Math.floor(Number(line.qty) || 0)),
-      unitPrice:
-        line.unitPrice != null ? Math.max(0, Math.round(Number(line.unitPrice) || 0)) : null,
-    }))
-    .filter((line) => line.qty > 0 && (line.productCode || line.productName))
+  const shippedLines = normalizeStatementShippedLines(input.shippedLines || [])
 
   if (!shippedLines.length) {
     return { ok: false, detail: '출하 품목이 없습니다.' }
@@ -797,24 +994,15 @@ export async function buildDeliveryStatementDataFromShipment(input: {
     return order
   }
 
-  const items: DeliveryStatementLine[] = []
-  const expandedOrders = new Set<string>()
-  const billingAppendedOrders = new Set<string>()
-  for (const line of shippedLines) {
-    const order = await getOrder(line.orderNumber)
-    if (order && isCollapsedProductLabel(line.productName)) {
-      if (!expandedOrders.has(order.orderNumber)) {
-        items.push(...statementLinesFromOrderItems(order, line.orderNumber))
-        expandedOrders.add(order.orderNumber)
-        // 전체 라인 전개에 추가 작업이 이미 포함됨
-        billingAppendedOrders.add(order.orderNumber)
-      }
-      continue
-    }
+  function matchOrderProductLine(
+    order: Awaited<ReturnType<typeof fetchOrderById>>,
+    productCode: string,
+    productName: string,
+  ) {
     const orderLines = (order?.items || []).filter((item) => !item.derivedFromLineId)
-    const code = line.productCode.toLowerCase()
-    const name = line.productName.toLowerCase()
-    const matched =
+    const code = productCode.trim().toLowerCase()
+    const name = productName.trim().toLowerCase()
+    return (
       (code
         ? orderLines.find(
             (item) =>
@@ -840,6 +1028,69 @@ export async function buildDeliveryStatementDataFromShipment(input: {
       (name
         ? orderLines.find((item) => String(item.productName || '').trim().toLowerCase() === name)
         : null)
+    )
+  }
+
+  let normalizedShippedLines = shippedLines
+  const hasExplicitBilling = shippedLines.some((line) => line.billingOnly)
+
+  if (!hasExplicitBilling) {
+    const productOnly = shippedLines.filter((line) => !line.billingOnly)
+    const orderIds = [...new Set(productOnly.map((line) => line.orderNumber).filter(Boolean))]
+    const enrichedProducts = await Promise.all(
+      productOnly.map(async (line) => {
+        const order = await getOrder(line.orderNumber)
+        const matched = matchOrderProductLine(order, line.productCode, line.productName)
+        return {
+          orderNumber: line.orderNumber,
+          productCode: line.productCode,
+          productName: line.productName,
+          qty: line.qty,
+          unitPrice: line.unitPrice,
+          productId: String(matched?.productId || line.productCode).trim() || undefined,
+          orderProductCode: String(matched?.productCode || '').trim() || undefined,
+        }
+      }),
+    )
+    const billingLines: ReturnType<typeof buildDeliveryBillingOnlyLines> = []
+    for (const orderNumber of orderIds) {
+      const order = await getOrder(orderNumber)
+      if (order) billingLines.push(...buildDeliveryBillingOnlyLines([order]))
+    }
+    normalizedShippedLines = interleaveStatementShippedLinesWithBilling(
+      enrichedProducts,
+      billingLines,
+    )
+  }
+
+  const items: DeliveryStatementLine[] = []
+  const expandedOrders = new Set<string>()
+
+  for (const line of normalizedShippedLines) {
+
+    if (line.billingOnly) {
+      const unitPrice = line.unitPrice ?? 0
+      items.push({
+        orderNumber: line.orderNumber,
+        productCode: line.productCode,
+        productName: line.productName,
+        qty: line.qty,
+        unitPrice,
+        supplyAmount: Math.round(line.qty * unitPrice),
+      })
+      continue
+    }
+
+    const order = await getOrder(line.orderNumber)
+    if (order && isCollapsedProductLabel(line.productName)) {
+      if (!expandedOrders.has(order.orderNumber)) {
+        items.push(...statementLinesFromOrderItems(order, line.orderNumber))
+        expandedOrders.add(order.orderNumber)
+      }
+      continue
+    }
+
+    const matched = matchOrderProductLine(order, line.productCode, line.productName)
 
     const unitPrice =
       line.unitPrice != null
@@ -848,17 +1099,16 @@ export async function buildDeliveryStatementDataFromShipment(input: {
     const qty = line.qty
     items.push({
       orderNumber: line.orderNumber || order?.orderNumber || '',
-      productCode: line.productCode || String(matched?.productCode || '').trim(),
+      productCode: resolveStatementDisplayProductCode({
+        productCode: line.productCode,
+        productId: matched?.productId,
+        orderProductCode: matched?.productCode,
+      }),
       productName: line.productName || String(matched?.productName || '').trim(),
       qty,
       unitPrice,
       supplyAmount: Math.round(qty * unitPrice),
     })
-  }
-
-  for (const orderNumber of [...new Set(shippedLines.map((line) => line.orderNumber).filter(Boolean))]) {
-    const order = await getOrder(orderNumber)
-    appendBillingOnlyLinesOnce(items, order, orderNumber, billingAppendedOrders)
   }
 
   if (!items.some((item) => item.productName || item.productCode)) {

@@ -10,7 +10,6 @@ import {
   getSmtUnitRates,
   isMultiSideSmt,
   normalizeSmtSide,
-  PCB_WASH_UNIT,
   SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
   toBillingSmtSide,
 } from '@/lib/quotes/constants'
@@ -209,45 +208,21 @@ export function SmtPcbBoardForm({
           </div>
 
           <div className="mt-3">
-            <p className="mb-2 text-xs font-medium text-slate-600">
-              {quoteType === 'domestic' ? '검사 / 세척' : 'Inspection'}
+            <p className="mb-1 text-xs font-medium text-slate-600">
+              {quoteType === 'domestic' ? '검사' : 'Inspection'}
             </p>
-            <div className="flex flex-wrap gap-4 text-sm text-slate-700">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={board.aoiEnabled}
-                  onChange={(event) => patch({ aoiEnabled: event.target.checked })}
-                />
-                <span>
-                  AOI
-                  <span className="ml-1 text-[11px] text-slate-400">
-                    ({formatQuoteMoneyByDisplay(getAoiUnit(billingSide), quoteType, displayCurrency)}
-                    {isMulti
-                      ? quoteType === 'domestic'
-                        ? ' · 듀얼/양면 2배'
-                        : ' · dual/double ×2'
-                      : ''}
-                    /PCB)
-                  </span>
-                </span>
-              </label>
-              {quoteType === 'domestic' ? (
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={board.pcbWashEnabled}
-                    onChange={(event) => patch({ pcbWashEnabled: event.target.checked })}
-                  />
-                  <span>
-                    세척
-                    <span className="ml-1 text-[11px] text-slate-400">
-                      ({formatQuoteMoneyByDisplay(PCB_WASH_UNIT, quoteType, displayCurrency)}/PCB)
-                    </span>
-                  </span>
-                </label>
-              ) : null}
-            </div>
+            <p className="text-sm text-slate-700">
+              AOI
+              <span className="ml-1 text-[11px] text-slate-400">
+                ({formatQuoteMoneyByDisplay(getAoiUnit(billingSide), quoteType, displayCurrency)}
+                {isMulti
+                  ? quoteType === 'domestic'
+                    ? ' · 듀얼/양면 2배'
+                    : ' · dual/double ×2'
+                  : ''}
+                /PCB · 항상 포함)
+              </span>
+            </p>
           </div>
         </>
       ) : null}

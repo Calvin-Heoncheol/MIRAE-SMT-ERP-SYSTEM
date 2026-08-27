@@ -717,3 +717,37 @@ body {
 .erp-scan-row-latest {
   animation: erp-scan-row-in 0.55s ease-out;
 }
+
+/*
+ * 데이터 목록 표 공통 셀 간격
+ * - 유틸(px-2/px-3 등)보다 우선해 페이지 간 컬럼 간격을 맞춤
+ * - 캘린더·인쇄·엑셀샘플 등에는 erp-data-table을 붙이지 않음
+ */
+table.erp-data-table > thead > tr > th,
+table.erp-data-table > tbody > tr > td,
+table.erp-data-table > tfoot > tr > th,
+table.erp-data-table > tfoot > tr > td {
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+table.erp-data-table.erp-data-table--compact > thead > tr > th,
+table.erp-data-table.erp-data-table--compact > tbody > tr > td,
+table.erp-data-table.erp-data-table--compact > tfoot > tr > th,
+table.erp-data-table.erp-data-table--compact > tfoot > tr > td {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+/* 체크박스·아이콘만 있는 좁은 열 */
+table.erp-data-table > thead > tr > th.erp-table-check,
+table.erp-data-table > tbody > tr > td.erp-table-check {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  width: 2.75rem;
+  text-align: center;
+}

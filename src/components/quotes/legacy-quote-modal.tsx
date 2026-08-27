@@ -383,7 +383,7 @@ export function LegacyQuoteModal({
             {bulkPreview.length ? (
               <div className="overflow-hidden rounded-lg border border-slate-200">
                 <div className="max-h-56 overflow-auto">
-                  <table className="min-w-full border-collapse text-xs">
+                  <table className="erp-data-table erp-data-table--compact min-w-full border-collapse text-xs">
                     <thead className="sticky top-0 bg-slate-50">
                       <tr>
                         {LEGACY_QUOTE_BULK_COLUMNS.map((column) => (

@@ -6,21 +6,18 @@ import { DeliveryShippablePicker } from '@/components/delivery/delivery-shippabl
 import { useBusy } from '@/components/ui/busy-provider'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { useToast } from '@/components/ui/toast-provider'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
   allocationsForRegisterQuantity,
   applyShippableOptionToItem,
   emptyDeliveryRegisterItemForm,
   isBillingRegisterItem,
+  pruneOrphanBillingRegisterItems,
   validateDeliveryRegisterItems,
-  withBillingCompanionItems,
   type DeliveryRegisterItemForm,
   type DeliveryShippableOption,
 } from '@/lib/delivery/register-form'
-import {
-  buildDeliveryStatementDataFromShipment,
-  printDeliveryStatement,
-} from '@/lib/delivery/print-delivery-statement'
 import { createDeliveryShipment } from '@/lib/delivery/repository'
 import type { DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
@@ -78,23 +75,15 @@ function DeliveryRegisterModalContent({
   onShipped,
 }: Omit<DeliveryRegisterModalProps, 'open'>) {
   const busyUi = useBusy()
+  const toast = useToast()
   const { notifyAuthOrFailure } = useWriteFailureToast()
   const [recordDate, setRecordDate] = useState(todayYmdSeoul)
   const [note, setNote] = useState('')
   const [items, setItems] = useState<DeliveryRegisterItemForm[]>(() =>
-    withBillingCompanionItems(filledRegisterItems(initialItems), billingOnlyLines),
+    filledRegisterItems(initialItems),
   )
   const [saving, setSaving] = useState(false)
-  const [printing, setPrinting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveWarning, setSaveWarning] = useState<string | null>(null)
-  const [lastShipmentId, setLastShipmentId] = useState<string | null>(null)
-  const [lastShipMeta, setLastShipMeta] = useState<{
-    date: string
-    customer: string
-    note: string
-    lines: DeliveryRegisterItemForm[]
-  } | null>(null)
 
   const lockedCustomer = useMemo(() => {
     const first = items.find((item) => !isBillingRegisterItem(item) && item.customer.trim())
@@ -112,33 +101,30 @@ function DeliveryRegisterModalContent({
     [items],
   )
 
-  const shipped = Boolean(lastShipmentId && lastShipMeta)
-
   useEffect(() => {
-    const seed = withBillingCompanionItems(filledRegisterItems(initialItems), billingOnlyLines)
+    const seed = filledRegisterItems(initialItems)
     if (!seed.length) return
     let cancelled = false
     void (async () => {
       const withLots = await Promise.all(seed.map((item) => attachLotsToItem(item)))
-      if (!cancelled) setItems(withBillingCompanionItems(withLots, billingOnlyLines))
+      if (!cancelled) setItems(withLots)
     })()
     return () => {
       cancelled = true
     }
-  }, [initialItems, billingOnlyLines])
+  }, [initialItems])
 
   async function handleToggle(option: DeliveryShippableOption, checked: boolean) {
-    if (shipped || saving || printing) return
+    if (saving) return
     setSaveError(null)
 
     if (!checked) {
       setItems((current) =>
-        withBillingCompanionItems(
+        pruneOrphanBillingRegisterItems(
           current.filter(
             (item) =>
               isBillingRegisterItem(item) || item.assemblyGroupId !== option.assemblyGroupId,
           ),
-          billingOnlyLines,
         ),
       )
       return
@@ -152,50 +138,12 @@ function DeliveryRegisterModalContent({
     if (selectedIds.has(option.assemblyGroupId)) return
 
     const pending = applyShippableOptionToItem(emptyDeliveryRegisterItemForm(), option)
-    setItems((current) =>
-      withBillingCompanionItems([...current, pending], billingOnlyLines),
-    )
+    setItems((current) => [...current, pending])
 
     const withLots = await attachLotsToItem(pending)
     setItems((current) =>
-      withBillingCompanionItems(
-        current.map((item) => (item.key === pending.key ? withLots : item)),
-        billingOnlyLines,
-      ),
+      current.map((item) => (item.key === pending.key ? withLots : item)),
     )
-  }
-
-  async function printLastStatement() {
-    if (!lastShipmentId || !lastShipMeta) return false
-    setPrinting(true)
-    setSaveError(null)
-    // orderNumber 는 발주 ID (고객 PO 아님) — 추가작업 라인 조회에 필요
-    const built = await buildDeliveryStatementDataFromShipment({
-      shipmentId: lastShipmentId,
-      shipDate: lastShipMeta.date,
-      customer: lastShipMeta.customer,
-      note: lastShipMeta.note,
-      shippedLines: lastShipMeta.lines.map((line) => ({
-        orderNumber: line.orderNumber,
-        productCode: line.productCode,
-        productName: line.productName,
-        qty: Math.floor(Number(line.quantity) || 0),
-        unitPrice: Math.round(Number(line.unitPrice) || 0),
-      })),
-    })
-    setPrinting(false)
-
-    if (!built.ok) {
-      setSaveError(built.detail)
-      return false
-    }
-
-    const printed = printDeliveryStatement(built.data)
-    if (!printed) {
-      setSaveError('거래명세서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
-      return false
-    }
-    return true
   }
 
   async function handleShip() {
@@ -213,7 +161,6 @@ function DeliveryRegisterModalContent({
 
     setSaving(true)
     setSaveError(null)
-    setSaveWarning(null)
 
     const shipNote = note.trim()
     const result = await busyUi.run(() =>
@@ -237,16 +184,9 @@ function DeliveryRegisterModalContent({
     }
 
     if (result.usedCatchUp) {
-      setSaveWarning(CATCH_UP_LOT_WARNING)
+      toast.info('LOT 보충', CATCH_UP_LOT_WARNING)
     }
 
-    setLastShipmentId(result.shipmentId)
-    setLastShipMeta({
-      date: shipDate,
-      customer: validation.customer,
-      note: shipNote,
-      lines: validation.lines,
-    })
     onShipped?.({
       shipmentId: result.shipmentId,
       deltas: validation.lines.map((line) => ({
@@ -254,45 +194,28 @@ function DeliveryRegisterModalContent({
         quantity: Math.floor(Number(line.quantity) || 0),
       })),
     })
+    onClose()
   }
 
-  const busy = saving || printing
+  const busy = saving
 
   return (
     <ErpModal
       open
       size="wide"
       title="출하 등록"
-      description="왼쪽에서 출하가능 품목을 체크하고, 오른쪽에서 수량을 확인한 뒤 출하하세요."
+      description="왼쪽에서 출하가능 품목을 체크하고, 필요하면 추가작업을 넣은 뒤 출하하세요."
       onClose={onClose}
       closeOnEscape={!busy}
       contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
       footer={
         <div className="flex w-full flex-col gap-3">
           {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
-          {saveWarning ? <p className="text-sm text-amber-800">{saveWarning}</p> : null}
-          {shipped ? (
-            <p className="text-sm text-emerald-700">
-              출하 완료 · 명세서 번호 <span className="font-mono font-semibold">{lastShipmentId}</span>
-            </p>
-          ) : null}
           <div className="flex flex-wrap justify-end gap-2">
             <CancelButton disabled={busy} />
-            {shipped ? (
-              <ErpButton
-                variant="secondary"
-                disabled={busy}
-                loading={printing}
-                onClick={() => void printLastStatement()}
-              >
-                거래명세서
-              </ErpButton>
-            ) : null}
-            {!shipped ? (
-              <ErpButton disabled={busy} loading={saving} onClick={() => void handleShip()}>
-                출하
-              </ErpButton>
-            ) : null}
+            <ErpButton disabled={busy} loading={saving} onClick={() => void handleShip()}>
+              출하
+            </ErpButton>
           </div>
         </div>
       }
@@ -303,7 +226,7 @@ function DeliveryRegisterModalContent({
             options={options}
             selectedIds={selectedIds}
             lockedCustomer={lockedCustomer}
-            disabled={shipped || busy}
+            disabled={busy}
             onToggle={(option, checked) => void handleToggle(option, checked)}
           />
         </aside>
@@ -315,7 +238,7 @@ function DeliveryRegisterModalContent({
               <input
                 type="date"
                 value={recordDate}
-                disabled={shipped || busy}
+                disabled={busy}
                 onChange={(event) => setRecordDate(event.target.value)}
                 className={ERP_FIELD_INPUT_CLASS}
               />
@@ -324,7 +247,7 @@ function DeliveryRegisterModalContent({
               <span className={ERP_FIELD_LABEL_CLASS}>비고</span>
               <input
                 value={note}
-                disabled={shipped || busy}
+                disabled={busy}
                 onChange={(event) => setNote(event.target.value)}
                 className={ERP_FIELD_INPUT_CLASS}
                 placeholder="선택"
@@ -335,15 +258,11 @@ function DeliveryRegisterModalContent({
           <DeliveryRegisterItemsForm
             items={items}
             options={options}
+            billingOnlyLines={billingOnlyLines}
             lockedCustomer={lockedCustomer}
-            disabled={shipped || busy}
+            disabled={busy}
             productSelectMode="fixed"
-            onChange={(next) => {
-              setItems((current) => {
-                const resolved = typeof next === 'function' ? next(current) : next
-                return withBillingCompanionItems(resolved, billingOnlyLines)
-              })
-            }}
+            onChange={setItems}
           />
         </div>
       </div>

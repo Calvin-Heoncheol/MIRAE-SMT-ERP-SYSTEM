@@ -90,9 +90,13 @@ type FormState = {
   postProcessLines: PostProcessLineForm[]
   materialCost: string
   metalMaskCost: string
+  /** 메탈마스크 비용 포함 여부 */
+  includeMetalMask: boolean
   specialDiscount: string
   includeSmd: boolean
   includeDip: boolean
+  /** false = 원자재·부자재·관리비 제외 (신규 기본) */
+  includeMaterialCosts: boolean
 }
 
 const INITIAL_FORM: FormState = {
@@ -105,9 +109,11 @@ const INITIAL_FORM: FormState = {
   postProcessLines: [emptyPostProcessLineForm()],
   materialCost: '0',
   metalMaskCost: '0',
+  includeMetalMask: true,
   specialDiscount: '0',
   includeSmd: true,
   includeDip: true,
+  includeMaterialCosts: false,
 }
 
 function inferIncludeFlags(quote: QuoteListItem): { includeSmd: boolean; includeDip: boolean } {
@@ -201,9 +207,11 @@ function createInitialState(mode: 'create' | 'edit', quote?: QuoteListItem | nul
               flags.includeSmd,
             ),
         ),
+        includeMetalMask: Math.max(0, Number(input.metalMaskCost) || 0) > 0,
         specialDiscount: String(input.specialDiscount || 0),
         includeSmd: flags.includeSmd,
         includeDip: flags.includeDip,
+        includeMaterialCosts: quote.detailInfo.settings?.includeMaterialCosts !== false,
       },
       smtForms,
       dipForms,
@@ -259,6 +267,7 @@ function computeEstimate(
       quoteType,
       existingQuoteNumber: options.mode === 'edit' ? options.quote?.quoteNumber : undefined,
       includeSmd: true,
+      includeMaterialCosts: form.includeMaterialCosts,
     },
     { existingQuoteNumbers: options.existingQuoteNumbers },
   )
@@ -371,15 +380,21 @@ function QuoteModalContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 모달 대상 변경 시 폼 리셋
   }, [mode, quote?.quoteNumber, quoteType])
 
-  // SMT 단면/양면·PCB 수에 따라 메탈마스크 비용 자동 반영
+  // SMT 단면/양면·PCB 수에 따라 메탈마스크 비용 자동 반영 (체크 시에만)
   useEffect(() => {
-    const next = String(
-      computeMetalMaskCostTotal(smtForms.map((board) => ({ smtSide: board.smtSide }))),
-    )
-    setForm((current) =>
-      current.metalMaskCost === next ? current : { ...current, metalMaskCost: next },
-    )
-  }, [smtForms])
+    setForm((current) => {
+      const includeMetalMask = current.includeMetalMask === true
+      if (!includeMetalMask) {
+        if (current.includeMetalMask === false && current.metalMaskCost === '0') return current
+        return { ...current, includeMetalMask: false, metalMaskCost: '0' }
+      }
+      const next = String(
+        computeMetalMaskCostTotal(smtForms.map((board) => ({ smtSide: board.smtSide }))),
+      )
+      if (current.metalMaskCost === next && current.includeMetalMask === true) return current
+      return { ...current, includeMetalMask: true, metalMaskCost: next }
+    })
+  }, [smtForms, form.includeMetalMask])
 
   // 생성·수정 공통: 입력 변경 시 미리보기 자동 갱신
   useEffect(() => {
@@ -575,28 +590,40 @@ function QuoteModalContent({
     materialCost: form.materialCost,
     metalMaskCost: form.metalMaskCost,
     productionKind: form.productionKind,
+    includeMaterialCosts: form.includeMaterialCosts,
     postProcessLines: form.postProcessLines,
   }
-  const sectionNumbers = {
-    setup: 1,
-    smt: 2,
-    dip: 3,
-    material: 4,
-    other: 5,
-  }
+  const sectionNumbers = form.includeMaterialCosts
+    ? {
+        setup: 1,
+        smt: 2,
+        dip: 3,
+        material: 4,
+        other: 5,
+      }
+    : {
+        setup: 1,
+        smt: 2,
+        dip: 3,
+        material: 0,
+        other: 4,
+      }
 
   const qty = result?.qty || Number(form.boardQty) || 1
   const setupSectionTotal = result?.common.smtSetup || 0
   const smdSectionTotal = Math.max(0, (result?.values.smt || 0) - (result?.common.smtSetup || 0))
   const dipSectionTotal = (result?.values.dip || 0) + (result?.values.postProcess || 0)
-  const materialSectionTotal =
-    (Number(form.materialCost) || 0) * qty +
-    (result?.common.materialManagement || 0) +
-    (result?.common.auxiliaryMaterial || 0)
+  const materialSectionTotal = form.includeMaterialCosts
+    ? (Number(form.materialCost) || 0) * qty +
+      (result?.common.materialManagement || 0) +
+      (result?.common.auxiliaryMaterial || 0)
+    : 0
   const otherSectionTotal =
     (Number(form.metalMaskCost) || 0) + computeSampleCostTotal(form.boardQty, smtForms)
   const auxiliaryMaterialPerUnit =
-    qty > 0 ? (result?.common.auxiliaryMaterial || 0) / qty : 0
+    form.includeMaterialCosts && qty > 0
+      ? (result?.common.auxiliaryMaterial || 0) / qty
+      : 0
   const boardCount = Number(clampPcbCount(form.pcbBoardCount))
 
   const liveSummary = result
@@ -895,6 +922,7 @@ function QuoteModalContent({
                 ) : null}
               </section>
 
+              {form.includeMaterialCosts ? (
               <section className="mb-3 overflow-hidden rounded-xl border border-slate-200">
                 <button
                   type="button"
@@ -941,6 +969,7 @@ function QuoteModalContent({
                   </div>
                 ) : null}
               </section>
+              ) : null}
 
               <section className="mb-1 overflow-hidden rounded-xl border border-slate-200">
                 <button
@@ -958,21 +987,38 @@ function QuoteModalContent({
                 </button>
                 {openSections.other ? (
                   <div className="space-y-3 border-t border-slate-100 px-3.5 py-3">
-                    <label className="block text-sm">
-                      <span className="mb-1 block font-medium text-slate-600">
-                        메탈마스크 비용 (일회성)
-                      </span>
-                      <QuoteNumericInput
-                        min={0}
-                        value={form.metalMaskCost}
-                        onChange={(metalMaskCost) => updateForm('metalMaskCost', metalMaskCost)}
-                        placeholder="일회성 메탈마스크 비용"
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    <label className="flex items-start gap-2.5 text-sm text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={form.includeMetalMask === true}
+                        onChange={(event) => {
+                          const checked = event.target.checked
+                          setForm((current) => ({
+                            ...current,
+                            includeMetalMask: checked,
+                            metalMaskCost: checked
+                              ? String(
+                                  computeMetalMaskCostTotal(
+                                    smtForms.map((board) => ({ smtSide: board.smtSide })),
+                                  ),
+                                )
+                              : '0',
+                          }))
+                        }}
+                        className="mt-0.5 h-4 w-4 rounded border-slate-300"
                       />
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        일회성 · PCB 단면 {formatAmount(METAL_MASK_COST_SINGLE)} / 듀얼·양면{' '}
-                        {formatAmount(METAL_MASK_COST_DOUBLE)} · SMT 보드 기준 자동 계산 (수정 가능)
-                      </p>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium text-slate-700">메탈마스크 (일회성)</span>
+                        {form.includeMetalMask === true ? (
+                          <span className="mt-0.5 block text-sm font-semibold tabular-nums text-slate-900">
+                            {formatAmount(Number(form.metalMaskCost) || 0)}
+                          </span>
+                        ) : null}
+                        <span className="mt-1 block text-[11px] text-slate-500">
+                          PCB 단면 {formatAmount(METAL_MASK_COST_SINGLE)} / 듀얼·양면{' '}
+                          {formatAmount(METAL_MASK_COST_DOUBLE)} · SMT 보드 기준 자동 계산
+                        </span>
+                      </span>
                     </label>
                     {computeSampleCostTotal(form.boardQty, smtForms) > 0 ? (
                       <label className="block text-sm">

@@ -47,8 +47,8 @@ function breakdownPageTitle(quoteType: QuoteType) {
 
 function breakdownPageNote(quoteType: QuoteType) {
   return quoteType === 'domestic'
-    ? 'SET-UP·SMD·후공정(납땜 포함)·자재·기타 항목별 단가·부품수(작업량)·생산수량 기준 합계입니다.'
-    : 'Itemized totals for SET-UP, SMD, post-process (incl. soldering), materials, and other.'
+    ? 'SET-UP·SMD·후공정(납땜 포함)·기타 항목별 단가·부품수(작업량)·생산수량 기준 합계입니다.'
+    : 'Itemized totals for SET-UP, SMD, post-process (incl. soldering), and other.'
 }
 
 function formatAmount(
@@ -159,7 +159,7 @@ function BreakdownSectionTable({
     <div className={`breakdown-section-${section.key}`}>
       <h4 className="mb-2 text-xs font-bold tracking-[0.08em] text-slate-600">{section.title}</h4>
       <div className="overflow-x-auto rounded border-2 border-slate-400">
-        <table className="min-w-full border-collapse text-sm">
+        <table className="erp-data-table erp-data-table--compact min-w-full border-collapse text-sm">
           <thead className="bg-slate-100">
             <tr>
               {showBoardColumn ? (
