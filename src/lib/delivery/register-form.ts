@@ -21,7 +21,12 @@ export type DeliveryShippableOption = {
   productName: string
   productVersion: string | null
   unitPrice: number
+  /** 실제 출하 가능 수량 (생산 완료 − 이미 출하) */
   maxQuantity: number
+  /** 발주 잔량 (목표 − 출하누적) */
+  orderRemaining: number
+  /** 생산 완료 기준 출하 가능 */
+  shippableQuantity: number
 }
 
 export type DeliveryRegisterItemForm = {
@@ -242,14 +247,22 @@ export function buildDeliveryShippableOptions(
     if (!assemblyGroupId) continue
     const availability = availabilityByGroupId[assemblyGroupId]
     if (!availability) continue
-    const remaining =
+    const orderRemaining =
       availability.targetQuantity > 0
         ? Math.max(0, availability.targetQuantity - availability.shipped)
-        : Math.max(0, availability.shippable)
-    const shippable = Math.max(0, availability.shippable)
+        : 0
+    const shippableQuantity = Math.max(0, availability.shippable)
+
+    if (availability.targetQuantity > 0) {
+      if (orderRemaining < 1) continue
+    } else if (shippableQuantity < 1) {
+      continue
+    }
+
     const maxQuantity =
-      availability.targetQuantity > 0 ? Math.min(remaining, shippable) : shippable
-    if (maxQuantity < 1) continue
+      availability.targetQuantity > 0
+        ? Math.min(orderRemaining, shippableQuantity)
+        : shippableQuantity
 
     options.push({
       uiKey: order.uiKey,
@@ -264,6 +277,8 @@ export function buildDeliveryShippableOptions(
       productVersion: order.productVersion,
       unitPrice: Math.max(0, Math.round(Number(order.unitPrice) || 0)),
       maxQuantity,
+      orderRemaining: availability.targetQuantity > 0 ? orderRemaining : shippableQuantity,
+      shippableQuantity,
     })
   }
 
@@ -422,7 +437,8 @@ export function formatDeliveryShippableOptionSubLabel(option: DeliveryShippableO
   return [
     option.customer,
     option.orderNumber,
-    `가능 ${option.maxQuantity.toLocaleString('ko-KR')}`,
+    `발주 ${option.orderRemaining.toLocaleString('ko-KR')}`,
+    `가능 ${option.shippableQuantity.toLocaleString('ko-KR')}`,
   ]
     .filter(Boolean)
     .join(' · ')

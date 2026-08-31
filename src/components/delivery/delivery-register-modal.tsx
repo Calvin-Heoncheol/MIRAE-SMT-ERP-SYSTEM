@@ -204,7 +204,7 @@ function DeliveryRegisterModalContent({
       open
       size="wide"
       title="출하 등록"
-      description="왼쪽에서 출하가능 품목을 체크하고, 필요하면 추가작업을 넣은 뒤 출하하세요."
+      description="왼쪽에서 출하할 품목을 체크하고, 필요하면 추가작업을 넣은 뒤 출하하세요. 생산 완료분만 출하할 수 있습니다."
       onClose={onClose}
       closeOnEscape={!busy}
       contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"

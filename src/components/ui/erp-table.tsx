@@ -57,17 +57,20 @@ export function ErpTableTd({
   align = 'left',
   /** 긴 텍스트는 wrap, 날짜·수량 등은 fixed(기본) */
   text = 'fixed',
+  title,
 }: {
   children: ReactNode
   className?: string
   align?: 'left' | 'right' | 'center'
   text?: 'wrap' | 'fixed'
+  title?: string
 }) {
   const alignClass =
     align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : ''
   const textClass = text === 'wrap' ? ERP_TABLE_TD_WRAP_CLASS : ERP_TABLE_TD_FIXED_CLASS
   return (
     <td
+      title={title}
       className={[ERP_TABLE_TD_CLASS, textClass, alignClass, className].filter(Boolean).join(' ')}
     >
       {children}

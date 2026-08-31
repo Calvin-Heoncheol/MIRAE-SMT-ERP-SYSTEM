@@ -40,7 +40,7 @@ export function DeliveryShippablePicker({
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="shrink-0 space-y-2 border-b border-slate-200 px-4 py-3">
         <div className="flex items-baseline justify-between gap-2">
-          <h3 className="text-sm font-bold text-slate-900">출하가능</h3>
+          <h3 className="text-sm font-bold text-slate-900">출하 품목</h3>
           <span className="text-xs tabular-nums text-slate-500">
             {selectedIds.size.toLocaleString('ko-KR')} / {filtered.length.toLocaleString('ko-KR')}
           </span>
@@ -58,7 +58,9 @@ export function DeliveryShippablePicker({
             같은 고객사만 선택 가능 · <span className="font-semibold">{lockedCustomer}</span>
           </p>
         ) : (
-          <p className="text-[11px] leading-4 text-slate-500">여러 품목을 체크해 출하할 수 있습니다.</p>
+          <p className="text-[11px] leading-4 text-slate-500">
+            발주 잔량이 있는 품목이 모두 표시됩니다. 생산 완료분만 출하할 수 있습니다.
+          </p>
         )}
       </div>
 
@@ -67,8 +69,8 @@ export function DeliveryShippablePicker({
           <EmptyListState
             message={formatEmptyListMessage({
               hasQuery: Boolean(search.trim()),
-              emptyLabel: '출하 가능한 품목이 없습니다',
-              actionHint: '생산 완료 후 출하할 수 있습니다',
+              emptyLabel: '출하 대상 품목이 없습니다',
+              actionHint: '발주 잔량이 있는 품목이 여기 표시됩니다',
             })}
           />
         ) : (
@@ -120,10 +122,18 @@ export function DeliveryShippablePicker({
                             <DeliveryDueBadge deliveryDate={option.deliveryDate} />
                           </span>
                         </span>
-                        <span className="shrink-0 rounded-md bg-sky-50 px-2 py-1 text-right ring-1 ring-inset ring-sky-200">
-                          <span className="block text-[10px] font-semibold text-sky-700">가능</span>
-                          <span className="block text-sm font-bold tabular-nums text-sky-900">
-                            {option.maxQuantity.toLocaleString('ko-KR')}
+                        <span className="shrink-0 rounded-md bg-slate-50 px-2 py-1 text-right ring-1 ring-inset ring-slate-200">
+                          <span className="block text-[10px] font-semibold text-slate-500">발주</span>
+                          <span className="block text-sm font-bold tabular-nums text-slate-800">
+                            {option.orderRemaining.toLocaleString('ko-KR')}
+                          </span>
+                          <span
+                            className={[
+                              'mt-0.5 block text-[10px] font-semibold tabular-nums',
+                              option.shippableQuantity > 0 ? 'text-emerald-700' : 'text-amber-700',
+                            ].join(' ')}
+                          >
+                            가능 {option.shippableQuantity.toLocaleString('ko-KR')}
                           </span>
                         </span>
                       </span>
