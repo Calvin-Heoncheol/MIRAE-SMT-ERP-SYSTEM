@@ -134,13 +134,16 @@ export function sampleCostForBoards(boards?: Array<{ smtSide?: SmtSide | string 
   return hasAnyDoubleSidedSmt(boards) ? SAMPLE_COST_DOUBLE : SAMPLE_COST_SINGLE
 }
 
-/** 생산수량 200대 미만이면 샘플 비용 (단면 20만 / 양면·듀얼 30만) */
+/** 생산수량 200대 미만 또는 구분=샘플이면 샘플 비용 (금액은 고정, 수량과 무관) */
 export function computeSampleCostTotal(
   qty?: number | string | null,
   boards?: Array<{ smtSide?: SmtSide | string }> | null,
+  productionKind?: '샘플' | '양산',
 ) {
   const safeQty = Math.floor(Number(qty) || 0)
-  if (!(safeQty > 0 && safeQty < SAMPLE_QTY_THRESHOLD)) return 0
+  const byKind = productionKind === '샘플'
+  const byQty = safeQty > 0 && safeQty < SAMPLE_QTY_THRESHOLD
+  if (!byKind && !byQty) return 0
   return sampleCostForBoards(boards)
 }
 

@@ -576,7 +576,7 @@ function BomModalContent({
 
           {useCompactLines ? (
             <div className="max-h-[360px] overflow-auto rounded-xl border border-slate-200">
-              <table className="w-full border-collapse text-sm">
+              <table className="erp-data-table erp-data-table--compact w-full border-collapse text-sm">
                 <thead className="sticky top-0 bg-slate-50 text-xs text-slate-500">
                   <tr>
                     <th className="px-3 py-2 text-left font-semibold" colSpan={2}>

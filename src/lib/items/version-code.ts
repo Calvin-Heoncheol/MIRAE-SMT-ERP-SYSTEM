@@ -1,4 +1,5 @@
 import type { Item } from '@/lib/items/types'
+import { normalizeItemSmtQuoteParts } from '@/lib/items/smt-quote-parts'
 
 /**
  * 코드 끝의 버전 접미사.
@@ -266,10 +267,13 @@ export function itemToVersionUpPayload(
     pcbSideMode: item.pcbSideMode,
     processType: item.processType,
     unitPrice: item.unitPrice,
+    setupUnitPrice: item.setupUnitPrice,
     smdUnitPrice: item.smdUnitPrice,
     dipUnitPrice: item.dipUnitPrice,
     materialUnitPrice: item.materialUnitPrice,
-    otherUnitPrice: item.otherUnitPrice,
+    otherUnitPrice: item.setupUnitPrice,
+    smtQuoteParts: normalizeItemSmtQuoteParts(item.smtQuoteParts),
+    baselineQuoteId: '',
     itemCategory: item.itemCategory,
     safetyStock: 0,
   }

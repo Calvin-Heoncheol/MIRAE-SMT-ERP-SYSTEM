@@ -1,5 +1,5 @@
 import type { OrderCurrency } from './types'
-import { isBillingOnlyOrderItem } from './utils'
+import { isBillingOnlyOrderItem, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost } from './utils'
 
 let orderItemRowKeyCounter = 0
 
@@ -17,7 +17,15 @@ export type OrderItemForm = {
   productCode: string
   productName: string
   quantity: string | number
+  /** 단가 = SET-UP÷수량 + SMD + 후공정 + 자재(대당) */
   unitPrice: string | number
+  setupCost: string | number
+  smdUnitPrice: string | number
+  dipUnitPrice: string | number
+  /** 자재 대당 단가 (품목 마스터) */
+  materialUnitPrice: string | number
+  /** 자재비 총액 = 수량 × materialUnitPrice */
+  materialCost: string | number
   /** 제품(라인)별 납기일 YYYY-MM-DD */
   deliveryDate: string
   /** 추가 작업(금액 전용) — 품목등록 필수, 저장 시 product_id 는 비움 */
@@ -49,6 +57,11 @@ export function defaultOrderItemForm(deliveryDate = ''): OrderItemForm {
     productName: '',
     quantity: '0',
     unitPrice: '0',
+    setupCost: '0',
+    smdUnitPrice: '0',
+    dipUnitPrice: '0',
+    materialUnitPrice: '0',
+    materialCost: '0',
     deliveryDate,
     isAdhoc: false,
     quoteId: '',
@@ -64,6 +77,11 @@ export function defaultAdhocOrderItemForm(deliveryDate = ''): OrderItemForm {
     productName: '',
     quantity: '1',
     unitPrice: '0',
+    setupCost: '0',
+    smdUnitPrice: '0',
+    dipUnitPrice: '0',
+    materialUnitPrice: '0',
+    materialCost: '0',
     deliveryDate,
     isAdhoc: true,
     quoteId: '',
@@ -78,21 +96,50 @@ export function orderItemsFromDetail(
     productName: string
     quantity: number
     unitPrice: number
+    setupCost?: number
+    smdUnitPrice?: number
+    dipUnitPrice?: number
+    materialCost?: number
     deliveryDate?: string
   }[],
   fallbackDeliveryDate = '',
+  options?: { quoteId?: string },
 ) {
   if (!items.length) return [defaultOrderItemForm(fallbackDeliveryDate)]
-  return items.map((item) => ({
-    rowKey: createOrderItemRowKey(),
-    lineId: String(item.lineId || '').trim(),
-    productId: item.productId || '',
-    productCode: item.productCode || '',
-    productName: item.productName || '',
-    quantity: String(item.quantity || 0),
-    unitPrice: String(item.unitPrice || 0),
-    deliveryDate: String(item.deliveryDate || fallbackDeliveryDate || '').trim(),
-    isAdhoc: isBillingOnlyOrderItem(item),
-    quoteId: '',
-  }))
+  return items.map((item) => {
+    const smd = Math.max(0, Math.round(Number(item.smdUnitPrice) || 0))
+    const dip = Math.max(0, Math.round(Number(item.dipUnitPrice) || 0))
+    const setupCost = Math.max(0, Math.round(Number(item.setupCost) || 0))
+    const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
+    const materialCost = Math.max(0, Math.round(Number(item.materialCost) || 0))
+    const materialUnitPrice =
+      quantity > 0 && materialCost > 0 ? Math.round(materialCost / quantity) : 0
+    const unit =
+      smd + dip > 0 || setupCost > 0 || materialUnitPrice > 0
+        ? computeOrderLineAmortizedUnitPrice({
+            quantity,
+            setupCost,
+            smdUnitPrice: smd,
+            dipUnitPrice: dip,
+            materialUnitPrice,
+          })
+        : Math.max(0, Math.round(Number(item.unitPrice) || 0))
+    return {
+      rowKey: createOrderItemRowKey(),
+      lineId: String(item.lineId || '').trim(),
+      productId: item.productId || '',
+      productCode: item.productCode || '',
+      productName: item.productName || '',
+      quantity: String(item.quantity || 0),
+      unitPrice: String(unit),
+      setupCost: String(setupCost),
+      smdUnitPrice: String(smd || unit),
+      dipUnitPrice: String(dip),
+      materialUnitPrice: String(materialUnitPrice),
+      materialCost: String(materialCost),
+      deliveryDate: String(item.deliveryDate || fallbackDeliveryDate || '').trim(),
+      isAdhoc: isBillingOnlyOrderItem(item),
+      quoteId: options?.quoteId || '',
+    }
+  })
 }

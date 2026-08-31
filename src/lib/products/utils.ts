@@ -1,5 +1,6 @@
 import type { Product, ProductKind, ProductPcbSideMode, ProductProcessType } from './types'
 import { deriveItemProcessType } from '@/lib/items/types'
+import { EMPTY_SMT_QUOTE_PARTS, normalizeItemSmtQuoteParts } from '@/lib/items/smt-quote-parts'
 import { normalizeVersionLabel, parseItemVersionCode } from '@/lib/items/version-code'
 
 export function normalizeProductKind(value: string | null | undefined): ProductKind {
@@ -59,9 +60,15 @@ export function mapProductRecord(row: {
     version: normalizeVersionLabel(parsed.version || ''),
     productName: row.product_name || '',
     defaultUnitPrice: Number(row.default_unit_price) || 0,
+    setupUnitPrice: 0,
+    smdUnitPrice: 0,
+    dipUnitPrice: 0,
+    materialUnitPrice: 0,
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
     processType: normalizeProductProcessType(row.process_type),
     productKind: normalizeProductKind(row.product_kind),
+    smtQuoteParts: { ...EMPTY_SMT_QUOTE_PARTS },
+    baselineQuoteId: '',
     isActive: row.is_active !== false,
   }
 }
@@ -80,6 +87,9 @@ export function mapItemRowToProduct(row: {
   dip_unit_price?: number | null
   material_unit_price?: number | null
   other_unit_price?: number | null
+  setup_unit_price?: number | null
+  smt_quote_parts?: unknown
+  baseline_quote_id?: string | null
   item_category: number | string
   is_active: boolean | null
 }): Product {
@@ -93,8 +103,13 @@ export function mapItemRowToProduct(row: {
   const dipUnitPrice = Number(row.dip_unit_price) || 0
   const materialUnitPrice = Number(row.material_unit_price) || 0
   const otherUnitPrice = Number(row.other_unit_price) || 0
+  const setupRaw = row.setup_unit_price
+  const setupUnitPrice =
+    setupRaw === null || setupRaw === undefined
+      ? otherUnitPrice
+      : Math.max(0, Math.round(Number(setupRaw) || 0))
   const unitPrice = Number(row.unit_price) || 0
-  const breakdownTotal = smdUnitPrice + dipUnitPrice + materialUnitPrice + otherUnitPrice
+  const breakdownTotal = setupUnitPrice + smdUnitPrice + dipUnitPrice + materialUnitPrice
 
   if (itemCategory === 3 || itemCategory === 4) {
     processType = normalizeProductProcessType(row.process_type)
@@ -109,10 +124,20 @@ export function mapItemRowToProduct(row: {
     productCode: baseCode,
     version,
     productName: row.name || '',
-    defaultUnitPrice: unitPrice > 0 ? unitPrice : breakdownTotal,
+    defaultUnitPrice: unitPrice > 0 ? unitPrice : smdUnitPrice + dipUnitPrice,
+    setupUnitPrice: itemCategory === 3 || itemCategory === 4 ? setupUnitPrice : 0,
+    smdUnitPrice,
+    dipUnitPrice,
+    materialUnitPrice,
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
     processType,
     productKind: itemCategory === 4 ? 'assembly' : 'pcb',
+    smtQuoteParts:
+      itemCategory === 3 || itemCategory === 4
+        ? normalizeItemSmtQuoteParts(row.smt_quote_parts)
+        : { ...EMPTY_SMT_QUOTE_PARTS },
+    baselineQuoteId:
+      itemCategory === 3 || itemCategory === 4 ? String(row.baseline_quote_id || '').trim() : '',
     isActive: row.is_active !== false,
   }
 }

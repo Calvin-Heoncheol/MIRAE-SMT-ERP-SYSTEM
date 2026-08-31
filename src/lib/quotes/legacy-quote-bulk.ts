@@ -10,7 +10,6 @@ export const LEGACY_QUOTE_BULK_COLUMNS = [
   { key: 'smd', label: 'SMD' },
   { key: 'post', label: '후공정' },
   { key: 'material', label: '자재' },
-  { key: 'other', label: '기타' },
 ] as const
 
 export type LegacyQuoteBulkColumnKey = (typeof LEGACY_QUOTE_BULK_COLUMNS)[number]['key']
@@ -82,16 +81,7 @@ function parseQuoteDate(raw: string, fallback: string) {
 }
 
 export function legacyQuoteBulkPasteSampleValues() {
-  return [
-    todayYmdSeoul(),
-    '양산',
-    '미래전자',
-    '메인보드 (V1)',
-    '1200',
-    '800',
-    '500',
-    '0',
-  ]
+  return [todayYmdSeoul(), '양산', '미래전자', '메인보드 (V1)', '1200', '800', '500']
 }
 
 export function legacyQuoteBulkPastePlaceholder() {
@@ -128,7 +118,7 @@ export function parseLegacyQuoteBulkPaste(text: string): LegacyQuoteBulkParseRes
       return
     }
 
-    // 열 수가 모자라면 뒤를 빈 칸으로 채움 (기타 비용 생략 허용)
+    // 열 수가 모자라면 뒤를 빈 칸으로 채움 (자재 비용 생략 허용)
     const padded = [...cells]
     while (padded.length < expected) padded.push('')
 
@@ -152,9 +142,8 @@ export function parseLegacyQuoteBulkPaste(text: string): LegacyQuoteBulkParseRes
     const smd = parseMoneyCell(padded[4] || '')
     const post = parseMoneyCell(padded[5] || '')
     const material = parseMoneyCell(padded[6] || '')
-    const other = parseMoneyCell(padded[7] || '')
-    if (smd == null || post == null || material == null || other == null) {
-      errors.push(`${lineNo}행: 비용(SMD/후공정/자재/기타)은 숫자여야 합니다.`)
+    if (smd == null || post == null || material == null) {
+      errors.push(`${lineNo}행: 비용(SMD/후공정/자재)은 숫자여야 합니다.`)
       return
     }
 
@@ -166,7 +155,6 @@ export function parseLegacyQuoteBulkPaste(text: string): LegacyQuoteBulkParseRes
     row.smd = String(smd)
     row.post = String(post)
     row.material = String(material)
-    row.other = String(other)
     parsed.push(row)
   })
 

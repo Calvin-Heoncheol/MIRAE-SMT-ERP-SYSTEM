@@ -283,7 +283,7 @@ export function LegacyQuoteModal({
     <ErpModal
       open={open}
       title={mode === 'edit' ? '과거 견적서 수정' : '과거 견적서 등록'}
-      description="세부 공정 없이 SMD·후공정·자재·기타 대당 비용만 입력합니다."
+      description="세부 공정 없이 SMD·후공정·자재 대당 비용만 입력합니다."
       size={showTabs && createTab === 'bulk' ? 'lg' : 'md'}
       onClose={() => {
         if (busy) return
@@ -416,9 +416,6 @@ export function LegacyQuoteModal({
                           </td>
                           <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-slate-700">
                             {Number(row.material).toLocaleString('ko-KR')}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-slate-700">
-                            {Number(row.other).toLocaleString('ko-KR')}
                           </td>
                           <td className="whitespace-nowrap px-2 py-1.5 text-right font-semibold tabular-nums text-slate-900">
                             {legacyQuoteUnitPrice(row).toLocaleString('ko-KR')}

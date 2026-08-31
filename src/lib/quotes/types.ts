@@ -113,7 +113,8 @@ export type QuoteDetailInfo = {
      * 미설정(구 견적) = 포함. 신규 견적은 false 로 저장.
      */
     includeMaterialCosts?: boolean
-    /** 품목마스터 선택 시 품목 id (주문 단가 매칭용) */
+    /** 메탈마스크 포함 여부 */
+    includeMetalMask?: boolean
     productId?: string
     /** 미확정 / 확정 */
     quoteStatus?: QuoteStatus
@@ -122,7 +123,8 @@ export type QuoteDetailInfo = {
       smd: number
       post: number
       material: number
-      other: number
+      /** @deprecated 견적 기타 제거 */
+      other?: number
     }
   }
 }
@@ -192,7 +194,8 @@ export type EstimateInput = {
    * 미설정 = 포함(구 견적 호환). false 이면 제외.
    */
   includeMaterialCosts?: boolean
-  /** @deprecated legacy single-board fields */
+  /** false 이면 메탈마스크 비용 제외 */
+  includeMetalMask?: boolean
   smtSide?: SmtSide
   aoiEnabled?: boolean
   pcbWashEnabled?: boolean
@@ -237,7 +240,10 @@ export type EstimateResult = {
     subMaterial: number
     /** 샘플 비용 총액 (일회성, 생산수량 200대 미만 · 단면 20만 / 양면 30만) */
     sampleCost: number
-    /** @deprecated 미사용 — 항상 0 */
+    /** SET-UP + 메탈마스크 + 샘플 (발주 1회) */
+    orderLevelTotal: number
+    /** SMD 실장·검사 (대당 × 수량, SET-UP 제외) */
+    smtPlacementTotal: number
     auxiliaryMaterial: number
     materialManagement: number
     specialDiscount: number

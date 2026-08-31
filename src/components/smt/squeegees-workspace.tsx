@@ -307,7 +307,7 @@ export function SqueegeesWorkspace({ result }: SqueegeesWorkspaceProps) {
 
         <div className={ERP_TABLE_WRAP_CLASS}>
           <div className={ERP_TABLE_SCROLL_CLASS}>
-            <table className="min-w-full border-collapse text-left text-sm">
+            <table className="erp-data-table min-w-full border-collapse text-left text-sm">
               <thead className={ERP_TABLE_HEAD_CLASS}>
                 <tr>
                   <th className="px-3 py-2.5">바코드</th>

@@ -117,19 +117,44 @@ export function mapOrderLineRecord(
     quantity: number
     unit_price: number
     order_amount: number
+    setup_cost?: number | null
+    smd_unit_price?: number | null
+    dip_unit_price?: number | null
+    material_cost?: number | null
     delivery_date?: string | null
     derived_from_line_id?: string | null
   },
   fallbackDeliveryDate = '',
 ): OrderLineItem {
+  const smd = Math.max(0, Math.round(Number(line.smd_unit_price) || 0))
+  const dip = Math.max(0, Math.round(Number(line.dip_unit_price) || 0))
+  const quantity = Number(line.quantity) || 0
+  const setupCost = Math.max(0, Math.round(Number(line.setup_cost) || 0))
+  const materialCost = Math.max(0, Math.round(Number(line.material_cost) || 0))
+  const materialUnitPrice =
+    quantity > 0 && materialCost > 0 ? Math.round(materialCost / quantity) : 0
+  const unitPrice =
+    smd + dip > 0 || setupCost > 0 || materialUnitPrice > 0
+      ? computeOrderLineAmortizedUnitPrice({
+          quantity,
+          setupCost,
+          smdUnitPrice: smd,
+          dipUnitPrice: dip,
+          materialUnitPrice,
+        })
+      : Math.max(0, Math.round(Number(line.unit_price) || 0))
   return {
     lineId: line.id,
     productId: line.product_id || null,
     productCode: line.product_code || line.product_id || '',
     productName: line.product_name || '',
-    quantity: Number(line.quantity) || 0,
-    unitPrice: Number(line.unit_price) || 0,
+    quantity,
+    unitPrice,
     orderAmount: Number(line.order_amount) || 0,
+    setupCost,
+    smdUnitPrice: smd || unitPrice,
+    dipUnitPrice: dip,
+    materialCost,
     deliveryDate: formatOrderDate(line.delivery_date) || fallbackDeliveryDate,
     derivedFromLineId: line.derived_from_line_id || null,
   }
@@ -205,6 +230,45 @@ export function computeLineAmount(quantity: number, unitPrice: number) {
   const qty = Math.max(0, Math.floor(Number(quantity) || 0))
   const price = Math.max(0, Math.round(Number(unitPrice) || 0))
   return qty * price
+}
+
+/** 발주 라인 단가 = SET-UP÷수량 + SMD + 후공정 + 자재(대당) */
+export function computeOrderLineAmortizedUnitPrice(input: {
+  quantity: number
+  setupCost: number
+  smdUnitPrice: number
+  dipUnitPrice: number
+  materialUnitPrice?: number
+}) {
+  const qty = Math.max(0, Math.floor(Number(input.quantity) || 0))
+  const setup = Math.max(0, Math.round(Number(input.setupCost) || 0))
+  const smd = Math.max(0, Math.round(Number(input.smdUnitPrice) || 0))
+  const dip = Math.max(0, Math.round(Number(input.dipUnitPrice) || 0))
+  const material = Math.max(0, Math.round(Number(input.materialUnitPrice) || 0))
+  const setupPerUnit = qty > 0 ? Math.round(setup / qty) : 0
+  return setupPerUnit + smd + dip + material
+}
+
+/** 발주 라인 자재비 총액 = 수량 × 자재(대당) */
+export function computeOrderLineMaterialCost(quantity: number, materialUnitPrice: number) {
+  return computeLineAmount(quantity, materialUnitPrice)
+}
+
+/** 발주 라인 금액 = 단가 × 수량 */
+export function computeOrderLineBreakdownAmount(input: {
+  quantity: number
+  setupCost: number
+  smdUnitPrice: number
+  dipUnitPrice: number
+  materialUnitPrice?: number
+}) {
+  const unitPrice = computeOrderLineAmortizedUnitPrice(input)
+  return computeLineAmount(input.quantity, unitPrice)
+}
+
+/** 대당 가공 단가 (SMD + 후공정, SET-UP 제외) */
+export function orderLinePerUnitPrice(smdUnitPrice: number, dipUnitPrice: number) {
+  return Math.max(0, Math.round(Number(smdUnitPrice) || 0) + Math.round(Number(dipUnitPrice) || 0))
 }
 
 export function formatInternalCodeLabel(code: string) {

@@ -12,6 +12,7 @@ import {
   isSemiFinishedItemCategory,
   ITEM_SUPPLY_TYPE_OPTIONS,
 } from './types'
+import { EMPTY_SMT_QUOTE_PARTS } from './smt-quote-parts'
 import { normalizeItemCategory, normalizeAlternateMpns } from './utils'
 import {
   normalizeVersionLabel,
@@ -38,6 +39,14 @@ export type ItemFormState = {
   supplier: string
   pcbSideMode: Item['pcbSideMode']
   unitPrice: number
+  setupUnitPrice: number
+  smdUnitPrice: number
+  dipUnitPrice: number
+  materialUnitPrice: number
+  /** 연결된 기준 견적 ID */
+  baselineQuoteId: string
+  /** 표시용 (저장하지 않음) */
+  baselineQuoteLabel: string
 }
 
 function money(value: unknown) {
@@ -101,6 +110,12 @@ export function emptyItemForm(): ItemFormState {
     supplier: '',
     pcbSideMode: '',
     unitPrice: 0,
+    setupUnitPrice: 0,
+    smdUnitPrice: 0,
+    dipUnitPrice: 0,
+    materialUnitPrice: 0,
+    baselineQuoteId: '',
+    baselineQuoteLabel: '',
   }
 }
 
@@ -123,6 +138,12 @@ export function itemToForm(item: Item): ItemFormState {
     supplier: item.supplier,
     pcbSideMode: item.pcbSideMode,
     unitPrice: item.unitPrice,
+    setupUnitPrice: item.setupUnitPrice,
+    smdUnitPrice: item.smdUnitPrice,
+    dipUnitPrice: item.dipUnitPrice,
+    materialUnitPrice: item.materialUnitPrice,
+    baselineQuoteId: item.baselineQuoteId || '',
+    baselineQuoteLabel: '',
   }
 }
 
@@ -189,11 +210,16 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     supplier: form.supplier.trim(),
     pcbSideMode: isSemiFinishedItemCategory(itemCategory) ? form.pcbSideMode || 'single' : '',
     processType: isProduct ? form.processType : '',
-    unitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.unitPrice) : 0,
-    smdUnitPrice: 0,
-    dipUnitPrice: 0,
-    materialUnitPrice: 0,
-    otherUnitPrice: 0,
+    unitPrice: isSemiFinishedItemCategory(itemCategory)
+      ? money(form.smdUnitPrice) + money(form.dipUnitPrice)
+      : 0,
+    setupUnitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.setupUnitPrice) : 0,
+    smdUnitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.smdUnitPrice) : 0,
+    dipUnitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.dipUnitPrice) : 0,
+    materialUnitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.materialUnitPrice) : 0,
+    otherUnitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.setupUnitPrice) : 0,
+    smtQuoteParts: { ...EMPTY_SMT_QUOTE_PARTS },
+    baselineQuoteId: form.baselineQuoteId.trim(),
     itemCategory,
     safetyStock: 0,
   }
@@ -203,4 +229,20 @@ export function formToItemUpdatePayload(form: ItemFormState): UpdateItemPayload 
   const payload = formToItemPayload(form)
   const { id: _id, ...rest } = payload
   return rest
+}
+
+export type ItemPriceField = 'setupUnitPrice' | 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice'
+
+export function itemToUpdatePayload(item: Item): UpdateItemPayload {
+  return formToItemUpdatePayload(itemToForm(item))
+}
+
+export function itemPriceUpdatePayload(
+  item: Item,
+  field: ItemPriceField,
+  value: number,
+): UpdateItemPayload {
+  const form = itemToForm(item)
+  form[field] = Math.max(0, Math.round(Number(value) || 0))
+  return formToItemUpdatePayload(form)
 }

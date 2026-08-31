@@ -156,9 +156,9 @@ export function computeShipmentGroupSupplyAmount(
     unitPriceByDeliveryId: Record<string, number>
     billingOnlyLines: DeliveryBillingOnlyLine[]
     productionOrders: Array<{
-      assemblyGroupId: string
+      assemblyGroupId?: string
       orderNumber: string
-      productId: string
+      productId?: string
       productCode: string
       productName: string
       unitPrice: number

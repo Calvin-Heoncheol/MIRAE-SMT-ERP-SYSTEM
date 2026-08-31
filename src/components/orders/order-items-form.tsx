@@ -9,7 +9,7 @@ import {
   defaultOrderItemForm,
   type OrderItemForm,
 } from '@/lib/orders/form-state'
-import { computeLineAmount, formatOrderMoney, isBillingOnlyOrderItem, orderCurrencySymbol } from '@/lib/orders/utils'
+import { computeLineAmount, computeOrderLineBreakdownAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, formatOrderMoney, isBillingOnlyOrderItem, orderCurrencySymbol, orderLinePerUnitPrice } from '@/lib/orders/utils'
 import type { OrderCurrency } from '@/lib/orders/types'
 import type { Product } from '@/lib/products/types'
 import { findProductsByCode, findProductsByName } from '@/lib/products/utils'
@@ -24,7 +24,8 @@ type OrderItemsFormProps = {
 }
 
 function unitPriceFromProduct(product: Product) {
-  return Math.max(0, Math.round(Number(product.defaultUnitPrice) || 0))
+  return orderLinePerUnitPrice(product.smdUnitPrice, product.dipUnitPrice) ||
+    Math.max(0, Math.round(Number(product.defaultUnitPrice) || 0))
 }
 
 function applyProductToItem(item: OrderItemForm, product: Product): OrderItemForm {
@@ -34,19 +35,73 @@ function applyProductToItem(item: OrderItemForm, product: Product): OrderItemFor
       productId: product.id,
       productCode: product.productCode,
       productName: product.productName,
-      // 추가작업 단가는 직접 입력 (마스터 단가 덮어쓰지 않음)
       quoteId: '',
       isAdhoc: true,
     }
   }
+  const smd = Math.max(0, Math.round(Number(product.smdUnitPrice) || 0))
+  const dip = Math.max(0, Math.round(Number(product.dipUnitPrice) || 0))
+  const perUnit = orderLinePerUnitPrice(smd, dip) || unitPriceFromProduct(product)
+  const setupCost = Math.max(0, Math.round(Number(product.setupUnitPrice) || 0))
+  const materialUnitPrice = Math.max(0, Math.round(Number(product.materialUnitPrice) || 0))
+  const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
+  const unitPrice = computeOrderLineAmortizedUnitPrice({
+    quantity,
+    setupCost,
+    smdUnitPrice: smd,
+    dipUnitPrice: dip,
+    materialUnitPrice,
+  }) || perUnit + materialUnitPrice
+  const materialCost = computeOrderLineMaterialCost(quantity, materialUnitPrice)
   return {
     ...item,
     productId: product.id,
     productCode: product.productCode,
     productName: product.productName,
-    unitPrice: String(unitPriceFromProduct(product)),
+    setupCost: String(setupCost),
+    smdUnitPrice: String(smd || perUnit),
+    dipUnitPrice: String(dip),
+    materialUnitPrice: String(materialUnitPrice),
+    materialCost: String(materialCost),
+    unitPrice: String(unitPrice),
     quoteId: '',
     isAdhoc: false,
+  }
+}
+
+function lineAmount(item: OrderItemForm) {
+  const quantity = Number(item.quantity) || 0
+  if (item.isAdhoc || isBillingOnlyOrderItem(item)) {
+    return computeLineAmount(quantity, Number(item.unitPrice) || 0)
+  }
+  return computeOrderLineBreakdownAmount({
+    quantity,
+    setupCost: Number(item.setupCost) || 0,
+    smdUnitPrice: Number(item.smdUnitPrice) || 0,
+    dipUnitPrice: Number(item.dipUnitPrice) || 0,
+    materialUnitPrice: Number(item.materialUnitPrice) || 0,
+  })
+}
+
+function syncLinePricing(
+  item: OrderItemForm,
+  patch: Partial<OrderItemForm>,
+): Partial<OrderItemForm> {
+  const merged = { ...item, ...patch }
+  const quantity = Math.max(0, Math.floor(Number(merged.quantity) || 0))
+  const materialUnitPrice = Math.max(0, Math.round(Number(merged.materialUnitPrice) || 0))
+  const unitPrice = computeOrderLineAmortizedUnitPrice({
+    quantity,
+    setupCost: Number(merged.setupCost) || 0,
+    smdUnitPrice: Number(merged.smdUnitPrice) || 0,
+    dipUnitPrice: Number(merged.dipUnitPrice) || 0,
+    materialUnitPrice,
+  })
+  const materialCost = computeOrderLineMaterialCost(quantity, materialUnitPrice)
+  return {
+    ...patch,
+    unitPrice: String(unitPrice),
+    materialCost: String(materialCost),
   }
 }
 
@@ -102,21 +157,32 @@ export function OrderItemsForm({
       let changed = false
       const next = current.map((item) => {
         if (item.isAdhoc || isBillingOnlyOrderItem(item)) return item
-        if (Math.round(Number(item.unitPrice) || 0) > 0) return item
+        if (Math.round(Number(item.smdUnitPrice) || 0) > 0 || Math.round(Number(item.unitPrice) || 0) > 0) {
+          return item
+        }
         const product = products.find((entry) => entry.id === item.productId)
         if (!product) return item
-        const unitPrice = unitPriceFromProduct(product)
-        if (unitPrice <= 0) return item
+        const applied = applyProductToItem(item, product)
+        if (
+          applied.setupCost === item.setupCost &&
+          applied.smdUnitPrice === item.smdUnitPrice &&
+          applied.materialUnitPrice === item.materialUnitPrice &&
+          applied.dipUnitPrice === item.dipUnitPrice
+        ) {
+          return item
+        }
         changed = true
-        return { ...item, unitPrice: String(unitPrice), quoteId: '' }
+        return applied
       })
       return changed ? next : current
     })
   }, [products, onChange])
 
   function patchItem(index: number, patch: Partial<OrderItemForm>) {
+    const item = items[index]
+    const merged = item && !item.isAdhoc ? syncLinePricing(item, patch) : patch
     onChange((current) =>
-      current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
+      current.map((row, itemIndex) => (itemIndex === index ? { ...row, ...merged } : row)),
     )
   }
 
@@ -169,15 +235,18 @@ export function OrderItemsForm({
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-bold text-slate-900">제품</h3>
+      <p className="text-xs text-slate-500">
+        제품 선택 시 품목 마스터의 SET-UP·SMD·후공정·자재가 적용됩니다. 수량 변경 시 SET-UP÷수량이 자동 재계산됩니다.
+      </p>
 
-      <div className="overflow-hidden rounded-lg border border-slate-200">
-        <table className="w-full table-fixed border-collapse text-sm">
+      <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <table className="erp-data-table erp-data-table--compact min-w-[760px] w-full border-collapse text-sm">
           <colgroup>
-            <col className="w-[16%]" />
-            <col className="w-[26%]" />
+            <col className="w-[14%]" />
+            <col className="w-[24%]" />
             <col className="w-[8%]" />
             <col className="w-[10%]" />
-            <col className="w-[18%]" />
+            <col className="w-[14%]" />
             <col className="w-[14%]" />
             <col className="w-10" />
           </colgroup>
@@ -198,7 +267,16 @@ export function OrderItemsForm({
           </thead>
           <tbody>
             {items.map((item, index) => {
-              const amount = computeLineAmount(Number(item.quantity), Number(item.unitPrice))
+              const amount = lineAmount(item)
+              const unitPrice = isBillingOnlyOrderItem(item) || item.isAdhoc
+                ? Math.max(0, Math.round(Number(item.unitPrice) || 0))
+                : computeOrderLineAmortizedUnitPrice({
+                    quantity: Number(item.quantity) || 0,
+                    setupCost: Number(item.setupCost) || 0,
+                    smdUnitPrice: Number(item.smdUnitPrice) || 0,
+                    dipUnitPrice: Number(item.dipUnitPrice) || 0,
+                    materialUnitPrice: Number(item.materialUnitPrice) || 0,
+                  })
               const version = productVersionLabel(item, products)
               const versionCandidates = productVersionCandidates(item, products, customer)
               const isAdhoc = Boolean(item.isAdhoc)
@@ -224,7 +302,16 @@ export function OrderItemsForm({
                           productId: '',
                           productName: '',
                           quoteId: '',
-                          ...(isAdhoc ? {} : { unitPrice: '0' }),
+                          ...(isAdhoc
+                            ? {}
+                            : {
+                                unitPrice: '0',
+                                setupCost: '0',
+                                smdUnitPrice: '0',
+                                dipUnitPrice: '0',
+                                materialUnitPrice: '0',
+                                materialCost: '0',
+                              }),
                         })
                       }
                       onProductSelect={(product) => selectProduct(index, product)}
@@ -247,7 +334,16 @@ export function OrderItemsForm({
                             productId: '',
                             productCode: '',
                             quoteId: '',
-                            ...(isAdhoc ? {} : { unitPrice: '0' }),
+                            ...(isAdhoc
+                              ? {}
+                              : {
+                                  unitPrice: '0',
+                                  setupCost: '0',
+                                  smdUnitPrice: '0',
+                                  dipUnitPrice: '0',
+                                  materialUnitPrice: '0',
+                                  materialCost: '0',
+                                }),
                           })
                         }
                         onProductSelect={(product) => selectProduct(index, product)}
@@ -305,12 +401,21 @@ export function OrderItemsForm({
                     />
                   </td>
                   <td className="px-2 py-2 align-top">
-                    <QuoteNumericInput
-                      min={0}
-                      value={String(item.unitPrice)}
-                      onChange={(unitPrice) => patchItem(index, { unitPrice })}
-                      className={`${inputClassName} text-right`}
-                    />
+                    {isAdhoc ? (
+                      <QuoteNumericInput
+                        min={0}
+                        value={String(item.unitPrice)}
+                        onChange={(unitPrice) => patchItem(index, { unitPrice })}
+                        className={`${inputClassName} text-right`}
+                      />
+                    ) : (
+                      <div
+                        className="flex h-[34px] items-center justify-end text-sm font-medium tabular-nums text-slate-800"
+                        title="SET-UP÷수량 + SMD + 후공정 + 자재"
+                      >
+                        {unitPrice > 0 ? formatOrderMoney(unitPrice, currency) : '—'}
+                      </div>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-right text-sm font-medium tabular-nums text-slate-800 align-top">
                     <div className="flex h-[34px] items-center justify-end">
@@ -362,8 +467,7 @@ export function OrderItemsForm({
       </div>
       <p className="text-xs text-slate-500">
         제품·추가 작업 모두 품목등록에 있는 항목만 저장됩니다. 추가 작업은 같은 제품코드여도
-        별도 행으로 두며, 생산에는 반영되지 않고 거래명세서에만 표시됩니다. 단가는 발주서에서만
-        수정하며, 출하·거래명세서에는 자동 반영됩니다.
+        별도 행으로 두며, 생산에는 반영되지 않고 거래명세서에만 표시됩니다. 추가 작업 단가는 직접 입력합니다.
       </p>
     </div>
   )

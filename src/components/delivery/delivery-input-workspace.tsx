@@ -13,6 +13,7 @@ import { DateRangeFilter } from '@/components/ui/date-range-filter'
 import { ErpButton } from '@/components/ui/erp-button'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { PageShell } from '@/components/ui/page-shell'
+import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { useToast } from '@/components/ui/toast-provider'
@@ -36,9 +37,12 @@ import {
   filterStatementTableGroups,
   groupDeliveryHistoryByShipment,
   legacyStatementGroupToTableGroup,
+  statementTableRowKey,
   type DeliveryHistoryShipmentGroup,
   type DeliveryStatementTableGroup,
 } from '@/lib/delivery/history-utils'
+import { buildDeliveryStatementDataFromTableGroup } from '@/lib/delivery/statement-from-group'
+import { printDeliveryStatements } from '@/lib/delivery/print-delivery-statement'
 import { DATE_RANGE_FILTER_LABEL, hasDateRangeFilter } from '@/lib/ui/date-range'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 import type {
@@ -87,6 +91,9 @@ export function DeliveryInputWorkspace({
   )
   const [unitPriceByDeliveryId, setUnitPriceByDeliveryId] = useState<Record<string, number>>({})
   const [supplyAmountsLoading, setSupplyAmountsLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [printing, setPrinting] = useState(false)
+  const [printError, setPrintError] = useState<string | null>(null)
 
   const [availabilityByGroupId, setAvailabilityByGroupId] = useState<
     Record<string, DeliveryAvailability>
@@ -159,6 +166,91 @@ export function DeliveryInputWorkspace({
   }, [historyGroupsWithAmount, legacyTableGroups, search, dateRange])
 
   const hasHistoryFilter = Boolean(search.trim()) || hasDateRangeFilter(dateRange)
+
+  const selectedGroups = useMemo(
+    () => statementGroups.filter((group) => selectedIds.has(statementTableRowKey(group))),
+    [statementGroups, selectedIds],
+  )
+  const selectedCount = selectedGroups.length
+  const allFilteredSelected =
+    statementGroups.length > 0 &&
+    statementGroups.every((group) => selectedIds.has(statementTableRowKey(group)))
+
+  function toggleSelectAll() {
+    if (allFilteredSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        for (const group of statementGroups) next.delete(statementTableRowKey(group))
+        return next
+      })
+      return
+    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const group of statementGroups) next.add(statementTableRowKey(group))
+      return next
+    })
+  }
+
+  function toggleSelectOne(key: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  async function handleStatementPrint() {
+    if (!selectedGroups.length) {
+      setPrintError('거래명세서를 출력할 항목을 체크박스로 선택해 주세요.')
+      return
+    }
+
+    setPrinting(true)
+    setPrintError(null)
+
+    try {
+      const statements = []
+      const failures: string[] = []
+
+      for (const group of selectedGroups) {
+        const built = await buildDeliveryStatementDataFromTableGroup(group, {
+          unitPriceByDeliveryId,
+          billingOnlyLines,
+          productionOrders: orders,
+        })
+        if (!built.ok) {
+          failures.push(built.detail)
+          continue
+        }
+        statements.push(built.data)
+      }
+
+      if (!statements.length) {
+        setPrintError(
+          failures.length
+            ? `거래명세서를 만들 수 없습니다.\n${failures.slice(0, 5).join('\n')}`
+            : '출력할 거래명세서가 없습니다.',
+        )
+        return
+      }
+
+      const ok = printDeliveryStatements(statements)
+      if (!ok) {
+        setPrintError('인쇄 창을 열 수 없습니다. 브라우저 팝업 차단을 해제한 뒤 다시 시도해 주세요.')
+        return
+      }
+
+      if (failures.length) {
+        setPrintError(
+          `${statements.length}건 인쇄 · ${failures.length}건 실패\n${failures.slice(0, 3).join('\n')}`,
+        )
+      }
+    } finally {
+      setPrinting(false)
+    }
+  }
 
   function openRegister(seed?: DeliveryShippableOption | null) {
     const matched =
@@ -301,15 +393,24 @@ export function DeliveryInputWorkspace({
 
         <WorkspaceHeader
           search={search}
-          onSearchChange={setSearch}
+          onSearchChange={(value) => {
+            setSearch(value)
+            setSelectedIds(new Set())
+          }}
           searchPlaceholder="명세서, 발주번호, 고객사, 품목, 출하일 검색…"
           accent="sky"
           inlineFilters={
             <DateRangeFilter
               startDate={startDate}
               endDate={endDate}
-              onStartDateChange={setStartDate}
-              onEndDateChange={setEndDate}
+              onStartDateChange={(value) => {
+                setStartDate(value)
+                setSelectedIds(new Set())
+              }}
+              onEndDateChange={(value) => {
+                setEndDate(value)
+                setSelectedIds(new Set())
+              }}
               label={DATE_RANGE_FILTER_LABEL.ship}
             />
           }
@@ -318,10 +419,27 @@ export function DeliveryInputWorkspace({
               <ErpButton variant="secondary" onClick={() => setLegacyOpen(true)}>
                 과거 등록
               </ErpButton>
+              <PdfDownloadButton
+                onDownload={() => void handleStatementPrint()}
+                disabled={printing || selectedCount === 0}
+                label={
+                  printing
+                    ? '준비 중…'
+                    : selectedCount > 0
+                      ? `거래명세서 (${selectedCount})`
+                      : '거래명세서'
+                }
+              />
               <ErpButton onClick={() => openRegister()}>출하 등록</ErpButton>
             </>
           }
         />
+
+        {printError ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm whitespace-pre-wrap text-amber-900">
+            {printError}
+          </div>
+        ) : null}
 
         <DeliveryHistoryTable
           groups={statementGroups}
@@ -331,6 +449,10 @@ export function DeliveryInputWorkspace({
             actionHint: '오른쪽 상단에서 출하 등록 또는 과거 등록하세요',
           })}
           onRowClick={openHistory}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelectOne}
+          onToggleSelectAll={toggleSelectAll}
+          selectionDisabled={printing}
         />
       </PageShell>
 

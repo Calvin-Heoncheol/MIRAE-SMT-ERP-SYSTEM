@@ -208,7 +208,7 @@ function SolderCreamLogImportModalContent({
           ) : !recentImports.length ? (
             <p className="px-3 py-4 text-xs text-slate-500">아직 가져온 로그가 없습니다.</p>
           ) : (
-            <table className="w-full border-collapse text-sm">
+            <table className="erp-data-table erp-data-table--compact w-full border-collapse text-sm">
               <thead className="bg-white">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">
@@ -243,7 +243,7 @@ function SolderCreamLogImportModalContent({
 
         {previewRows.length ? (
           <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full border-collapse text-sm">
+            <table className="erp-data-table erp-data-table--compact w-full border-collapse text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">

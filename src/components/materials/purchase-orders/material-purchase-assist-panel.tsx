@@ -332,7 +332,7 @@ export function MaterialPurchaseAssistPanel({
             <p className="py-10 text-center text-sm text-slate-500">구매발주필요한 자재가 없습니다.</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-slate-300">
-              <table className="min-w-[880px] w-full border-collapse text-sm">
+              <table className="erp-data-table erp-data-table--compact min-w-[880px] w-full border-collapse text-sm">
                 <thead className={ERP_TABLE_HEAD_CLASS}>
                   <tr>
                     <th className="px-3 py-2 text-left">

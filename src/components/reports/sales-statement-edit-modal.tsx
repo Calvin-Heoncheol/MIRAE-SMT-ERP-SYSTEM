@@ -322,7 +322,16 @@ export function SalesStatementEditModal({
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="min-w-[720px] w-full border-collapse text-sm">
+            <table className="erp-data-table erp-data-table--compact w-full table-fixed min-w-[720px] border-collapse text-sm">
+              <colgroup>
+                <col className="w-10" />
+                {showOrderNumber ? <col className="w-[120px]" /> : null}
+                <col className="w-[120px]" />
+                <col />
+                <col className="w-[88px]" />
+                <col className="w-[112px]" />
+                <col className="w-[120px]" />
+              </colgroup>
               <thead className="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500">
                 <tr>
                   <th className="w-10 px-2 py-2 text-center">No</th>

@@ -30,7 +30,7 @@ export type QuoteFormSnapshot = {
   includeDip?: boolean
   /** false = 원자재·관리비 제외 */
   includeMaterialCosts?: boolean
-  /** 후공정 공정명+분 (통합) */
+  includeMetalMask?: boolean
   postProcessLines?: PostProcessLineForm[]
   /** @deprecated postProcessLines 사용 */
   assemblyLines?: PostProcessLineForm[]
@@ -66,8 +66,8 @@ export function buildQuoteDetailInfo(
   const qty = result.qty || 0
   const includeMaterialCosts = form.includeMaterialCosts !== false
   const materialCostPerUnit = includeMaterialCosts ? Number(form.materialCost) || 0 : 0
-  const metalMaskCost = Number(form.metalMaskCost) || 0
-  const sampleCost = result.common.sampleCost || 0
+  const metalMaskCost = Math.max(0, Math.round(result.common.subMaterial || 0))
+  const sampleCost = Math.max(0, Math.round(result.common.sampleCost || 0))
   const auxiliaryMaterialCostPerUnit = 0
   const postProcessLines: PostProcessLine[] = form.postProcessLines
     ? postProcessLinesToModels(form.postProcessLines)
@@ -151,6 +151,7 @@ export function buildQuoteDetailInfo(
       includeSmd: Boolean(form.includeSmd),
       includeDip: Boolean(form.includeDip),
       includeMaterialCosts,
+      includeMetalMask: form.includeMetalMask !== false,
       ...(form.productId?.trim() ? { productId: form.productId.trim() } : {}),
     },
   }

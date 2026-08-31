@@ -413,20 +413,41 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
       baseCode,
       version: resolved.version,
     }
-    const { data, error } = await supabase
-      .from('items')
-      .insert(toItemInsertRow(insertPayload))
-      .select('id')
-      .single()
+    const insertRow = toItemInsertRow(insertPayload)
+    let { data, error } = await supabase.from('items').insert(insertRow).select('id').single()
 
-    if (!error) {
+    if (error && /setup_unit_price/i.test(error.message)) {
+      const { setup_unit_price: _omitSetup, ...withoutSetup } = insertRow as Record<string, unknown>
+      const retry = await supabase.from('items').insert(withoutSetup).select('id').single()
+      data = retry.data
+      error = retry.error
+    }
+
+    if (error && /baseline_quote_id/i.test(error.message)) {
+      const { baseline_quote_id: _omitBaseline, ...withoutBaseline } = insertRow as Record<
+        string,
+        unknown
+      >
+      const retry = await supabase.from('items').insert(withoutBaseline).select('id').single()
+      data = retry.data
+      error = retry.error
+    }
+
+    if (error && /smt_quote_parts/i.test(error.message)) {
+      const { smt_quote_parts: _omit, ...withoutParts } = insertRow as Record<string, unknown>
+      const retry = await supabase.from('items').insert(withoutParts).select('id').single()
+      data = retry.data
+      error = retry.error
+    }
+
+    if (!error && data?.id) {
       return { ok: true, id: data.id }
     }
 
     return {
       ok: false,
       reason: 'query',
-      detail: mapDuplicateError(error.message, insertPayload.baseCode),
+      detail: mapDuplicateError(error?.message || '품목 저장에 실패했습니다.', insertPayload.baseCode),
     }
   } catch (error) {
     return {
@@ -786,7 +807,54 @@ export async function updateItem(
     const { error } = await supabase.from('items').update(toItemUpdateRow(updatePayload)).eq('id', key)
 
     if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
+      if (/setup_unit_price/i.test(error.message)) {
+        const row = toItemUpdateRow(updatePayload) as Record<string, unknown>
+        const { setup_unit_price: _omitSetup, ...withoutSetup } = row
+        const retrySetup = await supabase.from('items').update(withoutSetup).eq('id', key)
+        if (retrySetup.error && /baseline_quote_id/i.test(retrySetup.error.message)) {
+          const { baseline_quote_id: _omitBaseline, ...withoutBaseline } = withoutSetup
+          const retryBaseline = await supabase.from('items').update(withoutBaseline).eq('id', key)
+          if (retryBaseline.error && /smt_quote_parts/i.test(retryBaseline.error.message)) {
+            const { smt_quote_parts: _omit, ...withoutParts } = withoutBaseline
+            const retry = await supabase.from('items').update(withoutParts).eq('id', key)
+            if (retry.error) {
+              return { ok: false, reason: 'query', detail: retry.error.message }
+            }
+          } else if (retryBaseline.error) {
+            return { ok: false, reason: 'query', detail: retryBaseline.error.message }
+          }
+        } else if (retrySetup.error && /smt_quote_parts/i.test(retrySetup.error.message)) {
+          const { smt_quote_parts: _omit, ...withoutParts } = withoutSetup
+          const retry = await supabase.from('items').update(withoutParts).eq('id', key)
+          if (retry.error) {
+            return { ok: false, reason: 'query', detail: retry.error.message }
+          }
+        } else if (retrySetup.error) {
+          return { ok: false, reason: 'query', detail: retrySetup.error.message }
+        }
+      } else if (/baseline_quote_id/i.test(error.message)) {
+        const row = toItemUpdateRow(updatePayload) as Record<string, unknown>
+        const { baseline_quote_id: _omitBaseline, ...withoutBaseline } = row
+        const retryBaseline = await supabase.from('items').update(withoutBaseline).eq('id', key)
+        if (retryBaseline.error && /smt_quote_parts/i.test(retryBaseline.error.message)) {
+          const { smt_quote_parts: _omit, ...withoutParts } = withoutBaseline
+          const retry = await supabase.from('items').update(withoutParts).eq('id', key)
+          if (retry.error) {
+            return { ok: false, reason: 'query', detail: retry.error.message }
+          }
+        } else if (retryBaseline.error) {
+          return { ok: false, reason: 'query', detail: retryBaseline.error.message }
+        }
+      } else if (/smt_quote_parts/i.test(error.message)) {
+        const row = toItemUpdateRow(updatePayload) as Record<string, unknown>
+        const { smt_quote_parts: _omit, ...withoutParts } = row
+        const retry = await supabase.from('items').update(withoutParts).eq('id', key)
+        if (retry.error) {
+          return { ok: false, reason: 'query', detail: retry.error.message }
+        }
+      } else {
+        return { ok: false, reason: 'query', detail: error.message }
+      }
     }
 
     let changeLogWarning: string | undefined
@@ -796,18 +864,20 @@ export async function updateItem(
         before: {
           name: beforeItem.name,
           unitPrice: beforeItem.unitPrice,
+          setupUnitPrice: beforeItem.setupUnitPrice,
           smdUnitPrice: beforeItem.smdUnitPrice,
           dipUnitPrice: beforeItem.dipUnitPrice,
           materialUnitPrice: beforeItem.materialUnitPrice,
-          otherUnitPrice: beforeItem.otherUnitPrice,
+          otherUnitPrice: beforeItem.setupUnitPrice,
         },
         after: {
           name: updatePayload.name,
           unitPrice: updatePayload.unitPrice,
-          smdUnitPrice: beforeItem.smdUnitPrice,
-          dipUnitPrice: beforeItem.dipUnitPrice,
-          materialUnitPrice: beforeItem.materialUnitPrice,
-          otherUnitPrice: beforeItem.otherUnitPrice,
+          setupUnitPrice: updatePayload.setupUnitPrice,
+          smdUnitPrice: updatePayload.smdUnitPrice,
+          dipUnitPrice: updatePayload.dipUnitPrice,
+          materialUnitPrice: updatePayload.materialUnitPrice,
+          otherUnitPrice: updatePayload.setupUnitPrice,
         },
       }
       const { beforeData, afterData } = buildItemChangeDataPayload(snapshot)

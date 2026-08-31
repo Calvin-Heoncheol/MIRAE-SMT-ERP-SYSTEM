@@ -120,7 +120,7 @@ export function MaterialPurchaseOrderItemsForm({
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-300">
-        <table className="min-w-[1040px] w-full border-collapse text-sm">
+        <table className="erp-data-table erp-data-table--compact min-w-[1040px] w-full border-collapse text-sm">
           <thead className="bg-slate-100">
             <tr>
               <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">

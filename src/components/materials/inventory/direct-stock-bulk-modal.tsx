@@ -209,7 +209,7 @@ function DirectStockBulkModalContent({
 
         {previewLines.length ? (
           <div className="overflow-hidden rounded-lg border border-slate-200">
-            <table className="w-full border-collapse text-sm">
+            <table className="erp-data-table erp-data-table--compact w-full border-collapse text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">

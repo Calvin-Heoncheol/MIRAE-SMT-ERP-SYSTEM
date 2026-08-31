@@ -187,7 +187,7 @@ export function ReceivablesPaymentModal({
           <p className="mb-2 text-xs font-semibold text-slate-500">입금 내역</p>
           {row.payments.length ? (
             <div className="overflow-hidden rounded-xl border border-slate-200">
-              <table className="w-full text-sm">
+              <table className="erp-data-table erp-data-table--compact w-full text-sm">
                 <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
                   <tr>
                     <th className="px-3 py-2 text-left">입금일</th>

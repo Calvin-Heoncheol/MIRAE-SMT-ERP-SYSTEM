@@ -16,6 +16,7 @@ import {
   type ItemPcbSideModeValue,
 } from './types'
 import { normalizeVersionLabel, parseItemVersionCode } from './version-code'
+import { EMPTY_SMT_QUOTE_PARTS, normalizeItemSmtQuoteParts, itemSmtQuotePartsToJson } from './smt-quote-parts'
 
 export const ITEM_INTERNAL_ID_PREFIX = 'MR-'
 export const ITEM_INTERNAL_ID_PAD = 5
@@ -176,10 +177,13 @@ export function mapItemRecord(row: {
   pcb_side_mode?: string | null
   process_type?: string | null
   unit_price?: number | null
+  setup_unit_price?: number | null
   smd_unit_price?: number | null
   dip_unit_price?: number | null
   material_unit_price?: number | null
   other_unit_price?: number | null
+  smt_quote_parts?: unknown
+  baseline_quote_id?: string | null
   safety_stock?: number | null
   item_category: number | string
   is_active: boolean
@@ -192,13 +196,19 @@ export function mapItemRecord(row: {
   const dipUnitPrice = Number(row.dip_unit_price) || 0
   const materialUnitPrice = Number(row.material_unit_price) || 0
   const otherUnitPrice = Number(row.other_unit_price) || 0
+  const setupRaw = row.setup_unit_price
+  const setupUnitPrice =
+    setupRaw === null || setupRaw === undefined
+      ? otherUnitPrice
+      : Math.max(0, Math.round(Number(setupRaw) || 0))
   const safetyStock = Math.max(0, Math.floor(Number(row.safety_stock) || 0))
   const isProduct = itemCategory === 3 || itemCategory === 4
-  const breakdownTotal = smdUnitPrice + dipUnitPrice + materialUnitPrice + otherUnitPrice
+  const resolvedSetup = isProduct ? setupUnitPrice : 0
   const resolvedSmd = isProduct ? smdUnitPrice : 0
   const resolvedDip = isProduct ? dipUnitPrice : 0
   const resolvedMaterial = isProduct ? materialUnitPrice : 0
   const resolvedOther = isProduct ? otherUnitPrice : 0
+  const perUnitBreakdown = resolvedSmd + resolvedDip
   const { baseCode, version } = resolveBaseCodeAndVersion(row)
   const mpns = parseItemMpnFields(row.mpn || '', row.alternate_mpns)
 
@@ -220,11 +230,20 @@ export function mapItemRecord(row: {
     processType:
       normalizeItemProcessType(row.process_type) ||
       (isProduct ? deriveItemProcessType(resolvedSmd, resolvedDip) : ''),
-    unitPrice: isProduct && unitPrice <= 0 && breakdownTotal > 0 ? breakdownTotal : unitPrice,
+    unitPrice: isProduct
+      ? perUnitBreakdown > 0
+        ? perUnitBreakdown
+        : unitPrice
+      : unitPrice,
+    setupUnitPrice: resolvedSetup,
     smdUnitPrice: resolvedSmd,
     dipUnitPrice: resolvedDip,
     materialUnitPrice: resolvedMaterial,
     otherUnitPrice: resolvedOther,
+    smtQuoteParts: isProduct
+      ? normalizeItemSmtQuoteParts(row.smt_quote_parts)
+      : { ...EMPTY_SMT_QUOTE_PARTS },
+    baselineQuoteId: isProduct ? String(row.baseline_quote_id || '').trim() : '',
     itemCategory,
     safetyStock,
     isActive: row.is_active !== false,
@@ -252,10 +271,13 @@ export function toItemInsertRow(payload: ItemPayload) {
     pcb_side_mode: payload.pcbSideMode,
     process_type: payload.processType,
     unit_price: payload.unitPrice,
+    setup_unit_price: payload.setupUnitPrice,
     smd_unit_price: payload.smdUnitPrice,
     dip_unit_price: payload.dipUnitPrice,
     material_unit_price: payload.materialUnitPrice,
-    other_unit_price: payload.otherUnitPrice,
+    other_unit_price: payload.setupUnitPrice,
+    smt_quote_parts: itemSmtQuotePartsToJson(payload.smtQuoteParts),
+    baseline_quote_id: payload.baselineQuoteId.trim() || null,
     item_category: payload.itemCategory,
     safety_stock: Math.max(0, Math.floor(Number(payload.safetyStock) || 0)),
   }
@@ -280,10 +302,13 @@ export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
     pcb_side_mode: payload.pcbSideMode,
     process_type: payload.processType,
     unit_price: payload.unitPrice,
+    setup_unit_price: payload.setupUnitPrice,
     smd_unit_price: payload.smdUnitPrice,
     dip_unit_price: payload.dipUnitPrice,
     material_unit_price: payload.materialUnitPrice,
-    other_unit_price: payload.otherUnitPrice,
+    other_unit_price: payload.setupUnitPrice,
+    smt_quote_parts: itemSmtQuotePartsToJson(payload.smtQuoteParts),
+    baseline_quote_id: payload.baselineQuoteId.trim() || null,
     item_category: payload.itemCategory,
   }
 }
@@ -296,18 +321,17 @@ export function formatItemUnitPrice(value: number) {
   return new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 }).format(Math.round(value))
 }
 
-/** 기본 단가. 없으면 레거시 세부단가 합계 */
+/** 기본 단가 = SMD+후공정 (대당). SET-UP·자재는 제외 */
 export function displayItemUnitPrice(
-  item: Pick<Item, 'unitPrice' | 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice' | 'otherUnitPrice'>,
+  item: Pick<
+    Item,
+    'unitPrice' | 'setupUnitPrice' | 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice' | 'otherUnitPrice'
+  >,
 ) {
-  const unit = Math.round(Number(item.unitPrice) || 0)
-  if (unit > 0) return unit
-  return (
-    Math.round(Number(item.smdUnitPrice) || 0) +
-    Math.round(Number(item.dipUnitPrice) || 0) +
-    Math.round(Number(item.materialUnitPrice) || 0) +
-    Math.round(Number(item.otherUnitPrice) || 0)
-  )
+  const perUnit =
+    Math.round(Number(item.smdUnitPrice) || 0) + Math.round(Number(item.dipUnitPrice) || 0)
+  if (perUnit > 0) return perUnit
+  return Math.round(Number(item.unitPrice) || 0)
 }
 
 /** 저장 직후 UI에 바로 반영할 때 — 서버 round-trip 없이 payload로 Item 구성 */
@@ -338,10 +362,13 @@ export function itemFromPayload(
     pcbSideMode: payload.pcbSideMode,
     processType: payload.processType,
     unitPrice: payload.unitPrice,
+    setupUnitPrice: payload.setupUnitPrice,
     smdUnitPrice: payload.smdUnitPrice,
     dipUnitPrice: payload.dipUnitPrice,
     materialUnitPrice: payload.materialUnitPrice,
-    otherUnitPrice: payload.otherUnitPrice,
+    otherUnitPrice: payload.setupUnitPrice,
+    smtQuoteParts: normalizeItemSmtQuoteParts(payload.smtQuoteParts),
+    baselineQuoteId: String(payload.baselineQuoteId || '').trim(),
     itemCategory: payload.itemCategory,
     safetyStock: payload.safetyStock,
     isActive: options?.isActive !== false,

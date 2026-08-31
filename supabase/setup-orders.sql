@@ -42,6 +42,10 @@ create table if not exists public.order_lines (
   product_code text not null default '',
   product_name text not null default '',
   quantity integer not null default 0 check (quantity > 0),
+  setup_cost numeric not null default 0 check (setup_cost >= 0),
+  smd_unit_price numeric not null default 0 check (smd_unit_price >= 0),
+  dip_unit_price numeric not null default 0 check (dip_unit_price >= 0),
+  material_cost numeric not null default 0 check (material_cost >= 0),
   unit_price numeric not null default 0 check (unit_price >= 0),
   order_amount numeric not null default 0 check (order_amount >= 0),
   delivery_date date,
@@ -51,6 +55,11 @@ create table if not exists public.order_lines (
 
 comment on column public.order_lines.derived_from_line_id is '조립제품 주문 줄에서 BOM 펼침으로 생성된 반제품 줄 (주문 UI 비표시)';
 comment on column public.order_lines.delivery_date is '제품(라인)별 납기일';
+comment on column public.order_lines.setup_cost is 'SET-UP 전체 비용 (수량 무관)';
+comment on column public.order_lines.smd_unit_price is 'SMD 대당 단가';
+comment on column public.order_lines.dip_unit_price is '후공정 대당 단가';
+comment on column public.order_lines.material_cost is '자재비 (회차별 총액)';
+comment on column public.order_lines.unit_price is '대당 단가 참고 (SMD+후공정)';
 
 create index if not exists orders_order_date_idx on public.orders (order_date desc);
 create index if not exists orders_created_at_idx on public.orders (created_at desc);

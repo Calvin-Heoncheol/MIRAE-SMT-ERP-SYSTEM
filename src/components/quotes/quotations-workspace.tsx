@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { AiQuoteModal } from '@/components/quotes/ai-quote-modal'
 import { LegacyQuoteModal } from '@/components/quotes/legacy-quote-modal'
 import { QuoteListTable } from '@/components/quotes/quote-list-table'
 import { QuoteModal } from '@/components/quotes/quote-modal'
@@ -11,6 +12,7 @@ import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useBusy } from '@/components/ui/busy-provider'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
+import type { AiQuoteDraft } from '@/lib/quotes/ai-quote-draft'
 import type { FetchQuotesResult } from '@/lib/quotes/repository'
 import { updateQuoteStatus } from '@/lib/quotes/repository'
 import type { QuoteListItem, QuoteType } from '@/lib/quotes/types'
@@ -23,7 +25,8 @@ type QuotationsWorkspaceProps = {
 
 type ModalState =
   | { open: false }
-  | { open: true; variant: 'standard'; mode: 'create'; quoteType: QuoteType }
+  | { open: true; variant: 'ai' }
+  | { open: true; variant: 'standard'; mode: 'create'; quoteType: QuoteType; draft?: AiQuoteDraft }
   | { open: true; variant: 'standard'; mode: 'edit'; quoteType: QuoteType; quote: QuoteListItem }
   | { open: true; variant: 'legacy'; mode: 'create' }
   | { open: true; variant: 'legacy'; mode: 'edit'; quote: QuoteListItem }
@@ -50,6 +53,22 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
   function openLegacyCreate() {
     setModalSession((value) => value + 1)
     setModal({ open: true, variant: 'legacy', mode: 'create' })
+  }
+
+  function openAiCreate() {
+    setModalSession((value) => value + 1)
+    setModal({ open: true, variant: 'ai' })
+  }
+
+  function handleAiContinue(draft: AiQuoteDraft) {
+    setModalSession((value) => value + 1)
+    setModal({
+      open: true,
+      variant: 'standard',
+      mode: 'create',
+      quoteType: draft.quoteType,
+      draft,
+    })
   }
 
   function openEdit(quote: QuoteListItem) {
@@ -99,7 +118,13 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
           onSearchChange={setSearch}
           searchPlaceholder="견적번호, 고객사, 제품명, 상태, 견적일 검색…"
           accent="slate"
-          actions={<QuoteNewMenu onOpenNew={openCreate} onOpenLegacy={openLegacyCreate} />}
+          actions={
+            <QuoteNewMenu
+              onOpenNew={openCreate}
+              onOpenLegacy={openLegacyCreate}
+              onOpenAi={openAiCreate}
+            />
+          }
         />
 
         <QuoteListTable
@@ -115,6 +140,15 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
         />
       </PageShell>
 
+      {modal.open && modal.variant === 'ai' ? (
+        <AiQuoteModal
+          key={`ai-${modalSession}`}
+          open
+          onClose={closeModal}
+          onContinue={handleAiContinue}
+        />
+      ) : null}
+
       {modal.open && modal.variant === 'standard' ? (
         <QuoteModal
           key={
@@ -126,6 +160,7 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
           mode={modal.mode}
           quoteType={modal.mode === 'edit' ? modal.quote.quoteType : modal.quoteType}
           quote={modal.mode === 'edit' ? modal.quote : null}
+          initialDraft={modal.mode === 'create' ? modal.draft : undefined}
           existingQuoteNumbers={existingQuoteNumbers}
           onClose={closeModal}
           onSaved={handleSaved}

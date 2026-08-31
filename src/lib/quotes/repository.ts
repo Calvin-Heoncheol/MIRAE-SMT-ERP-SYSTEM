@@ -143,6 +143,45 @@ export async function fetchQuotes(): Promise<FetchQuotesResult> {
   }
 }
 
+export type FetchQuoteByIdResult =
+  | { ok: true; quote: ReturnType<typeof mapQuoteRecord> }
+  | { ok: false; reason: 'env' | 'query' | 'not_found'; detail: string }
+
+export async function fetchQuoteById(quoteId: string): Promise<FetchQuoteByIdResult> {
+  const id = String(quoteId || '').trim()
+  if (!id) {
+    return { ok: false, reason: 'not_found', detail: '견적 ID가 없습니다.' }
+  }
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return {
+      ok: false,
+      reason: 'env',
+      detail: 'NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY 가 없습니다.',
+    }
+  }
+
+  try {
+    const supabase = createSupabaseClient()
+    const { data, error } = await supabase.from('quotations').select('*').eq('id', id).maybeSingle()
+
+    if (error) {
+      return { ok: false, reason: 'query', detail: error.message }
+    }
+    if (!data) {
+      return { ok: false, reason: 'not_found', detail: '견적을 찾을 수 없습니다.' }
+    }
+
+    return { ok: true, quote: mapQuoteRecord(data as QuoteRecord) }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 export async function createQuote(payload: QuoteRowPayload, _quoteType: QuoteType): Promise<SaveQuoteResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()

@@ -197,7 +197,7 @@ export function MaterialOrderPartialPurchaseModal({
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="min-w-[760px] w-full border-collapse text-sm">
+          <table className="erp-data-table erp-data-table--compact min-w-[760px] w-full border-collapse text-sm">
             <thead className={ERP_TABLE_HEAD_CLASS}>
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">자재</th>

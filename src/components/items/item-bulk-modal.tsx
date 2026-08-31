@@ -426,7 +426,7 @@ function ItemBulkModalContent({
         ) : null}
 
         <div ref={tableScrollRef} className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="min-w-full border-collapse text-sm">
+          <table className="erp-data-table erp-data-table--compact min-w-full border-collapse text-sm">
             <thead className="sticky top-0 z-[1] bg-slate-50">
               <tr>
                 <th className="whitespace-nowrap px-2 py-2 text-center text-sm font-semibold text-slate-500">

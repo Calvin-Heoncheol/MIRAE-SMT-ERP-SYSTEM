@@ -134,7 +134,7 @@ export function MaterialPurchaseNeedDetailModal({
         <EmptyListState message="표시할 자재가 없습니다" />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="min-w-[980px] w-full table-fixed border-collapse text-sm">
+          <table className="erp-data-table erp-data-table--compact min-w-[980px] w-full table-fixed border-collapse text-sm">
             <colgroup>
               <col className="w-[72px]" />
               <col className="w-[120px]" />

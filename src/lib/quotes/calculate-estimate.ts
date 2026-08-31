@@ -1,4 +1,6 @@
 import {
+  computeMetalMaskCostTotal,
+  computeSampleCostTotal,
   DIP_UNIT,
   getAoiUnit,
   getPostRate,
@@ -12,7 +14,6 @@ import {
   isMultiSideSmt,
   normalizeSmtSide,
   RAW_MATERIAL_MANAGEMENT_RATE,
-  computeSampleCostTotal,
   toBillingSmtSide,
 } from './constants'
 import type {
@@ -388,12 +389,19 @@ export function calculateEstimate(
   const postProcessUnit = (postAssembly + postTest + postPacking) * getPostRate(quoteType)
   const matUnit =
     data.includeMaterialCosts === false ? 0 : Number(data.materialCost) || 0
-  const metalMaskTotal = Math.max(0, Number(data.metalMaskCost) || 0)
-  const sampleCostTotal = computeSampleCostTotal(qty, pcbBoards)
+  const includeMetalMask = data.includeMetalMask !== false
+  const metalMaskTotal = includeMetalMask
+    ? Math.max(
+        0,
+        Math.round(Number(data.metalMaskCost) || 0) || computeMetalMaskCostTotal(pcbBoards),
+      )
+    : 0
+  const sampleCostTotal = computeSampleCostTotal(qty, pcbBoards, data.productionKind)
 
   const matTotalRaw = matUnit * qty
-  const smtLaborAndInspectionTotal = smtUnit * qty + smtInspectionPerUnit * qty
-  const smtTotal = smtLaborAndInspectionTotal + smtSetupAmount
+  const smtPlacementTotal = smtUnit * qty + smtInspectionPerUnit * qty
+  const smtTotal = smtPlacementTotal + smtSetupAmount
+  const orderLevelTotal = smtSetupAmount + metalMaskTotal + sampleCostTotal
   const dipTotal = dipUnit * qty
   const postProcessTotal = postProcessUnit * qty
   const dipSectionTotal = dipTotal + postProcessTotal
@@ -443,6 +451,8 @@ export function calculateEstimate(
       dipBoardDetails: dipAgg.boardDetails,
       subMaterial: metalMaskTotal,
       sampleCost: sampleCostTotal,
+      orderLevelTotal,
+      smtPlacementTotal,
       auxiliaryMaterial: auxiliaryMaterialTotal,
       materialManagement: materialManagementTotal,
       specialDiscount,

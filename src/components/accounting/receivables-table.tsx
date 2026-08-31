@@ -54,7 +54,7 @@ export function ReceivablesTable({
         <table className={`${ERP_TABLE_CLASS} min-w-[1180px]`}>
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
-              <th className={`${ERP_TABLE_TH_CLASS} w-10 text-center`}>
+              <th className={`${ERP_TABLE_TH_CLASS} erp-table-check`}>
                 <input
                   type="checkbox"
                   checked={allSelectableSelected}
@@ -88,7 +88,7 @@ export function ReceivablesTable({
                   onClick={() => onRowClick(row)}
                 >
                   <td
-                    className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-center`}
+                    className={`${ERP_TABLE_TD_CLASS} erp-table-check`}
                     onClick={(event) => event.stopPropagation()}
                   >
                     <input

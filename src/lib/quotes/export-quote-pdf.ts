@@ -118,7 +118,10 @@ function buildSummaryBreakdownTableHtml(quote: QuoteListItem, language?: QuoteDo
   const unitLabel = isKorean ? '대당합계' : 'UNIT TOTAL'
   const amountLabel = isKorean ? '합계' : 'TOTAL'
   const totalLabel = isKorean ? '총합계' : 'GRAND TOTAL'
-  const grandUnitTotal = lines.reduce((sum, line) => sum + line.unitTotal, 0)
+  const grandUnitTotal = lines.reduce(
+    (sum, line) => (line.fixedCost ? sum : sum + line.unitTotal),
+    0,
+  )
   const grandTotal = lines.reduce((sum, line) => sum + line.total, 0)
 
   return `<table class="quote-table board-details-table board-summary-table summary-breakdown-table">
@@ -560,8 +563,8 @@ function buildQuoteDetailHeaderHtml(
   const isKorean = pdfLabelType(quote, language) === 'domestic'
   const title = isKorean ? '항목별 요약' : 'Summary Breakdown'
   const note = isKorean
-    ? 'SMD(SET-UP·실장)·후공정·자재·기타 대당합계와 생산수량 기준 합계입니다.'
-    : 'Unit totals and quantity totals for SMD (SET-UP, placement), post-process, materials, and other.'
+    ? 'SMD(SET-UP·실장)·후공정·자재 대당합계와 생산수량 기준 합계입니다.'
+    : 'Unit totals and quantity totals for SMD (SET-UP, placement), post-process, and materials.'
 
   return `${buildSectionPageHeaderHtml(quote, estimate, title, note)}`
 }
@@ -575,13 +578,11 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
   const setupRows = filterPdfBreakdownRows(pdfBreakdownRows, 'setup', quote.quoteType)
   const postRows = filterPdfBreakdownRows(pdfBreakdownRows, 'post', quote.quoteType)
   const materialRows = filterPdfBreakdownRows(pdfBreakdownRows, 'material', quote.quoteType)
-  const otherRows = filterPdfBreakdownRows(pdfBreakdownRows, 'other', quote.quoteType)
   if (
     !smtRows.length &&
     !setupRows.length &&
     !postRows.length &&
-    !materialRows.length &&
-    !otherRows.length
+    !materialRows.length
   ) {
     return ''
   }
@@ -589,21 +590,19 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
   const isKorean = labelType === 'domestic'
   const pageTitle = isKorean ? '공정별 세부 산정내역' : 'Detailed Breakdown by Process'
   const pageNote = isKorean
-    ? 'SMD(SET-UP·실장·검사)·후공정(납땜 포함)·자재·기타 항목별 단가·수량 기준 산정식입니다.'
-    : 'Itemized calculation for SMD (SET-UP, placement, inspection), post-process (incl. soldering), materials, and other.'
+    ? 'SMD(SET-UP·실장·검사)·후공정(납땜 포함)·자재 항목별 단가·수량 기준 산정식입니다.'
+    : 'Itemized calculation for SMD (SET-UP, placement, inspection), post-process (incl. soldering), and materials.'
   const postTitle = pdfSummarySectionLabel(labels.postProcess, labelType)
   const materialTitle = pdfSummarySectionLabel(labels.materials, labelType)
-  const otherTitle = pdfSummarySectionLabel(labels.other, labelType)
 
   return `<section class="quote-page quote-page-breakdown">
     <div class="quote-card">
       ${buildSectionPageHeaderHtml(quote, estimate, pageTitle, pageNote)}
       <div class="breakdown-sections">
-        ${buildBreakdownSectionHtml('SMD · SET-UP', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated', labelType)}
+        ${buildBreakdownSectionHtml('SMD · 건당 비용', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated', labelType)}
         ${buildBreakdownSectionHtml('SMD · 실장·검사', smtRows, quote.quoteType, 'smt', 'breakdown-section-smt', labelType)}
         ${buildBreakdownSectionHtml(postTitle, postRows, quote.quoteType, 'post', 'breakdown-section-separated', labelType)}
         ${buildBreakdownSectionHtml(materialTitle, materialRows, quote.quoteType, 'material', 'breakdown-section-separated', labelType)}
-        ${buildBreakdownSectionHtml(otherTitle, otherRows, quote.quoteType, 'other', 'breakdown-section-separated', labelType)}
       </div>
     </div>
   </section>`
@@ -654,7 +653,7 @@ function buildQuotePages(
 }
 
 function buildPdfSectionColorCss() {
-  const sections: PreviewSection[] = ['smt', 'setup', 'dip', 'post', 'material', 'other']
+  const sections: PreviewSection[] = ['smt', 'setup', 'dip', 'post', 'material']
 
   return sections
     .map((section) => {

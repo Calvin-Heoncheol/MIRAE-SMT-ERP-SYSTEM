@@ -152,9 +152,7 @@ export function toEstimateInputFromDetail(
     boardQty: quote.boardQty,
     materialCost: settings.materialCostPerUnit ?? 0,
     metalMaskCost:
-      settings.metalMaskCost ??
-      quote.detailInfo.amounts?.subMaterialCost ??
-      0,
+      settings.metalMaskCost ?? quote.detailInfo.amounts?.subMaterialCost ?? 0,
     productionKind: settings.productionKind === '샘플' ? '샘플' : '양산',
     postAssembly,
     postTest: 0,
@@ -168,6 +166,7 @@ export function toEstimateInputFromDetail(
     includeSmd: settings.includeSmd,
     // 미설정(구 견적) = 포함. 신규만 false
     includeMaterialCosts: settings.includeMaterialCosts !== false,
+    includeMetalMask: settings.includeMetalMask !== false,
     ...overrides,
   }
 }

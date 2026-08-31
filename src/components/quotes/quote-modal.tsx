@@ -10,13 +10,13 @@ import { QuoteBreakdownPreview } from '@/components/quotes/quote-breakdown-previ
 import { QuoteCurrencyToggle } from '@/components/quotes/quote-currency-toggle'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
+import type { AiQuoteDraft } from '@/lib/quotes/ai-quote-draft'
 import { ErpButton } from '@/components/ui/erp-button'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { useBusy } from '@/components/ui/busy-provider'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
-  computeMetalMaskCostTotal,
   computeSampleCostTotal,
   getPostRate,
   METAL_MASK_COST_DOUBLE,
@@ -24,7 +24,6 @@ import {
   SAMPLE_COST_DOUBLE,
   SAMPLE_COST_SINGLE,
   SAMPLE_QTY_THRESHOLD,
-  sampleCostForBoards,
 } from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
@@ -74,6 +73,7 @@ type QuoteModalProps = {
   mode: 'create' | 'edit'
   quoteType: QuoteType
   quote?: QuoteListItem | null
+  initialDraft?: AiQuoteDraft
   existingQuoteNumbers?: string[]
   onClose: () => void
   onSaved?: (message?: string) => void
@@ -89,14 +89,13 @@ type FormState = {
   productionKind: '샘플' | '양산'
   postProcessLines: PostProcessLineForm[]
   materialCost: string
-  metalMaskCost: string
-  /** 메탈마스크 비용 포함 여부 */
-  includeMetalMask: boolean
   specialDiscount: string
   includeSmd: boolean
   includeDip: boolean
   /** 원자재·관리비 포함 (견적 자재 섹션) */
   includeMaterialCosts: boolean
+  /** 메탈마스크 포함 (SMD 건당) */
+  includeMetalMask: boolean
 }
 
 const INITIAL_FORM: FormState = {
@@ -108,12 +107,11 @@ const INITIAL_FORM: FormState = {
   productionKind: '양산',
   postProcessLines: [emptyPostProcessLineForm()],
   materialCost: '0',
-  metalMaskCost: '0',
-  includeMetalMask: true,
   specialDiscount: '0',
   includeSmd: true,
   includeDip: true,
   includeMaterialCosts: true,
+  includeMetalMask: true,
 }
 
 function inferIncludeFlags(quote: QuoteListItem): { includeSmd: boolean; includeDip: boolean } {
@@ -200,18 +198,11 @@ function createInitialState(mode: 'create' | 'edit', quote?: QuoteListItem | nul
             : ('양산' as const),
         postProcessLines: resolveUnifiedPostProcessLineForms(post),
         materialCost: String(input.materialCost || 0),
-        metalMaskCost: String(
-          input.metalMaskCost ??
-            computeMetalMaskCostTotal(
-              input.pcbBoards || smtForms.map(smtBoardFormToModel),
-              flags.includeSmd,
-            ),
-        ),
-        includeMetalMask: Math.max(0, Number(input.metalMaskCost) || 0) > 0,
         specialDiscount: String(input.specialDiscount || 0),
         includeSmd: flags.includeSmd,
         includeDip: flags.includeDip,
-        includeMaterialCosts: true,
+        includeMaterialCosts: quote.detailInfo.settings?.includeMaterialCosts !== false,
+        includeMetalMask: quote.detailInfo.settings?.includeMetalMask !== false,
       },
       smtForms,
       dipForms,
@@ -255,7 +246,7 @@ function computeEstimate(
     {
       boardQty: form.boardQty,
       materialCost: form.materialCost,
-      metalMaskCost: form.metalMaskCost,
+      includeMetalMask: form.includeMetalMask,
       productionKind: form.productionKind,
       postAssembly,
       postTest: 0,
@@ -273,10 +264,32 @@ function computeEstimate(
   )
 }
 
+function applyAiQuoteDraft(
+  base: ReturnType<typeof createInitialState>,
+  draft: AiQuoteDraft,
+): ReturnType<typeof createInitialState> {
+  const hasDipCounts = draft.dipForms.some(
+    (board) => Number(board.dipGeneral) > 0 || Number(board.dipConnector) > 0,
+  )
+
+  return {
+    form: {
+      ...base.form,
+      productName: draft.productName || base.form.productName,
+      includeSmd: true,
+      includeDip: hasDipCounts || base.form.includeDip,
+      includeMaterialCosts: Boolean(draft.bomAnalysis) || base.form.includeMaterialCosts,
+    },
+    smtForms: draft.smtForms.length ? draft.smtForms : base.smtForms,
+    dipForms: draft.dipForms.length ? draft.dipForms : base.dipForms,
+  }
+}
+
 function QuoteModalContent({
   mode,
   quoteType,
   quote,
+  initialDraft,
   existingQuoteNumbers = [],
   onClose,
   onSaved,
@@ -287,11 +300,12 @@ function QuoteModalContent({
   const { profile } = useAuthProfile()
   const contactEmail = String(profile?.email || '').trim()
   const initial = createInitialState(mode, quote)
-  const [form, setForm] = useState<FormState>(initial.form)
-  const [smtForms, setSmtForms] = useState(initial.smtForms)
-  const [dipForms, setDipForms] = useState(initial.dipForms)
+  const seeded = mode === 'create' && initialDraft ? applyAiQuoteDraft(initial, initialDraft) : initial
+  const [form, setForm] = useState<FormState>(seeded.form)
+  const [smtForms, setSmtForms] = useState(seeded.smtForms)
+  const [dipForms, setDipForms] = useState(seeded.dipForms)
   const [result, setResult] = useState<EstimateResult | null>(() =>
-    computeEstimate(initial.form, initial.smtForms, initial.dipForms, quoteType, {
+    computeEstimate(seeded.form, seeded.smtForms, seeded.dipForms, quoteType, {
       mode,
       quote,
       existingQuoteNumbers,
@@ -305,7 +319,6 @@ function QuoteModalContent({
     smt: true,
     dip: false,
     material: false,
-    other: false,
   })
   const [salesPartners, setSalesPartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(true)
@@ -357,11 +370,12 @@ function QuoteModalContent({
 
   useEffect(() => {
     const next = createInitialState(mode, quote)
-    setForm(next.form)
-    setSmtForms(next.smtForms)
-    setDipForms(next.dipForms)
+    const resolved = mode === 'create' && initialDraft ? applyAiQuoteDraft(next, initialDraft) : next
+    setForm(resolved.form)
+    setSmtForms(resolved.smtForms)
+    setDipForms(resolved.dipForms)
     setResult(
-      computeEstimate(next.form, next.smtForms, next.dipForms, quoteType, {
+      computeEstimate(resolved.form, resolved.smtForms, resolved.dipForms, quoteType, {
         mode,
         quote,
         existingQuoteNumbers,
@@ -369,29 +383,12 @@ function QuoteModalContent({
     )
     setSaveError(null)
     setOpenSections({
-      smt: mode !== 'edit',
+      smt: true,
       dip: mode !== 'edit',
       material: mode !== 'edit',
-      other: mode !== 'edit',
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 모달 대상 변경 시 폼 리셋
-  }, [mode, quote?.quoteNumber, quoteType])
-
-  // SMT 단면/양면·PCB 수에 따라 메탈마스크 비용 자동 반영 (체크 시에만)
-  useEffect(() => {
-    setForm((current) => {
-      const includeMetalMask = current.includeMetalMask === true
-      if (!includeMetalMask) {
-        if (current.includeMetalMask === false && current.metalMaskCost === '0') return current
-        return { ...current, includeMetalMask: false, metalMaskCost: '0' }
-      }
-      const next = String(
-        computeMetalMaskCostTotal(smtForms.map((board) => ({ smtSide: board.smtSide }))),
-      )
-      if (current.metalMaskCost === next && current.includeMetalMask === true) return current
-      return { ...current, includeMetalMask: true, metalMaskCost: next }
-    })
-  }, [smtForms, form.includeMetalMask])
+  }, [mode, quote?.quoteNumber, quoteType, initialDraft])
 
   // 생성·수정 공통: 입력 변경 시 미리보기 자동 갱신
   useEffect(() => {
@@ -585,27 +582,33 @@ function QuoteModalContent({
     postTest: '0',
     postPacking: '0',
     materialCost: form.materialCost,
-    metalMaskCost: form.metalMaskCost,
+    metalMaskCost: result?.common.subMaterial ?? 0,
     productionKind: form.productionKind,
     includeMaterialCosts: form.includeMaterialCosts,
+    includeMetalMask: form.includeMetalMask,
     postProcessLines: form.postProcessLines,
   }
   const sectionNumbers = {
     smt: 1,
     dip: 2,
     material: 3,
-    other: 4,
   }
 
   const qty = result?.qty || Number(form.boardQty) || 1
+  const orderLevelTotal = result?.common.orderLevelTotal || 0
   const setupSectionTotal = result?.common.smtSetup || 0
-  const smdPlacementTotal = Math.max(0, (result?.values.smt || 0) - (result?.common.smtSetup || 0))
-  const smdSectionTotal = setupSectionTotal + smdPlacementTotal
+  const metalMaskTotal = result?.common.subMaterial || 0
+  const sampleSectionTotal = result?.common.sampleCost || 0
+  const smdPlacementTotal = result?.common.smtPlacementTotal || 0
+  const smdSectionTotal = orderLevelTotal + smdPlacementTotal
   const dipSectionTotal = (result?.values.dip || 0) + (result?.values.postProcess || 0)
   const materialSectionTotal =
     (Number(form.materialCost) || 0) * qty + (result?.common.materialManagement || 0)
-  const otherSectionTotal =
-    (Number(form.metalMaskCost) || 0) + computeSampleCostTotal(form.boardQty, smtForms)
+  const samplePreview = computeSampleCostTotal(
+    form.boardQty,
+    smtForms.map(smtBoardFormToModel),
+    form.productionKind,
+  )
   const boardCount = Number(clampPcbCount(form.pcbBoardCount))
 
   const liveSummary = result
@@ -789,24 +792,59 @@ function QuoteModalContent({
                     </div>
 
                     <div className="overflow-hidden rounded-lg border border-slate-200">
-                      <div className="flex items-center gap-3 bg-slate-50 px-3 py-2.5">
-                        <h4 className="min-w-0 flex-1 text-xs font-bold tracking-wide text-slate-700">
-                          SET-UP
+                      <div className="flex items-center gap-3 bg-amber-50/80 px-3 py-2.5">
+                        <h4 className="min-w-0 flex-1 text-xs font-bold tracking-wide text-amber-950">
+                          건당 비용 (발주 1회)
                         </h4>
                         <div className="shrink-0 text-right">
-                          <p className="text-[10px] font-medium text-slate-500">대당</p>
-                          <p className="text-sm font-semibold tabular-nums text-slate-800">
-                            {formatAmount(qty > 0 ? setupSectionTotal / qty : 0)}
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-[10px] font-medium text-slate-500">합계</p>
-                          <p className="text-sm font-semibold tabular-nums text-slate-800">
-                            {formatAmount(setupSectionTotal)}
+                          <p className="text-[10px] font-medium text-amber-800/80">합계</p>
+                          <p className="text-sm font-semibold tabular-nums text-amber-950">
+                            {formatAmount(orderLevelTotal)}
                           </p>
                         </div>
                       </div>
                       <div className="space-y-3 border-t border-slate-100 px-3 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">
+                          <span className="font-medium text-slate-700">SET-UP</span>
+                          <span className="font-semibold tabular-nums text-slate-900">
+                            {formatAmount(setupSectionTotal)}
+                          </span>
+                        </div>
+                        <label className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">
+                          <span className="inline-flex items-center gap-2 font-medium text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={form.includeMetalMask}
+                              onChange={(event) =>
+                                updateForm('includeMetalMask', event.target.checked)
+                              }
+                              className="rounded border-slate-300"
+                            />
+                            메탈마스크
+                            <span className="font-normal text-slate-500">
+                              (단면 {METAL_MASK_COST_SINGLE.toLocaleString('ko-KR')} / 양면{' '}
+                              {METAL_MASK_COST_DOUBLE.toLocaleString('ko-KR')})
+                            </span>
+                          </span>
+                          <span className="font-semibold tabular-nums text-slate-900">
+                            {formatAmount(form.includeMetalMask ? metalMaskTotal : 0)}
+                          </span>
+                        </label>
+                        {samplePreview > 0 ? (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">
+                            <div>
+                              <span className="font-medium text-slate-700">샘플 비용</span>
+                              <p className="mt-0.5 text-[11px] text-slate-500">
+                                일회성 · 생산수량 {SAMPLE_QTY_THRESHOLD.toLocaleString('ko-KR')}대 미만
+                                · 단면 {SAMPLE_COST_SINGLE.toLocaleString('ko-KR')} / 양면·듀얼{' '}
+                                {SAMPLE_COST_DOUBLE.toLocaleString('ko-KR')}
+                              </p>
+                            </div>
+                            <span className="font-semibold tabular-nums text-slate-900">
+                              {formatAmount(sampleSectionTotal)}
+                            </span>
+                          </div>
+                        ) : null}
                         {smtForms.map((board, index) => (
                           <SmtPcbBoardForm
                             key={`setup-${index}`}
@@ -825,7 +863,7 @@ function QuoteModalContent({
                     <div className="overflow-hidden rounded-lg border border-slate-200">
                       <div className="flex items-center gap-3 bg-slate-50 px-3 py-2.5">
                         <h4 className="min-w-0 flex-1 text-xs font-bold tracking-wide text-slate-700">
-                          실장·검사
+                          실장·검사 (대당 × {qty.toLocaleString('ko-KR')}대)
                         </h4>
                         <div className="shrink-0 text-right">
                           <p className="text-[10px] font-medium text-slate-500">대당</p>
@@ -934,74 +972,6 @@ function QuoteModalContent({
                         className="w-full rounded-lg border border-slate-200 px-3 py-2"
                       />
                     </label>
-                  </div>
-                ) : null}
-              </section>
-
-              <section className="mb-1 overflow-hidden rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => toggleSection('other')}
-                  className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
-                >
-                  <h3 className="min-w-0 flex-1 text-sm font-bold text-slate-900">
-                    {sectionNumbers.other}. 기타
-                  </h3>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-800">
-                    {formatAmount(otherSectionTotal)}
-                  </span>
-                  <span className="shrink-0 text-slate-400">{openSections.other ? '▴' : '▾'}</span>
-                </button>
-                {openSections.other ? (
-                  <div className="space-y-3 border-t border-slate-100 px-3.5 py-3">
-                    <label className="flex items-start gap-2.5 text-sm text-slate-800">
-                      <input
-                        type="checkbox"
-                        checked={form.includeMetalMask === true}
-                        onChange={(event) => {
-                          const checked = event.target.checked
-                          setForm((current) => ({
-                            ...current,
-                            includeMetalMask: checked,
-                            metalMaskCost: checked
-                              ? String(
-                                  computeMetalMaskCostTotal(
-                                    smtForms.map((board) => ({ smtSide: board.smtSide })),
-                                  ),
-                                )
-                              : '0',
-                          }))
-                        }}
-                        className="mt-0.5 h-4 w-4 rounded border-slate-300"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-medium text-slate-700">메탈마스크 (일회성)</span>
-                        {form.includeMetalMask === true ? (
-                          <span className="mt-0.5 block text-sm font-semibold tabular-nums text-slate-900">
-                            {formatAmount(Number(form.metalMaskCost) || 0)}
-                          </span>
-                        ) : null}
-                        <span className="mt-1 block text-[11px] text-slate-500">
-                          PCB 단면 {formatAmount(METAL_MASK_COST_SINGLE)} / 듀얼·양면{' '}
-                          {formatAmount(METAL_MASK_COST_DOUBLE)} · SMT 보드 기준 자동 계산
-                        </span>
-                      </span>
-                    </label>
-                    {computeSampleCostTotal(form.boardQty, smtForms) > 0 ? (
-                      <label className="block text-sm">
-                        <span className="mb-1 block font-medium text-slate-600">샘플 비용</span>
-                        <input
-                          readOnly
-                          value={String(sampleCostForBoards(smtForms))}
-                          className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700"
-                        />
-                        <p className="mt-1 text-[11px] text-slate-500">
-                          일회성 · 생산수량 {SAMPLE_QTY_THRESHOLD.toLocaleString('ko-KR')}대 미만 시
-                          단면 {SAMPLE_COST_SINGLE.toLocaleString('ko-KR')} / 양면·듀얼{' '}
-                          {SAMPLE_COST_DOUBLE.toLocaleString('ko-KR')}
-                        </p>
-                      </label>
-                    ) : null}
                   </div>
                 ) : null}
               </section>

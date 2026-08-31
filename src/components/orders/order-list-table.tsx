@@ -28,7 +28,7 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
   }
 
   return (
-    <ErpTableShell tableClassName="min-w-[720px] md:min-w-[1040px]">
+    <ErpTableShell tableClassName="min-w-[800px] md:min-w-[1120px]">
       <ErpTableHead>
         <tr>
           <ErpTableTh>발주일</ErpTableTh>

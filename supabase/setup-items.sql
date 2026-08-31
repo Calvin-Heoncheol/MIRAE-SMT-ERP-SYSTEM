@@ -21,6 +21,9 @@ create table if not exists public.items (
   dip_unit_price numeric not null default 0 check (dip_unit_price >= 0),
   material_unit_price numeric not null default 0 check (material_unit_price >= 0),
   other_unit_price numeric not null default 0,
+  setup_unit_price numeric not null default 0 check (setup_unit_price >= 0),
+  smt_quote_parts jsonb not null default '{}'::jsonb,
+  baseline_quote_id text,
   pcb_side_mode text not null default '' check (pcb_side_mode in ('', 'single', 'duo', 'double')),
   process_type text not null default '' check (process_type in ('', 'smt', 'post', 'smt_post')),
   customer_id text,
@@ -61,6 +64,12 @@ alter table public.items
 alter table public.items
   add column if not exists other_unit_price numeric not null default 0;
 alter table public.items
+  add column if not exists setup_unit_price numeric not null default 0;
+alter table public.items
+  add column if not exists smt_quote_parts jsonb not null default '{}'::jsonb;
+alter table public.items
+  add column if not exists baseline_quote_id text;
+alter table public.items
   add column if not exists pcb_side_mode text not null default '';
 alter table public.items
   add column if not exists process_type text not null default '';
@@ -94,11 +103,14 @@ comment on column public.items.mpn is 'MPN';
 comment on column public.items.material_type is 'SMD / DIP (선택)';
 comment on column public.items.supply_type is '도급/사급 (선택)';
 comment on column public.items.supplier is '공급사 — 원자재·부자재';
-comment on column public.items.unit_price is '단가 (반제품은 SMD+DIP+자재+기타 합계, 기타 음수 시 0 미만 가능)';
-comment on column public.items.smd_unit_price is 'SMD 단가 — 반제품(3)';
-comment on column public.items.dip_unit_price is 'DIP 단가 — 반제품(3)';
-comment on column public.items.material_unit_price is '자재 단가 — 반제품(3)';
-comment on column public.items.other_unit_price is '기타 단가 — 반제품(3), 음수(할인·조정) 허용';
+comment on column public.items.unit_price is '대당 단가 참고 (SMD+후공정, 반제품)';
+comment on column public.items.smd_unit_price is 'SMD 대당 단가 — 반제품(3)';
+comment on column public.items.dip_unit_price is '후공정 대당 단가 — 반제품(3)';
+comment on column public.items.material_unit_price is '자재 대당 단가 — 반제품(3), 발주 시 수량×단가';
+comment on column public.items.other_unit_price is '레거시 — SET-UP과 동일 값으로 동기화';
+comment on column public.items.setup_unit_price is 'SET-UP 전체 비용 (발주 시 1회 청구)';
+comment on column public.items.smt_quote_parts is '레거시 종수 스냅샷';
+comment on column public.items.baseline_quote_id is '기준 견적서 quotations.id — 종수·SET-UP 산정 소스';
 comment on column public.items.pcb_side_mode is '면 구분 — 단면(single)/듀얼(duo)/양면(double) — 반제품(3)만 사용';
 comment on column public.items.process_type is '공정 — 반제품(3)만: smt=SMD, post=후공정, smt_post=SMD+후공정';
 comment on column public.items.safety_stock is '안전재고(최소 보유 수량). 현재고가 이보다 작으면 미달';
@@ -114,6 +126,9 @@ create index if not exists items_process_type_idx on public.items (process_type)
 create index if not exists items_item_category_idx on public.items (item_category);
 create index if not exists items_is_active_idx on public.items (is_active);
 create index if not exists items_customer_id_idx on public.items (customer_id);
+create index if not exists items_baseline_quote_id_idx
+  on public.items (baseline_quote_id)
+  where baseline_quote_id is not null;
 create unique index if not exists items_base_code_name_version_uidx
   on public.items (
     lower(btrim(base_code)),
@@ -259,9 +274,7 @@ begin
   elsif coalesce(new.unit_price, 0) = 0 then
     new.unit_price :=
       coalesce(new.smd_unit_price, 0)
-      + coalesce(new.dip_unit_price, 0)
-      + coalesce(new.material_unit_price, 0)
-      + coalesce(new.other_unit_price, 0);
+      + coalesce(new.dip_unit_price, 0);
   end if;
 
   if new.item_category in (3, 4) and new.process_type = '' then

@@ -1,3 +1,5 @@
+import type { ItemSmtQuoteParts } from '@/lib/items/smt-quote-parts'
+
 export type ProductPcbSideMode = 'single' | 'duo' | 'double'
 
 export type ProductKind = 'pcb' | 'assembly'
@@ -14,9 +16,17 @@ export type Product = {
   version: string
   productName: string
   defaultUnitPrice: number
+  setupUnitPrice: number
+  smdUnitPrice: number
+  dipUnitPrice: number
+  materialUnitPrice: number
   pcbSideMode: ProductPcbSideMode
   processType: ProductProcessType
   productKind: ProductKind
+  /** @deprecated */
+  smtQuoteParts: ItemSmtQuoteParts
+  /** @deprecated */
+  baselineQuoteId: string
   isActive: boolean
 }
 

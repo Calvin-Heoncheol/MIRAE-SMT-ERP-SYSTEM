@@ -53,6 +53,7 @@ export type PreviewLabels = {
   test: string
   packing: string
   materials: string
+  orderLevelCosts: string
   other: string
   rawMaterial: string
   managementFee: string
@@ -123,6 +124,7 @@ const DOMESTIC_LABELS: PreviewLabels = {
   test: '테스트',
   packing: '포장',
   materials: '자재',
+  orderLevelCosts: '건당 비용 (발주 1회)',
   other: '기타',
   rawMaterial: '원자재 비용',
   managementFee: '관리비',
@@ -193,6 +195,7 @@ const EXPORT_LABELS: PreviewLabels = {
   test: 'Test',
   packing: 'Packing',
   materials: 'Materials',
+  orderLevelCosts: 'Order-Level Costs (per PO)',
   other: 'Other',
   rawMaterial: 'Raw Material Cost',
   managementFee: 'Management Fee',

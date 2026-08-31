@@ -100,6 +100,7 @@ export function buildItemChangeTitle(
 export type ItemChangePriceFields = {
   name: string
   unitPrice: number
+  setupUnitPrice: number
   smdUnitPrice: number
   dipUnitPrice: number
   materialUnitPrice: number
@@ -114,6 +115,7 @@ function snapshotItemPrices(row: ItemChangePriceFields) {
   return {
     name: row.name,
     unitPrice: roundMoney(row.unitPrice),
+    setupUnitPrice: roundMoney(row.setupUnitPrice),
     smdUnitPrice: roundMoney(row.smdUnitPrice),
     dipUnitPrice: roundMoney(row.dipUnitPrice),
     materialUnitPrice: roundMoney(row.materialUnitPrice),
@@ -121,16 +123,16 @@ function snapshotItemPrices(row: ItemChangePriceFields) {
   }
 }
 
-/** DB before_data / after_data용 — SMD·DIP·자재·기타·최종 단가 전후 + 어느 항목이 바뀌었는지 */
+/** DB before_data / after_data용 — SET-UP·SMD·후공정·자재·최종 단가 전후 */
 export function buildItemChangeDataPayload(input: {
   before: ItemChangePriceFields
   after: ItemChangePriceFields
 }) {
   const moneyFields = [
+    { key: 'setupUnitPrice' as const, label: 'SET-UP' },
     { key: 'smdUnitPrice' as const, label: 'SMD 단가' },
-    { key: 'dipUnitPrice' as const, label: 'DIP 단가' },
+    { key: 'dipUnitPrice' as const, label: '후공정 단가' },
     { key: 'materialUnitPrice' as const, label: '자재 단가' },
-    { key: 'otherUnitPrice' as const, label: '기타 단가' },
     { key: 'unitPrice' as const, label: '최종 단가' },
   ]
 
@@ -225,6 +227,7 @@ export function hasOrderUnitPriceChange(
 export function hasItemUnitPriceChange(
   before: {
     unitPrice: number
+    setupUnitPrice?: number
     smdUnitPrice: number
     dipUnitPrice: number
     materialUnitPrice: number
@@ -232,6 +235,7 @@ export function hasItemUnitPriceChange(
   },
   after: {
     unitPrice: number
+    setupUnitPrice?: number
     smdUnitPrice: number
     dipUnitPrice: number
     materialUnitPrice: number
@@ -240,6 +244,7 @@ export function hasItemUnitPriceChange(
 ) {
   return (
     Math.round(before.unitPrice || 0) !== Math.round(after.unitPrice || 0) ||
+    Math.round(before.setupUnitPrice || 0) !== Math.round(after.setupUnitPrice || 0) ||
     Math.round(before.smdUnitPrice || 0) !== Math.round(after.smdUnitPrice || 0) ||
     Math.round(before.dipUnitPrice || 0) !== Math.round(after.dipUnitPrice || 0) ||
     Math.round(before.materialUnitPrice || 0) !== Math.round(after.materialUnitPrice || 0) ||

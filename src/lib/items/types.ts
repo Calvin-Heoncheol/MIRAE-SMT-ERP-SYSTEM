@@ -1,3 +1,5 @@
+import type { ItemSmtQuoteParts } from './smt-quote-parts'
+
 export type ItemMaterialType = '' | 'SMD' | 'DIP'
 
 export const ITEM_MATERIAL_TYPES: ItemMaterialType[] = ['', 'SMD', 'DIP']
@@ -157,10 +159,17 @@ export type Item = {
   pcbSideMode: ItemPcbSideMode
   processType: ItemProcessType
   unitPrice: number
+  /** SET-UP */
+  setupUnitPrice: number
   smdUnitPrice: number
   dipUnitPrice: number
   materialUnitPrice: number
+  /** @deprecated SET-UP은 setupUnitPrice 사용 */
   otherUnitPrice: number
+  /** @deprecated 미사용 */
+  smtQuoteParts: ItemSmtQuoteParts
+  /** @deprecated 미사용 */
+  baselineQuoteId: string
   itemCategory: ItemCategory
   safetyStock: number
   isActive: boolean
@@ -184,10 +193,13 @@ export type ItemPayload = {
   pcbSideMode: ItemPcbSideMode
   processType: ItemProcessType
   unitPrice: number
+  setupUnitPrice: number
   smdUnitPrice: number
   dipUnitPrice: number
   materialUnitPrice: number
   otherUnitPrice: number
+  smtQuoteParts: ItemSmtQuoteParts
+  baselineQuoteId: string
   itemCategory: ItemCategory
   safetyStock: number
 }

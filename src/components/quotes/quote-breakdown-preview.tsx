@@ -47,8 +47,8 @@ function breakdownPageTitle(quoteType: QuoteType) {
 
 function breakdownPageNote(quoteType: QuoteType) {
   return quoteType === 'domestic'
-    ? 'SMD(SET-UP·실장·검사)·후공정(납땜 포함)·기타 항목별 단가·부품수(작업량)·생산수량 기준 합계입니다.'
-    : 'Itemized totals for SMD (SET-UP, placement, inspection), post-process (incl. soldering), and other.'
+    ? 'SMD(SET-UP·실장·검사)·후공정(납땜 포함)·자재 항목별 단가·부품수(작업량)·생산수량 기준 합계입니다.'
+    : 'Itemized totals for SMD (SET-UP, placement, inspection), post-process (incl. soldering), and materials.'
 }
 
 function formatAmount(

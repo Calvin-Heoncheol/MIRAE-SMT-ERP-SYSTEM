@@ -20,8 +20,17 @@ export type OrderLineItem = {
   productCode: string
   productName: string
   quantity: number
+  /** 대당 참고 (SMD+후공정) */
   unitPrice: number
   orderAmount: number
+  /** SET-UP 전체 비용 */
+  setupCost: number
+  /** SMD 대당 */
+  smdUnitPrice: number
+  /** 후공정 대당 */
+  dipUnitPrice: number
+  /** 자재비 (회차별 총액) */
+  materialCost: number
   /** 제품(라인)별 납기일 YYYY-MM-DD */
   deliveryDate: string
   /** BOM 펼침으로 생성된 반제품 줄 */
@@ -61,6 +70,10 @@ export type OrderLineRecord = {
   quantity: number
   unit_price: number
   order_amount: number
+  setup_cost?: number | null
+  smd_unit_price?: number | null
+  dip_unit_price?: number | null
+  material_cost?: number | null
   delivery_date?: string | null
   derived_from_line_id?: string | null
 }

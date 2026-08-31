@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ErpTableHead, ErpTableShell, ErpTableTd, ErpTableTh } from '@/components/ui/erp-table'
@@ -42,7 +42,7 @@ export function MaterialPurchaseOrderListTable({
   }
 
   return (
-    <ErpTableShell tableClassName="min-w-[640px] md:min-w-[900px]">
+    <ErpTableShell tableClassName="min-w-[720px] md:min-w-[980px]">
       <ErpTableHead>
         <tr>
           <ErpTableTh>구매발주일</ErpTableTh>

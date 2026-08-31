@@ -76,7 +76,7 @@ const SOURCES: ActivitySource[] = [
       const qty = Number(row.quantity) || 0
       const date = String(row.record_date || '').trim()
       return {
-        title: '출하 등록',
+        title: '출하 및 거래명세서',
         detail: `${shipmentId} · ${qty.toLocaleString('ko-KR')}EA${date ? ` · ${date}` : ''}`,
       }
     },

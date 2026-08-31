@@ -39,7 +39,7 @@ export function OrderProgressTable({ rows, emptyMessage }: OrderProgressTablePro
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="min-w-[960px] w-full border-collapse">
+        <table className="erp-data-table min-w-[960px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className={`${ERP_TABLE_TH_CLASS} text-left`}>발주번호</th>

@@ -92,7 +92,7 @@ export function MaterialPurchaseSuggestionTable({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
-        <table className="min-w-[980px] w-full table-fixed border-collapse text-sm">
+        <table className="erp-data-table min-w-[1080px] w-full table-fixed border-collapse text-sm">
           <colgroup>
             <col className="w-[44px]" />
             <col className="w-[120px]" />
@@ -106,7 +106,7 @@ export function MaterialPurchaseSuggestionTable({
           </colgroup>
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
-              <th className="px-3 py-2 text-left">
+              <th className="erp-table-check">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -153,7 +153,7 @@ export function MaterialPurchaseSuggestionTable({
                     selected ? 'bg-slate-50/80' : 'hover:bg-slate-50',
                   ].join(' ')}
                 >
-                  <td className="px-3 py-2">
+                  <td className="erp-table-check">
                     <input
                       type="checkbox"
                       checked={selected}

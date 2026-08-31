@@ -313,7 +313,7 @@ export function LegacyStatementModal({
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="min-w-[720px] w-full border-collapse text-sm">
+            <table className="erp-data-table erp-data-table--compact min-w-[720px] w-full border-collapse text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">품목코드</th>

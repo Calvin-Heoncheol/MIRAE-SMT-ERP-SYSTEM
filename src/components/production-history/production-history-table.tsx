@@ -55,14 +55,15 @@ export function ProductionHistoryTable({
       <div className={ERP_TABLE_SCROLL_CLASS}>
         <table
           className={[
+            'erp-data-table',
             'w-full border-collapse',
-            showSmtColumns ? 'min-w-[980px]' : 'min-w-[860px]',
+            showSmtColumns ? 'min-w-[1080px]' : 'min-w-[920px]',
           ].join(' ')}
         >
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               {selectable ? (
-                <th className="w-10 whitespace-nowrap px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
+                <th className="erp-table-check text-xs font-semibold text-slate-500">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -121,7 +122,7 @@ export function ProductionHistoryTable({
                 >
                   {selectable ? (
                     <td
-                      className="whitespace-nowrap px-3 py-2.5 text-center"
+                      className="erp-table-check"
                       onClick={(event) => event.stopPropagation()}
                     >
                       <input

@@ -27,7 +27,7 @@ export function PartnerListTable({ partners, emptyMessage, onSelectPartner }: Pa
   }
 
   return (
-    <ErpTableShell tableClassName="min-w-[640px] md:min-w-[1080px]">
+    <ErpTableShell tableClassName="min-w-[720px] md:min-w-[1160px]">
       <ErpTableHead>
         <tr>
           <ErpTableTh>사업자번호</ErpTableTh>

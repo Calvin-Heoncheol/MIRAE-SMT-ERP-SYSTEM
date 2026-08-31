@@ -593,7 +593,7 @@ function MaterialPurchaseOrderModalContent({
           {readOnly ? <h3 className="mb-3 text-sm font-bold text-slate-900">구매발주 품목</h3> : null}
           {readOnly ? (
             <div className="overflow-x-auto rounded-lg border border-slate-300">
-              <table className="min-w-[760px] w-full border-collapse text-sm">
+              <table className="erp-data-table erp-data-table--compact min-w-[760px] w-full border-collapse text-sm">
                 <thead className={ERP_TABLE_HEAD_CLASS}>
                   <tr>
                     <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">

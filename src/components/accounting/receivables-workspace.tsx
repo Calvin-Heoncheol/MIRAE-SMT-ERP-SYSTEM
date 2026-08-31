@@ -353,7 +353,7 @@ export function ReceivablesWorkspace({
               emptyMessage={formatEmptyListMessage({
                 hasQuery: hasActiveFilter,
                 emptyLabel: '기간 내 거래명세서가 없습니다',
-                actionHint: '영업관리 거래명세서에서 출하 내역을 확인하세요.',
+                actionHint: '영업관리 출하 및 거래명세서에서 출하·명세 내역을 확인하세요.',
               })}
               onRowClick={(row) => setModal({ open: true, shipmentId: row.shipmentId })}
               selectedIds={selectedIds}

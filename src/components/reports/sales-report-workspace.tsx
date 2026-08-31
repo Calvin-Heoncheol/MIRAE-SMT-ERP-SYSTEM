@@ -360,10 +360,10 @@ export function SalesReportWorkspace({
             {filteredShipments.length ? (
               <>
                 <div className={ERP_TABLE_SCROLL_CLASS}>
-                  <table className={`${ERP_TABLE_CLASS} min-w-[640px] md:min-w-[960px]`}>
+                  <table className={`${ERP_TABLE_CLASS} w-full table-fixed min-w-[640px] md:min-w-[960px]`}>
                     <thead className={ERP_TABLE_HEAD_CLASS}>
                       <tr>
-                        <th className={`${ERP_TABLE_TH_CLASS} w-10 text-center`}>
+                        <th className={`${ERP_TABLE_TH_CLASS} erp-table-check`}>
                           <input
                             type="checkbox"
                             checked={allFilteredSelected}
@@ -373,12 +373,12 @@ export function SalesReportWorkspace({
                             className="size-4 accent-slate-700"
                           />
                         </th>
-                        <th className={`${ERP_TABLE_TH_CLASS} text-left`}>발행일</th>
-                        <th className={`${ERP_TABLE_TH_CLASS} text-left`}>출하번호</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} w-[96px] text-left`}>발행일</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} w-[120px] text-left`}>출하번호</th>
                         <th className={`${ERP_TABLE_TH_CLASS} text-left`}>고객사</th>
-                        <th className={`${ERP_TABLE_TH_CLASS} hidden text-left md:table-cell`}>품목</th>
-                        <th className={`${ERP_TABLE_TH_CLASS} text-right`}>수량</th>
-                        <th className={`${ERP_TABLE_TH_CLASS} hidden text-right sm:table-cell`}>금액</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} hidden w-[28%] text-left md:table-cell`}>품목</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} w-[88px] text-right`}>수량</th>
+                        <th className={`${ERP_TABLE_TH_CLASS} hidden w-[112px] text-right sm:table-cell`}>금액</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -392,7 +392,7 @@ export function SalesReportWorkspace({
                             onClick={() => setEditingGroup(row)}
                           >
                             <td
-                              className={`${ERP_TABLE_TD_CLASS} text-center`}
+                              className={`${ERP_TABLE_TD_CLASS} erp-table-check`}
                               onClick={(event) => event.stopPropagation()}
                             >
                               <input

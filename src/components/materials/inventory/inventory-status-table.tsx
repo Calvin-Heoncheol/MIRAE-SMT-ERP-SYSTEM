@@ -68,7 +68,7 @@ export function InventoryStatusTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="w-full min-w-[1020px] table-fixed border-collapse">
+        <table className="erp-data-table w-full min-w-[1120px] table-fixed border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">

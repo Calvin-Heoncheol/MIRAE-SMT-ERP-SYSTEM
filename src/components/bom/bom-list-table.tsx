@@ -113,7 +113,7 @@ export function BomListTable({ rows, emptyMessage, onSelectRow }: BomListTablePr
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="w-full min-w-[640px] border-collapse">
+        <table className="erp-data-table w-full min-w-[640px] border-collapse">
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               {BOM_LIST_COLUMNS.map((column) => (

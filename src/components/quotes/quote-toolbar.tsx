@@ -6,9 +6,10 @@ import type { QuoteType } from '@/lib/quotes/types'
 type QuoteNewMenuProps = {
   onOpenNew: (quoteType: QuoteType) => void
   onOpenLegacy?: () => void
+  onOpenAi?: () => void
 }
 
-export function QuoteNewMenu({ onOpenNew, onOpenLegacy }: QuoteNewMenuProps) {
+export function QuoteNewMenu({ onOpenNew, onOpenLegacy, onOpenAi }: QuoteNewMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -32,6 +33,11 @@ export function QuoteNewMenu({ onOpenNew, onOpenLegacy }: QuoteNewMenuProps) {
     onOpenLegacy?.()
   }
 
+  function selectAi() {
+    setOpen(false)
+    onOpenAi?.()
+  }
+
   return (
     <div ref={rootRef} className="relative">
       <button
@@ -44,11 +50,21 @@ export function QuoteNewMenu({ onOpenNew, onOpenLegacy }: QuoteNewMenuProps) {
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-20 mt-2 min-w-[220px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+        <div className="absolute right-0 z-20 mt-2 min-w-[240px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+          <button
+            type="button"
+            onClick={selectAi}
+            className="block w-full bg-violet-50 px-4 py-3 text-left text-sm font-semibold text-violet-900 hover:bg-violet-100/80"
+          >
+            AI 견적
+            <span className="mt-0.5 block text-xs font-normal text-violet-700/90">
+              좌표·BOM 자동 분석 후 견적서 작성
+            </span>
+          </button>
           <button
             type="button"
             onClick={() => selectType('export')}
-            className="block w-full px-4 py-3 text-left text-sm font-semibold text-slate-800 hover:bg-slate-50"
+            className="block w-full border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-800 hover:bg-slate-50"
           >
             해외용 견적서
             <span className="mt-0.5 block text-xs font-normal text-slate-500">원화 · 영문 미리보기/PDF</span>
@@ -68,7 +84,7 @@ export function QuoteNewMenu({ onOpenNew, onOpenLegacy }: QuoteNewMenuProps) {
           >
             과거 견적서
             <span className="mt-0.5 block text-xs font-normal text-slate-500">
-              SMD·후공정·자재·기타 대당 비용만 입력
+              SMD·후공정·자재 대당 비용만 입력
             </span>
           </button>
         </div>

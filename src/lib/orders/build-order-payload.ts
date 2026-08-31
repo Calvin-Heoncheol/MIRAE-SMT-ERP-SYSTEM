@@ -6,13 +6,35 @@ import {
   uniqueProductNames,
 } from '@/lib/products/utils'
 import type { Product } from '@/lib/products/types'
-import { computeLineAmount, isBillingOnlyOrderItem } from './utils'
+import { computeLineAmount, computeOrderLineBreakdownAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, isBillingOnlyOrderItem, orderLinePerUnitPrice } from './utils'
 
 export function orderItemFormToModel(item: OrderItemForm) {
   const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
-  const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+  const setupCost = Math.max(0, Math.round(Number(item.setupCost) || 0))
+  const smdUnitPrice = Math.max(0, Math.round(Number(item.smdUnitPrice) || 0))
+  const dipUnitPrice = Math.max(0, Math.round(Number(item.dipUnitPrice) || 0))
+  const materialUnitPrice = Math.max(0, Math.round(Number(item.materialUnitPrice) || 0))
   const productId = String(item.productId || '').trim()
   const isAdhoc = Boolean(item.isAdhoc) || isBillingOnlyOrderItem({ productId })
+  const unitPrice = isAdhoc
+    ? Math.max(0, Math.round(Number(item.unitPrice) || 0))
+    : computeOrderLineAmortizedUnitPrice({
+        quantity,
+        setupCost,
+        smdUnitPrice,
+        dipUnitPrice,
+        materialUnitPrice,
+      }) || orderLinePerUnitPrice(smdUnitPrice, dipUnitPrice) + materialUnitPrice
+  const materialCost = isAdhoc ? 0 : computeOrderLineMaterialCost(quantity, materialUnitPrice)
+  const orderAmount = isAdhoc
+    ? computeLineAmount(quantity, unitPrice)
+    : computeOrderLineBreakdownAmount({
+        quantity,
+        setupCost,
+        smdUnitPrice,
+        dipUnitPrice,
+        materialUnitPrice,
+      })
   return {
     lineId: String(item.lineId || '').trim() || undefined,
     // 추가작업은 저장 시 product_id 를 비워 생산·출하가능에서 제외 (금액 전용)
@@ -21,7 +43,11 @@ export function orderItemFormToModel(item: OrderItemForm) {
     productName: String(item.productName || '').trim(),
     quantity,
     unitPrice,
-    orderAmount: computeLineAmount(quantity, unitPrice),
+    setupCost: isAdhoc ? 0 : setupCost,
+    smdUnitPrice: isAdhoc ? unitPrice : smdUnitPrice,
+    dipUnitPrice: isAdhoc ? 0 : dipUnitPrice,
+    materialCost: isAdhoc ? 0 : materialCost,
+    orderAmount,
     deliveryDate: String(item.deliveryDate || '').trim(),
     isAdhoc,
     /** 폼 선택용 id (추가작업 검증용, 저장하지 않음) */
@@ -103,6 +129,10 @@ export function validateOrderItems(
     productName: string
     quantity: number
     unitPrice: number
+    setupCost: number
+    smdUnitPrice: number
+    dipUnitPrice: number
+    materialCost: number
     orderAmount: number
     deliveryDate: string
     isAdhoc: boolean
@@ -146,6 +176,10 @@ export function validateOrderItems(
         productName: matched.product.productName,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
+        setupCost: 0,
+        smdUnitPrice: item.unitPrice,
+        dipUnitPrice: 0,
+        materialCost: 0,
         orderAmount: item.orderAmount,
         deliveryDate: headerDeliveryDate || item.deliveryDate,
         isAdhoc: true,
@@ -160,6 +194,10 @@ export function validateOrderItems(
       productName: matched.product.productName,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
+      setupCost: item.setupCost,
+      smdUnitPrice: item.smdUnitPrice,
+      dipUnitPrice: item.dipUnitPrice,
+      materialCost: item.materialCost,
       orderAmount: item.orderAmount,
       deliveryDate: headerDeliveryDate || item.deliveryDate,
       isAdhoc: false,

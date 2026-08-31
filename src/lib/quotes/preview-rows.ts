@@ -1,7 +1,6 @@
 import {
   DIP_UNIT,
   SMT_PLACEMENT_MIN_SCORE,
-  computeSampleCostTotal,
   getPostRate,
   getSmtPlacementMinFee,
   getSmtUnitRates,
@@ -35,6 +34,8 @@ export type PreviewRow = {
   count?: number | string | null
   /** SMD·후공정 세부 행 — 생산수량 표시용 */
   productionQty?: number | string | null
+  /** 발주 1회 고정 비용 — 생산수량으로 곱하지 않음 */
+  orderLevel?: boolean
   amount?: number | null
   indent?: number
   emphasize?: boolean
@@ -60,6 +61,7 @@ export type PreviewFormFields = {
   productionKind?: '샘플' | '양산'
   /** false = 자재 섹션 제외 (신규). 미설정/true = 포함 */
   includeMaterialCosts?: boolean
+  includeMetalMask?: boolean
   /** 통합 후공정 (공정명 + 분) */
   postProcessLines?: PreviewPostProcessLine[]
   /** @deprecated postProcessLines 사용 */
@@ -215,7 +217,6 @@ export function buildProcessBreakdownSections(
     { key: 'smt', title: 'SMD · 실장·검사' },
     { key: 'post', title: pdfSummarySectionLabel(labels.postProcess, quoteType) },
     { key: 'material', title: pdfSummarySectionLabel(labels.materials, quoteType) },
-    { key: 'other', title: pdfSummarySectionLabel(labels.other, quoteType) },
   ]
 
   return definitions.flatMap(({ key, title }) => {
@@ -259,9 +260,12 @@ function scaleAmountByQty(amount: number | null | undefined, qty: number) {
 
 function scalePreviewRowAmountsByQty(rows: PreviewRow[], qty: number): PreviewRow[] {
   const safeQty = qty || 1
-  return rows.map((row) =>
-    row.amount == null ? row : { ...row, amount: scaleAmountByQty(row.amount, safeQty) },
-  )
+  return rows.map((row) => {
+    if (row.orderLevel) {
+      return { ...row, productionQty: '1회', count: row.count ?? '1회' }
+    }
+    return row.amount == null ? row : { ...row, amount: scaleAmountByQty(row.amount, safeQty) }
+  })
 }
 
 function withProductionQty(
@@ -308,6 +312,7 @@ export function previewFormFromQuote(quote: QuoteListItem): PreviewFormFields {
     metalMaskCost: input.metalMaskCost ?? 0,
     productionKind: input.productionKind === '샘플' ? '샘플' : '양산',
     includeMaterialCosts: input.includeMaterialCosts !== false,
+    includeMetalMask: input.includeMetalMask !== false,
     postProcessLines,
   }
 }
@@ -797,61 +802,51 @@ function previewMaterialRows(
   return rows
 }
 
+function previewOrderLevelRows(
+  result: EstimateResult,
+  form: PreviewFormFields,
+  _quoteType: QuoteType,
+  labelType: QuoteType = _quoteType,
+): PreviewRow[] {
+  const labels = getPreviewLabels(labelType)
+  const rows: PreviewRow[] = []
+  const metalMask = form.includeMetalMask === false
+    ? 0
+    : Math.max(0, Math.round(Number(form.metalMaskCost) || 0) || result.common.subMaterial || 0)
+  if (metalMask > 0) {
+    rows.push({
+      label: labels.metalMask,
+      amount: metalMask,
+      count: '1회',
+      orderLevel: true,
+      indent: 1,
+      emphasize: true,
+      amountEmphasize: true,
+    })
+  }
+  const sample = result.common.sampleCost || 0
+  if (sample > 0) {
+    rows.push({
+      label: labels.sampleCost,
+      amount: sample,
+      count: '1회',
+      orderLevel: true,
+      indent: 1,
+      emphasize: true,
+      amountEmphasize: true,
+    })
+  }
+  return rows
+}
+
+/** @deprecated previewOrderLevelRows 사용 */
 function previewOtherRows(
   result: EstimateResult,
   form: PreviewFormFields,
   quoteType: QuoteType,
   labelType: QuoteType = quoteType,
 ): PreviewRow[] {
-  const labels = getPreviewLabels(labelType)
-  const qty = result.qty || 1
-  const metalMaskTotal =
-    Number(form.metalMaskCost) || result.common.subMaterial || 0
-  const metalMaskPerUnit = quotePerUnitTotal(metalMaskTotal, qty)
-  const sampleTotal =
-    (result.common.sampleCost || 0) > 0
-      ? result.common.sampleCost
-      : computeSampleCostTotal(qty, result.common.pcbBoardDetails)
-  const samplePerUnit = quotePerUnitTotal(sampleTotal, qty)
-  const totalPerUnit = metalMaskPerUnit + samplePerUnit
-  if (totalPerUnit <= 0) return []
-
-  const rows: PreviewRow[] = [
-    {
-      label: labels.other,
-      amount: totalPerUnit,
-      emphasize: true,
-      amountEmphasize: true,
-      sectionTotal: 'other',
-    },
-  ]
-
-  if (metalMaskTotal > 0 || metalMaskPerUnit > 0) {
-    rows.push({
-      label: labels.metalMask,
-      description: labelType === 'domestic' ? '일회성 비용' : 'One-time charge',
-      unit: metalMaskTotal,
-      count: labels.oneTime,
-      amount: metalMaskPerUnit,
-      indent: 1,
-    })
-  }
-
-  if (sampleTotal > 0) {
-    rows.push({
-      label: labels.sampleCost,
-      description:
-        labelType === 'domestic'
-          ? '일회성 · 생산수량 200대 미만 시 고정 (단면 20만 / 양면·듀얼 30만)'
-          : 'One-time · fixed when qty under 200 (single ₩200k / dual-double ₩300k)',
-      unit: sampleTotal,
-      count: labels.oneTime,
-      amount: samplePerUnit,
-      indent: 1,
-    })
-  }
-
-  return rows
+  return previewOrderLevelRows(result, form, quoteType, labelType)
 }
 
 function buildBoardCentricPreviewRows(
@@ -998,27 +993,44 @@ export function buildProcessCentricPdfBreakdownRows(
   const multiBoard = pcbCount > 1
   const rows: PreviewRow[] = []
 
-  const setupTotal = pdfSetupSectionTotal(result)
+  const setupTotal = pdfOrderLevelSectionTotal(result, form)
   if (setupTotal > 0) {
     rows.push({
-      label: 'SET-UP',
+      label: labels.orderLevelCosts ?? '건당 비용 (발주 1회)',
       amount: setupTotal,
+      count: '1회',
+      orderLevel: true,
       sectionTotal: 'setup',
       emphasize: true,
       amountEmphasize: true,
     })
 
+    const setupOnly = pdfSetupSectionTotal(result)
+    if (setupOnly > 0) {
+      rows.push({
+        label: 'SET-UP',
+        amount: setupOnly,
+        count: '1회',
+        orderLevel: true,
+        indent: 1,
+        emphasize: true,
+        amountEmphasize: true,
+      })
+    }
+
+    rows.push(...previewOrderLevelRows(result, form, quoteType, labelType))
+
     for (let index = 0; index < pcbCount; index += 1) {
       const smtBoard = result.common.pcbBoardDetails[index]
       const boardName = multiBoard ? smtBoard.pcbName : undefined
-      const setupPerUnit = smtSetupPerUnit(smtBoard.setupAmount, qty)
+      const setupAmount = smtBoard.setupAmount
       const setupDetails = smtSetupDetailRowsForBoard(smtBoard, result, quoteType, labelType)
-      if (setupPerUnit <= 0 && !setupDetails.length) continue
+      if (setupAmount <= 0 && !setupDetails.length) continue
 
       if (multiBoard && setupDetails.length === 0) {
         rows.push({
           label: '',
-          amount: setupPerUnit,
+          amount: setupAmount,
           boardSubtotal: true,
           emphasize: true,
           amountEmphasize: true,
@@ -1154,12 +1166,7 @@ export function buildProcessCentricPdfBreakdownRows(
 
   const otherRows = previewOtherRows(result, form, quoteType, labelType)
   if (otherRows.length > 0) {
-    const [otherHeader, ...otherDetails] = otherRows
-    rows.push({
-      ...otherHeader,
-      label: pdfSummarySectionLabel(labels.other, labelType),
-    })
-    rows.push(...otherDetails)
+    rows.push(...otherRows)
   }
 
   return scalePreviewRowAmountsByQty(rows, qty)
@@ -1176,11 +1183,13 @@ export function buildPreviewRows(
 
 export type PdfSummaryBreakdownLine = {
   label: string
-  /** 대당합계 */
+  /** 대당합계 (가변 비용만) */
   unitTotal: number
-  /** 생산수량 기준 합계 */
+  /** 합계 */
   total: number
   section: PreviewSection
+  /** 발주 1회 고정 — unitTotal은 0, total만 사용 */
+  fixedCost?: boolean
 }
 
 /** @deprecated Use PdfSummaryBreakdownLine */
@@ -1195,11 +1204,17 @@ function pdfSmtSectionTotal(result: EstimateResult) {
 }
 
 function pdfSetupSectionTotal(result: EstimateResult) {
-  const qty = result.qty || 1
-  return result.common.pcbBoardDetails.reduce(
-    (sum, smtBoard) => sum + smtSetupPerUnit(smtBoard.setupAmount, qty),
-    0,
-  )
+  return result.common.smtSetup || 0
+}
+
+function pdfOrderLevelSectionTotal(result: EstimateResult, form: PreviewFormFields) {
+  const metalMask =
+    form.includeMetalMask === false
+      ? 0
+      : Math.max(0, Math.round(Number(form.metalMaskCost) || 0) || result.common.subMaterial || 0)
+  return (result.common.orderLevelTotal || 0) > 0
+    ? result.common.orderLevelTotal
+    : pdfSetupSectionTotal(result) + metalMask + (result.common.sampleCost || 0)
 }
 
 function pdfSolderingSectionTotal(result: EstimateResult) {
@@ -1223,8 +1238,41 @@ export function buildPdfSummaryBreakdownLines(
   const qty = result.qty || 1
   const lines: PdfSummaryBreakdownLine[] = []
 
-  const setup = pdfSetupSectionTotal(result)
-  if (setup > 0) lines.push({ label: 'SET-UP', unitTotal: setup, total: setup * qty, section: 'setup' })
+  const setupAmount = pdfSetupSectionTotal(result)
+  if (setupAmount > 0) {
+    lines.push({
+      label: 'SET-UP',
+      unitTotal: 0,
+      total: setupAmount,
+      section: 'setup',
+      fixedCost: true,
+    })
+  }
+
+  const metalMask =
+    form.includeMetalMask === false
+      ? 0
+      : Math.max(0, Math.round(Number(form.metalMaskCost) || 0) || result.common.subMaterial || 0)
+  if (metalMask > 0) {
+    lines.push({
+      label: labels.metalMask,
+      unitTotal: 0,
+      total: metalMask,
+      section: 'setup',
+      fixedCost: true,
+    })
+  }
+
+  const sample = result.common.sampleCost || 0
+  if (sample > 0) {
+    lines.push({
+      label: labels.sampleCost,
+      unitTotal: 0,
+      total: sample,
+      section: 'setup',
+      fixedCost: true,
+    })
+  }
 
   const smt = pdfSmtSectionTotal(result)
   if (smt > 0) {
@@ -1257,21 +1305,6 @@ export function buildPdfSummaryBreakdownLines(
       unitTotal: materials,
       total: materials * qty,
       section: 'material',
-    })
-  }
-
-  const metalMaskTotal = Number(form.metalMaskCost) || result.common.subMaterial || 0
-  const sampleTotal =
-    (result.common.sampleCost || 0) > 0
-      ? result.common.sampleCost
-      : computeSampleCostTotal(result.qty, result.common.pcbBoardDetails)
-  const otherTotal = metalMaskTotal + sampleTotal
-  if (otherTotal > 0) {
-    lines.push({
-      label: pdfSummarySectionLabel(labels.other, labelType),
-      unitTotal: quotePerUnitTotal(otherTotal, qty),
-      total: otherTotal,
-      section: 'other',
     })
   }
 
@@ -1340,6 +1373,8 @@ export type PreviewMatrixMaterialRow = {
   label: string
   description?: string
   amountPerUnit: number
+  /** 발주 1회 고정 금액 (수량으로 나누지 않음) */
+  fixedCost?: boolean
 }
 
 export type PreviewMatrix = {
@@ -1362,7 +1397,7 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
   const qty = result.qty || 1
   const postOnlyPerUnit = quotePerUnitTotal(result.values.postProcess, qty)
   const smtPerUnit = previewSmtSectionPerUnit(result)
-  const setupPerUnit = pdfSetupSectionTotal(result)
+  const orderLevelTotal = result.common.orderLevelTotal || 0
   const dipPerUnit = quotePerUnitTotal(result.values.dip, qty)
   /** 표시용 후공정 = 납땜 + 후공정(분) */
   const postPerUnit = dipPerUnit + postOnlyPerUnit
@@ -1372,7 +1407,6 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
   const boardRows = result.common.pcbBoardDetails.map((smtBoard, index) => {
     const dipBoard = result.common.dipBoardDetails[index]
     const smtLabor = smtBoardLaborPerUnit(smtBoard)
-    const setup = smtSetupPerUnit(smtBoard.setupAmount, qty)
     const inspection = smtBoardInspectionPerUnit(smtBoard)
     const dip = dipBoard?.boardUnit ?? 0
     const post = postOnBoardRow ? postOnlyPerUnit + dip : null
@@ -1382,7 +1416,7 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
       smtPerUnit: smtLabor + inspection,
       dipPerUnit: dip,
       postPerUnit: post,
-      rowTotalPerUnit: smtLabor + setup + inspection + dip + (postOnBoardRow ? postOnlyPerUnit : 0),
+      rowTotalPerUnit: smtLabor + inspection + dip + (postOnBoardRow ? postOnlyPerUnit : 0),
     }
   })
 
@@ -1390,16 +1424,6 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
 
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, qty)
-  const metalMaskPerUnit = quotePerUnitTotal(
-    Number(form.metalMaskCost) || result.common.subMaterial || 0,
-    qty,
-  )
-  const samplePerUnit = quotePerUnitTotal(
-    (result.common.sampleCost || 0) > 0
-      ? result.common.sampleCost
-      : computeSampleCostTotal(qty, result.common.pcbBoardDetails),
-    qty,
-  )
   const includeMaterial = form.includeMaterialCosts !== false
   const materialRows: PreviewMatrixMaterialRow[] = includeMaterial
     ? [
@@ -1407,11 +1431,21 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
         { label: '관리비', amountPerUnit: materialMgmtPerUnit },
       ]
     : []
-  const otherRows: PreviewMatrixMaterialRow[] = [
-    { label: '메탈마스크 비용 (일회성)', amountPerUnit: metalMaskPerUnit },
-  ]
-  if (samplePerUnit > 0) {
-    otherRows.push({ label: '샘플 비용', amountPerUnit: samplePerUnit })
+  const otherRows: PreviewMatrixMaterialRow[] = []
+  const setupAmount = result.common.smtSetup || 0
+  if (setupAmount > 0) {
+    otherRows.push({ label: 'SET-UP', amountPerUnit: setupAmount, fixedCost: true })
+  }
+  const metalMask =
+    form.includeMetalMask === false
+      ? 0
+      : Math.max(0, Math.round(Number(form.metalMaskCost) || 0) || result.common.subMaterial || 0)
+  if (metalMask > 0) {
+    otherRows.push({ label: '메탈마스크', amountPerUnit: metalMask, fixedCost: true })
+  }
+  const sample = result.common.sampleCost || 0
+  if (sample > 0) {
+    otherRows.push({ label: '샘플 비용', amountPerUnit: sample, fixedCost: true })
   }
 
   return {
@@ -1421,12 +1455,12 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
       smtPerUnit,
       dipPerUnit,
       postPerUnit,
-      rowTotalPerUnit: smtPerUnit + setupPerUnit + postPerUnit,
+      rowTotalPerUnit: smtPerUnit + postPerUnit,
     },
     materialRows,
     materialTotalPerUnit: includeMaterial ? materialPerUnit + materialMgmtPerUnit : 0,
     otherRows,
-    otherTotalPerUnit: metalMaskPerUnit + samplePerUnit,
+    otherTotalPerUnit: orderLevelTotal,
     grandPerUnit: result.values.grandTotal / qty,
   }
 }

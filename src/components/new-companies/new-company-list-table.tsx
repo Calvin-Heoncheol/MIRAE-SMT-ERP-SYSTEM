@@ -37,7 +37,7 @@ export function NewCompanyListTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="w-full min-w-[1060px] border-collapse text-left text-sm">
+        <table className="erp-data-table w-full min-w-[1060px] border-collapse text-left text-sm">
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               <th className="px-3 py-2.5">등록일</th>
