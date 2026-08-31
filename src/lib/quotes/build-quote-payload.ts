@@ -69,12 +69,13 @@ export function buildQuoteDetailInfo(
   const metalMaskCost = Math.max(0, Math.round(result.common.subMaterial || 0))
   const sampleCost = Math.max(0, Math.round(result.common.sampleCost || 0))
   const auxiliaryMaterialCostPerUnit = 0
+  const productionKind = form.productionKind === '샘플' ? '샘플' : '양산'
   const postProcessLines: PostProcessLine[] = form.postProcessLines
-    ? postProcessLinesToModels(form.postProcessLines)
+    ? postProcessLinesToModels(form.postProcessLines, productionKind)
     : [
-        ...(form.assemblyLines ? postProcessLinesToModels(form.assemblyLines) : []),
-        ...(form.testLines ? postProcessLinesToModels(form.testLines) : []),
-        ...(form.packingLines ? postProcessLinesToModels(form.packingLines) : []),
+        ...(form.assemblyLines ? postProcessLinesToModels(form.assemblyLines, productionKind) : []),
+        ...(form.testLines ? postProcessLinesToModels(form.testLines, productionKind) : []),
+        ...(form.packingLines ? postProcessLinesToModels(form.packingLines, productionKind) : []),
       ]
   const postAssembly = form.postProcessLines
     ? sumPostProcessLineMinutes(postProcessLines)

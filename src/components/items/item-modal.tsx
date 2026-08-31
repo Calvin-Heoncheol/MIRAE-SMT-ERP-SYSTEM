@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
+import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { QuoteCombobox } from '@/components/items/quote-combobox'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { EntityChangeHistoryButton } from '@/components/change-logs/entity-change-history-button'
@@ -270,6 +271,18 @@ function ItemModalContent({
   const showQuoteLinkField =
     (form.itemCategory !== '' && isProductItemCategory(form.itemCategory)) ||
     Boolean(!isCreate && item && isProductItemCategory(item.itemCategory))
+
+  function updateBaselineUnitPrice(raw: string) {
+    const next = Math.max(0, Math.round(Number(raw) || 0))
+    setForm((current) => ({
+      ...current,
+      unitPrice: next,
+      setupUnitPrice: 0,
+      smdUnitPrice: 0,
+      dipUnitPrice: 0,
+      materialUnitPrice: 0,
+    }))
+  }
 
   function handleQuoteSelect(quote: QuoteListItem) {
     const defaults = buildItemDefaultsFromQuote(quote)
@@ -718,23 +731,20 @@ function ItemModalContent({
           </div>
         ) : null}
         {showProductUnitPriceField ? (
-          <div className="block text-sm sm:col-span-2">
+          <label className="block text-sm sm:col-span-2">
             <span className={ERP_FIELD_LABEL_CLASS}>기본단가</span>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-              {displayUnitPrice > 0 ? (
-                <p className="font-medium tabular-nums text-slate-800">
-                  {formatItemUnitPrice(displayUnitPrice)}원
-                </p>
-              ) : (
-                <p className="text-slate-500">
-                  {form.baselineQuoteId ? '견적 단가 없음' : '견적서를 연결하면 단가가 표시됩니다'}
-                </p>
-              )}
-            </div>
+            <QuoteNumericInput
+              min={0}
+              value={String(displayUnitPrice > 0 ? displayUnitPrice : form.unitPrice || '')}
+              onChange={updateBaselineUnitPrice}
+              className={ERP_FIELD_INPUT_CLASS}
+              placeholder="0"
+            />
             <p className="mt-1 text-xs text-slate-500">
-              연결된 견적서 기준으로 기본단가가 반영됩니다. 세부 내역은 견적서에서 확인·관리합니다.
+              직접 입력하거나 견적서를 연결하면 기본단가가 채워집니다. 직접 수정 시 세부 단가는
+              초기화됩니다.
             </p>
-          </div>
+          </label>
         ) : null}
         {showRawMaterialTypeField ? (
           <label className="block text-sm">

@@ -1,6 +1,7 @@
 import { paymentTermSnapshotFromDbRow } from '@/lib/partners/payment-term-snapshot'
 import {
   resolveUnifiedPostProcessLineForms,
+  sumPostProcessBilledMinutes,
   sumPostProcessLineMinutes,
 } from './post-process-lines'
 import type {
@@ -146,7 +147,10 @@ export function toEstimateInputFromDetail(
   const smtBoards = inputs.smt?.pcbBoards || [defaultSmtPcbBoard(0)]
   const dipBoards = inputs.dip?.dipBoards || [defaultDipPcbBoard(0)]
   const post = inputs.postProcess || {}
-  const postAssembly = sumPostProcessLineMinutes(resolveUnifiedPostProcessLineForms(post))
+  const productionKind = settings.productionKind === '샘플' ? '샘플' : '양산'
+  const postAssembly = post.lines?.length
+    ? sumPostProcessLineMinutes(post.lines)
+    : sumPostProcessBilledMinutes(resolveUnifiedPostProcessLineForms(post), productionKind)
 
   return {
     boardQty: quote.boardQty,

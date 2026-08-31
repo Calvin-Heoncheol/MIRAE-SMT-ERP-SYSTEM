@@ -53,6 +53,10 @@ export const SMT_PLACEMENT_MIN_SCORE = 150
 export const POST_RATE_DOMESTIC = 500
 /** 후공정 임율: 해외 ₩550/분 */
 export const POST_RATE_EXPORT = 550
+/** 후공정 작업시간 여유 — 샘플 30% */
+export const POST_PROCESS_SAMPLE_BUFFER = 0.3
+/** 후공정 작업시간 여유 — 양산 20% */
+export const POST_PROCESS_MASS_BUFFER = 0.2
 /** @deprecated getPostRate 사용 */
 export const POST_RATE = POST_RATE_EXPORT
 

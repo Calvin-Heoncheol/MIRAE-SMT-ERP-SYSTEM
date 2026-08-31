@@ -11,8 +11,11 @@ import { FilterChipBar } from '@/components/ui/filter-chip'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
+import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { downloadExcel } from '@/lib/excel/export'
+import { itemBaselineUnitPriceUpdatePayload } from '@/lib/items/form-state'
 import type { FetchItemsResult } from '@/lib/items/repository'
+import { updateItem } from '@/lib/items/repository'
 import {
   displayItemBaselineUnitPrice,
   displayItemUnitPrice,
@@ -42,7 +45,8 @@ type ModalState =
   | { open: true; mode: 'bulk'; initialCategory: ItemCategory | null }
 
 export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
-  const { afterSave, afterDelete } = useSaveFeedback()
+  const { afterSave, afterDelete, afterUpdate } = useSaveFeedback()
+  const { notifyAuthOrFailure } = useWriteFailureToast()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<ItemCategory>(ITEM_CATEGORIES[0])
   const [modal, setModal] = useState<ModalState>({ open: false })
@@ -109,6 +113,17 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
 
   function handleDeleted(message?: string) {
     afterDelete(message ?? '품목이 삭제되었습니다.', { close: closeModal })
+  }
+
+  async function handleBaselinePriceSave(item: Item, value: number) {
+    const payload = itemBaselineUnitPriceUpdatePayload(item, value)
+    const result = await updateItem(item.id, payload)
+    if (!result.ok) {
+      notifyAuthOrFailure(result, { toastAllFailures: true, title: '기본단가 저장 실패' })
+      return false
+    }
+    afterUpdate(undefined, { refresh: true })
+    return true
   }
 
   async function handleExcelDownload() {
@@ -201,6 +216,8 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
         <ItemListTable
           items={filtered}
           categoryFilter={categoryFilter}
+          inlineEditBaselinePrice={isProductItemCategory(categoryFilter)}
+          onBaselinePriceSave={handleBaselinePriceSave}
           emptyMessage={formatEmptyListMessage({
             hasQuery: hasActiveFilter,
             emptyLabel: '등록된 품목이 없습니다',

@@ -36,7 +36,7 @@ import {
 import {
   emptyPostProcessLineForm,
   resolveUnifiedPostProcessLineForms,
-  sumPostProcessLineMinutes,
+  sumPostProcessBilledMinutes,
   type PostProcessLineForm,
 } from '@/lib/quotes/post-process-lines'
 import { createQuote, deleteQuotes, updateQuote } from '@/lib/quotes/repository'
@@ -233,7 +233,7 @@ function computeEstimate(
     }),
   )
 
-  const postAssembly = sumPostProcessLineMinutes(form.postProcessLines)
+  const postAssembly = sumPostProcessBilledMinutes(form.postProcessLines, form.productionKind)
 
   return calculateEstimate(
     {
@@ -573,7 +573,7 @@ function QuoteModalContent({
     mode === 'edit' && quote?.quoteDate ? quote.quoteDate : result?.date || ''
   const previewProduct = form.productName.trim() || '-'
   const previewForm = {
-    postAssembly: String(sumPostProcessLineMinutes(form.postProcessLines)),
+    postAssembly: String(sumPostProcessBilledMinutes(form.postProcessLines, form.productionKind)),
     postTest: '0',
     postPacking: '0',
     materialCost: form.materialCost,
@@ -922,6 +922,7 @@ function QuoteModalContent({
                       title="후공정"
                       ratePerMinute={getPostRate(quoteType)}
                       lines={form.postProcessLines}
+                      productionKind={form.productionKind}
                       quoteType={quoteType}
                       displayCurrency={displayCurrency}
                       onChange={(postProcessLines) =>

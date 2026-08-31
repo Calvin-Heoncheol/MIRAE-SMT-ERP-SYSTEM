@@ -187,6 +187,11 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
 
   const isRawMaterial = isRawMaterialItemCategory(itemCategory)
   const isProduct = isProductItemCategory(itemCategory)
+  const setup = money(form.setupUnitPrice)
+  const smd = money(form.smdUnitPrice)
+  const dip = money(form.dipUnitPrice)
+  const material = money(form.materialUnitPrice)
+  const breakdownTotal = setup + smd + dip + material
   const baseCodeInput = form.id.trim()
   const { baseCode, version } = resolveItemCodeParts({
     codeOrId: baseCodeInput,
@@ -211,13 +216,15 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     pcbSideMode: isSemiFinishedItemCategory(itemCategory) ? form.pcbSideMode || 'single' : '',
     processType: isProduct ? form.processType : '',
     unitPrice: isSemiFinishedItemCategory(itemCategory)
-      ? money(form.smdUnitPrice) + money(form.dipUnitPrice)
+      ? breakdownTotal > 0
+        ? smd + dip
+        : money(form.unitPrice)
       : 0,
-    setupUnitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.setupUnitPrice) : 0,
-    smdUnitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.smdUnitPrice) : 0,
-    dipUnitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.dipUnitPrice) : 0,
-    materialUnitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.materialUnitPrice) : 0,
-    otherUnitPrice: isSemiFinishedItemCategory(itemCategory) ? money(form.setupUnitPrice) : 0,
+    setupUnitPrice: isSemiFinishedItemCategory(itemCategory) ? setup : 0,
+    smdUnitPrice: isSemiFinishedItemCategory(itemCategory) ? smd : 0,
+    dipUnitPrice: isSemiFinishedItemCategory(itemCategory) ? dip : 0,
+    materialUnitPrice: isSemiFinishedItemCategory(itemCategory) ? material : 0,
+    otherUnitPrice: isSemiFinishedItemCategory(itemCategory) ? setup : 0,
     smtQuoteParts: { ...EMPTY_SMT_QUOTE_PARTS },
     baselineQuoteId: form.baselineQuoteId.trim(),
     itemCategory,
@@ -231,10 +238,33 @@ export function formToItemUpdatePayload(form: ItemFormState): UpdateItemPayload 
   return rest
 }
 
-export type ItemPriceField = 'setupUnitPrice' | 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice'
+export type ItemPriceField =
+  | 'setupUnitPrice'
+  | 'smdUnitPrice'
+  | 'dipUnitPrice'
+  | 'materialUnitPrice'
+  | 'baselineUnitPrice'
 
 export function itemToUpdatePayload(item: Item): UpdateItemPayload {
   return formToItemUpdatePayload(itemToForm(item))
+}
+
+/** 목록 기본단가 인라인 수정 — 반제품은 unit_price에 저장, 세부 단가는 초기화 */
+export function itemBaselineUnitPriceUpdatePayload(item: Item, value: number): UpdateItemPayload {
+  const base = itemToUpdatePayload(item)
+  const next = Math.max(0, Math.round(Number(value) || 0))
+  if (isSemiFinishedItemCategory(item.itemCategory)) {
+    return {
+      ...base,
+      unitPrice: next,
+      setupUnitPrice: 0,
+      smdUnitPrice: 0,
+      dipUnitPrice: 0,
+      materialUnitPrice: 0,
+      otherUnitPrice: 0,
+    }
+  }
+  return { ...base, unitPrice: next }
 }
 
 export function itemPriceUpdatePayload(
@@ -242,6 +272,9 @@ export function itemPriceUpdatePayload(
   field: ItemPriceField,
   value: number,
 ): UpdateItemPayload {
+  if (field === 'baselineUnitPrice') {
+    return itemBaselineUnitPriceUpdatePayload(item, value)
+  }
   const form = itemToForm(item)
   form[field] = Math.max(0, Math.round(Number(value) || 0))
   return formToItemUpdatePayload(form)

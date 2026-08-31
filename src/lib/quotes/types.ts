@@ -65,9 +65,12 @@ export type QuoteDetailAmounts = {
   auxiliaryMaterialCost?: number
 }
 
-/** 후공정 세부 공정 행 (공정명 + 분) */
+/** 후공정 세부 공정 행 (공정명 + 초 입력 → 청구 분) */
 export type PostProcessLine = {
   name: string
+  /** 입력 작업시간(초) */
+  seconds?: number
+  /** 청구 분 (여유율 반영) */
   minutes: number
 }
 

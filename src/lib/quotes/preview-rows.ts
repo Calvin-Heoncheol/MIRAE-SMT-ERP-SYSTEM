@@ -12,7 +12,12 @@ import {
 } from './calculate-estimate'
 import { formatQuoteMoneyRateByDisplay } from './format'
 import { getPreviewLabels, resolveLabelQuoteType, type QuoteDocumentLanguage } from './preview-i18n'
-import { parsePostProcessMinutes, resolveUnifiedPostProcessLineForms } from './post-process-lines'
+import {
+  hasPostProcessLineInput,
+  parsePostProcessMinutes,
+  resolvePostProcessLineBilledMinutes,
+  resolveUnifiedPostProcessLineForms,
+} from './post-process-lines'
 import type {
   DipBoardDetail,
   EstimateResult,
@@ -49,6 +54,7 @@ export type PreviewRow = {
 
 export type PreviewPostProcessLine = {
   name: string
+  seconds?: number | string
   minutes?: number | string
 }
 
@@ -654,14 +660,14 @@ function postProcessDetailDescription(
 function resolvedPreviewPostProcessLines(form: PreviewFormFields): PreviewPostProcessLine[] {
   if (form.postProcessLines && form.postProcessLines.length > 0) {
     return form.postProcessLines.filter(
-      (line) => (line.name || '').trim() || parsePostProcessMinutes(line.minutes) > 0,
+      (line) => (line.name || '').trim() || hasPostProcessLineInput(line),
     )
   }
   return [
     ...(form.assemblyLines ?? []),
     ...(form.testLines ?? []),
     ...(form.packingLines ?? []),
-  ].filter((line) => (line.name || '').trim() || parsePostProcessMinutes(line.minutes) > 0)
+  ].filter((line) => (line.name || '').trim() || hasPostProcessLineInput(line))
 }
 
 function postDetailRows(
@@ -673,12 +679,13 @@ function postDetailRows(
 ): PreviewRow[] {
   const labels = getPreviewLabels(labelType)
   const postRate = getPostRate(quoteType)
+  const productionKind = form.productionKind === '샘플' ? '샘플' : '양산'
   const lines = resolvedPreviewPostProcessLines(form)
   const rows: PreviewRow[] = []
 
   if (lines.length > 0) {
     for (const line of lines) {
-      const minutes = parsePostProcessMinutes(line.minutes)
+      const minutes = resolvePostProcessLineBilledMinutes(line, productionKind)
       if (minutes <= 0) continue
       const name = (line.name || '').trim()
       const perUnit = minutes * postRate
@@ -758,7 +765,7 @@ function postDetailRows(
 }
 
 function hasPostInputs(form: PreviewFormFields) {
-  if (resolvedPreviewPostProcessLines(form).some((line) => parsePostProcessMinutes(line.minutes) > 0)) {
+  if (resolvedPreviewPostProcessLines(form).some((line) => hasPostProcessLineInput(line))) {
     return true
   }
   return Number(form.postAssembly) > 0 || Number(form.postTest) > 0 || Number(form.postPacking) > 0
