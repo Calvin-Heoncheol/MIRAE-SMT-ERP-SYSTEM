@@ -338,13 +338,8 @@ export function displayItemUnitPrice(
 export function displayItemBaselineUnitPrice(
   item: Pick<
     Item,
-    | 'setupUnitPrice'
-    | 'smdUnitPrice'
-    | 'dipUnitPrice'
-    | 'materialUnitPrice'
-    | 'unitPrice'
-    | 'otherUnitPrice'
-  >,
+    'setupUnitPrice' | 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice' | 'unitPrice'
+  > & { otherUnitPrice?: number },
 ) {
   const breakdownTotal =
     Math.round(Number(item.setupUnitPrice) || 0) +
