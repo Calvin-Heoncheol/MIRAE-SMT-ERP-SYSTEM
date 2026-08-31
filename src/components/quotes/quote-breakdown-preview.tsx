@@ -73,6 +73,7 @@ function BreakdownTableRow({
   showProductionQty,
   boardRowSpan,
   boardGroupStart,
+  swapUnitAndCount = false,
 }: {
   row: PreviewRow
   quoteType: QuoteType
@@ -81,6 +82,7 @@ function BreakdownTableRow({
   showProductionQty: boolean
   boardRowSpan?: number
   boardGroupStart: boolean
+  swapUnitAndCount?: boolean
 }) {
   const isBoardSubtotal = Boolean(row.boardSubtotal)
   const sectionColors = row.sectionFooter ? PDF_SECTION_COLORS[row.sectionFooter] : null
@@ -90,6 +92,14 @@ function BreakdownTableRow({
 
   const unitText = isBoardSubtotal ? '' : formatPreviewRowUnit(row, quoteType, displayCurrency)
   const countText = isBoardSubtotal ? '' : row.count != null ? String(row.count) : '-'
+  const firstMetricText = swapUnitAndCount ? countText : unitText
+  const secondMetricText = swapUnitAndCount ? unitText : countText
+  const firstMetricAlign = swapUnitAndCount ? 'text-center' : row.unitLabel ? 'text-left' : 'text-right'
+  const secondMetricAlign = swapUnitAndCount
+    ? row.unitLabel
+      ? 'text-left'
+      : 'text-right'
+    : 'text-center'
   const productionQtyText =
     isBoardSubtotal || row.productionQty == null ? '' : String(row.productionQty)
   const amountText =
@@ -97,7 +107,8 @@ function BreakdownTableRow({
 
   const labelClass = row.emphasize || row.sectionFooter ? 'font-bold text-slate-900' : 'text-slate-700'
   const amountClass = row.amountEmphasize || row.sectionFooter ? 'font-bold text-slate-900' : 'text-xs text-slate-600'
-  const unitAlignClass = row.unitLabel ? 'text-left text-xs text-slate-600' : 'text-right text-xs text-slate-600'
+  const firstMetricClass = `${firstMetricAlign} text-xs text-slate-600`
+  const secondMetricClass = `${secondMetricAlign} text-xs text-slate-600`
 
   return (
     <tr className={borderTopClass} style={rowStyle}>
@@ -116,9 +127,11 @@ function BreakdownTableRow({
           <span className="mt-0.5 block text-[11px] text-slate-500">{formatPreviewRowDescription(row)}</span>
         ) : null}
       </td>
-      <td className={`px-2 py-1.5 lg:px-3 lg:py-2 ${unitAlignClass}`}>{unitText}</td>
-      <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs tabular-nums text-slate-600 lg:px-3 lg:py-2">
-        {countText}
+      <td className={`px-2 py-1.5 lg:px-3 lg:py-2 ${firstMetricClass}`}>{firstMetricText}</td>
+      <td
+        className={`whitespace-nowrap px-2 py-1.5 tabular-nums lg:px-3 lg:py-2 ${secondMetricClass}`}
+      >
+        {secondMetricText}
       </td>
       {showProductionQty ? (
         <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs tabular-nums text-slate-600 lg:px-3 lg:py-2">
@@ -143,15 +156,18 @@ function BreakdownSectionTable({
   const showBoardColumn = section.rows.some((row) => row.boardName)
   const boardSpans = showBoardColumn ? computeBreakdownBoardRowSpans(section.rows) : []
   const isSetupSection = section.key === 'setup'
+  const isPostSection = section.key === 'post'
   const showProductionQty = false
   const unitHeader = labels.colUnit
   const qtyHeader = isSetupSection
     ? labels.colSetupMinutes
     : section.key === 'smt'
       ? labels.colSmdWorkQty
-      : section.key === 'post'
+      : isPostSection
         ? labels.colPostWorkQty
         : labels.colQty
+  const firstMetricHeader = isPostSection ? qtyHeader : unitHeader
+  const secondMetricHeader = isPostSection ? unitHeader : qtyHeader
 
   return (
     <div className={`breakdown-section-${section.key}`}>
@@ -169,10 +185,15 @@ function BreakdownSectionTable({
                 {labels.colItem}
               </th>
               <th className="border border-slate-400 px-2 py-1.5 text-left text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
-                {unitHeader}
+                {firstMetricHeader}
               </th>
-              <th className="border border-slate-400 px-2 py-1.5 text-center text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
-                {qtyHeader}
+              <th
+                className={[
+                  'border border-slate-400 px-2 py-1.5 text-xs font-bold text-slate-600 lg:px-3 lg:py-2',
+                  isPostSection ? 'text-right' : 'text-center',
+                ].join(' ')}
+              >
+                {secondMetricHeader}
               </th>
               {showProductionQty ? (
                 <th className="border border-slate-400 px-2 py-1.5 text-center text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
@@ -195,6 +216,7 @@ function BreakdownSectionTable({
                 showProductionQty={showProductionQty}
                 boardRowSpan={showBoardColumn ? boardSpans[index] : undefined}
                 boardGroupStart={showBoardColumn && isBreakdownBoardGroupStart(section.rows, index)}
+                swapUnitAndCount={isPostSection}
               />
             ))}
           </tbody>

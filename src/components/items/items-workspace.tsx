@@ -11,16 +11,21 @@ import { FilterChipBar } from '@/components/ui/filter-chip'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
-import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { downloadExcel } from '@/lib/excel/export'
 import type { FetchItemsResult } from '@/lib/items/repository'
-import { updateItem } from '@/lib/items/repository'
-import { itemPriceUpdatePayload, type ItemPriceField } from '@/lib/items/form-state'
-import { displayItemUnitPrice, filterItemsForSearch, formatItemDisplayCode, formatItemProductionProcessLabel, formatItemUnitPrice } from '@/lib/items/utils'
+import {
+  displayItemBaselineUnitPrice,
+  displayItemUnitPrice,
+  filterItemsForSearch,
+  formatItemDisplayCode,
+  formatItemProductionProcessLabel,
+  formatItemUnitPrice,
+} from '@/lib/items/utils'
 import {
   ITEM_CATEGORIES,
   ITEM_CATEGORY_LABELS,
   isProductItemCategory,
+  isSemiFinishedItemCategory,
   type Item,
   type ItemCategory,
 } from '@/lib/items/types'
@@ -37,8 +42,7 @@ type ModalState =
   | { open: true; mode: 'bulk'; initialCategory: ItemCategory | null }
 
 export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
-  const { afterSave, afterDelete, afterUpdate } = useSaveFeedback()
-  const { notifyAuthOrFailure } = useWriteFailureToast()
+  const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<ItemCategory>(ITEM_CATEGORIES[0])
   const [modal, setModal] = useState<ModalState>({ open: false })
@@ -107,50 +111,37 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     afterDelete(message ?? '품목이 삭제되었습니다.', { close: closeModal })
   }
 
-  async function handlePriceFieldSave(item: Item, field: ItemPriceField, value: number) {
-    const payload = itemPriceUpdatePayload(item, field, value)
-    const result = await updateItem(item.id, payload)
-    if (!result.ok) {
-      notifyAuthOrFailure(result, { toastAllFailures: true, title: '단가 저장 실패' })
-      return false
-    }
-    afterUpdate(undefined, { refresh: true })
-    return true
-  }
-
   async function handleExcelDownload() {
     const hideMaterialDetailColumns = isProductItemCategory(categoryFilter)
     const showProductionProcessColumn = categoryFilter === 4
-    const showSemiFinishedPriceBreakdown = categoryFilter === 3
 
     function moneyExcel(value: number) {
       const amount = Math.max(0, Math.round(Number(value) || 0))
       return amount > 0 ? formatItemUnitPrice(amount) : ''
     }
 
-    const processAndPriceColumns = showSemiFinishedPriceBreakdown
+    function baselineUnitPriceExcel(row: Item) {
+      const total = isSemiFinishedItemCategory(row.itemCategory)
+        ? displayItemBaselineUnitPrice(row)
+        : displayItemUnitPrice(row)
+      return moneyExcel(total)
+    }
+
+    const processAndPriceColumns = showProductionProcessColumn
       ? [
-          { header: 'SET-UP', value: (row: Item) => moneyExcel(row.setupUnitPrice), width: 12 },
-          { header: 'SMD', value: (row: Item) => moneyExcel(row.smdUnitPrice), width: 12 },
-          { header: '후공정', value: (row: Item) => moneyExcel(row.dipUnitPrice), width: 12 },
-          { header: '자재', value: (row: Item) => moneyExcel(row.materialUnitPrice), width: 12 },
+          {
+            header: '생산 공정',
+            value: (row: Item) => formatItemProductionProcessLabel(row),
+            width: 12,
+          },
+          {
+            header: '기본단가',
+            value: baselineUnitPriceExcel,
+            width: 12,
+          },
         ]
-      : showProductionProcessColumn
-        ? [
-            {
-              header: '생산 공정',
-              value: (row: Item) => formatItemProductionProcessLabel(row),
-              width: 12,
-            },
-            {
-              header: '단가',
-              value: (row: Item) => {
-                const total = displayItemUnitPrice(row)
-                return total > 0 ? formatItemUnitPrice(total) : ''
-              },
-              width: 12,
-            },
-          ]
+      : isProductItemCategory(categoryFilter)
+        ? [{ header: '기본단가', value: baselineUnitPriceExcel, width: 12 }]
         : []
 
     await downloadExcel({
@@ -210,8 +201,6 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
         <ItemListTable
           items={filtered}
           categoryFilter={categoryFilter}
-          inlineEditPrices={categoryFilter === 3}
-          onPriceFieldSave={handlePriceFieldSave}
           emptyMessage={formatEmptyListMessage({
             hasQuery: hasActiveFilter,
             emptyLabel: '등록된 품목이 없습니다',

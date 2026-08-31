@@ -9,6 +9,7 @@ import { PostProcessLinesEditor } from '@/components/quotes/post-process-lines-e
 import { QuoteBreakdownPreview } from '@/components/quotes/quote-breakdown-preview'
 import { QuoteCurrencyToggle } from '@/components/quotes/quote-currency-toggle'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
+import { QuoteSetupInputPanel } from '@/components/quotes/quote-setup-input-panel'
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import type { AiQuoteDraft } from '@/lib/quotes/ai-quote-draft'
 import { ErpButton } from '@/components/ui/erp-button'
@@ -16,15 +17,7 @@ import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { useBusy } from '@/components/ui/busy-provider'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
-import {
-  computeSampleCostTotal,
-  getPostRate,
-  METAL_MASK_COST_DOUBLE,
-  METAL_MASK_COST_SINGLE,
-  SAMPLE_COST_DOUBLE,
-  SAMPLE_COST_SINGLE,
-  SAMPLE_QTY_THRESHOLD,
-} from '@/lib/quotes/constants'
+import { computeSampleCostTotal, getPostRate } from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
 import type { QuoteRowPayload } from '@/lib/quotes/build-quote-payload'
@@ -316,6 +309,7 @@ function QuoteModalContent({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [displayCurrency, setDisplayCurrency] = useState<QuoteDisplayCurrency>('usd')
   const [openSections, setOpenSections] = useState({
+    setup: true,
     smt: true,
     dip: false,
     material: false,
@@ -589,9 +583,10 @@ function QuoteModalContent({
     postProcessLines: form.postProcessLines,
   }
   const sectionNumbers = {
-    smt: 1,
-    dip: 2,
-    material: 3,
+    setup: 1,
+    smt: 2,
+    dip: 3,
+    material: 4,
   }
 
   const qty = result?.qty || Number(form.boardQty) || 1
@@ -600,7 +595,9 @@ function QuoteModalContent({
   const metalMaskTotal = result?.common.subMaterial || 0
   const sampleSectionTotal = result?.common.sampleCost || 0
   const smdPlacementTotal = result?.common.smtPlacementTotal || 0
-  const smdSectionTotal = orderLevelTotal + smdPlacementTotal
+  const smdLaborTotal = (result?.common.smtLaborPerUnit || 0) * qty
+  const smdInspectionTotal = (result?.common.smtInspectionPerUnit || 0) * qty
+  const smdSectionTotal = smdPlacementTotal
   const dipSectionTotal = (result?.values.dip || 0) + (result?.values.postProcess || 0)
   const materialSectionTotal =
     (Number(form.materialCost) || 0) * qty + (result?.common.materialManagement || 0)
@@ -754,18 +751,18 @@ function QuoteModalContent({
               <section className="mb-3 overflow-hidden rounded-xl border border-slate-200">
                 <button
                   type="button"
-                  onClick={() => toggleSection('smt')}
+                  onClick={() => toggleSection('setup')}
                   className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
                 >
                   <h3 className="min-w-0 flex-1 text-sm font-bold text-slate-900">
-                    {sectionNumbers.smt}. SMD
+                    {sectionNumbers.setup}. SET-UP
                   </h3>
                   <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-800">
-                    {formatAmount(smdSectionTotal)}
+                    {formatAmount(orderLevelTotal)}
                   </span>
-                  <span className="shrink-0 text-slate-400">{openSections.smt ? '▴' : '▾'}</span>
+                  <span className="shrink-0 text-slate-400">{openSections.setup ? '▴' : '▾'}</span>
                 </button>
-                {openSections.smt ? (
+                {openSections.setup ? (
                   <div className="space-y-4 border-t border-slate-100 px-3.5 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-medium text-slate-500">
@@ -791,75 +788,44 @@ function QuoteModalContent({
                       </div>
                     </div>
 
-                    <div className="overflow-hidden rounded-lg border border-slate-200">
-                      <div className="flex items-center gap-3 bg-amber-50/80 px-3 py-2.5">
-                        <h4 className="min-w-0 flex-1 text-xs font-bold tracking-wide text-amber-950">
-                          건당 비용 (발주 1회)
-                        </h4>
-                        <div className="shrink-0 text-right">
-                          <p className="text-[10px] font-medium text-amber-800/80">합계</p>
-                          <p className="text-sm font-semibold tabular-nums text-amber-950">
-                            {formatAmount(orderLevelTotal)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="space-y-3 border-t border-slate-100 px-3 py-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">
-                          <span className="font-medium text-slate-700">SET-UP</span>
-                          <span className="font-semibold tabular-nums text-slate-900">
-                            {formatAmount(setupSectionTotal)}
-                          </span>
-                        </div>
-                        <label className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">
-                          <span className="inline-flex items-center gap-2 font-medium text-slate-700">
-                            <input
-                              type="checkbox"
-                              checked={form.includeMetalMask}
-                              onChange={(event) =>
-                                updateForm('includeMetalMask', event.target.checked)
-                              }
-                              className="rounded border-slate-300"
-                            />
-                            메탈마스크
-                            <span className="font-normal text-slate-500">
-                              (단면 {METAL_MASK_COST_SINGLE.toLocaleString('ko-KR')} / 양면{' '}
-                              {METAL_MASK_COST_DOUBLE.toLocaleString('ko-KR')})
-                            </span>
-                          </span>
-                          <span className="font-semibold tabular-nums text-slate-900">
-                            {formatAmount(form.includeMetalMask ? metalMaskTotal : 0)}
-                          </span>
-                        </label>
-                        {samplePreview > 0 ? (
-                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">
-                            <div>
-                              <span className="font-medium text-slate-700">샘플 비용</span>
-                              <p className="mt-0.5 text-[11px] text-slate-500">
-                                일회성 · 생산수량 {SAMPLE_QTY_THRESHOLD.toLocaleString('ko-KR')}대 미만
-                                · 단면 {SAMPLE_COST_SINGLE.toLocaleString('ko-KR')} / 양면·듀얼{' '}
-                                {SAMPLE_COST_DOUBLE.toLocaleString('ko-KR')}
-                              </p>
-                            </div>
-                            <span className="font-semibold tabular-nums text-slate-900">
-                              {formatAmount(sampleSectionTotal)}
-                            </span>
-                          </div>
-                        ) : null}
-                        {smtForms.map((board, index) => (
-                          <SmtPcbBoardForm
-                            key={`setup-${index}`}
-                            board={board}
-                            mode="setup"
-                            boardIndex={index}
-                            boardCount={smtForms.length}
-                            quoteType={quoteType}
-                            displayCurrency={displayCurrency}
-                            onChange={(next) => updateSmtBoard(index, next)}
-                          />
-                        ))}
-                      </div>
-                    </div>
+                    <QuoteSetupInputPanel
+                      result={result}
+                      form={previewForm}
+                      quoteType={quoteType}
+                      displayCurrency={displayCurrency}
+                      smtForms={smtForms}
+                      qty={qty}
+                      setupSectionTotal={setupSectionTotal}
+                      metalMaskTotal={metalMaskTotal}
+                      sampleSectionTotal={sampleSectionTotal}
+                      samplePreview={samplePreview}
+                      orderLevelTotal={orderLevelTotal}
+                      onSmtBoardChange={updateSmtBoard}
+                      onIncludeMetalMaskChange={(checked) =>
+                        updateForm('includeMetalMask', checked)
+                      }
+                      formatAmount={formatAmount}
+                    />
+                  </div>
+                ) : null}
+              </section>
 
+              <section className="mb-3 overflow-hidden rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => toggleSection('smt')}
+                  className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
+                >
+                  <h3 className="min-w-0 flex-1 text-sm font-bold text-slate-900">
+                    {sectionNumbers.smt}. SMD
+                  </h3>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-800">
+                    {formatAmount(smdSectionTotal)}
+                  </span>
+                  <span className="shrink-0 text-slate-400">{openSections.smt ? '▴' : '▾'}</span>
+                </button>
+                {openSections.smt ? (
+                  <div className="space-y-4 border-t border-slate-100 px-3.5 py-3">
                     <div className="overflow-hidden rounded-lg border border-slate-200">
                       <div className="flex items-center gap-3 bg-slate-50 px-3 py-2.5">
                         <h4 className="min-w-0 flex-1 text-xs font-bold tracking-wide text-slate-700">
@@ -879,6 +845,25 @@ function QuoteModalContent({
                         </div>
                       </div>
                       <div className="space-y-3 border-t border-slate-100 px-3 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">
+                          <span className="font-medium text-slate-700">실장</span>
+                          <span className="font-semibold tabular-nums text-slate-900">
+                            {formatAmount(smdLaborTotal)}
+                          </span>
+                        </div>
+                        {smdInspectionTotal > 0 ? (
+                          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">
+                            <span className="font-medium text-slate-700">
+                              AOI
+                              <span className="ml-1 font-normal text-slate-500">
+                                (대당 {formatAmount(result?.common.smtInspectionPerUnit || 0)})
+                              </span>
+                            </span>
+                            <span className="font-semibold tabular-nums text-slate-900">
+                              {formatAmount(smdInspectionTotal)}
+                            </span>
+                          </div>
+                        ) : null}
                         {smtForms.map((board, index) => (
                           <SmtPcbBoardForm
                             key={`smd-${index}`}

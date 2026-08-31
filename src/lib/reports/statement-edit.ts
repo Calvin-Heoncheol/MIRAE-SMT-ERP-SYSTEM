@@ -15,6 +15,8 @@ export type UpdateStatementLineInput = {
   productName?: string
   quantity: number
   unitPrice: number
+  /** 추가작업(금액 전용) — 출하 기록 없이 발주 라인 단가만 수정 */
+  billingOnly?: boolean
 }
 
 export type StatementEditResult =
@@ -174,16 +176,18 @@ export async function updateStatementLine(
 
   try {
     if (input.source === 'delivery') {
-      const deliveryId = String(input.deliveryId || '').trim()
-      if (!deliveryId) {
-        return { ok: false, reason: 'validation', detail: '출하번호를 찾을 수 없습니다.' }
-      }
+      if (!input.billingOnly) {
+        const deliveryId = String(input.deliveryId || '').trim()
+        if (!deliveryId) {
+          return { ok: false, reason: 'validation', detail: '출하번호를 찾을 수 없습니다.' }
+        }
 
-      const deliveryResult = await updateDeliveryRecord(deliveryId, {
-        recordDate,
-        quantity,
-      })
-      if (!deliveryResult.ok) return deliveryResult
+        const deliveryResult = await updateDeliveryRecord(deliveryId, {
+          recordDate,
+          quantity,
+        })
+        if (!deliveryResult.ok) return deliveryResult
+      }
 
       const priceResult = await updateOrderLineUnitPrice({
         orderNumber: input.orderNumber,

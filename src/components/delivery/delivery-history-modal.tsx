@@ -41,6 +41,7 @@ type DeliveryHistoryModalProps = {
 type LineDraft = {
   deliveryId: string
   orderNumber: string
+  orderLineId?: string
   customerPoNumber: string
   productCode: string
   productName: string
@@ -58,6 +59,17 @@ function parseMoneyInput(value: string) {
   return Math.max(0, Math.round(Number(String(value).replace(/[^\d]/g, '')) || 0))
 }
 
+function handleMoneyInputChange(value: string) {
+  const digits = String(value).replace(/[^\d]/g, '')
+  if (!digits) return ''
+  return formatMoneyInput(Number(digits))
+}
+
+function handleMoneyInputBlur(value: string) {
+  if (!String(value).replace(/[^\d]/g, '')) return '0'
+  return formatMoneyInput(parseMoneyInput(value))
+}
+
 function formatCount(value: number) {
   return value.toLocaleString('ko-KR')
 }
@@ -67,11 +79,13 @@ function toDraft(
     quantity: number
     unitPrice?: number
     billingOnly?: boolean
+    orderLineId?: string
   },
 ): LineDraft {
   return {
     deliveryId: line.id,
     orderNumber: line.orderNumber,
+    orderLineId: line.orderLineId,
     customerPoNumber: line.customerPoNumber || '',
     productCode: line.productCode,
     productName: line.productName,
@@ -115,6 +129,7 @@ function buildDisplayDrafts(
       return toDraft({
         id: `billing:${line.orderLineId || `${line.orderNumber}-${index}`}`,
         orderNumber: line.orderNumber,
+        orderLineId: line.orderLineId,
         customerPoNumber:
           group.lines.find((entry) => entry.orderNumber === line.orderNumber)?.customerPoNumber || '',
         productCode: line.productCode,
@@ -266,15 +281,17 @@ export function DeliveryHistoryModal({
     setError(null)
 
     const result = await updateStatementLines(
-      productDrafts.map((line) => ({
+      drafts.map((line) => ({
         source: 'delivery' as const,
         deliveryId: line.deliveryId,
         orderNumber: line.orderNumber,
+        orderLineId: line.orderLineId,
         recordDate: recordDate.trim(),
         productCode: line.productCode,
         productName: line.productName,
         quantity: Math.max(0, Math.floor(Number(line.quantity) || 0)),
         unitPrice: parseMoneyInput(line.unitPrice),
+        billingOnly: line.billingOnly,
       })),
     )
 
@@ -395,7 +412,7 @@ export function DeliveryHistoryModal({
     <ErpModal
       open={open && Boolean(group)}
       title="출하"
-      description="출하일·수량을 품목별로 수정합니다. 단가는 발주서 기준으로 표시되며 여기서는 수정할 수 없습니다."
+      description="출하일·수량·단가를 품목별로 수정합니다. 단가는 발주서에 반영됩니다."
       size="xl"
       onClose={onClose}
       closeOnEscape={!busy}
@@ -527,9 +544,13 @@ export function DeliveryHistoryModal({
                           type="text"
                           inputMode="numeric"
                           value={line.unitPrice}
-                          readOnly
-                          tabIndex={-1}
-                          className={`${cellReadOnlyClass} text-right tabular-nums`}
+                          onChange={(event) =>
+                            patchDraft(index, { unitPrice: handleMoneyInputChange(event.target.value) })
+                          }
+                          onBlur={() =>
+                            patchDraft(index, { unitPrice: handleMoneyInputBlur(line.unitPrice) })
+                          }
+                          className={`${cellInputClass} text-right tabular-nums`}
                           aria-label={`${index + 1}행 단가`}
                         />
                       </td>

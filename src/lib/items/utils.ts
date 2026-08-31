@@ -334,6 +334,31 @@ export function displayItemUnitPrice(
   return Math.round(Number(item.unitPrice) || 0)
 }
 
+/** 반제품 기본단가 — 세부 단가 합계가 있으면 합계, 없으면 unit_price(레거시) */
+export function displayItemBaselineUnitPrice(
+  item: Pick<
+    Item,
+    | 'setupUnitPrice'
+    | 'smdUnitPrice'
+    | 'dipUnitPrice'
+    | 'materialUnitPrice'
+    | 'unitPrice'
+    | 'otherUnitPrice'
+  >,
+) {
+  const breakdownTotal =
+    Math.round(Number(item.setupUnitPrice) || 0) +
+    Math.round(Number(item.smdUnitPrice) || 0) +
+    Math.round(Number(item.dipUnitPrice) || 0) +
+    Math.round(Number(item.materialUnitPrice) || 0)
+  if (breakdownTotal > 0) return breakdownTotal
+
+  const unitPrice = Math.round(Number(item.unitPrice) || 0)
+  if (unitPrice > 0) return unitPrice
+
+  return Math.round(Number(item.otherUnitPrice) || 0)
+}
+
 /** 저장 직후 UI에 바로 반영할 때 — 서버 round-trip 없이 payload로 Item 구성 */
 export function itemFromPayload(
   payload: ItemPayload,

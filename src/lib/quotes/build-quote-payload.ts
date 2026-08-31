@@ -58,8 +58,8 @@ export function buildQuoteDetailInfo(
 ): QuoteDetailInfo {
   const sanitizedPcbBoards = pcbBoards.map((board) => ({
     ...board,
-    aoiEnabled: true,
-    pcbWashEnabled: false,
+    aoiEnabled: board.aoiEnabled !== false,
+    pcbWashEnabled: board.pcbWashEnabled === true,
   }))
   const b0 = sanitizedPcbBoards[0]
   const d0 = dipBoards[0]

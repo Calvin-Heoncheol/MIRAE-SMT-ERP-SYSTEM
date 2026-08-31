@@ -180,6 +180,7 @@ function buildPreviewRowHtml(
     showProductionQty?: boolean
     boardRowSpan?: number
     boardGroupStart?: boolean
+    swapUnitAndCount?: boolean
   } = {},
 ) {
   const {
@@ -187,6 +188,7 @@ function buildPreviewRowHtml(
     showProductionQty = false,
     boardRowSpan,
     boardGroupStart = false,
+    swapUnitAndCount = false,
   } = options
   const isBoardTotal = Boolean(row.boardTotal)
   const isBoardSubtotal = Boolean(row.boardSubtotal)
@@ -223,6 +225,10 @@ function buildPreviewRowHtml(
   const unit = isBoardSubtotal ? '' : formatPreviewRowUnit(row, quoteType)
   const unitAlign = row.unitLabel ? 'left' : 'right'
   const count = isBoardSubtotal ? '' : row.count != null ? escapeHtml(String(row.count)) : '-'
+  const firstMetric = swapUnitAndCount ? count : unit
+  const secondMetric = swapUnitAndCount ? unit : count
+  const firstMetricAlign = swapUnitAndCount ? 'center' : unitAlign
+  const secondMetricAlign = swapUnitAndCount ? unitAlign : 'center'
   const productionQty = isBoardSubtotal
     ? ''
     : row.productionQty != null
@@ -251,8 +257,8 @@ function buildPreviewRowHtml(
   return `<tr class="${rowClass}" style="border-top:${borderTop};">
     ${boardCell}
     <td class="breakdown-col-item" style="padding:8px 12px;${indent}${labelStyle}${cellBg}${cellBorder}">${escapeHtml(row.label)}${descriptionHtml}</td>
-    <td style="padding:8px 12px;text-align:${unitAlign};${cellBg}${cellBorder}font-size:13px;color:#475569;">${unit}</td>
-    <td style="padding:8px 12px;text-align:center;white-space:nowrap;${cellBg}${cellBorder}font-size:13px;color:#475569;">${count}</td>
+    <td style="padding:8px 12px;text-align:${firstMetricAlign};${cellBg}${cellBorder}font-size:13px;color:#475569;">${firstMetric}</td>
+    <td style="padding:8px 12px;text-align:${secondMetricAlign};white-space:nowrap;${cellBg}${cellBorder}font-size:13px;color:#475569;">${secondMetric}</td>
     ${productionQtyCell}
     <td style="padding:8px 12px;text-align:right;${amountStyle}${cellBg}${cellBorder}">${amount}</td>
   </tr>`
@@ -278,15 +284,19 @@ function buildQuoteBreakdownTableHtml(
   } = options
   const labels = getPreviewLabels(labelType)
   const isSetupSection = sectionKey === 'setup'
+  const isPostSection = sectionKey === 'post'
   const showProductionQty = false
   const unitHeader = labels.colUnit
   const qtyHeader = isSetupSection
     ? labels.colSetupMinutes
     : sectionKey === 'smt'
       ? labels.colSmdWorkQty
-      : sectionKey === 'post'
+      : isPostSection
         ? labels.colPostWorkQty
         : labels.colQty
+  const firstMetricHeader = isPostSection ? qtyHeader : unitHeader
+  const secondMetricHeader = isPostSection ? unitHeader : qtyHeader
+  const secondMetricHeaderAlign = isPostSection ? 'right' : 'center'
   const tableClass =
     variant === 'board-summary'
       ? 'quote-table line-items-table board-summary-table'
@@ -299,8 +309,8 @@ function buildQuoteBreakdownTableHtml(
       <tr>
         ${boardHeader}
         <th>${labels.colItem}</th>
-        <th>${unitHeader}</th>
-        <th style="text-align:center;">${qtyHeader}</th>
+        <th>${firstMetricHeader}</th>
+        <th style="text-align:${secondMetricHeaderAlign};">${secondMetricHeader}</th>
         ${productionQtyHeader}
         <th>${labels.colPerUnitTotal}</th>
       </tr>
@@ -315,6 +325,7 @@ function buildQuoteBreakdownTableHtml(
           showProductionQty,
           boardRowSpan: showBoardColumn ? boardSpans[index] : undefined,
           boardGroupStart: showBoardColumn && isBreakdownBoardGroupStart(rows, index),
+          swapUnitAndCount: isPostSection,
         }),
       )
       .join('')
@@ -337,6 +348,7 @@ function buildQuoteBreakdownTableHtml(
             showProductionQty,
             boardRowSpan: showBoardColumn ? boardSpans[index] : undefined,
             boardGroupStart: showBoardColumn && isBreakdownBoardGroupStart(group, index),
+            swapUnitAndCount: isPostSection,
           }),
         )
         .join('')
@@ -599,7 +611,7 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
     <div class="quote-card">
       ${buildSectionPageHeaderHtml(quote, estimate, pageTitle, pageNote)}
       <div class="breakdown-sections">
-        ${buildBreakdownSectionHtml('SMD · 건당 비용', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated', labelType)}
+        ${buildBreakdownSectionHtml('SET-UP', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated', labelType)}
         ${buildBreakdownSectionHtml('SMD · 실장·검사', smtRows, quote.quoteType, 'smt', 'breakdown-section-smt', labelType)}
         ${buildBreakdownSectionHtml(postTitle, postRows, quote.quoteType, 'post', 'breakdown-section-separated', labelType)}
         ${buildBreakdownSectionHtml(materialTitle, materialRows, quote.quoteType, 'material', 'breakdown-section-separated', labelType)}

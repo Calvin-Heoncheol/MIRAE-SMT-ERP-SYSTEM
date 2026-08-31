@@ -13,7 +13,11 @@ import {
   SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
   toBillingSmtSide,
 } from '@/lib/quotes/constants'
-import { computeSmtSetupBillingMinutes, getSmtSetupPartCount } from '@/lib/quotes/calculate-estimate'
+import {
+  computeSmtPlacementScore,
+  computeSmtSetupBillingMinutes,
+  getSmtSetupPartCount,
+} from '@/lib/quotes/calculate-estimate'
 import { formatQuoteMoneyByDisplay, formatQuoteMoneyRateByDisplay, formatQuoteSetupMinutes } from '@/lib/quotes/format'
 import type { SmtBoardForm } from '@/lib/quotes/form-state'
 import type { QuoteDisplayCurrency, QuoteType, SmtSide } from '@/lib/quotes/types'
@@ -94,6 +98,15 @@ export function SmtPcbBoardForm({
   const setupMinutesPerPart = getSmtSetupMinutesPerPart(quoteType)
   const setupMinutes =
     partCount > 0 ? computeSmtSetupBillingMinutes(partCount, billingSide, quoteType) : 0
+  const hasPlacementInputs =
+    computeSmtPlacementScore({
+      chip: Number(board.chip) || 0,
+      smtOdd: Number(board.smtOdd) || 0,
+      smtSpecial: Number(board.smtSpecial) || 0,
+      icPin: Number(board.icPin) || 0,
+      bga: Number(board.bga) || 0,
+    }) > 0
+  const aoiUnit = hasPlacementInputs ? getAoiUnit(billingSide) : 0
 
   function patch(patch: Partial<SmtBoardForm>) {
     onChange({ ...board, ...patch })
@@ -208,21 +221,34 @@ export function SmtPcbBoardForm({
           </div>
 
           <div className="mt-3">
-            <p className="mb-1 text-xs font-medium text-slate-600">
-              {quoteType === 'domestic' ? '검사' : 'Inspection'}
-            </p>
-            <p className="text-sm text-slate-700">
-              AOI
-              <span className="ml-1 text-[11px] text-slate-400">
-                ({formatQuoteMoneyByDisplay(getAoiUnit(billingSide), quoteType, displayCurrency)}
-                {isMulti
-                  ? quoteType === 'domestic'
-                    ? ' · 듀얼/양면 2배'
-                    : ' · dual/double ×2'
-                  : ''}
-                /PCB · 항상 포함)
-              </span>
-            </p>
+            <FormSection title={quoteType === 'domestic' ? '검사' : 'Inspection'}>
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">
+                <span className="font-medium text-slate-700">
+                  AOI
+                  {hasPlacementInputs ? (
+                    <span className="ml-1 font-normal text-slate-500">
+                      ({formatQuoteMoneyByDisplay(aoiUnit, quoteType, displayCurrency)}
+                      /PCB
+                      {isMulti
+                        ? quoteType === 'domestic'
+                          ? ' · 듀얼/양면 2배'
+                          : ' · dual/double ×2'
+                        : ''}
+                      )
+                    </span>
+                  ) : (
+                    <span className="ml-1 font-normal text-slate-500">
+                      {quoteType === 'domestic'
+                        ? '(실장 부품 입력 시 적용)'
+                        : '(applied when placement inputs exist)'}
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 font-semibold tabular-nums text-slate-900">
+                  {formatQuoteMoneyByDisplay(aoiUnit, quoteType, displayCurrency)}
+                </span>
+              </div>
+            </FormSection>
           </div>
         </>
       ) : null}

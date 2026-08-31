@@ -46,6 +46,17 @@ function parseMoneyInput(value: string) {
   return Math.max(0, Math.round(Number(String(value).replace(/[^\d]/g, '')) || 0))
 }
 
+function handleMoneyInputChange(value: string) {
+  const digits = String(value).replace(/[^\d]/g, '')
+  if (!digits) return ''
+  return formatMoneyInput(Number(digits))
+}
+
+function handleMoneyInputBlur(value: string) {
+  if (!String(value).replace(/[^\d]/g, '')) return '0'
+  return formatMoneyInput(parseMoneyInput(value))
+}
+
 function formatCount(value: number) {
   return value.toLocaleString('ko-KR')
 }
@@ -237,8 +248,8 @@ export function SalesStatementEditModal({
       title="거래명세서"
       description={
         isLegacy
-          ? '과거 명세서입니다. 출하일·고객사는 같은 발주서에 함께 반영됩니다.'
-          : '출하일·수량을 품목별로 수정합니다. 단가는 발주서 기준으로 표시되며 여기서는 수정할 수 없습니다.'
+          ? '과거 명세서입니다. 출하일·고객사·품목·단가를 수정할 수 있습니다.'
+          : '출하일·수량·단가를 품목별로 수정합니다. 단가는 발주서에 반영됩니다.'
       }
       size="xl"
       onClose={onClose}
@@ -396,9 +407,13 @@ export function SalesStatementEditModal({
                           type="text"
                           inputMode="numeric"
                           value={line.unitPrice}
-                          readOnly
-                          tabIndex={-1}
-                          className={`${cellReadOnlyClass} text-right tabular-nums`}
+                          onChange={(event) =>
+                            patchDraft(index, { unitPrice: handleMoneyInputChange(event.target.value) })
+                          }
+                          onBlur={() =>
+                            patchDraft(index, { unitPrice: handleMoneyInputBlur(line.unitPrice) })
+                          }
+                          className={`${cellInputClass} text-right tabular-nums`}
                           aria-label={`${index + 1}행 단가`}
                         />
                       </td>

@@ -213,7 +213,7 @@ export function buildProcessBreakdownSections(
 ): BreakdownSectionPreview[] {
   const labels = getPreviewLabels(quoteType)
   const definitions: { key: PreviewSection; title: string }[] = [
-    { key: 'setup', title: 'SMD · SET-UP' },
+    { key: 'setup', title: 'SET-UP' },
     { key: 'smt', title: 'SMD · 실장·검사' },
     { key: 'post', title: pdfSummarySectionLabel(labels.postProcess, quoteType) },
     { key: 'material', title: pdfSummarySectionLabel(labels.materials, quoteType) },
@@ -681,13 +681,14 @@ function postDetailRows(
       const minutes = parsePostProcessMinutes(line.minutes)
       if (minutes <= 0) continue
       const name = (line.name || '').trim()
+      const perUnit = minutes * postRate
       rows.push(
         withProductionQty(
           {
             label: name || labels.postProcess,
-            unit: postRate,
+            unit: perUnit,
             count: labels.minutesCount(minutes),
-            amount: minutes * postRate,
+            amount: perUnit,
             indent,
           },
           qty,
@@ -700,14 +701,16 @@ function postDetailRows(
 
   // 구 견적: 조립·테스트·포장 합계만 있는 경우
   if (Number(form.postAssembly) > 0) {
+    const minutes = Number(form.postAssembly)
+    const perUnit = minutes * postRate
     rows.push(
       withProductionQty(
         {
           label: labels.assembly,
           description: postProcessDetailDescription(form.assemblyLines),
-          unit: postRate,
-          count: labels.minutesCount(form.postAssembly),
-          amount: Number(form.postAssembly) * postRate,
+          unit: perUnit,
+          count: labels.minutesCount(minutes),
+          amount: perUnit,
           indent,
         },
         qty,
@@ -716,14 +719,16 @@ function postDetailRows(
     )
   }
   if (Number(form.postTest) > 0) {
+    const minutes = Number(form.postTest)
+    const perUnit = minutes * postRate
     rows.push(
       withProductionQty(
         {
           label: labels.test,
           description: postProcessDetailDescription(form.testLines),
-          unit: postRate,
-          count: labels.minutesCount(form.postTest),
-          amount: Number(form.postTest) * postRate,
+          unit: perUnit,
+          count: labels.minutesCount(minutes),
+          amount: perUnit,
           indent,
         },
         qty,
@@ -732,14 +737,16 @@ function postDetailRows(
     )
   }
   if (Number(form.postPacking) > 0) {
+    const minutes = Number(form.postPacking)
+    const perUnit = minutes * postRate
     rows.push(
       withProductionQty(
         {
           label: labels.packing,
           description: postProcessDetailDescription(form.packingLines),
-          unit: postRate,
-          count: labels.minutesCount(form.postPacking),
-          amount: Number(form.postPacking) * postRate,
+          unit: perUnit,
+          count: labels.minutesCount(minutes),
+          amount: perUnit,
           indent,
         },
         qty,
@@ -800,6 +807,34 @@ function previewMaterialRows(
   })
 
   return rows
+}
+
+/** 견적 입력 화면 SET-UP 상세 — 기본시간·초품검사·세팅 */
+export function buildQuoteSetupDetailRows(
+  result: EstimateResult,
+  quoteType: QuoteType,
+): PreviewRow[] {
+  const pcbCount = result.common.pcbBoardDetails.length
+  const multiBoard = pcbCount > 1
+  const rows: PreviewRow[] = []
+
+  for (let index = 0; index < pcbCount; index += 1) {
+    const smtBoard = result.common.pcbBoardDetails[index]!
+    const setupDetails = smtSetupDetailRowsForBoard(smtBoard, result, quoteType)
+    if (!setupDetails.length) continue
+    rows.push(...(multiBoard ? withBoardName(setupDetails, smtBoard.pcbName) : setupDetails))
+  }
+
+  return rows
+}
+
+/** 견적 입력 화면 SET-UP 하단 — 메탈마스크·샘플 (일회성) */
+export function buildQuoteSetupOrderLevelRows(
+  result: EstimateResult,
+  form: PreviewFormFields,
+  quoteType: QuoteType,
+): PreviewRow[] {
+  return previewOrderLevelRows(result, form, quoteType)
 }
 
 function previewOrderLevelRows(
@@ -996,7 +1031,7 @@ export function buildProcessCentricPdfBreakdownRows(
   const setupTotal = pdfOrderLevelSectionTotal(result, form)
   if (setupTotal > 0) {
     rows.push({
-      label: labels.orderLevelCosts ?? '건당 비용 (발주 1회)',
+      label: 'SET-UP',
       amount: setupTotal,
       count: '1회',
       orderLevel: true,
@@ -1005,49 +1040,15 @@ export function buildProcessCentricPdfBreakdownRows(
       amountEmphasize: true,
     })
 
-    const setupOnly = pdfSetupSectionTotal(result)
-    if (setupOnly > 0) {
-      rows.push({
-        label: 'SET-UP',
-        amount: setupOnly,
-        count: '1회',
-        orderLevel: true,
-        indent: 1,
-        emphasize: true,
-        amountEmphasize: true,
-      })
-    }
-
-    rows.push(...previewOrderLevelRows(result, form, quoteType, labelType))
-
     for (let index = 0; index < pcbCount; index += 1) {
       const smtBoard = result.common.pcbBoardDetails[index]
       const boardName = multiBoard ? smtBoard.pcbName : undefined
-      const setupAmount = smtBoard.setupAmount
       const setupDetails = smtSetupDetailRowsForBoard(smtBoard, result, quoteType, labelType)
-      if (setupAmount <= 0 && !setupDetails.length) continue
-
-      if (multiBoard && setupDetails.length === 0) {
-        rows.push({
-          label: '',
-          amount: setupAmount,
-          boardSubtotal: true,
-          emphasize: true,
-          amountEmphasize: true,
-          boardName,
-        })
-      } else if (setupDetails.length > 0) {
-        rows.push({
-          label: 'SET-UP',
-          amount: null,
-          indent: 1,
-          boardSubtotal: true,
-          emphasize: true,
-          boardName,
-        })
-        rows.push(...(multiBoard ? withBoardName(setupDetails, smtBoard.pcbName) : setupDetails))
-      }
+      if (!setupDetails.length) continue
+      rows.push(...(multiBoard ? withBoardName(setupDetails, boardName!) : setupDetails))
     }
+
+    rows.push(...previewOrderLevelRows(result, form, quoteType, labelType))
   }
 
   const smtTotal = pdfSmtSectionTotal(result)

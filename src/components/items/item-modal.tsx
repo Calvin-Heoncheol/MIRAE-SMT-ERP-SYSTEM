@@ -719,7 +719,7 @@ function ItemModalContent({
         ) : null}
         {showProductUnitPriceField ? (
           <div className="block text-sm sm:col-span-2">
-            <span className={ERP_FIELD_LABEL_CLASS}>단가</span>
+            <span className={ERP_FIELD_LABEL_CLASS}>기본단가</span>
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
               {displayUnitPrice > 0 ? (
                 <p className="font-medium tabular-nums text-slate-800">
@@ -732,8 +732,7 @@ function ItemModalContent({
               )}
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              SET-UP·SMD·후공정·자재 세부 내역은 연결된 견적서에서 확인·관리합니다. 발주 시에는 견적
-              기준 단가가 적용됩니다.
+              연결된 견적서 기준으로 기본단가가 반영됩니다. 세부 내역은 견적서에서 확인·관리합니다.
             </p>
           </div>
         ) : null}

@@ -1,3 +1,4 @@
+import { displayItemBaselineUnitPrice } from '@/lib/items/utils'
 import type { ItemFormState } from '@/lib/items/form-state'
 import { smtSideToItemPcbSide } from '@/lib/items/smt-quote-parts'
 import {
@@ -95,15 +96,10 @@ export function buildItemPriceBreakdownFromQuote(quote: QuoteListItem): ItemPric
 export function displayItemFormUnitPrice(
   form: Pick<
     ItemFormState,
-    'setupUnitPrice' | 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice'
+    'unitPrice' | 'setupUnitPrice' | 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice'
   >,
 ) {
-  return (
-    money(form.setupUnitPrice) +
-    money(form.smdUnitPrice) +
-    money(form.dipUnitPrice) +
-    money(form.materialUnitPrice)
-  )
+  return displayItemBaselineUnitPrice(form)
 }
 
 export function formatQuoteOptionLabel(quote: QuoteListItem) {

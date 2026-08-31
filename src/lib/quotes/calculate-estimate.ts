@@ -61,8 +61,8 @@ function computeSmtOtherLabor(
 
 function computeBoardInspection(board: SmtPcbBoard, _quoteType: QuoteType = 'export') {
   const smtSide = toBillingSmtSide(board.smtSide)
-  // AOI는 항상 포함. 세척(PCB wash)은 견적에서 제외.
-  const aoiInspectionUnit = getAoiUnit(smtSide)
+  const comp = readSmtBoardComponentFields(board)
+  const aoiInspectionUnit = hasSmtComponentInputs(comp) ? getAoiUnit(smtSide) : 0
 
   return {
     aoiInspectionUnit,
@@ -212,7 +212,7 @@ export function normalizeSmtPcbBoards(data: EstimateInput): SmtPcbBoard[] {
       return {
         pcbName: String(board.pcbName || `PCB ${index + 1}`).trim() || `PCB ${index + 1}`,
         smtSide: normalizeSmtSide(board.smtSide),
-        aoiEnabled: true,
+        aoiEnabled: board.aoiEnabled !== false,
         pcbWashEnabled: false,
         smtTopCount: Number(board.smtTopCount) || 0,
         smtBotCount: Number(board.smtBotCount) || 0,
