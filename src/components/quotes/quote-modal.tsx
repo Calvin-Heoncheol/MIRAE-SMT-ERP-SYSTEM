@@ -377,6 +377,7 @@ function QuoteModalContent({
     )
     setSaveError(null)
     setOpenSections({
+      setup: true,
       smt: true,
       dip: mode !== 'edit',
       material: mode !== 'edit',
