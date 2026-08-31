@@ -19,7 +19,7 @@ export type QuoteFormSnapshot = {
   boardQty: string
   pcbBoardCount: string
   materialCost: string
-  metalMaskCost: string
+  metalMaskCost?: string
   /** @deprecated 합계는 postProcessLines 에서 산출. 하위호환용 */
   postAssembly?: string
   postTest?: string

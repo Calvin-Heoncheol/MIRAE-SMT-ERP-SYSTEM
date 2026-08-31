@@ -101,6 +101,10 @@ export async function createLegacyStatement(
       quantity,
       unitPrice,
       orderAmount: quantity * unitPrice,
+      setupCost: 0,
+      smdUnitPrice: unitPrice,
+      dipUnitPrice: 0,
+      materialCost: 0,
       deliveryDate: shipDate,
     })
   }

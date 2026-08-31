@@ -125,7 +125,7 @@ function assertReadableSpreadsheetRows(rows: string[][], kind: SpreadsheetReadKi
 
 async function loadXlsx() {
   const mod = await import('xlsx')
-  return (mod as { default?: typeof mod }).default ?? mod
+  return (mod as unknown as { default?: typeof mod }).default ?? mod
 }
 
 async function workbookToBestRows(workbook: WorkBook, kind: SpreadsheetReadKind) {

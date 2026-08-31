@@ -645,8 +645,8 @@ function applyAutoClassificationReviewGates(
     if (!detail.includes('면 불명')) detail = `${detail} · 면 불명?`
   }
 
-  // SMD 종수: 품번 또는 부품값+패키지가 없으면 자동 확정 금지
-  if (isPickPlaceSmdCategory(row.category) && row.category !== 'skip') {
+  // SMD 종수: 품번 또는 부품값+패키지가 없으면 자동 확정 금지 (skip은 위에서 early return)
+  if (isPickPlaceSmdCategory(row.category)) {
     const identity = pickPlacePartTypeIdentity(row)
     if (!identity.certain) {
       confidence = 'ambiguous'

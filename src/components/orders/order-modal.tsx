@@ -209,6 +209,10 @@ function OrderModalContent({
           unitPrice,
           orderAmount,
           deliveryDate,
+          setupCost,
+          smdUnitPrice,
+          dipUnitPrice,
+          materialCost,
         }) => ({
           lineId,
           productId,
@@ -218,6 +222,10 @@ function OrderModalContent({
           unitPrice,
           orderAmount,
           deliveryDate,
+          setupCost,
+          smdUnitPrice,
+          dipUnitPrice,
+          materialCost,
         }),
       ),
     }

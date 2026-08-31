@@ -16,6 +16,7 @@ import {
   isGenericBillingProductCode,
   resolveBillingQuantityFromShipped,
   resolveStatementDisplayProductCode,
+  type StatementShippedLine,
 } from '@/lib/delivery/utils'
 import { findActiveBusinessPartnerByName } from '@/lib/partners/repository'
 import type { DeliveryStatementData, DeliveryStatementLine } from './types'
@@ -908,7 +909,7 @@ export async function buildDeliveryStatementDataFromOrder(input: {
       orderNumber,
       productCode: resolveStatementDisplayProductCode({
         productCode: line.productCode,
-        productId: matched?.productId,
+        productId: matched?.productId ?? undefined,
         orderProductCode: matched?.productCode,
       }),
       productName: line.productName || String(matched?.productName || '').trim(),
@@ -1031,7 +1032,7 @@ export async function buildDeliveryStatementDataFromShipment(input: {
     )
   }
 
-  let normalizedShippedLines = shippedLines
+  let normalizedShippedLines: StatementShippedLine[] = shippedLines
   const hasExplicitBilling = shippedLines.some((line) => line.billingOnly)
 
   if (!hasExplicitBilling) {
@@ -1101,7 +1102,7 @@ export async function buildDeliveryStatementDataFromShipment(input: {
       orderNumber: line.orderNumber || order?.orderNumber || '',
       productCode: resolveStatementDisplayProductCode({
         productCode: line.productCode,
-        productId: matched?.productId,
+        productId: matched?.productId ?? undefined,
         orderProductCode: matched?.productCode,
       }),
       productName: line.productName || String(matched?.productName || '').trim(),

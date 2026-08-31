@@ -723,7 +723,7 @@ async function fetchSmtProductionRecords(options?: {
 
     const rows: SmtProductionHistoryRow[] = []
     for (const row of data || []) {
-      const mapped = mapSmtProductionHistoryRow(row as SmtProductionHistoryRecordRow)
+      const mapped = mapSmtProductionHistoryRow(row as unknown as SmtProductionHistoryRecordRow)
       if (mapped) rows.push(mapped)
     }
 

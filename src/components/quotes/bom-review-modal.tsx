@@ -160,6 +160,8 @@ export function BomReviewModal({
 
   if (!open || !analysis) return null
 
+  const currentAnalysis = analysis
+
   function handleApply() {
     let nextDipForms: DipBoardForm[] | undefined
 
@@ -181,7 +183,7 @@ export function BomReviewModal({
     }
 
     onApply({
-      analysis,
+      analysis: currentAnalysis,
       dipForms: nextDipForms,
     })
   }

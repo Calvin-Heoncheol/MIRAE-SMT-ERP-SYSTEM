@@ -37,6 +37,7 @@ import {
   bomUnpopulatedBadgeHint,
   isPickPlaceBomUnpopulatedRow,
 } from '@/lib/quotes/bom-dnp'
+import type { AltiumBomAnalysis } from '@/lib/quotes/parse-altium-bom'
 
 type PickPlaceReviewModalProps = {
   open: boolean
@@ -64,7 +65,10 @@ function BomUnpopulatedBadge({
   detail?: string
   value?: string
 }) {
-  const hint = bomUnpopulatedBadgeHint(reason, { comment: value, description: value })
+  const hint = bomUnpopulatedBadgeHint(reason, {
+    comment: value || '',
+    description: value || '',
+  })
   return (
     <span
       className="inline-flex flex-col items-center gap-0.5"
@@ -911,12 +915,15 @@ export function PickPlaceReviewModal({
 
   if (!open || !analysis || !localAnalysis || !baseAnalysis) return null
 
-  const digiKeyEligibleCount = baseAnalysis.classifiedRows.filter(
+  const resolvedBaseAnalysis = baseAnalysis
+  const resolvedLocalAnalysis = localAnalysis
+
+  const digiKeyEligibleCount = resolvedBaseAnalysis.classifiedRows.filter(
     (row) => row.confidence === 'ambiguous' && row.category !== 'skip' && row.mpn.trim(),
   ).length
 
   async function handleBulkDigiKeyReview() {
-    const ambiguousRows = baseAnalysis.classifiedRows.filter(
+    const ambiguousRows = resolvedBaseAnalysis.classifiedRows.filter(
       (row) => row.confidence === 'ambiguous' && row.category !== 'skip' && row.mpn.trim(),
     )
     if (!ambiguousRows.length) return
@@ -939,7 +946,7 @@ export function PickPlaceReviewModal({
         ]),
       )
 
-      for (const [index, row] of baseAnalysis.classifiedRows.entries()) {
+      for (const [index, row] of resolvedBaseAnalysis.classifiedRows.entries()) {
         if (row.confidence !== 'ambiguous' || row.category === 'skip' || !row.mpn.trim()) continue
         const classification = classificationByDesignator.get(row.designator.toUpperCase())
         if (!classification) continue
@@ -948,7 +955,7 @@ export function PickPlaceReviewModal({
       }
 
       setManualOverrides(nextOverrides)
-      setLocalAnalysis(applyPickPlaceManualOverrides(baseAnalysis, nextOverrides))
+      setLocalAnalysis(applyPickPlaceManualOverrides(resolvedBaseAnalysis, nextOverrides))
       setEditingRowKey(null)
       if (confirmedDesignators.length) {
         setBulkDigiKeySuccess(confirmedDesignators)
@@ -964,7 +971,7 @@ export function PickPlaceReviewModal({
   }
 
   async function handleBulkAiReview() {
-    const ambiguousRows = baseAnalysis.classifiedRows.filter(
+    const ambiguousRows = resolvedBaseAnalysis.classifiedRows.filter(
       (row) => row.confidence === 'ambiguous' && row.category !== 'skip',
     )
     if (!ambiguousRows.length) return
@@ -985,7 +992,7 @@ export function PickPlaceReviewModal({
         ]),
       )
 
-      for (const [index, row] of baseAnalysis.classifiedRows.entries()) {
+      for (const [index, row] of resolvedBaseAnalysis.classifiedRows.entries()) {
         if (row.confidence !== 'ambiguous' || row.category === 'skip') continue
         const classification = classificationByDesignator.get(row.designator.toUpperCase())
         if (!classification) continue
@@ -993,7 +1000,7 @@ export function PickPlaceReviewModal({
       }
 
       setManualOverrides(nextOverrides)
-      setLocalAnalysis(applyPickPlaceManualOverrides(baseAnalysis, nextOverrides))
+      setLocalAnalysis(applyPickPlaceManualOverrides(resolvedBaseAnalysis, nextOverrides))
       setEditingRowKey(null)
     } catch (caught) {
       setBulkAiError(caught instanceof Error ? caught.message : 'AI 일괄 검토 중 오류가 발생했습니다.')
@@ -1008,39 +1015,39 @@ export function PickPlaceReviewModal({
       [rowKey]: override,
     }
     setManualOverrides(nextOverrides)
-    setLocalAnalysis(applyPickPlaceManualOverrides(baseAnalysis, nextOverrides))
+    setLocalAnalysis(applyPickPlaceManualOverrides(resolvedBaseAnalysis, nextOverrides))
     setEditingRowKey(null)
   }
 
   function handleApply() {
     const target = smtForms[boardIndex]
     if (!target) return
-    const nextBoard = applyAltiumPickPlaceToSmtBoardForm(target, localAnalysis.summary)
+    const nextBoard = applyAltiumPickPlaceToSmtBoardForm(target, resolvedLocalAnalysis.summary)
     const nextForms = smtForms.map((board, index) => (index === boardIndex ? nextBoard : board))
     const dipTarget = dipForms[boardIndex]
     const nextDipForms = dipTarget
       ? dipForms.map((board, index) =>
           index === boardIndex
-            ? applyAltiumPickPlaceToDipBoardForm(board, localAnalysis.summary)
+            ? applyAltiumPickPlaceToDipBoardForm(board, resolvedLocalAnalysis.summary)
             : board,
         )
       : undefined
     onApply({
       smtForms: nextForms,
       dipForms: nextDipForms,
-      productName: productName.trim() || localAnalysis.summary.pcbName,
-      analysis: localAnalysis,
+      productName: productName.trim() || resolvedLocalAnalysis.summary.pcbName,
+      analysis: resolvedLocalAnalysis,
     })
   }
 
-  const hasUnresolved = localAnalysis.ambiguousCount > 0
+  const hasUnresolved = resolvedLocalAnalysis.ambiguousCount > 0
 
   return (
     <ErpModal
       open
       size="wide"
       title="Pick&Place 분석 결과"
-      description={`${localAnalysis.fileName} · 분석 결과 검토`}
+      description={`${resolvedLocalAnalysis.fileName} · 분석 결과 검토`}
       onClose={onClose}
       zIndexClassName="z-[60]"
       contentClassName="px-5 py-4"
@@ -1048,7 +1055,7 @@ export function PickPlaceReviewModal({
         <div className="flex flex-wrap items-center justify-between gap-3">
           {hasUnresolved ? (
             <p className="text-xs text-amber-700">
-              검토 필요 {localAnalysis.ambiguousCount}건 — 뱃지를 눌러 분류하거나 DigiKey/AI 검토를 사용하세요.
+              검토 필요 {resolvedLocalAnalysis.ambiguousCount}건 — 뱃지를 눌러 분류하거나 DigiKey/AI 검토를 사용하세요.
             </p>
           ) : (
             <p className="text-xs text-emerald-700">모든 항목이 확인되었습니다.</p>

@@ -169,7 +169,7 @@ export function billingLineMatchesProductRow(
   }
 
   const billingName = normalizeBillingMatchText(billing.productName)
-  const productName = normalizeBillingMatchText(product.productName)
+  const productName = normalizeBillingMatchText(product.productName || '')
   if (billingName && productName) {
     return billingName === productName
   }

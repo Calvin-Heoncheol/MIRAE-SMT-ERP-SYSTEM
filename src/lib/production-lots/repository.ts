@@ -465,7 +465,7 @@ export async function prepareLotAllocations(input: {
   excludeDeliveryRecordId?: string
 }): Promise<
   | { ok: true; allocations: LotAllocation[]; usedCatchUp?: boolean }
-  | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 > {
   const quantity = Math.max(0, Math.floor(Number(input.quantity) || 0))
   if (quantity < 1) return { ok: true, allocations: [] }
@@ -476,10 +476,12 @@ export async function prepareLotAllocations(input: {
   })
   if (!sync.ok && sync.reason === 'validation') return sync
   if (!sync.ok && isMissingProductionLotsTable(sync.detail)) {
-    return missingProductionLotsMigrationResult()
+    const missing = missingProductionLotsMigrationResult()
+    if (!missing.ok) return missing
   }
   if (!sync.ok && sync.reason === 'query') return sync
   if (!sync.ok && sync.reason === 'env') return sync
+  if (!sync.ok && sync.reason === 'auth') return sync
 
   const excludeDeliveryRecordId = String(input.excludeDeliveryRecordId || '').trim() || undefined
 
