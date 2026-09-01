@@ -15,6 +15,7 @@ export type SpreadsheetAiPickPlacePayload = {
     footprint?: string | null
     comment?: string | null
     rotation?: string | null
+    description?: string | null
     mpn?: string | null
   }
 }
