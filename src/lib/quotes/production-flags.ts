@@ -2,6 +2,7 @@ import {
   findQuoteUnitPriceOptions,
   quoteMatchesProductName,
 } from '@/lib/orders/quote-unit-price'
+import { ITEM_PROCESS_TYPE_LABELS } from '@/lib/items/types'
 import type { OrderLineItem, OrderListGroup } from '@/lib/orders/types'
 import type { Product, ProductProcessType } from '@/lib/products/types'
 import type { QuoteListItem } from '@/lib/quotes/types'
@@ -59,6 +60,15 @@ export function getQuoteProductionFlags(
       money(amounts.test) > 0 ||
       money(amounts.packing) > 0,
   }
+}
+
+/** 견적 금액 기준 공정 라벨 — SMD / 후공정 / SMD+후공정 */
+export function formatQuoteProcessLabel(quote: Pick<QuoteListItem, 'detailInfo'>): string {
+  const { hasSmd, hasPost } = getQuoteProductionFlags(quote)
+  if (hasSmd && hasPost) return ITEM_PROCESS_TYPE_LABELS.smt_post
+  if (hasSmd) return ITEM_PROCESS_TYPE_LABELS.smt
+  if (hasPost) return ITEM_PROCESS_TYPE_LABELS.post
+  return '—'
 }
 
 function flagsFromQuoteId(quotes: QuoteListItem[], quoteId: string | null | undefined) {

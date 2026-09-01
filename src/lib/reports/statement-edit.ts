@@ -1,7 +1,11 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { deleteDeliveryRecord, updateDeliveryRecord } from '@/lib/delivery/repository'
 import { deleteOrder } from '@/lib/orders/repository'
-import { deleteLegacyShipmentStub, isLegacyStatementOrder } from '@/lib/reports/legacy-statement'
+import {
+  deleteLegacyShipmentStub,
+  isLegacyStatementOrder,
+  syncLegacyShipmentStubQuantity,
+} from '@/lib/reports/legacy-statement'
 import { createSupabaseClient } from '@/lib/supabase'
 
 export type UpdateStatementLineInput = {
@@ -126,6 +130,15 @@ export async function updateStatementLines(
       }
     }
   }
+
+  const legacyLine = lines.find((line) => line.source === 'legacy')
+  if (legacyLine) {
+    await syncLegacyShipmentStubQuantity(
+      String(legacyLine.orderNumber || '').trim(),
+      legacyLine.recordDate,
+    )
+  }
+
   return { ok: true }
 }
 
@@ -248,13 +261,14 @@ export async function updateStatementLine(
       return { ok: false, reason: 'query', detail: linesError.message }
     }
 
-    const match = matchOrderLine((lines || []) as OrderLineMatch[], {
-      orderLineId: input.orderLineId,
-      productCode: input.productCode,
-    })
-    if (!match) {
-      return { ok: false, reason: 'validation', detail: '수정할 명세서 라인을 찾지 못했습니다.' }
-    }
+    const orderLineId = String(input.orderLineId || '').trim()
+    const allLines = (lines || []) as OrderLineMatch[]
+    const match = orderLineId
+      ? matchOrderLine(allLines, {
+          orderLineId: input.orderLineId,
+          productCode: input.productCode,
+        })
+      : undefined
 
     const { error: headerError } = await supabase
       .from('orders')
@@ -268,6 +282,35 @@ export async function updateStatementLine(
 
     if (headerError) {
       return { ok: false, reason: 'query', detail: headerError.message }
+    }
+
+    if (!match) {
+      if (!orderLineId) {
+        const userLines = allLines.filter((line) => !line.derived_from_line_id)
+        const { error: insertError } = await supabase.from('order_lines').insert({
+          order_id: order.id,
+          line_seq: userLines.length,
+          product_id: null,
+          product_code: productCode,
+          product_name: productName,
+          quantity,
+          setup_cost: 0,
+          smd_unit_price: unitPrice,
+          dip_unit_price: 0,
+          material_cost: 0,
+          unit_price: unitPrice,
+          order_amount: quantity * unitPrice,
+          delivery_date: recordDate,
+        })
+
+        if (insertError) {
+          return { ok: false, reason: 'query', detail: insertError.message }
+        }
+
+        return { ok: true }
+      }
+
+      return { ok: false, reason: 'validation', detail: '수정할 명세서 라인을 찾지 못했습니다.' }
     }
 
     const { error: lineError } = await supabase

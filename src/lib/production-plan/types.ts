@@ -1,4 +1,6 @@
-export type ProductionPlanScope = 'smt' | 'post'
+import type { MaterialInboundStatus } from '@/lib/materials/material-inbound-status'
+
+export type ProductionPlanScope = 'material' | 'smt' | 'post'
 
 export type ProductionPlanBoardStatus = 'waiting' | 'confirmed'
 
@@ -16,16 +18,22 @@ export type ProductionPlanBoardRow = {
   productName: string
   productCode: string
   productKindLabel: string
-  /** SMT: order_line_id / 후공정: assembly_group_id */
+  /** SMT·자재: order_line_id / 후공정: assembly_group_id */
   targetId: string
   splitPcbSides: boolean
   orderQty: number
   producedQty: number
   remainingQty: number
   materialReadyQty: number
+  materialScheduledQty?: number
+  /** 입고예정 병목일(YYYY-MM-DD) */
+  materialExpectedReadyDate?: string
   materialShort: boolean
   /** BOM 없음 등으로 자재 계산 불가 */
   materialUnknown: boolean
+  materialInboundStatus?: MaterialInboundStatus
+  /** 후공정 행 — 같은 발주 SMD 계획 종료일 */
+  smtPlannedEndDate?: string
   status: ProductionPlanBoardStatus
   confirmedAt: string
   confirmedByName: string
@@ -59,6 +67,7 @@ export type FetchProductionPlanBoardResult =
   | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export const PRODUCTION_PLAN_SCOPE_LABELS: Record<ProductionPlanScope, string> = {
+  material: '자재',
   smt: 'SMT',
   post: '후공정',
 }

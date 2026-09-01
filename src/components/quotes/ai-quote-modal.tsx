@@ -15,6 +15,7 @@ import {
 } from '@/lib/quotes/form-state'
 import type { AltiumBomAnalysis } from '@/lib/quotes/parse-altium-bom'
 import type { AltiumPickPlaceAnalysis } from '@/lib/quotes/parse-altium-pick-place'
+import { isPickPlaceAnalysisReadyForQuote } from '@/lib/quotes/pick-place-review-reasons'
 import type { QuoteType } from '@/lib/quotes/types'
 
 type AiQuoteModalProps = {
@@ -72,18 +73,22 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
         dipTotals.waveConnector +
         dipTotals.waveWire
       : 0
-    return { activePickPlace, bomLines, unpopulated, dipCount }
+    const reviewPending = pickPlaceAnalysis
+      ? pickPlaceAnalysis.classifiedRows.filter((row) => row.confidence === 'ambiguous' && row.category !== 'skip').length
+      : 0
+    return { activePickPlace, bomLines, unpopulated, dipCount, reviewPending }
   }, [pickPlaceAnalysis, bomAnalysis])
 
-  const canContinue = Boolean(pickPlaceAnalysis || bomAnalysis)
+  const analysisReady =
+    Boolean(pickPlaceAnalysis && bomAnalysis) &&
+    isPickPlaceAnalysisReadyForQuote(pickPlaceAnalysis?.classifiedRows ?? [])
+
+  const canContinue = analysisReady
 
   function handleContinue() {
-    if (!canContinue) return
+    if (!canContinue || !pickPlaceAnalysis || !bomAnalysis) return
 
-    let resolvedPickPlace = pickPlaceAnalysis
-    if (resolvedPickPlace && bomAnalysis) {
-      resolvedPickPlace = enrichPickPlaceWithBom(resolvedPickPlace, bomAnalysis)
-    }
+    const resolvedPickPlace = enrichPickPlaceWithBom(pickPlaceAnalysis, bomAnalysis)
 
     onContinue({
       quoteType,
@@ -102,16 +107,18 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
       open
       size="wide"
       title="AI 견적"
-      description="좌표·BOM을 분석한 뒤 견적서 편집 화면으로 이어집니다. 고객사·수량 등은 다음 단계에서 입력합니다."
+      description="좌표·BOM을 함께 분석한 뒤 검토를 완료하면 견적서 편집 화면으로 이어집니다."
       onClose={onClose}
       zIndexClassName="z-[55]"
       contentClassName="px-5 py-4"
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-slate-500">
-            {canContinue
-              ? '분석 결과를 견적서에 반영한 뒤 고객사·수량을 입력하세요.'
-              : '좌표 또는 BOM 파일을 업로드해 주세요.'}
+            {!pickPlaceAnalysis || !bomAnalysis
+              ? '좌표·BOM 파일을 모두 업로드하고 분석·검토를 완료해 주세요.'
+              : !analysisReady
+                ? `검토 필요 ${summary.reviewPending}건 — 분석 결과에서 분류를 완료해 주세요.`
+                : '분석·검토가 완료되었습니다. 견적서 편집으로 계속하세요.'}
           </p>
           <div className="flex gap-2">
             <ErpButton variant="secondary" onClick={() => requestClose?.() ?? onClose()}>
@@ -126,7 +133,7 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
     >
       <div className="space-y-4">
         <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2.5 text-xs text-violet-900">
-          수동 견적(해외용·국내용·과거 견적서)과 별도로, PCB 데이터 자동 분석에 맞춘 진입 경로입니다.
+          AI 견적은 <strong>좌표 파일 + BOM 파일</strong>이 모두 필요합니다. 업로드 후 검토를 마쳐야 다음 단계로 진행할 수 있습니다.
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -157,6 +164,8 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
         </div>
 
         <PcbDataUpload
+          requireBoth
+          applyBomWithPickPlace
           smtForms={smtForms}
           dipForms={dipForms}
           productName={productName}
@@ -194,30 +203,24 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
           }}
         />
 
-        {canContinue ? (
+        {pickPlaceAnalysis && bomAnalysis ? (
           <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-700 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <p className="font-semibold text-slate-900">좌표 SMD</p>
-              <p className="mt-0.5 tabular-nums">
-                {pickPlaceAnalysis ? `${summary.activePickPlace}건` : '미업로드'}
-              </p>
+              <p className="mt-0.5 tabular-nums">{summary.activePickPlace}건</p>
             </div>
             <div>
               <p className="font-semibold text-slate-900">후공정 납땜</p>
-              <p className="mt-0.5 tabular-nums">
-                {summary.dipCount > 0 ? `${summary.dipCount}건` : pickPlaceAnalysis ? '0건' : '미업로드'}
-              </p>
+              <p className="mt-0.5 tabular-nums">{summary.dipCount > 0 ? `${summary.dipCount}건` : '0건'}</p>
             </div>
             <div>
               <p className="font-semibold text-slate-900">BOM</p>
-              <p className="mt-0.5 tabular-nums">
-                {bomAnalysis ? `${summary.bomLines}라인` : '미업로드'}
-              </p>
+              <p className="mt-0.5 tabular-nums">{summary.bomLines}라인</p>
             </div>
             <div>
-              <p className="font-semibold text-slate-900">미실장</p>
-              <p className="mt-0.5 tabular-nums">
-                {summary.unpopulated > 0 ? `${summary.unpopulated}건 자동 제외` : '—'}
+              <p className="font-semibold text-slate-900">검토</p>
+              <p className={`mt-0.5 tabular-nums ${analysisReady ? 'text-emerald-700' : 'text-amber-700'}`}>
+                {analysisReady ? '완료' : `필요 ${summary.reviewPending}건`}
               </p>
             </div>
           </div>

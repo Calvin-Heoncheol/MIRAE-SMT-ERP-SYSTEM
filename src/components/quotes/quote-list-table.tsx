@@ -3,6 +3,7 @@
 import { OrderCategoryBadge } from '@/components/orders/order-category-badge'
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { exportSummaryFromKrw, formatQuoteMoneyTotal, formatQuoteMoneyUnit } from '@/lib/quotes/format'
+import { formatQuoteProcessLabel } from '@/lib/quotes/production-flags'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { QUOTE_STATUS_LABELS, type QuoteListItem, type QuoteStatus } from '@/lib/quotes/types'
 import { quoteRegistrantLabel } from '@/lib/quotes/utils'
@@ -58,7 +59,7 @@ export function QuoteListTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="erp-data-table min-w-[1200px] w-full border-collapse">
+        <table className="erp-data-table min-w-[1280px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
@@ -75,6 +76,9 @@ export function QuoteListTable({
               </th>
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 제품명
+              </th>
+              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
+                공정
               </th>
               <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                 대당단가
@@ -117,6 +121,9 @@ export function QuoteListTable({
                 </td>
                 <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                   {quote.productName || '-'}
+                </td>
+                <td className={`px-3 py-2.5 text-center text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
+                  {formatQuoteProcessLabel(quote)}
                 </td>
                 <td
                   className={`px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900 ${ERP_TABLE_TD_FIXED_CLASS}`}

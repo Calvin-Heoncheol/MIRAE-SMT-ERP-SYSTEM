@@ -3,7 +3,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
-import type { SmtBoardForm } from '@/lib/quotes/form-state'
+import type { SmtBoardForm, DipBoardForm } from '@/lib/quotes/form-state'
+import { toNumericField } from '@/lib/quotes/form-state'
 import { formatPickPlaceSideLabel } from '@/lib/quotes/canonical-pick-place'
 import {
   applyAltiumPickPlaceToDipBoardForm,
@@ -14,6 +15,8 @@ import {
   PICK_PLACE_DIP_CATEGORY_OPTIONS,
   PICK_PLACE_SMD_CATEGORY_OPTIONS,
   pickPlaceConfidenceLabel,
+  pickPlaceProcessHint,
+  pickPlaceProcessLabel,
   suggestBgaBallCountForRow,
   suggestIcPinCountForRow,
   suggestPickPlaceDipCategory,
@@ -26,18 +29,25 @@ import {
   type PickPlaceMountType,
   type PickPlaceReviewSource,
 } from '@/lib/quotes/parse-altium-pick-place'
-import type { DipBoardForm } from '@/lib/quotes/form-state'
 import { classifyPickPlaceRowsWithDigiKeyAction } from '@/lib/quotes/pick-place-digikey-actions'
 import type { PickPlaceDigiKeyClassification } from '@/lib/quotes/digikey-types'
 import { classifyPickPlaceRowsAction } from '@/lib/quotes/pick-place-ai-actions'
 import type { PickPlaceAiClassification } from '@/lib/quotes/pick-place-ai-types'
 import { isPickPlaceDipCategory } from '@/lib/quotes/pick-place-mount-categories'
-import { crossReferenceBomPickPlace, enrichPickPlaceWithBom } from '@/lib/quotes/cross-reference-bom-pick-place'
+import { crossReferenceBomPickPlace, enrichPickPlaceWithBom, suggestDipCountsFromBom } from '@/lib/quotes/cross-reference-bom-pick-place'
 import {
   bomUnpopulatedBadgeHint,
   isPickPlaceBomUnpopulatedRow,
 } from '@/lib/quotes/bom-dnp'
 import type { AltiumBomAnalysis } from '@/lib/quotes/parse-altium-bom'
+import {
+  countBlockingPickPlaceReviews,
+  countDuplicateOnlyPickPlaceReviews,
+  isPickPlaceDigiKeyEligible,
+  rowMatchesPickPlaceReviewFilter,
+  summarizePickPlaceReviewReasons,
+  type PickPlaceReviewReasonTag,
+} from '@/lib/quotes/pick-place-review-reasons'
 
 type PickPlaceReviewModalProps = {
   open: boolean
@@ -198,6 +208,7 @@ function toAiRowInput(row: PickPlaceClassifiedRow) {
     package: row.package,
     value: row.value,
     description: row.description,
+    mpn: row.mpn,
     currentCategory: row.category,
     currentDetail: row.detail,
   }
@@ -560,6 +571,33 @@ function ManualReviewPanel({
   )
 }
 
+function ProcessBadge({ row }: { row: PickPlaceClassifiedRow }) {
+  const label = pickPlaceProcessLabel(row)
+  const hint = pickPlaceProcessHint(row)
+  if (label === '—') {
+    return <span className="text-xs text-slate-400">—</span>
+  }
+
+  const style =
+    label === 'SMD'
+      ? 'bg-sky-100 text-sky-800 ring-sky-200'
+      : label === 'WAVE'
+        ? 'bg-violet-100 text-violet-800 ring-violet-200'
+        : 'bg-amber-100 text-amber-900 ring-amber-200'
+
+  return (
+    <span
+      className={[
+        'inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+        style,
+      ].join(' ')}
+      title={hint}
+    >
+      {label}
+    </span>
+  )
+}
+
 function ReviewRow({
   row,
   isEditing,
@@ -598,6 +636,9 @@ function ReviewRow({
               </span>
             ) : null}
           </div>
+        </td>
+        <td className="px-2 py-2 text-center">
+          {bomUnpopulated ? <span className="text-xs text-slate-400">—</span> : <ProcessBadge row={row} />}
         </td>
         <td className="px-2 py-2 text-xs text-slate-600">
           {formatPickPlaceSideLabel(row.side, row.rawLayer)}
@@ -639,7 +680,7 @@ function ReviewRow({
       </tr>
       {isEditing ? (
         <tr className="bg-amber-50/40">
-          <td colSpan={8} className="px-2 py-2">
+          <td colSpan={9} className="px-2 py-2">
             <ManualReviewPanel row={row} onConfirm={onConfirm} onCancel={onCancel} />
           </td>
         </tr>
@@ -652,6 +693,8 @@ function PickPlaceReviewContent({
   analysis,
   bomAnalysis = null,
   showAllRows,
+  reasonFilter,
+  onReasonFilterChange,
   onToggleRows,
   editingRowKey,
   onStartEdit,
@@ -668,6 +711,8 @@ function PickPlaceReviewContent({
 }: {
   analysis: AltiumPickPlaceAnalysis
   showAllRows: boolean
+  reasonFilter: PickPlaceReviewReasonTag | 'digikey_eligible' | null
+  onReasonFilterChange: (filter: PickPlaceReviewReasonTag | 'digikey_eligible' | null) => void
   onToggleRows: () => void
   editingRowKey: string | null
   onStartEdit: (rowKey: string) => void
@@ -699,6 +744,11 @@ function PickPlaceReviewContent({
     return `BOM에 미실장 ${bomAnalysis.summary.excludedDesignatorCount}건이 있으나, 좌표 Designator와 일치하는 항목이 없습니다.`
   }, [bomAnalysis, bomUnpopulatedCount])
 
+  const reasonSummary = useMemo(
+    () => summarizePickPlaceReviewReasons(analysis.classifiedRows),
+    [analysis.classifiedRows],
+  )
+
   const visibleRows = useMemo(() => {
     const indexed = analysis.classifiedRows.map((row, index) => ({
       row,
@@ -708,9 +758,20 @@ function PickPlaceReviewContent({
     const bomUnpopulated = indexed.filter(({ row }) => isPickPlaceBomUnpopulatedRow(row))
     const active = indexed.filter(({ row }) => row.category !== 'skip')
 
-    if (showAllRows) return [...active, ...bomUnpopulated]
-    return active.filter(({ row }) => row.confidence === 'ambiguous')
-  }, [analysis.classifiedRows, showAllRows])
+    let rows = showAllRows
+      ? [...active, ...bomUnpopulated]
+      : active.filter(({ row }) => row.confidence === 'ambiguous')
+
+    if (reasonFilter) {
+      rows = rows.filter(({ row }) => rowMatchesPickPlaceReviewFilter(row, reasonFilter))
+    }
+
+    if (reasonFilter === 'digikey_eligible') {
+      rows = [...rows].sort((a, b) => Number(isPickPlaceDigiKeyEligible(b.row)) - Number(isPickPlaceDigiKeyEligible(a.row)))
+    }
+
+    return rows
+  }, [analysis.classifiedRows, showAllRows, reasonFilter])
 
   return (
     <div className="space-y-4">
@@ -752,6 +813,61 @@ function PickPlaceReviewContent({
       {bomUnpopulatedMismatch ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           {bomUnpopulatedMismatch}
+        </p>
+      ) : null}
+
+      {reasonSummary.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-100 bg-amber-50/50 px-3 py-2">
+          <span className="text-[11px] font-semibold text-amber-900">검토 사유:</span>
+          <button
+            type="button"
+            onClick={() => onReasonFilterChange(null)}
+            className={[
+              'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+              reasonFilter === null
+                ? 'bg-amber-200 text-amber-950 ring-amber-300'
+                : 'bg-white text-amber-800 ring-amber-200 hover:bg-amber-100',
+            ].join(' ')}
+          >
+            전체 {analysis.ambiguousCount}
+          </button>
+          {reasonSummary.map(({ tag, count, label }) => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => onReasonFilterChange(reasonFilter === tag ? null : tag)}
+              className={[
+                'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+                reasonFilter === tag
+                  ? 'bg-amber-200 text-amber-950 ring-amber-300'
+                  : 'bg-white text-amber-800 ring-amber-200 hover:bg-amber-100',
+              ].join(' ')}
+            >
+              {label} {count}
+            </button>
+          ))}
+          {digiKeyEligibleCount > 0 ? (
+            <button
+              type="button"
+              onClick={() =>
+                onReasonFilterChange(reasonFilter === 'digikey_eligible' ? null : 'digikey_eligible')
+              }
+              className={[
+                'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+                reasonFilter === 'digikey_eligible'
+                  ? 'bg-red-200 text-red-950 ring-red-300'
+                  : 'bg-white text-red-800 ring-red-200 hover:bg-red-50',
+              ].join(' ')}
+            >
+              DigiKey 가능 {digiKeyEligibleCount}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {bomCrossRef && bomAnalysis && bomCrossRef.bomOnlyCount > 0 ? (
+        <p className="rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2 text-xs text-violet-900">
+          BOM에만 있는 부품 {bomCrossRef.bomOnlyCount}건 — 수삽 후보는 견적 적용 시 DIP에 자동 반영됩니다.
         </p>
       ) : null}
 
@@ -809,6 +925,7 @@ function PickPlaceReviewContent({
               <tr>
                 <th className="px-2 py-2">Designator</th>
                 <th className="px-2 py-2">분류</th>
+                <th className="px-2 py-2 text-center">공정</th>
                 <th className="px-2 py-2">면</th>
                 <th className="px-2 py-2">Package</th>
                 <th className="px-2 py-2">MPN</th>
@@ -831,7 +948,7 @@ function PickPlaceReviewContent({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="px-3 py-8 text-center text-sm text-emerald-700">
+                  <td colSpan={9} className="px-3 py-8 text-center text-sm text-emerald-700">
                     검토가 필요한 항목이 없습니다. 견적에 적용해도 됩니다.
                   </td>
                 </tr>
@@ -893,6 +1010,8 @@ export function PickPlaceReviewModal({
   const [bulkDigiKeyLoading, setBulkDigiKeyLoading] = useState(false)
   const [bulkDigiKeyError, setBulkDigiKeyError] = useState<string | null>(null)
   const [bulkDigiKeySuccess, setBulkDigiKeySuccess] = useState<string[] | null>(null)
+  const [reasonFilter, setReasonFilter] = useState<PickPlaceReviewReasonTag | 'digikey_eligible' | null>(null)
+  const [duplicateAcknowledged, setDuplicateAcknowledged] = useState(false)
 
   const mergedAnalysis = useMemo(() => {
     if (!analysis) return null
@@ -911,6 +1030,8 @@ export function PickPlaceReviewModal({
     setBulkDigiKeyLoading(false)
     setBulkDigiKeyError(null)
     setBulkDigiKeySuccess(null)
+    setReasonFilter(null)
+    setDuplicateAcknowledged(false)
   }, [open, mergedAnalysis])
 
   if (!open || !analysis || !localAnalysis || !baseAnalysis) return null
@@ -918,14 +1039,15 @@ export function PickPlaceReviewModal({
   const resolvedBaseAnalysis = baseAnalysis
   const resolvedLocalAnalysis = localAnalysis
 
-  const digiKeyEligibleCount = resolvedBaseAnalysis.classifiedRows.filter(
-    (row) => row.confidence === 'ambiguous' && row.category !== 'skip' && row.mpn.trim(),
-  ).length
+  const digiKeyEligibleCount = resolvedBaseAnalysis.classifiedRows.filter(isPickPlaceDigiKeyEligible).length
+
+  const blockingCount = countBlockingPickPlaceReviews(resolvedLocalAnalysis.classifiedRows)
+  const duplicateOnlyCount = countDuplicateOnlyPickPlaceReviews(resolvedLocalAnalysis.classifiedRows)
+  const canApply =
+    blockingCount === 0 && (duplicateOnlyCount === 0 || duplicateAcknowledged)
 
   async function handleBulkDigiKeyReview() {
-    const ambiguousRows = resolvedBaseAnalysis.classifiedRows.filter(
-      (row) => row.confidence === 'ambiguous' && row.category !== 'skip' && row.mpn.trim(),
-    )
+    const ambiguousRows = resolvedBaseAnalysis.classifiedRows.filter(isPickPlaceDigiKeyEligible)
     if (!ambiguousRows.length) return
 
     setBulkDigiKeyLoading(true)
@@ -1025,13 +1147,25 @@ export function PickPlaceReviewModal({
     const nextBoard = applyAltiumPickPlaceToSmtBoardForm(target, resolvedLocalAnalysis.summary)
     const nextForms = smtForms.map((board, index) => (index === boardIndex ? nextBoard : board))
     const dipTarget = dipForms[boardIndex]
-    const nextDipForms = dipTarget
-      ? dipForms.map((board, index) =>
-          index === boardIndex
-            ? applyAltiumPickPlaceToDipBoardForm(board, resolvedLocalAnalysis.summary)
-            : board,
-        )
-      : undefined
+    let nextDipForms: DipBoardForm[] | undefined
+
+    if (dipTarget) {
+      nextDipForms = dipForms.map((board, index) => {
+        if (index !== boardIndex) return board
+        let merged = applyAltiumPickPlaceToDipBoardForm(board, resolvedLocalAnalysis.summary)
+        if (bomAnalysis) {
+          const crossRef = crossReferenceBomPickPlace(bomAnalysis, resolvedLocalAnalysis)
+          const bomDip = suggestDipCountsFromBom(bomAnalysis, crossRef)
+          merged = {
+            ...merged,
+            dipGeneral: toNumericField((Number(merged.dipGeneral) || 0) + bomDip.dipGeneral),
+            dipConnector: toNumericField((Number(merged.dipConnector) || 0) + bomDip.dipConnector),
+          }
+        }
+        return merged
+      })
+    }
+
     onApply({
       smtForms: nextForms,
       dipForms: nextDipForms,
@@ -1039,8 +1173,6 @@ export function PickPlaceReviewModal({
       analysis: resolvedLocalAnalysis,
     })
   }
-
-  const hasUnresolved = resolvedLocalAnalysis.ambiguousCount > 0
 
   return (
     <ErpModal
@@ -1053,18 +1185,32 @@ export function PickPlaceReviewModal({
       contentClassName="px-5 py-4"
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
-          {hasUnresolved ? (
-            <p className="text-xs text-amber-700">
-              검토 필요 {resolvedLocalAnalysis.ambiguousCount}건 — 뱃지를 눌러 분류하거나 DigiKey/AI 검토를 사용하세요.
-            </p>
-          ) : (
-            <p className="text-xs text-emerald-700">모든 항목이 확인되었습니다.</p>
-          )}
+          <div className="space-y-1">
+            {blockingCount > 0 ? (
+              <p className="text-xs text-amber-700">
+                검토 필요 {blockingCount}건 — 뱃지를 눌러 분류하거나 DigiKey/AI 검토를 사용하세요.
+              </p>
+            ) : duplicateOnlyCount > 0 && !duplicateAcknowledged ? (
+              <label className="flex cursor-pointer items-start gap-2 text-xs text-amber-800">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={duplicateAcknowledged}
+                  onChange={(event) => setDuplicateAcknowledged(event.target.checked)}
+                />
+                <span>
+                  Designator 중복 {duplicateOnlyCount}건을 확인했습니다. (데이터 오류 가능 — 적용 시 주의)
+                </span>
+              </label>
+            ) : (
+              <p className="text-xs text-emerald-700">모든 항목이 확인되었습니다.</p>
+            )}
+          </div>
           <div className="flex gap-2">
             <ErpButton variant="secondary" onClick={() => requestClose?.() ?? onClose()}>
               취소
             </ErpButton>
-            <ErpButton onClick={handleApply} disabled={hasUnresolved}>
+            <ErpButton onClick={handleApply} disabled={!canApply}>
               견적서에 적용
             </ErpButton>
           </div>
@@ -1075,6 +1221,8 @@ export function PickPlaceReviewModal({
         analysis={localAnalysis}
         bomAnalysis={bomAnalysis}
         showAllRows={showAllRows}
+        reasonFilter={reasonFilter}
+        onReasonFilterChange={setReasonFilter}
         onToggleRows={() => setShowAllRows((current) => !current)}
         editingRowKey={editingRowKey}
         onStartEdit={setEditingRowKey}

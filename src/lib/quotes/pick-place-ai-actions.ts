@@ -18,6 +18,7 @@ function sanitizeRow(row: PickPlaceAiRowInput): PickPlaceAiRowInput {
     package: String(row.package ?? '').trim().slice(0, 120),
     value: String(row.value ?? '').trim().slice(0, 120),
     description: String(row.description ?? '').trim().slice(0, 160),
+    mpn: String(row.mpn ?? '').trim().slice(0, 80),
     currentCategory: row.currentCategory,
     currentDetail: String(row.currentDetail ?? '').trim().slice(0, 160),
   }

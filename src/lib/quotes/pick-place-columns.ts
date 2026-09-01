@@ -7,6 +7,7 @@ export type PickPlaceColumnMap = {
   value: number
   rotation: number
   description: number
+  mpn: number
 }
 
 function normalizeHeaderKey(value: string) {
@@ -172,6 +173,22 @@ const Y_ALIASES = [
 const ROTATION_ALIASES = ['rotation', 'rot', 'angle', 'orient', 'dir', 'symrotate', '회전', '각도']
 const DESCRIPTION_ALIASES = ['description', 'desc', 'partname', 'componentname', 'symname', 'name', '부품설명', '설명']
 
+const MPN_ALIASES = [
+  'mpn',
+  'manufacturerpartnumber',
+  'manufacturerpn',
+  'mfrpartnumber',
+  'mfrpn',
+  'partnumber',
+  'partno',
+  'partnum',
+  'pn',
+  'itemnumber',
+  '제조사품번',
+  '품번',
+  '부품번호',
+]
+
 export function detectPickPlaceHeader(rows: string[][]): { headerIndex: number; columns: PickPlaceColumnMap } | null {
   let best: { headerIndex: number; columns: PickPlaceColumnMap; score: number } | null = null
 
@@ -197,6 +214,8 @@ export function detectPickPlaceHeader(rows: string[][]): { headerIndex: number; 
     const rotation = findColumnExcluding(header, ROTATION_ALIASES, used)
     if (rotation >= 0) used.add(rotation)
     const description = findColumnExcluding(header, DESCRIPTION_ALIASES, used)
+    if (description >= 0) used.add(description)
+    const mpn = findColumnExcluding(header, MPN_ALIASES, used)
 
     let score = 10 + designatorScore * 4
     if (layer >= 0) score += 3
@@ -204,6 +223,7 @@ export function detectPickPlaceHeader(rows: string[][]): { headerIndex: number; 
     if (value >= 0) score += 2
     if (rotation >= 0) score += 1
     if (description >= 0) score += 1
+    if (mpn >= 0) score += 1
 
     const candidate = {
       headerIndex: i,
@@ -216,6 +236,7 @@ export function detectPickPlaceHeader(rows: string[][]): { headerIndex: number; 
         value,
         rotation,
         description,
+        mpn,
       },
       score,
     }
@@ -240,7 +261,7 @@ export function fillMissingPickPlaceColumns(
   const next = { ...columns }
 
   const fillOptional = (
-    key: 'layer' | 'package' | 'value' | 'rotation' | 'description',
+    key: 'layer' | 'package' | 'value' | 'rotation' | 'description' | 'mpn',
     aliases: string[],
   ) => {
     if (next[key] >= 0) return
@@ -256,6 +277,7 @@ export function fillMissingPickPlaceColumns(
   fillOptional('value', VALUE_ALIASES)
   fillOptional('rotation', ROTATION_ALIASES)
   fillOptional('description', DESCRIPTION_ALIASES)
+  fillOptional('mpn', MPN_ALIASES)
 
   return next
 }
@@ -297,6 +319,7 @@ export function formatPickPlaceColumnMappingNote(header: string[], columns: Pick
     columns.value,
     columns.rotation,
     columns.description,
+    columns.mpn,
   ]) {
     if (index < 0) continue
     const label = String(header[index] ?? '').trim()
@@ -311,6 +334,7 @@ export function formatDetectedColumns(columns: PickPlaceColumnMap, header: strin
     columns.layer >= 0 ? header[columns.layer] : null,
     columns.package >= 0 ? header[columns.package] : null,
     columns.value >= 0 ? header[columns.value] : null,
+    columns.mpn >= 0 ? header[columns.mpn] : null,
     header[columns.x],
     header[columns.y],
   ].filter(Boolean)

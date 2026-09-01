@@ -11,11 +11,21 @@ export type PostProcessLineForm = {
 
 export type PostProcessProductionKind = '샘플' | '양산'
 
-/** 후공정 분 — 소수 허용(예: 0.75), 소수 둘째 자리까지 */
-export function parsePostProcessMinutes(value: number | string | undefined | null) {
+/** 후공정 분 — 소수 첫째 자리까지 (반올림) */
+export function roundPostProcessMinutes(value: number | string | undefined | null) {
   const n = Number(value)
   if (!Number.isFinite(n) || n <= 0) return 0
-  return Math.round(n * 100) / 100
+  return Math.round(n * 10) / 10
+}
+
+export function parsePostProcessMinutes(value: number | string | undefined | null) {
+  return roundPostProcessMinutes(value)
+}
+
+export function formatPostProcessMinutesDisplay(minutes: number) {
+  const rounded = roundPostProcessMinutes(minutes)
+  if (rounded <= 0) return '—'
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
 }
 
 export function parsePostProcessSeconds(value: number | string | undefined | null) {
@@ -28,6 +38,26 @@ export function getPostProcessTimeBuffer(productionKind: PostProcessProductionKi
   return productionKind === '샘플' ? POST_PROCESS_SAMPLE_BUFFER : POST_PROCESS_MASS_BUFFER
 }
 
+/** 입력 초에 더해지는 여유 초 */
+export function postProcessBufferSeconds(
+  seconds: number,
+  productionKind: PostProcessProductionKind = '양산',
+) {
+  const rawSeconds = parsePostProcessSeconds(seconds)
+  if (rawSeconds <= 0) return 0
+  return Math.round(rawSeconds * getPostProcessTimeBuffer(productionKind))
+}
+
+/** 여유율 반영 총 초 */
+export function postProcessBufferedTotalSeconds(
+  seconds: number,
+  productionKind: PostProcessProductionKind = '양산',
+) {
+  const rawSeconds = parsePostProcessSeconds(seconds)
+  if (rawSeconds <= 0) return 0
+  return rawSeconds + postProcessBufferSeconds(rawSeconds, productionKind)
+}
+
 /** 입력 초 → 청구 분 (여유율 반영) */
 export function postProcessSecondsToBilledMinutes(
   seconds: number,
@@ -35,18 +65,15 @@ export function postProcessSecondsToBilledMinutes(
 ) {
   const rawSeconds = parsePostProcessSeconds(seconds)
   if (rawSeconds <= 0) return 0
-  const bufferedSeconds = rawSeconds * (1 + getPostProcessTimeBuffer(productionKind))
-  return Math.round((bufferedSeconds / 60) * 100) / 100
+  const bufferedSeconds = postProcessBufferedTotalSeconds(rawSeconds, productionKind)
+  return roundPostProcessMinutes(bufferedSeconds / 60)
 }
 
 export function formatPostProcessBilledMinutes(
   seconds: number,
   productionKind: PostProcessProductionKind = '양산',
 ) {
-  const minutes = postProcessSecondsToBilledMinutes(seconds, productionKind)
-  if (minutes <= 0) return '—'
-  const rounded = Math.round(minutes * 10) / 10
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+  return formatPostProcessMinutesDisplay(postProcessSecondsToBilledMinutes(seconds, productionKind))
 }
 
 export function emptyPostProcessLineForm(): PostProcessLineForm {
@@ -83,10 +110,11 @@ export function sumPostProcessBilledMinutes(
   lines: PostProcessLineForm[],
   productionKind: PostProcessProductionKind = '양산',
 ) {
-  return lines.reduce(
+  const total = lines.reduce(
     (sum, line) => sum + postProcessSecondsToBilledMinutes(parsePostProcessSeconds(line.seconds), productionKind),
     0,
   )
+  return roundPostProcessMinutes(total)
 }
 
 export function postProcessLinesToModels(

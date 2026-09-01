@@ -19,6 +19,7 @@ import {
   type CanonicalPickPlaceRow,
 } from '@/lib/quotes/canonical-pick-place'
 import { detectPickPlaceHeader } from '@/lib/quotes/pick-place-columns'
+import { normalizeDesignatorKey } from '@/lib/quotes/designator-utils'
 import type { SmtSide } from '@/lib/quotes/types'
 
 export function pickAiColumnMappingWarnings(warnings: string[]) {
@@ -34,6 +35,8 @@ export {
   PICK_PLACE_MANUAL_CATEGORY_OPTIONS,
   PICK_PLACE_SMD_CATEGORY_OPTIONS,
   pickPlaceCategoryLabel,
+  pickPlaceProcessHint,
+  pickPlaceProcessLabel,
   suggestPickPlaceDipCategory,
   suggestPickPlaceMountType,
   classifyPickPlaceDipFromRow,
@@ -517,6 +520,7 @@ export function rebuildPickPlaceAnalysis(
   analysis: AltiumPickPlaceAnalysis,
   classifiedRows: PickPlaceClassifiedRow[],
 ): AltiumPickPlaceAnalysis {
+  const gatedRows = applyPickPlaceRowSetReviewGates(classifiedRows)
   const top = emptyLayerStats()
   const bottom = emptyLayerStats()
   const dipTotals = emptyPickPlaceDipStats()
@@ -525,7 +529,7 @@ export function rebuildPickPlaceAnalysis(
   const xs: number[] = []
   const ys: number[] = []
 
-  for (const row of classifiedRows) {
+  for (const row of gatedRows) {
     if (Number.isFinite(row.x)) xs.push(row.x)
     if (Number.isFinite(row.y)) ys.push(row.y)
     if (row.confidence !== 'certain' || row.category === 'skip') continue
@@ -543,10 +547,10 @@ export function rebuildPickPlaceAnalysis(
   const totals = sumLayerStats(top, bottom)
   const pcbWidthMm = xs.length ? Math.max(...xs) - Math.min(...xs) : analysis.summary.pcbWidthMm
   const pcbHeightMm = ys.length ? Math.max(...ys) - Math.min(...ys) : analysis.summary.pcbHeightMm
-  const ambiguousCount = classifiedRows.filter(
+  const ambiguousCount = gatedRows.filter(
     (row) => row.confidence === 'ambiguous' && row.category !== 'skip',
   ).length
-  const certainCount = classifiedRows.filter(
+  const certainCount = gatedRows.filter(
     (row) => row.confidence === 'certain' && row.category !== 'skip',
   ).length
 
@@ -565,8 +569,8 @@ export function rebuildPickPlaceAnalysis(
   return {
     ...analysis,
     summary,
-    classifiedRows,
-    quoteFields: buildQuoteFields(summary, classifiedRows, sideInfo),
+    classifiedRows: gatedRows,
+    quoteFields: buildQuoteFields(summary, gatedRows, sideInfo),
     certainCount,
     ambiguousCount,
     skippedCount: skipped,
@@ -625,6 +629,12 @@ export function pickPlacePartTypeKey(row: PickPlaceClassifiedRow) {
   return pickPlacePartTypeIdentity(row).key
 }
 
+function appendPickPlaceReviewDetail(detail: string, reason: string) {
+  if (!reason) return detail
+  if (detail.includes(reason)) return detail
+  return detail ? `${detail} · ${reason}` : reason
+}
+
 /**
  * 자동 분류에서 불확실한 항목은 집계하지 않고 사람 검토로 넘긴다.
  * (수동/AI/DigiKey 확정 후에는 reviewSource가 있어 이 게이트를 건너뛴다)
@@ -640,27 +650,68 @@ function applyAutoClassificationReviewGates(
   let detail = row.detail
   const hasLayerColumn = options?.hasLayerColumn ?? true
 
-  if (hasLayerColumn && row.side === 'unknown') {
+  if (!row.designator.trim()) {
     confidence = 'ambiguous'
-    if (!detail.includes('면 불명')) detail = `${detail} · 면 불명?`
+    detail = appendPickPlaceReviewDetail(detail, 'Designator 없음')
   }
 
-  // SMD 종수: 품번 또는 부품값+패키지가 없으면 자동 확정 금지 (skip은 위에서 early return)
+  if (!row.mpn.trim()) {
+    confidence = 'ambiguous'
+    detail = appendPickPlaceReviewDetail(detail, 'MPN 없음')
+  }
+
+  if (hasLayerColumn && row.side === 'unknown') {
+    confidence = 'ambiguous'
+    detail = appendPickPlaceReviewDetail(detail, '면 불명?')
+  }
+
+  // SMD 종수: MPN이 있어도 부품값·패키지가 부족하면 자동 확정 금지
   if (isPickPlaceSmdCategory(row.category)) {
     const identity = pickPlacePartTypeIdentity(row)
     if (!identity.certain) {
       confidence = 'ambiguous'
       const reason = identity.reason ?? '종수 확인 필요'
       if (!detail.includes(reason) && !detail.includes('종수 확인')) {
-        detail = `${detail} · ${reason}`
+        detail = appendPickPlaceReviewDetail(detail, reason)
       }
     }
   }
 
-  // DIP: 약한(위치명만) 수삽 후보는 이미 ambiguous. strong은 유지하되
-  // 커넥터류 SMD/수삽 애매는 별도 분류에서 ambiguous 처리됨.
-
   return { ...row, confidence, detail }
+}
+
+/** 동일 Designator가 여러 행에 있으면 모두 검토 필요 (데이터 무결성) */
+function applyPickPlaceRowSetReviewGates(
+  rows: PickPlaceClassifiedRow[],
+): PickPlaceClassifiedRow[] {
+  const keyToIndices = new Map<string, number[]>()
+
+  for (const [index, row] of rows.entries()) {
+    if (row.category === 'skip') continue
+    const key = normalizeDesignatorKey(row.designator)
+    if (!key) continue
+    const indices = keyToIndices.get(key) ?? []
+    indices.push(index)
+    keyToIndices.set(key, indices)
+  }
+
+  const duplicateIndices = new Set<number>()
+  for (const indices of keyToIndices.values()) {
+    if (indices.length > 1) {
+      for (const index of indices) duplicateIndices.add(index)
+    }
+  }
+
+  if (!duplicateIndices.size) return rows
+
+  return rows.map((row, index) => {
+    if (!duplicateIndices.has(index)) return row
+    return {
+      ...row,
+      confidence: 'ambiguous',
+      detail: appendPickPlaceReviewDetail(row.detail, 'Designator 중복'),
+    }
+  })
 }
 
 type LayerPartTypeSets = {
@@ -935,18 +986,12 @@ export function parsePickPlaceRows(
   const warnings: string[] = options?.forcedDetection?.note ? [options.forcedDetection.note] : []
 
   const classifiedRows: PickPlaceClassifiedRow[] = []
-  const top = emptyLayerStats()
-  const bottom = emptyLayerStats()
-  const dipTotals = emptyPickPlaceDipStats()
-  const partTypeSets = emptyLayerPartTypeSets()
-  let skipped = 0
   const xs: number[] = []
   const ys: number[] = []
 
   for (let i = headerIndex + 1; i < normalizedRows.length; i += 1) {
     const cells = normalizedRows[i]!
     const designator = cellAt(cells, columns.designator)
-    if (!designator) continue
 
     const rawLayer = hasLayerColumn ? cellAt(cells, columns.layer) : ''
     const side = parsePickPlaceSide(rawLayer, hasLayerColumn)
@@ -961,6 +1006,17 @@ export function parsePickPlaceRows(
     const value = cellAt(cells, columns.value)
     const description = cellAt(cells, columns.description)
 
+    if (
+      !designator &&
+      !pkg &&
+      !value &&
+      !description &&
+      !Number.isFinite(x) &&
+      !Number.isFinite(y)
+    ) {
+      continue
+    }
+
     const row: CanonicalPickPlaceRow = {
       designator,
       side,
@@ -971,89 +1027,53 @@ export function parsePickPlaceRows(
       value,
       description,
       rotation: columns.rotation >= 0 ? Number(cellAt(cells, columns.rotation)) || 0 : 0,
-      mpn: '',
+      mpn: columns.mpn >= 0 ? cellAt(cells, columns.mpn) : '',
     }
 
     const classified = classifyComponent(row)
-    const classifiedRow = applyAutoClassificationReviewGates(
-      {
-        ...row,
-        category: classified.category,
-        categoryLabel: classified.categoryLabel,
-        confidence: classified.confidence,
-        detail: classified.detail,
-      },
-      { hasLayerColumn },
+    classifiedRows.push(
+      applyAutoClassificationReviewGates(
+        {
+          ...row,
+          category: classified.category,
+          categoryLabel: classified.categoryLabel,
+          confidence: classified.confidence,
+          detail: classified.detail,
+        },
+        { hasLayerColumn },
+      ),
     )
-    classifiedRows.push(classifiedRow)
-
-    if (classifiedRow.confidence === 'certain') {
-      if (
-        !accumulateClassifiedRow(
-          classifiedRow,
-          {
-            ...classified,
-            confidence: classifiedRow.confidence,
-            detail: classifiedRow.detail,
-          },
-          top,
-          bottom,
-          dipTotals,
-          partTypeSets,
-        )
-      ) {
-        skipped += 1
-      }
-    }
   }
 
   if (!classifiedRows.length) {
     return { ok: false, detail: '실장 데이터 행을 찾을 수 없습니다.' }
   }
 
-  finalizeLayerPartCounts(top, partTypeSets.top)
-  finalizeLayerPartCounts(bottom, partTypeSets.bottom)
-
-  const sideInfo = inferSmtSide(top, bottom)
-  const smtSide = sideInfo.side
-  const totals = sumLayerStats(top, bottom)
-  const pcbWidthMm = xs.length ? Math.max(...xs) - Math.min(...xs) : 0
-  const pcbHeightMm = ys.length ? Math.max(...ys) - Math.min(...ys) : 0
-
-  const ambiguousCount = classifiedRows.filter(
-    (row) => row.confidence === 'ambiguous' && row.category !== 'skip',
-  ).length
-  const certainCount = classifiedRows.filter(
-    (row) => row.confidence === 'certain' && row.category !== 'skip',
-  ).length
-
-  const summary: AltiumPickPlaceSummary = {
-    pcbName: pcbNameInfo.name,
-    units,
-    smtSide,
-    top,
-    bottom,
-    totals,
-    pcbWidthMm,
-    pcbHeightMm,
-    skipped,
-    dipTotals,
-    warnings,
+  const baseAnalysis: AltiumPickPlaceAnalysis = {
+    fileName: fileName || 'pick-place',
+    summary: {
+      pcbName: pcbNameInfo.name,
+      units,
+      smtSide: 'single',
+      top: emptyLayerStats(),
+      bottom: emptyLayerStats(),
+      totals: emptyLayerStats(),
+      pcbWidthMm: xs.length ? Math.max(...xs) - Math.min(...xs) : 0,
+      pcbHeightMm: ys.length ? Math.max(...ys) - Math.min(...ys) : 0,
+      skipped: 0,
+      dipTotals: emptyPickPlaceDipStats(),
+      warnings,
+    },
+    classifiedRows,
+    quoteFields: [],
+    certainCount: 0,
+    ambiguousCount: 0,
+    skippedCount: 0,
   }
-
-  const quoteFields = buildQuoteFields(summary, classifiedRows, sideInfo)
 
   return {
     ok: true,
-    analysis: {
-      fileName: fileName || 'pick-place',
-      summary,
-      classifiedRows,
-      quoteFields,
-      certainCount,
-      ambiguousCount,
-      skippedCount: skipped,
-    },
+    analysis: rebuildPickPlaceAnalysis(baseAnalysis, classifiedRows),
   }
 }
 
@@ -1301,12 +1321,6 @@ export function applyPickPlaceManualOverrides(
 ): AltiumPickPlaceAnalysis {
   if (!Object.keys(overrides).length) return analysis
 
-  const top = emptyLayerStats()
-  const bottom = emptyLayerStats()
-  const dipTotals = emptyPickPlaceDipStats()
-  const partTypeSets = emptyLayerPartTypeSets()
-  let skipped = 0
-
   const classifiedRows = analysis.classifiedRows.map((row, index) => {
     const override = resolvePickPlaceManualOverride(row, index, overrides)
     if (!override) return row
@@ -1322,54 +1336,10 @@ export function applyPickPlaceManualOverrides(
     }
   })
 
-  for (const [index, row] of classifiedRows.entries()) {
-    if (!rowCountsTowardQuoteTotals(row)) continue
-
-    const override = resolvePickPlaceManualOverride(analysis.classifiedRows[index] ?? row, index, overrides)
-    const sourceRow = analysis.classifiedRows[index] ?? row
-    const classified = override
-      ? buildManualClassification(sourceRow, override)
-      : classificationFromExistingRow(row)
-
-    if (!accumulateClassifiedRow(row, classified, top, bottom, dipTotals, partTypeSets)) {
-      skipped += 1
-    }
-  }
-
-  finalizeLayerPartCounts(top, partTypeSets.top)
-  finalizeLayerPartCounts(bottom, partTypeSets.bottom)
-
-  const sideInfo = inferSmtSide(top, bottom)
-  const totals = sumLayerStats(top, bottom)
-  const ambiguousCount = classifiedRows.filter(
-    (row) => row.confidence === 'ambiguous' && row.category !== 'skip',
-  ).length
-  const certainCount = classifiedRows.filter(
-    (row) => row.confidence === 'certain' && row.category !== 'skip',
-  ).length
-
   const warnings = pickAiColumnMappingWarnings(analysis.summary.warnings)
 
-  const summary: AltiumPickPlaceSummary = {
-    ...analysis.summary,
-    smtSide: sideInfo.side,
-    top,
-    bottom,
-    totals,
-    skipped,
-    dipTotals,
-    warnings,
-  }
-
-  const quoteFields = buildQuoteFields(summary, classifiedRows, sideInfo)
-
-  return {
-    ...analysis,
-    summary,
+  return rebuildPickPlaceAnalysis(
+    { ...analysis, summary: { ...analysis.summary, warnings } },
     classifiedRows,
-    quoteFields,
-    certainCount,
-    ambiguousCount,
-    skippedCount: skipped,
-  }
+  )
 }

@@ -5,7 +5,7 @@
 
 create table if not exists public.production_plan_board_items (
   id uuid primary key default gen_random_uuid(),
-  scope text not null check (scope in ('smt', 'post')),
+  scope text not null check (scope in ('material', 'smt', 'post')),
   order_id text not null references public.orders (id) on delete cascade,
   order_line_id uuid references public.order_lines (id) on delete cascade,
   assembly_group_id uuid references public.order_assembly_groups (id) on delete cascade,
@@ -21,10 +21,15 @@ create table if not exists public.production_plan_board_items (
   note text not null default '',
   created_at timestamptz not null default now(),
   constraint production_plan_board_scope_ref check (
-    (scope = 'smt' and order_line_id is not null and assembly_group_id is null)
+    (scope = 'material' and order_line_id is not null and assembly_group_id is null)
+    or (scope = 'smt' and order_line_id is not null and assembly_group_id is null)
     or (scope = 'post' and assembly_group_id is not null and order_line_id is null)
   )
 );
+
+create unique index if not exists production_plan_board_material_line_uidx
+  on public.production_plan_board_items (order_line_id)
+  where scope = 'material' and order_line_id is not null;
 
 create unique index if not exists production_plan_board_smt_line_uidx
   on public.production_plan_board_items (order_line_id)
@@ -41,7 +46,7 @@ create index if not exists production_plan_board_scope_status_idx
   on public.production_plan_board_items (scope, status);
 
 comment on table public.production_plan_board_items is
-  '생산계획 보드 — 확정된 주문라인(SMT)·조립그룹(후공정). 미확정은 행 없음.';
+  '생산계획 보드 — 자재·SMT·후공정 확정 배정. 미확정은 행 없음.';
 comment on column public.production_plan_board_items.planned_date is '확정 계획일 (KST)';
 comment on column public.production_plan_board_items.line_no is 'SMT 라인 1~7 (scope=smt)';
 comment on column public.production_plan_board_items.team is '후공정 팀 (scope=post)';

@@ -55,6 +55,7 @@ export function resolvePickPlaceColumnsFromAi(
     value: findHeaderColumnByName(header, payload.columns.value ?? payload.columns.comment),
     rotation: findHeaderColumnByName(header, payload.columns.rotation),
     description: findHeaderColumnByName(header, payload.columns.description),
+    mpn: findHeaderColumnByName(header, payload.columns.mpn),
   }
   const columns = fillMissingPickPlaceColumns(header, aiColumns)
 

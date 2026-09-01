@@ -10,7 +10,7 @@ import {
   COMPANY_QUOTE_EMAIL_EXPORT,
 } from '@/lib/app-config'
 import { exportPage1SummaryAmounts, formatExportSummaryUsd, formatQuoteMoneyTotal, formatQuoteValidityText, domesticPage1SummaryAmounts, formatQuoteKrw } from './format'
-import { getPreviewLabels, resolveLabelQuoteType, type QuoteDocumentLanguage } from './preview-i18n'
+import { breakdownSmtSectionTitle, getPreviewLabels, resolveLabelQuoteType, type QuoteDocumentLanguage } from './preview-i18n'
 import {
   breakdownBoardColLabel,
   buildPdfSummaryBreakdownLines,
@@ -370,10 +370,11 @@ function buildBreakdownSectionHtml(
   sectionKey: PreviewSection,
   modifier = '',
   labelType: QuoteType = quoteType,
+  qty = 1,
 ) {
   if (!rows.length) return ''
 
-  const tableRows = prepareBreakdownSectionTableRows(rows, sectionKey, labelType)
+  const tableRows = prepareBreakdownSectionTableRows(rows, sectionKey, labelType, qty)
 
   const showBoardColumn = tableRows.some((row) => row.boardName)
   const sectionClass = `breakdown-section-${sectionKey}`
@@ -611,10 +612,10 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
     <div class="quote-card">
       ${buildSectionPageHeaderHtml(quote, estimate, pageTitle, pageNote)}
       <div class="breakdown-sections">
-        ${buildBreakdownSectionHtml('SET-UP', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated', labelType)}
-        ${buildBreakdownSectionHtml('SMD · 실장·검사', smtRows, quote.quoteType, 'smt', 'breakdown-section-smt', labelType)}
-        ${buildBreakdownSectionHtml(postTitle, postRows, quote.quoteType, 'post', 'breakdown-section-separated', labelType)}
-        ${buildBreakdownSectionHtml(materialTitle, materialRows, quote.quoteType, 'material', 'breakdown-section-separated', labelType)}
+        ${buildBreakdownSectionHtml('SET-UP', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated', labelType, estimate.qty || 1)}
+        ${buildBreakdownSectionHtml(breakdownSmtSectionTitle(labelType), smtRows, quote.quoteType, 'smt', 'breakdown-section-smt', labelType, estimate.qty || 1)}
+        ${buildBreakdownSectionHtml(postTitle, postRows, quote.quoteType, 'post', 'breakdown-section-separated', labelType, estimate.qty || 1)}
+        ${buildBreakdownSectionHtml(materialTitle, materialRows, quote.quoteType, 'material', 'breakdown-section-separated', labelType, estimate.qty || 1)}
       </div>
     </div>
   </section>`

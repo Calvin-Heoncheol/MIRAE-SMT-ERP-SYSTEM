@@ -4,8 +4,9 @@ import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups, repairOrphanAsse
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
+import { fetchPendingInboundByMaterialId } from '@/lib/materials/inventory/pending-inbound'
+import { resolveMaterialInboundStatus } from '@/lib/materials/material-inbound-status'
 import { fetchBomEdges } from '@/lib/materials/outbound/repository'
-import { computeIssuableProductQuantity } from '@/lib/materials/outbound/utils'
 import type { BomEdge } from '@/lib/materials/outbound/types'
 import { fetchOrders } from '@/lib/orders/repository'
 import { fetchProducts } from '@/lib/products/repository'
@@ -34,6 +35,7 @@ import {
   productionPlanRowKey,
   sortProductionPlanRows,
 } from './utils'
+import { getSmtPlannedEndDate } from './pipeline'
 
 export type ConfirmProductionPlanResult =
   | { ok: true }
@@ -70,25 +72,39 @@ function materialHint(
   remainingQty: number,
   edgesByParent: Map<string, BomEdge[]>,
   onHandByMaterialId: Map<string, number>,
+  pendingInboundByMaterialId: Map<string, number>,
+  latestDeliveryDateByMaterialId: Map<string, string>,
 ) {
   const id = productId.trim()
   if (!id || remainingQty <= 0) {
-    return { materialReadyQty: 0, materialShort: false, materialUnknown: true }
+    return {
+      materialReadyQty: 0,
+      materialScheduledQty: 0,
+      materialExpectedReadyDate: '',
+      materialShort: false,
+      materialUnknown: true,
+      materialInboundStatus: 'no_bom' as const,
+    }
   }
-  const hasBom = (edgesByParent.get(id)?.length ?? 0) > 0
-  if (!hasBom) {
-    return { materialReadyQty: 0, materialShort: false, materialUnknown: true }
-  }
-  const materialReadyQty = computeIssuableProductQuantity(
+
+  const inbound = resolveMaterialInboundStatus(
     id,
     remainingQty,
     edgesByParent,
     onHandByMaterialId,
+    pendingInboundByMaterialId,
+    latestDeliveryDateByMaterialId,
   )
+
   return {
-    materialReadyQty,
-    materialShort: materialReadyQty < remainingQty,
-    materialUnknown: false,
+    materialReadyQty: inbound.readyUnits,
+    materialScheduledQty: inbound.scheduledUnits,
+    materialExpectedReadyDate: inbound.expectedReadyDate || '',
+    materialShort:
+      inbound.status === 'missing' ||
+      (inbound.status === 'ready' && inbound.readyUnits < remainingQty),
+    materialUnknown: inbound.status === 'no_bom',
+    materialInboundStatus: inbound.status,
   }
 }
 
@@ -191,16 +207,18 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
   let ordersResult: Awaited<ReturnType<typeof fetchOrders>>
   let confirmResult: Awaited<ReturnType<typeof fetchConfirmRows>>
   let onHandResult: Awaited<ReturnType<typeof fetchOnHandByMaterialId>>
+  let pendingResult: Awaited<ReturnType<typeof fetchPendingInboundByMaterialId>>
   let quotesResult: Awaited<ReturnType<typeof fetchQuotes>>
   let bomEdges: BomEdge[]
 
   try {
-    ;[productsResult, ordersResult, confirmResult, onHandResult, quotesResult, bomEdges] =
+    ;[productsResult, ordersResult, confirmResult, onHandResult, pendingResult, quotesResult, bomEdges] =
       await Promise.all([
         fetchProducts(false),
         fetchOrders({ includeDerivedLines: true }),
         fetchConfirmRows(),
         fetchOnHandByMaterialId(),
+        fetchPendingInboundByMaterialId(),
         fetchQuotes(),
         fetchBomEdges(),
       ])
@@ -223,10 +241,20 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
   const productById = Object.fromEntries(productsResult.products.map((p) => [p.id, p]))
   const edgesByParent = buildEdgesByParent(bomEdges)
   const onHand = onHandResult.onHandByMaterialId
+  const pendingByMaterialId = pendingResult.ok
+    ? pendingResult.pendingByMaterialId
+    : new Map<string, number>()
+  const latestDeliveryDateByMaterialId = pendingResult.ok
+    ? pendingResult.latestDeliveryDateByMaterialId
+    : new Map<string, string>()
 
+  const confirmedMaterial = new Map<string, BoardConfirmRow>()
   const confirmedSmt = new Map<string, BoardConfirmRow>()
   const confirmedPost = new Map<string, BoardConfirmRow>()
   for (const row of confirmResult.rows) {
+    if (row.scope === 'material' && row.order_line_id) {
+      confirmedMaterial.set(row.order_line_id, row)
+    }
     if (row.scope === 'smt' && row.order_line_id) {
       confirmedSmt.set(row.order_line_id, row)
     }
@@ -309,12 +337,18 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     if (remainingQty <= 0) continue
 
     const confirm = confirmedSmt.get(line.orderLineId)
-    const hint = materialHint(productId, remainingQty, edgesByParent, onHand)
+    const materialConfirm = confirmedMaterial.get(line.orderLineId)
+    const hint = materialHint(
+      productId,
+      remainingQty,
+      edgesByParent,
+      onHand,
+      pendingByMaterialId,
+      latestDeliveryDateByMaterialId,
+    )
     const daysUntilDelivery = computeDaysUntilDelivery(line.deliveryDate)
 
-    rows.push({
-      key: productionPlanRowKey('smt', line.orderLineId),
-      scope: 'smt',
+    const shared = {
       orderId: line.orderId,
       orderNumber: line.orderNumber,
       customer: line.customer,
@@ -330,6 +364,22 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       producedQty,
       remainingQty,
       ...hint,
+    }
+
+    rows.push({
+      key: productionPlanRowKey('material', line.orderLineId),
+      scope: 'material',
+      ...shared,
+      status: materialConfirm ? 'confirmed' : 'waiting',
+      confirmedAt: materialConfirm?.confirmed_at || '',
+      confirmedByName: materialConfirm?.confirmed_by_name || '',
+      ...scheduleFromConfirm(materialConfirm),
+    })
+
+    rows.push({
+      key: productionPlanRowKey('smt', line.orderLineId),
+      scope: 'smt',
+      ...shared,
       status: confirm ? 'confirmed' : 'waiting',
       confirmedAt: confirm?.confirmed_at || '',
       confirmedByName: confirm?.confirmed_by_name || '',
@@ -349,7 +399,14 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     if (remainingQty <= 0) continue
 
     const confirm = confirmedPost.get(groupId)
-    const hint = materialHint(productId, remainingQty, edgesByParent, onHand)
+    const hint = materialHint(
+      productId,
+      remainingQty,
+      edgesByParent,
+      onHand,
+      pendingByMaterialId,
+      latestDeliveryDateByMaterialId,
+    )
     const daysUntilDelivery = computeDaysUntilDelivery(line.deliveryDate)
 
     rows.push({
@@ -375,6 +432,12 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       confirmedByName: confirm?.confirmed_by_name || '',
       ...scheduleFromConfirm(confirm),
     })
+  }
+
+  for (const row of rows) {
+    if (row.scope !== 'post') continue
+    const smtEnd = getSmtPlannedEndDate(row.orderId, rows)
+    if (smtEnd) row.smtPlannedEndDate = smtEnd
   }
 
   return {
@@ -448,6 +511,20 @@ export async function confirmProductionPlanItem(
     })
   }
 
+  if (scope === 'material') {
+    return saveBoardConfirmation({
+      scope: 'material',
+      orderId,
+      targetId,
+      plannedDate,
+      plannedQuantity,
+      lineNo: null,
+      team: '',
+      pcbSide: 'SINGLE',
+      note,
+    })
+  }
+
   const team = normalizePostProcessTeam(input.team)
   const planResult = await upsertPostProcessProductionPlan({
     orderId,
@@ -494,18 +571,18 @@ async function saveBoardConfirmation(input: {
   const scope = input.scope
 
   const existingQuery =
-    scope === 'smt'
+    scope === 'post'
       ? supabase
-          .from('production_plan_board_items')
-          .select('id')
-          .eq('scope', 'smt')
-          .eq('order_line_id', input.targetId)
-          .maybeSingle()
-      : supabase
           .from('production_plan_board_items')
           .select('id')
           .eq('scope', 'post')
           .eq('assembly_group_id', input.targetId)
+          .maybeSingle()
+      : supabase
+          .from('production_plan_board_items')
+          .select('id')
+          .eq('scope', scope)
+          .eq('order_line_id', input.targetId)
           .maybeSingle()
 
   const existing = await existingQuery
@@ -558,19 +635,19 @@ async function saveBoardConfirmation(input: {
   }
 
   const insertRow: Record<string, unknown> =
-    scope === 'smt'
+    scope === 'post'
       ? {
-          scope: 'smt',
-          order_id: input.orderId,
-          order_line_id: input.targetId,
-          assembly_group_id: null,
-          ...schedulePayload,
-        }
-      : {
           scope: 'post',
           order_id: input.orderId,
           order_line_id: null,
           assembly_group_id: input.targetId,
+          ...schedulePayload,
+        }
+      : {
+          scope,
+          order_id: input.orderId,
+          order_line_id: input.targetId,
+          assembly_group_id: null,
           ...schedulePayload,
         }
 
@@ -582,6 +659,19 @@ async function saveBoardConfirmation(input: {
         reason: 'query',
         detail:
           'production_plan_board_items 테이블이 없습니다. Supabase에서 migrate-production-plan-board.sql 을 실행하세요.',
+      }
+    }
+    if (
+      scope === 'material' &&
+      (error.message.includes('scope') ||
+        error.message.toLowerCase().includes('check') ||
+        error.message.includes('production_plan_board_scope_ref'))
+    ) {
+      return {
+        ok: false,
+        reason: 'query',
+        detail:
+          '자재 계획 저장을 위해 Supabase에서 migrate-production-plan-board-material-scope.sql 을 실행하세요.',
       }
     }
     if (
@@ -621,18 +711,18 @@ export async function unconfirmProductionPlanItem(input: {
 
   // 보드에 저장된 배정 정보로 캘린더 계획도 정리
   const boardSelect =
-    input.scope === 'smt'
+    input.scope === 'post'
       ? await supabase
-          .from('production_plan_board_items')
-          .select('planned_date, line_no, pcb_side')
-          .eq('scope', 'smt')
-          .eq('order_line_id', targetId)
-          .maybeSingle()
-      : await supabase
           .from('production_plan_board_items')
           .select('planned_date, team')
           .eq('scope', 'post')
           .eq('assembly_group_id', targetId)
+          .maybeSingle()
+      : await supabase
+          .from('production_plan_board_items')
+          .select('planned_date, line_no, pcb_side')
+          .eq('scope', input.scope)
+          .eq('order_line_id', targetId)
           .maybeSingle()
 
   if (boardSelect.error && !isMissingProductionPlanBoardTable(boardSelect.error.message)) {
@@ -661,17 +751,17 @@ export async function unconfirmProductionPlanItem(input: {
   }
 
   const query =
-    input.scope === 'smt'
+    input.scope === 'post'
       ? supabase
-          .from('production_plan_board_items')
-          .delete()
-          .eq('scope', 'smt')
-          .eq('order_line_id', targetId)
-      : supabase
           .from('production_plan_board_items')
           .delete()
           .eq('scope', 'post')
           .eq('assembly_group_id', targetId)
+      : supabase
+          .from('production_plan_board_items')
+          .delete()
+          .eq('scope', input.scope)
+          .eq('order_line_id', targetId)
 
   const { error } = await query
   if (error) {

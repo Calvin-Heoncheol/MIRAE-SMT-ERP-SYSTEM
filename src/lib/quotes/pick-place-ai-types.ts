@@ -7,6 +7,7 @@ export type PickPlaceAiRowInput = {
   package: string
   value: string
   description: string
+  mpn: string
   currentCategory: PickPlaceComponentCategory
   currentDetail: string
 }

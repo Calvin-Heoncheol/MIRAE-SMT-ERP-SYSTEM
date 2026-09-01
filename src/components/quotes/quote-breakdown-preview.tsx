@@ -252,7 +252,7 @@ export function QuoteBreakdownPreview({
       ? previewLabels.productionKindSample
       : previewLabels.productionKindMass
   const breakdownRows = result ? buildProcessCentricPdfBreakdownRows(result, form, quoteType) : []
-  const sections = result ? buildProcessBreakdownSections(breakdownRows, quoteType) : []
+  const sections = result ? buildProcessBreakdownSections(breakdownRows, quoteType, result.qty || 1) : []
   const previewSummary = result
     ? formatQuotePreviewSummary(result.values.grandTotal, result.qty || 1, quoteType, displayCurrency)
     : null

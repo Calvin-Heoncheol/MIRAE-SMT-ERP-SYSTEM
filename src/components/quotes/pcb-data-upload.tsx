@@ -16,6 +16,10 @@ type PcbDataUploadProps = {
   dipForms: DipBoardForm[]
   productName: string
   disabled?: boolean
+  /** AI 견적 등: 좌표·BOM 둘 다 필수 */
+  requireBoth?: boolean
+  /** 좌표 검토 적용 시 BOM도 함께 반영하고 별도 BOM 검토 모달 생략 */
+  applyBomWithPickPlace?: boolean
   appliedPickPlace?: AltiumPickPlaceAnalysis | null
   appliedBom?: AltiumBomAnalysis | null
   onApplyPickPlace: (input: {
@@ -60,6 +64,8 @@ export function PcbDataUpload({
   dipForms,
   productName,
   disabled = false,
+  requireBoth = false,
+  applyBomWithPickPlace = false,
   appliedPickPlace = null,
   appliedBom = null,
   onApplyPickPlace,
@@ -77,8 +83,9 @@ export function PcbDataUpload({
   const [pickPlaceReviewOpen, setPickPlaceReviewOpen] = useState(false)
   const [bomReviewOpen, setBomReviewOpen] = useState(false)
 
-  const hasPending = Boolean(pickPlacePending || bomPending)
-  const hasParsed = Boolean(parsedPickPlace || parsedBom)
+  const hasBothPending = Boolean(pickPlacePending && bomPending)
+  const hasPending = requireBoth ? hasBothPending : Boolean(pickPlacePending || bomPending)
+  const hasParsed = Boolean(parsedPickPlace && (!requireBoth || parsedBom))
 
   function resetParsed() {
     setParsedPickPlace(null)
@@ -100,8 +107,12 @@ export function PcbDataUpload({
   }
 
   async function analyzeAndReview() {
-    if (!parsedPickPlace && !parsedBom) {
-      if (!hasPending) {
+    if (!parsedPickPlace || (requireBoth && !parsedBom)) {
+      if (requireBoth && (!pickPlacePending || !bomPending)) {
+        setError('좌표 파일과 BOM 파일을 모두 선택해 주세요.')
+        return
+      }
+      if (!requireBoth && !hasPending) {
         setError('좌표 또는 BOM 파일을 먼저 선택해 주세요.')
         return
       }
@@ -118,6 +129,8 @@ export function PcbDataUpload({
           if (!parsed.ok) throw new Error(`좌표 파일: ${parsed.detail}`)
           if (!smtForms[boardIndex]) throw new Error('적용할 PCB 보드가 없습니다.')
           nextPickPlace = parsed.analysis
+        } else if (requireBoth) {
+          throw new Error('좌표 파일을 선택해 주세요.')
         }
 
         if (bomPending) {
@@ -125,6 +138,8 @@ export function PcbDataUpload({
           const parsed = await parseBomRowsWithAiFallback(rows, bomPending.file.name, { struckRows })
           if (!parsed.ok) throw new Error(`BOM 파일: ${parsed.detail}`)
           nextBom = parsed.analysis
+        } else if (requireBoth) {
+          throw new Error('BOM 파일을 선택해 주세요.')
         }
 
         if (nextPickPlace && nextBom) {
@@ -135,7 +150,7 @@ export function PcbDataUpload({
         setParsedBom(nextBom)
 
         if (nextPickPlace) setPickPlaceReviewOpen(true)
-        else if (nextBom) setBomReviewOpen(true)
+        else if (nextBom && !requireBoth) setBomReviewOpen(true)
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : '파일 분석 중 오류가 발생했습니다.')
       } finally {
@@ -145,10 +160,11 @@ export function PcbDataUpload({
     }
 
     if (parsedPickPlace) setPickPlaceReviewOpen(true)
-    else if (parsedBom) setBomReviewOpen(true)
+    else if (parsedBom && !requireBoth) setBomReviewOpen(true)
   }
 
   const pickPlaceForBomReview = parsedPickPlace || appliedPickPlace
+  const bomForPickPlaceReview = parsedBom ?? appliedBom
 
   return (
     <>
@@ -157,7 +173,9 @@ export function PcbDataUpload({
           <div>
             <p className="text-xs font-semibold text-slate-900">PCB 데이터 분석</p>
             <p className="mt-0.5 text-[11px] text-slate-600">
-              좌표·BOM을 함께 올리면 BOM Package·Value로 분류 정확도가 올라갑니다. API 키가 있으면 AI가 컬럼 매핑을 먼저 시도합니다.
+              {requireBoth
+                ? '좌표 파일과 BOM 파일을 모두 업로드해야 분석할 수 있습니다. BOM의 MPN·Package로 분류 정확도가 올라갑니다.'
+                : '좌표·BOM을 함께 올리면 BOM Package·Value로 분류 정확도가 올라갑니다. API 키가 있으면 AI가 컬럼 매핑을 먼저 시도합니다.'}
             </p>
           </div>
 
@@ -190,17 +208,27 @@ export function PcbDataUpload({
               type="button"
               disabled={disabled || loading}
               onClick={() => pickPlaceInputRef.current?.click()}
-              className="rounded-md border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-800 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className={[
+                'rounded-md border px-3 py-1.5 text-xs font-semibold',
+                pickPlacePending
+                  ? 'border-sky-400 bg-sky-50 text-sky-900'
+                  : 'border-sky-300 bg-white text-sky-800 hover:bg-sky-50',
+              ].join(' ')}
             >
-              좌표 파일 선택
+              좌표 파일 {pickPlacePending ? '✓' : '선택'}
             </button>
             <button
               type="button"
               disabled={disabled || loading}
               onClick={() => bomInputRef.current?.click()}
-              className="rounded-md border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-800 hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className={[
+                'rounded-md border px-3 py-1.5 text-xs font-semibold',
+                bomPending
+                  ? 'border-violet-400 bg-violet-50 text-violet-900'
+                  : 'border-violet-300 bg-white text-violet-800 hover:bg-violet-50',
+              ].join(' ')}
             >
-              BOM 파일 선택
+              BOM 파일 {bomPending ? '✓' : '선택'}
             </button>
             <button
               type="button"
@@ -223,6 +251,8 @@ export function PcbDataUpload({
                     resetParsed()
                   }}
                 />
+              ) : requireBoth ? (
+                <span className="text-[11px] text-amber-700">좌표 파일 미선택</span>
               ) : null}
               {bomPending ? (
                 <FileChip
@@ -233,6 +263,8 @@ export function PcbDataUpload({
                     resetParsed()
                   }}
                 />
+              ) : requireBoth ? (
+                <span className="text-[11px] text-amber-700">BOM 파일 미선택</span>
               ) : null}
             </div>
           )}
@@ -244,11 +276,9 @@ export function PcbDataUpload({
                 : appliedPickPlace
                   ? `적용됨 · 좌표 ${appliedPickPlace.classifiedRows.filter((row) => row.category !== 'skip').length}건`
                   : null}
-              {hasParsed && parsedBom
-                ? `${hasParsed && parsedPickPlace ? ' · ' : ''}BOM ${parsedBom.summary.lineCount}라인`
-                : appliedBom
-                  ? `${appliedPickPlace || (hasParsed && parsedPickPlace) ? ' · ' : ''}BOM ${appliedBom.summary.lineCount}라인`
-                  : null}
+              {(hasParsed && parsedBom) || appliedBom
+                ? `${hasParsed && parsedPickPlace || appliedPickPlace ? ' · ' : ''}BOM ${(hasParsed && parsedBom ? parsedBom : appliedBom)!.summary.lineCount}라인`
+                : null}
             </p>
           )}
 
@@ -259,7 +289,7 @@ export function PcbDataUpload({
       <PickPlaceReviewModal
         open={pickPlaceReviewOpen}
         analysis={parsedPickPlace}
-        bomAnalysis={parsedBom ?? appliedBom}
+        bomAnalysis={bomForPickPlaceReview}
         boardIndex={boardIndex}
         smtForms={smtForms}
         dipForms={dipForms}
@@ -267,8 +297,11 @@ export function PcbDataUpload({
         onClose={() => setPickPlaceReviewOpen(false)}
         onApply={(input) => {
           onApplyPickPlace(input)
+          if (applyBomWithPickPlace && parsedBom) {
+            onApplyBom({ analysis: parsedBom, dipForms: input.dipForms })
+          }
           setPickPlaceReviewOpen(false)
-          if (parsedBom) {
+          if (parsedBom && !applyBomWithPickPlace) {
             setBomReviewOpen(true)
           }
         }}

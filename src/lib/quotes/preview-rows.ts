@@ -11,7 +11,7 @@ import {
   computeSmtSetupBillingBreakdown,
 } from './calculate-estimate'
 import { formatQuoteMoneyRateByDisplay } from './format'
-import { getPreviewLabels, resolveLabelQuoteType, type QuoteDocumentLanguage } from './preview-i18n'
+import { breakdownSmtSectionTitle, getPreviewLabels, localizePostProcessItemName, resolveLabelQuoteType, type QuoteDocumentLanguage } from './preview-i18n'
 import {
   hasPostProcessLineInput,
   parsePostProcessMinutes,
@@ -184,6 +184,7 @@ export function prepareBreakdownSectionTableRows(
   rows: PreviewRow[],
   sectionKey: PreviewSection,
   quoteType: QuoteType,
+  qty = 1,
 ): PreviewRow[] {
   const sectionTotalRow = rows.find((row) => row.sectionTotal)
   const detailRows = rows.filter((row) => !row.sectionTotal)
@@ -191,8 +192,14 @@ export function prepareBreakdownSectionTableRows(
   const tableRows = [...detailRows]
 
   if (sectionTotalRow) {
+    const footerMetrics =
+      sectionKey === 'post'
+        ? computePostSectionFooterMetrics(detailRows, quoteType, sectionTotalRow.amount ?? 0, qty)
+        : {}
+
     tableRows.push({
       ...sectionTotalRow,
+      ...footerMetrics,
       label: totalLabel,
       indent: 0,
       emphasize: true,
@@ -207,6 +214,44 @@ export function prepareBreakdownSectionTableRows(
   return tableRows
 }
 
+function computePostSectionFooterMetrics(
+  detailRows: PreviewRow[],
+  quoteType: QuoteType,
+  scaledSectionAmount: number,
+  qty: number,
+): Pick<PreviewRow, 'count' | 'unit'> {
+  const labels = getPreviewLabels(quoteType)
+  const safeQty = qty || 1
+  let totalMinutes = 0
+  let totalPins = 0
+
+  for (const row of detailRows) {
+    if (row.boardSubtotal) continue
+    if (typeof row.count === 'number') {
+      totalPins += row.count
+      continue
+    }
+    const countStr = String(row.count ?? '')
+    const minuteMatch = countStr.match(/^([\d.]+)\s*(?:분|min)\b/i)
+    if (minuteMatch) totalMinutes += Number(minuteMatch[1])
+  }
+
+  let count: string | undefined
+  if (totalMinutes > 0 && totalPins > 0) {
+    count = `${labels.minutesCount(totalMinutes)} · ${totalPins}`
+  } else if (totalMinutes > 0) {
+    count = labels.minutesCount(totalMinutes)
+  } else if (totalPins > 0) {
+    count = String(totalPins)
+  }
+
+  const perUnitTotal = scaledSectionAmount / safeQty
+  return {
+    count,
+    unit: perUnitTotal > 0 ? perUnitTotal : undefined,
+  }
+}
+
 export type BreakdownSectionPreview = {
   key: PreviewSection
   title: string
@@ -216,11 +261,12 @@ export type BreakdownSectionPreview = {
 export function buildProcessBreakdownSections(
   allRows: PreviewRow[],
   quoteType: QuoteType,
+  qty = 1,
 ): BreakdownSectionPreview[] {
   const labels = getPreviewLabels(quoteType)
   const definitions: { key: PreviewSection; title: string }[] = [
     { key: 'setup', title: 'SET-UP' },
-    { key: 'smt', title: 'SMD · 실장·검사' },
+    { key: 'smt', title: breakdownSmtSectionTitle(quoteType) },
     { key: 'post', title: pdfSummarySectionLabel(labels.postProcess, quoteType) },
     { key: 'material', title: pdfSummarySectionLabel(labels.materials, quoteType) },
   ]
@@ -228,7 +274,7 @@ export function buildProcessBreakdownSections(
   return definitions.flatMap(({ key, title }) => {
     const sectionRows = filterPdfBreakdownRows(allRows, key, quoteType)
     if (!sectionRows.length) return []
-    return [{ key, title, rows: prepareBreakdownSectionTableRows(sectionRows, key, quoteType) }]
+    return [{ key, title, rows: prepareBreakdownSectionTableRows(sectionRows, key, quoteType, qty) }]
   })
 }
 
@@ -264,11 +310,16 @@ function scaleAmountByQty(amount: number | null | undefined, qty: number) {
   return amount * (qty || 1)
 }
 
-function scalePreviewRowAmountsByQty(rows: PreviewRow[], qty: number): PreviewRow[] {
+function scalePreviewRowAmountsByQty(
+  rows: PreviewRow[],
+  qty: number,
+  labelType: QuoteType = 'domestic',
+): PreviewRow[] {
+  const labels = getPreviewLabels(labelType)
   const safeQty = qty || 1
   return rows.map((row) => {
     if (row.orderLevel) {
-      return { ...row, productionQty: '1회', count: row.count ?? '1회' }
+      return { ...row, productionQty: labels.oneTime, count: row.count ?? labels.oneTime }
     }
     return row.amount == null ? row : { ...row, amount: scaleAmountByQty(row.amount, safeQty) }
   })
@@ -650,9 +701,10 @@ function dipDetailRowsForBoard(
 
 function postProcessDetailDescription(
   lines: PreviewPostProcessLine[] | PostProcessLine[] | undefined,
+  labelType: QuoteType = 'domestic',
 ) {
   const names = (lines ?? [])
-    .map((line) => (line.name || '').trim())
+    .map((line) => localizePostProcessItemName((line.name || '').trim(), labelType))
     .filter(Boolean)
   return names.length > 0 ? names.join(' · ') : undefined
 }
@@ -692,7 +744,7 @@ function postDetailRows(
       rows.push(
         withProductionQty(
           {
-            label: name || labels.postProcess,
+            label: localizePostProcessItemName(name, labelType) || labels.postProcess,
             unit: perUnit,
             count: labels.minutesCount(minutes),
             amount: perUnit,
@@ -714,7 +766,7 @@ function postDetailRows(
       withProductionQty(
         {
           label: labels.assembly,
-          description: postProcessDetailDescription(form.assemblyLines),
+          description: postProcessDetailDescription(form.assemblyLines, labelType),
           unit: perUnit,
           count: labels.minutesCount(minutes),
           amount: perUnit,
@@ -732,7 +784,7 @@ function postDetailRows(
       withProductionQty(
         {
           label: labels.test,
-          description: postProcessDetailDescription(form.testLines),
+          description: postProcessDetailDescription(form.testLines, labelType),
           unit: perUnit,
           count: labels.minutesCount(minutes),
           amount: perUnit,
@@ -750,7 +802,7 @@ function postDetailRows(
       withProductionQty(
         {
           label: labels.packing,
-          description: postProcessDetailDescription(form.packingLines),
+          description: postProcessDetailDescription(form.packingLines, labelType),
           unit: perUnit,
           count: labels.minutesCount(minutes),
           amount: perUnit,
@@ -859,7 +911,7 @@ function previewOrderLevelRows(
     rows.push({
       label: labels.metalMask,
       amount: metalMask,
-      count: '1회',
+      count: labels.oneTime,
       orderLevel: true,
       indent: 1,
       emphasize: true,
@@ -871,7 +923,7 @@ function previewOrderLevelRows(
     rows.push({
       label: labels.sampleCost,
       amount: sample,
-      count: '1회',
+      count: labels.oneTime,
       orderLevel: true,
       indent: 1,
       emphasize: true,
@@ -1015,7 +1067,7 @@ function buildBoardCentricPreviewRows(
 
   rows.push(...previewMaterialRows(result, form, quoteType, labelType))
   rows.push(...previewOtherRows(result, form, quoteType, labelType))
-  return scalePreviewRowAmountsByQty(rows, qty)
+  return scalePreviewRowAmountsByQty(rows, qty, labelType)
 }
 
 function withBoardName(rows: PreviewRow[], pcbName: string): PreviewRow[] {
@@ -1040,7 +1092,7 @@ export function buildProcessCentricPdfBreakdownRows(
     rows.push({
       label: 'SET-UP',
       amount: setupTotal,
-      count: '1회',
+      count: labels.oneTime,
       orderLevel: true,
       sectionTotal: 'setup',
       emphasize: true,

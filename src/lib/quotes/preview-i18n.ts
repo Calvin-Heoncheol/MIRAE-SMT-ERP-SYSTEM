@@ -168,7 +168,7 @@ const EXPORT_LABELS: PreviewLabels = {
   colSetupBasis: 'Basis',
   colSetupMinutes: 'Time (min)',
   colSmdWorkQty: 'Parts',
-  colPostWorkQty: 'Work Qty',
+  colPostWorkQty: 'Work Time',
   colProductionQty: 'Prod. Qty',
   issueDate: 'Issue Date',
   customer: 'Customer',
@@ -232,4 +232,24 @@ const EXPORT_LABELS: PreviewLabels = {
 
 export function getPreviewLabels(quoteType: QuoteType): PreviewLabels {
   return quoteType === 'export' ? EXPORT_LABELS : DOMESTIC_LABELS
+}
+
+const POST_PROCESS_ITEM_NAME_EN: Record<string, string> = {
+  조립: 'Assembly',
+  테스트: 'Test',
+  포장: 'Packing',
+  납땜: 'Soldering',
+  세척: 'PCB Wash',
+  검사: 'Inspection',
+}
+
+/** 영문 견적서 Item 칸 — 저장된 한글 공정명을 영문으로 표시 */
+export function localizePostProcessItemName(name: string, quoteType: QuoteType) {
+  const trimmed = name.trim()
+  if (!trimmed || quoteType === 'domestic') return trimmed
+  return POST_PROCESS_ITEM_NAME_EN[trimmed] ?? trimmed
+}
+
+export function breakdownSmtSectionTitle(quoteType: QuoteType) {
+  return quoteType === 'domestic' ? 'SMD · 실장·검사' : 'SMD · Placement & Inspection'
 }

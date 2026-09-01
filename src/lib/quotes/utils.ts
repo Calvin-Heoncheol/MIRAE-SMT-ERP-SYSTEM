@@ -4,6 +4,7 @@ import {
   sumPostProcessBilledMinutes,
   sumPostProcessLineMinutes,
 } from './post-process-lines'
+import { formatQuoteProcessLabel } from './production-flags'
 import type {
   DipPcbBoard,
   EstimateInput,
@@ -126,6 +127,7 @@ export function filterQuotesForSearch(quotes: QuoteListItem[], query: string) {
       quote.quoteNumber,
       quote.customer,
       quote.productName,
+      formatQuoteProcessLabel(quote),
       quote.quoteDate,
       quote.quoteType === 'domestic' ? '국내' : '해외',
       productionKind,

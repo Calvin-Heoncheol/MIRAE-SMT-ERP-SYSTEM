@@ -9,6 +9,12 @@ const VALID_CATEGORIES = new Set<PickPlaceComponentCategory>([
   'odd',
   'special',
   'skip',
+  'dip_general',
+  'dip_connector',
+  'dip_wire',
+  'wave_general',
+  'wave_connector',
+  'wave_wire',
 ])
 
 function normalizeCategory(value: unknown): PickPlaceComponentCategory | null {
@@ -64,7 +70,7 @@ function buildRowsPrompt(rows: PickPlaceAiRowInput[]) {
   "rows": [
     {
       "designator": "U1",
-      "category": "chip|ic|bga|odd|special|skip",
+      "category": "chip|ic|bga|odd|special|skip|dip_general|dip_connector|dip_wire|wave_general|wave_connector|wave_wire",
       "icPinCount": 64,
       "bgaBallCount": null,
       "reason": "short Korean reason"
@@ -78,6 +84,7 @@ function buildRowsPrompt(rows: PickPlaceAiRowInput[]) {
       `side=${row.side}`,
       `package=${row.package || '-'}`,
       `value=${row.value || '-'}`,
+      `mpn=${row.mpn || '-'}`,
       `description=${row.description || '-'}`,
       `currentCategory=${row.currentCategory}`,
       `currentDetail=${row.currentDetail || '-'}`,
@@ -85,14 +92,19 @@ function buildRowsPrompt(rows: PickPlaceAiRowInput[]) {
   )
 
   return [
-    'Classify SMT pick-and-place components for a Korean PCB assembly quote.',
-    'Categories:',
+    'Classify PCB assembly components for a Korean SMT/DIP quote.',
+    'SMD categories:',
     '- chip: R/C/L and other small passives',
     '- ic: IC packages (provide icPinCount when known)',
     '- bga: BGA packages (provide bgaBallCount when known)',
     '- odd: odd-form SMT parts',
-    '- special: connectors, modules, switches, crystals, antennas',
+    '- special: SMD connectors, modules, switches, crystals',
     '- skip: test points, fiducials, mounting holes, mechanical-only',
+    'Through-hole / DIP categories (use when package or MPN indicates THT):',
+    '- dip_general: hand solder small TH parts (1-3 pin)',
+    '- dip_connector: hand solder medium TH (4-10 pin)',
+    '- dip_wire: hand solder large TH (11+ pin)',
+    '- wave_general / wave_connector / wave_wire: wave solder TH parts by pin count',
     'Return ONLY valid JSON with a "rows" array. One object per input row.',
     'Use the exact designator from input.',
     'Write reason in Korean.',
@@ -110,7 +122,7 @@ export async function inferPickPlaceClassificationsWithAi(
 
   const raw = await callQuoteAiJsonPrompt(
     buildRowsPrompt(rows),
-    'You classify PCB SMT components for assembly quoting.',
+    'You classify PCB SMT and through-hole components for assembly quoting.',
   )
 
   const record = raw as { rows?: unknown }

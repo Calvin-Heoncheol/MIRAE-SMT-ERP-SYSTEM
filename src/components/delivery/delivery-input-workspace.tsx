@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation'
 import { DeliveryHistoryFetchError } from '@/components/delivery/delivery-history-fetch-error'
 import { DeliveryHistoryModal } from '@/components/delivery/delivery-history-modal'
 import { DeliveryHistoryTable } from '@/components/delivery/delivery-history-table'
+import { DeliveryRegisterMenu } from '@/components/delivery/delivery-register-menu'
 import { DeliveryRegisterModal } from '@/components/delivery/delivery-register-modal'
 import { LegacyStatementModal } from '@/components/reports/legacy-statement-modal'
 import { SalesStatementEditModal } from '@/components/reports/sales-statement-edit-modal'
 import { ProductionFetchError } from '@/components/production-input/production-fetch-error'
 import { DateRangeFilter } from '@/components/ui/date-range-filter'
-import { ErpButton } from '@/components/ui/erp-button'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { PageShell } from '@/components/ui/page-shell'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
@@ -37,12 +37,16 @@ import {
   filterStatementTableGroups,
   groupDeliveryHistoryByShipment,
   legacyStatementGroupToTableGroup,
-  statementTableRowKey,
   type DeliveryHistoryShipmentGroup,
   type DeliveryStatementTableGroup,
 } from '@/lib/delivery/history-utils'
 import { buildDeliveryStatementDataFromTableGroup } from '@/lib/delivery/statement-from-group'
 import { printDeliveryStatements } from '@/lib/delivery/print-delivery-statement'
+import { exportMonthlyClosingPdf } from '@/lib/reports/export-monthly-closing-pdf'
+import {
+  buildMonthlyClosingRows,
+  resolveMonthlyClosingCustomerLabel,
+} from '@/lib/reports/monthly-closing'
 import { DATE_RANGE_FILTER_LABEL, hasDateRangeFilter } from '@/lib/ui/date-range'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 import type {
@@ -91,8 +95,8 @@ export function DeliveryInputWorkspace({
   )
   const [unitPriceByDeliveryId, setUnitPriceByDeliveryId] = useState<Record<string, number>>({})
   const [supplyAmountsLoading, setSupplyAmountsLoading] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [printing, setPrinting] = useState(false)
+  const [closingExporting, setClosingExporting] = useState(false)
   const [printError, setPrintError] = useState<string | null>(null)
 
   const [availabilityByGroupId, setAvailabilityByGroupId] = useState<
@@ -167,43 +171,9 @@ export function DeliveryInputWorkspace({
 
   const hasHistoryFilter = Boolean(search.trim()) || hasDateRangeFilter(dateRange)
 
-  const selectedGroups = useMemo(
-    () => statementGroups.filter((group) => selectedIds.has(statementTableRowKey(group))),
-    [statementGroups, selectedIds],
-  )
-  const selectedCount = selectedGroups.length
-  const allFilteredSelected =
-    statementGroups.length > 0 &&
-    statementGroups.every((group) => selectedIds.has(statementTableRowKey(group)))
-
-  function toggleSelectAll() {
-    if (allFilteredSelected) {
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        for (const group of statementGroups) next.delete(statementTableRowKey(group))
-        return next
-      })
-      return
-    }
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      for (const group of statementGroups) next.add(statementTableRowKey(group))
-      return next
-    })
-  }
-
-  function toggleSelectOne(key: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
   async function handleStatementPrint() {
-    if (!selectedGroups.length) {
-      setPrintError('거래명세서를 출력할 항목을 체크박스로 선택해 주세요.')
+    if (!statementGroups.length) {
+      setPrintError('출력할 거래명세서가 없습니다.')
       return
     }
 
@@ -214,7 +184,7 @@ export function DeliveryInputWorkspace({
       const statements = []
       const failures: string[] = []
 
-      for (const group of selectedGroups) {
+      for (const group of statementGroups) {
         const built = await buildDeliveryStatementDataFromTableGroup(group, {
           unitPriceByDeliveryId,
           billingOnlyLines,
@@ -249,6 +219,38 @@ export function DeliveryInputWorkspace({
       }
     } finally {
       setPrinting(false)
+    }
+  }
+
+  async function handleMonthlyClosingExport() {
+    setClosingExporting(true)
+    setPrintError(null)
+
+    try {
+      const rows = buildMonthlyClosingRows(statementGroups, {
+        unitPriceByDeliveryId,
+        billingOnlyLines,
+        productionOrders: orders,
+      })
+
+      if (!rows.length) {
+        setPrintError('월 마감 PDF로 보낼 출하·명세 내역이 없습니다.')
+        return
+      }
+
+      const customer = resolveMonthlyClosingCustomerLabel(statementGroups, search)
+
+      const ok = exportMonthlyClosingPdf({
+        rows,
+        customer,
+        startDate,
+        endDate,
+      })
+      if (!ok) {
+        setPrintError('월 마감 PDF를 열 수 없습니다. 브라우저 팝업 차단을 해제한 뒤 다시 시도해 주세요.')
+      }
+    } finally {
+      setClosingExporting(false)
     }
   }
 
@@ -393,44 +395,34 @@ export function DeliveryInputWorkspace({
 
         <WorkspaceHeader
           search={search}
-          onSearchChange={(value) => {
-            setSearch(value)
-            setSelectedIds(new Set())
-          }}
+          onSearchChange={setSearch}
           searchPlaceholder="명세서, 발주번호, 고객사, 품목, 출하일 검색…"
           accent="sky"
           inlineFilters={
             <DateRangeFilter
               startDate={startDate}
               endDate={endDate}
-              onStartDateChange={(value) => {
-                setStartDate(value)
-                setSelectedIds(new Set())
-              }}
-              onEndDateChange={(value) => {
-                setEndDate(value)
-                setSelectedIds(new Set())
-              }}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
               label={DATE_RANGE_FILTER_LABEL.ship}
             />
           }
           actions={
             <>
-              <ErpButton variant="secondary" onClick={() => setLegacyOpen(true)}>
-                과거 등록
-              </ErpButton>
               <PdfDownloadButton
                 onDownload={() => void handleStatementPrint()}
-                disabled={printing || selectedCount === 0}
-                label={
-                  printing
-                    ? '준비 중…'
-                    : selectedCount > 0
-                      ? `거래명세서 (${selectedCount})`
-                      : '거래명세서'
-                }
+                disabled={printing || closingExporting || statementGroups.length === 0}
+                label={printing ? '준비 중…' : '거래명세서'}
               />
-              <ErpButton onClick={() => openRegister()}>출하 등록</ErpButton>
+              <PdfDownloadButton
+                onDownload={() => void handleMonthlyClosingExport()}
+                disabled={printing || closingExporting || statementGroups.length === 0}
+                label={closingExporting ? '준비 중…' : '월 마감'}
+              />
+              <DeliveryRegisterMenu
+                onOpenRegister={() => openRegister()}
+                onOpenLegacy={() => setLegacyOpen(true)}
+              />
             </>
           }
         />
@@ -446,13 +438,9 @@ export function DeliveryInputWorkspace({
           emptyMessage={formatEmptyListMessage({
             hasQuery: hasHistoryFilter,
             emptyLabel: '등록된 출하·명세 이력이 없습니다',
-            actionHint: '오른쪽 상단에서 출하 등록 또는 과거 등록하세요',
+            actionHint: '오른쪽 상단에서 출하 등록하세요',
           })}
           onRowClick={openHistory}
-          selectedIds={selectedIds}
-          onToggleSelect={toggleSelectOne}
-          onToggleSelectAll={toggleSelectAll}
-          selectionDisabled={printing}
         />
       </PageShell>
 

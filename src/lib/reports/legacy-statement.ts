@@ -215,3 +215,40 @@ export async function deleteLegacyShipmentStub(orderId: string) {
   const supabase = createSupabaseClient()
   await supabase.from('delivery_records').delete().eq('note', legacyShipmentNote(id))
 }
+
+/** 과거 명세서 order_lines 합계로 출하 stub 수량·거래일을 맞춥니다. */
+export async function syncLegacyShipmentStubQuantity(orderId: string, shipDate?: string) {
+  const id = String(orderId || '').trim()
+  if (!id) return
+
+  const supabase = createSupabaseClient()
+  const { data: lines, error: linesError } = await supabase
+    .from('order_lines')
+    .select('quantity, derived_from_line_id')
+    .eq('order_id', id)
+
+  if (linesError) return
+
+  const totalQty = (lines || [])
+    .filter((line) => !line.derived_from_line_id)
+    .reduce((sum, line) => sum + Math.max(0, Math.floor(Number(line.quantity) || 0)), 0)
+
+  const marker = legacyShipmentNote(id)
+  const { data: stub, error: stubError } = await supabase
+    .from('delivery_records')
+    .select('id')
+    .eq('note', marker)
+    .maybeSingle()
+
+  if (stubError || !stub?.id) return
+
+  const patch: { quantity: number; record_date?: string } = {
+    quantity: Math.max(1, totalQty),
+  }
+  const date = String(shipDate || '').trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    patch.record_date = date
+  }
+
+  await supabase.from('delivery_records').update(patch).eq('id', stub.id)
+}

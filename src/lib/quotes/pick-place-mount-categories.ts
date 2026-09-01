@@ -96,6 +96,26 @@ export function pickPlaceMountTypeForCategory(category: PickPlaceComponentCatego
   return isPickPlaceDipCategory(category) ? 'dip' : 'smd'
 }
 
+export function pickPlaceProcessLabel(
+  row: MountSuggestionRow & { category: PickPlaceComponentCategory },
+): string {
+  if (row.category === 'skip') return '—'
+  if (row.category.startsWith('wave_')) return 'WAVE'
+  if (isPickPlaceDipCategory(row.category)) return 'DIP'
+  if (suggestPickPlaceMountType(row) === 'dip') return 'DIP'
+  return 'SMD'
+}
+
+export function pickPlaceProcessHint(
+  row: MountSuggestionRow & { category: PickPlaceComponentCategory },
+): string | undefined {
+  if (row.category === 'skip') return undefined
+  if (row.category.startsWith('wave_')) return '웨이브 솔더링'
+  if (isPickPlaceDipCategory(row.category)) return '수삽(DIP/TH)'
+  if (suggestPickPlaceMountType(row) === 'dip') return '수삽 후보 — 현재 분류는 SMD'
+  return '표면실장(SMD)'
+}
+
 export function pickPlaceCategoryLabel(category: PickPlaceComponentCategory) {
   const match = [...PICK_PLACE_SMD_CATEGORY_OPTIONS, ...PICK_PLACE_DIP_CATEGORY_OPTIONS].find(
     (option) => option.category === category,

@@ -14,6 +14,7 @@ import {
   ERP_DANGER_BUTTON_CLASS,
   ERP_FIELD_INPUT_CLASS,
   ERP_FIELD_LABEL_CLASS,
+  ERP_ROW_ADD_BUTTON_CLASS,
   ERP_SECONDARY_BUTTON_CLASS,
   ERP_TABLE_TD_WRAP_CLASS,
 } from '@/lib/ui/tokens'
@@ -27,6 +28,8 @@ type SalesStatementEditModalProps = {
 }
 
 type LineDraft = {
+  key: string
+  isNew?: boolean
   source: 'delivery' | 'legacy'
   deliveryId: string
   orderId: string
@@ -36,6 +39,26 @@ type LineDraft = {
   productName: string
   quantity: string
   unitPrice: string
+}
+
+function createDraftKey() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function emptyLegacyDraft(template: LineDraft): LineDraft {
+  return {
+    key: createDraftKey(),
+    isNew: true,
+    source: 'legacy',
+    deliveryId: template.deliveryId,
+    orderId: template.orderId,
+    orderNumber: template.orderNumber,
+    orderLineId: '',
+    productCode: '',
+    productName: '',
+    quantity: '1',
+    unitPrice: '0',
+  }
 }
 
 function formatMoneyInput(value: number) {
@@ -61,12 +84,13 @@ function formatCount(value: number) {
   return value.toLocaleString('ko-KR')
 }
 
-function lineKey(line: Pick<SalesReportShipmentRow, 'deliveryId' | 'orderLineId'>, index: number) {
-  return `${line.deliveryId}-${line.orderLineId || index}`
+function lineKey(line: Pick<LineDraft, 'key' | 'deliveryId' | 'orderLineId'>, index: number) {
+  return line.key || `${line.deliveryId}-${line.orderLineId || index}`
 }
 
-function toDraft(line: SalesReportShipmentRow): LineDraft {
+function toDraft(line: SalesReportShipmentRow, index: number): LineDraft {
   return {
+    key: line.orderLineId || `${line.deliveryId}-${index}`,
     source: line.source,
     deliveryId: line.deliveryId,
     orderId: line.orderId || line.orderNumber,
@@ -116,7 +140,7 @@ export function SalesStatementEditModal({
     if (!open || !group) return
     setRecordDate(group.recordDate.slice(0, 10))
     setCustomer(group.customer)
-    setDrafts(group.lines.map(toDraft))
+    setDrafts(group.lines.map((line, index) => toDraft(line, index)))
     setError(null)
     setSaving(false)
     setDeleting(false)
@@ -148,6 +172,12 @@ export function SalesStatementEditModal({
     }
     return { quantity, amount }
   }, [drafts])
+
+  function addLegacyRow() {
+    const template = drafts[0]
+    if (!template) return
+    setDrafts((current) => [...current, emptyLegacyDraft(template)])
+  }
 
   function patchDraft(index: number, patch: Partial<LineDraft>) {
     setDrafts((current) =>
@@ -218,7 +248,9 @@ export function SalesStatementEditModal({
     setError(null)
 
     const result = await deleteStatementLines(
-      drafts.map((line) => ({
+      drafts
+        .filter((line) => !line.isNew && Boolean(line.orderLineId.trim() || line.source === 'delivery'))
+        .map((line) => ({
         source: line.source,
         deliveryId: line.deliveryId,
         orderNumber: line.orderId || line.orderNumber,
@@ -248,7 +280,7 @@ export function SalesStatementEditModal({
       title="거래명세서"
       description={
         isLegacy
-          ? '과거 명세서입니다. 출하일·고객사·품목·단가를 수정할 수 있습니다.'
+          ? '과거 명세서입니다. 출하일·고객사·품목·단가를 수정하고 행을 추가할 수 있습니다.'
           : '출하일·수량·단가를 품목별로 수정합니다. 단가는 발주서에 반영됩니다.'
       }
       size="xl"
@@ -330,6 +362,20 @@ export function SalesStatementEditModal({
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-bold text-slate-900">품목</h3>
+            {isLegacy ? (
+              <button
+                type="button"
+                className={ERP_ROW_ADD_BUTTON_CLASS}
+                onClick={addLegacyRow}
+                disabled={busy || !drafts.length}
+              >
+                + 행 추가
+              </button>
+            ) : null}
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200">

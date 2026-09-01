@@ -1,6 +1,10 @@
 import type { DigiKeyProductSummary } from '@/lib/quotes/digikey-client'
 import type { PickPlaceDigiKeyClassification } from '@/lib/quotes/digikey-types'
-import type { PickPlaceComponentCategory } from '@/lib/quotes/parse-altium-pick-place'
+import {
+  pickPlaceCategoryLabel,
+  suggestPickPlaceDipCategory,
+  type PickPlaceComponentCategory,
+} from '@/lib/quotes/pick-place-mount-categories'
 
 function parseBgaBallCount(text: string) {
   const matrix = text.match(/(\d+)\s*[xX×]\s*(\d+)/)
@@ -37,6 +41,13 @@ function icLabel(product: DigiKeyProductSummary, pinCount?: number) {
   return 'IC'
 }
 
+function isThroughHoleDigiKeyProduct(product: DigiKeyProductSummary, text: string) {
+  return (
+    /THROUGH HOLE|TH\b|AXIAL|RADIAL|\bDIP\b/.test(text) ||
+    /THROUGH HOLE/i.test(product.mountingType)
+  )
+}
+
 export function classifyPickPlaceFromDigiKeyProduct(input: {
   designator: string
   mpn: string
@@ -44,6 +55,25 @@ export function classifyPickPlaceFromDigiKeyProduct(input: {
 }): PickPlaceDigiKeyClassification {
   const { designator, mpn, product } = input
   const text = `${product.category} ${product.description} ${product.packageName} ${product.mountingType}`.toUpperCase()
+
+  if (isThroughHoleDigiKeyProduct(product, text)) {
+    const dipCategory = suggestPickPlaceDipCategory({
+      category: 'chip',
+      package: product.packageName,
+      description: product.description,
+      value: '',
+      designator,
+      detail: '',
+    })
+    const label = pickPlaceCategoryLabel(dipCategory)
+    return {
+      designator,
+      mpn,
+      category: dipCategory,
+      reason: `수삽 · ${label}`,
+      digiKeyPartNumber: product.digiKeyPartNumber,
+    }
+  }
 
   let category: PickPlaceComponentCategory = 'chip'
   let icPinCount: number | undefined
@@ -80,9 +110,6 @@ export function classifyPickPlaceFromDigiKeyProduct(input: {
     category = 'ic'
     icPinCount = product.pinCount
     reason = icLabel(product, icPinCount)
-  } else if (/THROUGH HOLE|TH\b|AXIAL|RADIAL|DIP/.test(text) || /THROUGH HOLE/i.test(product.mountingType)) {
-    category = 'special'
-    reason = '수삽'
   }
 
   return {
