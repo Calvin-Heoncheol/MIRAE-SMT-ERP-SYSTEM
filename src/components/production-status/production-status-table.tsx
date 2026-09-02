@@ -70,6 +70,7 @@ function StageCell({
   label,
   empty,
   onClick,
+  clickTitle,
 }: {
   percent: number
   defectPercent?: number
@@ -78,6 +79,7 @@ function StageCell({
   label: string
   empty?: boolean
   onClick?: () => void
+  clickTitle?: string
 }) {
   if (empty) {
     return (
@@ -103,7 +105,7 @@ function StageCell({
           event.stopPropagation()
           onClick()
         }}
-        title={`${label} 총관리자 직접 입력`}
+        title={clickTitle ?? `${label} 총관리자 직접 입력`}
         className="w-full rounded-lg px-1 py-0.5 text-left transition hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
       >
         <MiniProgress percent={percent} defectPercent={defectPercent} tone={tone} detail={detail} />
@@ -187,6 +189,7 @@ function StageCells({
   deliveryTarget,
   onSmtClick,
   onPostClick,
+  onDeliveryClick,
 }: {
   smtPercent: number
   smtDefectPercent: number
@@ -203,6 +206,7 @@ function StageCells({
   deliveryTarget: number
   onSmtClick?: () => void
   onPostClick?: () => void
+  onDeliveryClick?: () => void
 }) {
   return (
     <>
@@ -230,6 +234,7 @@ function StageCells({
         label="출하"
         empty={deliveryTarget <= 0}
         detail={deliveryDetail(deliveryProduced, deliveryTarget)}
+        onClick={onDeliveryClick}
       />
     </>
   )
@@ -317,6 +322,11 @@ function OrderStatusRows({
           deliveryTarget={line.deliveryTarget}
           onSmtClick={onStageClick ? () => onStageClick(line, 'smt') : undefined}
           onPostClick={onStageClick ? () => onStageClick(line, 'post_process') : undefined}
+          onDeliveryClick={
+            onStageClick && line.deliveryTarget > 0
+              ? () => onStageClick(line, 'delivery')
+              : undefined
+          }
         />
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
           <ProductionLineStatusBadge
@@ -380,6 +390,11 @@ function OrderStatusRows({
               onPostClick={
                 onStageClick && product.postTarget > 0
                   ? () => onStageClick(line, 'post_process', product)
+                  : undefined
+              }
+              onDeliveryClick={
+                onStageClick && product.deliveryTarget > 0
+                  ? () => onStageClick(line, 'delivery', product)
                   : undefined
               }
             />

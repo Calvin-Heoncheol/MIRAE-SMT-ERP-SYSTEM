@@ -10,6 +10,7 @@ import {
   isProductItemCategory,
   isRawMaterialItemCategory,
   isSemiFinishedItemCategory,
+  isFinishedItemCategory,
   ITEM_SUPPLY_TYPE_OPTIONS,
 } from './types'
 import { EMPTY_SMT_QUOTE_PARTS } from './smt-quote-parts'
@@ -43,6 +44,8 @@ export type ItemFormState = {
   smdUnitPrice: number
   dipUnitPrice: number
   materialUnitPrice: number
+  /** 추가비용 — 발주 시 추가작업 행으로 자동 반영 (DB: other_unit_price) */
+  additionalUnitPrice: number
   /** 연결된 기준 견적 ID */
   baselineQuoteId: string
   /** 표시용 (저장하지 않음) */
@@ -114,6 +117,7 @@ export function emptyItemForm(): ItemFormState {
     smdUnitPrice: 0,
     dipUnitPrice: 0,
     materialUnitPrice: 0,
+    additionalUnitPrice: 0,
     baselineQuoteId: '',
     baselineQuoteLabel: '',
   }
@@ -142,6 +146,7 @@ export function itemToForm(item: Item): ItemFormState {
     smdUnitPrice: item.smdUnitPrice,
     dipUnitPrice: item.dipUnitPrice,
     materialUnitPrice: item.materialUnitPrice,
+    additionalUnitPrice: item.otherUnitPrice,
     baselineQuoteId: item.baselineQuoteId || '',
     baselineQuoteLabel: '',
   }
@@ -191,6 +196,7 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
   const smd = money(form.smdUnitPrice)
   const dip = money(form.dipUnitPrice)
   const material = money(form.materialUnitPrice)
+  const additional = money(form.additionalUnitPrice)
   const breakdownTotal = setup + smd + dip + material
   const baseCodeInput = form.id.trim()
   const { baseCode, version } = resolveItemCodeParts({
@@ -224,7 +230,10 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     smdUnitPrice: isSemiFinishedItemCategory(itemCategory) ? smd : 0,
     dipUnitPrice: isSemiFinishedItemCategory(itemCategory) ? dip : 0,
     materialUnitPrice: isSemiFinishedItemCategory(itemCategory) ? material : 0,
-    otherUnitPrice: isSemiFinishedItemCategory(itemCategory) ? setup : 0,
+    otherUnitPrice:
+      isSemiFinishedItemCategory(itemCategory) || isFinishedItemCategory(itemCategory)
+        ? additional
+        : 0,
     smtQuoteParts: { ...EMPTY_SMT_QUOTE_PARTS },
     baselineQuoteId: form.baselineQuoteId.trim(),
     itemCategory,
@@ -261,7 +270,7 @@ export function itemBaselineUnitPriceUpdatePayload(item: Item, value: number): U
       smdUnitPrice: 0,
       dipUnitPrice: 0,
       materialUnitPrice: 0,
-      otherUnitPrice: 0,
+      otherUnitPrice: item.otherUnitPrice,
     }
   }
   return { ...base, unitPrice: next }

@@ -7,6 +7,7 @@ import { suggestPlanQuantityFromMaterial } from '@/lib/materials/material-inboun
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { POST_PROCESS_TEAMS } from '@/lib/post-process/teams'
 import { validatePostPlanDate, canPlanSmt } from '@/lib/production-plan/pipeline'
+import { isProductionPlanRemainderRow, isProductionPlanScheduleRow } from '@/lib/production-plan/utils'
 import {
   PRODUCTION_PLAN_SCOPE_LABELS,
   type ProductionPlanBoardRow,
@@ -53,9 +54,25 @@ export function ProductionPlanScheduleModal({
   }, [initialValues, row?.key, open])
 
   const maxQuantity = row
-    ? row.materialShort && row.materialReadyQty > 0
-      ? Math.min(row.remainingQty, row.materialReadyQty)
-      : Math.max(1, row.remainingQty)
+    ? (() => {
+        if (isProductionPlanRemainderRow(row)) {
+          return Math.max(1, row.unplannedQty ?? row.remainingQty)
+        }
+        if (isProductionPlanScheduleRow(row) && row.plannedQuantity) {
+          const cap = Math.min(
+            row.remainingQty,
+            row.plannedQuantity + (row.unplannedQty ?? 0),
+          )
+          if (row.materialShort && row.materialReadyQty > 0) {
+            return Math.min(cap, row.materialReadyQty)
+          }
+          return Math.max(1, cap)
+        }
+        if (row.materialShort && row.materialReadyQty > 0) {
+          return Math.min(row.remainingQty, row.materialReadyQty)
+        }
+        return Math.max(1, row.unplannedQty ?? row.remainingQty)
+      })()
     : 1
 
   if (!open || !row) return null
@@ -89,6 +106,12 @@ export function ProductionPlanScheduleModal({
           <p className="text-slate-600">{row.customer}</p>
           <p className="mt-2 text-xs text-slate-500">
             잔량 {row.remainingQty.toLocaleString('ko-KR')}
+            {(row.plannedTotalQty ?? 0) > 0
+              ? ` · 계획됨 ${row.plannedTotalQty!.toLocaleString('ko-KR')}`
+              : ''}
+            {(row.unplannedQty ?? 0) > 0
+              ? ` · 미계획 ${row.unplannedQty!.toLocaleString('ko-KR')}`
+              : ''}
             {row.deliveryDate ? ` · 납기 ${row.deliveryDate}` : ''}
           </p>
         </div>
@@ -168,7 +191,7 @@ export function ProductionPlanScheduleModal({
               </label>
             ) : null}
           </>
-        ) : (
+        ) : row.scope === 'post' ? (
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-600">후공정 팀</span>
             <select
@@ -183,7 +206,7 @@ export function ProductionPlanScheduleModal({
               ))}
             </select>
           </label>
-        )}
+        ) : null}
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium text-slate-600">메모</span>
@@ -199,7 +222,7 @@ export function ProductionPlanScheduleModal({
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
           {onUnassign ? (
             <ErpButton type="button" variant="danger" onClick={onUnassign} disabled={saving || deleting}>
-              {deleting ? '해제 중…' : '배정 해제'}
+              {deleting ? '삭제 중…' : '삭제'}
             </ErpButton>
           ) : null}
           <ErpButton type="button" variant="secondary" onClick={onClose} disabled={saving || deleting}>
@@ -222,15 +245,13 @@ export function buildScheduleFormValues(
   row: ProductionPlanBoardRow,
   plannedDate: string,
 ): ProductionPlanScheduleFormValues {
-  const suggestedQty = suggestPlanQuantityFromMaterial(
-    row.remainingQty,
-    row.materialReadyQty,
-  )
+  const baseQty = row.unplannedQty ?? row.remainingQty
+  const suggestedQty = suggestPlanQuantityFromMaterial(baseQty, row.materialReadyQty)
 
   return {
     plannedDate,
     plannedQuantity:
-      row.plannedQuantity && row.plannedQuantity > 0
+      row.plannedQuantity && row.plannedQuantity > 0 && row.status === 'confirmed'
         ? row.plannedQuantity
         : Math.max(1, suggestedQty),
     lineNo: row.lineNo && row.lineNo >= 1 ? row.lineNo : 1,

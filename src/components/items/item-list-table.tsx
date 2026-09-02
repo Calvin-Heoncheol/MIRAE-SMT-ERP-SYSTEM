@@ -14,11 +14,9 @@ import {
   type Item,
   type ItemCategory,
   isProductItemCategory,
-  isSemiFinishedItemCategory,
 } from '@/lib/items/types'
 import {
-  displayItemBaselineUnitPrice,
-  displayItemUnitPrice,
+  displayItemListUnitPrice,
   formatItemDisplayCode,
   formatItemPcbSideModeLabel,
   formatItemProductionProcessLabel,
@@ -104,10 +102,7 @@ function productionProcessCell(item: Item) {
 }
 
 function listUnitPrice(item: Item) {
-  if (isSemiFinishedItemCategory(item.itemCategory)) {
-    return displayItemBaselineUnitPrice(item)
-  }
-  return displayItemUnitPrice(item)
+  return displayItemListUnitPrice(item)
 }
 
 function unitPriceCell(

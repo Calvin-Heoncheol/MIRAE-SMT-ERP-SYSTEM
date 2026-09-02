@@ -28,6 +28,73 @@ function unitPriceFromProduct(product: Product) {
     Math.max(0, Math.round(Number(product.defaultUnitPrice) || 0))
 }
 
+function productAdditionalCost(product: Product) {
+  return Math.max(0, Math.round(Number(product.additionalUnitPrice) || 0))
+}
+
+function isCompanionRow(row: OrderItemForm) {
+  return Boolean(row.isAdhoc && row.companionOfRowKey?.trim())
+}
+
+function findCompanionIndex(items: OrderItemForm[], parentRowKey: string) {
+  return items.findIndex((row) => row.isAdhoc && row.companionOfRowKey === parentRowKey)
+}
+
+function stripCompanionRows(items: OrderItemForm[], parentRowKey: string) {
+  return items.filter((row) => !(row.isAdhoc && row.companionOfRowKey === parentRowKey))
+}
+
+function buildAdditionalCostRow(parent: OrderItemForm, product: Product): OrderItemForm {
+  const row = defaultAdhocOrderItemForm(String(parent.deliveryDate || ''))
+  return {
+    ...row,
+    productId: product.id,
+    productCode: product.productCode,
+    productName: product.productName,
+    quantity: String(parent.quantity || '0'),
+    unitPrice: String(productAdditionalCost(product)),
+    companionOfRowKey: parent.rowKey,
+    deliveryDate: parent.deliveryDate,
+  }
+}
+
+function syncAdditionalCostRow(items: OrderItemForm[], index: number, product: Product) {
+  const parent = items[index]
+  if (!parent || parent.isAdhoc) return items
+
+  const additional = productAdditionalCost(product)
+  let next = stripCompanionRows(items, parent.rowKey)
+  const parentIndex = next.findIndex((row) => row.rowKey === parent.rowKey)
+  if (parentIndex < 0) return next
+
+  if (additional <= 0) return next
+
+  const companion = buildAdditionalCostRow(parent, product)
+  const insertAt = parentIndex + 1
+  return [...next.slice(0, insertAt), companion, ...next.slice(insertAt)]
+}
+
+function applyProductSelection(items: OrderItemForm[], index: number, product: Product, isAmbiguous: boolean) {
+  const parent = items[index]
+  if (!parent) return items
+
+  let next = stripCompanionRows(items, parent.rowKey)
+  const parentIndex = next.findIndex((row) => row.rowKey === parent.rowKey)
+  if (parentIndex < 0) return next
+
+  next = next.map((item, itemIndex) => {
+    if (itemIndex !== parentIndex) return item
+    const applied = applyProductToItem(item, product)
+    if (isAmbiguous) {
+      return { ...applied, productId: '' }
+    }
+    return applied
+  })
+
+  if (isAmbiguous) return next
+  return syncAdditionalCostRow(next, parentIndex, product)
+}
+
 function applyProductToItem(item: OrderItemForm, product: Product): OrderItemForm {
   if (item.isAdhoc) {
     return {
@@ -181,9 +248,20 @@ export function OrderItemsForm({
   function patchItem(index: number, patch: Partial<OrderItemForm>) {
     const item = items[index]
     const merged = item && !item.isAdhoc ? syncLinePricing(item, patch) : patch
-    onChange((current) =>
-      current.map((row, itemIndex) => (itemIndex === index ? { ...row, ...merged } : row)),
-    )
+    onChange((current) => {
+      let next = current.map((row, itemIndex) =>
+        itemIndex === index ? { ...row, ...merged } : row,
+      )
+      if (item && !item.isAdhoc && patch.quantity != null) {
+        const companionIndex = findCompanionIndex(next, item.rowKey)
+        if (companionIndex >= 0) {
+          next = next.map((row, itemIndex) =>
+            itemIndex === companionIndex ? { ...row, quantity: patch.quantity! } : row,
+          )
+        }
+      }
+      return next
+    })
   }
 
   function addRow() {
@@ -199,7 +277,11 @@ export function OrderItemsForm({
     if (!target) return
     const productRows = items.filter((item) => !item.isAdhoc)
     if (!target.isAdhoc && productRows.length <= 1) return
-    onChange(items.filter((_, itemIndex) => itemIndex !== index))
+    let next = items.filter((_, itemIndex) => itemIndex !== index)
+    if (!target.isAdhoc) {
+      next = stripCompanionRows(next, target.rowKey)
+    }
+    onChange(next)
   }
 
   function selectProduct(index: number, product: Product) {
@@ -207,24 +289,11 @@ export function OrderItemsForm({
       (p) => p.productCode === product.productCode && (!product.productName || p.productName === product.productName),
     )
     const isAmbiguous = sameCode.length > 1
-    onChange((current) =>
-      current.map((item, itemIndex) => {
-        if (itemIndex !== index) return item
-        const applied = applyProductToItem(item, product)
-        if (isAmbiguous) {
-          return { ...applied, productId: '' }
-        }
-        return applied
-      }),
-    )
+    onChange((current) => applyProductSelection(current, index, product, isAmbiguous))
   }
 
   function confirmVersion(index: number, product: Product) {
-    onChange((current) =>
-      current.map((item, itemIndex) =>
-        itemIndex === index ? applyProductToItem(item, product) : item,
-      ),
-    )
+    onChange((current) => applyProductSelection(current, index, product, false))
   }
 
   const inputClassName =
@@ -280,7 +349,10 @@ export function OrderItemsForm({
               const version = productVersionLabel(item, products)
               const versionCandidates = productVersionCandidates(item, products, customer)
               const isAdhoc = Boolean(item.isAdhoc)
-              const canRemove = isAdhoc || items.filter((row) => !row.isAdhoc).length > 1
+              const isCompanion = isCompanionRow(item)
+              const canRemove = isCompanion
+                ? false
+                : isAdhoc || items.filter((row) => !row.isAdhoc).length > 1
 
               return (
                 <tr
@@ -296,65 +368,92 @@ export function OrderItemsForm({
                       placeholder={isAdhoc ? '코드 검색 (추가작업)' : '코드 검색'}
                       ariaLabel={`${index + 1}행 ${isAdhoc ? '추가작업 ' : ''}제품코드`}
                       inputClassName={inputClassName}
-                      onValueChange={(productCode) =>
-                        patchItem(index, {
-                          productCode,
-                          productId: '',
-                          productName: '',
-                          quoteId: '',
-                          ...(isAdhoc
-                            ? {}
-                            : {
-                                unitPrice: '0',
-                                setupCost: '0',
-                                smdUnitPrice: '0',
-                                dipUnitPrice: '0',
-                                materialUnitPrice: '0',
-                                materialCost: '0',
-                              }),
+                      onValueChange={(productCode) => {
+                        const parentKey = item.rowKey
+                        onChange((current) => {
+                          let next = current.map((row, itemIndex) =>
+                            itemIndex === index
+                              ? {
+                                  ...row,
+                                  productCode,
+                                  productId: '',
+                                  productName: '',
+                                  quoteId: '',
+                                  ...(isAdhoc
+                                    ? {}
+                                    : {
+                                        unitPrice: '0',
+                                        setupCost: '0',
+                                        smdUnitPrice: '0',
+                                        dipUnitPrice: '0',
+                                        materialUnitPrice: '0',
+                                        materialCost: '0',
+                                      }),
+                                }
+                              : row,
+                          )
+                          if (!isAdhoc) next = stripCompanionRows(next, parentKey)
+                          return next
                         })
-                      }
+                      }}
                       onProductSelect={(product) => selectProduct(index, product)}
                       onVersionResolved={() => focusQuantity(index)}
                     />
                   </td>
                   <td className="px-2 py-2 align-top">
-                    <div className="space-y-1">
-                      <ProductCombobox
-                        value={item.productName}
-                        products={products}
-                        customer={customer}
-                        field="name"
-                        placeholder={isAdhoc ? '제품명 (추가작업)' : '제품명'}
-                        ariaLabel={`${index + 1}행 ${isAdhoc ? '추가작업 ' : ''}제품명`}
-                        inputClassName={inputClassName}
-                        onValueChange={(productName) =>
-                          patchItem(index, {
-                            productName,
-                            productId: '',
-                            productCode: '',
-                            quoteId: '',
-                            ...(isAdhoc
-                              ? {}
-                              : {
-                                  unitPrice: '0',
-                                  setupCost: '0',
-                                  smdUnitPrice: '0',
-                                  dipUnitPrice: '0',
-                                  materialUnitPrice: '0',
-                                  materialCost: '0',
-                                }),
-                          })
-                        }
-                        onProductSelect={(product) => selectProduct(index, product)}
-                        onVersionResolved={() => focusQuantity(index)}
-                      />
-                      {isAdhoc ? (
-                        <span className="inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
-                          추가 작업
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <ProductCombobox
+                          value={item.productName}
+                          products={products}
+                          customer={customer}
+                          field="name"
+                          placeholder={isAdhoc ? '제품명 (추가작업)' : '제품명'}
+                          ariaLabel={`${index + 1}행 ${isAdhoc ? '추가작업 ' : ''}제품명`}
+                          inputClassName={inputClassName}
+                          onValueChange={(productName) => {
+                            const parentKey = item.rowKey
+                            onChange((current) => {
+                              let next = current.map((row, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...row,
+                                      productName,
+                                      productId: '',
+                                      productCode: '',
+                                      quoteId: '',
+                                      ...(isAdhoc
+                                        ? {}
+                                        : {
+                                            unitPrice: '0',
+                                            setupCost: '0',
+                                            smdUnitPrice: '0',
+                                            dipUnitPrice: '0',
+                                            materialUnitPrice: '0',
+                                            materialCost: '0',
+                                          }),
+                                    }
+                                  : row,
+                              )
+                              if (!isAdhoc) next = stripCompanionRows(next, parentKey)
+                              return next
+                            })
+                          }}
+                          onProductSelect={(product) => selectProduct(index, product)}
+                          onVersionResolved={() => focusQuantity(index)}
+                        />
+                      </div>
+                      {isCompanion ? (
+                        <span className="shrink-0 pt-1.5 text-xs font-medium text-slate-500">
+                          (추가 작업)
                         </span>
                       ) : null}
                     </div>
+                    {isAdhoc && !isCompanion ? (
+                      <span className="mt-1 inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                        추가 작업
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-2 py-2 align-top text-center">
                     {versionCandidates.length > 1 ? (
@@ -390,18 +489,27 @@ export function OrderItemsForm({
                     )}
                   </td>
                   <td className="px-2 py-2 align-top">
-                    <QuoteNumericInput
-                      ref={(el) => {
-                        quantityRefs.current[index] = el
-                      }}
-                      min={0}
-                      value={String(item.quantity)}
-                      onChange={(quantity) => patchItem(index, { quantity })}
-                      className={`${inputClassName} text-right`}
-                    />
+                    {isCompanion ? (
+                      <div
+                        className="flex h-[34px] items-center justify-end text-sm font-medium tabular-nums text-slate-800"
+                        title="제품 수량과 연동"
+                      >
+                        {Math.max(0, Math.floor(Number(item.quantity) || 0)).toLocaleString('ko-KR')}
+                      </div>
+                    ) : (
+                      <QuoteNumericInput
+                        ref={(el) => {
+                          quantityRefs.current[index] = el
+                        }}
+                        min={0}
+                        value={String(item.quantity)}
+                        onChange={(quantity) => patchItem(index, { quantity })}
+                        className={`${inputClassName} text-right`}
+                      />
+                    )}
                   </td>
                   <td className="px-2 py-2 align-top">
-                    {isAdhoc ? (
+                    {isAdhoc && !isCompanion ? (
                       <QuoteNumericInput
                         min={0}
                         value={String(item.unitPrice)}
@@ -411,7 +519,7 @@ export function OrderItemsForm({
                     ) : (
                       <div
                         className="flex h-[34px] items-center justify-end text-sm font-medium tabular-nums text-slate-800"
-                        title="SET-UP÷수량 + SMD + 후공정 + 자재"
+                        title={isCompanion ? '품목등록 추가비용' : 'SET-UP÷수량 + SMD + 후공정 + 자재'}
                       >
                         {unitPrice > 0 ? formatOrderMoney(unitPrice, currency) : '—'}
                       </div>
@@ -466,8 +574,9 @@ export function OrderItemsForm({
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        제품·추가 작업 모두 품목등록에 있는 항목만 저장됩니다. 추가 작업은 같은 제품코드여도
-        별도 행으로 두며, 생산에는 반영되지 않고 거래명세서에만 표시됩니다. 추가 작업 단가는 직접 입력합니다.
+        제품·추가 작업 모두 품목등록에 있는 항목만 저장됩니다. 반제품·조립제품에 추가비용이 등록되어
+        있으면 품목 선택 시 아래에 추가작업 행이 자동으로 붙고 제품 수량과 연동됩니다. 발주 목록·인쇄
+        수량 합계에는 제품만 집계되며, 추가 작업은 거래명세서 금액 표시용입니다.
       </p>
     </div>
   )

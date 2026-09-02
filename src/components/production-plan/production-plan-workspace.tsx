@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { ProductionPlanFetchError } from '@/components/production-plan/production-plan-fetch-error'
 import { ProductionPlanMonthCalendar } from '@/components/production-plan/production-plan-month-calendar'
-import { ProductionPlanOrderSidebar } from '@/components/production-plan/production-plan-order-sidebar'
+import { ProductionPlanOrderTimeline } from '@/components/production-plan/production-plan-order-timeline'
 import {
   ProductionPlanSheet,
   type ProductionPlanSheetAction,
@@ -23,10 +23,14 @@ import {
   isYmdInMonth,
 } from '@/lib/production-plan/calendar'
 import {
-  bucketProductionPlanRows,
   canPlanPost,
   validatePostPlanDate,
 } from '@/lib/production-plan/pipeline'
+import {
+  type ProductionPlanTeamTab,
+  productionPlanTeamTabLabel,
+  PRODUCTION_PLAN_TEAM_TABS,
+} from '@/lib/production-plan/tabs'
 import {
   confirmProductionPlanItem,
   fetchProductionPlanBoard,
@@ -35,9 +39,13 @@ import {
 import type {
   FetchProductionPlanBoardResult,
   ProductionPlanBoardRow,
+  ProductionPlanSheetFilter,
 } from '@/lib/production-plan/types'
+import { isProductionPlanScheduleRow } from '@/lib/production-plan/utils'
 
-type ViewMode = 'sheet' | 'calendar'
+type ViewMode = 'sheet' | 'calendar' | 'order'
+
+type TeamTab = ProductionPlanTeamTab
 
 type ModalState =
   | { open: false }
@@ -89,6 +97,8 @@ export function ProductionPlanWorkspace({
   initialMonthStart,
 }: ProductionPlanWorkspaceProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('sheet')
+  const [teamTab, setTeamTab] = useState<TeamTab>('material')
+  const [sheetFilter, setSheetFilter] = useState<ProductionPlanSheetFilter>('month')
   const [monthStart, setMonthStart] = useState(initialMonthStart)
   const [rows, setRows] = useState<ProductionPlanBoardRow[]>(
     initialResult.ok ? initialResult.data.rows : [],
@@ -102,18 +112,16 @@ export function ProductionPlanWorkspace({
   const [statusMessage, setStatusMessage] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
 
-  const rowByKey = useMemo(() => new Map(rows.map((row) => [row.key, row])), [rows])
-  const pipelineBuckets = useMemo(() => bucketProductionPlanRows(rows), [rows])
   const sheetSavingKeySet = useMemo(() => new Set(sheetSavingKeys), [sheetSavingKeys])
 
   const scheduledRows = useMemo(() => {
     return rows.filter(
       (row) =>
-        row.scope !== 'material' &&
+        row.scope === teamTab &&
         row.status === 'confirmed' &&
         isYmdInMonth(row.plannedDate, monthStart),
     )
-  }, [rows, monthStart])
+  }, [rows, monthStart, teamTab])
 
   const monthCells = useMemo(() => buildMonthGrid(monthStart), [monthStart])
 
@@ -129,11 +137,12 @@ export function ProductionPlanWorkspace({
     setRows(result.data.rows)
   }, [])
 
-  function openScheduleModal(row: ProductionPlanBoardRow, plannedDate: string) {
+  function openScheduleModal(row: ProductionPlanBoardRow) {
+    if (!isProductionPlanScheduleRow(row)) return
     setModal({
       open: true,
       row,
-      initialValues: buildScheduleFormValues(row, plannedDate),
+      initialValues: buildScheduleFormValues(row, row.plannedDate.slice(0, 10)),
     })
   }
 
@@ -148,75 +157,25 @@ export function ProductionPlanWorkspace({
     return ''
   }
 
-  function handleDropByKey(key: string, plannedDate: string) {
-    const row = rowByKey.get(key)
-    if (!row) {
-      setStatusMessage('발주서 정보를 찾을 수 없습니다. 목록을 새로고침해 주세요.')
-      return
-    }
-    const validationError = validateBeforeSchedule(row, plannedDate)
-    if (validationError) {
-      setStatusMessage(validationError)
-      return
-    }
-    openScheduleModal(row, plannedDate)
-  }
-
-  async function handleSubmit(values: ProductionPlanScheduleFormValues) {
-    if (!modal.open) return
-    const row = modal.row
-
-    const validationError = validateBeforeSchedule(row, values.plannedDate)
-    if (validationError) {
-      setStatusMessage(validationError)
-      return
-    }
-
-    setSaving(true)
-    setStatusMessage('')
-    const result = await confirmProductionPlanItem({
-      scope: row.scope,
-      orderId: row.orderId,
-      targetId: row.targetId,
-      plannedDate: values.plannedDate,
-      plannedQuantity: values.plannedQuantity,
-      lineNo: row.scope === 'smt' ? values.lineNo : undefined,
-      pcbSide: row.scope === 'smt' ? values.pcbSide : undefined,
-      team: row.scope === 'post' ? values.team : undefined,
-      note: values.note,
-    })
-    setSaving(false)
-
-    if (!result.ok) {
-      setStatusMessage(result.detail)
-      return
-    }
-
-    setModal({ open: false })
-    setStatusMessage('생산계획이 저장되었습니다.')
-    await reload()
-  }
-
-  async function handleUnassign() {
-    if (!modal.open) return
-    const row = modal.row
-
-    setDeleting(true)
-    setStatusMessage('')
-    const result = await unconfirmProductionPlanItem({
-      scope: row.scope,
-      targetId: row.targetId,
-    })
-    setDeleting(false)
-
-    if (!result.ok) {
-      setStatusMessage(result.detail)
-      return
-    }
-
-    setModal({ open: false })
-    setStatusMessage('배정이 해제되었습니다.')
-    await reload()
+  const teamTabHint: Record<TeamTab, string> = {
+    material:
+      viewMode === 'order'
+        ? '발주별 자재·SMT·후공정 계획을 통합 확인합니다.'
+        : viewMode === 'sheet'
+          ? '자재 입고일·입고수량을 입력하고 저장합니다.'
+          : '자재 입고 예정일이 배정된 일정을 캘린더에서 확인합니다.',
+    smt:
+      viewMode === 'order'
+        ? '발주별 자재·SMT·후공정 계획을 통합 확인합니다.'
+        : viewMode === 'sheet'
+          ? 'SMT 계획일·수량·라인을 입력하고 저장합니다.'
+          : 'SMT 생산계획 일정을 캘린더에서 확인합니다.',
+    post:
+      viewMode === 'order'
+        ? '발주별 자재·SMT·후공정 계획을 통합 확인합니다.'
+        : viewMode === 'sheet'
+          ? '후공정 계획일·수량·팀을 입력하고 저장합니다. SMD 확정 후 배정 가능합니다.'
+          : '후공정 생산계획 일정을 캘린더에서 확인합니다.',
   }
 
   async function handleSheetSaveActions(actions: ProductionPlanSheetAction[]) {
@@ -234,6 +193,8 @@ export function ProductionPlanWorkspace({
         const result = await unconfirmProductionPlanItem({
           scope: action.row.scope,
           targetId: action.row.targetId,
+          planId: action.row.planId,
+          boardItemId: action.row.boardItemId,
         })
         if (!result.ok) {
           setSheetSavingKeys((current) => current.filter((key) => !keys.includes(key)))
@@ -260,6 +221,8 @@ export function ProductionPlanWorkspace({
         lineNo: action.row.scope === 'smt' ? action.values.lineNo : undefined,
         pcbSide: action.row.scope === 'smt' ? action.values.pcbSide : undefined,
         team: action.row.scope === 'post' ? action.values.team : undefined,
+        planId: action.row.planId,
+        boardItemId: action.row.boardItemId,
       })
       if (!result.ok) {
         setSheetSavingKeys((current) => current.filter((key) => !keys.includes(key)))
@@ -270,9 +233,70 @@ export function ProductionPlanWorkspace({
     }
 
     setSheetSavingKeys((current) => current.filter((key) => !keys.includes(key)))
-    if (cleared && !saved) setStatusMessage('배정이 해제되었습니다.')
+    if (cleared && !saved) setStatusMessage('배정이 삭제되었습니다.')
     else if (cleared && saved) setStatusMessage('생산계획이 저장되었습니다.')
     else setStatusMessage('생산계획이 저장되었습니다.')
+    await reload()
+  }
+
+  async function handleModalSubmit(values: ProductionPlanScheduleFormValues) {
+    if (!modal.open) return
+    const row = modal.row
+
+    const validationError = validateBeforeSchedule(row, values.plannedDate)
+    if (validationError) {
+      setStatusMessage(validationError)
+      return
+    }
+
+    setSaving(true)
+    setStatusMessage('')
+    const result = await confirmProductionPlanItem({
+      scope: row.scope,
+      orderId: row.orderId,
+      targetId: row.targetId,
+      plannedDate: values.plannedDate,
+      plannedQuantity: values.plannedQuantity,
+      lineNo: row.scope === 'smt' ? values.lineNo : undefined,
+      pcbSide: row.scope === 'smt' ? values.pcbSide : undefined,
+      team: row.scope === 'post' ? values.team : undefined,
+      note: values.note,
+      planId: row.planId,
+      boardItemId: row.boardItemId,
+    })
+    setSaving(false)
+
+    if (!result.ok) {
+      setStatusMessage(result.detail)
+      return
+    }
+
+    setModal({ open: false })
+    setStatusMessage('생산계획이 저장되었습니다.')
+    await reload()
+  }
+
+  async function handleModalDelete() {
+    if (!modal.open) return
+    const row = modal.row
+
+    setDeleting(true)
+    setStatusMessage('')
+    const result = await unconfirmProductionPlanItem({
+      scope: row.scope,
+      targetId: row.targetId,
+      planId: row.planId,
+      boardItemId: row.boardItemId,
+    })
+    setDeleting(false)
+
+    if (!result.ok) {
+      setStatusMessage(result.detail)
+      return
+    }
+
+    setModal({ open: false })
+    setStatusMessage('배정이 삭제되었습니다.')
     await reload()
   }
 
@@ -294,12 +318,32 @@ export function ProductionPlanWorkspace({
           <div>
             <h2 className="text-base font-bold text-slate-900">공유 생산계획</h2>
             <p className="text-xs text-slate-500">
-              {viewMode === 'sheet'
-                ? '표에서 자재 입고일·입고수량과 SMT/후공정 계획일·수량을 입력한 뒤 저장해 주세요. ① 자재 → ② SMD → ③ 후공정 순서를 지켜 주세요.'
-                : '① 자재·② SMD·③ 후공정 순으로 대기함을 구분합니다. 자재 대기도 캘린더에 미리 배정할 수 있습니다.'}
+              {viewMode === 'order' ? '발주별 자재 → SMT → 후공정 계획 통합 보기' : teamTabHint[teamTab]}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {viewMode !== 'order' ? (
+              <div className="flex overflow-hidden rounded-lg border border-slate-300 bg-white">
+                {PRODUCTION_PLAN_TEAM_TABS.map((scope) => (
+                  <button
+                    key={scope}
+                    type="button"
+                    onClick={() => setTeamTab(scope)}
+                    className={`px-3 py-1.5 text-sm font-semibold ${
+                      teamTab === scope
+                        ? scope === 'material'
+                          ? 'bg-amber-600 text-white'
+                          : scope === 'smt'
+                            ? 'bg-sky-600 text-white'
+                            : 'bg-violet-600 text-white'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    } ${scope !== 'material' ? 'border-l border-slate-300' : ''}`}
+                  >
+                    {productionPlanTeamTabLabel(scope)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="flex overflow-hidden rounded-lg border border-slate-300 bg-white">
               <button
                 type="button"
@@ -323,7 +367,44 @@ export function ProductionPlanWorkspace({
               >
                 캘린더
               </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('order')}
+                className={`border-l border-slate-300 px-3 py-1.5 text-sm font-semibold ${
+                  viewMode === 'order'
+                    ? 'bg-slate-800 text-white'
+                    : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                발주
+              </button>
             </div>
+            {viewMode === 'sheet' ? (
+              <div className="flex overflow-hidden rounded-lg border border-slate-300 bg-white">
+                <button
+                  type="button"
+                  onClick={() => setSheetFilter('month')}
+                  className={`px-3 py-1.5 text-sm font-semibold ${
+                    sheetFilter === 'month'
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  이번 달
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSheetFilter('all_pending')}
+                  className={`border-l border-slate-300 px-3 py-1.5 text-sm font-semibold ${
+                    sheetFilter === 'all_pending'
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  미완료 전체
+                </button>
+              </div>
+            ) : null}
             <span className="text-lg font-extrabold text-slate-800">{formatMonthLabel(monthStart)}</span>
             <button
               type="button"
@@ -352,47 +433,37 @@ export function ProductionPlanWorkspace({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-          {viewMode === 'calendar' ? (
-            <ProductionPlanOrderSidebar
-              buckets={pipelineBuckets}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {loading ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+              불러오는 중…
+            </div>
+          ) : viewMode === 'sheet' ? (
+            <ProductionPlanSheet
+              allRows={rows}
+              activeScope={teamTab}
+              monthStart={monthStart}
+              sheetFilter={sheetFilter}
               search={search}
               onSearchChange={setSearch}
+              savingKeys={sheetSavingKeySet}
+              onSaveActions={handleSheetSaveActions}
+              onMessage={setStatusMessage}
             />
-          ) : null}
-
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            {loading ? (
-              <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
-                불러오는 중…
-              </div>
-            ) : viewMode === 'sheet' ? (
-              <ProductionPlanSheet
-                allRows={rows}
-                monthStart={monthStart}
-                search={search}
-                onSearchChange={setSearch}
-                savingKeys={sheetSavingKeySet}
-                onSaveActions={handleSheetSaveActions}
-                onMessage={setStatusMessage}
-              />
-            ) : (
-              <ProductionPlanMonthCalendar
-                cells={monthCells}
-                scheduledRows={scheduledRows}
-                onDropOrder={handleDropByKey}
-                onMoveScheduled={(row, plannedDate) => {
-                  const validationError = validateBeforeSchedule(row, plannedDate)
-                  if (validationError) {
-                    setStatusMessage(validationError)
-                    return
-                  }
-                  openScheduleModal(row, plannedDate)
-                }}
-                onSelectScheduled={(row) => openScheduleModal(row, row.plannedDate)}
-              />
-            )}
-          </div>
+          ) : viewMode === 'calendar' ? (
+            <ProductionPlanMonthCalendar
+              cells={monthCells}
+              scheduledRows={scheduledRows}
+              onSelectRow={openScheduleModal}
+            />
+          ) : (
+            <ProductionPlanOrderTimeline
+              rows={rows}
+              search={search}
+              onSearchChange={setSearch}
+              onSelectRow={openScheduleModal}
+            />
+          )}
         </div>
       </div>
 
@@ -406,8 +477,8 @@ export function ProductionPlanWorkspace({
         saving={saving}
         deleting={deleting}
         onClose={() => setModal({ open: false })}
-        onSubmit={handleSubmit}
-        onUnassign={modal.open && modal.row.status === 'confirmed' ? handleUnassign : undefined}
+        onSubmit={handleModalSubmit}
+        onUnassign={modal.open && isProductionPlanScheduleRow(modal.row) ? handleModalDelete : undefined}
       />
     </>
   )

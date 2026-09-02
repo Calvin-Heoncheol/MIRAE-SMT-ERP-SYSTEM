@@ -11,6 +11,7 @@ import {
   orderIdFromLegacyShipmentNote,
   parseLegacyShipmentIdFromOrderNote,
 } from '@/lib/reports/legacy-statement'
+import { isAdminDirectProductionNote } from '@/lib/production-status/constants'
 import { createSupabaseClient } from '@/lib/supabase'
 
 export type SalesReportCustomerRow = {
@@ -424,7 +425,7 @@ export async function fetchSalesReportData(
     }
 
     for (const row of deliveryRows) {
-      if (!row.assembly_group_id || isLegacyShipmentNote(row.note)) continue
+      if (!row.assembly_group_id || isLegacyShipmentNote(row.note) || isAdminDirectProductionNote(row.note)) continue
       const quantity = Math.max(0, Math.floor(Number(row.quantity) || 0))
       if (quantity <= 0) continue
       const info = row.assembly_group_id ? groupInfoById.get(String(row.assembly_group_id)) : undefined

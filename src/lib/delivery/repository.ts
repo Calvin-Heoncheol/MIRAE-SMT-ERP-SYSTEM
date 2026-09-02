@@ -1,10 +1,10 @@
 import {
-  ensureAssemblyGroupsForOrders,
   fetchAssemblyGroups,
   repairChildrenOnlyAssemblyGroups,
   repairMissingSemiFinishedDeliveryGroups,
   repairOrphanAssemblyGroups,
 } from '@/lib/assembly/repository'
+import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import {
   isMissingCreatedByColumn,
@@ -14,7 +14,7 @@ import {
 } from '@/lib/auth/created-by'
 import { parseItemVersionCode } from '@/lib/items/version-code'
 import { fetchOrders } from '@/lib/orders/repository'
-import { todayYmdSeoul } from '@/lib/orders/utils'
+import { stripDerivedOrderLines, todayYmdSeoul } from '@/lib/orders/utils'
 import {
   fetchPaymentTermSnapshotForCustomer,
   firstNonEmptyPaymentTermSnapshot,
@@ -23,8 +23,12 @@ import {
   persistPaymentTermSnapshot,
   type PaymentTermSnapshot,
 } from '@/lib/partners/payment-term-snapshot'
+import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import { fetchPostProcessCumulativeCounts } from '@/lib/post-process/repository'
+import { buildProductionOrderLines } from '@/lib/production-input/utils'
+import { buildProductionStatusLines } from '@/lib/production-status/utils'
 import { fetchProducts } from '@/lib/products/repository'
+import type { Product } from '@/lib/products/types'
 import { fetchQuotes } from '@/lib/quotes/repository'
 import { fetchSmtCumulativeCounts } from '@/lib/smt/repository'
 import {
@@ -52,6 +56,8 @@ import {
   computeDeliveryAvailability,
   describeDeliveryBlockReason,
 } from './utils'
+import { resolveDeliveryRecordMaxShippable } from './register-form'
+import { DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from './config'
 
 export type FetchDeliveryInputPageResult =
   | { ok: true; data: DeliveryInputPageData }
@@ -65,6 +71,24 @@ export type CreateDeliveryRecordResult =
   | { ok: true; record: DeliveryRecord; cumulative: number; usedCatchUp?: boolean }
   | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
 
+export type DeliveryValidationContext = {
+  productById: Record<string, Product>
+  smtCounts: Record<string, number>
+  postCounts: Record<string, number>
+  assemblyGroups: OrderAssemblyGroup[]
+}
+
+export type LoadDeliveryValidationContextResult =
+  | { ok: true; context: DeliveryValidationContext }
+  | { ok: false; reason: 'env' | 'query'; detail: string }
+
+export type CreateDeliveryRecordsBatchResult =
+  | {
+      ok: true
+      results: Array<{ record: DeliveryRecord; cumulative: number }>
+    }
+  | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
+
 export type CreateDeliveryShipmentResult =
   | { ok: true; shipmentId: string; records: DeliveryRecord[]; usedCatchUp?: boolean }
   | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
@@ -76,10 +100,6 @@ export type UpdateDeliveryRecordResult =
 export type DeleteDeliveryRecordResult =
   | { ok: true }
   | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
-
-export type FetchOrderLineUnitPriceResult =
-  | { ok: true; unitPrice: number }
-  | { ok: false; reason: 'env' | 'query'; detail: string }
 
 export type FetchOrderLineUnitPricesResult =
   | { ok: true; prices: number[] }
@@ -207,7 +227,7 @@ function mapDeliveryRecord(row: {
     recordDate: String(row.record_date || '').slice(0, 10),
     assemblyGroupId: String(row.assembly_group_id || '').trim(),
     quantity: Math.max(0, Math.floor(Number(row.quantity) || 0)),
-    source: row.source === 'manual' ? 'manual' : 'manual',
+    source: 'manual',
     note: String(row.note || ''),
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdByName: String(row.created_by_name || '').trim(),
@@ -235,14 +255,11 @@ function parseInsertDeliveryRpcPayload(value: unknown): {
 }
 
 export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPageResult> {
-  const [ordersResult, derivedOrdersResult, productsResult] = await Promise.all([
-    fetchOrders(),
+  const [derivedOrdersResult, productsResult, partnersResult] = await Promise.all([
     fetchOrders({ includeDerivedLines: true }),
     fetchProducts(),
+    fetchSalesBusinessPartners(),
   ])
-  if (!ordersResult.ok) {
-    return ordersResult
-  }
   if (!derivedOrdersResult.ok) {
     return derivedOrdersResult
   }
@@ -250,10 +267,8 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
     return productsResult
   }
 
+  const orders = stripDerivedOrderLines(derivedOrdersResult.orders)
   const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
-  const orderIds = ordersResult.orders.map((order) => order.orderId)
-
-  await ensureAssemblyGroupsForOrders(orderIds)
 
   const [assemblyFetchResult, smtCountsResult, postCountsResult, deliveryCountsResult, quotesResult] =
     await Promise.all([
@@ -272,7 +287,7 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
 
   let assemblyResult = await repairChildrenOnlyAssemblyGroups(
     assemblyFetchResult.groups,
-    ordersResult.orders,
+    orders,
     productById,
   )
   if (!assemblyResult.ok) return assemblyResult
@@ -296,6 +311,26 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
     productById,
   )
 
+  const smtOrders = buildProductionOrderLines(
+    derivedOrdersResult.orders,
+    'SMT',
+    productById,
+    'smt',
+    quotesResult.quotes,
+  )
+  const productionStatusLines = buildProductionStatusLines(
+    orders,
+    smtOrders,
+    assemblyResult.groups,
+    smtCountsResult.counts,
+    postCountsResult.counts,
+    deliveryCounts,
+    smtCountsResult.defectCounts,
+    postCountsResult.defectCounts,
+    productById,
+    quotesResult.quotes,
+  )
+
   return {
     ok: true,
     data: {
@@ -305,9 +340,12 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
         productById,
         quotesResult.quotes,
       ),
-      billingOnlyLines: buildDeliveryBillingOnlyLines(ordersResult.orders),
+      billingOnlyLines: buildDeliveryBillingOnlyLines(orders),
       deliveryCounts,
       availabilityByGroupId,
+      productionStatusLines,
+      products: productsResult.products,
+      partners: partnersResult.ok ? partnersResult.partners : [],
     },
   }
 }
@@ -345,8 +383,47 @@ export async function fetchDeliveryCumulativeCounts(): Promise<FetchDeliveryCumu
   }
 }
 
+export async function loadDeliveryValidationContext(): Promise<LoadDeliveryValidationContextResult> {
+  const [productsResult, smtCountsResult, postCountsResult] = await Promise.all([
+    fetchProducts(),
+    fetchSmtCumulativeCounts(),
+    fetchPostProcessCumulativeCounts(),
+  ])
+
+  if (!productsResult.ok) {
+    return { ok: false, reason: 'query', detail: productsResult.detail }
+  }
+  if (!smtCountsResult.ok) {
+    return { ok: false, reason: 'query', detail: smtCountsResult.detail }
+  }
+  if (!postCountsResult.ok) {
+    return { ok: false, reason: 'query', detail: postCountsResult.detail }
+  }
+
+  const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
+  const assemblyGroupsResult = await fetchAssemblyGroups(productById)
+  if (!assemblyGroupsResult.ok) {
+    return { ok: false, reason: 'query', detail: assemblyGroupsResult.detail }
+  }
+
+  return {
+    ok: true,
+    context: {
+      productById,
+      smtCounts: smtCountsResult.counts,
+      postCounts: postCountsResult.counts,
+      assemblyGroups: assemblyGroupsResult.groups,
+    },
+  }
+}
+
+type CreateDeliveryRecordOptions = {
+  context?: DeliveryValidationContext
+}
+
 export async function createDeliveryRecord(
   input: CreateDeliveryRecordInput,
+  options: CreateDeliveryRecordOptions = {},
 ): Promise<CreateDeliveryRecordResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
@@ -401,30 +478,28 @@ export async function createDeliveryRecord(
 
     const currentTotal = Math.max(0, Math.floor(Number(totals?.total_quantity) || 0))
 
-    const [productsResult, smtCountsResult, postCountsResult] = await Promise.all([
-      fetchProducts(),
-      fetchSmtCumulativeCounts(),
-      fetchPostProcessCumulativeCounts(),
-    ])
+    let productById: Record<string, Product>
+    let smtCounts: Record<string, number>
+    let postCounts: Record<string, number>
+    let assemblyGroups: OrderAssemblyGroup[]
 
-    if (!productsResult.ok) {
-      return { ok: false, reason: 'query', detail: productsResult.detail }
-    }
-    if (!smtCountsResult.ok) {
-      return { ok: false, reason: 'query', detail: smtCountsResult.detail }
-    }
-    if (!postCountsResult.ok) {
-      return { ok: false, reason: 'query', detail: postCountsResult.detail }
-    }
-
-    const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
-    const assemblyGroupsResult = await fetchAssemblyGroups(productById)
-
-    if (!assemblyGroupsResult.ok) {
-      return { ok: false, reason: 'query', detail: assemblyGroupsResult.detail }
+    if (options.context) {
+      productById = options.context.productById
+      smtCounts = options.context.smtCounts
+      postCounts = options.context.postCounts
+      assemblyGroups = options.context.assemblyGroups
+    } else {
+      const contextResult = await loadDeliveryValidationContext()
+      if (!contextResult.ok) {
+        return { ok: false, reason: contextResult.reason, detail: contextResult.detail }
+      }
+      productById = contextResult.context.productById
+      smtCounts = contextResult.context.smtCounts
+      postCounts = contextResult.context.postCounts
+      assemblyGroups = contextResult.context.assemblyGroups
     }
 
-    const group = assemblyGroupsResult.groups.find((item) => item.id === assemblyGroupId)
+    const group = assemblyGroups.find((item) => item.id === assemblyGroupId)
 
     if (!group) {
       return { ok: false, reason: 'validation', detail: '조립 그룹을 찾을 수 없습니다.' }
@@ -432,13 +507,13 @@ export async function createDeliveryRecord(
 
     const availability = computeDeliveryAvailability(
       group,
-      smtCountsResult.counts,
-      postCountsResult.counts,
+      smtCounts,
+      postCounts,
       { [assemblyGroupId]: currentTotal },
       productById,
     )
 
-    if (quantity > availability.shippable) {
+    if (!DELIVERY_REGISTER_SKIP_PRODUCTION_CAP && quantity > availability.shippable) {
       return {
         ok: false,
         reason: 'validation',
@@ -481,7 +556,12 @@ export async function createDeliveryRecord(
     const { data: rpcData, error: rpcError } = await supabase.rpc('insert_delivery_record_atomic', {
       p_assembly_group_id: assemblyGroupId,
       p_quantity: quantity,
-      p_max_shippable: availability.shippable,
+      p_max_shippable: resolveDeliveryRecordMaxShippable({
+        targetQuantity: targetQty,
+        currentTotal,
+        requestQuantity: quantity,
+        shippable: availability.shippable,
+      }),
       p_record_date: recordDate,
       p_source: source,
       p_note: input.note?.trim() || '',
@@ -614,6 +694,42 @@ export async function createDeliveryRecord(
   }
 }
 
+/** 여러 출하 건을 한 컨텍스트로 등록. 중간 실패 시 이미 저장된 건을 역순 삭제합니다. */
+export async function createDeliveryRecordsBatch(
+  inputs: CreateDeliveryRecordInput[],
+): Promise<CreateDeliveryRecordsBatchResult> {
+  const lines = (inputs || []).filter(
+    (input) =>
+      String(input.assemblyGroupId || '').trim() &&
+      Math.floor(Number(input.quantity) || 0) >= 1,
+  )
+  if (!lines.length) {
+    return { ok: false, reason: 'validation', detail: '등록할 출하 수량이 없습니다.' }
+  }
+
+  const contextResult = await loadDeliveryValidationContext()
+  if (!contextResult.ok) {
+    return { ok: false, reason: contextResult.reason, detail: contextResult.detail }
+  }
+
+  const created: DeliveryRecord[] = []
+  const results: Array<{ record: DeliveryRecord; cumulative: number }> = []
+
+  for (const input of lines) {
+    const result = await createDeliveryRecord(input, { context: contextResult.context })
+    if (!result.ok) {
+      for (const record of [...created].reverse()) {
+        await deleteDeliveryRecord(record.id)
+      }
+      return result
+    }
+    created.push(result.record)
+    results.push({ record: result.record, cumulative: result.cumulative })
+  }
+
+  return { ok: true, results }
+}
+
 /**
  * 같은 고객사 여러 품목을 한 명세서(shipment_id)로 묶어 출하합니다.
  * 라인 id 는 각자 MRS 채번, shipment_id 는 첫 라인 id 로 통일합니다.
@@ -712,19 +828,28 @@ export async function createDeliveryShipment(
     const records: DeliveryRecord[] = []
     let usedCatchUp = false
 
+    const contextResult = await loadDeliveryValidationContext()
+    if (!contextResult.ok) {
+      return { ok: false, reason: contextResult.reason, detail: contextResult.detail }
+    }
+    const validationContext = contextResult.context
+
     // 1) 첫 라인 등록 → 그 id 를 명세서 묶음번호(shipment_id)로 사용
     for (let index = 0; index < lines.length; index += 1) {
       const line = lines[index]!
       const shipmentGroupId = records[0]?.id
-      const result = await createDeliveryRecord({
-        assemblyGroupId: line.assemblyGroupId,
-        quantity: line.quantity,
-        recordDate,
-        note,
-        allocations: line.allocations,
-        // 두 번째 라인부터 첫 라인 출하번호로 묶음
-        shipmentGroupId: index === 0 ? undefined : shipmentGroupId,
-      })
+      const result = await createDeliveryRecord(
+        {
+          assemblyGroupId: line.assemblyGroupId,
+          quantity: line.quantity,
+          recordDate,
+          note,
+          allocations: line.allocations,
+          // 두 번째 라인부터 첫 라인 출하번호로 묶음
+          shipmentGroupId: index === 0 ? undefined : shipmentGroupId,
+        },
+        { context: validationContext },
+      )
 
       if (!result.ok) {
         for (const record of records) {
@@ -773,7 +898,7 @@ export async function createDeliveryShipment(
 async function validateDeliveryQuantityChange(
   assemblyGroupId: string,
   quantity: number,
-  options: { excludeRecordId?: string; previousQuantity?: number } = {},
+  options: { previousQuantity?: number } = {},
 ): Promise<
   | { ok: true; targetQty: number; cumulative: number }
   | { ok: false; reason: 'query' | 'validation'; detail: string }
@@ -815,30 +940,13 @@ async function validateDeliveryQuantityChange(
   const previousQuantity = Math.max(0, Math.floor(Number(options.previousQuantity) || 0))
   const adjustedTotal = currentTotal - previousQuantity + quantity
 
-  const [productsResult, smtCountsResult, postCountsResult] = await Promise.all([
-    fetchProducts(),
-    fetchSmtCumulativeCounts(),
-    fetchPostProcessCumulativeCounts(),
-  ])
-
-  if (!productsResult.ok) {
-    return { ok: false, reason: 'query', detail: productsResult.detail }
+  const contextResult = await loadDeliveryValidationContext()
+  if (!contextResult.ok) {
+    return { ok: false, reason: 'query', detail: contextResult.detail }
   }
-  if (!smtCountsResult.ok) {
-    return { ok: false, reason: 'query', detail: smtCountsResult.detail }
-  }
-  if (!postCountsResult.ok) {
-    return { ok: false, reason: 'query', detail: postCountsResult.detail }
-  }
+  const { productById, smtCounts, postCounts, assemblyGroups } = contextResult.context
 
-  const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
-  const assemblyGroupsResult = await fetchAssemblyGroups(productById)
-
-  if (!assemblyGroupsResult.ok) {
-    return { ok: false, reason: 'query', detail: assemblyGroupsResult.detail }
-  }
-
-  const group = assemblyGroupsResult.groups.find((item) => item.id === assemblyGroupId)
+  const group = assemblyGroups.find((item) => item.id === assemblyGroupId)
 
   if (!group) {
     return { ok: false, reason: 'validation', detail: '조립 그룹을 찾을 수 없습니다.' }
@@ -846,15 +954,17 @@ async function validateDeliveryQuantityChange(
 
   const availability = computeDeliveryAvailability(
     group,
-    smtCountsResult.counts,
-    postCountsResult.counts,
+    smtCounts,
+    postCounts,
     { [assemblyGroupId]: currentTotal },
     productById,
   )
 
-  const maxAllowed = availability.shippable + previousQuantity
+  const maxAllowed = DELIVERY_REGISTER_SKIP_PRODUCTION_CAP
+    ? (targetQty > 0 ? Math.max(0, targetQty - currentTotal) + previousQuantity : previousQuantity + quantity)
+    : availability.shippable + previousQuantity
 
-  if (quantity > maxAllowed) {
+  if (!DELIVERY_REGISTER_SKIP_PRODUCTION_CAP && quantity > maxAllowed) {
     return {
       ok: false,
       reason: 'validation',
@@ -872,8 +982,6 @@ async function validateDeliveryQuantityChange(
       detail: `주문 수량(${targetQty.toLocaleString('ko-KR')}대)을 초과할 수 없습니다.`,
     }
   }
-
-  void options.excludeRecordId
 
   return { ok: true, targetQty, cumulative: adjustedTotal }
 }
@@ -1001,15 +1109,6 @@ export async function fetchOrderLineUnitPrices(
   }
 }
 
-export async function fetchOrderLineUnitPrice(
-  orderId: string,
-  productId: string,
-): Promise<FetchOrderLineUnitPriceResult> {
-  const result = await fetchOrderLineUnitPrices([{ orderId, productId }])
-  if (!result.ok) return result
-  return { ok: true, unitPrice: result.prices[0] || 0 }
-}
-
 export async function updateDeliveryRecord(
   recordId: string,
   input: UpdateDeliveryRecordInput,
@@ -1048,7 +1147,6 @@ export async function updateDeliveryRecord(
     }
 
     const validation = await validateDeliveryQuantityChange(existing.assembly_group_id, quantity, {
-      excludeRecordId: id,
       previousQuantity: existing.quantity,
     })
 
@@ -1290,9 +1388,19 @@ export async function fetchDeliveryTodayRecords(): Promise<FetchDeliveryHistoryR
   return fetchDeliveryRecords({ recordDate: todayYmdSeoul() })
 }
 
+export async function fetchDeliveryHistoryByAssemblyGroups(
+  assemblyGroupIds: string[],
+  options?: { limit?: number },
+): Promise<FetchDeliveryHistoryResult> {
+  const ids = [...new Set(assemblyGroupIds.map((id) => String(id || '').trim()).filter(Boolean))]
+  if (!ids.length) return { ok: true, rows: [] }
+  return fetchDeliveryRecords({ assemblyGroupIds: ids, limit: options?.limit ?? 20 })
+}
+
 async function fetchDeliveryRecords(options?: {
   recordDate?: string
   shipmentId?: string
+  assemblyGroupIds?: string[]
   limit?: number
 }): Promise<FetchDeliveryHistoryResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
@@ -1369,6 +1477,11 @@ async function fetchDeliveryRecords(options?: {
     if (options?.shipmentId) {
       query = query.eq('shipment_id', options.shipmentId)
     }
+    if (options?.assemblyGroupIds?.length === 1) {
+      query = query.eq('assembly_group_id', options.assemblyGroupIds[0]!)
+    } else if (options?.assemblyGroupIds && options.assemblyGroupIds.length > 1) {
+      query = query.in('assembly_group_id', options.assemblyGroupIds)
+    }
 
     let { data, error } = await query
 
@@ -1383,6 +1496,11 @@ async function fetchDeliveryRecords(options?: {
       }
       if (options?.shipmentId) {
         legacyQuery = legacyQuery.eq('shipment_id', options.shipmentId)
+      }
+      if (options?.assemblyGroupIds?.length === 1) {
+        legacyQuery = legacyQuery.eq('assembly_group_id', options.assemblyGroupIds[0]!)
+      } else if (options?.assemblyGroupIds && options.assemblyGroupIds.length > 1) {
+        legacyQuery = legacyQuery.in('assembly_group_id', options.assemblyGroupIds)
       }
       const legacy = await legacyQuery
       data = (legacy.data || null) as typeof data

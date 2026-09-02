@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
-import { QuoteCombobox } from '@/components/items/quote-combobox'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { EntityChangeHistoryButton } from '@/components/change-logs/entity-change-history-button'
 import { useBusy } from '@/components/ui/busy-provider'
@@ -47,13 +46,7 @@ import { nextItemCodeForCategory, itemFromPayload, displayItemUnitPrice, formatI
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
-import { fetchQuotes } from '@/lib/quotes/repository'
-import {
-  buildItemDefaultsFromQuote,
-  displayItemFormUnitPrice,
-  formatQuoteOptionLabel,
-} from '@/lib/quotes/quote-to-item'
-import type { QuoteListItem } from '@/lib/quotes/types'
+import { displayItemFormUnitPrice } from '@/lib/quotes/quote-to-item'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS, ERP_ROW_ADD_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 type ItemModalProps = {
@@ -139,9 +132,6 @@ function ItemModalContent({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [salesPartners, setSalesPartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(true)
-  const [quotes, setQuotes] = useState<QuoteListItem[]>([])
-  const [quotesLoading, setQuotesLoading] = useState(true)
-  const [quoteSearch, setQuoteSearch] = useState('')
 
   const busyUi = useBusy()
   const { notifyAuthOrFailure, toast } = useWriteFailureToast()
@@ -162,7 +152,6 @@ function ItemModalContent({
       ? itemToForm(item)
       : createFormWithCategory(initialCategory, existingItems, initialValues)
     setForm(nextForm)
-    setQuoteSearch('')
     setSaveError(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 모달 오픈 시 초기값만 세팅
   }, [item, mode, initialCategory])
@@ -181,33 +170,6 @@ function ItemModalContent({
       cancelled = true
     }
   }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    setQuotesLoading(true)
-    fetchQuotes().then((result) => {
-      if (cancelled) return
-      setQuotesLoading(false)
-      if (result.ok) {
-        setQuotes(result.quotes)
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    const quoteId = form.baselineQuoteId.trim()
-    if (!quoteId || form.baselineQuoteLabel.trim()) return
-    const linked = quotes.find((quote) => quote.quoteId === quoteId || quote.quoteNumber === quoteId)
-    if (!linked) return
-    setForm((current) => ({
-      ...current,
-      baselineQuoteLabel: formatQuoteOptionLabel(linked),
-    }))
-    setQuoteSearch(formatQuoteOptionLabel(linked))
-  }, [form.baselineQuoteId, form.baselineQuoteLabel, quotes])
 
   useEffect(() => {
     if (!isCreate) return
@@ -268,9 +230,9 @@ function ItemModalContent({
     form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
   const showFinishedProductUnitPriceInfo =
     form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)
-  const showQuoteLinkField =
-    (form.itemCategory !== '' && isProductItemCategory(form.itemCategory)) ||
-    Boolean(!isCreate && item && isProductItemCategory(item.itemCategory))
+  const showAdditionalUnitPriceField =
+    form.itemCategory !== '' &&
+    (isSemiFinishedItemCategory(form.itemCategory) || isFinishedItemCategory(form.itemCategory))
 
   function updateBaselineUnitPrice(raw: string) {
     const next = Math.max(0, Math.round(Number(raw) || 0))
@@ -282,27 +244,6 @@ function ItemModalContent({
       dipUnitPrice: 0,
       materialUnitPrice: 0,
     }))
-  }
-
-  function handleQuoteSelect(quote: QuoteListItem) {
-    const defaults = buildItemDefaultsFromQuote(quote)
-    const partner = resolvePartnerFromInput(salesPartners, defaults.customerName || quote.customer)
-    setForm((current) => ({
-      ...current,
-      ...defaults,
-      customerId: partner?.id || current.customerId,
-      customerName: partner?.name || defaults.customerName || current.customerName,
-    }))
-    setQuoteSearch(formatQuoteOptionLabel(quote))
-  }
-
-  function handleQuoteClear() {
-    setForm((current) => ({
-      ...current,
-      baselineQuoteId: '',
-      baselineQuoteLabel: '',
-    }))
-    setQuoteSearch('')
   }
 
   const showVersionField =
@@ -533,30 +474,6 @@ function ItemModalContent({
       }
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {showQuoteLinkField ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 sm:col-span-2">
-            <span className={ERP_FIELD_LABEL_CLASS}>견적서 연결</span>
-            <QuoteCombobox
-              value={quoteSearch}
-              selectedQuoteId={form.baselineQuoteId}
-              quotes={quotes}
-              customer={form.customerName}
-              placeholder="견적번호·제품명 검색"
-              ariaLabel="견적서 연결"
-              inputClassName={ERP_FIELD_INPUT_CLASS}
-              onValueChange={setQuoteSearch}
-              onQuoteSelect={handleQuoteSelect}
-              onClear={handleQuoteClear}
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              {quotesLoading
-                ? '견적 목록을 불러오는 중...'
-                : form.baselineQuoteId
-                  ? '연결된 견적 기준으로 고객사·품명·공정·단가가 자동 반영됩니다. 세부 단가는 견적서에서 관리하세요.'
-                  : '견적서를 선택하면 품목 정보가 자동으로 채워집니다.'}
-            </p>
-          </div>
-        ) : null}
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>
             품목구분 <RequiredMark />
@@ -714,37 +631,76 @@ function ItemModalContent({
           </label>
         ) : null}
         {showFinishedProductUnitPriceInfo ? (
-          <div className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>기본 단가</span>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-              {!isCreate && item && displayItemUnitPrice(item) > 0 ? (
-                <p className="font-medium text-slate-800">
-                  {formatItemUnitPrice(displayItemUnitPrice(item))}원
+          <div className="block text-sm sm:col-span-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <span className={ERP_FIELD_LABEL_CLASS}>기본 단가</span>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  {!isCreate && item && displayItemUnitPrice(item) > 0 ? (
+                    <p className="font-medium text-slate-800">
+                      {formatItemUnitPrice(displayItemUnitPrice(item))}원
+                    </p>
+                  ) : (
+                    <p className="text-slate-500">BOM 등록 후 자동 계산</p>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  조립제품 단가는 BOM 등록에서 구성 반제품 단가 합으로 자동 반영됩니다.
                 </p>
-              ) : (
-                <p className="text-slate-500">BOM 등록 후 자동 계산</p>
-              )}
+              </div>
+              {showAdditionalUnitPriceField ? (
+                <label className="block text-sm">
+                  <span className={ERP_FIELD_LABEL_CLASS}>추가비용</span>
+                  <QuoteNumericInput
+                    min={0}
+                    value={String(form.additionalUnitPrice > 0 ? form.additionalUnitPrice : '')}
+                    onChange={(raw) =>
+                      updateForm('additionalUnitPrice', Math.max(0, Math.round(Number(raw) || 0)))
+                    }
+                    className={ERP_FIELD_INPUT_CLASS}
+                    placeholder="0"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    발주서 등록 시 같은 품목 아래 추가작업 행으로 자동 반영됩니다.
+                  </p>
+                </label>
+              ) : null}
             </div>
-            <p className="mt-1 text-xs text-slate-500">
-              조립제품 단가는 BOM 등록에서 구성 반제품 단가 합으로 자동 반영됩니다.
-            </p>
           </div>
         ) : null}
         {showProductUnitPriceField ? (
-          <label className="block text-sm sm:col-span-2">
-            <span className={ERP_FIELD_LABEL_CLASS}>기본단가</span>
-            <QuoteNumericInput
-              min={0}
-              value={String(displayUnitPrice > 0 ? displayUnitPrice : form.unitPrice || '')}
-              onChange={updateBaselineUnitPrice}
-              className={ERP_FIELD_INPUT_CLASS}
-              placeholder="0"
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              직접 입력하거나 견적서를 연결하면 기본단가가 채워집니다. 직접 수정 시 세부 단가는
-              초기화됩니다.
-            </p>
-          </label>
+          <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>기본단가</span>
+              <QuoteNumericInput
+                min={0}
+                value={String(displayUnitPrice > 0 ? displayUnitPrice : form.unitPrice || '')}
+                onChange={updateBaselineUnitPrice}
+                className={ERP_FIELD_INPUT_CLASS}
+                placeholder="0"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                직접 입력해 주세요. 직접 수정 시 세부 단가는 초기화됩니다.
+              </p>
+            </label>
+            {showAdditionalUnitPriceField ? (
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>추가비용</span>
+                <QuoteNumericInput
+                  min={0}
+                  value={String(form.additionalUnitPrice > 0 ? form.additionalUnitPrice : '')}
+                  onChange={(raw) =>
+                    updateForm('additionalUnitPrice', Math.max(0, Math.round(Number(raw) || 0)))
+                  }
+                  className={ERP_FIELD_INPUT_CLASS}
+                  placeholder="0"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  발주서 등록 시 같은 품목 아래 추가작업 행으로 자동 반영됩니다.
+                </p>
+              </label>
+            ) : null}
+          </div>
         ) : null}
         {showRawMaterialTypeField ? (
           <label className="block text-sm">

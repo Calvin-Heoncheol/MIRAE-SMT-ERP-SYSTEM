@@ -9,6 +9,7 @@ import type {
 } from './types'
 import {
   deriveItemProcessType,
+  isSemiFinishedItemCategory,
   ITEM_CATEGORY_CODE_PAD,
   ITEM_CATEGORY_CODE_PREFIX,
   ITEM_PCB_SIDE_MODE_LABELS,
@@ -197,17 +198,14 @@ export function mapItemRecord(row: {
   const materialUnitPrice = Number(row.material_unit_price) || 0
   const otherUnitPrice = Number(row.other_unit_price) || 0
   const setupRaw = row.setup_unit_price
-  const setupUnitPrice =
-    setupRaw === null || setupRaw === undefined
-      ? otherUnitPrice
-      : Math.max(0, Math.round(Number(setupRaw) || 0))
+  const setupUnitPrice = Math.max(0, Math.round(Number(setupRaw) || 0))
   const safetyStock = Math.max(0, Math.floor(Number(row.safety_stock) || 0))
   const isProduct = itemCategory === 3 || itemCategory === 4
   const resolvedSetup = isProduct ? setupUnitPrice : 0
   const resolvedSmd = isProduct ? smdUnitPrice : 0
   const resolvedDip = isProduct ? dipUnitPrice : 0
   const resolvedMaterial = isProduct ? materialUnitPrice : 0
-  const resolvedOther = isProduct ? otherUnitPrice : 0
+  const resolvedAdditional = isProduct ? otherUnitPrice : 0
   const perUnitBreakdown = resolvedSmd + resolvedDip
   const { baseCode, version } = resolveBaseCodeAndVersion(row)
   const mpns = parseItemMpnFields(row.mpn || '', row.alternate_mpns)
@@ -239,7 +237,7 @@ export function mapItemRecord(row: {
     smdUnitPrice: resolvedSmd,
     dipUnitPrice: resolvedDip,
     materialUnitPrice: resolvedMaterial,
-    otherUnitPrice: resolvedOther,
+    otherUnitPrice: resolvedAdditional,
     smtQuoteParts: isProduct
       ? normalizeItemSmtQuoteParts(row.smt_quote_parts)
       : { ...EMPTY_SMT_QUOTE_PARTS },
@@ -275,7 +273,7 @@ export function toItemInsertRow(payload: ItemPayload) {
     smd_unit_price: payload.smdUnitPrice,
     dip_unit_price: payload.dipUnitPrice,
     material_unit_price: payload.materialUnitPrice,
-    other_unit_price: payload.setupUnitPrice,
+    other_unit_price: payload.otherUnitPrice,
     smt_quote_parts: itemSmtQuotePartsToJson(payload.smtQuoteParts),
     baseline_quote_id: payload.baselineQuoteId.trim() || null,
     item_category: payload.itemCategory,
@@ -306,7 +304,7 @@ export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
     smd_unit_price: payload.smdUnitPrice,
     dip_unit_price: payload.dipUnitPrice,
     material_unit_price: payload.materialUnitPrice,
-    other_unit_price: payload.setupUnitPrice,
+    other_unit_price: payload.otherUnitPrice,
     smt_quote_parts: itemSmtQuotePartsToJson(payload.smtQuoteParts),
     baseline_quote_id: payload.baselineQuoteId.trim() || null,
     item_category: payload.itemCategory,
@@ -351,7 +349,36 @@ export function displayItemBaselineUnitPrice(
   const unitPrice = Math.round(Number(item.unitPrice) || 0)
   if (unitPrice > 0) return unitPrice
 
-  return Math.round(Number(item.otherUnitPrice) || 0)
+  return 0
+}
+
+/** 품목등록 목록·엑셀 — 모달 기본단가 + 추가비용 */
+export function displayItemAdditionalUnitPrice(
+  item: Pick<Item, 'itemCategory' | 'otherUnitPrice'>,
+) {
+  const category = Number(item.itemCategory)
+  if (category !== 3 && category !== 4) return 0
+  return Math.max(0, Math.round(Number(item.otherUnitPrice) || 0))
+}
+
+export function displayItemListUnitPrice(
+  item: Pick<
+    Item,
+    | 'itemCategory'
+    | 'unitPrice'
+    | 'setupUnitPrice'
+    | 'smdUnitPrice'
+    | 'dipUnitPrice'
+    | 'materialUnitPrice'
+    | 'otherUnitPrice'
+  >,
+) {
+  const baseline = isSemiFinishedItemCategory(item.itemCategory)
+    ? displayItemBaselineUnitPrice(item)
+    : item.itemCategory === 3 || item.itemCategory === 4
+      ? displayItemUnitPrice(item)
+      : Math.max(0, Math.round(Number(item.unitPrice) || 0))
+  return baseline + displayItemAdditionalUnitPrice(item)
 }
 
 /** 저장 직후 UI에 바로 반영할 때 — 서버 round-trip 없이 payload로 Item 구성 */

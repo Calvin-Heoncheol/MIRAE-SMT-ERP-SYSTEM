@@ -30,6 +30,8 @@ export type OrderItemForm = {
   deliveryDate: string
   /** 추가 작업(금액 전용) — 품목등록 필수, 저장 시 product_id 는 비움 */
   isAdhoc?: boolean
+  /** 품목 추가비용 자동 행 — 부모 제품 행 rowKey */
+  companionOfRowKey?: string
   /** 단가 출처 견적 (UI용, 저장하지 않음) */
   quoteId?: string
 }

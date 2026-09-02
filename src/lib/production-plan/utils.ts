@@ -2,8 +2,22 @@ import { todayYmdSeoul } from '@/lib/orders/utils'
 import { daysUntilYmd } from '@/lib/smt/plan/utils'
 import type { ProductionPlanBoardRow, ProductionPlanBoardStatus, ProductionPlanScope } from './types'
 
-export function productionPlanRowKey(scope: ProductionPlanScope, targetId: string) {
-  return `${scope}:${targetId}`
+export function productionPlanRowKey(scope: ProductionPlanScope, targetId: string, suffix?: string) {
+  return suffix ? `${scope}:${targetId}:${suffix}` : `${scope}:${targetId}`
+}
+
+export function productionPlanRemainderRowKey(scope: ProductionPlanScope, targetId: string) {
+  return productionPlanRowKey(scope, targetId, 'remainder')
+}
+
+export function isProductionPlanRemainderRow(row: Pick<ProductionPlanBoardRow, 'key' | 'rowKind'>) {
+  return row.rowKind === 'remainder' || row.key.endsWith(':remainder')
+}
+
+export function isProductionPlanScheduleRow(row: Pick<ProductionPlanBoardRow, 'status' | 'rowKind' | 'key' | 'plannedDate'>) {
+  if (isProductionPlanRemainderRow(row)) return false
+  if (row.rowKind === 'schedule') return row.status === 'confirmed'
+  return row.status === 'confirmed' && Boolean(row.plannedDate.trim())
 }
 
 export function sortProductionPlanRows(rows: ProductionPlanBoardRow[]) {

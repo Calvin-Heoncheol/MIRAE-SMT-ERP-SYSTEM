@@ -23,6 +23,38 @@ function missingEnvResult(): { ok: false; reason: 'env'; detail: string } {
   }
 }
 
+async function attachProductCustomerNames(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  products: Product[],
+  rows: Array<{ customer_id?: string | null; customer_name?: string | null }>,
+): Promise<Product[]> {
+  const ids = [...new Set(rows.map((row) => String(row.customer_id || '').trim()).filter(Boolean))]
+  if (!ids.length) return products
+
+  const names = new Map<string, string>()
+  const chunkSize = 100
+  for (let offset = 0; offset < ids.length; offset += chunkSize) {
+    const chunk = ids.slice(offset, offset + chunkSize)
+    const { data, error } = await supabase
+      .from('business_partners')
+      .select('id, name')
+      .in('id', chunk)
+    if (error) break
+    for (const row of data || []) {
+      const id = String(row.id || '').trim()
+      if (id) names.set(id, String(row.name || '').trim())
+    }
+  }
+
+  return products.map((product, index) => {
+    const source = rows[index]
+    const customerId = String(source?.customer_id || '').trim()
+    const customerName =
+      (customerId ? names.get(customerId) : '') || String(source?.customer_name || '').trim()
+    return customerName ? { ...product, customer: customerName } : product
+  })
+}
+
 export async function fetchProducts(activeOnly = true): Promise<FetchProductsResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
@@ -46,7 +78,12 @@ export async function fetchProducts(activeOnly = true): Promise<FetchProductsRes
       return { ok: false, reason: 'query', detail: error.message }
     }
 
-    return { ok: true, products: (data || []).map((row) => mapItemRowToProduct(row)) }
+    const rows = data || []
+    const products = rows.map((row) => mapItemRowToProduct(row))
+    return {
+      ok: true,
+      products: await attachProductCustomerNames(supabase, products, rows),
+    }
   } catch (error) {
     return {
       ok: false,

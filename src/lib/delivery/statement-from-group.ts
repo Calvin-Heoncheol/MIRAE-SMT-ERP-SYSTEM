@@ -1,4 +1,4 @@
-import { buildDeliveryStatementDataFromShipment } from '@/lib/delivery/print-delivery-statement'
+import { buildDeliveryStatementDataFromShipment } from '@/lib/delivery/build-delivery-statement-data'
 import type { DeliveryStatementData } from '@/lib/delivery/types'
 import type { DeliveryStatementTableGroup } from '@/lib/delivery/history-utils'
 import {

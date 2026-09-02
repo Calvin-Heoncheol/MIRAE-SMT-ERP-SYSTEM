@@ -1,5 +1,5 @@
 import type { MaterialInboundStatus } from '@/lib/materials/material-inbound-status'
-import type { ProductionPlanBoardRow } from './types'
+import type { ProductionPlanBoardRow, ProductionPlanScope } from './types'
 
 export type ProductionPlanPipelineBuckets = {
   materialWaiting: ProductionPlanBoardRow[]
@@ -81,6 +81,20 @@ export function bucketProductionPlanRows(rows: ProductionPlanBoardRow[]): Produc
   }
 
   return { materialWaiting, smtWaiting, postWaitingReady, postWaitingBlocked }
+}
+
+/** 팀 탭별 캘린더 대기함 — 해당 scope의 waiting 행 */
+export function getProductionPlanWaitingRows(
+  rows: ProductionPlanBoardRow[],
+  scope: ProductionPlanScope,
+): ProductionPlanBoardRow[] {
+  if (scope === 'material') {
+    return rows.filter((row) => row.scope === 'material' && row.status === 'waiting')
+  }
+
+  const buckets = bucketProductionPlanRows(rows)
+  if (scope === 'smt') return buckets.smtWaiting
+  return [...buckets.postWaitingReady, ...buckets.postWaitingBlocked]
 }
 
 export function filterPipelineRows(rows: ProductionPlanBoardRow[], query: string) {

@@ -1,10 +1,12 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { isBillingOnlyOrderItem } from '@/lib/orders/utils'
+import type { BusinessPartner } from '@/lib/partners/types'
 import type { Product, ProductPcbSideMode } from '@/lib/products/types'
 import { isSplitProductPcbSideMode } from '@/lib/products/utils'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
+import type { ProductionStatusLine } from '@/lib/production-status/types'
 import {
   assemblyGroupIncludesPostProcess,
   assemblyGroupIncludesSmt,
@@ -63,6 +65,10 @@ export type DeliveryInputPageData = {
   billingOnlyLines: DeliveryBillingOnlyLine[]
   deliveryCounts: Record<string, number>
   availabilityByGroupId: Record<string, DeliveryAvailability>
+  /** 출하 등록 ↔ 생산현황「진행중」 연동 */
+  productionStatusLines: ProductionStatusLine[]
+  products: Product[]
+  partners: BusinessPartner[]
 }
 
 /** 발주서의 추가작업(금액 전용) 라인을 출하 UI용으로 추출 */
@@ -274,6 +280,40 @@ type HistoryStatementProductionOrder = {
   productCode: string
   productName: string
   unitPrice: number
+}
+
+/** 발주 출하 옵션 단가로 먼저 채우고, 없는 행만 order_lines 조회 대상으로 반환 */
+export function resolveHistoryLineUnitPrices(
+  lines: HistoryStatementLineInput[],
+  productionOrders: HistoryStatementProductionOrder[],
+): {
+  unitPriceByDeliveryId: Record<string, number>
+  fetchTargets: Array<{ orderId: string; productId: string; lineId: string }>
+} {
+  const unitPriceByDeliveryId: Record<string, number> = {}
+  const fetchTargets: Array<{ orderId: string; productId: string; lineId: string }> = []
+
+  for (const line of lines) {
+    const production =
+      productionOrders.find((order) => order.assemblyGroupId === line.assemblyGroupId) ||
+      productionOrders.find(
+        (order) =>
+          order.orderNumber === line.orderNumber &&
+          (order.productId === line.productId || order.productCode === line.productCode),
+      )
+    if (production?.unitPrice != null && production.unitPrice > 0) {
+      unitPriceByDeliveryId[line.id] = production.unitPrice
+      continue
+    }
+    const productId = String(line.productId || line.productCode || '').trim()
+    if (!productId) {
+      unitPriceByDeliveryId[line.id] = 0
+      continue
+    }
+    fetchTargets.push({ orderId: line.orderNumber, productId, lineId: line.id })
+  }
+
+  return { unitPriceByDeliveryId, fetchTargets }
 }
 
 /** 출하 이력(제품 행만) + 발주 추가작업 → 거래명세서 품목 입력 */

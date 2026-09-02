@@ -422,3 +422,18 @@ export function filterProductionStatusLinesByDate(
 ) {
   return lines.filter((line) => matchesDateRange(line.deliveryDate, range))
 }
+
+/** 생산현황 출하 컬럼 → 출하 등록 화면 uiKey */
+export function resolveProductionStatusDeliveryUiKey(
+  line: ProductionStatusLine,
+  deliveryOrders: ProductionOrderLine[],
+  product?: ProductionStatusProductLine,
+): string {
+  const candidates = deliveryOrders.filter((order) => {
+    if (order.orderId !== line.orderId) return false
+    if (!product) return true
+    const groupId = order.assemblyGroupId || order.orderLineId
+    return product.assemblyGroupIds.includes(groupId)
+  })
+  return candidates[0]?.uiKey || ''
+}

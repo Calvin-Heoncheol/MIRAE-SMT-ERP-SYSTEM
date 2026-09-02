@@ -90,6 +90,8 @@ export function mapItemRowToProduct(row: {
   setup_unit_price?: number | null
   smt_quote_parts?: unknown
   baseline_quote_id?: string | null
+  customer_id?: string | null
+  customer_name?: string | null
   item_category: number | string
   is_active: boolean | null
 }): Product {
@@ -104,10 +106,7 @@ export function mapItemRowToProduct(row: {
   const materialUnitPrice = Number(row.material_unit_price) || 0
   const otherUnitPrice = Number(row.other_unit_price) || 0
   const setupRaw = row.setup_unit_price
-  const setupUnitPrice =
-    setupRaw === null || setupRaw === undefined
-      ? otherUnitPrice
-      : Math.max(0, Math.round(Number(setupRaw) || 0))
+  const setupUnitPrice = Math.max(0, Math.round(Number(setupRaw) || 0))
   const unitPrice = Number(row.unit_price) || 0
   const breakdownTotal = setupUnitPrice + smdUnitPrice + dipUnitPrice + materialUnitPrice
 
@@ -120,7 +119,7 @@ export function mapItemRowToProduct(row: {
 
   return {
     id: row.id,
-    customer: '',
+    customer: String(row.customer_name || '').trim(),
     productCode: baseCode,
     version,
     productName: row.name || '',
@@ -129,6 +128,7 @@ export function mapItemRowToProduct(row: {
     smdUnitPrice,
     dipUnitPrice,
     materialUnitPrice,
+    additionalUnitPrice: itemCategory === 3 || itemCategory === 4 ? otherUnitPrice : 0,
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
     processType,
     productKind: itemCategory === 4 ? 'assembly' : 'pcb',
@@ -152,6 +152,13 @@ export function productMatchesCustomer(product: Product, customer: string) {
   const productCustomer = product.customer.trim()
   if (!productCustomer) return true
   return productCustomer === orderCustomer
+}
+
+/** 품목등록 고객사와 정확히 일치하는 활성 품목만 (출하 등록 등) */
+export function filterProductsForCustomerStrict(products: Product[], customer: string) {
+  const name = customer.trim()
+  if (!name) return [] as Product[]
+  return products.filter((product) => product.isActive && product.customer.trim() === name)
 }
 
 export function productSearchHaystack(product: Product) {

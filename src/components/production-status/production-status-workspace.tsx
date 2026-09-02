@@ -31,7 +31,7 @@ type ProductionStatusWorkspaceProps = {
 }
 
 type QuickInputState = {
-  stage: Exclude<ProductionStatusStage, 'delivery'>
+  stage: ProductionStatusStage
   line: ProductionStatusLine
   product?: ProductionStatusProductLine
 } | null
@@ -45,6 +45,7 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [quickInput, setQuickInput] = useState<QuickInputState>(null)
+  const [pendingRefresh, setPendingRefresh] = useState(false)
   const [, startTransition] = useTransition()
 
   const data = result.ok ? result.data : null
@@ -113,14 +114,22 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
     stage: ProductionStatusStage,
     product?: ProductionStatusProductLine,
   ) {
-    if (stage === 'delivery') return
     setQuickInput({ stage, line, product })
   }
 
   function handleRegistered() {
-    startTransition(() => {
-      router.refresh()
-    })
+    setPendingRefresh(true)
+  }
+
+  function closeQuickInput() {
+    const shouldRefresh = pendingRefresh
+    setQuickInput(null)
+    setPendingRefresh(false)
+    if (shouldRefresh) {
+      startTransition(() => {
+        router.refresh()
+      })
+    }
   }
 
   const hasActiveFilter = Boolean(query) || hasDateRangeFilter(dateRange)
@@ -186,9 +195,12 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
         product={quickInput?.product ?? null}
         smtOrders={data!.smtOrders}
         postOrders={data!.postOrders}
+        deliveryOrders={data!.deliveryOrders}
         smtCounts={data!.smtCounts}
         postCounts={data!.postCounts}
-        onClose={() => setQuickInput(null)}
+        deliveryCounts={data!.deliveryCounts}
+        deliveryAvailabilityByGroupId={data!.deliveryAvailabilityByGroupId}
+        onClose={closeQuickInput}
         onRegistered={handleRegistered}
       />
     </PageShell>

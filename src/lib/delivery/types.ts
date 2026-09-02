@@ -84,6 +84,8 @@ export type DeliveryStatementLine = {
   qty: number
   unitPrice: number
   supplyAmount: number
+  /** 금액전용(추가작업) — 합계 수량 집계에서 제외 */
+  billingOnly?: boolean
 }
 
 export type DeliveryStatementData = {

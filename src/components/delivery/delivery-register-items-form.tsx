@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
-import { DeliveryShippableCombobox } from '@/components/delivery/delivery-shippable-combobox'
+import { ProductCombobox } from '@/components/orders/product-combobox'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import type {
@@ -9,44 +9,33 @@ import type {
   DeliveryShippableOption,
 } from '@/lib/delivery/register-form'
 import {
+  applyProductToRegisterItem,
   applyShippableOptionToItem,
+  allocationsForRegisterQuantity,
   availableBillingLinesForRegister,
   computeDeliveryLineAmount,
+  DELIVERY_REGISTER_MIN_ROWS,
   emptyDeliveryRegisterItemForm,
-  findExactShippableOptions,
+  findShippableOptionsForRegisterItem,
   insertBillingRegisterItem,
   isBillingRegisterItem,
+  isDeliveryRegisterQuantityEnabled,
 } from '@/lib/delivery/register-form'
 import type { DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
-import { syncFinishedGoodsLots } from '@/lib/production-lots/repository'
+import { DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from '@/lib/delivery/config'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
+import { fetchAvailableLots, syncFinishedGoodsLots } from '@/lib/production-lots/repository'
+import type { Product } from '@/lib/products/types'
+import { filterProductsForCustomerStrict } from '@/lib/products/utils'
 
 type DeliveryRegisterItemsFormProps = {
   items: DeliveryRegisterItemForm[]
   options: DeliveryShippableOption[]
+  products: Product[]
+  customer: string
   billingOnlyLines?: DeliveryBillingOnlyLine[]
-  lockedCustomer: string
   disabled?: boolean
-  /** fixed: 왼쪽 출하가능 체크로 품목 선택 (코드 검색 숨김) */
-  productSelectMode?: 'combobox' | 'fixed'
   onChange: Dispatch<SetStateAction<DeliveryRegisterItemForm[]>>
-}
-
-function clearItemProduct(item: DeliveryRegisterItemForm): DeliveryRegisterItemForm {
-  return {
-    ...item,
-    uiKey: '',
-    assemblyGroupId: '',
-    orderNumber: '',
-    customerPoNumber: '',
-    customer: '',
-    productCode: item.productCode,
-    productName: '',
-    productVersion: null,
-    maxQuantity: 0,
-    availableLots: [],
-    allocations: [],
-    lotManual: false,
-  }
 }
 
 function formatBillingOptionLabel(line: DeliveryBillingOnlyLine) {
@@ -58,14 +47,19 @@ function formatBillingOptionLabel(line: DeliveryBillingOnlyLine) {
 export function DeliveryRegisterItemsForm({
   items,
   options,
+  products,
+  customer,
   billingOnlyLines = [],
-  lockedCustomer,
   disabled = false,
-  productSelectMode = 'combobox',
   onChange,
 }: DeliveryRegisterItemsFormProps) {
-  const fixedProducts = productSelectMode === 'fixed'
   const [billingPickerOpen, setBillingPickerOpen] = useState(false)
+  const customerName = customer.trim()
+
+  const customerProducts = useMemo(
+    () => filterProductsForCustomerStrict(products, customerName),
+    [customerName, products],
+  )
 
   const availableBilling = useMemo(
     () => availableBillingLinesForRegister(items, billingOnlyLines),
@@ -75,7 +69,7 @@ export function DeliveryRegisterItemsForm({
   function optionsForRow(index: number) {
     const currentId = items[index]?.assemblyGroupId.trim()
     return options.filter((option) => {
-      if (lockedCustomer && option.customer !== lockedCustomer) return false
+      if (customerName && option.customer !== customerName) return false
       const usedElsewhere = items.some(
         (item, itemIndex) =>
           itemIndex !== index && item.assemblyGroupId === option.assemblyGroupId,
@@ -93,14 +87,15 @@ export function DeliveryRegisterItemsForm({
   }
 
   function addRow() {
-    onChange([...items, emptyDeliveryRegisterItemForm()])
+    onChange([...items, { ...emptyDeliveryRegisterItemForm(), customer: customerName }])
   }
 
   function removeRow(index: number) {
     const target = items[index]
     if (!target) return
     if (!isBillingRegisterItem(target)) {
-      if (!fixedProducts && items.filter((item) => !isBillingRegisterItem(item)).length <= 1) return
+      const productRows = items.filter((item) => !isBillingRegisterItem(item))
+      if (productRows.length <= DELIVERY_REGISTER_MIN_ROWS) return
     }
     onChange(items.filter((_, itemIndex) => itemIndex !== index))
   }
@@ -119,14 +114,53 @@ export function DeliveryRegisterItemsForm({
     setBillingPickerOpen((open) => !open)
   }
 
-  async function selectOption(index: number, option: DeliveryShippableOption) {
+  async function attachLots(index: number, item: DeliveryRegisterItemForm) {
+    if (isBillingRegisterItem(item) || !item.assemblyGroupId.trim()) return
+    await syncFinishedGoodsLots({ assemblyGroupId: item.assemblyGroupId })
+    const result = await fetchAvailableLots(item.assemblyGroupId)
+    const lots = result.ok ? result.lots : []
+    const quantity = Math.floor(Number(item.quantity) || 0)
     onChange((current) =>
-      current.map((item, itemIndex) =>
-        itemIndex === index ? applyShippableOptionToItem(item, option) : item,
+      current.map((row, rowIndex) =>
+        rowIndex === index
+          ? {
+              ...row,
+              availableLots: lots,
+              allocations: row.lotManual
+                ? row.allocations
+                : allocationsForRegisterQuantity(lots, quantity),
+            }
+          : row,
       ),
     )
-    // LOT은 화면에서 다루지 않고, 출하 시 FIFO 자동 배정
-    await syncFinishedGoodsLots({ assemblyGroupId: option.assemblyGroupId })
+  }
+
+  async function selectOrderOption(index: number, assemblyGroupId: string) {
+    const option = optionsForRow(index).find((row) => row.assemblyGroupId === assemblyGroupId)
+    if (!option) return
+    const nextItem = applyShippableOptionToItem(
+      items[index] ?? emptyDeliveryRegisterItemForm(),
+      option,
+      { autoFillQuantity: false },
+    )
+    onChange((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? nextItem : item)),
+    )
+    await attachLots(index, nextItem)
+  }
+
+  async function selectProduct(index: number, product: Product) {
+    const nextItem = applyProductToRegisterItem(
+      items[index] ?? emptyDeliveryRegisterItemForm(),
+      product,
+      optionsForRow(index),
+      customerName,
+      false,
+    )
+    onChange((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? nextItem : item)),
+    )
+    await attachLots(index, nextItem)
   }
 
   function patchQuantity(index: number, quantity: string) {
@@ -136,14 +170,10 @@ export function DeliveryRegisterItemsForm({
   const inputClassName =
     'w-full min-w-0 rounded border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
   const readOnlyClassName = `${inputClassName} bg-slate-50 text-slate-600`
-
-  if (fixedProducts && !items.length) {
-    return (
-      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-        왼쪽에서 출하할 품목을 체크하세요.
-      </div>
-    )
-  }
+  const tableItems = customerName
+    ? items
+    : Array.from({ length: DELIVERY_REGISTER_MIN_ROWS }, () => emptyDeliveryRegisterItemForm())
+  const tableDisabled = disabled || !customerName
 
   return (
     <div className="space-y-3">
@@ -160,7 +190,7 @@ export function DeliveryRegisterItemsForm({
               + 추가작업
             </button>
           ) : null}
-          {!disabled && !fixedProducts ? <ErpRowAddButton onClick={addRow} title="행 추가" /> : null}
+          {!tableDisabled ? <ErpRowAddButton onClick={addRow} title="행 추가" /> : null}
         </div>
       </div>
 
@@ -183,17 +213,13 @@ export function DeliveryRegisterItemsForm({
         </div>
       ) : null}
 
-      {lockedCustomer && !fixedProducts ? (
-        <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
-          고객사 잠금: <span className="font-semibold">{lockedCustomer}</span> — 같은 고객사만
-          추가됩니다.
-        </p>
-      ) : null}
-
       <div className="overflow-x-auto rounded-lg border border-slate-300">
-        <table className="erp-data-table erp-data-table--compact w-full min-w-[640px] border-collapse text-sm">
+        <table className="erp-data-table erp-data-table--compact w-full min-w-[760px] border-collapse text-sm">
           <thead className="bg-slate-100">
             <tr>
+              <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                발주번호
+              </th>
               <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
                 품목코드
               </th>
@@ -213,31 +239,70 @@ export function DeliveryRegisterItemsForm({
             </tr>
           </thead>
           <tbody>
-            {items.map((item, index) => {
+            {tableItems.map((item, index) => {
               const amount = computeDeliveryLineAmount(
                 Number(item.quantity),
                 Number(item.unitPrice),
               )
-              const rowOptions = optionsForRow(index)
               const billing = isBillingRegisterItem(item)
-              const nameLabel = item.productName
-                ? item.productVersion?.trim()
-                  ? `${item.productName} · ${item.productVersion.trim()}`
-                  : item.productName
-                : ''
+              const rowOptions = billing
+                ? []
+                : findShippableOptionsForRegisterItem(optionsForRow(index), customerName, item)
+              const hasProduct = Boolean(item.productCode.trim() || item.productName.trim())
+              const quantityEnabled =
+                !tableDisabled && !disabled && isDeliveryRegisterQuantityEnabled(item)
               return (
                 <tr
                   key={item.key}
                   className={`border-t border-slate-200 ${billing ? 'bg-amber-50/70' : 'bg-white'}`}
                 >
                   <td className="px-2 py-1.5 align-top">
-                    {fixedProducts || billing ? (
+                    {billing ? (
+                      <input
+                        value={displayOrderPoNumber(item.customerPoNumber, item.orderNumber)}
+                        readOnly
+                        className={`${readOnlyClassName} min-w-[100px] text-xs`}
+                        aria-label={`${index + 1}행 발주번호`}
+                      />
+                    ) : !hasProduct ? (
+                      <span className="block px-1 py-1.5 text-xs text-slate-400">—</span>
+                    ) : rowOptions.length === 0 ? (
+                      <span className="block rounded border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs font-medium text-rose-700">
+                        발주서 없음
+                      </span>
+                    ) : rowOptions.length === 1 ? (
+                      <input
+                        value={displayOrderPoNumber(
+                          rowOptions[0]!.customerPoNumber,
+                          rowOptions[0]!.orderNumber,
+                        )}
+                        readOnly
+                        className={`${readOnlyClassName} min-w-[100px] text-xs`}
+                        aria-label={`${index + 1}행 발주번호`}
+                      />
+                    ) : (
+                      <select
+                        value={item.assemblyGroupId}
+                        disabled={tableDisabled}
+                        onChange={(event) => void selectOrderOption(index, event.target.value)}
+                        className={`${tableDisabled ? readOnlyClassName : inputClassName} min-w-[120px] text-xs`}
+                        aria-label={`${index + 1}행 발주번호 선택`}
+                      >
+                        <option value="">발주 선택</option>
+                        {rowOptions.map((option) => (
+                          <option key={option.assemblyGroupId} value={option.assemblyGroupId}>
+                            {displayOrderPoNumber(option.customerPoNumber, option.orderNumber)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 align-top">
+                    {billing ? (
                       <div className="space-y-1">
-                        {billing ? (
-                          <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
-                            추가작업
-                          </span>
-                        ) : null}
+                        <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
+                          추가작업
+                        </span>
                         <input
                           value={item.productCode}
                           readOnly
@@ -246,33 +311,74 @@ export function DeliveryRegisterItemsForm({
                         />
                       </div>
                     ) : (
-                      <DeliveryShippableCombobox
+                      <ProductCombobox
                         value={item.productCode}
-                        options={rowOptions}
+                        products={customerProducts}
+                        customer={customerName}
+                        field="code"
                         placeholder="코드 검색"
                         ariaLabel={`${index + 1}행 품목코드`}
-                        disabled={disabled}
-                        inputClassName={`${disabled ? readOnlyClassName : inputClassName} min-w-[120px]`}
-                        onValueChange={(productCode) => {
-                          const exact = findExactShippableOptions(rowOptions, productCode)
-                          if (exact.length === 1) {
-                            void selectOption(index, exact[0]!)
-                            return
-                          }
-                          patchItem(index, { ...clearItemProduct(item), productCode })
-                        }}
-                        onOptionSelect={(option) => void selectOption(index, option)}
+                        inputClassName={`${tableDisabled ? readOnlyClassName : inputClassName} min-w-[120px] font-mono`}
+                        onValueChange={(productCode) =>
+                          patchItem(index, {
+                            productCode,
+                            productName: '',
+                            productVersion: null,
+                            assemblyGroupId: '',
+                            uiKey: '',
+                            orderNumber: '',
+                            customerPoNumber: '',
+                            maxQuantity: 0,
+                            unitPrice: '0',
+                            quantity: '',
+                            availableLots: [],
+                            allocations: [],
+                            lotManual: false,
+                            customer: customerName,
+                          })
+                        }
+                        onProductSelect={(product) => void selectProduct(index, product)}
                       />
                     )}
                   </td>
                   <td className="px-2 py-1.5 align-top">
-                    <input
-                      value={nameLabel}
-                      readOnly
-                      className={readOnlyClassName}
-                      placeholder="자동"
-                      aria-label={`${index + 1}행 품목명`}
-                    />
+                    {billing ? (
+                      <input
+                        value={item.productName}
+                        readOnly
+                        className={readOnlyClassName}
+                        aria-label={`${index + 1}행 품목명`}
+                      />
+                    ) : (
+                      <ProductCombobox
+                        value={item.productName}
+                        products={customerProducts}
+                        customer={customerName}
+                        field="name"
+                        placeholder="품목명 검색"
+                        ariaLabel={`${index + 1}행 품목명`}
+                        inputClassName={`${tableDisabled ? readOnlyClassName : inputClassName} min-w-[140px]`}
+                        onValueChange={(productName) =>
+                          patchItem(index, {
+                            productName,
+                            productCode: '',
+                            productVersion: null,
+                            assemblyGroupId: '',
+                            uiKey: '',
+                            orderNumber: '',
+                            customerPoNumber: '',
+                            maxQuantity: 0,
+                            unitPrice: '0',
+                            quantity: '',
+                            availableLots: [],
+                            allocations: [],
+                            lotManual: false,
+                            customer: customerName,
+                          })
+                        }
+                        onProductSelect={(product) => void selectProduct(index, product)}
+                      />
+                    )}
                   </td>
                   <td className="px-2 py-1.5 align-top">
                     <input
@@ -282,10 +388,10 @@ export function DeliveryRegisterItemsForm({
                       value={item.quantity}
                       placeholder={
                         !billing && item.maxQuantity > 0
-                          ? `가능 ${item.maxQuantity.toLocaleString('ko-KR')}`
+                          ? `${DELIVERY_REGISTER_SKIP_PRODUCTION_CAP ? '잔량' : '가능'} ${item.maxQuantity.toLocaleString('ko-KR')}`
                           : '수량'
                       }
-                      disabled={disabled}
+                      disabled={!quantityEnabled}
                       onChange={(event) => patchQuantity(index, event.target.value)}
                       className={`${disabled ? readOnlyClassName : inputClassName} min-w-[88px] text-right tabular-nums placeholder:text-slate-400`}
                       aria-label={`${index + 1}행 수량`}
@@ -310,10 +416,8 @@ export function DeliveryRegisterItemsForm({
                     />
                   </td>
                   <td className="px-1 py-1.5 text-center align-top">
-                    {!disabled &&
-                    (billing ||
-                      fixedProducts ||
-                      items.filter((row) => !isBillingRegisterItem(row)).length > 1) ? (
+                    {!tableDisabled &&
+                    (billing || tableItems.filter((row) => !isBillingRegisterItem(row)).length > DELIVERY_REGISTER_MIN_ROWS) ? (
                       <button
                         type="button"
                         onClick={() => removeRow(index)}
@@ -331,8 +435,9 @@ export function DeliveryRegisterItemsForm({
         </table>
       </div>
       <p className="mt-2 text-xs text-slate-500">
-        단가는 발주서 기준입니다. 발주에 등록된 추가작업은 「+ 추가작업」으로 미리 넣을 수 있고,
-        거래명세서에는 발주서 기준으로 자동 반영됩니다.
+        품목코드 또는 품목명을 입력하면 선택한 고객사의 품목만 검색됩니다. 생산현황에서 진행 중인 발주에
+        등록된 품목만 출하할 수 있으며, 같은 품목이 여러 발주에 있으면 발주번호를 선택해야 합니다. 선택 시
+        품목등록 기준 단가가 자동 입력됩니다.
       </p>
     </div>
   )

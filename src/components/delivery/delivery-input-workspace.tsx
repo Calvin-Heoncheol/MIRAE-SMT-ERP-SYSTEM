@@ -1,13 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { DeliveryHistoryFetchError } from '@/components/delivery/delivery-history-fetch-error'
 import { DeliveryHistoryModal } from '@/components/delivery/delivery-history-modal'
 import { DeliveryHistoryTable } from '@/components/delivery/delivery-history-table'
 import { DeliveryRegisterMenu } from '@/components/delivery/delivery-register-menu'
 import { DeliveryRegisterModal } from '@/components/delivery/delivery-register-modal'
-import { LegacyStatementModal } from '@/components/reports/legacy-statement-modal'
 import { SalesStatementEditModal } from '@/components/reports/sales-statement-edit-modal'
 import { ProductionFetchError } from '@/components/production-input/production-fetch-error'
 import { DateRangeFilter } from '@/components/ui/date-range-filter'
@@ -16,11 +14,10 @@ import { PageShell } from '@/components/ui/page-shell'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
-import { useToast } from '@/components/ui/toast-provider'
 import { DELIVERY_INPUT_CONFIG } from '@/lib/delivery/config'
 import {
   applyShippableOptionToItem,
-  buildDeliveryShippableOptions,
+  buildDeliveryRegisterOrderOptions,
   emptyDeliveryRegisterItemForm,
   type DeliveryRegisterItemForm,
   type DeliveryShippableOption,
@@ -30,7 +27,7 @@ import {
   type FetchDeliveryHistoryResult,
   type FetchDeliveryInputPageResult,
 } from '@/lib/delivery/repository'
-import type { DeliveryAvailability } from '@/lib/delivery/utils'
+import { resolveHistoryLineUnitPrices, type DeliveryAvailability } from '@/lib/delivery/utils'
 import {
   computeShipmentGroupSupplyAmount,
   filterDeliveryHistory,
@@ -76,9 +73,7 @@ export function DeliveryInputWorkspace({
   legacyGroupsResult,
   initialUiKey = '',
 }: DeliveryInputWorkspaceProps) {
-  const router = useRouter()
-  const toast = useToast()
-  const { afterSave, afterDelete } = useSaveFeedback()
+  const { afterSave, afterDelete, afterCreate } = useSaveFeedback()
 
   const [search, setSearch] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -87,7 +82,6 @@ export function DeliveryInputWorkspace({
   const [historyModal, setHistoryModal] = useState<HistoryModalState>({ open: false })
   const [historyModalSession, setHistoryModalSession] = useState(0)
   const [legacyEditGroup, setLegacyEditGroup] = useState<SalesReportStatementGroup | null>(null)
-  const [legacyOpen, setLegacyOpen] = useState(false)
   const [registerOpen, setRegisterOpen] = useState(false)
   const [registerSession, setRegisterSession] = useState(0)
   const [registerInitialItems, setRegisterInitialItems] = useState<DeliveryRegisterItemForm[] | null>(
@@ -106,6 +100,9 @@ export function DeliveryInputWorkspace({
   const rows = historyResult.ok ? historyResult.rows : []
   const orders = inputResult.ok ? inputResult.data.orders : []
   const billingOnlyLines = inputResult.ok ? inputResult.data.billingOnlyLines : []
+  const registerPartners = inputResult.ok ? inputResult.data.partners : []
+  const registerProducts = inputResult.ok ? inputResult.data.products : []
+  const productionStatusLines = inputResult.ok ? inputResult.data.productionStatusLines : []
   const legacyGroups = legacyGroupsResult.ok ? legacyGroupsResult.groups : []
 
   const productionOrders = useMemo(
@@ -122,8 +119,9 @@ export function DeliveryInputWorkspace({
   )
 
   const shippableOptions = useMemo(
-    () => buildDeliveryShippableOptions(orders, availabilityByGroupId),
-    [orders, availabilityByGroupId],
+    () =>
+      buildDeliveryRegisterOrderOptions(productionStatusLines, orders, availabilityByGroupId),
+    [productionStatusLines, orders, availabilityByGroupId],
   )
 
   const dateRange = useMemo(() => ({ startDate, endDate }), [startDate, endDate])
@@ -181,15 +179,20 @@ export function DeliveryInputWorkspace({
     setPrintError(null)
 
     try {
+      const builtResults = await Promise.all(
+        statementGroups.map((group) =>
+          buildDeliveryStatementDataFromTableGroup(group, {
+            unitPriceByDeliveryId,
+            billingOnlyLines,
+            productionOrders: orders,
+          }),
+        ),
+      )
+
       const statements = []
       const failures: string[] = []
 
-      for (const group of statementGroups) {
-        const built = await buildDeliveryStatementDataFromTableGroup(group, {
-          unitPriceByDeliveryId,
-          billingOnlyLines,
-          productionOrders: orders,
-        })
+      for (const built of builtResults) {
         if (!built.ok) {
           failures.push(built.detail)
           continue
@@ -291,22 +294,16 @@ export function DeliveryInputWorkspace({
     afterDelete(message ?? '출하 내역을 삭제했습니다.', { close: closeHistory })
   }
 
-  function handleLegacySaved(message?: string) {
-    toast.success(message ?? '과거 거래명세서를 등록했습니다.')
-    setLegacyOpen(false)
-    router.refresh()
-  }
-
   function handleLegacyEdited(message?: string) {
-    toast.success(message ?? '거래명세서 내역을 수정했습니다.')
-    setLegacyEditGroup(null)
-    router.refresh()
+    afterSave(message ?? '거래명세서 내역을 수정했습니다.', {
+      close: () => setLegacyEditGroup(null),
+    })
   }
 
   function handleLegacyDeleted(message?: string) {
-    toast.success(message ?? '거래명세서 내역을 삭제했습니다.')
-    setLegacyEditGroup(null)
-    router.refresh()
+    afterDelete(message ?? '거래명세서 내역을 삭제했습니다.', {
+      close: () => setLegacyEditGroup(null),
+    })
   }
 
   function handleShipped(payload: {
@@ -327,13 +324,31 @@ export function DeliveryInputWorkspace({
       }
       return next
     })
-    toast.success('출하 완료', `명세서 ${payload.shipmentId}`)
-    router.refresh()
+    afterCreate(`출하 완료 · 명세서 ${payload.shipmentId}`, { refresh: true })
   }
 
   useEffect(() => {
-    if (!rows.length) {
+    if (!filteredHistory.length) {
       setUnitPriceByDeliveryId({})
+      setSupplyAmountsLoading(false)
+      return
+    }
+
+    const { unitPriceByDeliveryId: resolved, fetchTargets } = resolveHistoryLineUnitPrices(
+      filteredHistory.map((line) => ({
+        id: line.id,
+        orderNumber: line.orderNumber,
+        assemblyGroupId: line.assemblyGroupId,
+        productId: line.productId,
+        productCode: line.productCode,
+        productName: line.productName,
+        quantity: line.quantity,
+      })),
+      productionOrders,
+    )
+
+    if (!fetchTargets.length) {
+      setUnitPriceByDeliveryId(resolved)
       setSupplyAmountsLoading(false)
       return
     }
@@ -343,17 +358,17 @@ export function DeliveryInputWorkspace({
 
     void (async () => {
       const result = await fetchOrderLineUnitPrices(
-        rows.map((line) => ({
-          orderId: line.orderNumber,
-          productId: line.productId || line.productCode,
+        fetchTargets.map((target) => ({
+          orderId: target.orderId,
+          productId: target.productId,
         })),
       )
       if (cancelled) return
 
-      const next: Record<string, number> = {}
+      const next = { ...resolved }
       if (result.ok) {
-        rows.forEach((line, index) => {
-          next[line.id] = result.prices[index] || 0
+        fetchTargets.forEach((target, index) => {
+          next[target.lineId] = result.prices[index] || 0
         })
       }
       setUnitPriceByDeliveryId(next)
@@ -363,7 +378,7 @@ export function DeliveryInputWorkspace({
     return () => {
       cancelled = true
     }
-  }, [rows])
+  }, [filteredHistory, productionOrders])
 
   useEffect(() => {
     if (!initialUiKey || openedInitialUiKey.current) return
@@ -419,10 +434,7 @@ export function DeliveryInputWorkspace({
                 disabled={printing || closingExporting || statementGroups.length === 0}
                 label={closingExporting ? '준비 중…' : '월 마감'}
               />
-              <DeliveryRegisterMenu
-                onOpenRegister={() => openRegister()}
-                onOpenLegacy={() => setLegacyOpen(true)}
-              />
+              <DeliveryRegisterMenu onOpenRegister={() => openRegister()} />
             </>
           }
         />
@@ -450,6 +462,8 @@ export function DeliveryInputWorkspace({
           open
           options={shippableOptions}
           billingOnlyLines={billingOnlyLines}
+          partners={registerPartners}
+          products={registerProducts}
           initialItems={registerInitialItems}
           onClose={closeRegister}
           onShipped={handleShipped}
@@ -463,17 +477,12 @@ export function DeliveryInputWorkspace({
           group={historyModal.group}
           billingOnlyLines={billingOnlyLines}
           productionOrders={orders}
+          unitPriceByDeliveryId={unitPriceByDeliveryId}
           onClose={closeHistory}
           onSaved={handleHistorySaved}
           onDeleted={handleHistoryDeleted}
         />
       ) : null}
-
-      <LegacyStatementModal
-        open={legacyOpen}
-        onClose={() => setLegacyOpen(false)}
-        onSaved={handleLegacySaved}
-      />
 
       <SalesStatementEditModal
         open={Boolean(legacyEditGroup)}

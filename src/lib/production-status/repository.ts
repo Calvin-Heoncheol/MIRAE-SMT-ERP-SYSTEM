@@ -10,6 +10,7 @@ import {
   buildDeliveryInputOrders,
 } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
+import { stripDerivedOrderLines } from '@/lib/orders/utils'
 import {
   buildPostProcessAssemblyLines,
   buildProductionOrderLines,
@@ -32,34 +33,32 @@ export type FetchProductionStatusResult =
  */
 export async function fetchProductionStatusPageData(): Promise<FetchProductionStatusResult> {
   const [
-    ordersResult,
+    derivedOrdersResult,
     productsResult,
     smtCountsResult,
     postCountsResult,
     deliveryCountsResult,
-    smtOrdersResult,
     quotesResult,
   ] = await Promise.all([
-    fetchOrders(),
+    fetchOrders({ includeDerivedLines: true }),
     fetchProducts(false),
     fetchSmtCumulativeCounts(),
     fetchPostProcessCumulativeCounts(),
     fetchDeliveryCumulativeCounts(),
-    fetchOrders({ includeDerivedLines: true }),
     fetchQuotes(),
   ])
 
-  if (!ordersResult.ok) return ordersResult
+  if (!derivedOrdersResult.ok) return derivedOrdersResult
   if (!productsResult.ok) return productsResult
   if (!smtCountsResult.ok) return smtCountsResult
   if (!postCountsResult.ok) return postCountsResult
   if (!deliveryCountsResult.ok) return deliveryCountsResult
-  if (!smtOrdersResult.ok) return smtOrdersResult
   if (!quotesResult.ok) return quotesResult
 
+  const orders = stripDerivedOrderLines(derivedOrdersResult.orders)
   const productById = Object.fromEntries(productsResult.products.map((product) => [product.id, product]))
   const smtOrders = buildProductionOrderLines(
-    smtOrdersResult.orders,
+    derivedOrdersResult.orders,
     'SMT',
     productById,
     'smt',
@@ -73,7 +72,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
 
   assemblyResult = await repairChildrenOnlyAssemblyGroups(
     assemblyResult.groups,
-    ordersResult.orders,
+    orders,
     productById,
   )
   if (!assemblyResult.ok) {
@@ -88,7 +87,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
   assemblyResult = await repairMissingSemiFinishedDeliveryGroups(
     assemblyResult.groups,
     productById,
-    smtOrdersResult.orders,
+    derivedOrdersResult.orders,
   )
   if (!assemblyResult.ok) {
     return assemblyResult
@@ -96,13 +95,13 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
 
   const postOrders = buildPostProcessAssemblyLines(
     assemblyResult.groups,
-    ordersResult.orders,
+    orders,
     productById,
     quotesResult.quotes,
   )
   const deliveryOrders = buildDeliveryInputOrders(
     assemblyResult.groups,
-    smtOrdersResult.orders,
+    derivedOrdersResult.orders,
     productById,
     quotesResult.quotes,
   )
@@ -118,7 +117,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     ok: true,
     data: {
       lines: buildProductionStatusLines(
-        ordersResult.orders,
+        orders,
         smtOrders,
         assemblyResult.groups,
         smtCountsResult.counts,

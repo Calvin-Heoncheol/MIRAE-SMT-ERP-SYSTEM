@@ -7,9 +7,10 @@ import {
   COMPANY_TEL,
 } from '@/lib/app-config'
 import type { OrderCurrency, OrderListGroup } from '@/lib/orders/types'
-import { formatOrderDate, formatOrderMoney, normalizeOrderCurrency } from '@/lib/orders/utils'
+import { formatOrderDate, formatOrderMoney, normalizeOrderCurrency, sumCommercialOrderQuantity } from '@/lib/orders/utils'
 
 export type OrderPrintLine = {
+  productId?: string | null
   productCode: string
   productName: string
   quantity: number
@@ -117,7 +118,7 @@ export function buildOrderHtml(
     String(data.contactEmail || '').trim() || COMPANY_QUOTE_EMAIL_DOMESTIC,
   )
 
-  const totalQuantity = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0)
+  const totalQuantity = sumCommercialOrderQuantity(data.items)
   const totalAmount = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.orderAmount) || 0), 0)
   const currency = normalizeOrderCurrency(data.currency)
   const moneyPrefix = currency === 'USD' ? '$' : '₩'
@@ -613,6 +614,7 @@ export function buildOrderPrintData(order: OrderListGroup): OrderPrintData {
     note: order.note,
     customerPoNumber: order.customerPoNumber,
     items: order.items.map((item) => ({
+      productId: item.productId,
       productCode: item.productCode,
       productName: item.productName,
       quantity: item.quantity,

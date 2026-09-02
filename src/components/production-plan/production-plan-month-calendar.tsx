@@ -1,6 +1,5 @@
 'use client'
 
-import { SHARED_PRODUCTION_PLAN_DRAG_MIME } from '@/lib/production-plan/config'
 import {
   MONTH_WEEKDAY_LABELS,
   type MonthCalendarCell,
@@ -14,18 +13,17 @@ import { formatInternalCodeLabel } from '@/lib/orders/utils'
 type ProductionPlanMonthCalendarProps = {
   cells: MonthCalendarCell[]
   scheduledRows: ProductionPlanBoardRow[]
-  onDropOrder: (key: string, plannedDate: string) => void
-  onMoveScheduled: (row: ProductionPlanBoardRow, plannedDate: string) => void
-  onSelectScheduled: (row: ProductionPlanBoardRow) => void
+  onSelectRow?: (row: ProductionPlanBoardRow) => void
 }
 
 function scopeTone(scope: ProductionPlanBoardRow['scope']) {
-  return scope === 'smt'
-    ? 'border-sky-200 bg-sky-50 text-sky-900'
-    : 'border-violet-200 bg-violet-50 text-violet-900'
+  if (scope === 'material') return 'border-amber-200 bg-amber-50 text-amber-900'
+  if (scope === 'smt') return 'border-sky-200 bg-sky-50 text-sky-900'
+  return 'border-violet-200 bg-violet-50 text-violet-900'
 }
 
 function scheduleMeta(row: ProductionPlanBoardRow) {
+  if (row.scope === 'material') return '자재'
   if (row.scope === 'smt' && row.lineNo) {
     return `L${row.lineNo}`
   }
@@ -38,9 +36,7 @@ function scheduleMeta(row: ProductionPlanBoardRow) {
 export function ProductionPlanMonthCalendar({
   cells,
   scheduledRows,
-  onDropOrder,
-  onMoveScheduled,
-  onSelectScheduled,
+  onSelectRow,
 }: ProductionPlanMonthCalendarProps) {
   const rowsByDate = new Map<string, ProductionPlanBoardRow[]>()
   for (const row of scheduledRows) {
@@ -51,37 +47,11 @@ export function ProductionPlanMonthCalendar({
     rowsByDate.set(date, list)
   }
 
-  function handleDragOver(event: React.DragEvent) {
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-  }
-
-  function handleDrop(event: React.DragEvent, plannedDate: string) {
-    event.preventDefault()
-    const raw = event.dataTransfer.getData(SHARED_PRODUCTION_PLAN_DRAG_MIME)
-    if (!raw) return
-
-    try {
-      const payload = JSON.parse(raw) as
-        | { kind: 'order'; key: string }
-        | { kind: 'scheduled'; key: string }
-
-      if (payload.kind === 'scheduled') {
-        const row = scheduledRows.find((entry) => entry.key === payload.key)
-        if (!row) return
-        if (row.plannedDate.slice(0, 10) === plannedDate) return
-        onMoveScheduled(row, plannedDate)
-        return
-      }
-
-      onDropOrder(payload.key, plannedDate)
-    } catch {
-      // ignore invalid payload
-    }
-  }
-
   return (
     <div className="min-h-0 flex-1 overflow-auto bg-white">
+      <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-500">
+        일정 카드를 클릭하면 상세 보기·수정·삭제할 수 있습니다.
+      </div>
       <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
         {MONTH_WEEKDAY_LABELS.map((label, index) => (
           <div
@@ -101,9 +71,7 @@ export function ProductionPlanMonthCalendar({
           return (
             <div
               key={cell.ymd}
-              onDragOver={handleDragOver}
-              onDrop={(event) => handleDrop(event, cell.ymd)}
-              className={`min-h-[110px] border-b border-r border-slate-100 p-1.5 transition ${
+              className={`min-h-[110px] border-b border-r border-slate-100 p-1.5 ${
                 cell.inMonth ? 'bg-white' : 'bg-slate-50/80'
               } ${cell.isToday ? 'bg-sky-50/80 ring-2 ring-inset ring-sky-300' : ''}`}
             >
@@ -133,16 +101,7 @@ export function ProductionPlanMonthCalendar({
                     <button
                       key={row.key}
                       type="button"
-                      draggable
-                      onDragStart={(event) => {
-                        event.stopPropagation()
-                        event.dataTransfer.setData(
-                          SHARED_PRODUCTION_PLAN_DRAG_MIME,
-                          JSON.stringify({ kind: 'scheduled', key: row.key }),
-                        )
-                        event.dataTransfer.effectAllowed = 'move'
-                      }}
-                      onClick={() => onSelectScheduled(row)}
+                      onClick={() => onSelectRow?.(row)}
                       className={`w-full rounded-md border px-1.5 py-1 text-left text-[10px] leading-snug shadow-sm transition hover:brightness-95 ${scopeTone(row.scope)}`}
                     >
                       <div className="flex items-center gap-1">

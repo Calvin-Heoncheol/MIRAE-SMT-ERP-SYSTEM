@@ -164,7 +164,7 @@ export type Item = {
   smdUnitPrice: number
   dipUnitPrice: number
   materialUnitPrice: number
-  /** @deprecated SET-UP은 setupUnitPrice 사용 */
+  /** 추가비용 — 발주 추가작업 자동 반영 (DB: other_unit_price) */
   otherUnitPrice: number
   /** @deprecated 미사용 */
   smtQuoteParts: ItemSmtQuoteParts

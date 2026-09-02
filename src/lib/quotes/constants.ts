@@ -49,9 +49,9 @@ export const SMT_PLACEMENT_MIN_FEE_DOMESTIC = 5_000
 export const SMT_PLACEMENT_MIN_FEE_EXPORT = 6_000
 /** CHIP·이형·특수/모듈·IC PIN·BGA BALL 합산 점수(개수 1:1)가 이 값 이하이면 최소 실장비 적용 */
 export const SMT_PLACEMENT_MIN_SCORE = 150
-/** 후공정 임율: 국내 ₩520/분 */
+/** 후공정 임율: 국내 ₩530/분 */
 export const POST_RATE_DOMESTIC = 520
-/** 후공정 임율: 해외 ₩520/분 */
+/** 후공정 임율: 해외 ₩530/분 */
 export const POST_RATE_EXPORT = 520
 /** 후공정 작업시간 여유 — 샘플 30% */
 export const POST_PROCESS_SAMPLE_BUFFER = 0.3

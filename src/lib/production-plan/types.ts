@@ -2,6 +2,9 @@ import type { MaterialInboundStatus } from '@/lib/materials/material-inbound-sta
 
 export type ProductionPlanScope = 'material' | 'smt' | 'post'
 
+/** 표 입력 목록 필터 — 이번 달 확정 / 미완료 전체 */
+export type ProductionPlanSheetFilter = 'month' | 'all_pending'
+
 export type ProductionPlanBoardStatus = 'waiting' | 'confirmed'
 
 export type ProductionPlanPcbSide = 'SINGLE' | 'TOP' | 'BOT' | 'BOTH'
@@ -42,6 +45,16 @@ export type ProductionPlanBoardRow = {
   team: string
   pcbSide: ProductionPlanPcbSide
   plannedQuantity: number | null
+  /** 확정된 계획 수량 합계 (분할 배정) */
+  plannedTotalQty?: number
+  /** 아직 계획되지 않은 수량 */
+  unplannedQty?: number
+  /** schedule=확정 일정, remainder=미계획 잔량 대기 */
+  rowKind?: 'schedule' | 'remainder'
+  /** smt/post 생산계획 테이블 id */
+  planId?: string
+  /** material 등 보드 테이블 id */
+  boardItemId?: string
 }
 
 export type ConfirmProductionPlanScheduleInput = {
@@ -56,6 +69,8 @@ export type ConfirmProductionPlanScheduleInput = {
   /** 후공정 */
   team?: string
   note?: string
+  planId?: string
+  boardItemId?: string
 }
 
 export type ProductionPlanBoardPageData = {

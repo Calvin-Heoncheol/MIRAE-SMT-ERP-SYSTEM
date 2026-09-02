@@ -11,10 +11,8 @@ import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { PageShell } from '@/components/ui/page-shell'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
-import {
-  buildDeliveryStatementDataFromShipment,
-  printDeliveryStatements,
-} from '@/lib/delivery/print-delivery-statement'
+import { buildDeliveryStatementDataFromShipment } from '@/lib/delivery/build-delivery-statement-data'
+import { printDeliveryStatements } from '@/lib/delivery/print-delivery-statement'
 import type { DeliveryStatementData } from '@/lib/delivery/types'
 import { currentMonthRange } from '@/lib/reports/period'
 import {

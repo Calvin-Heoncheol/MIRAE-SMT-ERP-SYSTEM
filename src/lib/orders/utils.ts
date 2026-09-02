@@ -2,35 +2,6 @@ import { paymentTermSnapshotFromDbRow } from '@/lib/partners/payment-term-snapsh
 import type { OrderCategory, OrderCurrency, OrderLineItem, OrderListGroup, OrderRecord } from './types'
 import { ORDER_CATEGORIES } from './types'
 
-export const ORDER_CODE_MAX_LENGTH = 100
-
-/** 레거시 MRO-0001 순번 판별용 */
-export const MRO_ORDER_CODE_PATTERN = /^MRO-[0-9]+$/
-
-/** 신규 자동 발급: MRO-YYMMDD-NN */
-export const MRO_DATE_ORDER_CODE_PATTERN = /^MRO-[0-9]{6}-[0-9]{2}$/
-
-/** 고객사 접두사 레거시 자동 발급 코드 (SC-0001 등) */
-export const AUTO_ORDER_CODE_PATTERN = /^[A-Z0-9]+-[0-9]+$/
-
-export function normalizeOrderCodeInput(value: string) {
-  return value.trim().toUpperCase()
-}
-
-export function validateOrderCodeInput(
-  value: string,
-): { ok: true; code: string } | { ok: false; message: string } {
-  const code = normalizeOrderCodeInput(value)
-  if (!code) return { ok: true, code: '' }
-  if (code.length > ORDER_CODE_MAX_LENGTH) {
-    return {
-      ok: false,
-      message: `주문코드는 ${ORDER_CODE_MAX_LENGTH}자 이하여야 합니다.`,
-    }
-  }
-  return { ok: true, code }
-}
-
 export function normalizeOrderCurrency(value: string | null | undefined): OrderCurrency {
   return String(value || '').trim().toUpperCase() === 'USD' ? 'USD' : 'KRW'
 }
@@ -60,6 +31,17 @@ export function isBillingOnlyOrderLine(line: {
   product_id?: string | null
 }) {
   return !String(line.product_id || '').trim()
+}
+
+/** 발주수량 집계 — 금액전용(추가작업)·BOM 파생 라인 제외 */
+export function sumCommercialOrderQuantity(
+  items: Array<{ productId?: string | null; quantity: number; derivedFromLineId?: string | null }>,
+) {
+  return items
+    .filter(
+      (item) => !isBillingOnlyOrderItem(item) && !String(item.derivedFromLineId || '').trim(),
+    )
+    .reduce((sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity) || 0)), 0)
 }
 
 export function formatOrderDate(value: string | null | undefined) {
@@ -207,7 +189,7 @@ export function mapOrderRecord(
     createdByName: String(record.created_by_name || '').trim(),
     createdAt: record.created_at,
     items,
-    totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
+    totalQuantity: sumCommercialOrderQuantity(items),
     totalAmount: items.reduce((sum, item) => sum + item.orderAmount, 0),
   }
 }
@@ -217,6 +199,19 @@ export function groupOrdersFromRecords(
   options?: { includeDerivedLines?: boolean },
 ): OrderListGroup[] {
   return sortOrderGroupsNewestFirst(records.map((record) => mapOrderRecord(record, options)))
+}
+
+/** includeDerivedLines: true 조회 결과에서 derived 라인만 제거한 뷰 */
+export function stripDerivedOrderLines(orders: OrderListGroup[]): OrderListGroup[] {
+  return orders.map((order) => {
+    const items = order.items.filter((item) => !String(item.derivedFromLineId || '').trim())
+    return {
+      ...order,
+      items,
+      totalQuantity: sumCommercialOrderQuantity(items),
+      totalAmount: items.reduce((sum, item) => sum + item.orderAmount, 0),
+    }
+  })
 }
 
 export function formatProductSummary(group: OrderListGroup) {

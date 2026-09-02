@@ -23,7 +23,7 @@ import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { syncAssemblyGroupsForOrder } from '@/lib/assembly/repository'
 import { parseOrderRecord, parseOrderRecords } from '@/lib/db/parse-row'
 import type { OrderCurrency, OrderListGroup, OrderRecord, OrderRowPayload } from './types'
-import { groupOrdersFromRecords, normalizeOrderCurrency } from './utils'
+import { groupOrdersFromRecords, normalizeOrderCurrency, sumCommercialOrderQuantity } from './utils'
 
 export type FetchOrdersResult =
   | { ok: true; orders: OrderListGroup[] }
@@ -583,10 +583,7 @@ export async function updateOrder(
       (sum, item) => sum + Math.max(0, Math.round(Number(item.orderAmount) || 0)),
       0,
     )
-    const afterTotalQuantity = payload.items.reduce(
-      (sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity) || 0)),
-      0,
-    )
+    const afterTotalQuantity = sumCommercialOrderQuantity(payload.items)
     const detail = buildOrderChangeDetail({
       before: {
         customer: beforeGroup?.customer || '',

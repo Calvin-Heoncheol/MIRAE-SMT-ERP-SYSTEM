@@ -17,8 +17,8 @@ import { itemBaselineUnitPriceUpdatePayload } from '@/lib/items/form-state'
 import type { FetchItemsResult } from '@/lib/items/repository'
 import { updateItem } from '@/lib/items/repository'
 import {
-  displayItemBaselineUnitPrice,
-  displayItemUnitPrice,
+  displayItemAdditionalUnitPrice,
+  displayItemListUnitPrice,
   filterItemsForSearch,
   formatItemDisplayCode,
   formatItemProductionProcessLabel,
@@ -28,7 +28,6 @@ import {
   ITEM_CATEGORIES,
   ITEM_CATEGORY_LABELS,
   isProductItemCategory,
-  isSemiFinishedItemCategory,
   type Item,
   type ItemCategory,
 } from '@/lib/items/types'
@@ -115,8 +114,10 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     afterDelete(message ?? '품목이 삭제되었습니다.', { close: closeModal })
   }
 
-  async function handleBaselinePriceSave(item: Item, value: number) {
-    const payload = itemBaselineUnitPriceUpdatePayload(item, value)
+  async function handleBaselinePriceSave(item: Item, combinedValue: number) {
+    const additional = displayItemAdditionalUnitPrice(item)
+    const baseline = Math.max(0, Math.round(Number(combinedValue) || 0) - additional)
+    const payload = itemBaselineUnitPriceUpdatePayload(item, baseline)
     const result = await updateItem(item.id, payload)
     if (!result.ok) {
       notifyAuthOrFailure(result, { toastAllFailures: true, title: '기본단가 저장 실패' })
@@ -136,10 +137,7 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     }
 
     function baselineUnitPriceExcel(row: Item) {
-      const total = isSemiFinishedItemCategory(row.itemCategory)
-        ? displayItemBaselineUnitPrice(row)
-        : displayItemUnitPrice(row)
-      return moneyExcel(total)
+      return moneyExcel(displayItemListUnitPrice(row))
     }
 
     const processAndPriceColumns = showProductionProcessColumn

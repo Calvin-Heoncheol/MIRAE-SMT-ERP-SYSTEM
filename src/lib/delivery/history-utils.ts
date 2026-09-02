@@ -6,8 +6,6 @@ import {
   type DeliveryBillingOnlyLine,
 } from '@/lib/delivery/utils'
 
-export const DELIVERY_HISTORY_PAGE_SIZE = 20
-
 export type DeliveryHistoryShipmentGroup = {
   shipmentId: string
   recordDate: string

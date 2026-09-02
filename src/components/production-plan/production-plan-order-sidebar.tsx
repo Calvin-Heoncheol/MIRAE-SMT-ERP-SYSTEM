@@ -3,9 +3,10 @@
 import type { ReactNode } from 'react'
 import { SHARED_PRODUCTION_PLAN_DRAG_MIME } from '@/lib/production-plan/config'
 import {
+  canPlanPost,
   filterPipelineRows,
+  getProductionPlanWaitingRows,
   materialStatusLabel,
-  type ProductionPlanPipelineBuckets,
 } from '@/lib/production-plan/pipeline'
 import {
   deliveryUrgencyClass,
@@ -14,11 +15,14 @@ import {
 import {
   PRODUCTION_PLAN_SCOPE_LABELS,
   type ProductionPlanBoardRow,
+  type ProductionPlanScope,
 } from '@/lib/production-plan/types'
+import { productionPlanTeamTabLabel } from '@/lib/production-plan/tabs'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 
 type ProductionPlanOrderSidebarProps = {
-  buckets: ProductionPlanPipelineBuckets
+  rows: ProductionPlanBoardRow[]
+  activeScope: ProductionPlanScope
   search: string
   onSearchChange: (value: string) => void
 }
@@ -35,6 +39,12 @@ function OrderCard({
   hint?: string
 }) {
   const countdown = formatDeliveryCountdown(row.daysUntilDelivery)
+  const borderClass =
+    row.scope === 'material'
+      ? 'border-amber-200 border-l-amber-400'
+      : row.scope === 'smt'
+        ? 'border-sky-200 border-l-sky-500'
+        : 'border-violet-200 border-l-violet-500'
 
   return (
     <article
@@ -54,20 +64,22 @@ function OrderCard({
             }
           : undefined
       }
-      className={`rounded-xl border bg-white p-3 shadow-sm transition ${
+      className={`rounded-xl border border-l-4 bg-white p-3 shadow-sm transition ${
         draggable
           ? muted
-            ? 'cursor-grab border-amber-200 border-l-4 border-l-amber-400 hover:border-amber-300 hover:shadow active:cursor-grabbing'
-            : row.scope === 'smt'
-              ? 'cursor-grab border-sky-200 border-l-4 border-l-sky-500 hover:border-sky-300 hover:shadow active:cursor-grabbing'
-              : 'cursor-grab border-violet-200 border-l-4 border-l-violet-500 hover:border-violet-300 hover:shadow active:cursor-grabbing'
-          : 'border-amber-200 border-l-4 border-l-amber-400 opacity-90'
+            ? `cursor-grab hover:shadow active:cursor-grabbing ${borderClass} opacity-90`
+            : `cursor-grab hover:shadow active:cursor-grabbing ${borderClass}`
+          : `${borderClass} opacity-90`
       }`}
     >
       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
         <span
           className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-            row.scope === 'smt' ? 'bg-sky-100 text-sky-800' : 'bg-violet-100 text-violet-800'
+            row.scope === 'material'
+              ? 'bg-amber-100 text-amber-800'
+              : row.scope === 'smt'
+                ? 'bg-sky-100 text-sky-800'
+                : 'bg-violet-100 text-violet-800'
           }`}
         >
           {PRODUCTION_PLAN_SCOPE_LABELS[row.scope]}
@@ -100,16 +112,6 @@ function OrderCard({
         {row.deliveryDate ? <span>납기 {row.deliveryDate}</span> : null}
       </div>
       {hint ? <p className="mt-1.5 text-[10px] font-semibold text-amber-700">{hint}</p> : null}
-      {!hint && row.materialInboundStatus === 'scheduled' && (row.materialScheduledQty ?? 0) > 0 ? (
-        <p className="mt-1.5 text-[10px] font-semibold text-emerald-700">
-          입고예정 {row.materialScheduledQty?.toLocaleString('ko-KR')}대분
-        </p>
-      ) : null}
-      {!hint && row.materialReadyQty > 0 ? (
-        <p className="mt-1.5 text-[10px] font-semibold text-emerald-700">
-          입고완료 {row.materialReadyQty.toLocaleString('ko-KR')}대분
-        </p>
-      ) : null}
     </article>
   )
 }
@@ -139,23 +141,52 @@ function Section({
   )
 }
 
+const SIDEBAR_META: Record<
+  ProductionPlanScope,
+  { title: string; description: string; empty: string }
+> = {
+  material: {
+    title: '자재 계획 대기',
+    description: '캘린더로 입고 예정일을 배정합니다',
+    empty: '자재 계획 대기 항목이 없습니다',
+  },
+  smt: {
+    title: 'SMT 계획 대기',
+    description: '자재 입고 후 SMT 일정을 배정합니다',
+    empty: 'SMT 계획 대기 항목이 없습니다',
+  },
+  post: {
+    title: '후공정 계획 대기',
+    description: 'SMD 계획 확정 후 후공정 일정을 배정합니다',
+    empty: '후공정 계획 대기 항목이 없습니다',
+  },
+}
+
 export function ProductionPlanOrderSidebar({
-  buckets,
+  rows,
+  activeScope,
   search,
   onSearchChange,
 }: ProductionPlanOrderSidebarProps) {
-  const materialRows = filterPipelineRows(buckets.materialWaiting, search)
-  const smtRows = filterPipelineRows(buckets.smtWaiting, search)
-  const postReadyRows = filterPipelineRows(buckets.postWaitingReady, search)
-  const postBlockedRows = filterPipelineRows(buckets.postWaitingBlocked, search)
-  const total =
-    materialRows.length + smtRows.length + postReadyRows.length + postBlockedRows.length
+  const waitingRows = filterPipelineRows(getProductionPlanWaitingRows(rows, activeScope), search)
+  const meta = SIDEBAR_META[activeScope]
+
+  const readyRows =
+    activeScope === 'post'
+      ? waitingRows.filter((row) => canPlanPost(row, rows))
+      : waitingRows
+  const blockedRows =
+    activeScope === 'post'
+      ? waitingRows.filter((row) => !canPlanPost(row, rows))
+      : []
 
   return (
     <aside className="flex min-h-0 w-full shrink-0 flex-col overflow-hidden border-b border-slate-200 bg-slate-50 lg:w-96 lg:border-b-0 lg:border-r">
       <div className="shrink-0 border-b border-slate-200 bg-white px-3 py-2.5">
-        <h4 className="text-sm font-bold text-slate-900">생산계획 대기함</h4>
-        <p className="mt-0.5 text-[10px] text-slate-500">자재 → SMD → 후공정 순서로 배정합니다</p>
+        <h4 className="text-sm font-bold text-slate-900">
+          {productionPlanTeamTabLabel(activeScope)} 생산계획 대기함
+        </h4>
+        <p className="mt-0.5 text-[10px] text-slate-500">{meta.description}</p>
       </div>
 
       <div className="shrink-0 border-b border-slate-200 bg-white px-3 py-2">
@@ -169,79 +200,34 @@ export function ProductionPlanOrderSidebar({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-        {!total ? (
+        {!waitingRows.length ? (
           <p className="py-10 text-center text-sm text-slate-400">
-            {search.trim() ? '검색 결과 없음' : '대기 중인 발주서가 없습니다'}
+            {search.trim() ? '검색 결과 없음' : meta.empty}
           </p>
         ) : (
-          <>
-            <Section
-              title="① 자재 대기"
-              count={materialRows.length}
-              description="자재 입고 전에도 캘린더에 SMD 일정 미리 배정 가능"
-            >
-              {materialRows.length ? (
-                materialRows.map((row) => (
-                  <OrderCard
-                    key={row.key}
-                    row={row}
-                    draggable
-                    muted
-                    hint={
-                      row.materialInboundStatus === 'missing'
-                        ? '구매발주·입고 필요 · 미리 배정 가능'
-                        : row.materialInboundStatus === 'scheduled'
-                          ? '입고예정 · 미리 배정 가능'
-                          : '자재 입고 대기 · 미리 배정 가능'
-                    }
-                  />
-                ))
-              ) : (
-                <p className="py-2 text-center text-[11px] text-slate-400">해당 없음</p>
-              )}
-            </Section>
-
-            <Section
-              title="② SMD 계획 대기"
-              count={smtRows.length}
-              description="캘린더로 끌어다 SMD 일정 배정"
-            >
-              {smtRows.length ? (
-                smtRows.map((row) => <OrderCard key={row.key} row={row} draggable />)
-              ) : (
-                <p className="py-2 text-center text-[11px] text-slate-400">해당 없음</p>
-              )}
-            </Section>
-
-            <Section
-              title="③ 후공정 계획 대기"
-              count={postReadyRows.length + postBlockedRows.length}
-              description="SMD 계획 확정 후 후공정 배정"
-            >
-              {postReadyRows.map((row) => (
-                <OrderCard
-                  key={row.key}
-                  row={row}
-                  draggable
-                  hint={
-                    row.smtPlannedEndDate ? `SMD 종료 ${row.smtPlannedEndDate} 이후` : undefined
-                  }
-                />
-              ))}
-              {postBlockedRows.map((row) => (
-                <OrderCard
-                  key={row.key}
-                  row={row}
-                  draggable={false}
-                  muted
-                  hint="SMD 생산계획 확정 후 배정 가능"
-                />
-              ))}
-              {!postReadyRows.length && !postBlockedRows.length ? (
-                <p className="py-2 text-center text-[11px] text-slate-400">해당 없음</p>
-              ) : null}
-            </Section>
-          </>
+          <Section title={meta.title} count={waitingRows.length}>
+            {readyRows.map((row) => (
+              <OrderCard
+                key={row.key}
+                row={row}
+                draggable
+                hint={
+                  row.scope === 'post' && row.smtPlannedEndDate
+                    ? `SMD 종료 ${row.smtPlannedEndDate} 이후`
+                    : undefined
+                }
+              />
+            ))}
+            {blockedRows.map((row) => (
+              <OrderCard
+                key={row.key}
+                row={row}
+                draggable={false}
+                muted
+                hint="SMD 생산계획 확정 후 배정 가능"
+              />
+            ))}
+          </Section>
         )}
       </div>
     </aside>

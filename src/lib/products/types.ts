@@ -20,6 +20,8 @@ export type Product = {
   smdUnitPrice: number
   dipUnitPrice: number
   materialUnitPrice: number
+  /** 추가비용 — 발주 추가작업 행 자동 반영 (items.other_unit_price) */
+  additionalUnitPrice: number
   pcbSideMode: ProductPcbSideMode
   processType: ProductProcessType
   productKind: ProductKind

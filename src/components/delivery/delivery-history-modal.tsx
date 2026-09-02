@@ -5,10 +5,8 @@ import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ErpButton } from '@/components/ui/erp-button'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
-import {
-  buildDeliveryStatementDataFromShipment,
-  printDeliveryStatement,
-} from '@/lib/delivery/print-delivery-statement'
+import { buildDeliveryStatementDataFromShipment } from '@/lib/delivery/build-delivery-statement-data'
+import { printDeliveryStatement } from '@/lib/delivery/print-delivery-statement'
 import {
   deleteDeliveryRecord,
   fetchOrderLineUnitPrices,
@@ -16,7 +14,7 @@ import {
 import type { DeliveryHistoryShipmentGroup } from '@/lib/delivery/history-utils'
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 import type { DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
-import { buildShipmentStatementLinesFromHistory } from '@/lib/delivery/utils'
+import { buildShipmentStatementLinesFromHistory, resolveHistoryLineUnitPrices } from '@/lib/delivery/utils'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { updateStatementLines } from '@/lib/reports/statement-edit'
@@ -33,6 +31,7 @@ type DeliveryHistoryModalProps = {
   group: DeliveryHistoryShipmentGroup | null
   billingOnlyLines?: DeliveryBillingOnlyLine[]
   productionOrders?: ProductionOrderLine[]
+  unitPriceByDeliveryId?: Record<string, number>
   onClose: () => void
   onSaved?: (message?: string) => void
   onDeleted?: (message?: string) => void
@@ -194,6 +193,7 @@ export function DeliveryHistoryModal({
   group,
   billingOnlyLines = [],
   productionOrders = [],
+  unitPriceByDeliveryId: parentUnitPriceByDeliveryId = {},
   onClose,
   onSaved,
   onDeleted,
@@ -221,27 +221,64 @@ export function DeliveryHistoryModal({
     setDeleting(false)
 
     let cancelled = false
+    const historyLines = group.lines.map((line) => ({
+      id: line.id,
+      orderNumber: line.orderNumber,
+      assemblyGroupId: line.assemblyGroupId,
+      productId: line.productId,
+      productCode: line.productCode,
+      productName: line.productName,
+      quantity: line.quantity,
+    }))
+    const mappedProductionOrders = productionOrders.map((order) => ({
+      assemblyGroupId: order.assemblyGroupId,
+      orderNumber: order.orderNumber,
+      productId: order.productId,
+      productCode: order.productCode,
+      productName: order.productName,
+      unitPrice: order.unitPrice,
+    }))
+    const { unitPriceByDeliveryId: resolved, fetchTargets } = resolveHistoryLineUnitPrices(
+      historyLines,
+      mappedProductionOrders,
+    )
+    const mergedUnitPrices = { ...resolved, ...parentUnitPriceByDeliveryId }
+    const missingTargets = fetchTargets.filter(
+      (target) => mergedUnitPrices[target.lineId] == null || mergedUnitPrices[target.lineId] === 0,
+    )
+
+    if (!missingTargets.length) {
+      setDrafts(
+        buildDisplayDrafts(group, billingOnlyLines, productionOrders, mergedUnitPrices),
+      )
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setDrafts(buildDisplayDrafts(group, billingOnlyLines, productionOrders, mergedUnitPrices))
+
     void (async () => {
       const result = await fetchOrderLineUnitPrices(
-        group.lines.map((line) => ({
-          orderId: line.orderNumber,
-          productId: line.productId || line.productCode,
+        missingTargets.map((target) => ({
+          orderId: target.orderId,
+          productId: target.productId,
         })),
       )
       if (cancelled) return
-      const unitPriceByDeliveryId: Record<string, number> = {}
-      group.lines.forEach((line, index) => {
-        unitPriceByDeliveryId[line.id] = result.ok ? result.prices[index] || 0 : 0
-      })
-      setDrafts(
-        buildDisplayDrafts(group, billingOnlyLines, productionOrders, unitPriceByDeliveryId),
-      )
+      const nextPrices = { ...mergedUnitPrices }
+      if (result.ok) {
+        missingTargets.forEach((target, index) => {
+          nextPrices[target.lineId] = result.prices[index] || 0
+        })
+      }
+      setDrafts(buildDisplayDrafts(group, billingOnlyLines, productionOrders, nextPrices))
     })()
 
     return () => {
       cancelled = true
     }
-  }, [open, group, billingOnlyLines, productionOrders])
+  }, [open, group, billingOnlyLines, productionOrders, parentUnitPriceByDeliveryId])
 
   const showOrderNumber = drafts.some((line) => line.orderNumber.trim() || line.customerPoNumber.trim())
   const totals = useMemo(() => {
@@ -250,7 +287,7 @@ export function DeliveryHistoryModal({
     for (const line of drafts) {
       const qty = Math.max(0, Math.floor(Number(line.quantity) || 0))
       const price = parseMoneyInput(line.unitPrice)
-      quantity += qty
+      if (!line.billingOnly) quantity += qty
       amount += qty * price
     }
     return { quantity, amount }
