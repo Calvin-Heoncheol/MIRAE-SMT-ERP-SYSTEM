@@ -102,6 +102,28 @@ function matchRegisteredProduct(
   }
 }
 
+/** 신규 발주 — 제품 행에서 고객사를 추출한다. */
+export function resolveOrderCustomerFromItems(items: OrderItemForm[], products: Product[]): string {
+  for (const item of items) {
+    if (item.isAdhoc) continue
+    const productId = String(item.productId || '').trim()
+    if (productId) {
+      const byId = products.find((product) => product.isActive && product.id === productId)
+      const customer = byId?.customer.trim()
+      if (customer) return customer
+    }
+    const code = item.productCode.trim()
+    if (code) {
+      const matches = findProductsByCode(products, code, '')
+      if (matches.length === 1) {
+        const customer = matches[0]!.customer.trim()
+        if (customer) return customer
+      }
+    }
+  }
+  return ''
+}
+
 export function validateOrderItems(
   items: OrderItemForm[],
   products: Product[],

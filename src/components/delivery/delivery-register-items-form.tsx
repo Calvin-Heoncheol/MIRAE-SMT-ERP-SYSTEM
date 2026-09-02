@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { ProductCombobox } from '@/components/orders/product-combobox'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
@@ -13,6 +13,7 @@ import {
   applyShippableOptionToItem,
   allocationsForRegisterQuantity,
   availableBillingLinesForRegister,
+  bindSingleRegisterOrderOption,
   computeDeliveryLineAmount,
   DELIVERY_REGISTER_MIN_ROWS,
   emptyDeliveryRegisterItemForm,
@@ -20,10 +21,13 @@ import {
   insertBillingRegisterItem,
   isBillingRegisterItem,
   isDeliveryRegisterQuantityEnabled,
+  padDeliveryRegisterItems,
+  resolveDeliveryRegisterCustomer,
+  syncBillingRegisterCompanions,
 } from '@/lib/delivery/register-form'
 import type { DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
 import { DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from '@/lib/delivery/config'
-import { displayOrderPoNumber } from '@/lib/orders/utils'
+import { displayOrderPoNumber, formatAdditionalWorkProductNameLabel } from '@/lib/orders/utils'
 import { fetchAvailableLots, syncFinishedGoodsLots } from '@/lib/production-lots/repository'
 import type { Product } from '@/lib/products/types'
 import { filterProductsForCustomerStrict } from '@/lib/products/utils'
@@ -54,22 +58,47 @@ export function DeliveryRegisterItemsForm({
   onChange,
 }: DeliveryRegisterItemsFormProps) {
   const [billingPickerOpen, setBillingPickerOpen] = useState(false)
-  const customerName = customer.trim()
-
-  const customerProducts = useMemo(
-    () => filterProductsForCustomerStrict(products, customerName),
-    [customerName, products],
+  const lockedCustomer = useMemo(
+    () => resolveDeliveryRegisterCustomer(items, customer),
+    [items, customer],
   )
+
+  const searchableProducts = useMemo(() => {
+    if (lockedCustomer) return filterProductsForCustomerStrict(products, lockedCustomer)
+    return products.filter((product) => product.isActive)
+  }, [products, lockedCustomer])
 
   const availableBilling = useMemo(
     () => availableBillingLinesForRegister(items, billingOnlyLines),
     [items, billingOnlyLines],
   )
 
+  function commitItems(
+    updater:
+      | DeliveryRegisterItemForm[]
+      | ((current: DeliveryRegisterItemForm[]) => DeliveryRegisterItemForm[]),
+  ) {
+    onChange((current) => {
+      const next = typeof updater === 'function' ? updater(current) : updater
+      return syncBillingRegisterCompanions(next, billingOnlyLines)
+    })
+  }
+
+  useEffect(() => {
+    if (disabled) return
+    let changed = false
+    const next = items.map((item) => {
+      const bound = bindSingleRegisterOrderOption(item, options, lockedCustomer)
+      if (bound !== item) changed = true
+      return bound
+    })
+    if (changed) commitItems(next)
+  }, [items, options, lockedCustomer, disabled, billingOnlyLines])
+
   function optionsForRow(index: number) {
     const currentId = items[index]?.assemblyGroupId.trim()
     return options.filter((option) => {
-      if (customerName && option.customer !== customerName) return false
+      if (lockedCustomer && option.customer !== lockedCustomer) return false
       const usedElsewhere = items.some(
         (item, itemIndex) =>
           itemIndex !== index && item.assemblyGroupId === option.assemblyGroupId,
@@ -81,13 +110,13 @@ export function DeliveryRegisterItemsForm({
   }
 
   function patchItem(index: number, patch: Partial<DeliveryRegisterItemForm>) {
-    onChange((current) =>
+    commitItems((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
     )
   }
 
   function addRow() {
-    onChange([...items, { ...emptyDeliveryRegisterItemForm(), customer: customerName }])
+    commitItems([...items, { ...emptyDeliveryRegisterItemForm(), customer: lockedCustomer }])
   }
 
   function removeRow(index: number) {
@@ -97,11 +126,11 @@ export function DeliveryRegisterItemsForm({
       const productRows = items.filter((item) => !isBillingRegisterItem(item))
       if (productRows.length <= DELIVERY_REGISTER_MIN_ROWS) return
     }
-    onChange(items.filter((_, itemIndex) => itemIndex !== index))
+    commitItems(items.filter((_, itemIndex) => itemIndex !== index))
   }
 
   function addBillingLine(line: DeliveryBillingOnlyLine) {
-    onChange((current) => insertBillingRegisterItem(current, line))
+    commitItems((current) => insertBillingRegisterItem(current, line))
     setBillingPickerOpen(false)
   }
 
@@ -143,22 +172,36 @@ export function DeliveryRegisterItemsForm({
       option,
       { autoFillQuantity: false },
     )
-    onChange((current) =>
+    commitItems((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? nextItem : item)),
     )
     await attachLots(index, nextItem)
   }
 
   async function selectProduct(index: number, product: Product) {
-    const nextItem = applyProductToRegisterItem(
-      items[index] ?? emptyDeliveryRegisterItemForm(),
-      product,
-      optionsForRow(index),
-      customerName,
-      false,
+    const baseItem = items[index] ?? emptyDeliveryRegisterItemForm()
+    const productCustomer = lockedCustomer || product.customer.trim() || baseItem.customer.trim()
+    const nextItem = bindSingleRegisterOrderOption(
+      applyProductToRegisterItem(
+        baseItem,
+        product,
+        optionsForRow(index),
+        productCustomer,
+        false,
+      ),
+      options,
+      productCustomer,
     )
-    onChange((current) =>
-      current.map((item, itemIndex) => (itemIndex === index ? nextItem : item)),
+    const customerFromProduct = nextItem.customer.trim()
+
+    commitItems((current) =>
+      current.map((item, itemIndex) => {
+        if (itemIndex === index) return nextItem
+        if (!item.customer.trim() && customerFromProduct) {
+          return { ...item, customer: customerFromProduct }
+        }
+        return item
+      }),
     )
     await attachLots(index, nextItem)
   }
@@ -170,10 +213,9 @@ export function DeliveryRegisterItemsForm({
   const inputClassName =
     'w-full min-w-0 rounded border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
   const readOnlyClassName = `${inputClassName} bg-slate-50 text-slate-600`
-  const tableItems = customerName
-    ? items
-    : Array.from({ length: DELIVERY_REGISTER_MIN_ROWS }, () => emptyDeliveryRegisterItemForm())
-  const tableDisabled = disabled || !customerName
+  const tableItems =
+    items.length > 0 ? items : padDeliveryRegisterItems([], lockedCustomer)
+  const tableDisabled = disabled
 
   return (
     <div className="space-y-3">
@@ -247,7 +289,7 @@ export function DeliveryRegisterItemsForm({
               const billing = isBillingRegisterItem(item)
               const rowOptions = billing
                 ? []
-                : findShippableOptionsForRegisterItem(optionsForRow(index), customerName, item)
+                : findShippableOptionsForRegisterItem(optionsForRow(index), lockedCustomer, item)
               const hasProduct = Boolean(item.productCode.trim() || item.productName.trim())
               const quantityEnabled =
                 !tableDisabled && !disabled && isDeliveryRegisterQuantityEnabled(item)
@@ -299,22 +341,17 @@ export function DeliveryRegisterItemsForm({
                   </td>
                   <td className="px-2 py-1.5 align-top">
                     {billing ? (
-                      <div className="space-y-1">
-                        <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
-                          추가작업
-                        </span>
-                        <input
-                          value={item.productCode}
-                          readOnly
-                          className={`${readOnlyClassName} min-w-[100px] font-mono`}
-                          aria-label={`${index + 1}행 품목코드`}
-                        />
-                      </div>
+                      <input
+                        value={item.productCode}
+                        readOnly
+                        className={`${readOnlyClassName} min-w-[100px] font-mono`}
+                        aria-label={`${index + 1}행 품목코드`}
+                      />
                     ) : (
                       <ProductCombobox
                         value={item.productCode}
-                        products={customerProducts}
-                        customer={customerName}
+                        products={searchableProducts}
+                        customer={lockedCustomer}
                         field="code"
                         placeholder="코드 검색"
                         ariaLabel={`${index + 1}행 품목코드`}
@@ -334,7 +371,7 @@ export function DeliveryRegisterItemsForm({
                             availableLots: [],
                             allocations: [],
                             lotManual: false,
-                            customer: customerName,
+                            customer: lockedCustomer,
                           })
                         }
                         onProductSelect={(product) => void selectProduct(index, product)}
@@ -344,7 +381,7 @@ export function DeliveryRegisterItemsForm({
                   <td className="px-2 py-1.5 align-top">
                     {billing ? (
                       <input
-                        value={item.productName}
+                        value={formatAdditionalWorkProductNameLabel(item.productName)}
                         readOnly
                         className={readOnlyClassName}
                         aria-label={`${index + 1}행 품목명`}
@@ -352,8 +389,8 @@ export function DeliveryRegisterItemsForm({
                     ) : (
                       <ProductCombobox
                         value={item.productName}
-                        products={customerProducts}
-                        customer={customerName}
+                        products={searchableProducts}
+                        customer={lockedCustomer}
                         field="name"
                         placeholder="품목명 검색"
                         ariaLabel={`${index + 1}행 품목명`}
@@ -373,7 +410,7 @@ export function DeliveryRegisterItemsForm({
                             availableLots: [],
                             allocations: [],
                             lotManual: false,
-                            customer: customerName,
+                            customer: lockedCustomer,
                           })
                         }
                         onProductSelect={(product) => void selectProduct(index, product)}
@@ -381,21 +418,30 @@ export function DeliveryRegisterItemsForm({
                     )}
                   </td>
                   <td className="px-2 py-1.5 align-top">
-                    <input
-                      type="number"
-                      min={0}
-                      max={!billing && item.maxQuantity > 0 ? item.maxQuantity : undefined}
-                      value={item.quantity}
-                      placeholder={
-                        !billing && item.maxQuantity > 0
-                          ? `${DELIVERY_REGISTER_SKIP_PRODUCTION_CAP ? '잔량' : '가능'} ${item.maxQuantity.toLocaleString('ko-KR')}`
-                          : '수량'
-                      }
-                      disabled={!quantityEnabled}
-                      onChange={(event) => patchQuantity(index, event.target.value)}
-                      className={`${disabled ? readOnlyClassName : inputClassName} min-w-[88px] text-right tabular-nums placeholder:text-slate-400`}
-                      aria-label={`${index + 1}행 수량`}
-                    />
+                    {billing ? (
+                      <div
+                        className="flex h-[34px] items-center justify-end text-sm font-medium tabular-nums text-slate-800"
+                        title="제품 수량과 연동"
+                      >
+                        {Math.max(0, Math.floor(Number(item.quantity) || 0)).toLocaleString('ko-KR')}
+                      </div>
+                    ) : (
+                      <input
+                        type="number"
+                        min={0}
+                        max={item.maxQuantity > 0 ? item.maxQuantity : undefined}
+                        value={item.quantity}
+                        placeholder={
+                          item.maxQuantity > 0
+                            ? `${DELIVERY_REGISTER_SKIP_PRODUCTION_CAP ? '잔량' : '가능'} ${item.maxQuantity.toLocaleString('ko-KR')}`
+                            : '수량'
+                        }
+                        disabled={!quantityEnabled}
+                        onChange={(event) => patchQuantity(index, event.target.value)}
+                        className={`${disabled ? readOnlyClassName : inputClassName} min-w-[88px] text-right tabular-nums placeholder:text-slate-400`}
+                        aria-label={`${index + 1}행 수량`}
+                      />
+                    )}
                   </td>
                   <td className="px-2 py-1.5 align-top">
                     <QuoteNumericInput
@@ -435,9 +481,9 @@ export function DeliveryRegisterItemsForm({
         </table>
       </div>
       <p className="mt-2 text-xs text-slate-500">
-        품목코드 또는 품목명을 입력하면 선택한 고객사의 품목만 검색됩니다. 생산현황에서 진행 중인 발주에
-        등록된 품목만 출하할 수 있으며, 같은 품목이 여러 발주에 있으면 발주번호를 선택해야 합니다. 선택 시
-        품목등록 기준 단가가 자동 입력됩니다.
+        품목코드 또는 품목명을 입력해 선택하면 고객사가 자동으로 입력됩니다. 발주가 연결되면 발주서의 추가작업 행이
+        제품 아래에 자동으로 붙고 수량이 연동됩니다. 생산현황에서 진행 중인 발주에 등록된 품목만 출하할 수 있으며,
+        같은 품목이 여러 발주에 있으면 발주번호를 선택해야 합니다.
       </p>
     </div>
   )

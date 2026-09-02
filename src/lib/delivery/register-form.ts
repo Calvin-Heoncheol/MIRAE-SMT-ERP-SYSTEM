@@ -3,7 +3,9 @@ import { formatProductionProductName } from '@/lib/production-input/utils'
 import { DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from '@/lib/delivery/config'
 import type { DeliveryAvailability, DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
 import type { ProductionStatusLine } from '@/lib/production-status/types'
+import { collectActiveDeliveryAssemblyGroupIds } from '@/lib/production-status/status-filter'
 import {
+  billingLineMatchesProductRow,
   findBillingAnchorProductIndex,
   resolveBillingQuantityFromShipped,
 } from '@/lib/delivery/utils'
@@ -240,39 +242,89 @@ export function insertBillingRegisterItem(
   return result
 }
 
-function hasProductionStatusTarget(input: { smtTarget: number; postTarget: number }) {
-  return input.smtTarget > 0 || input.postTarget > 0
-}
-
-function isProductionStatusComplete(input: {
-  smtTarget: number
-  smtProduced: number
-  postTarget: number
-  postProduced: number
-}) {
-  const hasSmt = input.smtTarget > 0
-  const hasPost = input.postTarget > 0
-  if (!hasSmt && !hasPost) return false
-  const smtDone = !hasSmt || input.smtProduced >= input.smtTarget
-  const postDone = !hasPost || input.postProduced >= input.postTarget
-  return smtDone && postDone
-}
-
-/** 생산현황「진행중」과 동일 기준 — 출하 등록에 연결 가능한 조립그룹 ID */
-export function collectActiveDeliveryAssemblyGroupIds(lines: ProductionStatusLine[]) {
-  const ids = new Set<string>()
-  for (const line of lines) {
-    if (line.products.length === 0) continue
-    for (const product of line.products) {
-      if (!hasProductionStatusTarget(product) && product.smtChildren.length === 0) continue
-      if (isProductionStatusComplete(product)) continue
-      for (const id of product.assemblyGroupIds) {
-        const trimmed = id.trim()
-        if (trimmed) ids.add(trimmed)
-      }
-    }
+function billingRegisterMatchProduct(
+  product: DeliveryRegisterItemForm,
+): {
+  orderNumber: string
+  productCode: string
+  productName: string
+  productId?: string
+} {
+  return {
+    orderNumber: product.orderNumber,
+    productCode: product.productCode,
+    productName: product.productName,
   }
-  return ids
+}
+
+function billingRegisterRowAnchorsToProduct(
+  billingItem: DeliveryRegisterItemForm,
+  product: DeliveryRegisterItemForm,
+) {
+  if (!isBillingRegisterItem(billingItem)) return false
+  return billingLineMatchesProductRow(
+    {
+      orderNumber: billingItem.orderNumber,
+      productCode: billingItem.productCode,
+      productName: billingItem.productName,
+    },
+    billingRegisterMatchProduct(product),
+  )
+}
+
+export function refreshBillingRegisterQuantities(
+  items: DeliveryRegisterItemForm[],
+  billingLines: DeliveryBillingOnlyLine[],
+): DeliveryRegisterItemForm[] {
+  return items.map((item) => {
+    if (!isBillingRegisterItem(item)) return item
+    const orderLineId = String(item.orderLineId || '').trim()
+    const line = billingLines.find((entry) => entry.orderLineId === orderLineId)
+    if (!line) return item
+    const qty = suggestedBillingQuantity(items, line)
+    return { ...item, quantity: qty > 0 ? String(qty) : '' }
+  })
+}
+
+/** 제품 출하 행에 발주 추가작업 행을 자동으로 붙인다 (발주서 companion과 동일) */
+export function syncBillingCompanionsForProductRow(
+  items: DeliveryRegisterItemForm[],
+  productKey: string,
+  billingLines: DeliveryBillingOnlyLine[],
+): DeliveryRegisterItemForm[] {
+  const product = items.find((item) => item.key === productKey && !isBillingRegisterItem(item))
+  if (!product || !product.orderNumber.trim() || !product.assemblyGroupId.trim()) {
+    return items
+  }
+
+  let next = items.filter(
+    (item) => !isBillingRegisterItem(item) || !billingRegisterRowAnchorsToProduct(item, product),
+  )
+
+  const candidates = billingLines.filter(
+    (line) =>
+      line.orderNumber.trim() === product.orderNumber.trim() &&
+      billingLineMatchesProductRow(line, billingRegisterMatchProduct(product)),
+  )
+
+  for (const line of candidates) {
+    if (availableBillingLinesForRegister(next, [line]).length === 0) continue
+    next = insertBillingRegisterItem(next, line)
+  }
+
+  return next
+}
+
+export function syncBillingRegisterCompanions(
+  items: DeliveryRegisterItemForm[],
+  billingLines: DeliveryBillingOnlyLine[],
+): DeliveryRegisterItemForm[] {
+  let next = pruneOrphanBillingRegisterItems(items)
+  const productRows = next.filter((item) => !isBillingRegisterItem(item))
+  for (const product of productRows) {
+    next = syncBillingCompanionsForProductRow(next, product.key, billingLines)
+  }
+  return refreshBillingRegisterQuantities(next, billingLines)
 }
 
 /** 출하 등록 UI·검증용 최대 수량. 임시 모드에서는 발주 잔량만 적용 */
@@ -524,6 +576,27 @@ export function findShippableOptionsForRegisterItem(
   })
 }
 
+export function findRegisterOrderOption(
+  orderOptions: DeliveryShippableOption[],
+  assemblyGroupId: string,
+): DeliveryShippableOption | null {
+  const groupId = assemblyGroupId.trim()
+  if (!groupId) return null
+  return orderOptions.find((option) => option.assemblyGroupId === groupId) ?? null
+}
+
+/** 발주 후보가 하나뿐이면 자동으로 발주·버전을 확정한다. */
+export function bindSingleRegisterOrderOption(
+  item: DeliveryRegisterItemForm,
+  orderOptions: DeliveryShippableOption[],
+  customer: string,
+): DeliveryRegisterItemForm {
+  if (isBillingRegisterItem(item) || item.assemblyGroupId.trim()) return item
+  const matches = findShippableOptionsForRegisterItem(orderOptions, customer, item)
+  if (matches.length !== 1) return item
+  return applyShippableOptionToItem(item, matches[0]!, { autoFillQuantity: false })
+}
+
 export function isDeliveryRegisterQuantityEnabled(item: DeliveryRegisterItemForm) {
   if (isBillingRegisterItem(item)) return true
   const hasProduct = Boolean(item.productCode.trim() || item.productName.trim())
@@ -595,12 +668,31 @@ export type ValidateDeliveryRegisterItemsContext = {
   orderOptions?: DeliveryShippableOption[]
 }
 
+/** 출하 등록 화면 — 품목 행에서 고객사를 추출한다. */
+export function resolveDeliveryRegisterCustomer(
+  items: DeliveryRegisterItemForm[],
+  fallback = '',
+): string {
+  const fallbackName = fallback.trim()
+  for (const item of items) {
+    if (isBillingRegisterItem(item)) continue
+    const customer = item.customer.trim()
+    if (customer) return customer
+  }
+  for (const item of items) {
+    const customer = item.customer.trim()
+    if (customer) return customer
+  }
+  return fallbackName
+}
+
 export function validateDeliveryRegisterItems(
   items: DeliveryRegisterItemForm[],
   context?: ValidateDeliveryRegisterItemsContext,
 ): | { ok: true; lines: DeliveryRegisterItemForm[]; customer: string }
   | { ok: false; detail: string } {
-  const customerName = String(context?.customer || '').trim()
+  const customerName =
+    String(context?.customer || '').trim() || resolveDeliveryRegisterCustomer(items)
   const catalog = customerName
     ? filterProductsForCustomerStrict(context?.products ?? [], customerName)
     : []
@@ -636,34 +728,48 @@ export function validateDeliveryRegisterItems(
     }
 
     if (!customerName) {
-      return { ok: false, detail: '고객사를 선택해 주세요.' }
+      return { ok: false, detail: '품목을 선택하면 고객사가 자동으로 입력됩니다.' }
     }
 
-    if (catalog.length) {
-      const resolved = resolveProductInput(catalog, customerName, code, name)
-      if (resolved.status === 'none') {
-        return {
-          ok: false,
-          detail: `${label}: 품목등록에 없거나 선택한 고객사(${customerName}) 품목이 아닙니다. 드롭다운에서 품목을 선택했는지 확인해 주세요.`,
-        }
-      }
-      if (resolved.status === 'ambiguous') {
-        return {
-          ok: false,
-          detail: `${code}: 같은 품목코드의 버전이 여러 개입니다. 드롭다운에서 버전을 선택해 주세요.`,
-        }
-      }
-      const product = resolved.product
-      if (product.productName.trim() !== name) {
-        return {
-          ok: false,
-          detail: `${label}: 품목코드와 품목명이 품목등록 정보(${product.productCode} · ${product.productName})와 일치하지 않습니다.`,
-        }
-      }
-    } else if (code && name) {
+    const assemblyGroupId = item.assemblyGroupId.trim()
+    const orderOption = assemblyGroupId
+      ? findRegisterOrderOption(context?.orderOptions ?? [], assemblyGroupId)
+      : null
+
+    if (assemblyGroupId && !orderOption) {
       return {
         ok: false,
-        detail: `${label}: 선택한 고객사(${customerName})에 등록된 품목이 없습니다. 품목등록에서 고객사·품목을 확인해 주세요.`,
+        detail: `${label}: 선택한 발주를 찾을 수 없습니다. 발주번호를 다시 선택해 주세요.`,
+      }
+    }
+
+    if (!orderOption) {
+      if (catalog.length) {
+        const resolved = resolveProductInput(catalog, customerName, code, name)
+        if (resolved.status === 'none') {
+          return {
+            ok: false,
+            detail: `${label}: 품목등록에 없거나 선택한 고객사(${customerName}) 품목이 아닙니다. 드롭다운에서 품목을 선택했는지 확인해 주세요.`,
+          }
+        }
+        if (resolved.status === 'ambiguous') {
+          return {
+            ok: false,
+            detail: `${code}: 같은 품목코드의 버전이 여러 개입니다. 드롭다운에서 버전을 선택해 주세요.`,
+          }
+        }
+        const product = resolved.product
+        if (product.productName.trim() !== name) {
+          return {
+            ok: false,
+            detail: `${label}: 품목코드와 품목명이 품목등록 정보(${product.productCode} · ${product.productName})와 일치하지 않습니다.`,
+          }
+        }
+      } else if (code && name) {
+        return {
+          ok: false,
+          detail: `${label}: 선택한 고객사(${customerName})에 등록된 품목이 없습니다. 품목등록에서 고객사·품목을 확인해 주세요.`,
+        }
       }
     }
 
@@ -671,7 +777,7 @@ export function validateDeliveryRegisterItems(
       return { ok: false, detail: `${label}: 출하 수량을 입력해 주세요.` }
     }
 
-    if (!item.assemblyGroupId.trim()) {
+    if (!assemblyGroupId) {
       const orderCandidates = findShippableOptionsForRegisterItem(
         context?.orderOptions ?? [],
         customerName,

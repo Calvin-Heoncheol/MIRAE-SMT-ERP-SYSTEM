@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useCanDeleteRecords, useAuthProfile } from '@/components/auth/auth-profile-provider'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { OrderItemsForm } from '@/components/orders/order-items-form'
@@ -11,9 +11,10 @@ import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
-import { validateOrderItems } from '@/lib/orders/build-order-payload'
+import { validateOrderItems, resolveOrderCustomerFromItems } from '@/lib/orders/build-order-payload'
 import {
   defaultOrderItemForm,
+  hydrateOrderItemsFromDetail,
   orderItemsFromDetail,
   type OrderFormState,
   type OrderItemForm,
@@ -100,6 +101,7 @@ function OrderModalContent({
   const [partnersLoading, setPartnersLoading] = useState(true)
   const [pendingPayload, setPendingPayload] = useState<OrderRowPayload | null>(null)
   const [reasonOpen, setReasonOpen] = useState(false)
+  const hydratedOrderIdRef = useRef<string | null>(null)
 
   const busyUi = useBusy()
   const { notifyAuthOrFailure, toast } = useWriteFailureToast()
@@ -110,7 +112,16 @@ function OrderModalContent({
       order ? orderItemsFromDetail(order.items, order.deliveryDate) : [defaultOrderItemForm()],
     )
     setSaveError(null)
+    hydratedOrderIdRef.current = null
   }, [order, mode])
+
+  useEffect(() => {
+    if (mode !== 'edit' || !order || !products.length) return
+    if (hydratedOrderIdRef.current === order.orderId) return
+    hydratedOrderIdRef.current = order.orderId
+    const customerName = form.customer.trim() || order.customer.trim()
+    setItems((current) => hydrateOrderItemsFromDetail(current, products, customerName))
+  }, [mode, order, products, form.customer])
 
   useEffect(() => {
     let cancelled = false
@@ -170,7 +181,16 @@ function OrderModalContent({
   }
 
   async function handleSave() {
-    const resolvedPartner = resolvePartnerFromInput(salesPartners, form.customer)
+    const customerInput =
+      mode === 'create'
+        ? form.customer.trim() || resolveOrderCustomerFromItems(items, products)
+        : form.customer.trim()
+    if (mode === 'create' && !customerInput) {
+      setSaveError('제품을 선택하면 고객사가 자동으로 입력됩니다.')
+      return
+    }
+
+    const resolvedPartner = resolvePartnerFromInput(salesPartners, customerInput)
     if (!resolvedPartner) {
       setSaveError('거래처등록에 등록된 거래처만 선택할 수 있습니다.')
       return
@@ -331,21 +351,32 @@ function OrderModalContent({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>고객사</span>
-          <CustomerCombobox
-            value={form.customer}
-            partners={salesPartners}
-            placeholder="거래처명 검색 (예: 센서)"
-            inputClassName={ERP_FIELD_INPUT_CLASS}
-            autoFocus={mode === 'create'}
-            onValueChange={(value) => updateForm('customer', value)}
-            onPartnerSelect={(partner) => updateForm('customer', partner.name)}
-          />
+          {mode === 'create' ? (
+            <input
+              value={form.customer}
+              readOnly
+              placeholder="제품 선택 시 자동 입력"
+              className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 text-slate-700`}
+              aria-label="고객사 (제품 선택 시 자동 입력)"
+            />
+          ) : (
+            <CustomerCombobox
+              value={form.customer}
+              partners={salesPartners}
+              placeholder="거래처명 검색 (예: 센서)"
+              inputClassName={ERP_FIELD_INPUT_CLASS}
+              onValueChange={(value) => updateForm('customer', value)}
+              onPartnerSelect={(partner) => updateForm('customer', partner.name)}
+            />
+          )}
           <p className="mt-1 text-xs text-slate-500">
-            {partnersLoading
-              ? '거래처 목록을 불러오는 중...'
-              : salesPartners.length === 0
-                ? '등록된 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
-                : '거래처등록의 거래처를 검색해 선택하세요.'}
+            {mode === 'create'
+              ? '제품코드 또는 제품명을 선택하면 품목에 연결된 고객사가 자동으로 입력됩니다.'
+              : partnersLoading
+                ? '거래처 목록을 불러오는 중...'
+                : salesPartners.length === 0
+                  ? '등록된 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
+                  : '거래처등록의 거래처를 검색해 선택하세요.'}
           </p>
         </label>
         <label className="block text-sm">
@@ -426,6 +457,17 @@ function OrderModalContent({
           products={products}
           currency={form.currency}
           onChange={setItems}
+          onCustomerResolved={
+            mode === 'create'
+              ? (customerName) => {
+                  const name = customerName.trim()
+                  if (!name) return
+                  setForm((current) =>
+                    current.customer.trim() ? current : { ...current, customer: name },
+                  )
+                }
+              : undefined
+          }
         />
       </div>
 

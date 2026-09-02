@@ -1,5 +1,7 @@
 import type { OrderCurrency } from './types'
 import { isBillingOnlyOrderItem, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost } from './utils'
+import type { Product } from '@/lib/products/types'
+import { findProductsByCode } from '@/lib/products/utils'
 
 let orderItemRowKeyCounter = 0
 
@@ -142,6 +144,44 @@ export function orderItemsFromDetail(
       deliveryDate: String(item.deliveryDate || fallbackDeliveryDate || '').trim(),
       isAdhoc: isBillingOnlyOrderItem(item),
       quoteId: options?.quoteId || '',
+    }
+  })
+}
+
+/** 수정 모달 — 저장된 추가작업 행에 companion 연결·버전 표시용 productId 복원 */
+export function hydrateOrderItemsFromDetail(
+  items: OrderItemForm[],
+  products: Product[],
+  customer: string,
+): OrderItemForm[] {
+  const customerName = customer.trim()
+  return items.map((item, index) => {
+    if (!item.isAdhoc) return item
+
+    const prev = index > 0 ? items[index - 1] : null
+    const followsProduct =
+      prev &&
+      !prev.isAdhoc &&
+      prev.productCode.trim() &&
+      prev.productCode.trim() === item.productCode.trim() &&
+      (!item.productName.trim() || item.productName.trim() === prev.productName.trim())
+
+    let productId = item.productId.trim()
+    if (!productId && followsProduct && prev.productId.trim()) {
+      productId = prev.productId.trim()
+    }
+    if (!productId && item.productCode.trim()) {
+      const matches = findProductsByCode(products, item.productCode, customerName)
+      const narrowed = item.productName.trim()
+        ? matches.filter((product) => product.productName === item.productName.trim())
+        : matches
+      if (narrowed.length === 1) productId = narrowed[0]!.id
+    }
+
+    return {
+      ...item,
+      ...(followsProduct ? { companionOfRowKey: prev!.rowKey } : {}),
+      ...(productId ? { productId } : {}),
     }
   })
 }

@@ -100,7 +100,6 @@ export function DeliveryInputWorkspace({
   const rows = historyResult.ok ? historyResult.rows : []
   const orders = inputResult.ok ? inputResult.data.orders : []
   const billingOnlyLines = inputResult.ok ? inputResult.data.billingOnlyLines : []
-  const registerPartners = inputResult.ok ? inputResult.data.partners : []
   const registerProducts = inputResult.ok ? inputResult.data.products : []
   const productionStatusLines = inputResult.ok ? inputResult.data.productionStatusLines : []
   const legacyGroups = legacyGroupsResult.ok ? legacyGroupsResult.groups : []
@@ -462,7 +461,6 @@ export function DeliveryInputWorkspace({
           open
           options={shippableOptions}
           billingOnlyLines={billingOnlyLines}
-          partners={registerPartners}
           products={registerProducts}
           initialItems={registerInitialItems}
           onClose={closeRegister}

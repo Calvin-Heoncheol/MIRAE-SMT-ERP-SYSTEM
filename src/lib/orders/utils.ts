@@ -33,6 +33,14 @@ export function isBillingOnlyOrderLine(line: {
   return !String(line.product_id || '').trim()
 }
 
+/** 추가작업 행 품목명 입력란 — 박스 안에 붙는 접미사 */
+export function formatAdditionalWorkProductNameLabel(productName: string) {
+  const base = String(productName || '').trim()
+  if (!base) return ''
+  if (base.includes('(추가 작업)')) return base
+  return `${base} (추가 작업)`
+}
+
 /** 발주수량 집계 — 금액전용(추가작업)·BOM 파생 라인 제외 */
 export function sumCommercialOrderQuantity(
   items: Array<{ productId?: string | null; quantity: number; derivedFromLineId?: string | null }>,

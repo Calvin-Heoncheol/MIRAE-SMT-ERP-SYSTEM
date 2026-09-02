@@ -9,6 +9,13 @@ import type {
   ProductionStatusStage,
 } from '@/lib/production-status/types'
 import {
+  classifyProductionStatusProduct,
+  classifyProductionStatusRow,
+  isProductionStatusDeliveryComplete,
+  isProductionStatusProductionComplete,
+  type ProductionStatusBucket,
+} from '@/lib/production-status/status-filter'
+import {
   ERP_BADGE_COMPACT_CLASS,
   ERP_TABLE_CLASS,
   ERP_TABLE_HEAD_CLASS,
@@ -124,53 +131,57 @@ function deliveryDetail(produced: number, target: number) {
   return `${produced.toLocaleString('ko-KR')} / ${target.toLocaleString('ko-KR')}`
 }
 
-/** 생산(SMT·후공정) 목표가 있는 행만 진행 판정 대상 */
-function hasProductionTarget(input: { smtTarget: number; postTarget: number }) {
-  return input.smtTarget > 0 || input.postTarget > 0
-}
-
-/** 생산(SMT·후공정) 목표 대비 완료 여부 — 대상 없으면 false */
+/** @deprecated status-filter 모듈 사용 */
 export function isProductionComplete(input: {
   smtTarget: number
   smtProduced: number
   postTarget: number
   postProduced: number
 }) {
-  const hasSmt = input.smtTarget > 0
-  const hasPost = input.postTarget > 0
-  if (!hasSmt && !hasPost) return false
-  const smtDone = !hasSmt || input.smtProduced >= input.smtTarget
-  const postDone = !hasPost || input.postProduced >= input.postTarget
-  return smtDone && postDone
+  return isProductionStatusProductionComplete(input)
 }
 
 export function isProductProductionComplete(product: ProductionStatusProductLine) {
-  return isProductionComplete(product)
+  return isProductionStatusProductionComplete(product)
+}
+
+const STATUS_BADGE_CLASS: Record<ProductionStatusBucket, string> = {
+  producing: 'bg-amber-50 text-amber-800 ring-amber-200',
+  production_done: 'bg-sky-50 text-sky-800 ring-sky-200',
+  delivery_done: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  none: 'bg-slate-100 text-slate-500 ring-slate-200',
+}
+
+const STATUS_BADGE_LABEL: Record<ProductionStatusBucket, string> = {
+  producing: '생산중',
+  production_done: '생산완료',
+  delivery_done: '출하완료',
+  none: '대상없음',
 }
 
 function ProductionLineStatusBadge({
-  smtTarget,
-  smtProduced,
-  postTarget,
-  postProduced,
+  product,
+  line,
 }: {
-  smtTarget: number
-  smtProduced: number
-  postTarget: number
-  postProduced: number
+  product?: ProductionStatusProductLine
+  line?: ProductionStatusLine
 }) {
+  const bucket = product
+    ? classifyProductionStatusProduct(product)
+    : line
+      ? classifyProductionStatusRow({ ...line, smtChildrenCount: 0 })
+      : 'none'
   const base = ERP_BADGE_COMPACT_CLASS
-  if (smtTarget <= 0 && postTarget <= 0) {
-    return <span className={`${base} bg-slate-100 text-slate-500 ring-slate-200`}>대상없음</span>
-  }
-  if (isProductionComplete({ smtTarget, smtProduced, postTarget, postProduced })) {
-    return (
-      <span className={`${base} bg-emerald-50 text-emerald-700 ring-emerald-200`}>완료</span>
-    )
-  }
   return (
-    <span className={`${base} bg-amber-50 text-amber-800 ring-amber-200`}>진행중</span>
+    <span className={`${base} ${STATUS_BADGE_CLASS[bucket]}`}>{STATUS_BADGE_LABEL[bucket]}</span>
   )
+}
+
+function isPipelineDueComplete(
+  row: ProductionStatusLine | ProductionStatusProductLine,
+) {
+  if (row.deliveryTarget > 0) return isProductionStatusDeliveryComplete(row)
+  return isProductionStatusProductionComplete(row)
 }
 
 function StageCells({
@@ -285,7 +296,6 @@ function OrderStatusRows({
   onStageClick?: ProductionStatusTableProps['onStageClick']
 }) {
   if (line.products.length === 0) {
-    const done = isProductionComplete(line)
     return (
       <tr className={ERP_TABLE_ROW_CLASS}>
         <td
@@ -304,7 +314,7 @@ function OrderStatusRows({
           —
         </td>
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
-          <DeliveryDueBadge deliveryDate={line.deliveryDate} done={done} />
+          <DeliveryDueBadge deliveryDate={line.deliveryDate} done={isPipelineDueComplete(line)} />
         </td>
         <StageCells
           smtPercent={line.smtPercent}
@@ -329,12 +339,7 @@ function OrderStatusRows({
           }
         />
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
-          <ProductionLineStatusBadge
-            smtTarget={line.smtTarget}
-            smtProduced={line.smtProduced}
-            postTarget={line.postTarget}
-            postProduced={line.postProduced}
-          />
+          <ProductionLineStatusBadge line={line} />
         </td>
       </tr>
     )
@@ -343,7 +348,6 @@ function OrderStatusRows({
   return (
     <>
       {line.products.map((product) => {
-        const done = isProductProductionComplete(product)
         return (
           <tr key={`${line.orderId}:${product.key}`} className={ERP_TABLE_ROW_CLASS}>
             <td
@@ -366,7 +370,7 @@ function OrderStatusRows({
               )}
             </td>
             <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
-              <DeliveryDueBadge deliveryDate={line.deliveryDate} done={done} />
+              <DeliveryDueBadge deliveryDate={line.deliveryDate} done={isPipelineDueComplete(product)} />
             </td>
             <StageCells
               smtPercent={product.smtPercent}
@@ -399,12 +403,7 @@ function OrderStatusRows({
               }
             />
             <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
-              <ProductionLineStatusBadge
-                smtTarget={product.smtTarget}
-                smtProduced={product.smtProduced}
-                postTarget={product.postTarget}
-                postProduced={product.postProduced}
-              />
+              <ProductionLineStatusBadge product={product} />
             </td>
           </tr>
         )
@@ -413,48 +412,5 @@ function OrderStatusRows({
   )
 }
 
-/** 주문 내 생산 대상 제품이 모두 완료되면 true (대상없음 행은 무시) */
-export function isProductionStatusLineComplete(line: ProductionStatusLine) {
-  if (line.products.length > 0) {
-    const targets = line.products.filter(
-      (product) => hasProductionTarget(product) || product.smtChildren.length > 0,
-    )
-    if (!targets.length) return isProductionComplete(line)
-    return targets.every(isProductProductionComplete)
-  }
-  return isProductionComplete(line)
-}
-
-/**
- * 진행중/완료 필터용: 뱃지와 맞게 제품 행만 남긴다.
- * - 진행중: 미완료 생산 대상만
- * - 완료: 완료된 생산 대상만
- * - 대상없음 행은 진행중·완료에서 제외
- */
-export function filterProductionStatusLineByStatus(
-  line: ProductionStatusLine,
-  statusFilter: 'active' | 'done' | 'all',
-): ProductionStatusLine | null {
-  if (statusFilter === 'all') return line
-
-  if (line.products.length === 0) {
-    if (!hasProductionTarget(line)) return null
-    const done = isProductionComplete(line)
-    if (statusFilter === 'done' ? done : !done) return line
-    return null
-  }
-
-  const products = line.products.filter((product) => {
-    if (!hasProductionTarget(product) && product.smtChildren.length === 0) return false
-    const done = isProductProductionComplete(product)
-    return statusFilter === 'done' ? done : !done
-  })
-  if (!products.length) return null
-
-  return {
-    ...line,
-    products,
-    productCount: products.length,
-    productName: products.map((product) => product.productName).filter(Boolean).join(', ') || line.productName,
-  }
-}
+export { filterProductionStatusLineByStatus } from '@/lib/production-status/status-filter'
+export { isProductionStatusLineProductionComplete as isProductionStatusLineComplete } from '@/lib/production-status/status-filter'

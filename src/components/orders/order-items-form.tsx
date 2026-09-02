@@ -1,6 +1,6 @@
 'use client'
 
-import { type Dispatch, type SetStateAction, useEffect, useRef } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef } from 'react'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { ProductCombobox } from '@/components/orders/product-combobox'
 import { parseItemVersionCode } from '@/lib/items/version-code'
@@ -9,10 +9,10 @@ import {
   defaultOrderItemForm,
   type OrderItemForm,
 } from '@/lib/orders/form-state'
-import { computeLineAmount, computeOrderLineBreakdownAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, formatOrderMoney, isBillingOnlyOrderItem, orderCurrencySymbol, orderLinePerUnitPrice } from '@/lib/orders/utils'
+import { computeLineAmount, computeOrderLineBreakdownAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, formatAdditionalWorkProductNameLabel, formatOrderMoney, isBillingOnlyOrderItem, orderCurrencySymbol, orderLinePerUnitPrice } from '@/lib/orders/utils'
 import type { OrderCurrency } from '@/lib/orders/types'
 import type { Product } from '@/lib/products/types'
-import { findProductsByCode, findProductsByName } from '@/lib/products/utils'
+import { findProductsByCode, findProductsByName, filterProductsForCustomerStrict } from '@/lib/products/utils'
 import { ERP_ROW_ADD_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 type OrderItemsFormProps = {
@@ -21,6 +21,7 @@ type OrderItemsFormProps = {
   products: Product[]
   currency?: OrderCurrency
   onChange: Dispatch<SetStateAction<OrderItemForm[]>>
+  onCustomerResolved?: (customer: string) => void
 }
 
 function unitPriceFromProduct(product: Product) {
@@ -208,9 +209,20 @@ export function OrderItemsForm({
   products,
   currency = 'KRW',
   onChange,
+  onCustomerResolved,
 }: OrderItemsFormProps) {
   const moneySymbol = orderCurrencySymbol(currency)
   const quantityRefs = useRef<(HTMLInputElement | null)[]>([])
+  const lockedCustomer = customer.trim()
+  const searchableProducts = useMemo(() => {
+    if (lockedCustomer) return filterProductsForCustomerStrict(products, lockedCustomer)
+    return products.filter((product) => product.isActive)
+  }, [products, lockedCustomer])
+
+  function notifyCustomerFromProduct(product: Product) {
+    const name = product.customer.trim()
+    if (name) onCustomerResolved?.(name)
+  }
 
   function focusQuantity(index: number) {
     window.setTimeout(() => {
@@ -285,14 +297,16 @@ export function OrderItemsForm({
   }
 
   function selectProduct(index: number, product: Product) {
-    const sameCode = products.filter(
+    const sameCode = searchableProducts.filter(
       (p) => p.productCode === product.productCode && (!product.productName || p.productName === product.productName),
     )
     const isAmbiguous = sameCode.length > 1
+    notifyCustomerFromProduct(product)
     onChange((current) => applyProductSelection(current, index, product, isAmbiguous))
   }
 
   function confirmVersion(index: number, product: Product) {
+    notifyCustomerFromProduct(product)
     onChange((current) => applyProductSelection(current, index, product, false))
   }
 
@@ -305,7 +319,8 @@ export function OrderItemsForm({
     <div className="space-y-3">
       <h3 className="text-sm font-bold text-slate-900">제품</h3>
       <p className="text-xs text-slate-500">
-        제품 선택 시 품목 마스터의 SET-UP·SMD·후공정·자재가 적용됩니다. 수량 변경 시 SET-UP÷수량이 자동 재계산됩니다.
+        제품 선택 시 품목 마스터의 SET-UP·SMD·후공정·자재가 적용되고 고객사가 자동 입력됩니다. 수량 변경 시
+        SET-UP÷수량이 자동 재계산됩니다.
       </p>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -347,7 +362,7 @@ export function OrderItemsForm({
                     materialUnitPrice: Number(item.materialUnitPrice) || 0,
                   })
               const version = productVersionLabel(item, products)
-              const versionCandidates = productVersionCandidates(item, products, customer)
+              const versionCandidates = productVersionCandidates(item, searchableProducts, lockedCustomer)
               const isAdhoc = Boolean(item.isAdhoc)
               const isCompanion = isCompanionRow(item)
               const canRemove = isCompanion
@@ -360,10 +375,18 @@ export function OrderItemsForm({
                   className={['border-t border-slate-100', isAdhoc ? 'bg-amber-50/40' : ''].join(' ')}
                 >
                   <td className="px-2 py-2 align-top">
+                    {isCompanion ? (
+                      <input
+                        value={item.productCode}
+                        readOnly
+                        className={`${inputClassName} bg-slate-50 font-mono text-slate-700`}
+                        aria-label={`${index + 1}행 추가작업 제품코드`}
+                      />
+                    ) : (
                     <ProductCombobox
                       value={item.productCode}
-                      products={products}
-                      customer={customer}
+                      products={searchableProducts}
+                      customer={lockedCustomer}
                       field="code"
                       placeholder={isAdhoc ? '코드 검색 (추가작업)' : '코드 검색'}
                       ariaLabel={`${index + 1}행 ${isAdhoc ? '추가작업 ' : ''}제품코드`}
@@ -399,61 +422,57 @@ export function OrderItemsForm({
                       onProductSelect={(product) => selectProduct(index, product)}
                       onVersionResolved={() => focusQuantity(index)}
                     />
+                    )}
                   </td>
                   <td className="px-2 py-2 align-top">
-                    <div className="flex items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <ProductCombobox
-                          value={item.productName}
-                          products={products}
-                          customer={customer}
-                          field="name"
-                          placeholder={isAdhoc ? '제품명 (추가작업)' : '제품명'}
-                          ariaLabel={`${index + 1}행 ${isAdhoc ? '추가작업 ' : ''}제품명`}
-                          inputClassName={inputClassName}
-                          onValueChange={(productName) => {
-                            const parentKey = item.rowKey
-                            onChange((current) => {
-                              let next = current.map((row, itemIndex) =>
-                                itemIndex === index
-                                  ? {
-                                      ...row,
-                                      productName,
-                                      productId: '',
-                                      productCode: '',
-                                      quoteId: '',
-                                      ...(isAdhoc
-                                        ? {}
-                                        : {
-                                            unitPrice: '0',
-                                            setupCost: '0',
-                                            smdUnitPrice: '0',
-                                            dipUnitPrice: '0',
-                                            materialUnitPrice: '0',
-                                            materialCost: '0',
-                                          }),
-                                    }
-                                  : row,
-                              )
-                              if (!isAdhoc) next = stripCompanionRows(next, parentKey)
-                              return next
-                            })
-                          }}
-                          onProductSelect={(product) => selectProduct(index, product)}
-                          onVersionResolved={() => focusQuantity(index)}
-                        />
-                      </div>
-                      {isCompanion ? (
-                        <span className="shrink-0 pt-1.5 text-xs font-medium text-slate-500">
-                          (추가 작업)
-                        </span>
-                      ) : null}
-                    </div>
-                    {isAdhoc && !isCompanion ? (
-                      <span className="mt-1 inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
-                        추가 작업
-                      </span>
-                    ) : null}
+                    {isCompanion ? (
+                      <input
+                        value={formatAdditionalWorkProductNameLabel(item.productName)}
+                        readOnly
+                        className={`${inputClassName} bg-slate-50 text-slate-700`}
+                        aria-label={`${index + 1}행 추가작업 제품명`}
+                      />
+                    ) : (
+                    <ProductCombobox
+                      value={item.productName}
+                      products={searchableProducts}
+                      customer={lockedCustomer}
+                      field="name"
+                      placeholder={isAdhoc ? '제품명 (추가작업)' : '제품명'}
+                      ariaLabel={`${index + 1}행 ${isAdhoc ? '추가작업 ' : ''}제품명`}
+                      inputClassName={inputClassName}
+                      onValueChange={(productName) => {
+                        const parentKey = item.rowKey
+                        onChange((current) => {
+                          let next = current.map((row, itemIndex) =>
+                            itemIndex === index
+                              ? {
+                                  ...row,
+                                  productName,
+                                  productId: '',
+                                  productCode: '',
+                                  quoteId: '',
+                                  ...(isAdhoc
+                                    ? {}
+                                    : {
+                                        unitPrice: '0',
+                                        setupCost: '0',
+                                        smdUnitPrice: '0',
+                                        dipUnitPrice: '0',
+                                        materialUnitPrice: '0',
+                                        materialCost: '0',
+                                      }),
+                                }
+                              : row,
+                          )
+                          if (!isAdhoc) next = stripCompanionRows(next, parentKey)
+                          return next
+                        })
+                      }}
+                      onProductSelect={(product) => selectProduct(index, product)}
+                      onVersionResolved={() => focusQuantity(index)}
+                    />
+                    )}
                   </td>
                   <td className="px-2 py-2 align-top text-center">
                     {versionCandidates.length > 1 ? (

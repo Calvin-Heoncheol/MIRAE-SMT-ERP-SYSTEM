@@ -3,10 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
 import { ProductionStatusQuickInputModal } from '@/components/production-status/production-status-quick-input-modal'
-import {
-  filterProductionStatusLineByStatus,
-  ProductionStatusTable,
-} from '@/components/production-status/production-status-table'
+import { ProductionStatusTable } from '@/components/production-status/production-status-table'
 import { DateRangeFilter } from '@/components/ui/date-range-filter'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
@@ -16,6 +13,10 @@ import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchProductionStatusResult } from '@/lib/production-status/repository'
+import {
+  filterProductionStatusLineByStatus,
+  type ProductionStatusFilter,
+} from '@/lib/production-status/status-filter'
 import type {
   ProductionStatusLine,
   ProductionStatusProductLine,
@@ -36,12 +37,10 @@ type QuickInputState = {
   product?: ProductionStatusProductLine
 } | null
 
-type StatusFilter = 'active' | 'done' | 'all'
-
 export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
+  const [statusFilter, setStatusFilter] = useState<ProductionStatusFilter>('producing')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [quickInput, setQuickInput] = useState<QuickInputState>(null)
@@ -58,14 +57,22 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
     [lines, dateRange],
   )
 
-  const doneCount = useMemo(
+  const producingCount = useMemo(
     () =>
-      datedLines.filter((line) => filterProductionStatusLineByStatus(line, 'done') != null).length,
+      datedLines.filter((line) => filterProductionStatusLineByStatus(line, 'producing') != null)
+        .length,
     [datedLines],
   )
-  const activeCount = useMemo(
+  const productionDoneCount = useMemo(
     () =>
-      datedLines.filter((line) => filterProductionStatusLineByStatus(line, 'active') != null)
+      datedLines.filter(
+        (line) => filterProductionStatusLineByStatus(line, 'production_done') != null,
+      ).length,
+    [datedLines],
+  )
+  const deliveryDoneCount = useMemo(
+    () =>
+      datedLines.filter((line) => filterProductionStatusLineByStatus(line, 'delivery_done') != null)
         .length,
     [datedLines],
   )
@@ -88,8 +95,8 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
 
   const kpi = useMemo(
     () => ({
-      activeCount: searchedLines.filter(
-        (line) => filterProductionStatusLineByStatus(line, 'active') != null,
+      producingCount: searchedLines.filter(
+        (line) => filterProductionStatusLineByStatus(line, 'producing') != null,
       ).length,
       smtProduced: searchedLines.reduce((sum, line) => sum + Math.max(0, line.smtProduced), 0),
       postProduced: searchedLines.reduce((sum, line) => sum + Math.max(0, line.postProduced), 0),
@@ -100,12 +107,23 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
 
   const statusChips = [
     {
-      value: 'active' as const,
-      label: '진행중',
-      count: activeCount,
+      value: 'producing' as const,
+      label: '생산중',
+      count: producingCount,
       tone: STATUS_FILTER_TONES.progress,
     },
-    { value: 'done' as const, label: '완료', count: doneCount, tone: STATUS_FILTER_TONES.done },
+    {
+      value: 'production_done' as const,
+      label: '생산 완료',
+      count: productionDoneCount,
+      tone: STATUS_FILTER_TONES.info,
+    },
+    {
+      value: 'delivery_done' as const,
+      label: '출하완료',
+      count: deliveryDoneCount,
+      tone: STATUS_FILTER_TONES.done,
+    },
     { value: 'all' as const, label: '전체', count: datedLines.length },
   ]
 
@@ -147,7 +165,7 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
   return (
     <PageShell className="gap-4">
       <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4">
-        <KpiStatCard label="진행중" value={kpi.activeCount} unit="건" tone="amber" />
+        <KpiStatCard label="생산 진행중" value={kpi.producingCount} unit="건" tone="amber" />
         <KpiStatCard label="SMT 생산" value={kpi.smtProduced} unit="EA" tone="sky" />
         <KpiStatCard label="후공정 생산" value={kpi.postProduced} unit="EA" tone="emerald" />
         <KpiStatCard label="출하누적" value={kpi.deliveryProduced} unit="EA" tone="amber" />
