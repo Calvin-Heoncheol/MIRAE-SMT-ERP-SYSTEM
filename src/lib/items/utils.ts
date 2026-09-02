@@ -9,6 +9,7 @@ import type {
 } from './types'
 import {
   deriveItemProcessType,
+  isFinishedItemCategory,
   isSemiFinishedItemCategory,
   ITEM_CATEGORY_CODE_PAD,
   ITEM_CATEGORY_CODE_PREFIX,
@@ -375,7 +376,7 @@ export function displayItemListUnitPrice(
 ) {
   const baseline = isSemiFinishedItemCategory(item.itemCategory)
     ? displayItemBaselineUnitPrice(item)
-    : item.itemCategory === 3 || item.itemCategory === 4
+    : isFinishedItemCategory(item.itemCategory)
       ? displayItemUnitPrice(item)
       : Math.max(0, Math.round(Number(item.unitPrice) || 0))
   return baseline + displayItemAdditionalUnitPrice(item)
