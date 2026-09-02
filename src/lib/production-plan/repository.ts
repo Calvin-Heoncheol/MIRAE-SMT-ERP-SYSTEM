@@ -561,7 +561,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
           plannedDate: plan.plannedDate,
           lineNo: plan.lineNo,
           team: '',
-          pcbSide: plan.pcbSide === 'TOP' || plan.pcbSide === 'BOT' || plan.pcbSide === 'BOTH' ? plan.pcbSide : 'SINGLE',
+          pcbSide: plan.pcbSide,
           plannedQuantity: plan.plannedQuantity,
           plannedTotalQty: smtPlannedTotal,
           unplannedQty: smtUnplanned,

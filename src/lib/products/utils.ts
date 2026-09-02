@@ -64,6 +64,7 @@ export function mapProductRecord(row: {
     smdUnitPrice: 0,
     dipUnitPrice: 0,
     materialUnitPrice: 0,
+    additionalUnitPrice: 0,
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
     processType: normalizeProductProcessType(row.process_type),
     productKind: normalizeProductKind(row.product_kind),
