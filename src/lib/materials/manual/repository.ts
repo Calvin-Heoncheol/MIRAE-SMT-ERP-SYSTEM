@@ -351,7 +351,7 @@ export async function saveMaterialManualOutbound(input: {
     order_line_id: orderLineId,
     record_date: recordDate,
     quantity,
-    created_by_name: createdBy.name,
+    created_by_name: createdBy.createdByName,
   })
 
   if (error) {

@@ -299,7 +299,7 @@ export function ProductionOrderSidebar({
         {
           value: 'partial' as const,
           label: '일부입고',
-          count: statusCounts.partial,
+          count: 'partial' in statusCounts ? statusCounts.partial : 0,
           tone: STATUS_FILTER_TONES.progress,
         },
         {
@@ -320,7 +320,7 @@ export function ProductionOrderSidebar({
         {
           value: 'progress' as const,
           label: '진행',
-          count: statusCounts.progress,
+          count: 'progress' in statusCounts ? statusCounts.progress : 0,
           tone: STATUS_FILTER_TONES.progress,
         },
         {
