@@ -247,6 +247,7 @@ function buildProductLinesForOrder(
         (smtLine?.productName || master?.productName || item.productName).trim() || '—',
       productCode: (smtLine?.productCode || master?.productCode || item.productCode).trim(),
       version: (smtLine?.productVersion || master?.version || '').trim(),
+      workNumber: String(item.workNumber || smtLine?.workNumber || '').trim(),
       quantity,
       smtTarget,
       smtProduced,
@@ -278,6 +279,7 @@ function buildProductLinesForOrder(
       productName: child.productName,
       productCode: child.productCode,
       version: child.version,
+      workNumber: String(smtLine.workNumber || '').trim(),
       quantity: child.quantity,
       smtTarget: child.smtTarget,
       smtProduced: child.smtProduced,
@@ -410,7 +412,8 @@ export function matchesProductionStatusSearch(line: ProductionStatusLine, query:
   const versions = line.products
     .flatMap((product) => [product.version, ...product.smtChildren.map((child) => child.version)])
     .join(' ')
-  return [line.orderNumber, line.customerPoNumber, line.customer, line.productName, productNames, productCodes, versions]
+  const workNumbers = line.products.map((product) => product.workNumber).join(' ')
+  return [line.orderNumber, line.customerPoNumber, line.customer, line.productName, productNames, productCodes, versions, workNumbers]
     .join(' ')
     .toLowerCase()
     .includes(q)

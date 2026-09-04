@@ -113,6 +113,7 @@ export function mapOrderLineRecord(
     material_cost?: number | null
     delivery_date?: string | null
     derived_from_line_id?: string | null
+    work_number?: string | null
   },
   fallbackDeliveryDate = '',
 ): OrderLineItem {
@@ -147,6 +148,7 @@ export function mapOrderLineRecord(
     materialCost,
     deliveryDate: formatOrderDate(line.delivery_date) || fallbackDeliveryDate,
     derivedFromLineId: line.derived_from_line_id || null,
+    workNumber: String(line.work_number || '').trim() || null,
   }
 }
 
@@ -287,6 +289,31 @@ export function displayOrderPoNumber(
   orderId: string | undefined | null,
 ) {
   return String(customerPoNumber || '').trim() || String(orderId || '').trim()
+}
+
+/** 작업번호 — {고객접두}-{발주일YYMMDD}-{NN} (예: LEE-260904-01) */
+export function formatOrderWorkNumber(workNumberBase: string, workSeq: number) {
+  const base = String(workNumberBase || '').trim()
+  const seq = Math.max(1, Math.floor(Number(workSeq) || 0))
+  if (!base) return ''
+  return `${base}-${String(seq).padStart(2, '0')}`
+}
+
+/** 작업번호 끝 순번 파싱 (접두사 무관, `-NN` 형태) */
+export function parseOrderWorkSeq(workNumber: string | null | undefined) {
+  const value = String(workNumber || '').trim()
+  const match = value.match(/-(\d+)$/)
+  if (!match) return null
+  return Number(match[1])
+}
+
+export function nextOrderWorkSeq(existingWorkNumbers: Array<string | null | undefined>) {
+  let max = 0
+  for (const value of existingWorkNumbers) {
+    const seq = parseOrderWorkSeq(value)
+    if (seq != null && seq > max) max = seq
+  }
+  return max + 1
 }
 
 export function filterOrdersForSearch(orders: OrderListGroup[], query: string) {

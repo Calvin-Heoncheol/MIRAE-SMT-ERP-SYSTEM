@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ProductionOrderPoLabel } from '@/components/production-input/production-order-po-label'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { ProductionOrderLine, ProductionOrderState } from '@/lib/production-input/types'
 import {
   formatProductionProductDisplay,
@@ -538,7 +539,12 @@ export function ProductionOrderSidebar({
                     </span>
                     <span className="mx-1.5 text-slate-300">·</span>
                     <span className="font-semibold text-slate-700">
-                      {displayOrderPoNumber(order.customerPoNumber, order.orderNumber) || '—'}
+                      <ProductionOrderPoLabel
+                        customerPoNumber={order.customerPoNumber}
+                        orderNumber={order.orderNumber}
+                        workNumber={order.workNumber}
+                        workClassName="mt-0.5 block font-mono text-[10px] font-medium leading-tight text-slate-500"
+                      />
                     </span>
                   </p>
                 </div>

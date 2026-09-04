@@ -197,10 +197,6 @@ function OrderModalContent({
     }
 
     const headerDeliveryDate = String(form.deliveryDate || '').trim()
-    if (!headerDeliveryDate) {
-      setSaveError('납기일을 입력하세요.')
-      return
-    }
 
     const customerName = resolvedPartner.name
     const validation = validateOrderItems(items, products, customerName, headerDeliveryDate)

@@ -61,6 +61,7 @@ export function ProductionInputModal({
     ? [
         order.customer || '—',
         displayOrderPoNumber(order.customerPoNumber, order.orderNumber) || '—',
+        order.workNumber || null,
         order.productCode || null,
       ]
         .filter(Boolean)

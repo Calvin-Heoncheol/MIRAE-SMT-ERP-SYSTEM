@@ -267,6 +267,7 @@ export function buildProductionOrderLines(
         orderId: order.orderId,
         orderNumber: order.orderNumber,
         customerPoNumber: order.customerPoNumber || '',
+        workNumber: String(item.workNumber || '').trim(),
         orderDate: order.orderDate,
         deliveryDate: item.deliveryDate || order.deliveryDate,
         customer: order.customer,
@@ -318,6 +319,27 @@ export function resolveAssemblyGroupOrderUnitPrice(
     ) || null
 
   return Math.max(0, Math.round(Number(match?.unitPrice) || 0))
+}
+
+function resolveAssemblyGroupWorkNumber(
+  order: OrderListGroup,
+  parentProductId: string,
+  productCode: string,
+) {
+  const parentId = String(parentProductId || '').trim()
+  const code = String(productCode || '').trim()
+  const items = (order.items || []).filter(
+    (item) => !item.derivedFromLineId && !isBillingOnlyOrderItem(item),
+  )
+
+  const match =
+    items.find(
+      (item) =>
+        (parentId && item.productId === parentId) ||
+        (code && (item.productCode === code || item.productId === code)),
+    ) || null
+
+  return String(match?.workNumber || '').trim()
 }
 
 /** 출하 입력용 — SMD·DIP 중 하나라도 있는 조립 그룹 */
@@ -377,6 +399,7 @@ function buildAssemblyGroupProductionLines(
     const unitPrice =
       resolveAssemblyGroupOrderUnitPrice(order, group.parentProductId, productCode) ||
       Math.max(0, Math.round(Number(parentProduct?.defaultUnitPrice) || 0))
+    const workNumber = resolveAssemblyGroupWorkNumber(order, group.parentProductId, productCode)
 
     lines.push({
       uiKey: `${order.orderNumber}\u001easm\u001e${group.id}`,
@@ -386,6 +409,7 @@ function buildAssemblyGroupProductionLines(
       assemblyGroupId: group.id,
       orderNumber: order.orderNumber,
       customerPoNumber: order.customerPoNumber || '',
+      workNumber,
       orderDate: order.orderDate,
       deliveryDate: order.deliveryDate,
       customer: order.customer,
@@ -527,6 +551,7 @@ export function filterProductionOrders(orders: ProductionOrderLine[], query: str
     const haystack = [
       order.orderNumber,
       order.customerPoNumber,
+      order.workNumber,
       order.customer,
       order.productName,
       order.productCode,

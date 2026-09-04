@@ -5,6 +5,7 @@ import {
   ProductionLabelPrintModal,
   type ProductionLabelOrderOption,
 } from '@/components/production-input/production-label-print-modal'
+import { ProductionOrderPoLabel } from '@/components/production-input/production-order-po-label'
 import { ErpButton } from '@/components/ui/erp-button'
 import { useToast } from '@/components/ui/toast-provider'
 import { createScanDeduper } from '@/lib/materials/inbound/scan-guards'
@@ -339,7 +340,13 @@ export function PostProcessScanInputPanel({
               {formatProductionProductName(activeOrder)}
             </h2>
             <p className="mt-0.5 text-sm text-slate-600">
-              {displayOrderPoNumber(activeOrder.customerPoNumber, activeOrder.orderNumber)}
+              <ProductionOrderPoLabel
+                customerPoNumber={activeOrder.customerPoNumber}
+                orderNumber={activeOrder.orderNumber}
+                workNumber={activeOrder.workNumber}
+                className="inline"
+                workClassName="mt-0.5 block font-mono text-[11px] font-medium text-slate-500"
+              />
               {activeOrder.customer ? ` · ${activeOrder.customer}` : ''}
             </p>
             <div className="mt-3 grid grid-cols-3 gap-2 text-center">

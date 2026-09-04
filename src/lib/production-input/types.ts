@@ -16,6 +16,8 @@ export type ProductionOrderLine = {
   orderNumber: string
   /** 고객 발주번호(PO) — 화면 표시용 */
   customerPoNumber: string
+  /** 작업번호 — {고객접두}-{발주일}-01 (발주번호 아래 표시) */
+  workNumber: string
   orderDate: string
   deliveryDate: string
   customer: string

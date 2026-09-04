@@ -35,6 +35,8 @@ export type OrderLineItem = {
   deliveryDate: string
   /** BOM 펼침으로 생성된 반제품 줄 */
   derivedFromLineId?: string | null
+  /** 작업번호 — {고객접두}-{발주일}-{NN} (예: LEE-260904-01, 추가작업은 없음) */
+  workNumber?: string | null
 }
 
 export type OrderListGroup = {
@@ -76,6 +78,7 @@ export type OrderLineRecord = {
   material_cost?: number | null
   delivery_date?: string | null
   derived_from_line_id?: string | null
+  work_number?: string | null
 }
 
 export type OrderRecord = {

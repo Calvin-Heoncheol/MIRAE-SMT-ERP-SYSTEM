@@ -313,7 +313,7 @@ export function OrderItemsForm({
   const inputClassName =
     'w-full min-w-0 rounded-lg border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100'
 
-  const columnCount = 7
+  const columnCount = 8
 
   return (
     <div className="space-y-3">
@@ -326,13 +326,13 @@ export function OrderItemsForm({
       <div className="overflow-x-auto rounded-lg border border-slate-200">
         <table className="erp-data-table erp-data-table--compact min-w-[760px] w-full border-collapse text-sm">
           <colgroup>
-            <col className="w-[14%]" />
-            <col className="w-[24%]" />
+            <col className="w-[16%]" />
+            <col className="w-[28%]" />
             <col className="w-[8%]" />
             <col className="w-[10%]" />
-            <col className="w-[14%]" />
-            <col className="w-[14%]" />
-            <col className="w-10" />
+            <col className="w-[16%]" />
+            <col className="w-[16%]" />
+            <col className="w-8" />
           </colgroup>
           <thead className="bg-slate-50">
             <tr>
@@ -346,7 +346,7 @@ export function OrderItemsForm({
               <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600">
                 금액 ({moneySymbol})
               </th>
-              <th className="px-1 py-2" />
+              <th className="w-8 px-0 py-2" />
             </tr>
           </thead>
           <tbody>
@@ -549,12 +549,12 @@ export function OrderItemsForm({
                       {formatOrderMoney(amount, currency)}
                     </div>
                   </td>
-                  <td className="px-1 py-2 text-center align-top">
+                  <td className="w-8 px-0 py-2 text-center align-top">
                     <button
                       type="button"
                       onClick={() => removeRow(index)}
                       disabled={!canRemove}
-                      className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label={`${index + 1}행 삭제`}
                     >
                       ×

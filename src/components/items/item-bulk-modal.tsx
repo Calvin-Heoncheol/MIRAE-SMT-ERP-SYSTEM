@@ -435,7 +435,13 @@ function ItemBulkModalContent({
                 {columns.map((column) => (
                   <th
                     key={column.key}
-                    className="whitespace-nowrap px-3 py-2 text-left text-sm font-semibold text-slate-600"
+                    className={[
+                      'whitespace-nowrap px-3 py-2 text-left text-sm font-semibold text-slate-600',
+                      column.widthClass || '',
+                      column.key === 'unitPrice' ? 'text-right' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
                   >
                     {column.label}
                     {column.required ? <RequiredMark /> : null}
@@ -468,7 +474,15 @@ function ItemBulkModalContent({
                       {index + 1}
                     </td>
                     {columns.map((column) => (
-                      <td key={column.key} className="px-3 py-2 align-top">
+                      <td
+                        key={column.key}
+                        className={[
+                          'px-3 py-2 align-top',
+                          column.widthClass || '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                      >
                         {column.key === 'customerName' ? (
                           <CustomerCombobox
                             value={row.customerName}
@@ -554,6 +568,22 @@ function ItemBulkModalContent({
                               </option>
                             ))}
                           </select>
+                        ) : column.key === 'unitPrice' ? (
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={row.unitPrice ? String(row.unitPrice) : ''}
+                            onChange={(event) => {
+                              const digits = event.target.value.replace(/[^\d]/g, '')
+                              patchRow(index, {
+                                unitPrice: digits ? Math.max(0, Math.round(Number(digits))) : 0,
+                              })
+                            }}
+                            onPaste={(event) => handleColumnPaste(index, column.key, event)}
+                            placeholder="0"
+                            className={`${rowInputClass} text-right tabular-nums`}
+                            aria-label={`${index + 1}행 단가`}
+                          />
                         ) : (
                           <input
                             value={String(row[column.key] ?? '')}
@@ -565,7 +595,7 @@ function ItemBulkModalContent({
                             onPaste={(event) => handleColumnPaste(index, column.key, event)}
                             className={`${rowInputClass}${
                               column.key === 'id' || column.key === 'mpn' ? ' font-mono' : ''
-                            }`}
+                            }${column.key === 'version' ? ' max-w-[5.5rem]' : ''}`}
                           />
                         )}
                       </td>

@@ -56,6 +56,7 @@ export function parseOrderRecord(value: unknown): OrderRecord | null {
         order_amount: readNumber(lineRow, 'order_amount'),
         delivery_date: readNullableString(lineRow, 'delivery_date'),
         derived_from_line_id: readNullableString(lineRow, 'derived_from_line_id'),
+        work_number: readNullableString(lineRow, 'work_number'),
       }
     })
     .filter((line): line is NonNullable<typeof line> => Boolean(line))

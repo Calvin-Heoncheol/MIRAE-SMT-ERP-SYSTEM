@@ -1,5 +1,6 @@
 'use client'
 
+import { ProductionOrderPoLabel } from '@/components/production-input/production-order-po-label'
 import { DeliveryDueBadge } from '@/components/ui/delivery-due-badge'
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
@@ -270,10 +271,10 @@ export function ProductionStatusTable({ lines, emptyMessage, onStageClick }: Pro
               <th className={ERP_TABLE_TH_CLASS}>고객사</th>
               <th className={ERP_TABLE_TH_CLASS}>제품</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>버전</th>
-              <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>납기</th>
               <th className={ERP_TABLE_TH_CLASS}>SMT</th>
               <th className={ERP_TABLE_TH_CLASS}>후공정</th>
               <th className={ERP_TABLE_TH_CLASS}>출하</th>
+              <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>납기</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>상태</th>
             </tr>
           </thead>
@@ -302,7 +303,10 @@ function OrderStatusRows({
           className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-sm font-bold text-slate-900`}
           title={displayOrderPoNumber(line.customerPoNumber, line.orderNumber)}
         >
-          {displayOrderPoNumber(line.customerPoNumber, line.orderNumber) || '—'}
+          <ProductionOrderPoLabel
+            customerPoNumber={line.customerPoNumber}
+            orderNumber={line.orderNumber}
+          />
         </td>
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-semibold text-slate-800`}>
           {line.customer || '—'}
@@ -312,9 +316,6 @@ function OrderStatusRows({
         </td>
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-center text-xs text-slate-500`}>
           —
-        </td>
-        <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
-          <DeliveryDueBadge deliveryDate={line.deliveryDate} done={isPipelineDueComplete(line)} />
         </td>
         <StageCells
           smtPercent={line.smtPercent}
@@ -339,6 +340,9 @@ function OrderStatusRows({
           }
         />
         <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
+          <DeliveryDueBadge deliveryDate={line.deliveryDate} done={isPipelineDueComplete(line)} />
+        </td>
+        <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
           <ProductionLineStatusBadge line={line} />
         </td>
       </tr>
@@ -352,9 +356,18 @@ function OrderStatusRows({
           <tr key={`${line.orderId}:${product.key}`} className={ERP_TABLE_ROW_CLASS}>
             <td
               className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-sm font-bold text-slate-900`}
-              title={displayOrderPoNumber(line.customerPoNumber, line.orderNumber)}
+              title={[
+                displayOrderPoNumber(line.customerPoNumber, line.orderNumber),
+                product.workNumber,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
             >
-              {displayOrderPoNumber(line.customerPoNumber, line.orderNumber) || '—'}
+              <ProductionOrderPoLabel
+                customerPoNumber={line.customerPoNumber}
+                orderNumber={line.orderNumber}
+                workNumber={product.workNumber}
+              />
             </td>
             <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-semibold text-slate-800`}>
               {line.customer || '—'}
@@ -368,9 +381,6 @@ function OrderStatusRows({
               ) : (
                 <span className="text-xs text-slate-300">—</span>
               )}
-            </td>
-            <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
-              <DeliveryDueBadge deliveryDate={line.deliveryDate} done={isPipelineDueComplete(product)} />
             </td>
             <StageCells
               smtPercent={product.smtPercent}
@@ -402,6 +412,9 @@ function OrderStatusRows({
                   : undefined
               }
             />
+            <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
+              <DeliveryDueBadge deliveryDate={line.deliveryDate} done={isPipelineDueComplete(product)} />
+            </td>
             <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
               <ProductionLineStatusBadge product={product} />
             </td>

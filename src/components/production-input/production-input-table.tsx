@@ -2,6 +2,7 @@
 
 import { DeliveryDueBadge } from '@/components/ui/delivery-due-badge'
 import { EmptyListState } from '@/components/ui/empty-list-state'
+import { ProductionOrderPoLabel } from '@/components/production-input/production-order-po-label'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionInputConfig, ProductionOrderLine } from '@/lib/production-input/types'
 import {
@@ -224,9 +225,18 @@ export function ProductionInputTable({
                 <tr key={order.uiKey} className={ERP_TABLE_ROW_CLASS}>
                   <td
                     className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} font-mono text-sm font-bold text-slate-900`}
-                    title={displayOrderPoNumber(order.customerPoNumber, order.orderNumber)}
+                    title={[
+                      displayOrderPoNumber(order.customerPoNumber, order.orderNumber),
+                      order.workNumber,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   >
-                    {displayOrderPoNumber(order.customerPoNumber, order.orderNumber) || '—'}
+                    <ProductionOrderPoLabel
+                      customerPoNumber={order.customerPoNumber}
+                      orderNumber={order.orderNumber}
+                      workNumber={order.workNumber}
+                    />
                   </td>
                   <td
                     className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_WRAP_CLASS} font-semibold text-slate-800`}

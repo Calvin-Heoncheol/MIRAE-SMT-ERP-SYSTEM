@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { ProductionLabelPrintModal } from '@/components/production-input/production-label-print-modal'
+import { ProductionOrderPoLabel } from '@/components/production-input/production-order-po-label'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { useToast } from '@/components/ui/toast-provider'
 import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
@@ -539,7 +540,12 @@ export function ProductionInputPanel({
           )}
           {order && !embedded ? (
             <span className="truncate text-xs font-medium text-slate-400">
-              {displayOrderPoNumber(order.customerPoNumber, order.orderNumber)}
+              <ProductionOrderPoLabel
+                customerPoNumber={order.customerPoNumber}
+                orderNumber={order.orderNumber}
+                workNumber={order.workNumber}
+                workClassName="mt-0.5 block truncate font-mono text-[10px] font-medium leading-tight text-slate-400"
+              />
             </span>
           ) : null}
         </div>
@@ -566,7 +572,13 @@ export function ProductionInputPanel({
                   <span className="font-medium text-slate-700">{order.customer || '—'}</span>
                   <span className="mx-2 text-slate-300">·</span>
                   <span className="font-mono text-slate-600">
-                    {displayOrderPoNumber(order.customerPoNumber, order.orderNumber)}
+                    <ProductionOrderPoLabel
+                      customerPoNumber={order.customerPoNumber}
+                      orderNumber={order.orderNumber}
+                      workNumber={order.workNumber}
+                      className="inline"
+                      workClassName="mt-0.5 block font-mono text-[11px] font-medium text-slate-500"
+                    />
                   </span>
                 </p>
               ) : null}

@@ -1,6 +1,9 @@
 import { todayYmdSeoul } from '@/lib/orders/utils'
 
-/** @deprecated 고객사 접두사 방식은 MRO-YYMMDD-NN 으로 대체됨. 과거 데이터/표시용만 유지 */
+/**
+ * 고객사 → 작업번호/레거시 코드 접두사.
+ * 거래처 `code_prefix`가 있으면 그걸 우선하고, 없을 때 이 매핑·자동 로마자를 사용.
+ */
 
 const CHO = [
   'g',
@@ -50,6 +53,13 @@ const JUNG = [
 
 const FALLBACK_ORDER_PREFIX = 'MRO'
 
+/** 한글 상호 → 관용 영문 접두 (자동 로마자보다 우선) */
+const CUSTOMER_CODE_PREFIX_OVERRIDES: Array<{ match: string; prefix: string }> = [
+  { match: '리텍', prefix: 'LEE' },
+  { match: '파스텍', prefix: 'FAS' },
+  { match: '서창', prefix: 'SC' },
+]
+
 function syllablePrefixLetter(ch: string): string | null {
   const code = ch.codePointAt(0)
   if (code === undefined || code < 0xac00 || code > 0xd7a3) return null
@@ -63,7 +73,30 @@ function syllablePrefixLetter(ch: string): string | null {
   return roman[0]!.toUpperCase()
 }
 
-/** 고객사명 → 주문코드 접두사 (레거시 SC-0001 등 표시용) */
+function normalizeCustomerForPrefix(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[()[\]（）【】]/g, ' ')
+    .replace(/[㈜]/g, ' ')
+    .replace(/^주식회사\s*/u, '')
+    .replace(/\s*주식회사$/u, '')
+    .replace(/^주\s+/u, '')
+    .replace(/\s+주$/u, '')
+    .replace(/\s+/g, '')
+}
+
+/** 접두사 정규화 — 영문·숫자만, 대문자, 최대 6자 */
+export function normalizeCustomerCodePrefix(value: string | null | undefined) {
+  const cleaned = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+  if (!cleaned) return ''
+  return cleaned.slice(0, 6)
+}
+
+/** 고객사명 → 접두사 (한글 음절 로마자 첫글자, 5글자 이상이면 앞 3자) */
 export function orderCodePrefixFromCustomer(customer: string): string {
   const letters: string[] = []
   for (const ch of customer.replace(/\s+/g, '')) {
@@ -85,10 +118,51 @@ export function orderCodePrefixFromCustomer(customer: string): string {
   return prefix
 }
 
-function yymmddFromYmd(ymd: string): string {
+function overridePrefixFromCustomer(customer: string): string | null {
+  const normalized = normalizeCustomerForPrefix(customer)
+  if (!normalized) return null
+  for (const row of CUSTOMER_CODE_PREFIX_OVERRIDES) {
+    const key = normalizeCustomerForPrefix(row.match)
+    if (!key) continue
+    if (normalized === key || normalized.includes(key)) return row.prefix
+  }
+  return null
+}
+
+/**
+ * 작업번호용 고객사 접두사.
+ * 1) 거래처에 등록된 code_prefix
+ * 2) 관용 매핑 (리텍→LEE, 파스텍→FAS …)
+ * 3) 고객사명 자동 로마자
+ */
+export function resolveCustomerCodePrefix(
+  customer: string,
+  partnerCodePrefix?: string | null,
+): string {
+  const fromPartner = normalizeCustomerCodePrefix(partnerCodePrefix)
+  if (fromPartner) return fromPartner
+
+  const override = overridePrefixFromCustomer(customer)
+  if (override) return override
+
+  return orderCodePrefixFromCustomer(customer)
+}
+
+export function yymmddFromYmd(ymd: string): string {
   const match = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!match) return '000000'
   return `${match[1].slice(2)}${match[2]}${match[3]}`
+}
+
+/** 작업번호 접두 구간 — {고객접두}-{YYMMDD} (예: LEE-260904) */
+export function formatOrderWorkNumberBase(
+  customer: string,
+  orderDate?: string | null,
+  partnerCodePrefix?: string | null,
+) {
+  const prefix = resolveCustomerCodePrefix(customer, partnerCodePrefix)
+  const ymd = String(orderDate || '').trim() || todayYmdSeoul()
+  return `${prefix}-${yymmddFromYmd(ymd)}`
 }
 
 /** 자동 발급 예시: MRO-YYMMDD-01 (발주일 기준) */

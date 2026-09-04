@@ -24,6 +24,8 @@ export type ProductionStatusProductLine = {
   productName: string
   productCode: string
   version: string
+  /** 작업번호 — 발주번호 아래 표시 */
+  workNumber: string
   quantity: number
   smtTarget: number
   smtProduced: number

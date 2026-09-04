@@ -50,11 +50,13 @@ create table if not exists public.order_lines (
   order_amount numeric not null default 0 check (order_amount >= 0),
   delivery_date date,
   derived_from_line_id uuid references public.order_lines(id) on delete cascade,
+  work_number text,
   unique (order_id, line_seq)
 );
 
 comment on column public.order_lines.derived_from_line_id is '조립제품 주문 줄에서 BOM 펼침으로 생성된 반제품 줄 (주문 UI 비표시)';
 comment on column public.order_lines.delivery_date is '제품(라인)별 납기일';
+comment on column public.order_lines.work_number is '작업번호 — {고객접두}-{발주일YYMMDD}-{순번} (예: LEE-260904-01). 추가작업(금액전용)은 null';
 comment on column public.order_lines.setup_cost is 'SET-UP 전체 비용 (수량 무관)';
 comment on column public.order_lines.smd_unit_price is 'SMD 대당 단가';
 comment on column public.order_lines.dip_unit_price is '후공정 대당 단가';
@@ -70,6 +72,9 @@ create index if not exists orders_customer_po_number_idx
   on public.orders (customer_po_number)
   where customer_po_number <> '';
 create index if not exists order_lines_order_id_idx on public.order_lines (order_id);
+create index if not exists order_lines_work_number_idx
+  on public.order_lines (work_number)
+  where work_number is not null and work_number <> '';
 
 alter table public.orders enable row level security;
 alter table public.order_lines enable row level security;

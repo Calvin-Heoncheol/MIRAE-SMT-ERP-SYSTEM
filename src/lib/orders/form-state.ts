@@ -30,6 +30,8 @@ export type OrderItemForm = {
   materialCost: string | number
   /** 제품(라인)별 납기일 YYYY-MM-DD */
   deliveryDate: string
+  /** 작업번호 — 저장 후 표시 (신규 행은 빈 문자열) */
+  workNumber?: string
   /** 추가 작업(금액 전용) — 품목등록 필수, 저장 시 product_id 는 비움 */
   isAdhoc?: boolean
   /** 품목 추가비용 자동 행 — 부모 제품 행 rowKey */
@@ -105,6 +107,7 @@ export function orderItemsFromDetail(
     dipUnitPrice?: number
     materialCost?: number
     deliveryDate?: string
+    workNumber?: string | null
   }[],
   fallbackDeliveryDate = '',
   options?: { quoteId?: string },
@@ -142,6 +145,7 @@ export function orderItemsFromDetail(
       materialUnitPrice: String(materialUnitPrice),
       materialCost: String(materialCost),
       deliveryDate: String(item.deliveryDate || fallbackDeliveryDate || '').trim(),
+      workNumber: String(item.workNumber || '').trim(),
       isAdhoc: isBillingOnlyOrderItem(item),
       quoteId: options?.quoteId || '',
     }

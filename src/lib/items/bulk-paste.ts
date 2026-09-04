@@ -14,6 +14,8 @@ export type ItemBulkColumn = {
   key: keyof ItemFormState
   label: string
   required?: boolean
+  /** 테이블 열 너비 (tailwind) */
+  widthClass?: string
 }
 
 const RAW_MATERIAL_BULK_COLUMNS: ItemBulkColumn[] = [
@@ -41,16 +43,17 @@ const PRODUCT_BULK_COLUMNS: ItemBulkColumn[] = [
   { key: 'customerName', label: '고객사', required: true },
   { key: 'id', label: '품목코드' },
   { key: 'name', label: '품목명', required: true },
-  { key: 'version', label: '버전' },
+  { key: 'version', label: '버전', widthClass: 'w-20' },
 ]
 
 const SEMI_FINISHED_BULK_COLUMNS: ItemBulkColumn[] = [
   { key: 'customerName', label: '고객사', required: true },
   { key: 'id', label: '품목코드' },
   { key: 'name', label: '품목명', required: true },
-  { key: 'version', label: '버전' },
+  { key: 'version', label: '버전', widthClass: 'w-20' },
   { key: 'processType', label: '생산 공정', required: true },
-  { key: 'pcbSideMode', label: '면', required: true },
+  { key: 'pcbSideMode', label: '면', required: true, widthClass: 'w-24' },
+  { key: 'unitPrice', label: '단가', widthClass: 'w-28' },
 ]
 
 export function itemBulkColumns(category: ItemCategory): ItemBulkColumn[] {
@@ -71,7 +74,7 @@ export function itemBulkPasteSampleValues(category: ItemCategory): string[] {
     return ['미래전자', '', '나사 M3', 'SUS', '', '', '도급']
   }
   if (category === 3) {
-    return ['미래전자', '', '메인보드', 'A1', 'SMD', '단면']
+    return ['미래전자', '', '메인보드', 'A1', 'SMD', '단면', '15000']
   }
   if (category === 4) {
     return ['미래전자', '', '조립제품 A', 'V1']
@@ -263,7 +266,7 @@ function splitPasteColumns(
 function isHeaderColumns(cols: string[], category: ItemCategory) {
   const first = normalizePasteCell(cols[0] || '')
   if (!first) return false
-  if (/^(고객사(명)?|품목(코드|명)|공정(\s*구분)?|생산\s*공정|버전|면|도급\/사급|MPN)$/i.test(first)) return true
+  if (/^(고객사(명)?|품목(코드|명)|공정(\s*구분)?|생산\s*공정|버전|면|단가|기본\s*단가|도급\/사급|MPN)$/i.test(first)) return true
   return itemBulkColumns(category).some((column) => column.label === first)
 }
 
@@ -328,6 +331,11 @@ function applyPasteValue(
       return { ...form, processType: normalizePasteProcessType(value) }
     case 'pcbSideMode':
       return { ...form, pcbSideMode: normalizePastePcbSideMode(value) }
+    case 'unitPrice': {
+      const digits = value.replace(/[^\d.-]/g, '')
+      const amount = Math.max(0, Math.round(Number(digits) || 0))
+      return { ...form, unitPrice: amount }
+    }
     case 'itemCategory':
       return form
     default:

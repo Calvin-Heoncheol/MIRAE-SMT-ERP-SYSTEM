@@ -23,7 +23,15 @@ import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { syncAssemblyGroupsForOrder } from '@/lib/assembly/repository'
 import { parseOrderRecord, parseOrderRecords } from '@/lib/db/parse-row'
 import type { OrderCurrency, OrderListGroup, OrderRecord, OrderRowPayload } from './types'
-import { groupOrdersFromRecords, normalizeOrderCurrency, sumCommercialOrderQuantity } from './utils'
+import { formatOrderWorkNumberBase } from './order-code-prefix'
+import {
+  formatOrderWorkNumber,
+  groupOrdersFromRecords,
+  isBillingOnlyOrderItem,
+  nextOrderWorkSeq,
+  normalizeOrderCurrency,
+  sumCommercialOrderQuantity,
+} from './utils'
 
 export type FetchOrdersResult =
   | { ok: true; orders: OrderListGroup[] }
@@ -116,14 +124,41 @@ function orderLinesJson(items: OrderRowPayload['items']) {
   }))
 }
 
-async function replaceOrderLinesSafely(orderId: string, items: OrderRowPayload['items']) {
+async function resolveOrderWorkNumberBase(
+  orderId: string,
+  customer?: string | null,
+  orderDate?: string | null,
+) {
+  const supabase = createSupabaseClient()
+  let resolvedCustomer = String(customer || '').trim()
+  let resolvedOrderDate = String(orderDate || '').trim()
+  if (!resolvedCustomer || !resolvedOrderDate) {
+    const { data: orderRow } = await supabase
+      .from('orders')
+      .select('customer, order_date')
+      .eq('id', orderId)
+      .maybeSingle()
+    if (!resolvedCustomer) resolvedCustomer = String(orderRow?.customer || '').trim()
+    if (!resolvedOrderDate) resolvedOrderDate = String(orderRow?.order_date || '').trim()
+  }
+  return formatOrderWorkNumberBase(resolvedCustomer, resolvedOrderDate)
+}
+
+async function replaceOrderLinesSafely(
+  orderId: string,
+  items: OrderRowPayload['items'],
+  customer?: string | null,
+  orderDate?: string | null,
+) {
   const supabase = createSupabaseClient()
   const { data: existingLines, error: fetchError } = await supabase
     .from('order_lines')
-    .select('id, product_code, product_name, derived_from_line_id')
+    .select('id, product_code, product_name, derived_from_line_id, work_number')
     .eq('order_id', orderId)
 
   if (fetchError) throw new Error(fetchError.message)
+
+  const workNumberBase = await resolveOrderWorkNumberBase(orderId, customer, orderDate)
 
   const keepIds = new Set(
     items.map((item) => String(item.lineId || '').trim()).filter(Boolean),
@@ -181,6 +216,9 @@ async function replaceOrderLinesSafely(orderId: string, items: OrderRowPayload['
     if (error) throw new Error(error.message)
   }
 
+  const existingWorkNumbers = remainingUi.map((line) => line.work_number as string | null)
+  let nextWorkSeq = nextOrderWorkSeq(existingWorkNumbers)
+
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index]!
     const lineId = String(item.lineId || '').trim()
@@ -203,9 +241,15 @@ async function replaceOrderLinesSafely(orderId: string, items: OrderRowPayload['
       const { error } = await supabase.from('order_lines').update(row).eq('id', lineId).eq('order_id', orderId)
       if (error) throw new Error(error.message)
     } else {
+      let workNumber: string | null = null
+      if (!isBillingOnlyOrderItem(item)) {
+        workNumber = formatOrderWorkNumber(workNumberBase, nextWorkSeq)
+        nextWorkSeq += 1
+      }
       const { error } = await supabase.from('order_lines').insert({
         order_id: orderId,
         ...row,
+        work_number: workNumber,
       })
       if (error) throw new Error(error.message)
     }
@@ -221,23 +265,39 @@ async function resolveOrderPaymentSnapshot(payload: OrderRowPayload): Promise<Pa
   return firstNonEmptyPaymentTermSnapshot(fromPayload, fromQuote, fromPartner)
 }
 
-async function insertOrderLines(orderId: string, items: OrderRowPayload['items']) {
+async function insertOrderLines(
+  orderId: string,
+  items: OrderRowPayload['items'],
+  customer?: string | null,
+  orderDate?: string | null,
+) {
   const supabase = createSupabaseClient()
-  const rows = items.map((item, index) => ({
-    order_id: orderId,
-    line_seq: index,
-    product_id: item.productId || null,
-    product_code: item.productCode || item.productId || '',
-    product_name: item.productName,
-    quantity: item.quantity,
-    setup_cost: item.setupCost ?? 0,
-    smd_unit_price: item.smdUnitPrice ?? 0,
-    dip_unit_price: item.dipUnitPrice ?? 0,
-    material_cost: item.materialCost ?? 0,
-    unit_price: item.unitPrice,
-    order_amount: item.orderAmount,
-    delivery_date: item.deliveryDate?.trim() || null,
-  }))
+  const workNumberBase = await resolveOrderWorkNumberBase(orderId, customer, orderDate)
+
+  let workSeq = 0
+  const rows = items.map((item, index) => {
+    let workNumber: string | null = null
+    if (!isBillingOnlyOrderItem(item)) {
+      workSeq += 1
+      workNumber = formatOrderWorkNumber(workNumberBase, workSeq)
+    }
+    return {
+      order_id: orderId,
+      line_seq: index,
+      product_id: item.productId || null,
+      product_code: item.productCode || item.productId || '',
+      product_name: item.productName,
+      quantity: item.quantity,
+      setup_cost: item.setupCost ?? 0,
+      smd_unit_price: item.smdUnitPrice ?? 0,
+      dip_unit_price: item.dipUnitPrice ?? 0,
+      material_cost: item.materialCost ?? 0,
+      unit_price: item.unitPrice,
+      order_amount: item.orderAmount,
+      delivery_date: item.deliveryDate?.trim() || null,
+      work_number: workNumber,
+    }
+  })
 
   const { error } = await supabase.from('order_lines').insert(rows)
   if (error) throw new Error(error.message)
@@ -467,7 +527,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
     }
 
     await persistPaymentTermSnapshot('orders', inserted.id, paymentSnapshot)
-    await insertOrderLines(inserted.id, payload.items)
+    await insertOrderLines(inserted.id, payload.items, payload.customer, payload.order_date)
     const assemblySync = await syncAssemblyGroupsForOrder(inserted.id)
     if (!assemblySync.ok) {
       return { ok: false, reason: assemblySync.reason, detail: assemblySync.detail }
@@ -569,7 +629,12 @@ export async function updateOrder(
 
       if (updateError) return { ok: false, reason: 'query', detail: updateError.message }
 
-      await replaceOrderLinesSafely(existing.id, payload.items)
+      await replaceOrderLinesSafely(
+        existing.id,
+        payload.items,
+        payload.customer,
+        payload.order_date,
+      )
     }
 
     await persistPaymentTermSnapshot('orders', existing.id, paymentSnapshot)
