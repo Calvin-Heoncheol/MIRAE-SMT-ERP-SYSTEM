@@ -2,8 +2,8 @@ import type { MaterialInboundStatus } from '@/lib/materials/material-inbound-sta
 
 export type ProductionPlanScope = 'material' | 'smt' | 'post'
 
-/** 표 입력 목록 필터 — 이번 달 확정 / 미완료 전체 */
-export type ProductionPlanSheetFilter = 'month' | 'all_pending'
+/** 표 입력 목록 필터 — 지금 배정 / 이번 달 확정 / 미완료 전체 */
+export type ProductionPlanSheetFilter = 'actionable' | 'month' | 'all_pending'
 
 export type ProductionPlanBoardStatus = 'waiting' | 'confirmed'
 
@@ -14,6 +14,8 @@ export type ProductionPlanBoardRow = {
   scope: ProductionPlanScope
   orderId: string
   orderNumber: string
+  /** 고객 발주번호(PO) — 화면 표시용 */
+  customerPoNumber?: string
   customer: string
   deliveryDate: string
   daysUntilDelivery: number | null
@@ -32,7 +34,7 @@ export type ProductionPlanBoardRow = {
   /** 입고예정 병목일(YYYY-MM-DD) */
   materialExpectedReadyDate?: string
   materialShort: boolean
-  /** BOM 없음 등으로 자재 계산 불가 */
+  /** (레거시) 자재 자동 계산 불가 — 수동 입고 사용 시 false */
   materialUnknown: boolean
   materialInboundStatus?: MaterialInboundStatus
   /** 후공정 행 — 같은 발주 SMD 계획 종료일 */

@@ -1,4 +1,6 @@
 import {
+  computeAuxiliaryMaterialAmount,
+  computePostProcessProfitAmount,
   DIP_UNIT,
   SMT_PLACEMENT_MIN_SCORE,
   getPostRate,
@@ -14,9 +16,8 @@ import { formatQuoteMoneyRateByDisplay } from './format'
 import { breakdownSmtSectionTitle, getPreviewLabels, localizePostProcessItemName, resolveLabelQuoteType, type QuoteDocumentLanguage } from './preview-i18n'
 import {
   hasPostProcessLineInput,
-  parsePostProcessMinutes,
+  resolveCategorizedPostProcessLineForms,
   resolvePostProcessLineBilledMinutes,
-  resolveUnifiedPostProcessLineForms,
 } from './post-process-lines'
 import type {
   DipBoardDetail,
@@ -36,6 +37,8 @@ export type PreviewRow = {
   description?: string
   unit?: number | null
   unitLabel?: string
+  /** 후공정 등 — 대당 단가 (분당 임률과 구분) */
+  unitPrice?: number | null
   count?: number | string | null
   /** SMD·후공정 세부 행 — 생산수량 표시용 */
   productionQty?: number | string | null
@@ -60,6 +63,7 @@ export type PreviewPostProcessLine = {
 
 export type PreviewFormFields = {
   postAssembly: string | number
+  postDownload?: string | number
   postTest: string | number
   postPacking: string | number
   materialCost: string | number
@@ -68,10 +72,10 @@ export type PreviewFormFields = {
   /** false = 자재 섹션 제외 (신규). 미설정/true = 포함 */
   includeMaterialCosts?: boolean
   includeMetalMask?: boolean
-  /** 통합 후공정 (공정명 + 분) */
+  /** @deprecated 카테고리별 배열 사용 */
   postProcessLines?: PreviewPostProcessLine[]
-  /** @deprecated postProcessLines 사용 */
   assemblyLines?: PreviewPostProcessLine[]
+  downloadLines?: PreviewPostProcessLine[]
   testLines?: PreviewPostProcessLine[]
   packingLines?: PreviewPostProcessLine[]
 }
@@ -219,7 +223,7 @@ function computePostSectionFooterMetrics(
   quoteType: QuoteType,
   scaledSectionAmount: number,
   qty: number,
-): Pick<PreviewRow, 'count' | 'unit'> {
+): Pick<PreviewRow, 'count' | 'unit' | 'unitPrice'> {
   const labels = getPreviewLabels(quoteType)
   const safeQty = qty || 1
   let totalMinutes = 0
@@ -248,7 +252,8 @@ function computePostSectionFooterMetrics(
   const perUnitTotal = scaledSectionAmount / safeQty
   return {
     count,
-    unit: perUnitTotal > 0 ? perUnitTotal : undefined,
+    unit: undefined,
+    unitPrice: perUnitTotal > 0 ? perUnitTotal : undefined,
   }
 }
 
@@ -349,6 +354,23 @@ function smtBoardInspectionPerUnit(board: SmtBoardDetail) {
   return board.inspectionUnit
 }
 
+function auxiliaryMaterialPreviewRow(
+  basePerUnit: number,
+  labels: ReturnType<typeof getPreviewLabels>,
+  indent: number,
+  extra?: Partial<PreviewRow>,
+): PreviewRow | null {
+  const amount = computeAuxiliaryMaterialAmount(basePerUnit)
+  if (amount <= 0) return null
+  return {
+    label: labels.auxiliaryMaterial,
+    description: '10%',
+    amount,
+    indent,
+    ...extra,
+  }
+}
+
 /** SMT 대당 합계 = 실장비(대당) + 검사(대당). SET-UP은 별도 섹션 */
 function previewSmtSectionPerUnit(result: EstimateResult) {
   const qty = result.qty || 1
@@ -360,17 +382,21 @@ function previewSmtSectionPerUnit(result: EstimateResult) {
 export function previewFormFromQuote(quote: QuoteListItem): PreviewFormFields {
   const input = toEstimateInputFromDetail(quote)
   const post = quote.detailInfo.inputs?.postProcess || {}
-  const postProcessLines = resolveUnifiedPostProcessLineForms(post)
+  const categorized = resolveCategorizedPostProcessLineForms(post)
   return {
     postAssembly: input.postAssembly ?? 0,
-    postTest: 0,
-    postPacking: 0,
+    postDownload: input.postDownload ?? 0,
+    postTest: input.postTest ?? 0,
+    postPacking: input.postPacking ?? 0,
     materialCost: input.materialCost ?? 0,
     metalMaskCost: input.metalMaskCost ?? 0,
     productionKind: input.productionKind === '샘플' ? '샘플' : '양산',
     includeMaterialCosts: input.includeMaterialCosts !== false,
     includeMetalMask: input.includeMetalMask !== false,
-    postProcessLines,
+    assemblyLines: categorized.assemblyLines,
+    downloadLines: categorized.downloadLines,
+    testLines: categorized.testLines,
+    packingLines: categorized.packingLines,
   }
 }
 
@@ -611,7 +637,7 @@ function dipDetailRowsForBoard(
       withProductionQty(
         {
           label: labels.dipGeneral,
-          unit: DIP_UNIT.dipGeneral,
+          unitPrice: DIP_UNIT.dipGeneral,
           count: board.dipGeneral,
           amount: board.dipGeneral * DIP_UNIT.dipGeneral,
           indent: 2,
@@ -626,7 +652,7 @@ function dipDetailRowsForBoard(
       withProductionQty(
         {
           label: labels.dipConnector,
-          unit: DIP_UNIT.dipConnector,
+          unitPrice: DIP_UNIT.dipConnector,
           count: board.dipConnector,
           amount: board.dipConnector * DIP_UNIT.dipConnector,
           indent: 2,
@@ -641,7 +667,7 @@ function dipDetailRowsForBoard(
       withProductionQty(
         {
           label: labels.dipWire,
-          unit: DIP_UNIT.dipWire,
+          unitPrice: DIP_UNIT.dipWire,
           count: board.dipWire,
           amount: board.dipWire * DIP_UNIT.dipWire,
           indent: 2,
@@ -656,7 +682,7 @@ function dipDetailRowsForBoard(
       withProductionQty(
         {
           label: labels.waveGeneral,
-          unit: DIP_UNIT.waveGeneral,
+          unitPrice: DIP_UNIT.waveGeneral,
           count: board.waveGeneral,
           amount: board.waveGeneral * DIP_UNIT.waveGeneral,
           indent: 2,
@@ -671,7 +697,7 @@ function dipDetailRowsForBoard(
       withProductionQty(
         {
           label: labels.waveConnector,
-          unit: DIP_UNIT.waveConnector,
+          unitPrice: DIP_UNIT.waveConnector,
           count: board.waveConnector,
           amount: board.waveConnector * DIP_UNIT.waveConnector,
           indent: 2,
@@ -686,7 +712,7 @@ function dipDetailRowsForBoard(
       withProductionQty(
         {
           label: labels.waveWire,
-          unit: DIP_UNIT.waveWire,
+          unitPrice: DIP_UNIT.waveWire,
           count: board.waveWire,
           amount: board.waveWire * DIP_UNIT.waveWire,
           indent: 2,
@@ -709,17 +735,103 @@ function postProcessDetailDescription(
   return names.length > 0 ? names.join(' · ') : undefined
 }
 
-function resolvedPreviewPostProcessLines(form: PreviewFormFields): PreviewPostProcessLine[] {
+function categoryLineForms(form: PreviewFormFields) {
+  if (
+    form.assemblyLines ||
+    form.downloadLines ||
+    form.testLines ||
+    form.packingLines
+  ) {
+    return {
+      assemblyLines: form.assemblyLines ?? [],
+      downloadLines: form.downloadLines ?? [],
+      testLines: form.testLines ?? [],
+      packingLines: form.packingLines ?? [],
+    }
+  }
   if (form.postProcessLines && form.postProcessLines.length > 0) {
-    return form.postProcessLines.filter(
-      (line) => (line.name || '').trim() || hasPostProcessLineInput(line),
+    return {
+      assemblyLines: form.postProcessLines,
+      downloadLines: [] as PreviewPostProcessLine[],
+      testLines: [] as PreviewPostProcessLine[],
+      packingLines: [] as PreviewPostProcessLine[],
+    }
+  }
+  return resolveCategorizedPostProcessLineForms({
+    postAssembly: Number(form.postAssembly) || 0,
+    postDownload: Number(form.postDownload) || 0,
+    postTest: Number(form.postTest) || 0,
+    postPacking: Number(form.postPacking) || 0,
+  })
+}
+
+function postCategoryDetailRows(
+  categoryLabel: string,
+  lines: PreviewPostProcessLine[],
+  indent: number,
+  quoteType: QuoteType,
+  labelType: QuoteType,
+  qty: number,
+  productionKind: '샘플' | '양산',
+): PreviewRow[] {
+  const labels = getPreviewLabels(labelType)
+  const postRate = getPostRate(quoteType)
+  const active = lines.filter(
+    (line) => resolvePostProcessLineBilledMinutes(line, productionKind) > 0,
+  )
+  if (!active.length) return []
+
+  const rows: PreviewRow[] = []
+  let categoryTotal = 0
+  const detailRows: PreviewRow[] = []
+
+  for (const line of active) {
+    const minutes = resolvePostProcessLineBilledMinutes(line, productionKind)
+    const name = (line.name || '').trim()
+    const perUnit = minutes * postRate
+    categoryTotal += perUnit
+    detailRows.push(
+      withProductionQty(
+        {
+          label: localizePostProcessItemName(name, labelType) || categoryLabel,
+          unit: postRate,
+          unitPrice: perUnit,
+          count: labels.minutesCount(minutes),
+          amount: perUnit,
+          indent: indent + 1,
+        },
+        qty,
+        labels,
+      ),
     )
   }
-  return [
-    ...(form.assemblyLines ?? []),
-    ...(form.testLines ?? []),
-    ...(form.packingLines ?? []),
-  ].filter((line) => (line.name || '').trim() || hasPostProcessLineInput(line))
+
+  rows.push({
+    label: categoryLabel,
+    amount: categoryTotal,
+    indent,
+    boardSubtotal: true,
+    emphasize: true,
+    amountEmphasize: true,
+  })
+  rows.push(...detailRows)
+  return rows
+}
+
+function postProcessProfitPreviewRow(
+  postBasePerUnit: number,
+  labels: ReturnType<typeof getPreviewLabels>,
+  indent: number,
+): PreviewRow | null {
+  const amount = computePostProcessProfitAmount(postBasePerUnit)
+  if (amount <= 0) return null
+  return {
+    label: `${labels.corporateProfit} (${labels.corporateProfitDesc})`,
+    amount,
+    indent,
+    boardSubtotal: true,
+    emphasize: true,
+  }
 }
 
 function postDetailRows(
@@ -730,44 +842,95 @@ function postDetailRows(
   qty = 1,
 ): PreviewRow[] {
   const labels = getPreviewLabels(labelType)
-  const postRate = getPostRate(quoteType)
   const productionKind = form.productionKind === '샘플' ? '샘플' : '양산'
-  const lines = resolvedPreviewPostProcessLines(form)
-  const rows: PreviewRow[] = []
+  const categorized = categoryLineForms(form)
+  const hasCategoryLines =
+    categorized.assemblyLines.some((line) => hasPostProcessLineInput(line)) ||
+    categorized.downloadLines.some((line) => hasPostProcessLineInput(line)) ||
+    categorized.testLines.some((line) => hasPostProcessLineInput(line)) ||
+    categorized.packingLines.some((line) => hasPostProcessLineInput(line))
 
-  if (lines.length > 0) {
-    for (const line of lines) {
-      const minutes = resolvePostProcessLineBilledMinutes(line, productionKind)
-      if (minutes <= 0) continue
-      const name = (line.name || '').trim()
-      const perUnit = minutes * postRate
-      rows.push(
-        withProductionQty(
-          {
-            label: localizePostProcessItemName(name, labelType) || labels.postProcess,
-            unit: perUnit,
-            count: labels.minutesCount(minutes),
-            amount: perUnit,
-            indent,
-          },
-          qty,
-          labels,
-        ),
-      )
-    }
-    return rows
+  if (hasCategoryLines) {
+    const categoryRows = [
+      ...postCategoryDetailRows(
+        labels.assembly,
+        categorized.assemblyLines,
+        indent,
+        quoteType,
+        labelType,
+        qty,
+        productionKind,
+      ),
+      ...postCategoryDetailRows(
+        labels.download,
+        categorized.downloadLines,
+        indent,
+        quoteType,
+        labelType,
+        qty,
+        productionKind,
+      ),
+      ...postCategoryDetailRows(
+        labels.test,
+        categorized.testLines,
+        indent,
+        quoteType,
+        labelType,
+        qty,
+        productionKind,
+      ),
+      ...postCategoryDetailRows(
+        labels.packing,
+        categorized.packingLines,
+        indent,
+        quoteType,
+        labelType,
+        qty,
+        productionKind,
+      ),
+    ]
+    const postBase = categoryRows
+      .filter((row) => row.boardSubtotal)
+      .reduce((sum, row) => sum + (Number(row.amount) || 0), 0)
+    const profitRow = postProcessProfitPreviewRow(postBase, labels, indent)
+    return profitRow ? [...categoryRows, profitRow] : categoryRows
   }
 
-  // 구 견적: 조립·테스트·포장 합계만 있는 경우
+  // 구 견적: 합계 분만 있는 경우
+  const postRate = getPostRate(quoteType)
+  const rows: PreviewRow[] = []
+  let postBase = 0
   if (Number(form.postAssembly) > 0) {
     const minutes = Number(form.postAssembly)
     const perUnit = minutes * postRate
+    postBase += perUnit
     rows.push(
       withProductionQty(
         {
           label: labels.assembly,
           description: postProcessDetailDescription(form.assemblyLines, labelType),
-          unit: perUnit,
+          unit: postRate,
+          unitPrice: perUnit,
+          count: labels.minutesCount(minutes),
+          amount: perUnit,
+          indent,
+        },
+        qty,
+        labels,
+      ),
+    )
+  }
+  if (Number(form.postDownload) > 0) {
+    const minutes = Number(form.postDownload)
+    const perUnit = minutes * postRate
+    postBase += perUnit
+    rows.push(
+      withProductionQty(
+        {
+          label: labels.download,
+          description: postProcessDetailDescription(form.downloadLines, labelType),
+          unit: postRate,
+          unitPrice: perUnit,
           count: labels.minutesCount(minutes),
           amount: perUnit,
           indent,
@@ -780,12 +943,14 @@ function postDetailRows(
   if (Number(form.postTest) > 0) {
     const minutes = Number(form.postTest)
     const perUnit = minutes * postRate
+    postBase += perUnit
     rows.push(
       withProductionQty(
         {
           label: labels.test,
           description: postProcessDetailDescription(form.testLines, labelType),
-          unit: perUnit,
+          unit: postRate,
+          unitPrice: perUnit,
           count: labels.minutesCount(minutes),
           amount: perUnit,
           indent,
@@ -798,12 +963,14 @@ function postDetailRows(
   if (Number(form.postPacking) > 0) {
     const minutes = Number(form.postPacking)
     const perUnit = minutes * postRate
+    postBase += perUnit
     rows.push(
       withProductionQty(
         {
           label: labels.packing,
           description: postProcessDetailDescription(form.packingLines, labelType),
-          unit: perUnit,
+          unit: postRate,
+          unitPrice: perUnit,
           count: labels.minutesCount(minutes),
           amount: perUnit,
           indent,
@@ -813,14 +980,29 @@ function postDetailRows(
       ),
     )
   }
+  const profitRow = postProcessProfitPreviewRow(postBase, labels, indent)
+  if (profitRow) rows.push(profitRow)
   return rows
 }
 
 function hasPostInputs(form: PreviewFormFields) {
-  if (resolvedPreviewPostProcessLines(form).some((line) => hasPostProcessLineInput(line))) {
+  const categorized = categoryLineForms(form)
+  if (
+    [
+      ...categorized.assemblyLines,
+      ...categorized.downloadLines,
+      ...categorized.testLines,
+      ...categorized.packingLines,
+    ].some((line) => hasPostProcessLineInput(line))
+  ) {
     return true
   }
-  return Number(form.postAssembly) > 0 || Number(form.postTest) > 0 || Number(form.postPacking) > 0
+  return (
+    Number(form.postAssembly) > 0 ||
+    Number(form.postDownload) > 0 ||
+    Number(form.postTest) > 0 ||
+    Number(form.postPacking) > 0
+  )
 }
 
 function previewMaterialRows(
@@ -969,9 +1151,22 @@ function buildBoardCentricPreviewRows(
     const inspectionDetails = inspectionDetailRowsForBoard(smtBoard, quoteType, labelType, qty)
     const dipDetails = dipBoard ? dipDetailRowsForBoard(dipBoard, quoteType, labelType, qty) : []
 
+    const smtBase = smtLabor + inspectionPerUnit
+    const smtAuxRow = auxiliaryMaterialPreviewRow(smtBase, labels, 2)
+    const smtAuxiliary = smtAuxRow?.amount ?? 0
+    const postProfitPerUnit = computePostProcessProfitAmount(boardPost)
+    const hasDip = singlePcb && (dip > 0 || dipDetails.length > 0)
+    const hasBoardPost = singlePcb && (postPerUnit > 0 || hasPostInputs(form))
+    const boardPostBase = singlePcb ? dip + boardPost + postProfitPerUnit : 0
+
     rows.push({
       label: `■ ${smtBoard.pcbName}`,
-      amount: smtLabor + setupPerUnit + inspectionPerUnit + (singlePcb ? dip + boardPost : 0),
+      amount:
+        smtLabor +
+        setupPerUnit +
+        inspectionPerUnit +
+        smtAuxiliary +
+        (singlePcb ? dip + boardPost + postProfitPerUnit : 0),
       boardTotal: true,
       emphasize: true,
       amountEmphasize: true,
@@ -989,10 +1184,10 @@ function buildBoardCentricPreviewRows(
       rows.push(...setupDetails)
     }
 
-    if (smtLabor > 0 || smtDetails.length > 0 || inspectionPerUnit > 0 || inspectionDetails.length > 0) {
+    if (smtBase > 0 || smtDetails.length > 0 || inspectionDetails.length > 0) {
       rows.push({
         label: 'SMD',
-        amount: smtLabor + inspectionPerUnit,
+        amount: smtBase + smtAuxiliary,
         indent: 1,
         boardSubtotal: true,
         emphasize: true,
@@ -1000,14 +1195,14 @@ function buildBoardCentricPreviewRows(
       })
       rows.push(...smtDetails)
       rows.push(...inspectionDetails)
+      if (smtAuxRow) rows.push(smtAuxRow)
     }
 
-    const hasDip = singlePcb && (dip > 0 || dipDetails.length > 0)
-    const hasBoardPost = singlePcb && (postPerUnit > 0 || hasPostInputs(form))
     if (hasDip || hasBoardPost) {
       rows.push({
         label: labels.postProcess,
-        amount: dip + boardPost,
+        unitPrice: boardPostBase,
+        amount: boardPostBase,
         indent: 1,
         boardSubtotal: true,
         emphasize: true,
@@ -1016,6 +1211,7 @@ function buildBoardCentricPreviewRows(
       if (hasDip) {
         rows.push({
           label: labels.soldering,
+          unitPrice: dip,
           amount: dip,
           indent: 2,
           boardSubtotal: true,
@@ -1033,10 +1229,13 @@ function buildBoardCentricPreviewRows(
   if (!singlePcb) {
     const sharedDipTotal = result.common.dipBoardDetails.reduce((sum, board) => sum + (board?.boardUnit ?? 0), 0)
     const hasSharedPost = postPerUnit > 0 || hasPostInputs(form)
-    if (sharedDipTotal > 0 || hasSharedPost) {
+    const postProfitPerUnit = computePostProcessProfitAmount(postPerUnit)
+    const sharedPostBase = sharedDipTotal + postPerUnit + postProfitPerUnit
+    if (sharedPostBase > 0 || hasSharedPost) {
       rows.push({
         label: labels.postProcess,
-        amount: sharedDipTotal + postPerUnit,
+        unitPrice: sharedPostBase,
+        amount: sharedPostBase,
         emphasize: true,
         amountEmphasize: true,
         sectionTotal: 'post',
@@ -1051,6 +1250,7 @@ function buildBoardCentricPreviewRows(
         rows.push({
           label: labels.soldering,
           description: smtBoard.pcbName,
+          unitPrice: dip,
           amount: dip,
           indent: 1,
           boardSubtotal: true,
@@ -1111,10 +1311,11 @@ export function buildProcessCentricPdfBreakdownRows(
   }
 
   const smtTotal = pdfSmtSectionTotal(result)
-  if (smtTotal > 0) {
+  const smtAuxiliary = computeAuxiliaryMaterialAmount(smtTotal)
+  if (smtTotal > 0 || smtAuxiliary > 0) {
     rows.push({
       label: pdfSummarySectionLabel('SMD', labelType),
-      amount: smtTotal,
+      amount: smtTotal + smtAuxiliary,
       sectionTotal: 'smt',
       emphasize: true,
       amountEmphasize: true,
@@ -1154,11 +1355,21 @@ export function buildProcessCentricPdfBreakdownRows(
       rows.push(...(multiBoard ? withBoardName(smtDetails, smtBoard.pcbName) : smtDetails))
       rows.push(...(multiBoard ? withBoardName(inspectionDetails, smtBoard.pcbName) : inspectionDetails))
     }
+
+    if (smtAuxiliary > 0) {
+      rows.push({
+        label: labels.auxiliaryMaterial,
+        description: '10%',
+        amount: smtAuxiliary,
+        indent: 1,
+      })
+    }
   }
 
   const dipTotal = pdfSolderingSectionTotal(result)
   const postPerUnit = quotePerUnitTotal(result.values.postProcess, qty)
-  const postSectionTotal = postPerUnit + dipTotal
+  const postProfitPerUnit = quotePerUnitTotal(result.common.postProcessProfit || 0, qty)
+  const postSectionTotal = postPerUnit + dipTotal + postProfitPerUnit
   if (postSectionTotal > 0 || hasPostInputs(form) || dipTotal > 0) {
     rows.push({
       label: pdfSummarySectionLabel(labels.postProcess, labelType),
@@ -1335,18 +1546,20 @@ export function buildPdfSummaryBreakdownLines(
   }
 
   const smt = pdfSmtSectionTotal(result)
-  if (smt > 0) {
+  const smtAuxiliary = computeAuxiliaryMaterialAmount(smt)
+  if (smt + smtAuxiliary > 0) {
     lines.push({
       label: pdfSummarySectionLabel('SMD', labelType),
-      unitTotal: smt,
-      total: smt * qty,
+      unitTotal: smt + smtAuxiliary,
+      total: (smt + smtAuxiliary) * qty,
       section: 'smt',
     })
   }
 
   const soldering = pdfSolderingSectionTotal(result)
   const postPerUnit = quotePerUnitTotal(result.values.postProcess, qty)
-  const postTotal = postPerUnit + soldering
+  const postProfitPerUnit = quotePerUnitTotal(result.common.postProcessProfit || 0, qty)
+  const postTotal = postPerUnit + soldering + postProfitPerUnit
   if (postTotal > 0 || hasPostInputs(form) || soldering > 0) {
     lines.push({
       label: pdfSummarySectionLabel(labels.postProcess, labelType),
@@ -1456,11 +1669,13 @@ export type PreviewMatrix = {
 export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFields): PreviewMatrix {
   const qty = result.qty || 1
   const postOnlyPerUnit = quotePerUnitTotal(result.values.postProcess, qty)
+  const postProfitPerUnit = quotePerUnitTotal(result.common.postProcessProfit || 0, qty)
   const smtPerUnit = previewSmtSectionPerUnit(result)
+  const smtAuxiliaryPerUnit = computeAuxiliaryMaterialAmount(smtPerUnit)
   const orderLevelTotal = result.common.orderLevelTotal || 0
   const dipPerUnit = quotePerUnitTotal(result.values.dip, qty)
-  /** 표시용 후공정 = 납땜 + 후공정(분) */
-  const postPerUnit = dipPerUnit + postOnlyPerUnit
+  /** 표시용 후공정 = 납땜 + 후공정(분) + 기업이윤 */
+  const postPerUnit = dipPerUnit + postOnlyPerUnit + postProfitPerUnit
   const pcbCount = result.common.pcbBoardDetails.length
   const postOnBoardRow = pcbCount <= 1
 
@@ -1469,18 +1684,29 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
     const smtLabor = smtBoardLaborPerUnit(smtBoard)
     const inspection = smtBoardInspectionPerUnit(smtBoard)
     const dip = dipBoard?.boardUnit ?? 0
-    const post = postOnBoardRow ? postOnlyPerUnit + dip : null
+    const boardSmtAuxiliary = computeAuxiliaryMaterialAmount(smtLabor + inspection)
+    const boardPostBase = postOnBoardRow
+      ? dip + postOnlyPerUnit + postProfitPerUnit
+      : null
+    const post =
+      boardPostBase != null && boardPostBase > 0 ? boardPostBase : null
 
     return {
       pcbName: smtBoard.pcbName,
-      smtPerUnit: smtLabor + inspection,
+      smtPerUnit: smtLabor + inspection + boardSmtAuxiliary,
       dipPerUnit: dip,
       postPerUnit: post,
-      rowTotalPerUnit: smtLabor + inspection + dip + (postOnBoardRow ? postOnlyPerUnit : 0),
+      rowTotalPerUnit:
+        smtLabor +
+        inspection +
+        boardSmtAuxiliary +
+        dip +
+        (postOnBoardRow ? postOnlyPerUnit + postProfitPerUnit : 0),
     }
   })
 
-  const sharedPostRow = !postOnBoardRow && postPerUnit > 0 ? { postPerUnit } : null
+  const sharedPostRow =
+    !postOnBoardRow && postPerUnit > 0 ? { postPerUnit } : null
 
   const materialPerUnit = Number(form.materialCost) || 0
   const materialMgmtPerUnit = quotePerUnitTotal(result.common.materialManagement, qty)
@@ -1512,10 +1738,10 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
     boardRows,
     sharedPostRow,
     productionTotal: {
-      smtPerUnit,
+      smtPerUnit: smtPerUnit + smtAuxiliaryPerUnit,
       dipPerUnit,
       postPerUnit,
-      rowTotalPerUnit: smtPerUnit + postPerUnit,
+      rowTotalPerUnit: smtPerUnit + smtAuxiliaryPerUnit + postPerUnit,
     },
     materialRows,
     materialTotalPerUnit: includeMaterial ? materialPerUnit + materialMgmtPerUnit : 0,

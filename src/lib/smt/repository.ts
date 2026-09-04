@@ -655,9 +655,19 @@ export async function fetchSmtTodayProduction(
   return fetchSmtProductionRecords({ recordDate })
 }
 
+export async function fetchSmtProductionHistoryByOrderLine(
+  orderLineId: string,
+  limit = 50,
+): Promise<FetchSmtProductionHistoryResult> {
+  const id = String(orderLineId || '').trim()
+  if (!id) return { ok: true, rows: [] }
+  return fetchSmtProductionRecords({ orderLineId: id, limit })
+}
+
 async function fetchSmtProductionRecords(options?: {
   recordDate?: string
   limit?: number
+  orderLineId?: string
 }): Promise<FetchSmtProductionHistoryResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
@@ -702,6 +712,10 @@ async function fetchSmtProductionRecords(options?: {
 
       if (options?.recordDate) {
         query = query.eq('record_date', options.recordDate)
+      }
+
+      if (options?.orderLineId) {
+        query = query.eq('order_line_id', options.orderLineId)
       }
 
       return query

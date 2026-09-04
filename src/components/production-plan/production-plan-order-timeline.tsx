@@ -3,6 +3,10 @@
 import { useMemo } from 'react'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import {
+  canAssignProductionPlanRow,
+  productionPlanRowBlockReason,
+} from '@/lib/production-plan/pipeline'
+import {
   deliveryUrgencyClass,
   formatDeliveryCountdown,
   isProductionPlanRemainderRow,
@@ -111,10 +115,12 @@ function buildOrderGroups(rows: ProductionPlanBoardRow[]): OrderTimelineGroup[] 
 function ScopeColumn({
   scope,
   rows,
+  allRows,
   onSelectRow,
 }: {
   scope: ProductionPlanScope
   rows: ProductionPlanBoardRow[]
+  allRows: ProductionPlanBoardRow[]
   onSelectRow?: (row: ProductionPlanBoardRow) => void
 }) {
   const styles = SCOPE_STYLES[scope]
@@ -136,18 +142,24 @@ function ScopeColumn({
           sorted.map((row) => {
             const remainder = isProductionPlanRemainderRow(row)
             const confirmed = isProductionPlanScheduleRow(row)
-            const clickable = confirmed && onSelectRow
+            const waiting = row.status === 'waiting' && !confirmed
+            const blockReason = waiting ? productionPlanRowBlockReason(row, allRows) : ''
+            const clickable = Boolean(onSelectRow && canAssignProductionPlanRow(row, allRows))
 
             return (
               <button
                 key={row.key}
                 type="button"
                 disabled={!clickable}
-                onClick={() => clickable && onSelectRow(row)}
+                onClick={() => clickable && onSelectRow?.(row)}
                 className={`w-full rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug ${
                   remainder
-                    ? 'border-dashed border-sky-300 bg-sky-50/80 text-sky-900'
-                    : `${styles.chip} ${clickable ? 'cursor-pointer hover:brightness-95' : ''}`
+                    ? `border-dashed border-sky-300 bg-sky-50/80 text-sky-900 ${clickable ? 'cursor-pointer hover:bg-sky-100' : ''}`
+                    : waiting
+                      ? blockReason
+                        ? 'border-slate-200 bg-slate-50 text-slate-500'
+                        : `border-dashed border-amber-300 bg-amber-50/80 text-amber-950 ${clickable ? 'cursor-pointer hover:bg-amber-100' : ''}`
+                      : `${styles.chip} ${clickable ? 'cursor-pointer hover:brightness-95' : ''}`
                 }`}
               >
                 <div className="flex items-center gap-1">
@@ -155,13 +167,28 @@ function ScopeColumn({
                     <span className="rounded bg-sky-600 px-1 py-0.5 text-[9px] font-bold text-white">
                       추가 배정
                     </span>
+                  ) : waiting ? (
+                    <span
+                      className={`rounded px-1 py-0.5 text-[9px] font-bold text-white ${
+                        blockReason ? 'bg-slate-400' : 'bg-amber-600'
+                      }`}
+                    >
+                      {blockReason ? '대기' : '미배정'}
+                    </span>
                   ) : (
                     <span className="rounded bg-slate-700 px-1 py-0.5 text-[9px] font-bold text-white">
                       확정
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 font-semibold tabular-nums">{scheduleLabel(row)}</p>
+                <p className="mt-0.5 font-semibold tabular-nums">
+                  {waiting && !remainder ? '일정 미입력' : scheduleLabel(row)}
+                </p>
+                {blockReason ? (
+                  <p className="mt-0.5 text-[10px] font-medium text-slate-500">{blockReason}</p>
+                ) : waiting && clickable && !remainder ? (
+                  <p className="mt-0.5 text-[10px] font-medium text-amber-800">클릭하여 배정</p>
+                ) : null}
               </button>
             )
           })
@@ -201,8 +228,8 @@ export function ProductionPlanOrderTimeline({
           className="w-full max-w-md rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
         />
         <p className="text-xs text-slate-500">
-          발주별로 자재 → SMT → 후공정 계획을 한눈에 확인합니다. 확정 항목을 클릭하면 수정·삭제할 수
-          있습니다.
+          발주별로 자재 → SMT → 후공정 흐름을 확인합니다. 미배정·추가 배정은 클릭해 일정을 입력하고,
+          확정 항목은 클릭해 수정·삭제할 수 있습니다.
         </p>
       </div>
 
@@ -247,9 +274,14 @@ export function ProductionPlanOrderTimeline({
                   </div>
 
                   <div className="grid gap-3 lg:grid-cols-3">
-                    <ScopeColumn scope="material" rows={group.material} onSelectRow={onSelectRow} />
-                    <ScopeColumn scope="smt" rows={group.smt} onSelectRow={onSelectRow} />
-                    <ScopeColumn scope="post" rows={group.post} onSelectRow={onSelectRow} />
+                    <ScopeColumn
+                      scope="material"
+                      rows={group.material}
+                      allRows={rows}
+                      onSelectRow={onSelectRow}
+                    />
+                    <ScopeColumn scope="smt" rows={group.smt} allRows={rows} onSelectRow={onSelectRow} />
+                    <ScopeColumn scope="post" rows={group.post} allRows={rows} onSelectRow={onSelectRow} />
                   </div>
                 </article>
               )

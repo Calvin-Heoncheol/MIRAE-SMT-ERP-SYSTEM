@@ -35,7 +35,7 @@ import {
 } from '@/lib/quotes/form-state'
 import {
   emptyPostProcessLineForm,
-  resolveUnifiedPostProcessLineForms,
+  resolveCategorizedPostProcessLineForms,
   sumPostProcessBilledMinutes,
   type PostProcessLineForm,
 } from '@/lib/quotes/post-process-lines'
@@ -80,7 +80,10 @@ type FormState = {
   boardQty: string
   pcbBoardCount: string
   productionKind: '샘플' | '양산'
-  postProcessLines: PostProcessLineForm[]
+  assemblyLines: PostProcessLineForm[]
+  downloadLines: PostProcessLineForm[]
+  testLines: PostProcessLineForm[]
+  packingLines: PostProcessLineForm[]
   materialCost: string
   specialDiscount: string
   includeSmd: boolean
@@ -98,7 +101,10 @@ const INITIAL_FORM: FormState = {
   boardQty: '1000',
   pcbBoardCount: '1',
   productionKind: '양산',
-  postProcessLines: [emptyPostProcessLineForm()],
+  assemblyLines: [emptyPostProcessLineForm()],
+  downloadLines: [emptyPostProcessLineForm()],
+  testLines: [emptyPostProcessLineForm()],
+  packingLines: [emptyPostProcessLineForm()],
   materialCost: '0',
   specialDiscount: '0',
   includeSmd: true,
@@ -124,12 +130,15 @@ function inferIncludeFlags(quote: QuoteListItem): { includeSmd: boolean; include
   const hasPostLines =
     Boolean(post.lines?.length) ||
     Boolean(post.assemblyLines?.length) ||
+    Boolean(post.downloadLines?.length) ||
     Boolean(post.testLines?.length) ||
     Boolean(post.packingLines?.length)
   const hasDip =
     (amounts?.dip || 0) > 0 ||
     (amounts?.assembly || 0) > 0 ||
+    (amounts?.download || 0) > 0 ||
     (post.postAssembly || 0) > 0 ||
+    (post.postDownload || 0) > 0 ||
     (post.postTest || 0) > 0 ||
     (post.postPacking || 0) > 0 ||
     hasPostLines ||
@@ -177,6 +186,7 @@ function createInitialState(mode: 'create' | 'edit', quote?: QuoteListItem | nul
       input.dipBoards?.length ? input.dipBoards.map(dipBoardToForm) : [defaultDipBoardForm(0)],
     )
     const post = quote.detailInfo.inputs?.postProcess || {}
+    const categorized = resolveCategorizedPostProcessLineForms(post)
 
     return {
       form: {
@@ -189,7 +199,10 @@ function createInitialState(mode: 'create' | 'edit', quote?: QuoteListItem | nul
           quote.detailInfo.settings?.productionKind === '샘플'
             ? ('샘플' as const)
             : ('양산' as const),
-        postProcessLines: resolveUnifiedPostProcessLineForms(post),
+        assemblyLines: categorized.assemblyLines,
+        downloadLines: categorized.downloadLines,
+        testLines: categorized.testLines,
+        packingLines: categorized.packingLines,
         materialCost: String(input.materialCost || 0),
         specialDiscount: String(input.specialDiscount || 0),
         includeSmd: flags.includeSmd,
@@ -233,7 +246,10 @@ function computeEstimate(
     }),
   )
 
-  const postAssembly = sumPostProcessBilledMinutes(form.postProcessLines, form.productionKind)
+  const postAssembly = sumPostProcessBilledMinutes(form.assemblyLines, form.productionKind)
+  const postDownload = sumPostProcessBilledMinutes(form.downloadLines, form.productionKind)
+  const postTest = sumPostProcessBilledMinutes(form.testLines, form.productionKind)
+  const postPacking = sumPostProcessBilledMinutes(form.packingLines, form.productionKind)
 
   return calculateEstimate(
     {
@@ -242,8 +258,9 @@ function computeEstimate(
       includeMetalMask: form.includeMetalMask,
       productionKind: form.productionKind,
       postAssembly,
-      postTest: 0,
-      postPacking: 0,
+      postDownload,
+      postTest,
+      postPacking,
       specialDiscount: form.specialDiscount,
       pcbBoardCount: pcbCount,
       pcbBoards,
@@ -573,15 +590,19 @@ function QuoteModalContent({
     mode === 'edit' && quote?.quoteDate ? quote.quoteDate : result?.date || ''
   const previewProduct = form.productName.trim() || '-'
   const previewForm = {
-    postAssembly: String(sumPostProcessBilledMinutes(form.postProcessLines, form.productionKind)),
-    postTest: '0',
-    postPacking: '0',
+    postAssembly: String(sumPostProcessBilledMinutes(form.assemblyLines, form.productionKind)),
+    postDownload: String(sumPostProcessBilledMinutes(form.downloadLines, form.productionKind)),
+    postTest: String(sumPostProcessBilledMinutes(form.testLines, form.productionKind)),
+    postPacking: String(sumPostProcessBilledMinutes(form.packingLines, form.productionKind)),
     materialCost: form.materialCost,
     metalMaskCost: result?.common.subMaterial ?? 0,
     productionKind: form.productionKind,
     includeMaterialCosts: form.includeMaterialCosts,
     includeMetalMask: form.includeMetalMask,
-    postProcessLines: form.postProcessLines,
+    assemblyLines: form.assemblyLines,
+    downloadLines: form.downloadLines,
+    testLines: form.testLines,
+    packingLines: form.packingLines,
   }
   const sectionNumbers = {
     setup: 1,
@@ -598,8 +619,12 @@ function QuoteModalContent({
   const smdPlacementTotal = result?.common.smtPlacementTotal || 0
   const smdLaborTotal = (result?.common.smtLaborPerUnit || 0) * qty
   const smdInspectionTotal = (result?.common.smtInspectionPerUnit || 0) * qty
-  const smdSectionTotal = smdPlacementTotal
-  const dipSectionTotal = (result?.values.dip || 0) + (result?.values.postProcess || 0)
+  const smdSectionTotal =
+    smdPlacementTotal + (result?.common.smtAuxiliaryMaterial || 0)
+  const dipSectionTotal =
+    (result?.values.dip || 0) +
+    (result?.values.postProcess || 0) +
+    (result?.common.postProcessProfit || 0)
   const materialSectionTotal =
     (Number(form.materialCost) || 0) * qty + (result?.common.materialManagement || 0)
   const samplePreview = computeSampleCostTotal(
@@ -918,17 +943,44 @@ function QuoteModalContent({
                       </div>
                     </div>
 
-                    <PostProcessLinesEditor
-                      title="후공정"
-                      ratePerMinute={getPostRate(quoteType)}
-                      lines={form.postProcessLines}
-                      productionKind={form.productionKind}
-                      quoteType={quoteType}
-                      displayCurrency={displayCurrency}
-                      onChange={(postProcessLines) =>
-                        updateForm('postProcessLines', postProcessLines)
-                      }
-                    />
+                    <div className="space-y-3">
+                      <PostProcessLinesEditor
+                        title="조립"
+                        ratePerMinute={getPostRate(quoteType)}
+                        lines={form.assemblyLines}
+                        productionKind={form.productionKind}
+                        quoteType={quoteType}
+                        displayCurrency={displayCurrency}
+                        onChange={(assemblyLines) => updateForm('assemblyLines', assemblyLines)}
+                      />
+                      <PostProcessLinesEditor
+                        title="다운로드"
+                        ratePerMinute={getPostRate(quoteType)}
+                        lines={form.downloadLines}
+                        productionKind={form.productionKind}
+                        quoteType={quoteType}
+                        displayCurrency={displayCurrency}
+                        onChange={(downloadLines) => updateForm('downloadLines', downloadLines)}
+                      />
+                      <PostProcessLinesEditor
+                        title="테스트"
+                        ratePerMinute={getPostRate(quoteType)}
+                        lines={form.testLines}
+                        productionKind={form.productionKind}
+                        quoteType={quoteType}
+                        displayCurrency={displayCurrency}
+                        onChange={(testLines) => updateForm('testLines', testLines)}
+                      />
+                      <PostProcessLinesEditor
+                        title="포장"
+                        ratePerMinute={getPostRate(quoteType)}
+                        lines={form.packingLines}
+                        productionKind={form.productionKind}
+                        quoteType={quoteType}
+                        displayCurrency={displayCurrency}
+                        onChange={(packingLines) => updateForm('packingLines', packingLines)}
+                      />
+                    </div>
                   </div>
                 ) : null}
               </section>

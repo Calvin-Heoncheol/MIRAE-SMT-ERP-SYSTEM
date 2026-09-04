@@ -252,28 +252,9 @@ export type ItemPriceField =
   | 'smdUnitPrice'
   | 'dipUnitPrice'
   | 'materialUnitPrice'
-  | 'baselineUnitPrice'
 
 export function itemToUpdatePayload(item: Item): UpdateItemPayload {
   return formToItemUpdatePayload(itemToForm(item))
-}
-
-/** 목록 기본단가 인라인 수정 — 반제품은 unit_price에 저장, 세부 단가는 초기화 */
-export function itemBaselineUnitPriceUpdatePayload(item: Item, value: number): UpdateItemPayload {
-  const base = itemToUpdatePayload(item)
-  const next = Math.max(0, Math.round(Number(value) || 0))
-  if (isSemiFinishedItemCategory(item.itemCategory)) {
-    return {
-      ...base,
-      unitPrice: next,
-      setupUnitPrice: 0,
-      smdUnitPrice: 0,
-      dipUnitPrice: 0,
-      materialUnitPrice: 0,
-      otherUnitPrice: item.otherUnitPrice,
-    }
-  }
-  return { ...base, unitPrice: next }
 }
 
 export function itemPriceUpdatePayload(
@@ -281,9 +262,6 @@ export function itemPriceUpdatePayload(
   field: ItemPriceField,
   value: number,
 ): UpdateItemPayload {
-  if (field === 'baselineUnitPrice') {
-    return itemBaselineUnitPriceUpdatePayload(item, value)
-  }
   const form = itemToForm(item)
   form[field] = Math.max(0, Math.round(Number(value) || 0))
   return formToItemUpdatePayload(form)

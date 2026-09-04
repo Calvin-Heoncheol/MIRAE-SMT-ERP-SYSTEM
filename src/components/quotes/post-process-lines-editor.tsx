@@ -125,7 +125,7 @@ export function PostProcessLinesEditor({
       </div>
 
       <p className="mt-2 text-[10px] text-slate-400">
-        초는 입력값 그대로 유지 · 여유분 자동 계산 (+30%) · 총 시간(분) = (초 + 여유분) ÷ 60
+        초는 입력값 그대로 유지 · 여유분 자동 계산 (+{bufferPercent}%) · 총 시간(분) = (초 + 여유분) ÷ 60
       </p>
 
       <ErpRowAddButton onClick={addLine} title={`${title} 행 추가`} className="mt-2" />

@@ -63,8 +63,10 @@ export function legacyQuoteFormFromQuote(quote: QuoteListItem): LegacyQuoteFormS
     (amounts
       ? Math.round(
           ((Number(amounts.assembly) || 0) +
+            (Number(amounts.download) || 0) +
             (Number(amounts.test) || 0) +
             (Number(amounts.packing) || 0) +
+            (Number(amounts.postProcessProfit) || 0) +
             (Number(amounts.dip) || 0)) /
             qty,
         )

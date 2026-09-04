@@ -19,6 +19,18 @@ import {
   formatDeliveryCountdown,
   getDeliveryUrgencyTone,
 } from '@/lib/smt/plan/utils'
+import type { MaterialManualOrderMetrics } from '@/lib/materials/manual/types'
+import {
+  getMaterialInboundState,
+  materialInboundFilterLabel,
+  materialInboundProgressPercent,
+  materialOutboundProgressPercent,
+  countMaterialInboundStates,
+  filterOrdersByMaterialInbound,
+  resolveMaterialInboundSets,
+  type MaterialInboundFilter,
+  type MaterialInboundState,
+} from '@/lib/materials/manual/utils'
 
 type ProductionOrderSidebarProps = {
   orders: ProductionOrderLine[]
@@ -27,6 +39,8 @@ type ProductionOrderSidebarProps = {
   search: string
   onSearchChange: (value: string) => void
   onSelect: (uiKey: string) => void
+  /** 발주 라인별 입고·출고(세트) — 있으면 자재 입고/출고 카드 UI */
+  materialMetricsByLineId?: Record<string, MaterialManualOrderMetrics>
   /** rail: 좁은 사이드 / board: 전체폭 카드 그리드(등록 모달용) */
   variant?: 'rail' | 'board'
   /** SMT 생산계획 — 캘린더로 드래그 */
@@ -37,6 +51,8 @@ type ProductionOrderSidebarProps = {
 
 /** 카드 + gap 대략 높이 — 2줄 메타 카드 기준 (rail) */
 const ORDER_CARD_SLOT_PX = 124
+/** 카드 + gap — 자재 입·출고 2줄 그래프 (rail) */
+const MATERIAL_ORDER_CARD_SLOT_PX = 156
 const MIN_ORDER_PAGE_SIZE = 3
 const MAX_ORDER_PAGE_SIZE = 10
 const DEFAULT_ORDER_PAGE_SIZE = 6
@@ -49,6 +65,33 @@ const BOARD_SM_BREAKPOINT_PX = 640
 const BOARD_LG_BREAKPOINT_PX = 1024
 
 type StatusFilter = 'all' | ProductionOrderState
+type SidebarStatusFilter = StatusFilter | MaterialInboundFilter
+
+function materialStateBadgeClass(state: MaterialInboundState) {
+  if (state === 'full') return 'bg-emerald-100 text-emerald-800'
+  if (state === 'partial') return 'bg-amber-100 text-amber-800'
+  return 'bg-slate-100 text-slate-700'
+}
+
+function materialStateAccentClass(state: MaterialInboundState) {
+  if (state === 'full') return 'border-l-emerald-500'
+  if (state === 'partial') return 'border-l-amber-500'
+  return 'border-l-slate-300'
+}
+
+function materialProgressBarClass(state: MaterialInboundState, complete: boolean) {
+  if (complete) return 'bg-emerald-500'
+  if (state === 'partial') return 'bg-amber-500'
+  return 'bg-slate-300'
+}
+
+function materialOutboundProgressBarClass(outboundSets: number, inboundSets: number) {
+  const inbound = Math.max(0, Math.floor(inboundSets))
+  const outbound = Math.max(0, Math.floor(outboundSets))
+  if (inbound <= 0 || outbound <= 0) return 'bg-slate-300'
+  if (outbound >= inbound) return 'bg-sky-500'
+  return 'bg-sky-400'
+}
 
 function stateLabel(state: ProductionOrderState) {
   if (state === 'full') return '완료'
@@ -81,11 +124,12 @@ function urgencyBadgeClass(daysUntilDelivery: number | null) {
   return 'bg-slate-100 text-slate-600'
 }
 
-function computePageSize(containerHeight: number) {
+function computePageSize(containerHeight: number, materialMode = false) {
   if (containerHeight <= 0) return DEFAULT_ORDER_PAGE_SIZE
+  const slot = materialMode ? MATERIAL_ORDER_CARD_SLOT_PX : ORDER_CARD_SLOT_PX
   return Math.min(
     MAX_ORDER_PAGE_SIZE,
-    Math.max(MIN_ORDER_PAGE_SIZE, Math.floor(containerHeight / ORDER_CARD_SLOT_PX)),
+    Math.max(MIN_ORDER_PAGE_SIZE, Math.floor(containerHeight / slot)),
   )
 }
 
@@ -116,14 +160,25 @@ export function ProductionOrderSidebar({
   enableDrag = false,
   onDragOrder,
   footerHint,
+  materialMetricsByLineId,
 }: ProductionOrderSidebarProps) {
   const isBoard = variant === 'board'
+  const isMaterialInboundMode = materialMetricsByLineId != null
+  const inboundMetricsByLineId = useMemo(() => {
+    if (!materialMetricsByLineId) return null
+    return Object.fromEntries(
+      Object.entries(materialMetricsByLineId).map(([lineId, metrics]) => [
+        lineId,
+        metrics.inboundSets,
+      ]),
+    )
+  }, [materialMetricsByLineId])
   const listRef = useRef<HTMLDivElement>(null)
   const [pageSize, setPageSize] = useState(
     isBoard ? BOARD_DEFAULT_PAGE_SIZE : DEFAULT_ORDER_PAGE_SIZE,
   )
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<SidebarStatusFilter>('all')
 
   useEffect(() => {
     const el = listRef.current
@@ -131,7 +186,9 @@ export function ProductionOrderSidebar({
 
     const update = (height: number, width: number) => {
       setPageSize(
-        isBoard ? computeBoardPageSize(height, width) : computePageSize(height),
+        isBoard
+          ? computeBoardPageSize(height, width)
+          : computePageSize(height, isMaterialInboundMode),
       )
     }
 
@@ -144,9 +201,12 @@ export function ProductionOrderSidebar({
     })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [isBoard])
+  }, [isBoard, isMaterialInboundMode])
 
   const statusCounts = useMemo(() => {
+    if (isMaterialInboundMode && inboundMetricsByLineId) {
+      return countMaterialInboundStates(orders, inboundMetricsByLineId)
+    }
     let none = 0
     let progress = 0
     let full = 0
@@ -157,12 +217,19 @@ export function ProductionOrderSidebar({
       else none += 1
     }
     return { all: orders.length, none, progress, full }
-  }, [orders, counts])
+  }, [orders, counts, isMaterialInboundMode, inboundMetricsByLineId])
 
   const filteredOrders = useMemo(() => {
+    if (isMaterialInboundMode && inboundMetricsByLineId) {
+      return filterOrdersByMaterialInbound(
+        orders,
+        statusFilter as MaterialInboundFilter,
+        inboundMetricsByLineId,
+      )
+    }
     if (statusFilter === 'all') return orders
     return orders.filter((order) => getProductionOrderState(order, counts) === statusFilter)
-  }, [orders, counts, statusFilter])
+  }, [orders, counts, statusFilter, isMaterialInboundMode, inboundMetricsByLineId])
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize) || 1)
 
@@ -219,27 +286,49 @@ export function ProductionOrderSidebar({
 
   const showPager = filteredOrders.length > pageSize
 
-  const statusChips = [
-    { value: 'all' as const, label: '전체', count: statusCounts.all },
-    {
-      value: 'none' as const,
-      label: '대기',
-      count: statusCounts.none,
-      tone: STATUS_FILTER_TONES.waiting,
-    },
-    {
-      value: 'progress' as const,
-      label: '진행',
-      count: statusCounts.progress,
-      tone: STATUS_FILTER_TONES.progress,
-    },
-    {
-      value: 'full' as const,
-      label: '완료',
-      count: statusCounts.full,
-      tone: STATUS_FILTER_TONES.done,
-    },
-  ]
+  const statusChips = isMaterialInboundMode
+    ? [
+        { value: 'all' as const, label: '전체', count: statusCounts.all },
+        {
+          value: 'none' as const,
+          label: '미입고',
+          count: statusCounts.none,
+          tone: STATUS_FILTER_TONES.waiting,
+        },
+        {
+          value: 'partial' as const,
+          label: '일부입고',
+          count: statusCounts.partial,
+          tone: STATUS_FILTER_TONES.progress,
+        },
+        {
+          value: 'full' as const,
+          label: '입고완료',
+          count: statusCounts.full,
+          tone: STATUS_FILTER_TONES.done,
+        },
+      ]
+    : [
+        { value: 'all' as const, label: '전체', count: statusCounts.all },
+        {
+          value: 'none' as const,
+          label: '대기',
+          count: statusCounts.none,
+          tone: STATUS_FILTER_TONES.waiting,
+        },
+        {
+          value: 'progress' as const,
+          label: '진행',
+          count: statusCounts.progress,
+          tone: STATUS_FILTER_TONES.progress,
+        },
+        {
+          value: 'full' as const,
+          label: '완료',
+          count: statusCounts.full,
+          tone: STATUS_FILTER_TONES.done,
+        },
+      ]
 
   return (
     <aside
@@ -286,7 +375,9 @@ export function ProductionOrderSidebar({
           <p className="py-8 text-center text-sm text-slate-400">
             {search.trim() || statusFilter !== 'all'
               ? '검색·필터 결과 없음'
-              : '표시할 발주서가 없습니다'}
+              : isMaterialInboundMode
+                ? '표시할 발주가 없습니다'
+                : '표시할 발주서가 없습니다'}
           </p>
         ) : (
           <div
@@ -297,13 +388,33 @@ export function ProductionOrderSidebar({
             }
           >
             {pageItems.map((order) => {
-            const state = getProductionOrderState(order, counts)
+            const productionState = getProductionOrderState(order, counts)
+            const inboundSets = isMaterialInboundMode
+              ? resolveMaterialInboundSets(order, inboundMetricsByLineId!)
+              : 0
+            const outboundSets = isMaterialInboundMode
+              ? Math.max(0, Math.floor(materialMetricsByLineId![order.orderLineId]?.outboundSets ?? 0))
+              : 0
+            const materialState = isMaterialInboundMode
+              ? getMaterialInboundState(order, inboundSets)
+              : null
+            const state = isMaterialInboundMode ? materialState! : productionState
             const selected = selectedKey === order.uiKey
-            const cumulative = resolveProductionCount(order, counts)
             const target = Math.max(0, Math.floor(order.quantity))
-            const progress = getProgressPercent(cumulative, target)
-            const complete = target > 0 && cumulative >= target
-            const remaining = Math.max(0, target - cumulative)
+            const cumulative = isMaterialInboundMode
+              ? inboundSets
+              : resolveProductionCount(order, counts)
+            const progress = isMaterialInboundMode
+              ? materialInboundProgressPercent(order, inboundSets)
+              : getProgressPercent(cumulative, target)
+            const outboundProgress = isMaterialInboundMode
+              ? materialOutboundProgressPercent(inboundSets, outboundSets)
+              : 0
+            const inboundComplete = target > 0 && inboundSets >= target
+            const inboundRemaining = Math.max(0, target - inboundSets)
+            const outboundRemaining = Math.max(0, inboundSets - outboundSets)
+            const complete = isMaterialInboundMode ? inboundComplete : target > 0 && cumulative >= target
+            const remaining = isMaterialInboundMode ? inboundRemaining : Math.max(0, target - cumulative)
             const daysUntilDelivery = order.deliveryDate
               ? daysUntilYmd(todayYmdSeoul(), order.deliveryDate)
               : null
@@ -341,14 +452,27 @@ export function ProductionOrderSidebar({
                   enableDrag ? 'cursor-grab active:cursor-grabbing' : '',
                   selected
                     ? 'border-sky-500 border-l-sky-500 bg-sky-50 ring-1 ring-sky-200'
-                    : ['bg-white hover:bg-slate-50', stateAccentClass(state)].join(' '),
+                    : [
+                        'bg-white hover:bg-slate-50',
+                        isMaterialInboundMode
+                          ? materialStateAccentClass(materialState!)
+                          : stateAccentClass(productionState),
+                      ].join(' '),
                 ].join(' ')}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-1.5">
                     <StatusBadge
-                      label={stateLabel(state)}
-                      className={stateBadgeClass(state)}
+                      label={
+                        isMaterialInboundMode
+                          ? materialInboundFilterLabel(materialState!)
+                          : stateLabel(productionState)
+                      }
+                      className={
+                        isMaterialInboundMode
+                          ? materialStateBadgeClass(materialState!)
+                          : stateBadgeClass(productionState)
+                      }
                     />
                     <StatusBadge
                       label={formatProductPcbSideModeLabel(order.pcbSideMode)}
@@ -368,7 +492,7 @@ export function ProductionOrderSidebar({
                     ) : null}
                   </div>
                   <span className="shrink-0 text-[11px] font-bold text-slate-400 tabular-nums">
-                    {progress}%
+                    {isMaterialInboundMode ? null : `${progress}%`}
                   </span>
                 </div>
 
@@ -420,44 +544,113 @@ export function ProductionOrderSidebar({
                 </div>
 
                 <div className={isBoard ? 'mt-2.5' : 'mt-1.5'}>
-                  <div
-                    className={[
-                      'mb-1 flex items-center justify-between gap-2 font-medium text-slate-500',
-                      isBoard ? 'text-xs' : 'text-[11px]',
-                    ].join(' ')}
-                  >
-                    <span className="tabular-nums">
-                      {order.splitPcbSides ? (
-                        <>
-                          TOP {topCount.toLocaleString('ko-KR')} · BOT{' '}
-                          {botCount.toLocaleString('ko-KR')}
-                          {target > 0 ? ` / ${target.toLocaleString('ko-KR')}` : ''}
-                        </>
-                      ) : (
-                        <>
-                          {cumulative.toLocaleString('ko-KR')}
-                          {target > 0 ? ` / ${target.toLocaleString('ko-KR')}` : ''}
-                        </>
-                      )}
-                    </span>
-                    <span>
-                      남음{' '}
-                      <span className="font-bold text-slate-700 tabular-nums">
-                        {remaining.toLocaleString('ko-KR')}
-                      </span>
-                    </span>
-                  </div>
-                  <div
-                    className={[
-                      'overflow-hidden rounded-full bg-slate-100',
-                      isBoard ? 'h-2' : 'h-1.5',
-                    ].join(' ')}
-                  >
-                    <div
-                      className={`h-full rounded-full transition-all ${progressBarClass(state, complete)}`}
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
+                  {isMaterialInboundMode ? (
+                    <div className="space-y-2">
+                      <div>
+                        <div
+                          className={[
+                            'mb-1 flex items-center justify-between gap-2 font-medium text-slate-500',
+                            isBoard ? 'text-xs' : 'text-[11px]',
+                          ].join(' ')}
+                        >
+                          <span className="tabular-nums">
+                            입고 {inboundSets.toLocaleString('ko-KR')}
+                            {target > 0 ? ` / ${target.toLocaleString('ko-KR')}` : ''}
+                            <span className="ml-1.5 font-bold text-slate-400">{progress}%</span>
+                          </span>
+                          <span>
+                            미입고{' '}
+                            <span className="font-bold text-slate-700 tabular-nums">
+                              {inboundRemaining.toLocaleString('ko-KR')}
+                            </span>
+                          </span>
+                        </div>
+                        <div
+                          className={[
+                            'overflow-hidden rounded-full bg-slate-100',
+                            isBoard ? 'h-2' : 'h-1.5',
+                          ].join(' ')}
+                        >
+                          <div
+                            className={`h-full rounded-full transition-all ${materialProgressBarClass(materialState!, inboundComplete)}`}
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div
+                          className={[
+                            'mb-1 flex items-center justify-between gap-2 font-medium text-slate-500',
+                            isBoard ? 'text-xs' : 'text-[11px]',
+                          ].join(' ')}
+                        >
+                          <span className="tabular-nums">
+                            불출 {outboundSets.toLocaleString('ko-KR')}
+                            {inboundSets > 0 ? ` / ${inboundSets.toLocaleString('ko-KR')}` : ''}
+                            <span className="ml-1.5 font-bold text-slate-400">{outboundProgress}%</span>
+                          </span>
+                          <span>
+                            미불출{' '}
+                            <span className="font-bold text-slate-700 tabular-nums">
+                              {outboundRemaining.toLocaleString('ko-KR')}
+                            </span>
+                          </span>
+                        </div>
+                        <div
+                          className={[
+                            'overflow-hidden rounded-full bg-slate-100',
+                            isBoard ? 'h-2' : 'h-1.5',
+                          ].join(' ')}
+                        >
+                          <div
+                            className={`h-full rounded-full transition-all ${materialOutboundProgressBarClass(outboundSets, inboundSets)}`}
+                            style={{ width: `${outboundProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        className={[
+                          'mb-1 flex items-center justify-between gap-2 font-medium text-slate-500',
+                          isBoard ? 'text-xs' : 'text-[11px]',
+                        ].join(' ')}
+                      >
+                        <span className="tabular-nums">
+                          {order.splitPcbSides ? (
+                            <>
+                              TOP {topCount.toLocaleString('ko-KR')} · BOT{' '}
+                              {botCount.toLocaleString('ko-KR')}
+                              {target > 0 ? ` / ${target.toLocaleString('ko-KR')}` : ''}
+                            </>
+                          ) : (
+                            <>
+                              {cumulative.toLocaleString('ko-KR')}
+                              {target > 0 ? ` / ${target.toLocaleString('ko-KR')}` : ''}
+                            </>
+                          )}
+                        </span>
+                        <span>
+                          남음{' '}
+                          <span className="font-bold text-slate-700 tabular-nums">
+                            {remaining.toLocaleString('ko-KR')}
+                          </span>
+                        </span>
+                      </div>
+                      <div
+                        className={[
+                          'overflow-hidden rounded-full bg-slate-100',
+                          isBoard ? 'h-2' : 'h-1.5',
+                        ].join(' ')}
+                      >
+                        <div
+                          className={`h-full rounded-full transition-all ${progressBarClass(productionState, complete)}`}
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
               </button>
             )

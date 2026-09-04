@@ -9,6 +9,7 @@ import type {
 } from './types'
 import { postProcessLinesToModels, sumPostProcessLineMinutes } from './post-process-lines'
 import type { PostProcessLineForm } from './post-process-lines'
+import { getPostRate } from './constants'
 
 export type QuoteFormSnapshot = {
   customer: string
@@ -20,8 +21,9 @@ export type QuoteFormSnapshot = {
   pcbBoardCount: string
   materialCost: string
   metalMaskCost?: string
-  /** @deprecated 합계는 postProcessLines 에서 산출. 하위호환용 */
+  /** @deprecated 합계는 카테고리 라인에서 산출 */
   postAssembly?: string
+  postDownload?: string
   postTest?: string
   postPacking?: string
   specialDiscount: string
@@ -31,9 +33,10 @@ export type QuoteFormSnapshot = {
   /** false = 원자재·관리비 제외 */
   includeMaterialCosts?: boolean
   includeMetalMask?: boolean
+  /** @deprecated 카테고리별 배열 사용 */
   postProcessLines?: PostProcessLineForm[]
-  /** @deprecated postProcessLines 사용 */
   assemblyLines?: PostProcessLineForm[]
+  downloadLines?: PostProcessLineForm[]
   testLines?: PostProcessLineForm[]
   packingLines?: PostProcessLineForm[]
 }
@@ -68,34 +71,57 @@ export function buildQuoteDetailInfo(
   const materialCostPerUnit = includeMaterialCosts ? Number(form.materialCost) || 0 : 0
   const metalMaskCost = Math.max(0, Math.round(result.common.subMaterial || 0))
   const sampleCost = Math.max(0, Math.round(result.common.sampleCost || 0))
-  const auxiliaryMaterialCostPerUnit = 0
+  const auxiliaryMaterialCostPerUnit =
+    (result.common.auxiliaryMaterial || 0) / (qty || 1)
   const productionKind = form.productionKind === '샘플' ? '샘플' : '양산'
-  const postProcessLines: PostProcessLine[] = form.postProcessLines
-    ? postProcessLinesToModels(form.postProcessLines, productionKind)
-    : [
-        ...(form.assemblyLines ? postProcessLinesToModels(form.assemblyLines, productionKind) : []),
-        ...(form.testLines ? postProcessLinesToModels(form.testLines, productionKind) : []),
-        ...(form.packingLines ? postProcessLinesToModels(form.packingLines, productionKind) : []),
-      ]
-  const postAssembly = form.postProcessLines
-    ? sumPostProcessLineMinutes(postProcessLines)
-    : form.assemblyLines || form.testLines || form.packingLines
-      ? sumPostProcessLineMinutes(postProcessLines)
+  const postRate = getPostRate(quoteType)
+
+  const assemblyLines: PostProcessLine[] = form.assemblyLines
+    ? postProcessLinesToModels(form.assemblyLines, productionKind)
+    : form.postProcessLines
+      ? postProcessLinesToModels(form.postProcessLines, productionKind)
+      : []
+  const downloadLines: PostProcessLine[] = form.downloadLines
+    ? postProcessLinesToModels(form.downloadLines, productionKind)
+    : []
+  const testLines: PostProcessLine[] = form.testLines
+    ? postProcessLinesToModels(form.testLines, productionKind)
+    : []
+  const packingLines: PostProcessLine[] = form.packingLines
+    ? postProcessLinesToModels(form.packingLines, productionKind)
+    : []
+
+  const postAssembly =
+    form.assemblyLines || form.postProcessLines
+      ? sumPostProcessLineMinutes(assemblyLines)
       : Number(form.postAssembly) || 0
+  const postDownload = form.downloadLines
+    ? sumPostProcessLineMinutes(downloadLines)
+    : Number(form.postDownload) || 0
+  const postTest = form.testLines
+    ? sumPostProcessLineMinutes(testLines)
+    : Number(form.postTest) || 0
+  const postPacking = form.packingLines
+    ? sumPostProcessLineMinutes(packingLines)
+    : Number(form.postPacking) || 0
+
+  const mergedLines = [...assemblyLines, ...downloadLines, ...testLines, ...packingLines]
 
   return {
     amounts: {
       smt: result.values.smt,
       dip: result.values.dip,
-      assembly: result.values.postProcess,
-      test: 0,
-      packing: 0,
+      assembly: postAssembly * postRate * qty,
+      download: postDownload * postRate * qty,
+      test: postTest * postRate * qty,
+      packing: postPacking * postRate * qty,
+      postProcessProfit: result.common.postProcessProfit || 0,
       materialCost: materialCostPerUnit * qty,
       materialManagementCost: includeMaterialCosts ? result.common.materialManagement : 0,
       setupCost: result.common.smtSetup,
       subMaterialCost: metalMaskCost,
       sampleCost,
-      auxiliaryMaterialCost: 0,
+      auxiliaryMaterialCost: result.common.auxiliaryMaterial,
     },
     inputs: {
       smt: {
@@ -130,13 +156,14 @@ export function buildQuoteDetailInfo(
       },
       postProcess: {
         postAssembly,
-        postTest: 0,
-        postPacking: 0,
-        lines: postProcessLines,
-        // 하위호환: 예전 필드에도 동일 목록 보관
-        assemblyLines: postProcessLines,
-        testLines: [],
-        packingLines: [],
+        postDownload,
+        postTest,
+        postPacking,
+        assemblyLines,
+        downloadLines,
+        testLines,
+        packingLines,
+        lines: mergedLines,
       },
     },
     settings: {

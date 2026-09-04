@@ -1,8 +1,7 @@
 import { paymentTermSnapshotFromDbRow } from '@/lib/partners/payment-term-snapshot'
 import {
-  resolveUnifiedPostProcessLineForms,
+  resolveCategorizedPostProcessLineForms,
   sumPostProcessBilledMinutes,
-  sumPostProcessLineMinutes,
 } from './post-process-lines'
 import { formatQuoteProcessLabel } from './production-flags'
 import type {
@@ -150,9 +149,11 @@ export function toEstimateInputFromDetail(
   const dipBoards = inputs.dip?.dipBoards || [defaultDipPcbBoard(0)]
   const post = inputs.postProcess || {}
   const productionKind = settings.productionKind === '샘플' ? '샘플' : '양산'
-  const postAssembly = post.lines?.length
-    ? sumPostProcessLineMinutes(post.lines)
-    : sumPostProcessBilledMinutes(resolveUnifiedPostProcessLineForms(post), productionKind)
+  const categorized = resolveCategorizedPostProcessLineForms(post)
+  const postAssembly = sumPostProcessBilledMinutes(categorized.assemblyLines, productionKind)
+  const postDownload = sumPostProcessBilledMinutes(categorized.downloadLines, productionKind)
+  const postTest = sumPostProcessBilledMinutes(categorized.testLines, productionKind)
+  const postPacking = sumPostProcessBilledMinutes(categorized.packingLines, productionKind)
 
   return {
     boardQty: quote.boardQty,
@@ -161,8 +162,9 @@ export function toEstimateInputFromDetail(
       settings.metalMaskCost ?? quote.detailInfo.amounts?.subMaterialCost ?? 0,
     productionKind: settings.productionKind === '샘플' ? '샘플' : '양산',
     postAssembly,
-    postTest: 0,
-    postPacking: 0,
+    postDownload,
+    postTest,
+    postPacking,
     specialDiscount: settings.specialDiscount ?? 0,
     pcbBoardCount: settings.pcbBoardCount ?? smtBoards.length,
     pcbBoards: smtBoards,

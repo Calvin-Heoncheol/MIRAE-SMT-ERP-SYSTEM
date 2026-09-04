@@ -1,7 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { StatusBadge } from '@/components/ui/status-badge'
 import {
@@ -27,69 +25,8 @@ type ItemListTableProps = {
   items: Item[]
   emptyMessage: string
   onSelectItem?: (item: Item) => void
-  /** 반제품·조립제품 — 기본단가 목록 인라인 수정 */
-  inlineEditBaselinePrice?: boolean
-  onBaselinePriceSave?: (item: Item, value: number) => Promise<boolean>
   /** 반제품·조립제품 — 버전·생산공정 표시, 패키지·사양·MPN 숨김 */
   categoryFilter?: ItemCategory | 'all'
-}
-
-const INLINE_PRICE_INPUT_CLASS =
-  'w-full min-w-0 rounded border border-transparent bg-transparent px-1.5 py-1 text-right text-sm tabular-nums text-slate-800 outline-none hover:border-slate-200 focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100 disabled:opacity-60'
-
-function InlineBaselinePriceCell({
-  item,
-  value,
-  onSave,
-}: {
-  item: Item
-  value: number
-  onSave?: (item: Item, value: number) => Promise<boolean>
-}) {
-  const [draft, setDraft] = useState(String(Math.max(0, Math.round(value || 0))))
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setDraft(String(Math.max(0, Math.round(value || 0))))
-  }, [value])
-
-  async function commit(raw: string) {
-    const next = Math.max(0, Math.round(Number(raw) || 0))
-    const current = Math.max(0, Math.round(value || 0))
-    if (next === current || !onSave) {
-      setDraft(String(current))
-      return
-    }
-    setSaving(true)
-    try {
-      const ok = await onSave(item, next)
-      if (!ok) setDraft(String(current))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <td
-      className="px-1 py-1.5 align-top"
-      onClick={(event) => event.stopPropagation()}
-      onKeyDown={(event) => event.stopPropagation()}
-    >
-      <QuoteNumericInput
-        value={draft}
-        onChange={setDraft}
-        disabled={saving || !onSave}
-        onBlur={() => void commit(draft)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.currentTarget.blur()
-          }
-        }}
-        className={INLINE_PRICE_INPUT_CLASS}
-        aria-label={`${item.name || item.id} 기본단가`}
-      />
-    </td>
-  )
 }
 
 function cell(value: string) {
@@ -105,19 +42,8 @@ function listUnitPrice(item: Item) {
   return displayItemListUnitPrice(item)
 }
 
-function unitPriceCell(
-  item: Item,
-  options?: {
-    inlineEdit?: boolean
-    onSave?: (item: Item, value: number) => Promise<boolean>
-  },
-) {
+function unitPriceCell(item: Item) {
   const total = listUnitPrice(item)
-  if (options?.inlineEdit && isProductItemCategory(item.itemCategory)) {
-    return (
-      <InlineBaselinePriceCell item={item} value={total} onSave={options.onSave} />
-    )
-  }
   return (
     <td className="whitespace-nowrap px-3 py-2.5 text-right text-sm tabular-nums text-slate-800">
       {total > 0 ? formatItemUnitPrice(total) : '-'}
@@ -129,14 +55,10 @@ export function ItemListTable({
   items,
   emptyMessage,
   onSelectItem,
-  inlineEditBaselinePrice = false,
-  onBaselinePriceSave,
   categoryFilter = 'all',
 }: ItemListTableProps) {
   const showProductColumns =
     categoryFilter !== 'all' && isProductItemCategory(categoryFilter)
-  const enableBaselineInlineEdit =
-    inlineEditBaselinePrice && showProductColumns && Boolean(onBaselinePriceSave)
   const hideMaterialDetailColumns = showProductColumns
   /** 반제품은 SMD·후공정 단가로 공정 파악 가능 — 목록에서 생산 공정 컬럼 생략 */
   const showProductionProcessColumn = categoryFilter === 'all' || categoryFilter === 4
@@ -263,10 +185,7 @@ export function ItemListTable({
                         {cell(formatItemPcbSideModeLabel(item.pcbSideMode))}
                       </td>
                     ) : null}
-                    {unitPriceCell(item, {
-                      inlineEdit: enableBaselineInlineEdit,
-                      onSave: onBaselinePriceSave,
-                    })}
+                    {unitPriceCell(item)}
                   </>
                 ) : null}
                 {hideMaterialDetailColumns ? null : (
@@ -298,10 +217,7 @@ export function ItemListTable({
                         {cell(formatItemPcbSideModeLabel(item.pcbSideMode))}
                       </td>
                     ) : null}
-                    {unitPriceCell(item, {
-                      inlineEdit: enableBaselineInlineEdit,
-                      onSave: onBaselinePriceSave,
-                    })}
+                    {unitPriceCell(item)}
                   </>
                 ) : null}
                 <td className="whitespace-nowrap px-3 py-2.5 text-center">

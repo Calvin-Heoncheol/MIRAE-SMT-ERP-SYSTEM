@@ -49,14 +49,16 @@ export const SMT_PLACEMENT_MIN_FEE_DOMESTIC = 5_000
 export const SMT_PLACEMENT_MIN_FEE_EXPORT = 6_000
 /** CHIP·이형·특수/모듈·IC PIN·BGA BALL 합산 점수(개수 1:1)가 이 값 이하이면 최소 실장비 적용 */
 export const SMT_PLACEMENT_MIN_SCORE = 150
-/** 후공정 임율: 국내 ₩530/분 */
-export const POST_RATE_DOMESTIC = 520
-/** 후공정 임율: 해외 ₩530/분 */
-export const POST_RATE_EXPORT = 520
+/** 후공정 임율: 국내 ₩420/분 */
+export const POST_RATE_DOMESTIC = 420
+/** 후공정 임율: 해외 ₩420/분 */
+export const POST_RATE_EXPORT = 420
 /** 후공정 작업시간 여유 — 샘플 30% */
 export const POST_PROCESS_SAMPLE_BUFFER = 0.3
 /** 후공정 작업시간 여유 — 양산 30% */
 export const POST_PROCESS_MASS_BUFFER = 0.3
+/** 후공정 기업이윤 — 후공정(분) 비용의 10% */
+export const POST_PROCESS_PROFIT_RATE = 0.1
 /** @deprecated getPostRate 사용 */
 export const POST_RATE = POST_RATE_EXPORT
 
@@ -112,6 +114,22 @@ export const DIP_UNIT = {
 
 /** 관리비: 원자재 비용의 10% */
 export const RAW_MATERIAL_MANAGEMENT_RATE = 0.1
+
+/** SMD 실장·검사 비용의 10% — 부자재(솔더·포장재 등). 후공정에는 적용하지 않음 */
+export const AUXILIARY_MATERIAL_RATE = 0.1
+
+export function computeAuxiliaryMaterialAmount(baseAmount: number) {
+  const base = Math.max(0, Math.round(Number(baseAmount) || 0))
+  if (base <= 0) return 0
+  return Math.round(base * AUXILIARY_MATERIAL_RATE)
+}
+
+/** 후공정(분) 비용 기준 기업이윤 */
+export function computePostProcessProfitAmount(baseAmount: number) {
+  const base = Math.max(0, Math.round(Number(baseAmount) || 0))
+  if (base <= 0) return 0
+  return Math.round(base * POST_PROCESS_PROFIT_RATE)
+}
 
 /** 메탈마스크: 단면 */
 export const METAL_MASK_COST_SINGLE = 110_000

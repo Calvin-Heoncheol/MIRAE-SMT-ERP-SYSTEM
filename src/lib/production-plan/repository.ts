@@ -3,11 +3,6 @@ import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups, repairOrphanAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
-import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
-import { fetchPendingInboundByMaterialId } from '@/lib/materials/inventory/pending-inbound'
-import { resolveMaterialInboundStatus } from '@/lib/materials/material-inbound-status'
-import { fetchBomEdges } from '@/lib/materials/outbound/repository'
-import type { BomEdge } from '@/lib/materials/outbound/types'
 import { fetchOrders } from '@/lib/orders/repository'
 import { fetchProducts } from '@/lib/products/repository'
 import type { PostProcessProductionPlan } from '@/lib/post-process/plan/types'
@@ -62,54 +57,15 @@ export function isMissingProductionPlanBoardTable(detail: string) {
   )
 }
 
-function buildEdgesByParent(edges: BomEdge[]) {
-  const edgesByParent = new Map<string, BomEdge[]>()
-  for (const edge of edges) {
-    const list = edgesByParent.get(edge.parentProductId) || []
-    list.push(edge)
-    edgesByParent.set(edge.parentProductId, list)
-  }
-  return edgesByParent
-}
-
-function materialHint(
-  productId: string,
-  remainingQty: number,
-  edgesByParent: Map<string, BomEdge[]>,
-  onHandByMaterialId: Map<string, number>,
-  pendingInboundByMaterialId: Map<string, number>,
-  latestDeliveryDateByMaterialId: Map<string, string>,
-) {
-  const id = productId.trim()
-  if (!id || remainingQty <= 0) {
-    return {
-      materialReadyQty: 0,
-      materialScheduledQty: 0,
-      materialExpectedReadyDate: '',
-      materialShort: false,
-      materialUnknown: true,
-      materialInboundStatus: 'no_bom' as const,
-    }
-  }
-
-  const inbound = resolveMaterialInboundStatus(
-    id,
-    remainingQty,
-    edgesByParent,
-    onHandByMaterialId,
-    pendingInboundByMaterialId,
-    latestDeliveryDateByMaterialId,
-  )
-
+/** 자재팀 수동 입고 확정 합계 기준 (BOM·재고 연동 없음) */
+function manualMaterialHint(materialPlannedTotal: number, remainingQty: number) {
+  const ready = Math.max(0, materialPlannedTotal)
   return {
-    materialReadyQty: inbound.readyUnits,
-    materialScheduledQty: inbound.scheduledUnits,
-    materialExpectedReadyDate: inbound.expectedReadyDate || '',
-    materialShort:
-      inbound.status === 'missing' ||
-      (inbound.status === 'ready' && inbound.readyUnits < remainingQty),
-    materialUnknown: inbound.status === 'no_bom',
-    materialInboundStatus: inbound.status,
+    materialReadyQty: ready,
+    materialScheduledQty: 0,
+    materialExpectedReadyDate: '',
+    materialShort: ready > 0 && ready < remainingQty,
+    materialUnknown: false,
   }
 }
 
@@ -242,10 +198,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
   let productsResult: Awaited<ReturnType<typeof fetchProducts>>
   let ordersResult: Awaited<ReturnType<typeof fetchOrders>>
   let confirmResult: Awaited<ReturnType<typeof fetchConfirmRows>>
-  let onHandResult: Awaited<ReturnType<typeof fetchOnHandByMaterialId>>
-  let pendingResult: Awaited<ReturnType<typeof fetchPendingInboundByMaterialId>>
   let quotesResult: Awaited<ReturnType<typeof fetchQuotes>>
-  let bomEdges: BomEdge[]
   let smtPlansResult: Awaited<ReturnType<typeof fetchAllSmtProductionPlans>>
   let postPlansResult: Awaited<ReturnType<typeof fetchAllPostProcessProductionPlans>>
 
@@ -254,20 +207,14 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       productsResult,
       ordersResult,
       confirmResult,
-      onHandResult,
-      pendingResult,
       quotesResult,
-      bomEdges,
       smtPlansResult,
       postPlansResult,
     ] = await Promise.all([
       fetchProducts(false),
       fetchOrders({ includeDerivedLines: true }),
       fetchConfirmRows(),
-      fetchOnHandByMaterialId(),
-      fetchPendingInboundByMaterialId(),
       fetchQuotes(),
-      fetchBomEdges(),
       fetchAllSmtProductionPlans(),
       fetchAllPostProcessProductionPlans(),
     ])
@@ -275,7 +222,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     return {
       ok: false,
       reason: 'query',
-      detail: error instanceof Error ? error.message : 'BOM 조회에 실패했습니다.',
+      detail: error instanceof Error ? error.message : '생산계획 조회에 실패했습니다.',
     }
   }
 
@@ -285,19 +232,8 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
   if (!quotesResult.ok) return quotesResult
   if (!smtPlansResult.ok) return smtPlansResult
   if (!postPlansResult.ok) return postPlansResult
-  if (!onHandResult.ok) {
-    return { ok: false, reason: 'query', detail: onHandResult.detail }
-  }
 
   const productById = Object.fromEntries(productsResult.products.map((p) => [p.id, p]))
-  const edgesByParent = buildEdgesByParent(bomEdges)
-  const onHand = onHandResult.onHandByMaterialId
-  const pendingByMaterialId = pendingResult.ok
-    ? pendingResult.pendingByMaterialId
-    : new Map<string, number>()
-  const latestDeliveryDateByMaterialId = pendingResult.ok
-    ? pendingResult.latestDeliveryDateByMaterialId
-    : new Map<string, string>()
 
   const confirmedMaterialByLine = new Map<string, BoardConfirmRow[]>()
   const confirmedSmtBoardByLine = new Map<string, BoardConfirmRow>()
@@ -423,19 +359,21 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     const remainingQty = Math.max(0, Math.floor(line.quantity) - producedQty)
     if (remainingQty <= 0) continue
 
-    const hint = materialHint(
-      productId,
-      remainingQty,
-      edgesByParent,
-      onHand,
-      pendingByMaterialId,
-      latestDeliveryDateByMaterialId,
-    )
     const daysUntilDelivery = computeDaysUntilDelivery(line.deliveryDate)
+
+    const materialConfirms = confirmedMaterialByLine.get(line.orderLineId) ?? []
+    const materialSchedules = materialConfirms.map((confirm) => ({
+      ...scheduleFromConfirm(confirm),
+      boardItemId: confirm.id,
+    }))
+    const materialPlannedTotal = sumPlannedQuantities(materialSchedules)
+    const materialUnplanned = Math.max(0, remainingQty - materialPlannedTotal)
+    const hint = manualMaterialHint(materialPlannedTotal, remainingQty)
 
     const shared = {
       orderId: line.orderId,
       orderNumber: line.orderNumber,
+      customerPoNumber: line.customerPoNumber,
       customer: line.customer,
       deliveryDate: line.deliveryDate,
       daysUntilDelivery,
@@ -450,14 +388,6 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       remainingQty,
       ...hint,
     }
-
-    const materialConfirms = confirmedMaterialByLine.get(line.orderLineId) ?? []
-    const materialSchedules = materialConfirms.map((confirm) => ({
-      ...scheduleFromConfirm(confirm),
-      boardItemId: confirm.id,
-    }))
-    const materialPlannedTotal = sumPlannedQuantities(materialSchedules)
-    const materialUnplanned = Math.max(0, remainingQty - materialPlannedTotal)
 
     if (!materialSchedules.length) {
       rows.push({
@@ -584,19 +514,13 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     if (remainingQty <= 0) continue
 
     const confirm = confirmedPostBoardByGroup.get(groupId)
-    const hint = materialHint(
-      productId,
-      remainingQty,
-      edgesByParent,
-      onHand,
-      pendingByMaterialId,
-      latestDeliveryDateByMaterialId,
-    )
+    const hint = manualMaterialHint(0, remainingQty)
     const daysUntilDelivery = computeDaysUntilDelivery(line.deliveryDate)
 
     const shared = {
       orderId: line.orderId,
       orderNumber: line.orderNumber,
+      customerPoNumber: line.customerPoNumber,
       customer: line.customer,
       deliveryDate: line.deliveryDate,
       daysUntilDelivery,

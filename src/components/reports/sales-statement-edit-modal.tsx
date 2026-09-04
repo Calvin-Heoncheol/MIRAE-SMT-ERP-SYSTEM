@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
+import { ChangeReasonModal } from '@/components/change-logs/change-reason-modal'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
@@ -88,6 +89,22 @@ function lineKey(line: Pick<LineDraft, 'key' | 'deliveryId' | 'orderLineId'>, in
   return line.key || `${line.deliveryId}-${line.orderLineId || index}`
 }
 
+function draftPriceKey(line: LineDraft) {
+  return line.orderLineId || line.deliveryId
+}
+
+function hasDraftUnitPriceChange(
+  drafts: LineDraft[],
+  initialPrices: Record<string, number>,
+) {
+  return drafts.some((line) => {
+    const key = draftPriceKey(line)
+    const before = initialPrices[key]
+    if (before == null) return false
+    return parseMoneyInput(line.unitPrice) !== before
+  })
+}
+
 function toDraft(line: SalesReportShipmentRow, index: number): LineDraft {
   return {
     key: line.orderLineId || `${line.deliveryId}-${index}`,
@@ -135,15 +152,22 @@ export function SalesStatementEditModal({
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reasonOpen, setReasonOpen] = useState(false)
+  const initialUnitPricesRef = useRef<Record<string, number>>({})
 
   useEffect(() => {
     if (!open || !group) return
     setRecordDate(group.recordDate.slice(0, 10))
     setCustomer(group.customer)
-    setDrafts(group.lines.map((line, index) => toDraft(line, index)))
+    const nextDrafts = group.lines.map((line, index) => toDraft(line, index))
+    setDrafts(nextDrafts)
+    initialUnitPricesRef.current = Object.fromEntries(
+      nextDrafts.map((line) => [draftPriceKey(line), parseMoneyInput(line.unitPrice)]),
+    )
     setError(null)
     setSaving(false)
     setDeleting(false)
+    setReasonOpen(false)
   }, [open, group])
 
   useEffect(() => {
@@ -185,7 +209,7 @@ export function SalesStatementEditModal({
     )
   }
 
-  async function handleSave() {
+  async function commitSave(reason?: string) {
     if (!group) return
     for (let index = 0; index < drafts.length; index += 1) {
       const line = drafts[index]!
@@ -219,6 +243,7 @@ export function SalesStatementEditModal({
         quantity: Math.max(0, Math.floor(Number(line.quantity) || 0)),
         unitPrice: parseMoneyInput(line.unitPrice),
       })),
+      reason ? { reason } : undefined,
     )
 
     setSaving(false)
@@ -227,8 +252,17 @@ export function SalesStatementEditModal({
       return
     }
 
+    setReasonOpen(false)
     onSaved?.('거래명세서 내역을 수정했습니다.')
     onClose()
+  }
+
+  async function handleSave() {
+    if (hasDraftUnitPriceChange(drafts, initialUnitPricesRef.current)) {
+      setReasonOpen(true)
+      return
+    }
+    await commitSave()
   }
 
   async function handleDelete() {
@@ -275,6 +309,7 @@ export function SalesStatementEditModal({
   const cellReadOnlyClass = `${cellInputClass} bg-slate-50 text-slate-600`
 
   return (
+    <>
     <ErpModal
       open={open && Boolean(group)}
       title="거래명세서"
@@ -488,5 +523,16 @@ export function SalesStatementEditModal({
         </div>
       ) : null}
     </ErpModal>
+
+    <ChangeReasonModal
+      open={reasonOpen}
+      saving={saving}
+      onCancel={() => {
+        if (saving) return
+        setReasonOpen(false)
+      }}
+      onConfirm={(reason) => void commitSave(reason)}
+    />
+    </>
   )
 }

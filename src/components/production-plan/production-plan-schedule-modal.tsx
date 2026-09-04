@@ -89,7 +89,7 @@ export function ProductionPlanScheduleModal({
 
   const materialWarning =
     row.scope === 'smt' && !canPlanSmt(row)
-      ? '자재 입고가 완료되지 않았습니다. 생산 전 자재 준비를 확인해 주세요.'
+      ? '자재 입고 수량을 먼저 입력해 주세요.'
       : ''
 
   return (
@@ -117,7 +117,9 @@ export function ProductionPlanScheduleModal({
         </div>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">계획일</span>
+          <span className="mb-1 block font-medium text-slate-600">
+            {row.scope === 'material' ? '입고일' : '계획일'}
+          </span>
           <input
             type="date"
             value={values.plannedDate}
@@ -127,7 +129,9 @@ export function ProductionPlanScheduleModal({
         </label>
 
         <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">계획 수량</span>
+          <span className="mb-1 block font-medium text-slate-600">
+            {row.scope === 'material' ? '입고 수량' : '계획 수량'}
+          </span>
           <input
             type="number"
             min={1}

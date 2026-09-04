@@ -6,7 +6,8 @@ import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { isYmdInMonth } from '@/lib/production-plan/calendar'
 import {
   canPlanPost,
-  materialStatusLabel,
+  canPlanSmt,
+  isProductionPlanSheetActionableRow,
   validatePostPlanDate,
 } from '@/lib/production-plan/pipeline'
 import {
@@ -58,11 +59,11 @@ const STAGE_COL_CLASS = 'w-[7.5rem] min-w-[7.5rem] max-w-[7.5rem]'
 
 const SCOPE_HINT: Record<ProductionPlanScope, string> = {
   material:
-    '입고일·입고수량 입력 후 저장하세요. 일부만 계획하면 「추가 배정」 행이 생깁니다. 확정 행은 삭제 버튼으로 해제할 수 있습니다.',
+    '입고일·입고수량을 입력하고 행마다 저장하세요. 엑셀처럼 연속 입력할 수 있습니다.',
   smt:
-    '계획일·수량·라인 입력 후 저장하세요. 일부만 계획하면 「추가 배정」 행이 생깁니다. 확정 행은 삭제 버튼으로 해제할 수 있습니다.',
+    '계획일·수량·라인을 입력하고 저장하세요. 자재 입고가 입력된 발주만 기본 표시됩니다.',
   post:
-    'SMD 확정 후 계획일·수량·팀을 입력하고 저장하세요. 확정 행은 삭제 버튼으로 해제할 수 있습니다.',
+    'SMT 확정 후 계획일·수량·팀을 입력하고 저장하세요.',
 }
 
 function valuesFromRow(row: ProductionPlanBoardRow): ScopeDraft {
@@ -95,16 +96,38 @@ function schedulableQuantity(row: ProductionPlanBoardRow) {
   return row.remainingQty
 }
 
+function smtMaterialCap(row: ProductionPlanBoardRow) {
+  if (row.scope !== 'smt' || row.materialReadyQty <= 0) return null
+  const plannedTotal = row.plannedTotalQty ?? 0
+  const own =
+    isProductionPlanScheduleRow(row) && row.plannedQuantity ? row.plannedQuantity : 0
+  return Math.max(0, row.materialReadyQty - plannedTotal + own)
+}
+
 function maxQuantity(row: ProductionPlanBoardRow) {
   let qty = schedulableQuantity(row)
   if (isProductionPlanScheduleRow(row) && row.plannedQuantity) {
     qty = Math.min(row.remainingQty, row.plannedQuantity + (row.unplannedQty ?? 0))
   }
   if (row.scope === 'material') return Math.max(1, qty)
+  const materialCap = smtMaterialCap(row)
+  if (row.scope === 'smt' && materialCap !== null) {
+    return Math.max(1, Math.min(qty, materialCap))
+  }
   if (row.materialShort && row.materialReadyQty > 0) {
     return Math.min(qty, row.materialReadyQty)
   }
   return Math.max(1, qty)
+}
+
+function rowInputHint(row: ProductionPlanBoardRow, activeScope: ProductionPlanScope) {
+  if (activeScope === 'smt' && row.status !== 'confirmed' && !canPlanSmt(row)) {
+    return '자재 입고 후'
+  }
+  if (activeScope === 'smt' && row.materialReadyQty > 0) {
+    return `입고 ${row.materialReadyQty.toLocaleString('ko-KR')}대`
+  }
+  return undefined
 }
 
 function sameValues(a: ScopeDraft, b: ScopeDraft) {
@@ -119,9 +142,15 @@ function sameValues(a: ScopeDraft, b: ScopeDraft) {
 
 function includeBoardRow(
   row: ProductionPlanBoardRow,
+  scope: ProductionPlanScope,
   monthStart: string,
   sheetFilter: ProductionPlanSheetFilter,
+  allRows: ProductionPlanBoardRow[],
 ) {
+  if (sheetFilter === 'actionable') {
+    return isProductionPlanSheetActionableRow(row, scope, allRows)
+  }
+
   if (sheetFilter === 'all_pending') {
     if (isProductionPlanRemainderRow(row)) return true
     if (row.status === 'waiting') return true
@@ -141,7 +170,7 @@ function buildScopeSheetRows(
   sheetFilter: ProductionPlanSheetFilter,
 ) {
   return rows
-    .filter((row) => row.scope === scope && includeBoardRow(row, monthStart, sheetFilter))
+    .filter((row) => row.scope === scope && includeBoardRow(row, scope, monthStart, sheetFilter, rows))
     .sort((a, b) => {
       const aRemainder = isProductionPlanRemainderRow(a) ? 1 : 0
       const bRemainder = isProductionPlanRemainderRow(b) ? 1 : 0
@@ -232,6 +261,11 @@ export function ProductionPlanSheet({
         onMessage(timing.detail)
         return 'blocked'
       }
+    }
+
+    if (row.scope === 'smt' && row.status !== 'confirmed' && !canPlanSmt(row)) {
+      onMessage('자재 탭에서 입고 수량을 먼저 입력해 주세요.')
+      return 'blocked'
     }
 
     const qty = Math.max(1, Math.min(maxQuantity(row), Math.floor(draft.plannedQuantity) || 0))
@@ -334,7 +368,11 @@ export function ProductionPlanSheet({
         />
         <p className="text-xs text-slate-500">
           {SCOPE_HINT[activeScope]}
-          {sheetFilter === 'all_pending' ? ' · 미완료·추가 배정 대상만 표시 중입니다.' : ' · 이번 달 계획과 미배정 잔량을 표시 중입니다.'}
+          {sheetFilter === 'actionable'
+            ? ' · 지금 배정 가능한 발주만 표시 중입니다.'
+            : sheetFilter === 'all_pending'
+              ? ' · 미완료·추가 배정 전체를 표시 중입니다.'
+              : ' · 이번 달 확정 일정과 미배정 잔량을 표시 중입니다.'}
         </p>
       </div>
 
@@ -391,9 +429,14 @@ export function ProductionPlanSheet({
                   row.scope !== 'post' ||
                   row.status === 'confirmed' ||
                   canPlanPost(row, allRows)
-                const materialLabel = materialStatusLabel(row.materialInboundStatus)
+                const smtEditable =
+                  row.scope !== 'smt' ||
+                  row.status === 'confirmed' ||
+                  canPlanSmt(row)
+                const rowEditable = postEditable && smtEditable
                 const isRemainder = isProductionPlanRemainderRow(row)
                 const isSchedule = isProductionPlanScheduleRow(row)
+                const inputHint = rowInputHint(row, activeScope)
 
                 return (
                   <tr
@@ -448,6 +491,11 @@ export function ProductionPlanSheet({
                           </>
                         )}
                       </div>
+                      {activeScope === 'smt' ? (
+                        <div className="text-[10px] font-semibold text-amber-700">
+                          입고 {row.materialReadyQty.toLocaleString('ko-KR')}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="border-r border-slate-100 px-2 py-1.5">
                       <div className="text-slate-700">{row.deliveryDate || '-'}</div>
@@ -461,25 +509,21 @@ export function ProductionPlanSheet({
                     </td>
 
                     {renderDateQtyInputs(row, draft, {
-                      disabled: rowSaving || !postEditable,
-                      hint: !postEditable
-                        ? 'SMD 확정 후'
+                      disabled: rowSaving || !rowEditable,
+                      hint: !rowEditable
+                        ? row.scope === 'post'
+                          ? 'SMD 확정 후'
+                          : inputHint
                         : isRemainder
-                          ? '추가 배정 필요'
-                          : materialLabel || undefined,
-                      extra:
-                        activeScope === 'material' && row.materialExpectedReadyDate ? (
-                          <div className="px-0.5 text-[10px] text-slate-400">
-                            입고예정 {row.materialExpectedReadyDate}
-                          </div>
-                        ) : null,
+                          ? '추가 배정'
+                          : inputHint,
                     })}
 
                     {activeScope === 'smt' ? (
                       <td className={`border-r border-slate-100 px-1 py-1 ${STAGE_COL_CLASS}`}>
                         <select
                           value={draft.lineNo}
-                          disabled={rowSaving}
+                          disabled={!rowEditable || rowSaving}
                           onChange={(event) =>
                             updateDraft(row.key, { lineNo: Number(event.target.value) })
                           }
@@ -499,7 +543,7 @@ export function ProductionPlanSheet({
                       <td className={`border-r border-slate-100 px-1 py-1 ${STAGE_COL_CLASS}`}>
                         <select
                           value={draft.team}
-                          disabled={!postEditable || rowSaving}
+                          disabled={!rowEditable || rowSaving}
                           onChange={(event) => updateDraft(row.key, { team: event.target.value })}
                           className={`${cellInputClass} text-[11px] text-slate-600`}
                           title="후공정 팀"
@@ -516,10 +560,10 @@ export function ProductionPlanSheet({
                     <td className="px-2 py-1.5 text-center">
                       <button
                         type="button"
-                        disabled={!dirty || rowSaving || !postEditable}
+                        disabled={!dirty || rowSaving || !rowEditable}
                         onClick={() => void commitRow(row)}
                         className={`rounded-md px-2.5 py-1.5 text-xs font-bold transition ${
-                          dirty && !rowSaving && postEditable
+                          dirty && !rowSaving && rowEditable
                             ? 'bg-slate-800 text-white hover:bg-slate-700'
                             : 'cursor-not-allowed bg-slate-200 text-slate-400'
                         }`}

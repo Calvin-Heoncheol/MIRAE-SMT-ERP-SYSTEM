@@ -14,6 +14,8 @@ import {
   isMultiSideSmt,
   normalizeSmtSide,
   RAW_MATERIAL_MANAGEMENT_RATE,
+  computeAuxiliaryMaterialAmount,
+  computePostProcessProfitAmount,
   toBillingSmtSide,
 } from './constants'
 import type {
@@ -384,9 +386,11 @@ export function calculateEstimate(
   const dipUnit = dipAgg.dipUnit
 
   const postAssembly = Number(data.postAssembly) || 0
+  const postDownload = Number(data.postDownload) || 0
   const postTest = Number(data.postTest) || 0
   const postPacking = Number(data.postPacking) || 0
-  const postProcessUnit = (postAssembly + postTest + postPacking) * getPostRate(quoteType)
+  const postProcessUnit =
+    (postAssembly + postDownload + postTest + postPacking) * getPostRate(quoteType)
   const matUnit =
     data.includeMaterialCosts === false ? 0 : Number(data.materialCost) || 0
   const includeMetalMask = data.includeMetalMask !== false
@@ -405,12 +409,16 @@ export function calculateEstimate(
   const dipTotal = dipUnit * qty
   const postProcessTotal = postProcessUnit * qty
   const dipSectionTotal = dipTotal + postProcessTotal
+  const smtAuxiliaryMaterialTotal = computeAuxiliaryMaterialAmount(smtPlacementTotal)
+  /** 후공정 부자재는 견적에 미포함(항상 0). 필드 호환용 */
+  const postAuxiliaryMaterialTotal = 0
+  const auxiliaryMaterialTotal = smtAuxiliaryMaterialTotal
+  const postProcessProfitTotal = computePostProcessProfitAmount(postProcessTotal)
   const laborFinal = smtTotal + dipTotal + postProcessTotal
   const materialManagementTotal =
     data.includeMaterialCosts === false || matTotalRaw <= 0
       ? 0
       : matTotalRaw * RAW_MATERIAL_MANAGEMENT_RATE
-  const auxiliaryMaterialTotal = 0
 
   const subtotalBeforeDiscount =
     laborFinal +
@@ -418,7 +426,8 @@ export function calculateEstimate(
     materialManagementTotal +
     metalMaskTotal +
     sampleCostTotal +
-    auxiliaryMaterialTotal
+    auxiliaryMaterialTotal +
+    postProcessProfitTotal
   let specialDiscount = Math.max(0, Number(data.specialDiscount) || 0)
   if (specialDiscount > subtotalBeforeDiscount) specialDiscount = subtotalBeforeDiscount
   const grandTotal = subtotalBeforeDiscount - specialDiscount
@@ -453,6 +462,10 @@ export function calculateEstimate(
       sampleCost: sampleCostTotal,
       orderLevelTotal,
       smtPlacementTotal,
+      smtAuxiliaryMaterial: smtAuxiliaryMaterialTotal,
+      postAuxiliaryMaterial: postAuxiliaryMaterialTotal,
+      /** 후공정(분) 비용의 10% 기업이윤 */
+      postProcessProfit: postProcessProfitTotal,
       auxiliaryMaterial: auxiliaryMaterialTotal,
       materialManagement: materialManagementTotal,
       specialDiscount,

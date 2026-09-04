@@ -53,8 +53,12 @@ export type QuoteDetailAmounts = {
   smt: number
   dip: number
   assembly: number
+  /** 다운로드(펌웨어 등) 후공정 */
+  download?: number
   test: number
   packing: number
+  /** 후공정(분) 기업이윤 10% */
+  postProcessProfit?: number
   materialCost: number
   materialManagementCost: number
   setupCost: number
@@ -83,14 +87,16 @@ export type QuoteDetailInfo = {
     }
     dip?: { dipBoards?: DipPcbBoard[] }
     postProcess?: {
-      /** 합계 분 (하위호환·계산용) — 통합 후 postAssembly 에 전체 분 합계 */
+      /** 조립 합계 분 */
       postAssembly?: number
+      /** 다운로드 합계 분 */
+      postDownload?: number
       postTest?: number
       postPacking?: number
-      /** 통합 후공정 행 (공정명 + 분) */
+      /** @deprecated 하위호환 — 전체 행 merge. 신규는 카테고리별 배열 사용 */
       lines?: PostProcessLine[]
-      /** @deprecated lines 로 통합. 로드 시 merge */
       assemblyLines?: PostProcessLine[]
+      downloadLines?: PostProcessLine[]
       testLines?: PostProcessLine[]
       packingLines?: PostProcessLine[]
     }
@@ -183,6 +189,7 @@ export type EstimateInput = {
   /** @deprecated 미사용 — 항상 0 */
   auxiliaryMaterialCost?: number | string
   postAssembly?: number | string
+  postDownload?: number | string
   postTest?: number | string
   postPacking?: number | string
   specialDiscount?: number | string
@@ -247,6 +254,12 @@ export type EstimateResult = {
     orderLevelTotal: number
     /** SMD 실장·검사 (대당 × 수량, SET-UP 제외) */
     smtPlacementTotal: number
+    /** SMD 부자재 — smtPlacementTotal의 10% */
+    smtAuxiliaryMaterial: number
+    /** 후공정 부자재 — 견적에 미포함(항상 0). 필드 호환용 */
+    postAuxiliaryMaterial: number
+    /** 후공정(분) 비용의 10% 기업이윤 */
+    postProcessProfit: number
     auxiliaryMaterial: number
     materialManagement: number
     specialDiscount: number

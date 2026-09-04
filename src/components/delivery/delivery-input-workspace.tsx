@@ -476,6 +476,8 @@ export function DeliveryInputWorkspace({
           billingOnlyLines={billingOnlyLines}
           productionOrders={orders}
           unitPriceByDeliveryId={unitPriceByDeliveryId}
+          products={registerProducts}
+          options={shippableOptions}
           onClose={closeHistory}
           onSaved={handleHistorySaved}
           onDeleted={handleHistoryDeleted}

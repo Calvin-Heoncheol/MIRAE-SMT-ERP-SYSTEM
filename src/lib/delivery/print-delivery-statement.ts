@@ -12,7 +12,18 @@ import type { DeliveryStatementData, DeliveryStatementLine } from './types'
 /** 고전 양식: 표 여백용 빈 행 */
 const MIN_ITEM_ROW_COUNT = 8
 
+const STATEMENT_SEAL_PATH = '/branding/company-seal.png'
+
 type StatementCopyRole = 'supplier' | 'buyer'
+
+function resolvePrintAssetSrc(path: string) {
+  if (typeof window === 'undefined') return path
+  return `${window.location.origin}${path}`
+}
+
+function resolveStatementSealSrc() {
+  return resolvePrintAssetSrc(STATEMENT_SEAL_PATH)
+}
 
 function escapeHtml(value: string) {
   return value
@@ -120,7 +131,11 @@ function partyCell(value: string) {
   return trimmed ? escapeHtml(trimmed) : '&nbsp;'
 }
 
-function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopyRole) {
+function buildStatementCopyHtml(
+  data: DeliveryStatementData,
+  role: StatementCopyRole,
+  sealSrc = STATEMENT_SEAL_PATH,
+) {
   const { date } = parseYmd(data.shipDate)
   const customer = escapeHtml(data.customer.trim() || '—')
   const customerAddress = partyCell(String(data.customerAddress || ''))
@@ -133,6 +148,7 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
   const currency = normalizeOrderCurrency(data.currency)
   const moneyPrefix = currency === 'USD' ? '$' : '₩'
   const roleLabel = role === 'supplier' ? '공급자용' : '공급받는자용'
+  const seal = escapeHtml(sealSrc)
 
   return `<section class="statement-copy">
   ${
@@ -181,7 +197,10 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
       <th class="party-label">상호<br/>(법인명)</th>
       <td class="party-value">${escapeHtml(APP_SHORT_NAME)}</td>
       <th class="party-label">성명</th>
-      <td class="party-value">${escapeHtml(COMPANY_CEO_NAME)}</td>
+      <td class="party-value supplier-ceo-cell">
+        <span class="supplier-ceo-name">${escapeHtml(COMPANY_CEO_NAME)}</span>
+        <img class="company-seal" src="${seal}" alt="" />
+      </td>
     </tr>
     <tr>
       <th class="party-label">전화번호</th>
@@ -243,12 +262,15 @@ function buildStatementCopyHtml(data: DeliveryStatementData, role: StatementCopy
 </section>`
 }
 
-export function buildDeliveryStatementHtml(data: DeliveryStatementData) {
-  return buildDeliveryStatementsHtml([data])
+export function buildDeliveryStatementHtml(data: DeliveryStatementData, sealSrc = STATEMENT_SEAL_PATH) {
+  return buildDeliveryStatementsHtml([data], sealSrc)
 }
 
 /** 여러 출하건 거래명세서를 한 문서(페이지 나눔)로 합침 */
-export function buildDeliveryStatementsHtml(list: DeliveryStatementData[]) {
+export function buildDeliveryStatementsHtml(
+  list: DeliveryStatementData[],
+  sealSrc = STATEMENT_SEAL_PATH,
+) {
   if (!list.length) return ''
   return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
 <title></title><style>
@@ -387,6 +409,26 @@ body {
 }
 .parties .buyer-name { font-size: 14px; font-weight: 800; margin-right: 6px; }
 .parties .buyer-honor { font-size: 11px; font-weight: 700; color: #374151; }
+.parties .supplier-ceo-cell {
+  position: relative;
+  overflow: visible;
+  padding-right: 46px;
+}
+.parties .supplier-ceo-name {
+  display: inline-block;
+  font-weight: 700;
+}
+.parties .company-seal {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  transform: translateY(-50%);
+  pointer-events: none;
+  mix-blend-mode: lighten;
+}
 .parties .total-amount-cell {
   white-space: nowrap;
 }
@@ -479,9 +521,9 @@ ${list
   .map((entry, index) => {
     const pageBreak = index < list.length - 1 ? ' style="page-break-after: always"' : ''
     return `<div class="sheet"${pageBreak}>
-${buildStatementCopyHtml(entry, 'supplier')}
+${buildStatementCopyHtml(entry, 'supplier', sealSrc)}
 <div class="cut-line">— 절취선 —</div>
-${buildStatementCopyHtml(entry, 'buyer')}
+${buildStatementCopyHtml(entry, 'buyer', sealSrc)}
 </div>`
   })
   .join('\n')}
@@ -531,19 +573,39 @@ function openStatementPrintWindow(html: string, title: string) {
   window.setTimeout(cleanup, 120_000)
 
   const triggerPrint = () => {
-    try {
-      frameDoc.title = ''
-    } catch {
-      /* ignore */
+    const waitForImages = () => {
+      const images = Array.from(frameDoc.images || [])
+      if (!images.length) return Promise.resolve()
+      return Promise.all(
+        images.map(
+          (image) =>
+            new Promise<void>((resolve) => {
+              if (image.complete) {
+                resolve()
+                return
+              }
+              image.addEventListener('load', () => resolve(), { once: true })
+              image.addEventListener('error', () => resolve(), { once: true })
+            }),
+        ),
+      )
     }
-    frameWindow.focus()
-    frameWindow.print()
+
+    void waitForImages().then(() => {
+      try {
+        frameDoc.title = ''
+      } catch {
+        /* ignore */
+      }
+      frameWindow.focus()
+      frameWindow.print()
+    })
   }
 
   if (frameDoc.readyState === 'complete') {
-    window.setTimeout(triggerPrint, 50)
+    window.setTimeout(triggerPrint, 80)
   } else {
-    iframe.addEventListener('load', () => window.setTimeout(triggerPrint, 50), { once: true })
+    iframe.addEventListener('load', () => window.setTimeout(triggerPrint, 80), { once: true })
   }
 
   return true
@@ -556,7 +618,7 @@ export function printDeliveryStatement(data: DeliveryStatementData) {
 /** 기간 내 출하 거래명세서를 한 번에 인쇄 */
 export function printDeliveryStatements(list: DeliveryStatementData[]) {
   if (!list.length) return false
-  const html = buildDeliveryStatementsHtml(list)
+  const html = buildDeliveryStatementsHtml(list, resolveStatementSealSrc())
   if (!html) return false
   const fileTitle =
     list.length === 1

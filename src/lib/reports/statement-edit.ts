@@ -1,4 +1,5 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
+import { insertChangeLog } from '@/lib/change-logs/repository'
 import { deleteDeliveryRecord, updateDeliveryRecord } from '@/lib/delivery/repository'
 import { deleteOrder } from '@/lib/orders/repository'
 import {
@@ -23,6 +24,10 @@ export type UpdateStatementLineInput = {
   billingOnly?: boolean
 }
 
+export type UpdateStatementLinesOptions = {
+  reason?: string
+}
+
 export type StatementEditResult =
   | { ok: true }
   | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth'; detail: string }
@@ -33,6 +38,7 @@ type OrderLineMatch = {
   product_id: string | null
   product_code: string | null
   derived_from_line_id: string | null
+  unit_price: number | null
 }
 
 function missingEnvResult(): StatementEditResult {
@@ -70,7 +76,9 @@ async function updateOrderLineUnitPrice(input: {
   orderNumber: string
   orderLineId?: string
   productCode?: string
+  productName?: string
   unitPrice: number
+  reason?: string
 }): Promise<StatementEditResult> {
   const orderNumber = String(input.orderNumber || '').trim()
   if (!orderNumber) {
@@ -80,7 +88,7 @@ async function updateOrderLineUnitPrice(input: {
   const supabase = createSupabaseClient()
   const { data, error } = await supabase
     .from('order_lines')
-    .select('id, quantity, product_id, product_code, derived_from_line_id')
+    .select('id, quantity, product_id, product_code, derived_from_line_id, unit_price')
     .eq('order_id', orderNumber)
 
   if (error) {
@@ -99,12 +107,14 @@ async function updateOrderLineUnitPrice(input: {
     }
   }
 
+  const beforePrice = Math.max(0, Math.round(Number(match.unit_price) || 0))
+  const nextPrice = Math.max(0, Math.round(Number(input.unitPrice) || 0))
   const lineQty = Math.max(0, Math.floor(Number(match.quantity) || 0))
   const { error: updateError } = await supabase
     .from('order_lines')
     .update({
-      unit_price: input.unitPrice,
-      order_amount: lineQty * input.unitPrice,
+      unit_price: nextPrice,
+      order_amount: lineQty * nextPrice,
     })
     .eq('id', match.id)
 
@@ -112,17 +122,33 @@ async function updateOrderLineUnitPrice(input: {
     return { ok: false, reason: 'query', detail: updateError.message }
   }
 
+  if (beforePrice !== nextPrice && input.reason?.trim()) {
+    const label = String(input.productName || input.productCode || match.product_code || '').trim()
+    await insertChangeLog({
+      entityType: 'order',
+      entityId: orderNumber,
+      title: `발주서 ${orderNumber} 단가 수정`,
+      detail: label
+        ? `${label}: ${beforePrice.toLocaleString('ko-KR')} → ${nextPrice.toLocaleString('ko-KR')}`
+        : `${beforePrice.toLocaleString('ko-KR')} → ${nextPrice.toLocaleString('ko-KR')}`,
+      reason: input.reason.trim(),
+      beforeData: { unitPrice: beforePrice },
+      afterData: { unitPrice: nextPrice },
+    })
+  }
+
   return { ok: true }
 }
 
 export async function updateStatementLines(
   lines: UpdateStatementLineInput[],
+  options?: UpdateStatementLinesOptions,
 ): Promise<StatementEditResult> {
   if (!lines.length) {
     return { ok: false, reason: 'validation', detail: '수정할 품목이 없습니다.' }
   }
   for (let index = 0; index < lines.length; index += 1) {
-    const result = await updateStatementLine(lines[index]!)
+    const result = await updateStatementLine(lines[index]!, options)
     if (!result.ok) {
       return {
         ...result,
@@ -168,6 +194,7 @@ export async function deleteStatementLines(
 
 export async function updateStatementLine(
   input: UpdateStatementLineInput,
+  options?: UpdateStatementLinesOptions,
 ): Promise<StatementEditResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
@@ -206,7 +233,9 @@ export async function updateStatementLine(
         orderNumber: input.orderNumber,
         orderLineId: input.orderLineId,
         productCode: input.productCode,
+        productName: input.productName,
         unitPrice,
+        reason: options?.reason,
       })
       if (!priceResult.ok) {
         return {

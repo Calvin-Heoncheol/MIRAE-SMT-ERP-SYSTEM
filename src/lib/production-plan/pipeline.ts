@@ -1,5 +1,6 @@
 import type { MaterialInboundStatus } from '@/lib/materials/material-inbound-status'
 import type { ProductionPlanBoardRow, ProductionPlanScope } from './types'
+import { isProductionPlanRemainderRow, isProductionPlanScheduleRow } from './utils'
 
 export type ProductionPlanPipelineBuckets = {
   materialWaiting: ProductionPlanBoardRow[]
@@ -8,16 +9,10 @@ export type ProductionPlanPipelineBuckets = {
   postWaitingBlocked: ProductionPlanBoardRow[]
 }
 
-/** SMD 계획 가능 — 입고완료·입고예정(가용) 또는 BOM 없음 */
+/** SMD 계획 가능 — 자재팀 수동 입고 수량 입력 후 */
 export function canPlanSmt(row: ProductionPlanBoardRow): boolean {
   if (row.scope !== 'smt' || row.status !== 'waiting') return false
-  if (row.materialUnknown || row.materialInboundStatus === 'no_bom') return true
-  if (row.materialInboundStatus === 'ready' && row.materialReadyQty > 0) return true
-  if (row.materialInboundStatus === 'scheduled' && (row.materialScheduledQty ?? 0) > 0) {
-    return true
-  }
-  if (row.materialReadyQty > 0) return true
-  return false
+  return row.materialReadyQty > 0
 }
 
 /** 후공정 계획 가능 — 해당 발주 SMD 계획 확정 후 (SMD 없는 발주는 바로 가능) */
@@ -81,6 +76,48 @@ export function bucketProductionPlanRows(rows: ProductionPlanBoardRow[]): Produc
   }
 
   return { materialWaiting, smtWaiting, postWaitingReady, postWaitingBlocked }
+}
+
+/** 표 입력 · 발주 뷰 — 지금 배정(수정) 가능한 행 */
+export function canAssignProductionPlanRow(
+  row: ProductionPlanBoardRow,
+  allRows: ProductionPlanBoardRow[],
+): boolean {
+  if (isProductionPlanScheduleRow(row)) return true
+  if (row.status !== 'waiting') return false
+  if (isProductionPlanRemainderRow(row)) return true
+  if (row.scope === 'material') return true
+  if (row.scope === 'smt') return canPlanSmt(row)
+  if (row.scope === 'post') return canPlanPost(row, allRows)
+  return false
+}
+
+/** 표 입력 기본 필터 — 해당 팀 탭에서 지금 잡을 수 있는 waiting 행 */
+export function isProductionPlanSheetActionableRow(
+  row: ProductionPlanBoardRow,
+  scope: ProductionPlanScope,
+  allRows: ProductionPlanBoardRow[],
+): boolean {
+  if (row.scope !== scope) return false
+  if (isProductionPlanRemainderRow(row)) return row.status === 'waiting'
+  if (row.status !== 'waiting') return false
+  if (scope === 'material') return true
+  if (scope === 'smt') return canPlanSmt(row)
+  if (scope === 'post') return canPlanPost(row, allRows)
+  return false
+}
+
+export function productionPlanRowBlockReason(
+  row: ProductionPlanBoardRow,
+  allRows: ProductionPlanBoardRow[],
+): string {
+  if (row.scope === 'smt' && row.status === 'waiting' && !canPlanSmt(row)) {
+    return '자재 입고 수량 입력 후 SMT 배정'
+  }
+  if (row.scope === 'post' && row.status === 'waiting' && !canPlanPost(row, allRows)) {
+    return 'SMT 확정 후 후공정 배정'
+  }
+  return ''
 }
 
 /** 팀 탭별 캘린더 대기함 — 해당 scope의 waiting 행 */

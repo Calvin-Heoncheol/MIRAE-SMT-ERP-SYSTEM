@@ -57,8 +57,10 @@ export function getQuoteProductionFlags(
     hasPost:
       money(amounts.dip) > 0 ||
       money(amounts.assembly) > 0 ||
+      money(amounts.download) > 0 ||
       money(amounts.test) > 0 ||
-      money(amounts.packing) > 0,
+      money(amounts.packing) > 0 ||
+      money(amounts.postProcessProfit) > 0,
   }
 }
 

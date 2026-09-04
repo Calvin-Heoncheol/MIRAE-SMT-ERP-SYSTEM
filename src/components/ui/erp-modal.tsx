@@ -24,6 +24,12 @@ type ErpModalProps = {
   showCloseButton?: boolean
   /** 본문 래퍼 클래스 (기본: px-5 py-4) */
   contentClassName?: string
+  /** true면 본문 높이를 콘텐츠에 맞춤 (내부 스크롤 최소화) */
+  fitContent?: boolean
+  /** 다이얼로그 박스 추가 클래스 (max-width 등) */
+  dialogClassName?: string
+  /** 제목 옆 추가 요소 (뱃지 등) */
+  headerAddon?: ReactNode
   /** 헤더 우측 추가 액션 (PDF 등) — 닫기 버튼 왼쪽 */
   headerActions?: ReactNode
   zIndexClassName?: string
@@ -55,6 +61,9 @@ export function ErpModal({
   closeOnEscape = true,
   showCloseButton = true,
   contentClassName = 'min-h-0 flex-1 overflow-y-auto px-5 py-4',
+  fitContent = false,
+  dialogClassName = '',
+  headerAddon,
   headerActions,
   zIndexClassName = 'z-50',
 }: ErpModalProps) {
@@ -86,13 +95,18 @@ export function ErpModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="erp-modal-title"
-          className={`flex max-h-[94dvh] w-full ${SIZE_CLASS[size]} flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl`}
+          className={`flex w-full ${SIZE_CLASS[size]} flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl ${
+            fitContent ? 'h-auto max-h-[94dvh]' : 'max-h-[94dvh]'
+          } ${dialogClassName}`.trim()}
         >
           <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
             <div className="min-w-0">
-              <h2 id="erp-modal-title" className="text-lg font-bold text-slate-900">
-                {title}
-              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="erp-modal-title" className="text-lg font-bold text-slate-900">
+                  {title}
+                </h2>
+                {headerAddon}
+              </div>
               {description ? (
                 <p className="mt-1 text-sm text-slate-500">{description}</p>
               ) : null}
@@ -111,7 +125,17 @@ export function ErpModal({
               ) : null}
             </div>
           </div>
-          <div className={contentClassName}>{children}</div>
+          <div
+            className={
+              fitContent
+                ? contentClassName.includes('overflow')
+                  ? contentClassName
+                  : `${contentClassName} overflow-visible`
+                : contentClassName
+            }
+          >
+            {children}
+          </div>
           {footer ? (
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
               {footer}

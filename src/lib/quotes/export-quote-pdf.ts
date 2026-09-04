@@ -178,6 +178,7 @@ function buildPreviewRowHtml(
   options: {
     showBoardColumn?: boolean
     showProductionQty?: boolean
+    showPostUnitPrice?: boolean
     boardRowSpan?: number
     boardGroupStart?: boolean
     swapUnitAndCount?: boolean
@@ -186,12 +187,14 @@ function buildPreviewRowHtml(
   const {
     showBoardColumn = false,
     showProductionQty = false,
+    showPostUnitPrice = false,
     boardRowSpan,
     boardGroupStart = false,
     swapUnitAndCount = false,
   } = options
   const isBoardTotal = Boolean(row.boardTotal)
   const isBoardSubtotal = Boolean(row.boardSubtotal)
+  const showBoardSubtotalMetrics = Boolean(row.unitLabel) || (isBoardSubtotal && row.amount != null)
   const isSectionTotal = Boolean(row.sectionTotal)
   const sectionFooter = row.sectionFooter
   const sectionColors = sectionFooter ? PDF_SECTION_COLORS[sectionFooter] : null
@@ -205,7 +208,7 @@ function buildPreviewRowHtml(
       : row.indent
         ? 'font-size:13px;color:#475569;'
         : 'color:#1e293b;'
-  const amountStyle = row.amountEmphasize || isBoardTotal || isBoardSubtotal || sectionFooter
+  const amountStyle = row.amountEmphasize || isBoardTotal || sectionFooter
     ? 'font-weight:700;color:#0f172a;'
     : 'font-size:13px;color:#475569;'
   const highlight = isPreviewHighlightRow(row)
@@ -222,21 +225,51 @@ function buildPreviewRowHtml(
   const descriptionHtml = description
     ? `<br><span style="font-size:11px;color:#64748b;">${escapeHtml(description)}</span>`
     : ''
-  const unit = isBoardSubtotal ? '' : formatPreviewRowUnit(row, quoteType)
+  const unit =
+    isBoardSubtotal && !showBoardSubtotalMetrics
+      ? ''
+      : isBoardSubtotal && !row.unitLabel && row.unit == null
+        ? ''
+        : showPostUnitPrice && row.unit == null && !row.unitLabel
+          ? ''
+          : formatPreviewRowUnit(row, quoteType)
   const unitAlign = row.unitLabel ? 'left' : 'right'
-  const count = isBoardSubtotal ? '' : row.count != null ? escapeHtml(String(row.count)) : '-'
+  const count =
+    isBoardSubtotal && !showBoardSubtotalMetrics
+      ? ''
+      : row.count != null
+        ? escapeHtml(String(row.count))
+        : showBoardSubtotalMetrics
+          ? ''
+          : '-'
   const firstMetric = swapUnitAndCount ? count : unit
   const secondMetric = swapUnitAndCount ? unit : count
   const firstMetricAlign = swapUnitAndCount ? 'center' : unitAlign
   const secondMetricAlign = swapUnitAndCount ? unitAlign : 'center'
-  const productionQty = isBoardSubtotal
-    ? ''
-    : row.productionQty != null
-      ? escapeHtml(String(row.productionQty))
-      : showProductionQty
-        ? '-'
-        : ''
-  const amount = isBoardSubtotal ? '' : row.amount != null ? formatQuoteMoneyTotal(row.amount, quoteType) : '-'
+  const productionQty =
+    isBoardSubtotal && !showBoardSubtotalMetrics
+      ? ''
+      : row.productionQty != null
+        ? escapeHtml(String(row.productionQty))
+        : showProductionQty
+          ? '-'
+          : ''
+  const unitPrice =
+    isBoardSubtotal
+      ? ''
+      : row.unitPrice == null
+        ? showPostUnitPrice
+          ? '-'
+          : ''
+        : formatQuoteMoneyTotal(row.unitPrice, quoteType)
+  const amount =
+    row.amount == null
+      ? isBoardSubtotal && !showBoardSubtotalMetrics
+        ? ''
+        : '-'
+      : isBoardSubtotal && !showBoardSubtotalMetrics
+        ? ''
+        : formatQuoteMoneyTotal(row.amount, quoteType)
   const borderTop = boardGroupStart
     ? '2px solid #94a3b8'
     : highlight
@@ -250,6 +283,9 @@ function buildPreviewRowHtml(
     const boardCellBg = row.boardName || isBoardSubtotal ? 'background:#e2e8f0;' : cellBg
     boardCell = `<td class="breakdown-col-board"${rowspanAttr} style="padding:8px 12px;white-space:nowrap;vertical-align:middle;${boardCellBg}${cellBorder}${boardBorderRight}font-size:13px;font-weight:600;color:#1e293b;">${row.boardName ? escapeHtml(row.boardName) : ''}</td>`
   }
+  const unitPriceCell = showPostUnitPrice
+    ? `<td style="padding:8px 12px;text-align:right;white-space:nowrap;${cellBg}${cellBorder}font-size:13px;color:#475569;">${unitPrice}</td>`
+    : ''
   const productionQtyCell = showProductionQty
     ? `<td style="padding:8px 12px;text-align:center;white-space:nowrap;${cellBg}${cellBorder}font-size:13px;color:#475569;">${productionQty}</td>`
     : ''
@@ -259,6 +295,7 @@ function buildPreviewRowHtml(
     <td class="breakdown-col-item" style="padding:8px 12px;${indent}${labelStyle}${cellBg}${cellBorder}">${escapeHtml(row.label)}${descriptionHtml}</td>
     <td style="padding:8px 12px;text-align:${firstMetricAlign};${cellBg}${cellBorder}font-size:13px;color:#475569;">${firstMetric}</td>
     <td style="padding:8px 12px;text-align:${secondMetricAlign};white-space:nowrap;${cellBg}${cellBorder}font-size:13px;color:#475569;">${secondMetric}</td>
+    ${unitPriceCell}
     ${productionQtyCell}
     <td style="padding:8px 12px;text-align:right;${amountStyle}${cellBg}${cellBorder}">${amount}</td>
   </tr>`
@@ -295,13 +332,16 @@ function buildQuoteBreakdownTableHtml(
         ? labels.colPostWorkQty
         : labels.colQty
   const firstMetricHeader = isPostSection ? qtyHeader : unitHeader
-  const secondMetricHeader = isPostSection ? unitHeader : qtyHeader
+  const secondMetricHeader = isPostSection ? labels.colPostRate : qtyHeader
   const secondMetricHeaderAlign = isPostSection ? 'right' : 'center'
   const tableClass =
     variant === 'board-summary'
       ? 'quote-table line-items-table board-summary-table'
       : 'quote-table line-items-table'
   const boardHeader = showBoardColumn ? `<th class="breakdown-col-board">${breakdownBoardColLabel(labelType)}</th>` : ''
+  const postUnitPriceHeader = isPostSection
+    ? `<th style="text-align:right;">${labels.colUnit}</th>`
+    : ''
   const productionQtyHeader = showProductionQty
     ? `<th style="text-align:center;">${labels.colProductionQty}</th>`
     : ''
@@ -311,6 +351,7 @@ function buildQuoteBreakdownTableHtml(
         <th>${labels.colItem}</th>
         <th>${firstMetricHeader}</th>
         <th style="text-align:${secondMetricHeaderAlign};">${secondMetricHeader}</th>
+        ${postUnitPriceHeader}
         ${productionQtyHeader}
         <th>${labels.colPerUnitTotal}</th>
       </tr>
@@ -323,6 +364,7 @@ function buildQuoteBreakdownTableHtml(
         buildPreviewRowHtml(row, quoteType, {
           showBoardColumn,
           showProductionQty,
+          showPostUnitPrice: isPostSection,
           boardRowSpan: showBoardColumn ? boardSpans[index] : undefined,
           boardGroupStart: showBoardColumn && isBreakdownBoardGroupStart(rows, index),
           swapUnitAndCount: isPostSection,
@@ -346,6 +388,7 @@ function buildQuoteBreakdownTableHtml(
           buildPreviewRowHtml(row, quoteType, {
             showBoardColumn,
             showProductionQty,
+            showPostUnitPrice: isPostSection,
             boardRowSpan: showBoardColumn ? boardSpans[index] : undefined,
             boardGroupStart: showBoardColumn && isBreakdownBoardGroupStart(group, index),
             swapUnitAndCount: isPostSection,

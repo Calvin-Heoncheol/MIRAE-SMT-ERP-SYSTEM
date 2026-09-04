@@ -583,9 +583,24 @@ export async function fetchPostProcessTodayProduction(
   return fetchPostProcessProductionRecords({ recordDate })
 }
 
+export async function fetchPostProcessProductionHistoryByAssemblyGroup(
+  assemblyGroupId: string,
+  options?: { team?: string; limit?: number },
+): Promise<FetchPostProcessProductionHistoryResult> {
+  const id = String(assemblyGroupId || '').trim()
+  if (!id) return { ok: true, rows: [] }
+  return fetchPostProcessProductionRecords({
+    assemblyGroupId: id,
+    team: options?.team,
+    limit: options?.limit ?? 50,
+  })
+}
+
 async function fetchPostProcessProductionRecords(options?: {
   recordDate?: string
   limit?: number
+  assemblyGroupId?: string
+  team?: string
 }): Promise<FetchPostProcessProductionHistoryResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
@@ -637,6 +652,14 @@ async function fetchPostProcessProductionRecords(options?: {
 
       if (options?.recordDate) {
         query = query.eq('record_date', options.recordDate)
+      }
+
+      if (options?.assemblyGroupId) {
+        query = query.eq('assembly_group_id', options.assemblyGroupId)
+      }
+
+      if (options?.team) {
+        query = query.eq('team', options.team)
       }
 
       return query

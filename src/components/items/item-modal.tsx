@@ -5,6 +5,7 @@ import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { EntityChangeHistoryButton } from '@/components/change-logs/entity-change-history-button'
+import { ChangeReasonModal } from '@/components/change-logs/change-reason-modal'
 import { useBusy } from '@/components/ui/busy-provider'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpButton } from '@/components/ui/erp-button'
@@ -47,6 +48,7 @@ import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { displayItemFormUnitPrice } from '@/lib/quotes/quote-to-item'
+import { hasItemUnitPriceChange } from '@/lib/change-logs/utils'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS, ERP_ROW_ADD_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 type ItemModalProps = {
@@ -130,6 +132,8 @@ function ItemModalContent({
   const [deleting, setDeleting] = useState(false)
   const [deactivating, setDeactivating] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [reasonOpen, setReasonOpen] = useState(false)
+  const [pendingForm, setPendingForm] = useState<ItemFormState | null>(null)
   const [salesPartners, setSalesPartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(true)
 
@@ -259,7 +263,7 @@ function ItemModalContent({
     return form.id.trim() || (isCreate ? previewItemCode : '')
   })()
 
-  async function commitItemSave(saveForm: ItemFormState) {
+  async function commitItemSave(saveForm: ItemFormState, reason?: string) {
     setSaving(true)
     setSaveError(null)
 
@@ -269,7 +273,7 @@ function ItemModalContent({
         if (isCreate) {
           return createItem(formToItemPayload(saveForm))
         }
-        return updateItem(item!.id, formToItemUpdatePayload(saveForm))
+        return updateItem(item!.id, formToItemUpdatePayload(saveForm), reason ? { reason } : undefined)
       })
     } finally {
       setSaving(false)
@@ -300,11 +304,50 @@ function ItemModalContent({
     onSaved?.(isCreate ? '품목이 등록되었습니다.' : '품목이 수정되었습니다.')
   }
 
+  function itemUnitPriceSnapshot(source: {
+    unitPrice: number
+    setupUnitPrice?: number
+    smdUnitPrice: number
+    dipUnitPrice: number
+    materialUnitPrice: number
+    otherUnitPrice: number
+  }) {
+    return {
+      unitPrice: source.unitPrice,
+      setupUnitPrice: source.setupUnitPrice,
+      smdUnitPrice: source.smdUnitPrice,
+      dipUnitPrice: source.dipUnitPrice,
+      materialUnitPrice: source.materialUnitPrice,
+      otherUnitPrice: source.otherUnitPrice,
+    }
+  }
+
   async function handleSave() {
     const validationError = validateItemForm(form, { isCreate })
     if (validationError) {
       setSaveError(validationError)
       return
+    }
+
+    if (!isCreate && item) {
+      const after = formToItemUpdatePayload(form)
+      if (
+        hasItemUnitPriceChange(
+          itemUnitPriceSnapshot(item),
+          itemUnitPriceSnapshot({
+            unitPrice: after.unitPrice,
+            setupUnitPrice: after.setupUnitPrice,
+            smdUnitPrice: after.smdUnitPrice,
+            dipUnitPrice: after.dipUnitPrice,
+            materialUnitPrice: after.materialUnitPrice,
+            otherUnitPrice: after.otherUnitPrice,
+          }),
+        )
+      ) {
+        setPendingForm(form)
+        setReasonOpen(true)
+        return
+      }
     }
 
     await commitItemSave(form)
@@ -405,6 +448,7 @@ function ItemModalContent({
   const busy = saving || deleting || deactivating
 
   return (
+    <>
     <ErpModal
       open
       size="xl"
@@ -821,6 +865,24 @@ function ItemModalContent({
         ) : null}
       </div>
     </ErpModal>
+
+    <ChangeReasonModal
+      open={reasonOpen}
+      saving={saving}
+      onCancel={() => {
+        if (saving) return
+        setReasonOpen(false)
+        setPendingForm(null)
+      }}
+      onConfirm={(reason) => {
+        if (!pendingForm) return
+        void commitItemSave(pendingForm, reason).then(() => {
+          setReasonOpen(false)
+          setPendingForm(null)
+        })
+      }}
+    />
+    </>
   )
 }
 

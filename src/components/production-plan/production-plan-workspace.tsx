@@ -98,7 +98,7 @@ export function ProductionPlanWorkspace({
 }: ProductionPlanWorkspaceProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('sheet')
   const [teamTab, setTeamTab] = useState<TeamTab>('material')
-  const [sheetFilter, setSheetFilter] = useState<ProductionPlanSheetFilter>('month')
+  const [sheetFilter, setSheetFilter] = useState<ProductionPlanSheetFilter>('actionable')
   const [monthStart, setMonthStart] = useState(initialMonthStart)
   const [rows, setRows] = useState<ProductionPlanBoardRow[]>(
     initialResult.ok ? initialResult.data.rows : [],
@@ -138,11 +138,13 @@ export function ProductionPlanWorkspace({
   }, [])
 
   function openScheduleModal(row: ProductionPlanBoardRow) {
-    if (!isProductionPlanScheduleRow(row)) return
+    const dateSeed = isProductionPlanScheduleRow(row)
+      ? row.plannedDate.slice(0, 10)
+      : todayYmdSeoul()
     setModal({
       open: true,
       row,
-      initialValues: buildScheduleFormValues(row, row.plannedDate.slice(0, 10)),
+      initialValues: buildScheduleFormValues(row, dateSeed),
     })
   }
 
@@ -160,22 +162,22 @@ export function ProductionPlanWorkspace({
   const teamTabHint: Record<TeamTab, string> = {
     material:
       viewMode === 'order'
-        ? '발주별 자재·SMT·후공정 계획을 통합 확인합니다.'
+        ? '발주별 자재 → SMT → 후공정 흐름을 확인합니다.'
         : viewMode === 'sheet'
-          ? '자재 입고일·입고수량을 입력하고 저장합니다.'
-          : '자재 입고 예정일이 배정된 일정을 캘린더에서 확인합니다.',
+          ? '입고일·입고수량을 표에서 입력하고 저장하세요.'
+          : '확정된 자재 입고 일정을 캘린더에서 검토합니다.',
     smt:
       viewMode === 'order'
-        ? '발주별 자재·SMT·후공정 계획을 통합 확인합니다.'
+        ? '발주별 자재 → SMT → 후공정 흐름을 확인합니다.'
         : viewMode === 'sheet'
-          ? 'SMT 계획일·수량·라인을 입력하고 저장합니다.'
-          : 'SMT 생산계획 일정을 캘린더에서 확인합니다.',
+          ? '자재 입고가 입력된 발주만 기본 표시됩니다. 계획일·라인·수량을 표에서 입력하세요.'
+          : '확정된 SMT 일정을 캘린더에서 검토합니다.',
     post:
       viewMode === 'order'
-        ? '발주별 자재·SMT·후공정 계획을 통합 확인합니다.'
+        ? '발주별 자재 → SMT → 후공정 흐름을 확인합니다.'
         : viewMode === 'sheet'
-          ? '후공정 계획일·수량·팀을 입력하고 저장합니다. SMD 확정 후 배정 가능합니다.'
-          : '후공정 생산계획 일정을 캘린더에서 확인합니다.',
+          ? 'SMT 확정 후 배정 가능한 후공정만 기본 표시됩니다.'
+          : '확정된 후공정 일정을 캘린더에서 검토합니다.',
   }
 
   async function handleSheetSaveActions(actions: ProductionPlanSheetAction[]) {
@@ -316,9 +318,13 @@ export function ProductionPlanWorkspace({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
           <div>
-            <h2 className="text-base font-bold text-slate-900">공유 생산계획</h2>
+            <h2 className="text-base font-bold text-slate-900">생산계획</h2>
             <p className="text-xs text-slate-500">
-              {viewMode === 'order' ? '발주별 자재 → SMT → 후공정 계획 통합 보기' : teamTabHint[teamTab]}
+              {viewMode === 'sheet'
+                ? teamTabHint[teamTab]
+                : viewMode === 'calendar'
+                  ? '확정 일정 검토용 — 라인·날짜 겹침 확인'
+                  : '발주별 납기·공정 흐름'}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -383,8 +389,19 @@ export function ProductionPlanWorkspace({
               <div className="flex overflow-hidden rounded-lg border border-slate-300 bg-white">
                 <button
                   type="button"
-                  onClick={() => setSheetFilter('month')}
+                  onClick={() => setSheetFilter('actionable')}
                   className={`px-3 py-1.5 text-sm font-semibold ${
+                    sheetFilter === 'actionable'
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  지금 배정
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSheetFilter('month')}
+                  className={`border-l border-slate-300 px-3 py-1.5 text-sm font-semibold ${
                     sheetFilter === 'month'
                       ? 'bg-indigo-600 text-white'
                       : 'text-slate-700 hover:bg-slate-50'
@@ -405,6 +422,8 @@ export function ProductionPlanWorkspace({
                 </button>
               </div>
             ) : null}
+            {viewMode !== 'order' ? (
+              <>
             <span className="text-lg font-extrabold text-slate-800">{formatMonthLabel(monthStart)}</span>
             <button
               type="button"
@@ -427,6 +446,8 @@ export function ProductionPlanWorkspace({
             >
               다음 달
             </button>
+              </>
+            ) : null}
             <ErpButton type="button" variant="secondary" onClick={() => reload()} disabled={loading}>
               {loading ? '새로고침…' : '새로고침'}
             </ErpButton>

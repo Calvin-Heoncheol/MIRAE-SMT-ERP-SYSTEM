@@ -26,6 +26,8 @@ export type PreviewLabels = {
   colSmdWorkQty: string
   /** 후공정 섹션 — 핀수·작업분 등 */
   colPostWorkQty: string
+  /** 후공정 섹션 — 분당 임률 */
+  colPostRate: string
   /** SMD·후공정 — 생산수량 */
   colProductionQty: string
   issueDate: string
@@ -50,8 +52,11 @@ export type PreviewLabels = {
   soldering: string
   postProcess: string
   assembly: string
+  download: string
   test: string
   packing: string
+  corporateProfit: string
+  corporateProfitDesc: string
   materials: string
   orderLevelCosts: string
   other: string
@@ -98,6 +103,7 @@ const DOMESTIC_LABELS: PreviewLabels = {
   colSetupMinutes: '시간(분)',
   colSmdWorkQty: '부품수',
   colPostWorkQty: '작업량',
+  colPostRate: '분당 임률',
   colProductionQty: '생산수량',
   issueDate: '발행일자',
   customer: '고객사',
@@ -121,8 +127,11 @@ const DOMESTIC_LABELS: PreviewLabels = {
   soldering: '납땜',
   postProcess: '후공정',
   assembly: '조립',
+  download: '다운로드',
   test: '테스트',
   packing: '포장',
+  corporateProfit: '기업이윤',
+  corporateProfitDesc: '후공정 비용의 10%',
   materials: '자재',
   orderLevelCosts: '건당 비용 (발주 1회)',
   other: '기타',
@@ -169,6 +178,7 @@ const EXPORT_LABELS: PreviewLabels = {
   colSetupMinutes: 'Time (min)',
   colSmdWorkQty: 'Parts',
   colPostWorkQty: 'Work Time',
+  colPostRate: 'Rate /min',
   colProductionQty: 'Prod. Qty',
   issueDate: 'Issue Date',
   customer: 'Customer',
@@ -192,8 +202,11 @@ const EXPORT_LABELS: PreviewLabels = {
   soldering: 'Soldering',
   postProcess: 'Post-Process',
   assembly: 'Assembly',
+  download: 'Download',
   test: 'Test',
   packing: 'Packing',
+  corporateProfit: 'Corporate Profit',
+  corporateProfitDesc: '10% of post-process cost',
   materials: 'Materials',
   orderLevelCosts: 'Order-Level Costs (per PO)',
   other: 'Other',
@@ -236,6 +249,7 @@ export function getPreviewLabels(quoteType: QuoteType): PreviewLabels {
 
 const POST_PROCESS_ITEM_NAME_EN: Record<string, string> = {
   조립: 'Assembly',
+  다운로드: 'Download',
   테스트: 'Test',
   포장: 'Packing',
   납땜: 'Soldering',

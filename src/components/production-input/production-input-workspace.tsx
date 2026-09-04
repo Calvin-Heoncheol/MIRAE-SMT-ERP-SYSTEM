@@ -2,17 +2,29 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ProductionFetchError } from '@/components/production-input/production-fetch-error'
+import { ProductionInputModal } from '@/components/production-input/production-input-modal'
 import { ProductionInputPanel } from '@/components/production-input/production-input-panel'
-import { ProductionOrderSidebar } from '@/components/production-input/production-order-sidebar'
+import { ProductionInputTable } from '@/components/production-input/production-input-table'
+import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
+import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import type { PostProcessPlanBlock } from '@/lib/post-process/plan/types'
 import { DEFAULT_POST_PROCESS_TEAM, type PostProcessTeam } from '@/lib/post-process/teams'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { FetchProductionInputPageResult } from '@/lib/production-input/repository'
-import type { ProductionInputConfig, ProductionOrderLine } from '@/lib/production-input/types'
-import { filterProductionOrders } from '@/lib/production-input/utils'
+import type {
+  ProductionInputConfig,
+  ProductionOrderLine,
+  ProductionOrderState,
+} from '@/lib/production-input/types'
+import {
+  filterProductionOrders,
+  getProductionOrderState,
+} from '@/lib/production-input/utils'
+import { formatEmptyListMessage } from '@/lib/ui/tokens'
 import { buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
 import type { SmtPlanBlock } from '@/lib/smt/plan/types'
+import type { SmtPcbSide } from '@/lib/smt/types'
 
 type ProductionInputWorkspaceProps = {
   result: FetchProductionInputPageResult
@@ -63,6 +75,24 @@ function postProcessPlanProgressKey(plan: PostProcessPlanBlock, today: string = 
   return buildPostProcessPlanProgressKey(plan.assemblyGroupId, today, plan.team)
 }
 
+type ProductionStatusFilter = 'all' | ProductionOrderState
+
+function countProductionOrderStates(
+  orders: ProductionOrderLine[],
+  counts: Record<string, number>,
+) {
+  let none = 0
+  let progress = 0
+  let full = 0
+  for (const order of orders) {
+    const state = getProductionOrderState(order, counts)
+    if (state === 'none') none += 1
+    else if (state === 'progress') progress += 1
+    else full += 1
+  }
+  return { all: orders.length, none, progress, full }
+}
+
 export function ProductionInputWorkspace({
   result,
   config,
@@ -85,18 +115,32 @@ export function ProductionInputWorkspace({
     result.ok ? result.data.defectCounts : {},
   )
   const [planProgress, setPlanProgress] = useState<Record<string, number>>(initialPlanProgress)
+  const [statusFilter, setStatusFilter] = useState<ProductionStatusFilter>('all')
+  const [inputOpen, setInputOpen] = useState(false)
+  const [initialPcbSide, setInitialPcbSide] = useState<SmtPcbSide | null>(null)
 
   const isPostProcess = config.productionModule === 'post_process'
 
   useEffect(() => {
     setSelectedKey(initialUiKey)
+    if (initialUiKey) setInputOpen(true)
   }, [initialUiKey])
 
   const data = result.ok ? result.data : null
-  const filtered = useMemo(
+  const searched = useMemo(
     () => filterProductionOrders(data?.orders ?? [], search),
     [data?.orders, search],
   )
+
+  const statusCounts = useMemo(
+    () => countProductionOrderStates(searched, counts),
+    [searched, counts],
+  )
+
+  const filtered = useMemo(() => {
+    if (statusFilter === 'all') return searched
+    return searched.filter((order) => getProductionOrderState(order, counts) === statusFilter)
+  }, [searched, counts, statusFilter])
 
   const plansByLine = useMemo(() => {
     const map = new Map<number, SmtPlanBlock[]>()
@@ -161,7 +205,7 @@ export function ProductionInputWorkspace({
     if (showOrderSidebar) {
       if (!selectedKey) return null
       return (
-        filtered.find((order) => order.uiKey === selectedKey) ??
+        searched.find((order) => order.uiKey === selectedKey) ??
         orders.find((order) => order.uiKey === selectedKey) ??
         null
       )
@@ -197,6 +241,17 @@ export function ProductionInputWorkspace({
     } else {
       setSelectedKey('')
     }
+  }
+
+  function handleOrderClick(order: ProductionOrderLine, side?: 'TOP' | 'BOT') {
+    setSelectedKey(order.uiKey)
+    setInitialPcbSide(side ?? null)
+    setInputOpen(true)
+  }
+
+  function closeInputModal() {
+    setInputOpen(false)
+    setInitialPcbSide(null)
   }
 
   if (!result.ok) {
@@ -289,28 +344,74 @@ export function ProductionInputWorkspace({
     )
   }
 
-  return (
-    <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white lg:flex-row">
-      <ProductionOrderSidebar
-        variant="rail"
-        orders={filtered}
-        counts={counts}
-        selectedKey={selectedKey}
-        search={search}
-        onSearchChange={setSearch}
-        onSelect={setSelectedKey}
-      />
+  if (showOrderSidebar) {
+    const statusChips = [
+      { value: 'all' as const, label: '전체', count: statusCounts.all },
+      {
+        value: 'none' as const,
+        label: '대기',
+        count: statusCounts.none,
+        tone: STATUS_FILTER_TONES.waiting,
+      },
+      {
+        value: 'progress' as const,
+        label: '진행',
+        count: statusCounts.progress,
+        tone: STATUS_FILTER_TONES.progress,
+      },
+      {
+        value: 'full' as const,
+        label: '완료',
+        count: statusCounts.full,
+        tone: STATUS_FILTER_TONES.done,
+      },
+    ]
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
-        <ProductionInputPanel
+    return (
+      <>
+        <div className={`${flushShellClass} gap-3 p-3 sm:p-4`}>
+          <WorkspaceHeader
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="발주번호, 품목코드, 품목명, 고객사 검색…"
+            accent={isPostProcess ? 'emerald' : 'sky'}
+            filters={
+              <FilterChipBar
+                options={statusChips}
+                value={statusFilter}
+                onChange={setStatusFilter}
+              />
+            }
+          />
+
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <ProductionInputTable
+              orders={filtered}
+              counts={counts}
+              defectCounts={defectCounts}
+              config={config}
+              onOrderClick={handleOrderClick}
+              emptyMessage={formatEmptyListMessage({
+                hasQuery: Boolean(search.trim()) || statusFilter !== 'all',
+                emptyLabel: '표시할 발주가 없습니다',
+                actionHint: '발주를 선택하면 생산 등록 모달이 열립니다',
+              })}
+            />
+          </div>
+        </div>
+
+        <ProductionInputModal
+          open={inputOpen}
           order={selectedOrder}
           counts={counts}
           defectCounts={defectCounts}
           config={config}
+          onClose={closeInputModal}
           showLineSelector={!isPostProcess}
           lineNo={!isPostProcess ? selectedLineNo : null}
           onLineNoChange={!isPostProcess ? handleSelectLine : undefined}
           postProcessTeam={isPostProcess ? selectedTeam : undefined}
+          initialPcbSide={initialPcbSide}
           onCountUpdated={(countKey, cumulative, defectCumulative) => {
             setCounts((current) => ({ ...current, [countKey]: cumulative }))
             if (defectCumulative != null) {
@@ -318,7 +419,9 @@ export function ProductionInputWorkspace({
             }
           }}
         />
-      </div>
-    </div>
-  )
+      </>
+    )
+  }
+
+  return null
 }

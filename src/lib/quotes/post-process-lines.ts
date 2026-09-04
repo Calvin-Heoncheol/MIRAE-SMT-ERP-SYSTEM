@@ -166,24 +166,109 @@ export function resolvePostProcessLineForms(
   return legacyMinutesToLineForms(legacyTotal ?? 0, fallbackName)
 }
 
-/** 조립·테스트·포장(구) / lines(신) 을 하나의 공정 목록으로 합침 */
-export function resolveUnifiedPostProcessLineForms(post: {
+function formsOrEmpty(
+  lines: PostProcessLine[] | undefined,
+  legacyTotal: number | undefined,
+  fallbackName: string,
+): PostProcessLineForm[] {
+  const forms = resolvePostProcessLineForms(lines, legacyTotal, fallbackName)
+  return forms.length > 0 ? forms : [emptyPostProcessLineForm()]
+}
+
+function lineHasContent(line: Pick<PostProcessLine, 'name' | 'minutes'> & { seconds?: number }) {
+  return Boolean(line.name?.trim()) || hasPostProcessLineInput(line)
+}
+
+export type CategorizedPostProcessLineForms = {
+  assemblyLines: PostProcessLineForm[]
+  downloadLines: PostProcessLineForm[]
+  testLines: PostProcessLineForm[]
+  packingLines: PostProcessLineForm[]
+}
+
+/** 견적 로드 — 조립·다운로드·테스트·포장 4카테고리로 복원 */
+export function resolveCategorizedPostProcessLineForms(post: {
   lines?: PostProcessLine[]
   assemblyLines?: PostProcessLine[]
+  downloadLines?: PostProcessLine[]
   testLines?: PostProcessLine[]
   packingLines?: PostProcessLine[]
   postAssembly?: number
+  postDownload?: number
+  postTest?: number
+  postPacking?: number
+}): CategorizedPostProcessLineForms {
+  const hasSplitCategories =
+    Boolean(post.downloadLines?.some(lineHasContent)) ||
+    Boolean(post.testLines?.some(lineHasContent)) ||
+    Boolean(post.packingLines?.some(lineHasContent)) ||
+    Number(post.postDownload) > 0 ||
+    Number(post.postTest) > 0 ||
+    Number(post.postPacking) > 0
+
+  // 예전 통합 저장(lines 또는 assemblyLines에 전부) → 조립으로 복원
+  if (post.lines?.length && !hasSplitCategories) {
+    return {
+      assemblyLines: postProcessLinesToForms(post.lines),
+      downloadLines: [emptyPostProcessLineForm()],
+      testLines: [emptyPostProcessLineForm()],
+      packingLines: [emptyPostProcessLineForm()],
+    }
+  }
+
+  if (
+    post.assemblyLines ||
+    post.downloadLines ||
+    post.testLines ||
+    post.packingLines ||
+    Number(post.postAssembly) > 0 ||
+    Number(post.postDownload) > 0 ||
+    Number(post.postTest) > 0 ||
+    Number(post.postPacking) > 0
+  ) {
+    return {
+      assemblyLines: formsOrEmpty(post.assemblyLines, post.postAssembly, '조립'),
+      downloadLines: formsOrEmpty(post.downloadLines, post.postDownload, '다운로드'),
+      testLines: formsOrEmpty(post.testLines, post.postTest, '테스트'),
+      packingLines: formsOrEmpty(post.packingLines, post.postPacking, '포장'),
+    }
+  }
+
+  if (post.lines?.length) {
+    return {
+      assemblyLines: postProcessLinesToForms(post.lines),
+      downloadLines: [emptyPostProcessLineForm()],
+      testLines: [emptyPostProcessLineForm()],
+      packingLines: [emptyPostProcessLineForm()],
+    }
+  }
+
+  return {
+    assemblyLines: [emptyPostProcessLineForm()],
+    downloadLines: [emptyPostProcessLineForm()],
+    testLines: [emptyPostProcessLineForm()],
+    packingLines: [emptyPostProcessLineForm()],
+  }
+}
+
+/** 조립·다운로드·테스트·포장(구) / lines(신) 을 하나의 공정 목록으로 합침 */
+export function resolveUnifiedPostProcessLineForms(post: {
+  lines?: PostProcessLine[]
+  assemblyLines?: PostProcessLine[]
+  downloadLines?: PostProcessLine[]
+  testLines?: PostProcessLine[]
+  packingLines?: PostProcessLine[]
+  postAssembly?: number
+  postDownload?: number
   postTest?: number
   postPacking?: number
 }): PostProcessLineForm[] {
-  if (post.lines && post.lines.length > 0) {
-    return postProcessLinesToForms(post.lines)
-  }
-
+  const categorized = resolveCategorizedPostProcessLineForms(post)
   const merged = [
-    ...resolvePostProcessLineForms(post.assemblyLines, post.postAssembly, '조립'),
-    ...resolvePostProcessLineForms(post.testLines, post.postTest, '테스트'),
-    ...resolvePostProcessLineForms(post.packingLines, post.postPacking, '포장'),
+    ...categorized.assemblyLines,
+    ...categorized.downloadLines,
+    ...categorized.testLines,
+    ...categorized.packingLines,
   ].filter((line) => line.name.trim() || parsePostProcessSeconds(line.seconds) > 0)
 
   return merged.length > 0 ? merged : [emptyPostProcessLineForm()]

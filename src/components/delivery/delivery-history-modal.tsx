@@ -1,22 +1,32 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
+import { ChangeReasonModal } from '@/components/change-logs/change-reason-modal'
+import { ProductCombobox } from '@/components/orders/product-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { buildDeliveryStatementDataFromShipment } from '@/lib/delivery/build-delivery-statement-data'
 import { printDeliveryStatement } from '@/lib/delivery/print-delivery-statement'
 import {
+  createDeliveryRecord,
   deleteDeliveryRecord,
   fetchOrderLineUnitPrices,
 } from '@/lib/delivery/repository'
+import {
+  findShippableOptionsForProduct,
+  type DeliveryShippableOption,
+} from '@/lib/delivery/register-form'
 import type { DeliveryHistoryShipmentGroup } from '@/lib/delivery/history-utils'
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 import type { DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
 import { buildShipmentStatementLinesFromHistory, resolveHistoryLineUnitPrices } from '@/lib/delivery/utils'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
+import type { Product } from '@/lib/products/types'
+import { filterProductsForCustomerStrict } from '@/lib/products/utils'
 import { updateStatementLines } from '@/lib/reports/statement-edit'
 import {
   ERP_DANGER_BUTTON_CLASS,
@@ -32,13 +42,18 @@ type DeliveryHistoryModalProps = {
   billingOnlyLines?: DeliveryBillingOnlyLine[]
   productionOrders?: ProductionOrderLine[]
   unitPriceByDeliveryId?: Record<string, number>
+  products?: Product[]
+  options?: DeliveryShippableOption[]
   onClose: () => void
   onSaved?: (message?: string) => void
   onDeleted?: (message?: string) => void
 }
 
 type LineDraft = {
+  key: string
+  isNew?: boolean
   deliveryId: string
+  assemblyGroupId: string
   orderNumber: string
   orderLineId?: string
   customerPoNumber: string
@@ -48,6 +63,46 @@ type LineDraft = {
   unitPrice: string
   note: string
   billingOnly?: boolean
+  maxQuantity?: number
+}
+
+function createDraftKey() {
+  return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function isPersistedDeliveryId(id: string) {
+  const value = String(id || '').trim()
+  if (!value) return false
+  if (value.startsWith('billing:') || value.startsWith('product:')) return false
+  return true
+}
+
+function emptyProductDraft(): LineDraft {
+  return {
+    key: createDraftKey(),
+    isNew: true,
+    deliveryId: '',
+    assemblyGroupId: '',
+    orderNumber: '',
+    customerPoNumber: '',
+    productCode: '',
+    productName: '',
+    quantity: '',
+    unitPrice: '0',
+    note: '',
+    billingOnly: false,
+    maxQuantity: 0,
+  }
+}
+
+function isBlankNewDraft(line: LineDraft) {
+  if (!line.isNew || line.billingOnly) return false
+  return (
+    !line.productCode.trim() &&
+    !line.productName.trim() &&
+    !line.assemblyGroupId.trim() &&
+    Math.floor(Number(line.quantity) || 0) < 1
+  )
 }
 
 function formatMoneyInput(value: number) {
@@ -56,6 +111,25 @@ function formatMoneyInput(value: number) {
 
 function parseMoneyInput(value: string) {
   return Math.max(0, Math.round(Number(String(value).replace(/[^\d]/g, '')) || 0))
+}
+
+function draftPriceKey(line: LineDraft) {
+  if (line.billingOnly) {
+    return `billing:${line.orderLineId || line.productCode || line.productName}`
+  }
+  return line.deliveryId
+}
+
+function hasDraftUnitPriceChange(
+  drafts: LineDraft[],
+  initialPrices: Record<string, number>,
+) {
+  return drafts.some((line) => {
+    const key = draftPriceKey(line)
+    const before = initialPrices[key]
+    if (before == null) return false
+    return parseMoneyInput(line.unitPrice) !== before
+  })
 }
 
 function handleMoneyInputChange(value: string) {
@@ -74,15 +148,22 @@ function formatCount(value: number) {
 }
 
 function toDraft(
-  line: Pick<DeliveryHistoryRow, 'id' | 'orderNumber' | 'customerPoNumber' | 'productCode' | 'productName' | 'note'> & {
+  line: Pick<
+    DeliveryHistoryRow,
+    'id' | 'orderNumber' | 'customerPoNumber' | 'productCode' | 'productName' | 'note'
+  > & {
     quantity: number
     unitPrice?: number
     billingOnly?: boolean
     orderLineId?: string
+    assemblyGroupId?: string
   },
 ): LineDraft {
   return {
+    key: line.id,
+    isNew: false,
     deliveryId: line.id,
+    assemblyGroupId: String(line.assemblyGroupId || '').trim(),
     orderNumber: line.orderNumber,
     orderLineId: line.orderLineId,
     customerPoNumber: line.customerPoNumber || '',
@@ -92,6 +173,7 @@ function toDraft(
     unitPrice: formatMoneyInput(line.unitPrice ?? 0),
     note: line.note || '',
     billingOnly: line.billingOnly,
+    maxQuantity: 0,
   }
 }
 
@@ -170,6 +252,9 @@ function buildDisplayDrafts(
       unitPrice: line.unitPrice ?? 0,
       note: historyLine?.note || '',
       billingOnly: false,
+      assemblyGroupId:
+        historyLine?.assemblyGroupId || production?.assemblyGroupId || '',
+      orderLineId: production?.orderLineId,
     })
   })
 }
@@ -194,6 +279,8 @@ export function DeliveryHistoryModal({
   billingOnlyLines = [],
   productionOrders = [],
   unitPriceByDeliveryId: parentUnitPriceByDeliveryId = {},
+  products = [],
+  options = [],
   onClose,
   onSaved,
   onDeleted,
@@ -202,18 +289,31 @@ export function DeliveryHistoryModal({
   const confirm = useErpConfirm()
   const [recordDate, setRecordDate] = useState('')
   const [drafts, setDrafts] = useState<LineDraft[]>([])
+  const [removedDeliveryIds, setRemovedDeliveryIds] = useState<string[]>([])
   const [customer, setCustomer] = useState('')
   const [shipmentId, setShipmentId] = useState('')
   const [saving, setSaving] = useState(false)
   const [printing, setPrinting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reasonOpen, setReasonOpen] = useState(false)
+  const initialUnitPricesRef = useRef<Record<string, number>>({})
+  const draftsReadyRef = useRef(false)
+
+  const searchableProducts = useMemo(
+    () => (customer ? filterProductsForCustomerStrict(products, customer) : products.filter((product) => product.isActive)),
+    [products, customer],
+  )
 
   useEffect(() => {
     if (!open || !group) return
+    draftsReadyRef.current = false
+    initialUnitPricesRef.current = {}
+    setReasonOpen(false)
     setRecordDate(group.recordDate.slice(0, 10))
     setCustomer(group.customer)
     setShipmentId(group.shipmentId)
+    setRemovedDeliveryIds([])
     setDrafts(group.lines.map((line) => toDraft({ ...line, quantity: line.quantity })))
     setError(null)
     setSaving(false)
@@ -280,7 +380,32 @@ export function DeliveryHistoryModal({
     }
   }, [open, group, billingOnlyLines, productionOrders, parentUnitPriceByDeliveryId])
 
-  const showOrderNumber = drafts.some((line) => line.orderNumber.trim() || line.customerPoNumber.trim())
+  useEffect(() => {
+    if (!open || !drafts.length || draftsReadyRef.current) return
+    initialUnitPricesRef.current = Object.fromEntries(
+      drafts.map((line) => [draftPriceKey(line), parseMoneyInput(line.unitPrice)]),
+    )
+    draftsReadyRef.current = true
+  }, [open, drafts])
+
+  useEffect(() => {
+    let changed = false
+    const next = drafts.map((item, index) => {
+      if (!item.isNew || item.billingOnly || item.assemblyGroupId.trim()) return item
+      if (!item.productCode.trim() && !item.productName.trim()) return item
+      const matches = findShippableOptionsForProduct(optionsForRow(index, item), customer, {
+        id: '',
+        productCode: item.productCode,
+        productName: item.productName,
+      })
+      if (matches.length !== 1) return item
+      changed = true
+      return bindOptionToDraft(item, matches[0]!)
+    })
+    if (changed) setDrafts(next)
+  }, [customer, drafts, options, productionOrders])
+
+  const productRowCount = drafts.filter((line) => !line.billingOnly).length
   const totals = useMemo(() => {
     let quantity = 0
     let amount = 0
@@ -299,13 +424,146 @@ export function DeliveryHistoryModal({
     )
   }
 
-  async function handleSave() {
+  function optionsForRow(index: number, item: LineDraft) {
+    const used = new Set(
+      drafts
+        .filter((line, lineIndex) => lineIndex !== index && !line.billingOnly)
+        .map((line) => line.assemblyGroupId.trim())
+        .filter(Boolean),
+    )
+    return options.filter((option) => {
+      if (customer && option.customer !== customer) return false
+      if (used.has(option.assemblyGroupId) && option.assemblyGroupId !== item.assemblyGroupId) {
+        return false
+      }
+      return true
+    })
+  }
+
+  function bindOptionToDraft(item: LineDraft, option: DeliveryShippableOption): LineDraft {
+    const production = productionOrders.find(
+      (order) => order.assemblyGroupId === option.assemblyGroupId,
+    )
+    return {
+      ...item,
+      isNew: true,
+      deliveryId: '',
+      assemblyGroupId: option.assemblyGroupId,
+      orderNumber: option.orderNumber,
+      orderLineId: production?.orderLineId,
+      customerPoNumber: option.customerPoNumber || '',
+      productCode: option.productCode,
+      productName: option.productName,
+      unitPrice: formatMoneyInput(option.unitPrice),
+      maxQuantity: Math.max(0, Math.floor(Number(option.maxQuantity) || 0)),
+    }
+  }
+
+  function addRow() {
+    setDrafts((current) => {
+      const insertAt = current.findIndex((line) => line.billingOnly)
+      const next = emptyProductDraft()
+      if (insertAt < 0) return [...current, next]
+      return [...current.slice(0, insertAt), next, ...current.slice(insertAt)]
+    })
+    setError(null)
+  }
+
+  function removeRow(index: number) {
+    const target = drafts[index]
+    if (!target || target.billingOnly) return
+    const productRows = drafts.filter((line) => !line.billingOnly)
+    if (productRows.length <= 1) {
+      setError('마지막 품목은 아래 삭제로 출하 전체를 지워 주세요.')
+      return
+    }
+
+    if (!target.isNew && isPersistedDeliveryId(target.deliveryId)) {
+      setRemovedDeliveryIds((current) =>
+        current.includes(target.deliveryId) ? current : [...current, target.deliveryId],
+      )
+    }
+
+    const remainingProducts = productRows.filter((line) => line.key !== target.key)
+    const remainingOrders = new Set(remainingProducts.map((line) => line.orderNumber.trim()).filter(Boolean))
+    setDrafts((current) =>
+      current.filter((line) => {
+        if (line.key === target.key) return false
+        if (line.billingOnly && line.orderNumber.trim() && !remainingOrders.has(line.orderNumber.trim())) {
+          return false
+        }
+        return true
+      }),
+    )
+    setError(null)
+  }
+
+  function selectOrderOption(index: number, assemblyGroupId: string) {
+    const item = drafts[index]
+    if (!item) return
+    const option = optionsForRow(index, item).find((row) => row.assemblyGroupId === assemblyGroupId)
+    if (!option) {
+      patchDraft(index, { assemblyGroupId: '', orderNumber: '', customerPoNumber: '', maxQuantity: 0 })
+      return
+    }
+    patchDraft(index, bindOptionToDraft(item, option))
+  }
+
+  function selectProduct(index: number, product: Product) {
+    const item = drafts[index] ?? emptyProductDraft()
+    const matches = findShippableOptionsForProduct(optionsForRow(index, item), customer, product)
+    const option = matches.length === 1 ? matches[0]! : null
+    if (option) {
+      patchDraft(index, {
+        ...bindOptionToDraft(item, option),
+        productCode: product.productCode,
+        productName: product.productName,
+        unitPrice: formatMoneyInput(option.unitPrice || product.defaultUnitPrice),
+      })
+      return
+    }
+    patchDraft(index, {
+      ...item,
+      isNew: true,
+      deliveryId: '',
+      assemblyGroupId: '',
+      orderNumber: '',
+      orderLineId: undefined,
+      customerPoNumber: '',
+      productCode: product.productCode,
+      productName: product.productName,
+      unitPrice: formatMoneyInput(product.defaultUnitPrice),
+      maxQuantity: 0,
+    })
+  }
+
+  async function commitSave(reason?: string) {
     if (!group) return
-    const productDrafts = drafts.filter((line) => !line.billingOnly)
+    const working = drafts.filter((line) => !isBlankNewDraft(line))
+    const productDrafts = working.filter((line) => !line.billingOnly)
+    if (!productDrafts.length) {
+      setError('출하할 품목을 하나 이상 남겨 주세요.')
+      return
+    }
     for (let index = 0; index < productDrafts.length; index += 1) {
       const line = productDrafts[index]!
-      if (Math.floor(Number(line.quantity) || 0) < 1) {
+      if (!line.productCode.trim() || !line.productName.trim()) {
+        setError(`${index + 1}행 품목을 선택해 주세요.`)
+        return
+      }
+      if (!line.assemblyGroupId.trim()) {
+        setError(`${index + 1}행 발주번호를 선택해 주세요.`)
+        return
+      }
+      const quantity = Math.floor(Number(line.quantity) || 0)
+      if (quantity < 1) {
         setError(`${index + 1}행 수량은 1 이상이어야 합니다.`)
+        return
+      }
+      if (line.isNew && (line.maxQuantity || 0) > 0 && quantity > (line.maxQuantity || 0)) {
+        setError(
+          `${index + 1}행 수량이 출하 가능 수량(${line.maxQuantity!.toLocaleString('ko-KR')})을 초과합니다.`,
+        )
         return
       }
     }
@@ -317,29 +575,91 @@ export function DeliveryHistoryModal({
     setSaving(true)
     setError(null)
 
-    const result = await updateStatementLines(
-      drafts.map((line) => ({
-        source: 'delivery' as const,
-        deliveryId: line.deliveryId,
-        orderNumber: line.orderNumber,
-        orderLineId: line.orderLineId,
-        recordDate: recordDate.trim(),
-        productCode: line.productCode,
-        productName: line.productName,
-        quantity: Math.max(0, Math.floor(Number(line.quantity) || 0)),
-        unitPrice: parseMoneyInput(line.unitPrice),
-        billingOnly: line.billingOnly,
-      })),
+    const existingLines = working.filter(
+      (line) => !line.isNew && (line.billingOnly || isPersistedDeliveryId(line.deliveryId)),
     )
-
-    setSaving(false)
-    if (!result.ok) {
-      setError(result.detail)
-      return
+    if (existingLines.length) {
+      const result = await updateStatementLines(
+        existingLines.map((line) => ({
+          source: 'delivery' as const,
+          deliveryId: line.deliveryId,
+          orderNumber: line.orderNumber,
+          orderLineId: line.orderLineId,
+          recordDate: recordDate.trim(),
+          productCode: line.productCode,
+          productName: line.productName,
+          quantity: Math.max(0, Math.floor(Number(line.quantity) || 0)),
+          unitPrice: parseMoneyInput(line.unitPrice),
+          billingOnly: line.billingOnly,
+        })),
+        reason ? { reason } : undefined,
+      )
+      if (!result.ok) {
+        setSaving(false)
+        setError(result.detail)
+        return
+      }
     }
 
+    for (const deliveryId of removedDeliveryIds) {
+      const result = await deleteDeliveryRecord(deliveryId)
+      if (!result.ok) {
+        setSaving(false)
+        setError(result.detail)
+        return
+      }
+    }
+
+    const newLines = productDrafts.filter((line) => line.isNew)
+    for (const line of newLines) {
+      const created = await createDeliveryRecord({
+        assemblyGroupId: line.assemblyGroupId,
+        quantity: Math.max(0, Math.floor(Number(line.quantity) || 0)),
+        recordDate: recordDate.trim(),
+        shipmentGroupId: shipmentId,
+        note: line.note,
+      })
+      if (!created.ok) {
+        setSaving(false)
+        setError(created.detail)
+        return
+      }
+
+      const priceResult = await updateStatementLines(
+        [
+          {
+            source: 'delivery' as const,
+            deliveryId: created.record.id,
+            orderNumber: line.orderNumber,
+            orderLineId: line.orderLineId,
+            recordDate: recordDate.trim(),
+            productCode: line.productCode,
+            productName: line.productName,
+            quantity: Math.max(0, Math.floor(Number(line.quantity) || 0)),
+            unitPrice: parseMoneyInput(line.unitPrice),
+          },
+        ],
+        reason ? { reason } : undefined,
+      )
+      if (!priceResult.ok) {
+        setSaving(false)
+        setError(priceResult.detail)
+        return
+      }
+    }
+
+    setSaving(false)
+    setReasonOpen(false)
     onSaved?.('출하 내역을 수정했습니다.')
     onClose()
+  }
+
+  async function handleSave() {
+    if (hasDraftUnitPriceChange(drafts, initialUnitPricesRef.current)) {
+      setReasonOpen(true)
+      return
+    }
+    await commitSave()
   }
 
   async function handlePrintStatement() {
@@ -410,12 +730,12 @@ export function DeliveryHistoryModal({
 
   async function handleDelete() {
     if (!group) return
-    const productDrafts = drafts.filter((line) => !line.billingOnly)
-    if (!productDrafts.length) return
+    const persisted = group.lines.filter((line) => isPersistedDeliveryId(line.id))
+    if (!persisted.length) return
     if (
       !(await confirm({
         title: '출하 내역 삭제',
-        message: `출하번호 ${shipmentId} 내역 ${productDrafts.length}건을 삭제할까요?\n삭제 후 누적 출하 수량이 함께 반영됩니다.`,
+        message: `출하번호 ${shipmentId} 내역 ${persisted.length}건을 삭제할까요?\n삭제 후 누적 출하 수량이 함께 반영됩니다.`,
         confirmLabel: '삭제',
         tone: 'danger',
       }))
@@ -426,8 +746,8 @@ export function DeliveryHistoryModal({
     setDeleting(true)
     setError(null)
 
-    for (const line of productDrafts) {
-      const result = await deleteDeliveryRecord(line.deliveryId)
+    for (const line of persisted) {
+      const result = await deleteDeliveryRecord(line.id)
       if (!result.ok) {
         setDeleting(false)
         setError(result.detail)
@@ -446,10 +766,11 @@ export function DeliveryHistoryModal({
   const cellReadOnlyClass = `${cellInputClass} bg-slate-50 text-slate-600`
 
   return (
+    <>
     <ErpModal
       open={open && Boolean(group)}
       title="출하"
-      description="출하일·수량·단가를 품목별로 수정합니다. 단가는 발주서에 반영됩니다."
+      description="출하일·수량·단가를 품목별로 수정하고, 행을 추가하거나 삭제할 수 있습니다. 단가는 발주서에 반영됩니다."
       size="xl"
       onClose={onClose}
       closeOnEscape={!busy}
@@ -520,19 +841,23 @@ export function DeliveryHistoryModal({
             </div>
           </div>
 
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-bold text-slate-900">품목</h3>
+            <ErpRowAddButton onClick={addRow} disabled={busy} title="행 추가" />
+          </div>
+
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="erp-data-table erp-data-table--compact min-w-[720px] w-full border-collapse text-sm">
               <thead className="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500">
                 <tr>
                   <th className="w-10 px-2 py-2 text-center">No</th>
-                  {showOrderNumber ? (
-                    <th className="px-2 py-2 text-left">발주번호</th>
-                  ) : null}
+                  <th className="px-2 py-2 text-left">발주번호</th>
                   <th className="px-2 py-2 text-left">품목코드</th>
                   <th className="px-2 py-2 text-left">품명</th>
                   <th className="w-[88px] px-2 py-2 text-right">수량</th>
                   <th className="w-[112px] px-2 py-2 text-right">단가</th>
                   <th className="w-[120px] px-2 py-2 text-right">공급가액</th>
+                  <th className="w-10 px-1 py-2" />
                 </tr>
               </thead>
               <tbody>
@@ -540,9 +865,22 @@ export function DeliveryHistoryModal({
                   const qty = Math.max(0, Math.floor(Number(line.quantity) || 0))
                   const price = parseMoneyInput(line.unitPrice)
                   const amount = qty * price
+                  const isNew = Boolean(line.isNew)
+                  const hasProduct = Boolean(line.productCode.trim() || line.productName.trim())
+                  const rowOptions = isNew
+                    ? findShippableOptionsForProduct(optionsForRow(index, line), customer, {
+                        id: '',
+                        productCode: line.productCode,
+                        productName: line.productName,
+                      })
+                    : []
+                  const canRemove =
+                    !line.billingOnly &&
+                    productRowCount > 1 &&
+                    (isNew || canDelete)
                   return (
                     <tr
-                      key={line.deliveryId}
+                      key={line.key}
                       className={[
                         'border-t border-slate-100',
                         line.billingOnly ? 'bg-amber-50/40' : '',
@@ -551,19 +889,99 @@ export function DeliveryHistoryModal({
                       <td className="px-2 py-2 text-center tabular-nums text-slate-500">
                         {index + 1}
                       </td>
-                      {showOrderNumber ? (
-                        <td className="px-2 py-2 font-mono text-xs text-slate-600">
-                          {displayOrderPoNumber(line.customerPoNumber, line.orderNumber) || '—'}
-                        </td>
-                      ) : null}
+                      <td className="px-2 py-2 font-mono text-xs text-slate-600">
+                        {line.billingOnly || !isNew ? (
+                          displayOrderPoNumber(line.customerPoNumber, line.orderNumber) || '—'
+                        ) : !hasProduct ? (
+                          <span className="text-slate-400">—</span>
+                        ) : rowOptions.length === 0 ? (
+                          <span className="block rounded border border-rose-200 bg-rose-50 px-2 py-1.5 text-xs font-medium text-rose-700">
+                            발주서 없음
+                          </span>
+                        ) : rowOptions.length === 1 ? (
+                          displayOrderPoNumber(
+                            rowOptions[0]!.customerPoNumber,
+                            rowOptions[0]!.orderNumber,
+                          ) || '—'
+                        ) : (
+                          <select
+                            value={line.assemblyGroupId}
+                            disabled={busy}
+                            onChange={(event) => selectOrderOption(index, event.target.value)}
+                            className={`${cellInputClass} min-w-[120px] text-xs`}
+                            aria-label={`${index + 1}행 발주번호 선택`}
+                          >
+                            <option value="">발주 선택</option>
+                            {rowOptions.map((option) => (
+                              <option key={option.assemblyGroupId} value={option.assemblyGroupId}>
+                                {displayOrderPoNumber(option.customerPoNumber, option.orderNumber)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
                       <td className={`px-2 py-2 font-mono text-xs text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                        {line.productCode || '—'}
+                        {line.billingOnly ? (
+                          line.productCode || '—'
+                        ) : isNew ? (
+                          <ProductCombobox
+                            value={line.productCode}
+                            products={searchableProducts}
+                            customer={customer}
+                            field="code"
+                            placeholder="코드 검색"
+                            ariaLabel={`${index + 1}행 품목코드`}
+                            inputClassName={`${cellInputClass} min-w-[120px] font-mono`}
+                            onValueChange={(productCode) =>
+                              patchDraft(index, {
+                                productCode,
+                                productName: '',
+                                assemblyGroupId: '',
+                                orderNumber: '',
+                                customerPoNumber: '',
+                                unitPrice: '0',
+                                quantity: '',
+                                maxQuantity: 0,
+                              })
+                            }
+                            onProductSelect={(product) => selectProduct(index, product)}
+                          />
+                        ) : (
+                          line.productCode || '—'
+                        )}
                       </td>
                       <td className={`px-2 py-2 font-medium text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                        {line.productName || '—'}
                         {line.billingOnly ? (
-                          <span className="ml-2 text-xs font-semibold text-amber-700">추가작업</span>
-                        ) : null}
+                          <>
+                            {line.productName || '—'}
+                            <span className="ml-2 text-xs font-semibold text-amber-700">추가작업</span>
+                          </>
+                        ) : isNew ? (
+                          <ProductCombobox
+                            value={line.productName}
+                            products={searchableProducts}
+                            customer={customer}
+                            field="name"
+                            placeholder="품목명 검색"
+                            ariaLabel={`${index + 1}행 품명`}
+                            inputClassName={`${cellInputClass} min-w-[140px]`}
+                            onValueChange={(productName) =>
+                              patchDraft(index, {
+                                productName,
+                                productCode: '',
+                                assemblyGroupId: '',
+                                orderNumber: '',
+                                customerPoNumber: '',
+                                unitPrice: '0',
+                                quantity: '',
+                                maxQuantity: 0,
+                              })
+                            }
+                            onProductSelect={(product) => selectProduct(index, product)}
+                          />
+                        ) : (
+                          line.productName || '—'
+                        )}
                       </td>
                       <td className="px-2 py-2">
                         <input
@@ -571,6 +989,11 @@ export function DeliveryHistoryModal({
                           min={1}
                           step={1}
                           value={line.quantity}
+                          placeholder={
+                            isNew && (line.maxQuantity || 0) > 0
+                              ? `잔량 ${(line.maxQuantity || 0).toLocaleString('ko-KR')}`
+                              : undefined
+                          }
                           readOnly={line.billingOnly}
                           onChange={(event) => patchDraft(index, { quantity: event.target.value })}
                           className={`${line.billingOnly ? cellReadOnlyClass : cellInputClass} text-right tabular-nums`}
@@ -594,13 +1017,26 @@ export function DeliveryHistoryModal({
                       <td className="px-2 py-2 text-right font-semibold tabular-nums text-slate-900">
                         {formatCount(amount)}
                       </td>
+                      <td className="px-1 py-2 text-center">
+                        {canRemove ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => removeRow(index)}
+                            className="rounded px-2 py-1 text-sm text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40"
+                            aria-label={`${index + 1}행 삭제`}
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </td>
                     </tr>
                   )
                 })}
               </tbody>
               <tfoot>
                 <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-900">
-                  <td className="px-2 py-2.5 text-right" colSpan={showOrderNumber ? 4 : 3}>
+                  <td className="px-2 py-2.5 text-right" colSpan={4}>
                     합계
                   </td>
                   <td className="px-2 py-2.5 text-right tabular-nums">
@@ -610,6 +1046,7 @@ export function DeliveryHistoryModal({
                   <td className="px-2 py-2.5 text-right tabular-nums">
                     {formatCount(totals.amount)}
                   </td>
+                  <td />
                 </tr>
               </tfoot>
             </table>
@@ -617,5 +1054,16 @@ export function DeliveryHistoryModal({
         </div>
       ) : null}
     </ErpModal>
+
+    <ChangeReasonModal
+      open={reasonOpen}
+      saving={saving}
+      onCancel={() => {
+        if (saving) return
+        setReasonOpen(false)
+      }}
+      onConfirm={(reason) => void commitSave(reason)}
+    />
+    </>
   )
 }

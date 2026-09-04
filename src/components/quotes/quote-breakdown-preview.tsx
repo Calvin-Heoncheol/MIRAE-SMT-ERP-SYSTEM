@@ -71,6 +71,7 @@ function BreakdownTableRow({
   displayCurrency,
   showBoardColumn,
   showProductionQty,
+  showPostUnitPrice = false,
   boardRowSpan,
   boardGroupStart,
   swapUnitAndCount = false,
@@ -80,18 +81,34 @@ function BreakdownTableRow({
   displayCurrency: QuoteDisplayCurrency
   showBoardColumn: boolean
   showProductionQty: boolean
+  showPostUnitPrice?: boolean
   boardRowSpan?: number
   boardGroupStart: boolean
   swapUnitAndCount?: boolean
 }) {
   const isBoardSubtotal = Boolean(row.boardSubtotal)
+  const showBoardSubtotalMetrics = Boolean(row.unitLabel) || (isBoardSubtotal && row.amount != null)
   const sectionColors = row.sectionFooter ? PDF_SECTION_COLORS[row.sectionFooter] : null
   const bgColor = sectionColors?.bg ?? (isBoardSubtotal ? BOARD_SUBTOTAL_ROW_BG : undefined)
   const rowStyle = bgColor ? { backgroundColor: bgColor } : undefined
   const borderTopClass = boardGroupStart ? 'border-t-2 border-slate-400' : 'border-t border-slate-200'
 
-  const unitText = isBoardSubtotal ? '' : formatPreviewRowUnit(row, quoteType, displayCurrency)
-  const countText = isBoardSubtotal ? '' : row.count != null ? String(row.count) : '-'
+  const unitText =
+    isBoardSubtotal && !showBoardSubtotalMetrics
+      ? ''
+      : isBoardSubtotal && !row.unitLabel && row.unit == null
+        ? ''
+        : showPostUnitPrice && row.unit == null && !row.unitLabel
+          ? ''
+          : formatPreviewRowUnit(row, quoteType, displayCurrency)
+  const countText =
+    isBoardSubtotal && !showBoardSubtotalMetrics
+      ? ''
+      : row.count != null
+        ? String(row.count)
+        : showBoardSubtotalMetrics
+          ? ''
+          : '-'
   const firstMetricText = swapUnitAndCount ? countText : unitText
   const secondMetricText = swapUnitAndCount ? unitText : countText
   const firstMetricAlign = swapUnitAndCount ? 'text-center' : row.unitLabel ? 'text-left' : 'text-right'
@@ -101,9 +118,25 @@ function BreakdownTableRow({
       : 'text-right'
     : 'text-center'
   const productionQtyText =
-    isBoardSubtotal || row.productionQty == null ? '' : String(row.productionQty)
+    (isBoardSubtotal && !showBoardSubtotalMetrics) || row.productionQty == null
+      ? ''
+      : String(row.productionQty)
+  const unitPriceText =
+    isBoardSubtotal
+      ? ''
+      : row.unitPrice == null
+        ? showPostUnitPrice
+          ? '-'
+          : ''
+        : formatAmount(row.unitPrice, quoteType, displayCurrency)
   const amountText =
-    isBoardSubtotal || row.amount == null ? (isBoardSubtotal ? '' : '-') : formatAmount(row.amount, quoteType, displayCurrency)
+    row.amount == null
+      ? isBoardSubtotal && !showBoardSubtotalMetrics
+        ? ''
+        : '-'
+      : isBoardSubtotal && !showBoardSubtotalMetrics
+        ? ''
+        : formatAmount(row.amount, quoteType, displayCurrency)
 
   const labelClass = row.emphasize || row.sectionFooter ? 'font-bold text-slate-900' : 'text-slate-700'
   const amountClass = row.amountEmphasize || row.sectionFooter ? 'font-bold text-slate-900' : 'text-xs text-slate-600'
@@ -133,6 +166,11 @@ function BreakdownTableRow({
       >
         {secondMetricText}
       </td>
+      {showPostUnitPrice ? (
+        <td className="whitespace-nowrap px-2 py-1.5 text-right text-xs tabular-nums text-slate-600 lg:px-3 lg:py-2">
+          {unitPriceText}
+        </td>
+      ) : null}
       {showProductionQty ? (
         <td className="whitespace-nowrap px-2 py-1.5 text-center text-xs tabular-nums text-slate-600 lg:px-3 lg:py-2">
           {productionQtyText || (isBoardSubtotal ? '' : '-')}
@@ -167,7 +205,7 @@ function BreakdownSectionTable({
         ? labels.colPostWorkQty
         : labels.colQty
   const firstMetricHeader = isPostSection ? qtyHeader : unitHeader
-  const secondMetricHeader = isPostSection ? unitHeader : qtyHeader
+  const secondMetricHeader = isPostSection ? labels.colPostRate : qtyHeader
 
   return (
     <div className={`breakdown-section-${section.key}`}>
@@ -195,6 +233,11 @@ function BreakdownSectionTable({
               >
                 {secondMetricHeader}
               </th>
+              {isPostSection ? (
+                <th className="border border-slate-400 px-2 py-1.5 text-right text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
+                  {labels.colUnit}
+                </th>
+              ) : null}
               {showProductionQty ? (
                 <th className="border border-slate-400 px-2 py-1.5 text-center text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
                   {labels.colProductionQty}
@@ -214,6 +257,7 @@ function BreakdownSectionTable({
                 displayCurrency={displayCurrency}
                 showBoardColumn={showBoardColumn}
                 showProductionQty={showProductionQty}
+                showPostUnitPrice={isPostSection}
                 boardRowSpan={showBoardColumn ? boardSpans[index] : undefined}
                 boardGroupStart={showBoardColumn && isBreakdownBoardGroupStart(section.rows, index)}
                 swapUnitAndCount={isPostSection}

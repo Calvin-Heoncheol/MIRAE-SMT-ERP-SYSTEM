@@ -64,8 +64,10 @@ export function buildItemPriceBreakdownFromQuote(quote: QuoteListItem): ItemPric
     const dipUnitPrice = money(
       (money(amounts.dip) +
         money(amounts.assembly) +
+        money(amounts.download) +
         money(amounts.test) +
-        money(amounts.packing)) /
+        money(amounts.packing) +
+        money(amounts.postProcessProfit)) /
         qty,
     )
     const materialPerUnit = money(settings.materialCostPerUnit)
@@ -83,7 +85,10 @@ export function buildItemPriceBreakdownFromQuote(quote: QuoteListItem): ItemPric
   const setupUnitPrice = money(estimate.common.smtSetup)
   const smdUnitPrice = money((money(estimate.values.smt) - setupUnitPrice) / qty)
   const dipUnitPrice = money(
-    (money(estimate.values.dip) + money(estimate.values.postProcess)) / qty,
+    (money(estimate.values.dip) +
+      money(estimate.values.postProcess) +
+      money(estimate.common.postProcessProfit)) /
+      qty,
   )
   const materialUnitPrice = money(
     (Number(settings.materialCostPerUnit) || 0) +

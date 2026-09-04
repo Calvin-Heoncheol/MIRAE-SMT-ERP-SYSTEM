@@ -30,7 +30,7 @@ import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
 import { playScanSound } from '@/lib/ui/toast-sound'
 
 function formatSmtPlanChipLabel(plan: SmtPlanBlock) {
-  const side = plan.pcbSide === 'TOP' || plan.pcbSide === 'BOT' ? plan.pcbSide : '단면'
+  const side = plan.pcbSide === 'TOP' || plan.pcbSide === 'BOT' ? plan.pcbSide : 'SINGLE'
   return `${plan.productSummary || plan.orderNumber} · ${side} · ${plan.plannedQuantity.toLocaleString('ko-KR')}대`
 }
 
@@ -67,6 +67,9 @@ type ProductionInputPanelProps = {
   onPlanProgressUpdated?: (progressKey: string, produced: number) => void
   /** 모달 등 — 주문 정보 중복 헤더 축소 */
   embedded?: boolean
+  /** 테이블 TOP/BOT 셀 클릭 시 초기 면 */
+  initialPcbSide?: SmtPcbSide | null
+  onActiveSideChange?: (side: SmtPcbSide) => void
 }
 
 export function ProductionInputPanel({
@@ -90,6 +93,8 @@ export function ProductionInputPanel({
   planProduced = 0,
   onPlanProgressUpdated,
   embedded = false,
+  initialPcbSide = null,
+  onActiveSideChange,
 }: ProductionInputPanelProps) {
   const toast = useToast()
   const [activeSide, setActiveSide] = useState<SmtPcbSide>('SINGLE')
@@ -203,7 +208,9 @@ export function ProductionInputPanel({
         smtPlan.pcbSide === 'TOP' || smtPlan.pcbSide === 'BOT' ? smtPlan.pcbSide : 'SINGLE',
       )
     } else if (order?.splitPcbSides) {
-      setActiveSide('TOP')
+      setActiveSide(
+        initialPcbSide === 'TOP' || initialPcbSide === 'BOT' ? initialPcbSide : 'TOP',
+      )
     } else {
       setActiveSide('SINGLE')
     }
@@ -211,7 +218,11 @@ export function ProductionInputPanel({
     setQty('')
     setDefectReason('')
     setMessage(null)
-  }, [order?.uiKey, order?.splitPcbSides, lockToPlan, plan?.id, smtPlan?.pcbSide])
+  }, [order?.uiKey, order?.splitPcbSides, lockToPlan, plan?.id, smtPlan?.pcbSide, initialPcbSide])
+
+  useEffect(() => {
+    onActiveSideChange?.(activeSide)
+  }, [activeSide, onActiveSideChange])
 
   useEffect(() => {
     if (lockToPlan) return
@@ -292,7 +303,7 @@ export function ProductionInputPanel({
           ? `계획 남은 수량(${remaining.toLocaleString('ko-KR')})을 초과할 수 없습니다.`
           : isPostProcess
             ? `남은 수량(${remaining.toLocaleString('ko-KR')})을 초과할 수 없습니다.`
-            : `${pcbSide} 면 남은 수량(${remaining.toLocaleString('ko-KR')})을 초과할 수 없습니다.`,
+            : `${pcbSide} 남은 수량(${remaining.toLocaleString('ko-KR')})을 초과할 수 없습니다.`,
         kind: 'err',
       })
       if (scanMode) playScanSound('error')
@@ -404,7 +415,13 @@ export function ProductionInputPanel({
     return true
   }
 
-  const progressLabel = lockToPlan ? '계획 진행' : isDual ? `${pcbSide} 진행` : '진행'
+  const progressLabel = lockToPlan
+    ? '계획 진행'
+    : isDual
+      ? `${pcbSide} 진행`
+      : embedded && !isPostProcess
+        ? 'SINGLE'
+        : '진행'
   const progressComplete = target > 0 && cumulative >= target
 
   /** 본문 인라인: 라인 선택·복수 계획 칩만 (팀 뱃지는 헤더) */
@@ -414,8 +431,24 @@ export function ProductionInputPanel({
   const showEmptyPlanControls = Boolean(planSetupHref) || showPostProcessPlanSelector
   /** SMT=생산1팀, 후공정=생산2/3/4팀 — 발주서 미선택 empty state에서도 표시 */
   const headerTeamBadge = isPostProcess ? (postProcessTeam ?? null) : '생산1팀'
-  const showPanelHeader = Boolean(headerTeamBadge || (order && !embedded))
+  const showPanelHeader = !embedded && Boolean(headerTeamBadge || order)
   const headerTeamTone = isPostProcess ? ('success' as const) : ('info' as const)
+  const blockGap = embedded ? 'mt-2 border-t border-slate-100 pt-2' : 'mt-4 border-t border-slate-100 pt-4'
+  const cardPad = embedded ? 'p-2.5' : 'p-3.5 sm:p-4'
+  const countTextLg = embedded ? 'text-lg' : 'text-2xl sm:text-3xl'
+  const countTextMd = embedded ? 'text-base' : 'text-xl sm:text-2xl'
+  const presetBtnClass = embedded
+    ? 'min-h-[2.35rem] rounded-lg border-2 text-base font-bold'
+    : 'min-h-[3.25rem] rounded-xl border-2 text-lg font-bold sm:min-h-[3.5rem] sm:text-xl'
+  const qtyStepperClass = embedded
+    ? 'flex aspect-square min-h-[3rem] w-11 items-center justify-center rounded-lg border-2 border-slate-200 text-2xl font-bold'
+    : 'flex aspect-square min-h-[3.75rem] w-14 items-center justify-center rounded-xl border-2 border-slate-200 text-3xl font-bold sm:min-h-[4.25rem] sm:w-16 sm:text-4xl'
+  const qtyInputClass = embedded
+    ? 'min-h-[3rem] w-full rounded-lg border-2 bg-slate-50 px-2 text-center text-3xl font-bold tabular-nums outline-none focus:bg-white disabled:text-slate-400'
+    : 'min-h-[3.75rem] w-full rounded-xl border-2 bg-slate-50 px-3 text-center text-4xl font-bold text-slate-900 tabular-nums outline-none focus:bg-white disabled:text-slate-400 sm:min-h-[4.25rem] sm:text-5xl'
+  const submitBtnClass = embedded
+    ? 'mt-2 min-h-[2.75rem] w-full rounded-lg text-sm font-bold text-white'
+    : 'mt-3 min-h-[3.25rem] w-full rounded-xl text-base font-bold text-white sm:min-h-[3.5rem] sm:text-lg'
 
   const planControls = showPlanControls ? (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -485,7 +518,13 @@ export function ProductionInputPanel({
   ) : null
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col bg-slate-100">
+    <div
+      className={
+        embedded
+          ? 'flex flex-col bg-white'
+          : 'flex h-full min-h-0 flex-1 flex-col bg-slate-100'
+      }
+    >
       {showPanelHeader ? (
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5 sm:px-4">
           {headerTeamBadge ? (
@@ -507,8 +546,20 @@ export function ProductionInputPanel({
       ) : null}
 
       {order ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto overscroll-contain p-3 sm:p-4">
-          <section className="mx-auto w-full max-w-5xl shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:max-w-6xl">
+        <div
+          className={
+            embedded
+              ? 'p-2'
+              : 'flex min-h-0 flex-1 flex-col items-center overflow-y-auto overscroll-contain p-3 sm:p-4'
+          }
+        >
+          <section
+            className={
+              embedded
+                ? 'w-full'
+                : 'mx-auto w-full max-w-5xl shrink-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:max-w-6xl'
+            }
+          >
             <div>
               {!embedded ? (
                 <p className="text-sm text-slate-500">
@@ -526,14 +577,16 @@ export function ProductionInputPanel({
                 ].join(' ')}
               >
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <h2 className="text-xl font-bold leading-snug text-slate-900 break-keep sm:text-2xl">
-                    {formatProductionProductName(order)}
-                  </h2>
+                  {!embedded ? (
+                    <h2 className="text-xl font-bold leading-snug text-slate-900 break-keep sm:text-2xl">
+                      {formatProductionProductName(order)}
+                    </h2>
+                  ) : null}
                   {lockToPlan && sideLabel ? (
                     <span className="inline-flex shrink-0 items-center rounded-lg bg-slate-900 px-2.5 py-0.5 text-lg font-bold leading-none tracking-wide text-white sm:text-xl">
                       {sideLabel}
                     </span>
-                  ) : !isPostProcess ? (
+                  ) : !isPostProcess && !embedded ? (
                     <span
                       className={[
                         'inline-flex shrink-0 items-center rounded-lg px-2.5 py-0.5 text-lg font-bold leading-none sm:text-xl',
@@ -561,7 +614,7 @@ export function ProductionInputPanel({
               </div>
 
               {isDual ? (
-                <div className="mt-4 grid grid-cols-2 gap-2.5 border-t border-slate-100 pt-4">
+                <div className={`${blockGap} grid grid-cols-2 gap-2`}>
                   {(['TOP', 'BOT'] as const).map((side) => {
                     const sideCumulative = resolveProductionSideCount(order, counts, side)
                     const sideDefectCumulative = resolveProductionSideCount(order, defectCounts, side)
@@ -579,7 +632,7 @@ export function ProductionInputPanel({
                         type="button"
                         onClick={() => setActiveSide(side)}
                         className={[
-                          'rounded-xl border p-3.5 text-left transition sm:p-4',
+                          `${cardPad} rounded-xl border text-left transition`,
                           selected
                             ? 'border-sky-500 bg-sky-50/50 ring-2 ring-sky-100'
                             : 'border-slate-200 bg-slate-50/50 hover:border-slate-300',
@@ -590,10 +643,10 @@ export function ProductionInputPanel({
                             <p className="text-xs font-bold tracking-[0.12em] text-slate-400 uppercase">
                               {side}
                             </p>
-                            <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">
+                            <p className={`mt-1 font-bold tabular-nums text-slate-900 ${countTextLg}`}>
                               {sideCumulative.toLocaleString('ko-KR')}
-                              <span className="mx-1 text-xl font-semibold text-slate-300 sm:text-2xl">/</span>
-                              <span className="text-xl font-semibold text-slate-500 sm:text-2xl">
+                              <span className={`mx-1 font-semibold text-slate-300 ${countTextMd}`}>/</span>
+                              <span className={`font-semibold text-slate-500 ${countTextMd}`}>
                                 {orderTarget.toLocaleString('ko-KR')}
                               </span>
                             </p>
@@ -623,30 +676,32 @@ export function ProductionInputPanel({
                             ) : null}
                           </div>
                         ) : null}
-                        <p className="mt-2 text-xs font-medium text-slate-500">
-                          {sideComplete
-                            ? '목표 수량을 달성했습니다.'
-                            : `${sideStacked.totalPercent}% 진행 · ${sideRemaining.toLocaleString('ko-KR')}대 더 등록 가능`}
-                          {sideDefectCumulative > 0
-                            ? ` · 불량 ${sideDefectCumulative.toLocaleString('ko-KR')}대`
-                            : ''}
-                        </p>
+                        {!embedded ? (
+                          <p className="mt-2 text-xs font-medium text-slate-500">
+                            {sideComplete
+                              ? '목표 수량을 달성했습니다.'
+                              : `${sideStacked.totalPercent}% 진행 · ${sideRemaining.toLocaleString('ko-KR')}대 더 등록 가능`}
+                            {sideDefectCumulative > 0
+                              ? ` · 불량 ${sideDefectCumulative.toLocaleString('ko-KR')}대`
+                              : ''}
+                          </p>
+                        ) : null}
                       </button>
                     )
                   })}
                 </div>
               ) : (
-                <div className="mt-4 border-t border-slate-100 pt-4">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 sm:p-4">
+                <div className={blockGap}>
+                  <div className={`rounded-xl border border-slate-200 bg-slate-50/50 ${cardPad}`}>
                     <div className="flex flex-wrap items-end justify-between gap-2">
                       <div>
                         <p className="text-xs font-bold tracking-[0.12em] text-slate-400 uppercase">
                           {progressLabel}
                         </p>
-                        <p className="mt-1.5 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">
+                        <p className={`mt-1 font-bold tabular-nums text-slate-900 ${countTextLg}`}>
                           {cumulative.toLocaleString('ko-KR')}
-                          <span className="mx-1 text-xl font-semibold text-slate-300 sm:text-2xl">/</span>
-                          <span className="text-xl font-semibold text-slate-500 sm:text-2xl">
+                          <span className={`mx-1 font-semibold text-slate-300 ${countTextMd}`}>/</span>
+                          <span className={`font-semibold text-slate-500 ${countTextMd}`}>
                             {target.toLocaleString('ko-KR')}
                           </span>
                         </p>
@@ -676,21 +731,23 @@ export function ProductionInputPanel({
                         ) : null}
                       </div>
                     ) : null}
-                    <p className="mt-2 text-xs font-medium text-slate-500">
-                      {progressComplete
-                        ? '목표 수량을 달성했습니다.'
-                        : `${stacked.totalPercent}% 진행 · ${remaining.toLocaleString('ko-KR')}대 더 등록 가능`}
-                      {defectCumulative > 0
-                        ? ` · 불량 ${defectCumulative.toLocaleString('ko-KR')}대`
-                        : ''}
-                    </p>
+                    {!embedded ? (
+                      <p className="mt-2 text-xs font-medium text-slate-500">
+                        {progressComplete
+                          ? '목표 수량을 달성했습니다.'
+                          : `${stacked.totalPercent}% 진행 · ${remaining.toLocaleString('ko-KR')}대 더 등록 가능`}
+                        {defectCumulative > 0
+                          ? ` · 불량 ${defectCumulative.toLocaleString('ko-KR')}대`
+                          : ''}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="mt-4 border-t border-slate-100 pt-4">
-              <div className="mb-4 space-y-3">
+            <div className={blockGap}>
+              <div className={embedded ? 'mb-2 space-y-2' : 'mb-4 space-y-3'}>
                 {planControls}
                 <label className="block text-sm">
                   <span className="mb-1 block font-medium text-slate-600">생산일</span>
@@ -707,10 +764,12 @@ export function ProductionInputPanel({
                 </label>
               </div>
 
-              <p className="mb-3 text-sm font-bold text-slate-800">수량 입력</p>
+              {!embedded ? (
+                <p className="mb-3 text-sm font-bold text-slate-800">수량 입력</p>
+              ) : null}
 
               <div
-                className="mt-3 grid grid-cols-2 gap-2"
+                className={`${embedded ? 'mt-0' : 'mt-3'} grid grid-cols-2 gap-2`}
                 role="tablist"
                 aria-label="수량 입력 모드"
               >
@@ -734,7 +793,9 @@ export function ProductionInputPanel({
                       disabled={saving}
                       onClick={() => switchQtyMode(mode.id)}
                       className={[
-                        'min-h-[2.75rem] rounded-xl border px-3 py-2 text-sm font-bold transition sm:text-base',
+                        embedded
+                          ? 'min-h-[2.35rem] rounded-lg border px-2 py-1.5 text-sm font-bold'
+                          : 'min-h-[2.75rem] rounded-xl border px-3 py-2 text-sm font-bold transition sm:text-base',
                         active
                           ? activeClass
                           : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
@@ -746,10 +807,10 @@ export function ProductionInputPanel({
                 })}
               </div>
 
-              <p className="mt-3 text-xs font-bold text-slate-500">
-                {qtyModeLabel}
-              </p>
-              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {!embedded ? (
+                <p className="mt-3 text-xs font-bold text-slate-500">{qtyModeLabel}</p>
+              ) : null}
+              <div className={`${embedded ? 'mt-1.5' : 'mt-2'} grid grid-cols-2 gap-2 sm:grid-cols-4`}>
                 {([1, 10, 100, 1000] as const).map((step) => (
                   <button
                     key={step}
@@ -757,7 +818,7 @@ export function ProductionInputPanel({
                     disabled={presetDisabled}
                     onClick={() => bumpQty(step)}
                     className={[
-                      'min-h-[3.25rem] rounded-xl border-2 text-lg font-bold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[3.5rem] sm:text-xl',
+                      `${presetBtnClass} transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40`,
                       isGoodMode
                         ? 'border-slate-200 bg-slate-50 text-slate-700 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-800'
                         : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800',
@@ -773,7 +834,7 @@ export function ProductionInputPanel({
                   type="button"
                   disabled={qtyInputDisabled || qtyNumber < 1}
                   onClick={() => bumpQty(-1)}
-                  className="flex aspect-square min-h-[3.75rem] w-14 items-center justify-center rounded-xl border-2 border-slate-200 text-3xl font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[4.25rem] sm:w-16 sm:text-4xl"
+                  className={`${qtyStepperClass} text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40`}
                   aria-label={`${qtyModeLabel} 수량 1 감소`}
                 >
                   −
@@ -800,7 +861,8 @@ export function ProductionInputPanel({
                   placeholder="0"
                   aria-label={`${qtyModeLabel} 수량`}
                   className={[
-                    'min-h-[3.75rem] w-full rounded-xl border-2 bg-slate-50 px-3 text-center text-4xl font-bold text-slate-900 tabular-nums outline-none focus:bg-white disabled:text-slate-400 sm:min-h-[4.25rem] sm:text-5xl',
+                    qtyInputClass,
+                    'text-slate-900',
                     isGoodMode
                       ? 'border-slate-200 focus:border-sky-400 focus:ring-2 focus:ring-sky-100'
                       : 'border-slate-200 focus:border-rose-300 focus:ring-2 focus:ring-rose-100',
@@ -810,7 +872,7 @@ export function ProductionInputPanel({
                   type="button"
                   disabled={bumpPlusDisabled}
                   onClick={() => bumpQty(1)}
-                  className="flex aspect-square min-h-[3.75rem] w-14 items-center justify-center rounded-xl border-2 border-slate-200 text-3xl font-bold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[4.25rem] sm:w-16 sm:text-4xl"
+                  className={`${qtyStepperClass} text-slate-600 transition hover:bg-slate-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40`}
                   aria-label={`${qtyModeLabel} 수량 1 증가`}
                 >
                   +
@@ -851,7 +913,8 @@ export function ProductionInputPanel({
                 }
                 onClick={() => void handleSubmit()}
                 className={[
-                  'mt-3 min-h-[3.25rem] w-full rounded-xl text-base font-bold text-white transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 sm:min-h-[3.5rem] sm:text-lg',
+                  submitBtnClass,
+                  'transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300',
                   isGoodMode
                     ? 'bg-slate-800 hover:bg-slate-900'
                     : 'bg-rose-700 hover:bg-rose-800',
