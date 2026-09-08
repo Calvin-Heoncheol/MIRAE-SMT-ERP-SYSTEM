@@ -443,7 +443,9 @@ export function QuoteBreakdownPreview({
           </span>
           <span className="font-semibold text-slate-900">
             {previewSummary
-              ? showVat && previewSummary.unitInclFormatted
+              ? showVat &&
+                'unitInclFormatted' in previewSummary &&
+                previewSummary.unitInclFormatted
                 ? previewSummary.unitInclFormatted
                 : previewSummary.unitFormatted
               : formatAmount(0, quoteType, displayCurrency)}
@@ -460,13 +462,15 @@ export function QuoteBreakdownPreview({
             <div className="flex items-center justify-between text-[13px]">
               <span className="font-medium text-slate-600">{previewLabels.vatAmount}</span>
               <span className="font-semibold tabular-nums text-slate-800">
-                {previewSummary.vatFormatted ?? '-'}
+                {'vatFormatted' in previewSummary ? previewSummary.vatFormatted : '-'}
               </span>
             </div>
             <div className="flex items-center justify-between text-base">
               <span className="font-bold text-slate-900">{previewLabels.grandTotalVatIncl}</span>
               <span className="font-bold text-slate-800">
-                {previewSummary.totalInclFormatted ?? previewSummary.totalFormatted}
+                {'totalInclFormatted' in previewSummary
+                  ? previewSummary.totalInclFormatted
+                  : previewSummary.totalFormatted}
               </span>
             </div>
           </>
