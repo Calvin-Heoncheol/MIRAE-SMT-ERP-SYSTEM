@@ -87,7 +87,7 @@ export function ProductionPlanAssignModal({
     <ErpModal
       open={open}
       title="생산계획 배정"
-      description={`${targetTitle(target)} · 일부입고·입고완료만 배정 가능`}
+      description={`${targetTitle(target)} · 클릭하여 배정`}
       onClose={() => {
         setSearch('')
         onClose()
@@ -112,11 +112,13 @@ export function ProductionPlanAssignModal({
             <p className="py-10 text-center text-sm text-slate-400">배정할 발주가 없습니다.</p>
           ) : (
             <>
-              <div className="sticky top-0 z-[1] grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_5rem_5.5rem_5.5rem] gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold text-slate-500">
+              <div className="sticky top-0 z-[1] grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.4fr)_5rem_5.5rem_6.5rem_5.5rem] gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold text-slate-500">
+                <span>발주서번호</span>
                 <span>고객사</span>
                 <span>제품</span>
                 <span className="text-right">수량</span>
                 <span className="text-right">자재입고</span>
+                <span className="text-right">납기일</span>
                 <span className="text-right">상태</span>
               </div>
               <div className="space-y-1.5 p-3">
@@ -124,51 +126,45 @@ export function ProductionPlanAssignModal({
                   const planRow = pickPlanningRowForLine(line, scope)
                   if (!planRow) return null
                   const inboundState = resolveInboundState(line.rep)
-                  const canAssign = inboundState === 'partial' || inboundState === 'full'
                   const unplanned = lineUnplannedQty(line)
                   return (
                     <button
                       key={line.key}
                       type="button"
-                      disabled={!canAssign}
-                      title={
-                        canAssign ? '클릭하여 배정' : '자재 입고 후 배정할 수 있습니다'
-                      }
+                      title="클릭하여 배정"
                       onClick={() => {
-                        if (!canAssign) return
                         setSearch('')
                         onSelectRow(planRow)
                       }}
-                      className={`grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_5rem_5.5rem_5.5rem] items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition ${
-                        canAssign
-                          ? scope === 'post'
-                            ? 'border-violet-200 bg-violet-50 text-violet-900 hover:brightness-95'
-                            : 'border-sky-200 bg-sky-50 text-sky-900 hover:brightness-95'
-                          : 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
+                      className={`grid w-full grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.4fr)_5rem_5.5rem_6.5rem_5.5rem] items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition hover:brightness-95 ${
+                        scope === 'post'
+                          ? 'border-violet-200 bg-violet-50 text-violet-900'
+                          : 'border-sky-200 bg-sky-50 text-sky-900'
                       }`}
                     >
+                      <p className="min-w-0 truncate font-mono text-xs font-semibold">
+                        {displayOrderPoNumber(line.rep.customerPoNumber, line.rep.orderNumber) ||
+                          '—'}
+                      </p>
                       <p className="min-w-0 truncate text-xs font-semibold">
                         {line.rep.customer || '—'}
                       </p>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold">{line.rep.productName || '—'}</p>
-                        <p className="mt-0.5 truncate font-mono text-[11px] opacity-70">
-                          {displayOrderPoNumber(line.rep.customerPoNumber, line.rep.orderNumber) ||
-                            '—'}
-                        </p>
-                      </div>
+                      <p className="min-w-0 truncate text-sm font-bold">
+                        {line.rep.productName || '—'}
+                      </p>
                       <p className="text-right text-sm font-bold tabular-nums">
                         {unplanned.toLocaleString('ko-KR')}
                       </p>
                       <p className="text-right text-sm font-semibold tabular-nums opacity-80">
                         {Math.max(0, line.rep.materialReadyQty).toLocaleString('ko-KR')}
                       </p>
+                      <p className="text-right text-xs font-medium tabular-nums opacity-80">
+                        {line.rep.deliveryDate || '—'}
+                      </p>
                       <div className="flex justify-end">
                         <StatusBadge
                           label={materialInboundFilterLabel(inboundState)}
-                          className={`${ERP_BADGE_COMPACT_CLASS} ${inboundBadgeClass(inboundState)} ${
-                            canAssign ? '' : '!opacity-80'
-                          }`}
+                          className={`${ERP_BADGE_COMPACT_CLASS} ${inboundBadgeClass(inboundState)}`}
                         />
                       </div>
                     </button>

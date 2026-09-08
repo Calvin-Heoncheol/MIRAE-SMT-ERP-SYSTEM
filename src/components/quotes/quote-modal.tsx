@@ -17,7 +17,10 @@ import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { useBusy } from '@/components/ui/busy-provider'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
-import { computeSampleCostTotal, getPostRate } from '@/lib/quotes/constants'
+import {
+  computeSampleCostTotal,
+  getPostRate,
+} from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
 import type { QuoteRowPayload } from '@/lib/quotes/build-quote-payload'
@@ -34,7 +37,9 @@ import {
   type SmtBoardForm,
 } from '@/lib/quotes/form-state'
 import {
+  defaultPostProcessBufferPercent,
   emptyPostProcessLineForm,
+  parsePostProcessBufferPercent,
   resolveCategorizedPostProcessLineForms,
   sumPostProcessBilledMinutes,
   type PostProcessLineForm,
@@ -66,11 +71,15 @@ type QuoteModalProps = {
   mode: 'create' | 'edit'
   quoteType: QuoteType
   quote?: QuoteListItem | null
+  /** 기존 견적 내용으로 새 견적 작성 */
+  copyFrom?: QuoteListItem | null
   initialDraft?: AiQuoteDraft
   existingQuoteNumbers?: string[]
   onClose: () => void
   onSaved?: (message?: string) => void
   onDeleted?: (message?: string) => void
+  /** 수정 모드에서 이 견적으로 새 작성 */
+  onCopyRequest?: (quote: QuoteListItem) => void
 }
 
 type FormState = {
@@ -80,10 +89,14 @@ type FormState = {
   boardQty: string
   pcbBoardCount: string
   productionKind: '샘플' | '양산'
+  /** true = VAT 포함 표시 */
+  includeVat: boolean
   assemblyLines: PostProcessLineForm[]
   downloadLines: PostProcessLineForm[]
   testLines: PostProcessLineForm[]
   packingLines: PostProcessLineForm[]
+  /** 후공정 시간 여유 % */
+  postProcessBufferPercent: string
   materialCost: string
   specialDiscount: string
   includeSmd: boolean
@@ -101,10 +114,12 @@ const INITIAL_FORM: FormState = {
   boardQty: '1000',
   pcbBoardCount: '1',
   productionKind: '양산',
+  includeVat: false,
   assemblyLines: [emptyPostProcessLineForm()],
   downloadLines: [emptyPostProcessLineForm()],
   testLines: [emptyPostProcessLineForm()],
   packingLines: [emptyPostProcessLineForm()],
+  postProcessBufferPercent: String(defaultPostProcessBufferPercent(1000)),
   materialCost: '0',
   specialDiscount: '0',
   includeSmd: true,
@@ -173,47 +188,60 @@ function syncDipNamesFromSmt(smtForms: SmtBoardForm[], dipForms: DipBoardForm[])
   }))
 }
 
-function createInitialState(mode: 'create' | 'edit', quote?: QuoteListItem | null) {
-  if (mode === 'edit' && quote) {
-    const input = toEstimateInputFromDetail(quote)
-    const flags = inferIncludeFlags(quote)
-    const pcbBoardCount = String(input.pcbBoardCount || input.pcbBoards?.length || 1)
-    const smtForms = input.pcbBoards?.length
-      ? input.pcbBoards.map(smtBoardToForm)
-      : [defaultSmtBoardForm(0)]
-    const dipForms = syncDipNamesFromSmt(
-      smtForms,
-      input.dipBoards?.length ? input.dipBoards.map(dipBoardToForm) : [defaultDipBoardForm(0)],
-    )
-    const post = quote.detailInfo.inputs?.postProcess || {}
-    const categorized = resolveCategorizedPostProcessLineForms(post)
+function buildStateFromQuote(quote: QuoteListItem) {
+  const input = toEstimateInputFromDetail(quote)
+  const flags = inferIncludeFlags(quote)
+  const pcbBoardCount = String(input.pcbBoardCount || input.pcbBoards?.length || 1)
+  const smtForms = input.pcbBoards?.length
+    ? input.pcbBoards.map(smtBoardToForm)
+    : [defaultSmtBoardForm(0)]
+  const dipForms = syncDipNamesFromSmt(
+    smtForms,
+    input.dipBoards?.length ? input.dipBoards.map(dipBoardToForm) : [defaultDipBoardForm(0)],
+  )
+  const post = quote.detailInfo.inputs?.postProcess || {}
+  const categorized = resolveCategorizedPostProcessLineForms(post)
+  const boardQty = String(quote.boardQty || 1000)
+  const bufferPercent =
+    parsePostProcessBufferPercent(post.timeBufferPercent) ??
+    defaultPostProcessBufferPercent(boardQty)
 
-    return {
-      form: {
-        customer: quote.customer,
-        productName: quote.productName,
-        productId: quote.detailInfo.settings?.productId || '',
-        boardQty: String(quote.boardQty || 1000),
-        pcbBoardCount,
-        productionKind:
-          quote.detailInfo.settings?.productionKind === '샘플'
-            ? ('샘플' as const)
-            : ('양산' as const),
-        assemblyLines: categorized.assemblyLines,
-        downloadLines: categorized.downloadLines,
-        testLines: categorized.testLines,
-        packingLines: categorized.packingLines,
-        materialCost: String(input.materialCost || 0),
-        specialDiscount: String(input.specialDiscount || 0),
-        includeSmd: flags.includeSmd,
-        includeDip: flags.includeDip,
-        includeMaterialCosts: quote.detailInfo.settings?.includeMaterialCosts !== false,
-        includeMetalMask: quote.detailInfo.settings?.includeMetalMask !== false,
-      },
-      smtForms,
-      dipForms,
-    }
+  return {
+    form: {
+      customer: quote.customer,
+      productName: quote.productName,
+      productId: quote.detailInfo.settings?.productId || '',
+      boardQty,
+      pcbBoardCount,
+      productionKind:
+        quote.detailInfo.settings?.productionKind === '샘플'
+          ? ('샘플' as const)
+          : ('양산' as const),
+      includeVat: quote.detailInfo.settings?.includeVat === true,
+      assemblyLines: categorized.assemblyLines,
+      downloadLines: categorized.downloadLines,
+      testLines: categorized.testLines,
+      packingLines: categorized.packingLines,
+      postProcessBufferPercent: String(bufferPercent),
+      materialCost: String(input.materialCost || 0),
+      specialDiscount: String(input.specialDiscount || 0),
+      includeSmd: flags.includeSmd,
+      includeDip: flags.includeDip,
+      includeMaterialCosts: quote.detailInfo.settings?.includeMaterialCosts !== false,
+      includeMetalMask: quote.detailInfo.settings?.includeMetalMask !== false,
+    } satisfies FormState,
+    smtForms,
+    dipForms,
   }
+}
+
+function createInitialState(
+  mode: 'create' | 'edit',
+  quote?: QuoteListItem | null,
+  copyFrom?: QuoteListItem | null,
+) {
+  if (mode === 'edit' && quote) return buildStateFromQuote(quote)
+  if (mode === 'create' && copyFrom) return buildStateFromQuote(copyFrom)
 
   const count = Number(INITIAL_FORM.pcbBoardCount)
   const smtForms = resizeBoardForms([], count, defaultSmtBoardForm)
@@ -246,10 +274,26 @@ function computeEstimate(
     }),
   )
 
-  const postAssembly = sumPostProcessBilledMinutes(form.assemblyLines, form.productionKind)
-  const postDownload = sumPostProcessBilledMinutes(form.downloadLines, form.productionKind)
-  const postTest = sumPostProcessBilledMinutes(form.testLines, form.productionKind)
-  const postPacking = sumPostProcessBilledMinutes(form.packingLines, form.productionKind)
+  const postAssembly = sumPostProcessBilledMinutes(
+    form.assemblyLines,
+    form.boardQty,
+    form.postProcessBufferPercent,
+  )
+  const postDownload = sumPostProcessBilledMinutes(
+    form.downloadLines,
+    form.boardQty,
+    form.postProcessBufferPercent,
+  )
+  const postTest = sumPostProcessBilledMinutes(
+    form.testLines,
+    form.boardQty,
+    form.postProcessBufferPercent,
+  )
+  const postPacking = sumPostProcessBilledMinutes(
+    form.packingLines,
+    form.boardQty,
+    form.postProcessBufferPercent,
+  )
 
   return calculateEstimate(
     {
@@ -299,17 +343,19 @@ function QuoteModalContent({
   mode,
   quoteType,
   quote,
+  copyFrom,
   initialDraft,
   existingQuoteNumbers = [],
   onClose,
   onSaved,
   onDeleted,
+  onCopyRequest,
 }: Omit<QuoteModalProps, 'open'>) {
   const canDelete = useCanDeleteRecords()
   const confirm = useErpConfirm()
   const { profile } = useAuthProfile()
   const contactEmail = String(profile?.email || '').trim()
-  const initial = createInitialState(mode, quote)
+  const initial = createInitialState(mode, quote, copyFrom)
   const seeded = mode === 'create' && initialDraft ? applyAiQuoteDraft(initial, initialDraft) : initial
   const [form, setForm] = useState<FormState>(seeded.form)
   const [smtForms, setSmtForms] = useState(seeded.smtForms)
@@ -347,7 +393,9 @@ function QuoteModalContent({
   const title =
     mode === 'edit'
       ? `${isDomestic ? '국내용' : '해외용'} 견적서 수정`
-      : `${isDomestic ? '국내용' : '해외용'} 견적서 작성`
+      : copyFrom
+        ? `${isDomestic ? '국내용' : '해외용'} 견적서 복사 작성`
+        : `${isDomestic ? '국내용' : '해외용'} 견적서 작성`
 
   useEffect(() => {
     let cancelled = false
@@ -380,7 +428,7 @@ function QuoteModalContent({
   }, [busy, onClose])
 
   useEffect(() => {
-    const next = createInitialState(mode, quote)
+    const next = createInitialState(mode, quote, copyFrom)
     const resolved = mode === 'create' && initialDraft ? applyAiQuoteDraft(next, initialDraft) : next
     setForm(resolved.form)
     setSmtForms(resolved.smtForms)
@@ -400,7 +448,7 @@ function QuoteModalContent({
       material: mode !== 'edit',
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 모달 대상 변경 시 폼 리셋
-  }, [mode, quote?.quoteNumber, quoteType, initialDraft])
+  }, [mode, quote?.quoteNumber, copyFrom?.quoteNumber, quoteType, initialDraft])
 
   // 생성·수정 공통: 입력 변경 시 미리보기 자동 갱신
   useEffect(() => {
@@ -544,7 +592,7 @@ function QuoteModalContent({
     }
   }
 
-  function handleDownloadPdf(language?: 'ko' | 'en') {
+  function handleDownloadPdf(language?: 'ko' | 'en' | 'zh') {
     const snapshot = buildExportQuoteSnapshot()
     if (!snapshot) return
     if (!snapshot.customer.trim() || !snapshot.productName.trim()) {
@@ -590,15 +638,33 @@ function QuoteModalContent({
     mode === 'edit' && quote?.quoteDate ? quote.quoteDate : result?.date || ''
   const previewProduct = form.productName.trim() || '-'
   const previewForm = {
-    postAssembly: String(sumPostProcessBilledMinutes(form.assemblyLines, form.productionKind)),
-    postDownload: String(sumPostProcessBilledMinutes(form.downloadLines, form.productionKind)),
-    postTest: String(sumPostProcessBilledMinutes(form.testLines, form.productionKind)),
-    postPacking: String(sumPostProcessBilledMinutes(form.packingLines, form.productionKind)),
+    postAssembly: String(
+      sumPostProcessBilledMinutes(
+        form.assemblyLines,
+        form.boardQty,
+        form.postProcessBufferPercent,
+      ),
+    ),
+    postDownload: String(
+      sumPostProcessBilledMinutes(
+        form.downloadLines,
+        form.boardQty,
+        form.postProcessBufferPercent,
+      ),
+    ),
+    postTest: String(
+      sumPostProcessBilledMinutes(form.testLines, form.boardQty, form.postProcessBufferPercent),
+    ),
+    postPacking: String(
+      sumPostProcessBilledMinutes(form.packingLines, form.boardQty, form.postProcessBufferPercent),
+    ),
     materialCost: form.materialCost,
     metalMaskCost: result?.common.subMaterial ?? 0,
     productionKind: form.productionKind,
+    includeVat: form.includeVat,
     includeMaterialCosts: form.includeMaterialCosts,
     includeMetalMask: form.includeMetalMask,
+    timeBufferPercent: form.postProcessBufferPercent,
     assemblyLines: form.assemblyLines,
     downloadLines: form.downloadLines,
     testLines: form.testLines,
@@ -623,8 +689,7 @@ function QuoteModalContent({
     smdPlacementTotal + (result?.common.smtAuxiliaryMaterial || 0)
   const dipSectionTotal =
     (result?.values.dip || 0) +
-    (result?.values.postProcess || 0) +
-    (result?.common.postProcessProfit || 0)
+    (result?.values.postProcess || 0)
   const materialSectionTotal =
     (Number(form.materialCost) || 0) * qty + (result?.common.materialManagement || 0)
   const samplePreview = computeSampleCostTotal(
@@ -669,14 +734,11 @@ function QuoteModalContent({
               <PdfDownloadButton
                 onDownload={() => handleDownloadPdf()}
                 disabled={busy}
-                menuItems={
-                  isDomestic
-                    ? [
-                        { label: '한글', onDownload: () => handleDownloadPdf('ko') },
-                        { label: '영문', onDownload: () => handleDownloadPdf('en') },
-                      ]
-                    : undefined
-                }
+                menuItems={[
+                  { label: '한글', onDownload: () => handleDownloadPdf('ko') },
+                  { label: '영문', onDownload: () => handleDownloadPdf('en') },
+                  { label: '중국어', onDownload: () => handleDownloadPdf('zh') },
+                ]}
               />
             ) : null}
             <button
@@ -748,13 +810,21 @@ function QuoteModalContent({
                   </label>
                 </div>
 
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <label className="block text-sm">
                     <span className="mb-1 block font-medium text-slate-600">생산 수량</span>
                     <QuoteNumericInput
                       min={1}
                       value={form.boardQty}
-                      onChange={(boardQty) => updateForm('boardQty', boardQty)}
+                      onChange={(boardQty) =>
+                        setForm((current) => ({
+                          ...current,
+                          boardQty,
+                          postProcessBufferPercent: String(
+                            defaultPostProcessBufferPercent(boardQty),
+                          ),
+                        }))
+                      }
                       className="w-full rounded-lg border border-slate-200 px-3 py-2"
                     />
                   </label>
@@ -769,6 +839,19 @@ function QuoteModalContent({
                     >
                       <option value="양산">양산</option>
                       <option value="샘플">샘플</option>
+                    </select>
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-slate-600">부가세</span>
+                    <select
+                      value={form.includeVat ? 'incl' : 'excl'}
+                      onChange={(event) =>
+                        updateForm('includeVat', event.target.value === 'incl')
+                      }
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800"
+                    >
+                      <option value="excl">VAT 별도</option>
+                      <option value="incl">VAT 포함</option>
                     </select>
                   </label>
                 </div>
@@ -948,16 +1031,22 @@ function QuoteModalContent({
                         title="조립"
                         ratePerMinute={getPostRate(quoteType)}
                         lines={form.assemblyLines}
-                        productionKind={form.productionKind}
+                        boardQty={form.boardQty}
+                        bufferPercent={form.postProcessBufferPercent}
                         quoteType={quoteType}
                         displayCurrency={displayCurrency}
+                        showBufferControl
+                        onBufferPercentChange={(postProcessBufferPercent) =>
+                          updateForm('postProcessBufferPercent', postProcessBufferPercent)
+                        }
                         onChange={(assemblyLines) => updateForm('assemblyLines', assemblyLines)}
                       />
                       <PostProcessLinesEditor
                         title="다운로드"
                         ratePerMinute={getPostRate(quoteType)}
                         lines={form.downloadLines}
-                        productionKind={form.productionKind}
+                        boardQty={form.boardQty}
+                        bufferPercent={form.postProcessBufferPercent}
                         quoteType={quoteType}
                         displayCurrency={displayCurrency}
                         onChange={(downloadLines) => updateForm('downloadLines', downloadLines)}
@@ -966,7 +1055,8 @@ function QuoteModalContent({
                         title="테스트"
                         ratePerMinute={getPostRate(quoteType)}
                         lines={form.testLines}
-                        productionKind={form.productionKind}
+                        boardQty={form.boardQty}
+                        bufferPercent={form.postProcessBufferPercent}
                         quoteType={quoteType}
                         displayCurrency={displayCurrency}
                         onChange={(testLines) => updateForm('testLines', testLines)}
@@ -975,7 +1065,8 @@ function QuoteModalContent({
                         title="포장"
                         ratePerMinute={getPostRate(quoteType)}
                         lines={form.packingLines}
-                        productionKind={form.productionKind}
+                        boardQty={form.boardQty}
+                        bufferPercent={form.postProcessBufferPercent}
                         quoteType={quoteType}
                         displayCurrency={displayCurrency}
                         onChange={(packingLines) => updateForm('packingLines', packingLines)}
@@ -1019,16 +1110,38 @@ function QuoteModalContent({
             <div className="shrink-0 border-t border-slate-200 bg-slate-50/80 px-4 py-3">
               <div className="mb-2 flex items-end justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-medium text-slate-500">대당 단가</p>
+                  <p className="text-[11px] font-medium text-slate-500">
+                    {form.includeVat ? '대당 단가 (VAT 포함)' : '대당 단가'}
+                  </p>
                   <p className="truncate text-sm font-semibold text-slate-900">
-                    {liveSummary?.unitFormatted ?? '-'}
+                    {form.includeVat && liveSummary && 'unitInclFormatted' in liveSummary
+                      ? (liveSummary.unitInclFormatted ?? liveSummary.unitFormatted)
+                      : (liveSummary?.unitFormatted ?? '-')}
                   </p>
                 </div>
                 <div className="min-w-0 text-right">
-                  <p className="text-[11px] font-medium text-slate-500">최종 합계</p>
-                  <p className="truncate text-base font-bold text-slate-900">
-                    {liveSummary?.totalFormatted ?? '-'}
-                  </p>
+                  {form.includeVat &&
+                  quoteType === 'domestic' &&
+                  liveSummary &&
+                  'totalInclFormatted' in liveSummary ? (
+                    <>
+                      <p className="text-[11px] font-medium text-slate-500">
+                        공급가액 {liveSummary.totalFormatted}
+                        {liveSummary.vatFormatted ? ` · 부가세 ${liveSummary.vatFormatted}` : ''}
+                      </p>
+                      <p className="truncate text-base font-bold text-slate-900">
+                        {liveSummary.totalInclFormatted}
+                        <span className="ml-1 text-[11px] font-medium text-slate-500">VAT 포함</span>
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[11px] font-medium text-slate-500">최종 합계</p>
+                      <p className="truncate text-base font-bold text-slate-900">
+                        {liveSummary?.totalFormatted ?? '-'}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2">
@@ -1044,14 +1157,25 @@ function QuoteModalContent({
                 ) : (
                   <span />
                 )}
-                <ErpButton
-                  className="min-w-0 flex-1"
-                  onClick={() => void handleSave()}
-                  disabled={busy}
-                  loading={saving}
-                >
-                  {mode === 'edit' ? '견적서 수정 저장' : '견적서 저장'}
-                </ErpButton>
+                <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                  {mode === 'edit' && quote && onCopyRequest ? (
+                    <ErpButton
+                      variant="secondary"
+                      onClick={() => onCopyRequest(quote)}
+                      disabled={busy}
+                    >
+                      복사하여 새로 작성
+                    </ErpButton>
+                  ) : null}
+                  <ErpButton
+                    className="min-w-0 flex-1"
+                    onClick={() => void handleSave()}
+                    disabled={busy}
+                    loading={saving}
+                  >
+                    {mode === 'edit' ? '견적서 수정 저장' : '견적서 저장'}
+                  </ErpButton>
+                </div>
               </div>
               {saveError ? <p className="mt-2 text-sm text-red-600">{saveError}</p> : null}
             </div>
@@ -1067,6 +1191,7 @@ function QuoteModalContent({
               productName={previewProduct}
               issueDate={previewIssueDate}
               productionKind={form.productionKind}
+              includeVat={form.includeVat}
               contactEmail={contactEmail}
               loading={!result}
             />

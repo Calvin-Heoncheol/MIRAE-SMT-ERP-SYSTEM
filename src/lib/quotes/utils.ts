@@ -1,5 +1,7 @@
 import { paymentTermSnapshotFromDbRow } from '@/lib/partners/payment-term-snapshot'
 import {
+  defaultPostProcessBufferPercent,
+  parsePostProcessBufferPercent,
   resolveCategorizedPostProcessLineForms,
   sumPostProcessBilledMinutes,
 } from './post-process-lines'
@@ -150,10 +152,25 @@ export function toEstimateInputFromDetail(
   const post = inputs.postProcess || {}
   const productionKind = settings.productionKind === '샘플' ? '샘플' : '양산'
   const categorized = resolveCategorizedPostProcessLineForms(post)
-  const postAssembly = sumPostProcessBilledMinutes(categorized.assemblyLines, productionKind)
-  const postDownload = sumPostProcessBilledMinutes(categorized.downloadLines, productionKind)
-  const postTest = sumPostProcessBilledMinutes(categorized.testLines, productionKind)
-  const postPacking = sumPostProcessBilledMinutes(categorized.packingLines, productionKind)
+  const bufferPercent =
+    parsePostProcessBufferPercent(post.timeBufferPercent) ??
+    defaultPostProcessBufferPercent(quote.boardQty)
+  const postAssembly = sumPostProcessBilledMinutes(
+    categorized.assemblyLines,
+    quote.boardQty,
+    bufferPercent,
+  )
+  const postDownload = sumPostProcessBilledMinutes(
+    categorized.downloadLines,
+    quote.boardQty,
+    bufferPercent,
+  )
+  const postTest = sumPostProcessBilledMinutes(categorized.testLines, quote.boardQty, bufferPercent)
+  const postPacking = sumPostProcessBilledMinutes(
+    categorized.packingLines,
+    quote.boardQty,
+    bufferPercent,
+  )
 
   return {
     boardQty: quote.boardQty,

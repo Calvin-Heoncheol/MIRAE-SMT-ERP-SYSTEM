@@ -9,6 +9,8 @@ import {
 } from '@/lib/app-config'
 import { formatQuoteMoneyByDisplay, formatQuotePreviewSummary, formatQuoteValidityText } from '@/lib/quotes/format'
 import { getPreviewLabels } from '@/lib/quotes/preview-i18n'
+import { hasPostProcessLineInput } from '@/lib/quotes/post-process-lines'
+import { formatQuoteProcessTypeCodesFromParts } from '@/lib/quotes/production-flags'
 import {
   BOARD_SUBTOTAL_ROW_BG,
   breakdownBoardColLabel,
@@ -35,6 +37,8 @@ type QuoteBreakdownPreviewProps = {
   productName: string
   issueDate: string
   productionKind?: '샘플' | '양산'
+  /** true = VAT 포함 표시 */
+  includeVat?: boolean
   /** 공급자 E-mail — 로그인 사용자 (없으면 회사 기본 메일) */
   contactEmail?: string
   loading?: boolean
@@ -47,8 +51,8 @@ function breakdownPageTitle(quoteType: QuoteType) {
 
 function breakdownPageNote(quoteType: QuoteType) {
   return quoteType === 'domestic'
-    ? 'SMD(SET-UP·실장·검사)·후공정(납땜 포함)·자재 항목별 단가·부품수(작업량)·생산수량 기준 합계입니다.'
-    : 'Itemized totals for SMD (SET-UP, placement, inspection), post-process (incl. soldering), and materials.'
+    ? 'SMD(SET-UP·실장·검사)·납땜·후공정·자재 항목별 단가·부품수(작업량)·생산수량 기준 합계입니다.'
+    : 'Itemized totals for SMD (SET-UP, placement, inspection), soldering, post-process, and materials.'
 }
 
 function formatAmount(
@@ -71,7 +75,7 @@ function BreakdownTableRow({
   displayCurrency,
   showBoardColumn,
   showProductionQty,
-  showPostUnitPrice = false,
+  showUnitTotal = false,
   boardRowSpan,
   boardGroupStart,
   swapUnitAndCount = false,
@@ -81,7 +85,7 @@ function BreakdownTableRow({
   displayCurrency: QuoteDisplayCurrency
   showBoardColumn: boolean
   showProductionQty: boolean
-  showPostUnitPrice?: boolean
+  showUnitTotal?: boolean
   boardRowSpan?: number
   boardGroupStart: boolean
   swapUnitAndCount?: boolean
@@ -98,7 +102,7 @@ function BreakdownTableRow({
       ? ''
       : isBoardSubtotal && !row.unitLabel && row.unit == null
         ? ''
-        : showPostUnitPrice && row.unit == null && !row.unitLabel
+        : showUnitTotal && row.unit == null && !row.unitLabel
           ? ''
           : formatPreviewRowUnit(row, quoteType, displayCurrency)
   const countText =
@@ -125,7 +129,7 @@ function BreakdownTableRow({
     isBoardSubtotal
       ? ''
       : row.unitPrice == null
-        ? showPostUnitPrice
+        ? showUnitTotal
           ? '-'
           : ''
         : formatAmount(row.unitPrice, quoteType, displayCurrency)
@@ -166,7 +170,7 @@ function BreakdownTableRow({
       >
         {secondMetricText}
       </td>
-      {showPostUnitPrice ? (
+      {showUnitTotal ? (
         <td className="whitespace-nowrap px-2 py-1.5 text-right text-xs tabular-nums text-slate-600 lg:px-3 lg:py-2">
           {unitPriceText}
         </td>
@@ -233,11 +237,9 @@ function BreakdownSectionTable({
               >
                 {secondMetricHeader}
               </th>
-              {isPostSection ? (
-                <th className="border border-slate-400 px-2 py-1.5 text-right text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
-                  {labels.colUnit}
-                </th>
-              ) : null}
+              <th className="border border-slate-400 px-2 py-1.5 text-right text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
+                {labels.colUnitTotal}
+              </th>
               {showProductionQty ? (
                 <th className="border border-slate-400 px-2 py-1.5 text-center text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
                   {labels.colProductionQty}
@@ -257,7 +259,7 @@ function BreakdownSectionTable({
                 displayCurrency={displayCurrency}
                 showBoardColumn={showBoardColumn}
                 showProductionQty={showProductionQty}
-                showPostUnitPrice={isPostSection}
+                showUnitTotal
                 boardRowSpan={showBoardColumn ? boardSpans[index] : undefined}
                 boardGroupStart={showBoardColumn && isBreakdownBoardGroupStart(section.rows, index)}
                 swapUnitAndCount={isPostSection}
@@ -279,11 +281,13 @@ export function QuoteBreakdownPreview({
   productName,
   issueDate,
   productionKind = '양산',
+  includeVat = false,
   contactEmail,
   loading = false,
   emptyMessage,
 }: QuoteBreakdownPreviewProps) {
   const isDomestic = quoteType === 'domestic'
+  const showVat = includeVat || form.includeVat === true
   const previewLabels = getPreviewLabels(quoteType)
   const companyName = isDomestic ? APP_SHORT_NAME : COMPANY_NAME_EN
   const supplierEmail =
@@ -295,6 +299,24 @@ export function QuoteBreakdownPreview({
     productionKind === '샘플'
       ? previewLabels.productionKindSample
       : previewLabels.productionKindMass
+  const processTypeText = formatQuoteProcessTypeCodesFromParts({
+    hasSmd: Boolean(result && ((result.values.smt || 0) > 0 || (result.common.smtSetup || 0) > 0)),
+    hasSoldering: Boolean(result && (result.values.dip || 0) > 0),
+    hasAssembly:
+      Number(form.postAssembly || 0) > 0 ||
+      Boolean(form.assemblyLines?.some((line) => hasPostProcessLineInput(line))),
+    hasDownload:
+      Number(form.postDownload || 0) > 0 ||
+      Boolean(form.downloadLines?.some((line) => hasPostProcessLineInput(line))),
+    hasTest:
+      Number(form.postTest || 0) > 0 ||
+      Boolean(form.testLines?.some((line) => hasPostProcessLineInput(line))),
+    hasPacking:
+      Number(form.postPacking || 0) > 0 ||
+      Boolean(form.packingLines?.some((line) => hasPostProcessLineInput(line))),
+  })
+  const processLabel = isDomestic ? '공정' : 'Type'
+  const kindLabel = isDomestic ? '구분' : 'Category'
   const breakdownRows = result ? buildProcessCentricPdfBreakdownRows(result, form, quoteType) : []
   const sections = result ? buildProcessBreakdownSections(breakdownRows, quoteType, result.qty || 1) : []
   const previewSummary = result
@@ -329,7 +351,11 @@ export function QuoteBreakdownPreview({
               <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold text-slate-900`}>{productName}</dd>
             </div>
             <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
-              <dt className="text-slate-500">{previewLabels.productionKind}</dt>
+              <dt className="text-slate-500">{processLabel}</dt>
+              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold text-slate-900`}>{processTypeText}</dd>
+            </div>
+            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
+              <dt className="text-slate-500">{kindLabel}</dt>
               <dd className="font-semibold text-slate-900">{productionKindText}</dd>
             </div>
             <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
@@ -406,17 +432,54 @@ export function QuoteBreakdownPreview({
 
       <div className="space-y-1.5 border-t border-slate-200 bg-white px-4 py-3 text-sm lg:px-6">
         <div className="flex items-center justify-between">
-          <span className="font-semibold text-slate-700">{previewLabels.perUnitPriceVat}</span>
+          <span className="font-semibold text-slate-700">
+            {showVat
+              ? isDomestic
+                ? '대당 단가 (VAT 포함)'
+                : 'Unit Price (incl. VAT)'
+              : isDomestic
+                ? '대당 단가'
+                : 'Unit Price'}
+          </span>
           <span className="font-semibold text-slate-900">
-            {previewSummary ? previewSummary.unitFormatted : formatAmount(0, quoteType, displayCurrency)}
+            {previewSummary
+              ? showVat && previewSummary.unitInclFormatted
+                ? previewSummary.unitInclFormatted
+                : previewSummary.unitFormatted
+              : formatAmount(0, quoteType, displayCurrency)}
           </span>
         </div>
-        <div className="flex items-center justify-between text-base">
-          <span className="font-bold text-slate-900">{previewLabels.grandTotalVat}</span>
-          <span className="font-bold text-slate-800">
-            {previewSummary ? previewSummary.totalFormatted : formatAmount(0, quoteType, displayCurrency)}
-          </span>
-        </div>
+        {showVat && isDomestic && previewSummary?.totalFormatted ? (
+          <>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="font-medium text-slate-600">{previewLabels.supplyAmount}</span>
+              <span className="font-semibold tabular-nums text-slate-800">
+                {previewSummary.totalFormatted}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="font-medium text-slate-600">{previewLabels.vatAmount}</span>
+              <span className="font-semibold tabular-nums text-slate-800">
+                {previewSummary.vatFormatted ?? '-'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-base">
+              <span className="font-bold text-slate-900">{previewLabels.grandTotalVatIncl}</span>
+              <span className="font-bold text-slate-800">
+                {previewSummary.totalInclFormatted ?? previewSummary.totalFormatted}
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center justify-between text-base">
+            <span className="font-bold text-slate-900">
+              {isDomestic ? '최종 합계 금액' : 'Grand Total'}
+            </span>
+            <span className="font-bold text-slate-800">
+              {previewSummary ? previewSummary.totalFormatted : formatAmount(0, quoteType, displayCurrency)}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )

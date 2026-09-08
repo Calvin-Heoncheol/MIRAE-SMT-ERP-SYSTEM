@@ -49,16 +49,34 @@ export const SMT_PLACEMENT_MIN_FEE_DOMESTIC = 5_000
 export const SMT_PLACEMENT_MIN_FEE_EXPORT = 6_000
 /** CHIP·이형·특수/모듈·IC PIN·BGA BALL 합산 점수(개수 1:1)가 이 값 이하이면 최소 실장비 적용 */
 export const SMT_PLACEMENT_MIN_SCORE = 150
-/** 후공정 임율: 국내 ₩420/분 */
-export const POST_RATE_DOMESTIC = 420
-/** 후공정 임율: 해외 ₩420/분 */
-export const POST_RATE_EXPORT = 420
-/** 후공정 작업시간 여유 — 샘플 30% */
-export const POST_PROCESS_SAMPLE_BUFFER = 0.3
-/** 후공정 작업시간 여유 — 양산 30% */
-export const POST_PROCESS_MASS_BUFFER = 0.3
-/** 후공정 기업이윤 — 후공정(분) 비용의 10% */
-export const POST_PROCESS_PROFIT_RATE = 0.1
+/** 후공정 임율: 국내 ₩460/분 */
+export const POST_RATE_DOMESTIC = 460
+/** 후공정 임율: 해외 ₩460/분 */
+export const POST_RATE_EXPORT = 460
+/** 분당임률 구성 — 직접노무비 */
+export const POST_RATE_DIRECT_LABOR = 250
+/** 분당임률 구성 — 제조간접비 */
+export const POST_RATE_OVERHEAD = 90
+/** 분당임률 구성 — 기업이윤 */
+export const POST_RATE_CORPORATE_PROFIT = 60
+/** 분당임률 구성 — 일반관리비 */
+export const POST_RATE_ADMIN = 60
+/** @deprecated POST_RATE_CORPORATE_PROFIT 사용 */
+export const POST_RATE_MIN_PROFIT = POST_RATE_CORPORATE_PROFIT
+/** 후공정 작업시간 여유 — 생산수량 1,000대 미만 30% */
+export const POST_PROCESS_BUFFER_UNDER_1000 = 0.3
+/** 후공정 작업시간 여유 — 1,000대 이상 25% */
+export const POST_PROCESS_BUFFER_FROM_1000 = 0.25
+/** 후공정 작업시간 여유 — 2,000대 이상 20% */
+export const POST_PROCESS_BUFFER_FROM_2000 = 0.2
+/** 후공정 작업시간 여유 — 5,000대 이상 15% */
+export const POST_PROCESS_BUFFER_FROM_5000 = 0.15
+/** @deprecated getPostProcessTimeBuffer(boardQty) 사용 */
+export const POST_PROCESS_SAMPLE_BUFFER = POST_PROCESS_BUFFER_UNDER_1000
+/** @deprecated getPostProcessTimeBuffer(boardQty) 사용 */
+export const POST_PROCESS_MASS_BUFFER = POST_PROCESS_BUFFER_UNDER_1000
+/** @deprecated 견적에서 기업이윤 미사용 — 항상 0 */
+export const POST_PROCESS_PROFIT_RATE = 0
 /** @deprecated getPostRate 사용 */
 export const POST_RATE = POST_RATE_EXPORT
 
@@ -115,20 +133,17 @@ export const DIP_UNIT = {
 /** 관리비: 원자재 비용의 10% */
 export const RAW_MATERIAL_MANAGEMENT_RATE = 0.1
 
-/** SMD 실장·검사 비용의 10% — 부자재(솔더·포장재 등). 후공정에는 적용하지 않음 */
-export const AUXILIARY_MATERIAL_RATE = 0.1
+/** @deprecated 견적에서 SMD 부자재(10%) 미사용 — 항상 0 */
+export const AUXILIARY_MATERIAL_RATE = 0
 
-export function computeAuxiliaryMaterialAmount(baseAmount: number) {
-  const base = Math.max(0, Math.round(Number(baseAmount) || 0))
-  if (base <= 0) return 0
-  return Math.round(base * AUXILIARY_MATERIAL_RATE)
+/** SMD 부자재 — 견적 미포함(항상 0). 필드·호출부 호환용 */
+export function computeAuxiliaryMaterialAmount(_baseAmount: number) {
+  return 0
 }
 
-/** 후공정(분) 비용 기준 기업이윤 */
-export function computePostProcessProfitAmount(baseAmount: number) {
-  const base = Math.max(0, Math.round(Number(baseAmount) || 0))
-  if (base <= 0) return 0
-  return Math.round(base * POST_PROCESS_PROFIT_RATE)
+/** 기업이윤 — 견적 미포함(항상 0). 필드·호출부 호환용 */
+export function computePostProcessProfitAmount(_baseAmount: number) {
+  return 0
 }
 
 /** 메탈마스크: 단면 */

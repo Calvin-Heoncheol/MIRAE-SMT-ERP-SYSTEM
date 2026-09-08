@@ -35,6 +35,8 @@ export type DeliveryShippableOption = {
   shippableQuantity: number
 }
 
+export type DeliveryRegisterLineKind = 'product' | 'additional_work' | 'material'
+
 export type DeliveryRegisterItemForm = {
   key: string
   uiKey: string
@@ -54,6 +56,10 @@ export type DeliveryRegisterItemForm = {
   /** 발주 추가작업(금액 전용) — 출하 수량/LOT 없음, 명세 행용 */
   billingOnly?: boolean
   orderLineId?: string
+  /** 행 종류 — product(기본) / 수동 추가작업·자재 */
+  lineKind?: DeliveryRegisterLineKind
+  /** 품목등록 없이 수동 입력한 추가작업·자재 */
+  manualEntry?: boolean
 }
 
 let registerItemKeySeq = 0
@@ -63,7 +69,10 @@ export function createDeliveryRegisterItemKey() {
   return `delivery-item-${registerItemKeySeq}`
 }
 
-export function emptyDeliveryRegisterItemForm(): DeliveryRegisterItemForm {
+export function emptyDeliveryRegisterItemForm(
+  kind: DeliveryRegisterLineKind = 'product',
+): DeliveryRegisterItemForm {
+  const manual = kind === 'additional_work' || kind === 'material'
   return {
     key: createDeliveryRegisterItemKey(),
     uiKey: '',
@@ -80,8 +89,10 @@ export function emptyDeliveryRegisterItemForm(): DeliveryRegisterItemForm {
     availableLots: [],
     allocations: [],
     lotManual: false,
-    billingOnly: false,
+    billingOnly: manual,
     orderLineId: '',
+    lineKind: kind,
+    manualEntry: manual,
   }
 }
 
@@ -99,25 +110,121 @@ export function isBillingRegisterItem(item: DeliveryRegisterItemForm) {
   return Boolean(item.billingOnly)
 }
 
+export function isManualRegisterItem(item: DeliveryRegisterItemForm) {
+  return Boolean(item.manualEntry) || item.lineKind === 'additional_work' || item.lineKind === 'material'
+}
+
+export function isProductRegisterItem(item: DeliveryRegisterItemForm) {
+  return !isBillingRegisterItem(item)
+}
+
+export function deliveryRegisterLineKindLabel(kind: DeliveryRegisterLineKind | undefined) {
+  if (kind === 'additional_work') return '추가작업'
+  if (kind === 'material') return '자재'
+  return '품목'
+}
+
+/** 출하 등록 UI·검증용 — 거래명세서에만 붙는 수동 추가작업·자재 */
+export type ShipmentExtraStatementLine = {
+  productCode: string
+  productName: string
+  qty: number
+  unitPrice: number
+  lineKind: 'additional_work' | 'material'
+  orderNumber?: string
+}
+
+const SHIPMENT_EXTRA_NOTE_RE = /<!--SHIP_EXTRA:([\s\S]*?)-->/
+
+export function encodeShipmentExtraNote(existingNote: string, lines: ShipmentExtraStatementLine[]) {
+  const base = String(existingNote || '')
+    .replace(SHIPMENT_EXTRA_NOTE_RE, '')
+    .trim()
+  if (!lines.length) return base
+  const payload = encodeURIComponent(JSON.stringify(lines))
+  const marker = `<!--SHIP_EXTRA:${payload}-->`
+  return base ? `${base}\n${marker}` : marker
+}
+
+export function parseShipmentExtraLines(note: string | null | undefined): ShipmentExtraStatementLine[] {
+  const match = String(note || '').match(SHIPMENT_EXTRA_NOTE_RE)
+  if (!match?.[1]) return []
+  try {
+    const parsed = JSON.parse(decodeURIComponent(match[1])) as unknown
+    if (!Array.isArray(parsed)) return []
+    const lines: ShipmentExtraStatementLine[] = []
+    for (const row of parsed) {
+      const item = row as Partial<ShipmentExtraStatementLine>
+      const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
+      const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+      const productName = String(item.productName || '').trim()
+      const lineKind =
+        item.lineKind === 'material' ? ('material' as const) : ('additional_work' as const)
+      if (!productName || qty < 1) continue
+      const orderNumber = String(item.orderNumber || '').trim()
+      lines.push({
+        productCode: String(item.productCode || '').trim() || (lineKind === 'material' ? 'MAT' : 'TEMP'),
+        productName,
+        qty,
+        unitPrice,
+        lineKind,
+        ...(orderNumber ? { orderNumber } : {}),
+      })
+    }
+    return lines
+  } catch {
+    return []
+  }
+}
+
+export function collectManualRegisterStatementLines(
+  items: DeliveryRegisterItemForm[],
+): ShipmentExtraStatementLine[] {
+  const lines: ShipmentExtraStatementLine[] = []
+  for (const item of items) {
+    if (!isManualRegisterItem(item)) continue
+    const qty = Math.max(0, Math.floor(Number(item.quantity) || 0))
+    const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+    const productName = item.productName.trim()
+    const lineKind: 'additional_work' | 'material' =
+      item.lineKind === 'material' ? 'material' : 'additional_work'
+    if (!productName || qty < 1) continue
+    const orderNumber = item.orderNumber.trim()
+    lines.push({
+      productCode: item.productCode.trim() || (lineKind === 'material' ? 'MAT' : 'TEMP'),
+      productName,
+      qty,
+      unitPrice,
+      lineKind,
+      ...(orderNumber ? { orderNumber } : {}),
+    })
+  }
+  return lines
+}
+
 /** 출하 등록 화면 순서(제품 → 추가작업) 그대로 거래명세서 품목 입력으로 변환 */
 export function registerItemsToStatementShippedLines(items: DeliveryRegisterItemForm[]) {
   return items
     .filter((item) => {
       const qty = Math.floor(Number(item.quantity) || 0)
       if (qty < 1) return false
-      if (isBillingRegisterItem(item)) {
+      if (isManualRegisterItem(item) || isBillingRegisterItem(item)) {
         return Boolean(item.productName.trim())
       }
       return Boolean(item.assemblyGroupId.trim() && item.productCode.trim())
     })
     .map((item) => ({
       orderNumber: item.orderNumber.trim(),
-      productCode: item.productCode.trim(),
+      productCode: item.productCode.trim() || (item.lineKind === 'material' ? 'MAT' : 'TEMP'),
       productName: item.productName.trim(),
       qty: Math.floor(Number(item.quantity) || 0),
       unitPrice: Math.round(Number(item.unitPrice) || 0),
       billingOnly: isBillingRegisterItem(item),
-      orderLineId: isBillingRegisterItem(item) ? String(item.orderLineId || '').trim() : undefined,
+      orderLineId: isManualRegisterItem(item)
+        ? undefined
+        : isBillingRegisterItem(item)
+          ? String(item.orderLineId || '').trim()
+          : undefined,
     }))
 }
 
@@ -180,7 +287,7 @@ export function availableBillingLinesForRegister(
   })
 }
 
-/** 제품 출하 행이 없는 발주의 추가작업 행 제거 */
+/** 제품 출하 행이 없는 발주의 추가작업 행 제거 (수동 입력 행은 유지) */
 export function pruneOrphanBillingRegisterItems(
   items: DeliveryRegisterItemForm[],
 ): DeliveryRegisterItemForm[] {
@@ -191,7 +298,10 @@ export function pruneOrphanBillingRegisterItems(
       .filter(Boolean),
   )
   return items.filter(
-    (item) => !isBillingRegisterItem(item) || orderIds.has(item.orderNumber.trim()),
+    (item) =>
+      !isBillingRegisterItem(item) ||
+      isManualRegisterItem(item) ||
+      orderIds.has(item.orderNumber.trim()),
   )
 }
 
@@ -298,7 +408,10 @@ export function syncBillingCompanionsForProductRow(
   }
 
   let next = items.filter(
-    (item) => !isBillingRegisterItem(item) || !billingRegisterRowAnchorsToProduct(item, product),
+    (item) =>
+      isManualRegisterItem(item) ||
+      !isBillingRegisterItem(item) ||
+      !billingRegisterRowAnchorsToProduct(item, product),
   )
 
   const candidates = billingLines.filter(
@@ -654,6 +767,14 @@ function formatDeliveryRegisterRowLabel(item: DeliveryRegisterItemForm) {
 }
 
 function isAttemptedDeliveryRegisterRow(item: DeliveryRegisterItemForm) {
+  if (isManualRegisterItem(item)) {
+    return Boolean(
+      item.productCode.trim() ||
+        item.productName.trim() ||
+        Math.floor(Number(item.quantity) || 0) >= 1 ||
+        Math.round(Number(item.unitPrice) || 0) > 0,
+    )
+  }
   if (isBillingRegisterItem(item)) return false
   return Boolean(
     item.productCode.trim() ||
@@ -698,13 +819,35 @@ export function validateDeliveryRegisterItems(
     : []
 
   const attempted = items.filter(isAttemptedDeliveryRegisterRow)
-  if (!attempted.length) {
+  const attemptedProducts = attempted.filter((item) => !isManualRegisterItem(item))
+  const attemptedManual = attempted.filter((item) => isManualRegisterItem(item))
+  if (!attemptedProducts.length && !attemptedManual.length) {
     return { ok: false, detail: '출하할 품목을 하나 이상 입력해 주세요.' }
   }
 
   const lines: DeliveryRegisterItemForm[] = []
 
-  for (const item of attempted) {
+  for (const item of attemptedManual) {
+    const label = formatDeliveryRegisterRowLabel(item) || deliveryRegisterLineKindLabel(item.lineKind)
+    const name = item.productName.trim()
+    const quantity = Math.floor(Number(item.quantity) || 0)
+    if (!name) {
+      return { ok: false, detail: `${label}: 품목명을 입력해 주세요.` }
+    }
+    if (quantity < 1) {
+      return { ok: false, detail: `${label}: 수량을 입력해 주세요.` }
+    }
+    lines.push({
+      ...item,
+      customer: item.customer.trim() || customerName,
+      productCode: item.productCode.trim() || (item.lineKind === 'material' ? 'MAT' : 'TEMP'),
+      productName: name,
+      billingOnly: true,
+      manualEntry: true,
+    })
+  }
+
+  for (const item of attemptedProducts) {
     const label = formatDeliveryRegisterRowLabel(item)
     const code = item.productCode.trim()
     const name = item.productName.trim()
@@ -802,13 +945,25 @@ export function validateDeliveryRegisterItems(
     return { ok: false, detail: '출하할 품목을 하나 이상 입력해 주세요.' }
   }
 
-  const customer = lines[0]!.customer.trim() || customerName
+  const productLines = lines.filter((item) => !isManualRegisterItem(item))
+  if (!productLines.length) {
+    return { ok: false, detail: '출하할 품목(제품)을 하나 이상 선택해 주세요.' }
+  }
+
+  const customer = productLines[0]!.customer.trim() || customerName
   if (!customer) {
     return { ok: false, detail: '고객사 정보가 없는 품목입니다.' }
   }
 
   const seen = new Set<string>()
   for (const item of lines) {
+    if (isManualRegisterItem(item)) {
+      const quantity = Math.floor(Number(item.quantity) || 0)
+      if (quantity < 1) {
+        return { ok: false, detail: `${item.productName || item.productCode} 수량을 입력해 주세요.` }
+      }
+      continue
+    }
     if (item.customer.trim() !== customer) {
       return { ok: false, detail: '같은 고객사 품목만 한 번에 출하할 수 있습니다.' }
     }

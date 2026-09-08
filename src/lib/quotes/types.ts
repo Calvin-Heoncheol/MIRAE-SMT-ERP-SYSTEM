@@ -57,7 +57,7 @@ export type QuoteDetailAmounts = {
   download?: number
   test: number
   packing: number
-  /** 후공정(분) 기업이윤 10% */
+  /** 기업이윤 — 견적 미포함(항상 0). 호환용 */
   postProcessProfit?: number
   materialCost: number
   materialManagementCost: number
@@ -93,6 +93,8 @@ export type QuoteDetailInfo = {
       postDownload?: number
       postTest?: number
       postPacking?: number
+      /** 후공정 시간 여유 % (수동 입력, 미설정 시 수량 구간 기본값) */
+      timeBufferPercent?: number
       /** @deprecated 하위호환 — 전체 행 merge. 신규는 카테고리별 배열 사용 */
       lines?: PostProcessLine[]
       assemblyLines?: PostProcessLine[]
@@ -111,6 +113,8 @@ export type QuoteDetailInfo = {
     specialDiscount?: number
     /** 샘플 / 양산 */
     productionKind?: '샘플' | '양산'
+    /** true = PDF·미리보기에 부가세(10%) 포함 표시. 미설정/false = VAT 별도 */
+    includeVat?: boolean
     quoteType?: QuoteType | 'legacy'
     smtIncludesSetup?: boolean
     /** 국내용/해외용 — SMD(SMT) 입력 섹션 사용 */
@@ -254,12 +258,13 @@ export type EstimateResult = {
     orderLevelTotal: number
     /** SMD 실장·검사 (대당 × 수량, SET-UP 제외) */
     smtPlacementTotal: number
-    /** SMD 부자재 — smtPlacementTotal의 10% */
+    /** SMD 부자재 — 견적 미포함(항상 0) */
     smtAuxiliaryMaterial: number
     /** 후공정 부자재 — 견적에 미포함(항상 0). 필드 호환용 */
     postAuxiliaryMaterial: number
-    /** 후공정(분) 비용의 10% 기업이윤 */
+    /** 기업이윤 — 견적 미포함(항상 0). 호환용 */
     postProcessProfit: number
+    /** @deprecated smtAuxiliaryMaterial 과 동일(항상 0) */
     auxiliaryMaterial: number
     materialManagement: number
     specialDiscount: number

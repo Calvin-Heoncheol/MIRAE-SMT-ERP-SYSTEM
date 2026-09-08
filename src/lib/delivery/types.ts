@@ -39,6 +39,15 @@ export type CreateDeliveryShipmentInput = {
   recordDate?: string
   note?: string
   lines: CreateDeliveryShipmentLineInput[]
+  /** 거래명세서에만 붙는 수동 추가작업·자재 */
+  extraStatementLines?: Array<{
+    productCode: string
+    productName: string
+    qty: number
+    unitPrice: number
+    lineKind: 'additional_work' | 'material'
+    orderNumber?: string
+  }>
 }
 
 export type UpdateDeliveryRecordInput = {

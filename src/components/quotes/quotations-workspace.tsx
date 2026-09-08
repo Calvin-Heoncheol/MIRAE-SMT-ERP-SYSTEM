@@ -26,7 +26,14 @@ type QuotationsWorkspaceProps = {
 type ModalState =
   | { open: false }
   | { open: true; variant: 'ai' }
-  | { open: true; variant: 'standard'; mode: 'create'; quoteType: QuoteType; draft?: AiQuoteDraft }
+  | {
+      open: true
+      variant: 'standard'
+      mode: 'create'
+      quoteType: QuoteType
+      draft?: AiQuoteDraft
+      copyFrom?: QuoteListItem
+    }
   | { open: true; variant: 'standard'; mode: 'edit'; quoteType: QuoteType; quote: QuoteListItem }
   | { open: true; variant: 'legacy'; mode: 'create' }
   | { open: true; variant: 'legacy'; mode: 'edit'; quote: QuoteListItem }
@@ -78,6 +85,18 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
       return
     }
     setModal({ open: true, variant: 'standard', mode: 'edit', quoteType: quote.quoteType, quote })
+  }
+
+  function openCopy(quote: QuoteListItem) {
+    if (isLegacyQuoteDetail(quote.detailInfo)) return
+    setModalSession((value) => value + 1)
+    setModal({
+      open: true,
+      variant: 'standard',
+      mode: 'create',
+      quoteType: quote.quoteType,
+      copyFrom: quote,
+    })
   }
 
   function closeModal() {
@@ -135,6 +154,7 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
             actionHint: '오른쪽 상단에서 등록하세요',
           })}
           onSelectQuote={openEdit}
+          onCopyQuote={openCopy}
           onToggleStatus={(quote) => void handleToggleStatus(quote)}
           statusBusyId={statusBusyId}
         />
@@ -154,17 +174,19 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
           key={
             modal.mode === 'edit'
               ? `edit-${modal.quote.quoteNumber}-${modalSession}`
-              : `create-${modal.quoteType}-${modalSession}`
+              : `create-${modal.quoteType}-${modal.copyFrom?.quoteNumber ?? 'new'}-${modalSession}`
           }
           open
           mode={modal.mode}
           quoteType={modal.mode === 'edit' ? modal.quote.quoteType : modal.quoteType}
           quote={modal.mode === 'edit' ? modal.quote : null}
+          copyFrom={modal.mode === 'create' ? modal.copyFrom : undefined}
           initialDraft={modal.mode === 'create' ? modal.draft : undefined}
           existingQuoteNumbers={existingQuoteNumbers}
           onClose={closeModal}
           onSaved={handleSaved}
           onDeleted={handleDeleted}
+          onCopyRequest={modal.mode === 'edit' ? openCopy : undefined}
         />
       ) : null}
 

@@ -1,21 +1,50 @@
 import type { QuoteType } from './types'
+import { formatPostProcessMinutesDisplay, roundPostProcessMinutes } from './post-process-lines'
 
-export type QuoteDocumentLanguage = 'ko' | 'en'
+function formatMinutesCountLabel(minutes: number | string, unit: '분' | 'min' | '分钟') {
+  const rounded = roundPostProcessMinutes(minutes)
+  if (rounded <= 0) {
+    if (unit === '분') return '0분'
+    if (unit === '分钟') return '0分钟'
+    return '0 min'
+  }
+  const value = formatPostProcessMinutesDisplay(rounded)
+  if (unit === '분') return `${value}분`
+  if (unit === '分钟') return `${value}分钟`
+  return `${value} min`
+}
+
+/** PDF 출력 언어 */
+export type QuoteDocumentLanguage = 'ko' | 'en' | 'zh'
+
+/** 문구 로케일 — 국내/해외 견적 타입과 분리, 중문 포함 */
+export type QuoteLabelType = QuoteType | 'zh'
 
 /** PDF·미리보기 문구용 타입 (금액 계산 quoteType 과 분리 가능) */
 export function resolveLabelQuoteType(
   quoteType: QuoteType,
   language?: QuoteDocumentLanguage,
-): QuoteType {
+): QuoteLabelType {
   if (language === 'en') return 'export'
   if (language === 'ko') return 'domestic'
+  if (language === 'zh') return 'zh'
   return quoteType
+}
+
+export function resolvePdfLanguage(
+  quoteType: QuoteType,
+  language?: QuoteDocumentLanguage,
+): QuoteDocumentLanguage {
+  if (language === 'ko' || language === 'en' || language === 'zh') return language
+  return quoteType === 'export' ? 'en' : 'ko'
 }
 
 export type PreviewLabels = {
   title: string
   colItem: string
   colUnit: string
+  /** 행 대당 금액 (단가×수량 등) */
+  colUnitTotal: string
   colQty: string
   colPerUnitTotal: string
   /** SET-UP 섹션 전용 — 단가 자리 */
@@ -38,7 +67,10 @@ export type PreviewLabels = {
   contact: string
   quantity: string
   perUnitPriceVat: string
+  supplyAmount: string
+  vatAmount: string
   grandTotalVat: string
+  grandTotalVatIncl: string
   loadingPreview: string
   emptyPreview: string
   qtySuffix: string
@@ -97,6 +129,7 @@ const DOMESTIC_LABELS: PreviewLabels = {
   title: '견 적 서',
   colItem: '항목',
   colUnit: '대당 단가',
+  colUnitTotal: '대당합계',
   colQty: '수량',
   colPerUnitTotal: '합계',
   colSetupBasis: '산출 근거',
@@ -113,7 +146,10 @@ const DOMESTIC_LABELS: PreviewLabels = {
   contact: '담당자',
   quantity: '생산 수량',
   perUnitPriceVat: '대당 단가 (VAT 별도)',
+  supplyAmount: '공급가액',
+  vatAmount: '부가세 (10%)',
   grandTotalVat: '최종 합계 금액 (VAT 별도)',
+  grandTotalVatIncl: '최종 합계 금액 (VAT 포함)',
   loadingPreview: '미리보기를 불러오는 중...',
   emptyPreview: '왼쪽에서 값을 입력하면 미리보기가 표시됩니다',
   qtySuffix: 'EA',
@@ -131,7 +167,7 @@ const DOMESTIC_LABELS: PreviewLabels = {
   test: '테스트',
   packing: '포장',
   corporateProfit: '기업이윤',
-  corporateProfitDesc: '후공정 비용의 10%',
+  corporateProfitDesc: '제조비용(SMD+후공정)의 10%',
   materials: '자재',
   orderLevelCosts: '건당 비용 (발주 1회)',
   other: '기타',
@@ -164,7 +200,7 @@ const DOMESTIC_LABELS: PreviewLabels = {
   oneTime: '1회',
   minPlacementDesc: (score, threshold) => `${score}점 · ${threshold}점 이하`,
   partsCount: (count) => `${count}개`,
-  minutesCount: (minutes) => `${minutes}분`,
+  minutesCount: (minutes) => formatMinutesCountLabel(minutes, '분'),
   formatQty: (qty) => `${qty.toLocaleString('ko-KR')}EA`,
 }
 
@@ -172,6 +208,7 @@ const EXPORT_LABELS: PreviewLabels = {
   title: 'QUOTATION',
   colItem: 'Item',
   colUnit: 'Per-Unit Price',
+  colUnitTotal: 'Unit Total',
   colQty: 'Qty',
   colPerUnitTotal: 'Total',
   colSetupBasis: 'Basis',
@@ -188,7 +225,10 @@ const EXPORT_LABELS: PreviewLabels = {
   contact: 'Contact',
   quantity: 'Quantity',
   perUnitPriceVat: 'Unit Price (excl. VAT)',
+  supplyAmount: 'Supply Amount',
+  vatAmount: 'VAT (10%)',
   grandTotalVat: 'Grand Total (excl. VAT)',
+  grandTotalVatIncl: 'Grand Total (incl. VAT)',
   loadingPreview: 'Loading preview...',
   emptyPreview: 'Enter values on the left to preview',
   qtySuffix: ' EA',
@@ -206,7 +246,7 @@ const EXPORT_LABELS: PreviewLabels = {
   test: 'Test',
   packing: 'Packing',
   corporateProfit: 'Corporate Profit',
-  corporateProfitDesc: '10% of post-process cost',
+  corporateProfitDesc: '10% of manufacturing cost (SMD + post-process)',
   materials: 'Materials',
   orderLevelCosts: 'Order-Level Costs (per PO)',
   other: 'Other',
@@ -239,12 +279,93 @@ const EXPORT_LABELS: PreviewLabels = {
   oneTime: '1 time',
   minPlacementDesc: (score, threshold) => `${score} pts · ≤${threshold} pts`,
   partsCount: (count) => `${count} pcs`,
-  minutesCount: (minutes) => `${minutes} min`,
+  minutesCount: (minutes) => formatMinutesCountLabel(minutes, 'min'),
   formatQty: (qty) => `${qty.toLocaleString('en-US')}${' EA'}`,
 }
 
-export function getPreviewLabels(quoteType: QuoteType): PreviewLabels {
-  return quoteType === 'export' ? EXPORT_LABELS : DOMESTIC_LABELS
+const CHINESE_LABELS: PreviewLabels = {
+  title: '报 价 单',
+  colItem: '项目',
+  colUnit: '单价',
+  colUnitTotal: '单价合计',
+  colQty: '数量',
+  colPerUnitTotal: '合计',
+  colSetupBasis: '计算依据',
+  colSetupMinutes: '时间(分)',
+  colSmdWorkQty: '部品数',
+  colPostWorkQty: '作业量',
+  colPostRate: '每分钟费率',
+  colProductionQty: '生产数量',
+  issueDate: '发行日期',
+  customer: '客户',
+  validity: '有效期',
+  supplier: '供应方',
+  product: '产品名',
+  contact: '负责人',
+  quantity: '生产数量',
+  perUnitPriceVat: '单价 (不含增值税)',
+  supplyAmount: '供应金额',
+  vatAmount: '增值税 (10%)',
+  grandTotalVat: '最终合计 (不含增值税)',
+  grandTotalVatIncl: '最终合计 (含增值税)',
+  loadingPreview: '正在加载预览...',
+  emptyPreview: '在左侧输入数值后显示预览',
+  qtySuffix: 'EA',
+  minPlacement: '最低贴装费',
+  oddParts: '异形',
+  specialParts: '特殊/模块',
+  inspectionCombined: 'AOI、X-RAY及外观检查',
+  aoi: 'AOI',
+  pcbWash: '清洗',
+  inspection: '检查',
+  soldering: '焊接',
+  postProcess: '后工序',
+  assembly: '组装',
+  download: '下载',
+  test: '测试',
+  packing: '包装',
+  corporateProfit: '企业利润',
+  corporateProfitDesc: '制造成本(SMD+后工序)的10%',
+  materials: '材料',
+  orderLevelCosts: '按订单费用 (每单1次)',
+  other: '其他',
+  rawMaterial: '原材料费用',
+  managementFee: '管理费',
+  auxiliaryMaterial: '辅材费用',
+  subMaterial: '钢网费用 (一次性)',
+  metalMask: '钢网费用 (一次性)',
+  sampleCost: '样品费用',
+  productionKind: '类别',
+  productionKindSample: '样品',
+  productionKindMass: '量产',
+  setupBaseTime: '基本时间',
+  firstArticle: '首件检查',
+  setting: 'SETTING',
+  setupBaseDesc: 'Loader/Unloader · Screen Print & SPI · Reflow Profile 测定',
+  setupFirstArticleDesc: 'BOM贴装确认及LCR测定',
+  setupSettingDesc: '供料器安装及坐标确认',
+  sideSingle: '单面',
+  sideDual: '双面(Dual)',
+  sideDouble: '双面',
+  dipGeneral: '手工焊小型(1~3PIN)',
+  dipConnector: '手工焊中型(4~10PIN)',
+  dipWire: '手工焊大型(10PIN+)',
+  waveGeneral: 'WAVE普通(1~3PIN)',
+  waveConnector: 'WAVE中型(4~10PIN)',
+  waveWire: 'WAVE大型(10PIN+)',
+  onePcb: '1 PCB',
+  oneUnit: '1台',
+  oneTime: '1次',
+  minPlacementDesc: (score, threshold) => `${score}分 · ${threshold}分以下`,
+  partsCount: (count) => `${count}个`,
+  minutesCount: (minutes) => formatMinutesCountLabel(minutes, '分钟'),
+  formatQty: (qty) => `${qty.toLocaleString('zh-CN')}EA`,
+}
+
+export function getPreviewLabels(labelType: QuoteLabelType): PreviewLabels {
+  if (labelType === 'zh') return CHINESE_LABELS
+  if (labelType === 'export') return EXPORT_LABELS
+  return DOMESTIC_LABELS
 }
 
 const POST_PROCESS_ITEM_NAME_EN: Record<string, string> = {
@@ -257,13 +378,45 @@ const POST_PROCESS_ITEM_NAME_EN: Record<string, string> = {
   검사: 'Inspection',
 }
 
-/** 영문 견적서 Item 칸 — 저장된 한글 공정명을 영문으로 표시 */
-export function localizePostProcessItemName(name: string, quoteType: QuoteType) {
+const POST_PROCESS_ITEM_NAME_ZH: Record<string, string> = {
+  조립: '组装',
+  다운로드: '下载',
+  테스트: '测试',
+  포장: '包装',
+  납땜: '焊接',
+  세척: '清洗',
+  검사: '检查',
+  Assembly: '组装',
+  Download: '下载',
+  Test: '测试',
+  Packing: '包装',
+  Soldering: '焊接',
+  'PCB Wash': '清洗',
+  Inspection: '检查',
+}
+
+/** 견적서 Item 칸 — 저장된 공정명을 문서 언어로 표시 */
+export function localizePostProcessItemName(name: string, labelType: QuoteLabelType) {
   const trimmed = name.trim()
-  if (!trimmed || quoteType === 'domestic') return trimmed
+  if (!trimmed || labelType === 'domestic') return trimmed
+  if (labelType === 'zh') return POST_PROCESS_ITEM_NAME_ZH[trimmed] ?? trimmed
   return POST_PROCESS_ITEM_NAME_EN[trimmed] ?? trimmed
 }
 
-export function breakdownSmtSectionTitle(quoteType: QuoteType) {
-  return quoteType === 'domestic' ? 'SMD · 실장·검사' : 'SMD · Placement & Inspection'
+export function breakdownSmtSectionTitle(labelType: QuoteLabelType) {
+  if (labelType === 'zh') return 'SMD · 贴装·检查'
+  if (labelType === 'domestic') return 'SMD · 실장·검사'
+  return 'SMD · Placement & Inspection'
+}
+
+export function breakdownBoardColLabelLocalized(labelType: QuoteLabelType) {
+  if (labelType === 'zh') return '板卡'
+  if (labelType === 'domestic') return '보드'
+  return 'BOARD'
+}
+
+export function pdfSummarySectionLabelLocalized(label: string, labelType: QuoteLabelType) {
+  if (labelType === 'domestic') return label
+  if (labelType === 'zh') return label
+  return label.toUpperCase()
 }

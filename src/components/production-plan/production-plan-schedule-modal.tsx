@@ -6,14 +6,13 @@ import { ErpModal } from '@/components/ui/erp-modal'
 import { suggestPlanQuantityFromMaterial } from '@/lib/materials/material-inbound-status'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { POST_PROCESS_TEAMS } from '@/lib/post-process/teams'
-import { validatePostPlanDate, canPlanSmt } from '@/lib/production-plan/pipeline'
+import { validatePostPlanDate } from '@/lib/production-plan/pipeline'
 import { isProductionPlanRemainderRow, isProductionPlanScheduleRow } from '@/lib/production-plan/utils'
 import {
   PRODUCTION_PLAN_SCOPE_LABELS,
   type ProductionPlanBoardRow,
   type ProductionPlanPcbSide,
 } from '@/lib/production-plan/types'
-import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
 
 export type ProductionPlanScheduleFormValues = {
   plannedDate: string
@@ -87,19 +86,9 @@ export function ProductionPlanScheduleModal({
       ? validatePostPlanDate(row, values.plannedDate, allRows)
       : { ok: true as const }
 
-  const materialWarning =
-    row.scope === 'smt' && !canPlanSmt(row)
-      ? '자재 입고 수량을 먼저 입력해 주세요.'
-      : ''
-
   return (
     <ErpModal open={open} title={title} onClose={onClose} size="md">
       <div className="space-y-4">
-        {materialWarning ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
-            {materialWarning}
-          </div>
-        ) : null}
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
           <p className="font-mono text-xs text-slate-500">{formatInternalCodeLabel(row.orderNumber)}</p>
           <p className="mt-1 font-bold text-slate-900">{row.productName}</p>
@@ -157,44 +146,25 @@ export function ProductionPlanScheduleModal({
         </label>
 
         {row.scope === 'smt' ? (
-          <>
+          row.splitPcbSides ? (
             <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">SMT 라인</span>
+              <span className="mb-1 block font-medium text-slate-600">PCB 면</span>
               <select
-                value={values.lineNo}
+                value={values.pcbSide}
                 onChange={(event) =>
-                  setValues((current) => ({ ...current, lineNo: Number(event.target.value) }))
+                  setValues((current) => ({
+                    ...current,
+                    pcbSide: event.target.value as ProductionPlanPcbSide,
+                  }))
                 }
                 className="w-full rounded-lg border border-slate-200 px-3 py-2"
               >
-                {SMT_PLAN_LINE_NOS.map((lineNo) => (
-                  <option key={lineNo} value={lineNo}>
-                    라인 {lineNo}
-                  </option>
-                ))}
+                <option value="TOP">TOP</option>
+                <option value="BOT">BOT</option>
+                <option value="BOTH">TOP + BOT</option>
               </select>
             </label>
-
-            {row.splitPcbSides ? (
-              <label className="block text-sm">
-                <span className="mb-1 block font-medium text-slate-600">PCB 면</span>
-                <select
-                  value={values.pcbSide}
-                  onChange={(event) =>
-                    setValues((current) => ({
-                      ...current,
-                      pcbSide: event.target.value as ProductionPlanPcbSide,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                >
-                  <option value="TOP">TOP</option>
-                  <option value="BOT">BOT</option>
-                  <option value="BOTH">TOP + BOT</option>
-                </select>
-              </label>
-            ) : null}
-          </>
+          ) : null
         ) : row.scope === 'post' ? (
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-600">후공정 팀</span>

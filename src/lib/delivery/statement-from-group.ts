@@ -5,6 +5,7 @@ import {
   buildShipmentStatementLinesFromHistory,
   type DeliveryBillingOnlyLine,
 } from '@/lib/delivery/utils'
+import { parseShipmentExtraLines } from '@/lib/delivery/register-form'
 
 type BuildStatementContext = {
   unitPriceByDeliveryId: Record<string, number>
@@ -66,6 +67,18 @@ export async function buildDeliveryStatementDataFromTableGroup(
     productionOrders: context.productionOrders,
   })
 
+  const extraLines = group.lines.flatMap((line) => parseShipmentExtraLines(line.note))
+  for (const extra of extraLines) {
+    shippedLines.push({
+      orderNumber: extra.orderNumber || '',
+      productCode: extra.productCode,
+      productName: extra.productName,
+      qty: extra.qty,
+      unitPrice: extra.unitPrice,
+      billingOnly: true,
+    })
+  }
+
   if (!shippedLines.length) {
     return { ok: false, detail: `${group.shipmentId}: 명세서 품목을 만들 수 없습니다.` }
   }
@@ -74,7 +87,7 @@ export async function buildDeliveryStatementDataFromTableGroup(
     shipmentId: group.shipmentId,
     shipDate: group.recordDate,
     customer: group.customer,
-    note: group.lines.find((line) => line.note.trim())?.note || '',
+    note: group.lines.find((line) => line.note.trim() && !line.note.includes('<!--SHIP_EXTRA:'))?.note || '',
     shippedLines: shippedLines.map((line) => ({
       orderNumber: line.orderNumber,
       productCode: line.productCode,

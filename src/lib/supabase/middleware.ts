@@ -4,6 +4,16 @@ import { isAuthDisabled } from '@/lib/auth/config'
 import { canAccessPath } from '@/lib/auth/permissions'
 import { normalizeAuthDepartment, normalizeAuthRole } from '@/lib/auth/types'
 
+/** Server Action POST — HTML 리다이렉트하면 useActionState가 "unexpected response"로 깨짐 */
+function isNextServerActionRequest(request: NextRequest) {
+  return (
+    request.method === 'POST' &&
+    (Boolean(request.headers.get('next-action')) ||
+      Boolean(request.headers.get('next-action-id')) ||
+      (request.headers.get('accept') || '').includes('text/x-component'))
+  )
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -14,6 +24,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.startsWith('/branding') ||
     pathname === '/favicon.ico'
+  const isServerAction = isNextServerActionRequest(request)
 
   if (isPublicAsset) {
     return supabaseResponse
@@ -46,6 +57,11 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  // Server Action 응답은 그대로 통과 (로그인 성공 redirect 등)
+  if (isServerAction) {
+    return supabaseResponse
+  }
 
   if (!user && !isLoginPage) {
     const redirectUrl = request.nextUrl.clone()

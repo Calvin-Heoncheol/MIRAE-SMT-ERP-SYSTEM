@@ -14,7 +14,9 @@ import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { downloadExcel } from '@/lib/excel/export'
 import type { FetchItemsResult } from '@/lib/items/repository'
 import {
-  displayItemListUnitPrice,
+  displayItemDipUnitPrice,
+  displayItemMaterialUnitPrice,
+  displayItemSmdUnitPrice,
   filterItemsForSearch,
   formatItemDisplayCode,
   formatItemProductionProcessLabel,
@@ -118,9 +120,25 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
       return amount > 0 ? formatItemUnitPrice(amount) : ''
     }
 
-    function baselineUnitPriceExcel(row: Item) {
-      return moneyExcel(displayItemListUnitPrice(row))
-    }
+    const priceColumns = isProductItemCategory(categoryFilter)
+      ? [
+          {
+            header: 'SMD',
+            value: (row: Item) => moneyExcel(displayItemSmdUnitPrice(row)),
+            width: 12,
+          },
+          {
+            header: '후공정',
+            value: (row: Item) => moneyExcel(displayItemDipUnitPrice(row)),
+            width: 12,
+          },
+          {
+            header: '자재비',
+            value: (row: Item) => moneyExcel(displayItemMaterialUnitPrice(row)),
+            width: 12,
+          },
+        ]
+      : []
 
     const processAndPriceColumns = showProductionProcessColumn
       ? [
@@ -129,15 +147,9 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
             value: (row: Item) => formatItemProductionProcessLabel(row),
             width: 12,
           },
-          {
-            header: '기본단가',
-            value: baselineUnitPriceExcel,
-            width: 12,
-          },
+          ...priceColumns,
         ]
-      : isProductItemCategory(categoryFilter)
-        ? [{ header: '기본단가', value: baselineUnitPriceExcel, width: 12 }]
-        : []
+      : priceColumns
 
     await downloadExcel({
       fileName: '품목등록',

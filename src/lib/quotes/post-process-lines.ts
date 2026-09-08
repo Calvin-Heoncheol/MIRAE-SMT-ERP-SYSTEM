@@ -1,6 +1,8 @@
 import {
-  POST_PROCESS_MASS_BUFFER,
-  POST_PROCESS_SAMPLE_BUFFER,
+  POST_PROCESS_BUFFER_FROM_1000,
+  POST_PROCESS_BUFFER_FROM_2000,
+  POST_PROCESS_BUFFER_FROM_5000,
+  POST_PROCESS_BUFFER_UNDER_1000,
 } from './constants'
 import type { PostProcessLine } from './types'
 
@@ -34,46 +36,91 @@ export function parsePostProcessSeconds(value: number | string | undefined | nul
   return Math.max(0, Math.round(n))
 }
 
-export function getPostProcessTimeBuffer(productionKind: PostProcessProductionKind = '양산') {
-  return productionKind === '샘플' ? POST_PROCESS_SAMPLE_BUFFER : POST_PROCESS_MASS_BUFFER
+function parseBoardQty(boardQty?: number | string | null) {
+  const qty = Math.floor(Number(boardQty) || 0)
+  return qty > 0 ? qty : 0
+}
+
+/**
+ * 후공정 시간 여유율 (생산수량 기준)
+ * - 1,000대 미만 30%
+ * - 1,000대 이상 25%
+ * - 2,000대 이상 20%
+ * - 5,000대 이상 15%
+ */
+export function getPostProcessTimeBuffer(boardQty?: number | string | null) {
+  const qty = parseBoardQty(boardQty)
+  if (qty >= 5000) return POST_PROCESS_BUFFER_FROM_5000
+  if (qty >= 2000) return POST_PROCESS_BUFFER_FROM_2000
+  if (qty >= 1000) return POST_PROCESS_BUFFER_FROM_1000
+  return POST_PROCESS_BUFFER_UNDER_1000
+}
+
+/** 수량 구간 기본 여유 % */
+export function defaultPostProcessBufferPercent(boardQty?: number | string | null) {
+  return Math.round(getPostProcessTimeBuffer(boardQty) * 100)
+}
+
+/** 수동 입력 여유 % (0 이상). 비어 있으면 null */
+export function parsePostProcessBufferPercent(value?: number | string | null) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 0) return null
+  return Math.min(999, Math.round(n))
+}
+
+/** 수동 % 우선, 없으면 수량 기본 여유율 */
+export function resolvePostProcessTimeBuffer(
+  boardQty?: number | string | null,
+  bufferPercent?: number | string | null,
+) {
+  const parsed = parsePostProcessBufferPercent(bufferPercent)
+  if (parsed != null) return parsed / 100
+  return getPostProcessTimeBuffer(boardQty)
 }
 
 /** 입력 초에 더해지는 여유 초 */
 export function postProcessBufferSeconds(
   seconds: number,
-  productionKind: PostProcessProductionKind = '양산',
+  boardQty?: number | string | null,
+  bufferPercent?: number | string | null,
 ) {
   const rawSeconds = parsePostProcessSeconds(seconds)
   if (rawSeconds <= 0) return 0
-  return Math.round(rawSeconds * getPostProcessTimeBuffer(productionKind))
+  return Math.round(rawSeconds * resolvePostProcessTimeBuffer(boardQty, bufferPercent))
 }
 
 /** 여유율 반영 총 초 */
 export function postProcessBufferedTotalSeconds(
   seconds: number,
-  productionKind: PostProcessProductionKind = '양산',
+  boardQty?: number | string | null,
+  bufferPercent?: number | string | null,
 ) {
   const rawSeconds = parsePostProcessSeconds(seconds)
   if (rawSeconds <= 0) return 0
-  return rawSeconds + postProcessBufferSeconds(rawSeconds, productionKind)
+  return rawSeconds + postProcessBufferSeconds(rawSeconds, boardQty, bufferPercent)
 }
 
 /** 입력 초 → 청구 분 (여유율 반영) */
 export function postProcessSecondsToBilledMinutes(
   seconds: number,
-  productionKind: PostProcessProductionKind = '양산',
+  boardQty?: number | string | null,
+  bufferPercent?: number | string | null,
 ) {
   const rawSeconds = parsePostProcessSeconds(seconds)
   if (rawSeconds <= 0) return 0
-  const bufferedSeconds = postProcessBufferedTotalSeconds(rawSeconds, productionKind)
+  const bufferedSeconds = postProcessBufferedTotalSeconds(rawSeconds, boardQty, bufferPercent)
   return roundPostProcessMinutes(bufferedSeconds / 60)
 }
 
 export function formatPostProcessBilledMinutes(
   seconds: number,
-  productionKind: PostProcessProductionKind = '양산',
+  boardQty?: number | string | null,
+  bufferPercent?: number | string | null,
 ) {
-  return formatPostProcessMinutesDisplay(postProcessSecondsToBilledMinutes(seconds, productionKind))
+  return formatPostProcessMinutesDisplay(
+    postProcessSecondsToBilledMinutes(seconds, boardQty, bufferPercent),
+  )
 }
 
 export function emptyPostProcessLineForm(): PostProcessLineForm {
@@ -108,10 +155,17 @@ export function sumPostProcessLineMinutes(
 /** 입력 폼 — 초 입력 기준 청구 분 합계 */
 export function sumPostProcessBilledMinutes(
   lines: PostProcessLineForm[],
-  productionKind: PostProcessProductionKind = '양산',
+  boardQty?: number | string | null,
+  bufferPercent?: number | string | null,
 ) {
   const total = lines.reduce(
-    (sum, line) => sum + postProcessSecondsToBilledMinutes(parsePostProcessSeconds(line.seconds), productionKind),
+    (sum, line) =>
+      sum +
+      postProcessSecondsToBilledMinutes(
+        parsePostProcessSeconds(line.seconds),
+        boardQty,
+        bufferPercent,
+      ),
     0,
   )
   return roundPostProcessMinutes(total)
@@ -119,12 +173,13 @@ export function sumPostProcessBilledMinutes(
 
 export function postProcessLinesToModels(
   lines: PostProcessLineForm[],
-  productionKind: PostProcessProductionKind = '양산',
+  boardQty?: number | string | null,
+  bufferPercent?: number | string | null,
 ): PostProcessLine[] {
   return lines
     .map((line) => {
       const seconds = parsePostProcessSeconds(line.seconds)
-      const minutes = postProcessSecondsToBilledMinutes(seconds, productionKind)
+      const minutes = postProcessSecondsToBilledMinutes(seconds, boardQty, bufferPercent)
       return {
         name: line.name.trim(),
         seconds: seconds > 0 ? seconds : undefined,
@@ -280,9 +335,10 @@ export function resolvePostProcessLineBilledMinutes(
     seconds?: number | string | null
     minutes?: number | string | null
   },
-  productionKind: PostProcessProductionKind = '양산',
+  boardQty?: number | string | null,
+  bufferPercent?: number | string | null,
 ) {
   const seconds = parsePostProcessSeconds(line.seconds)
-  if (seconds > 0) return postProcessSecondsToBilledMinutes(seconds, productionKind)
+  if (seconds > 0) return postProcessSecondsToBilledMinutes(seconds, boardQty, bufferPercent)
   return parsePostProcessMinutes(line.minutes)
 }

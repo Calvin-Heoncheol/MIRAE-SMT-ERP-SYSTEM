@@ -143,7 +143,12 @@ export function itemToForm(item: Item): ItemFormState {
     pcbSideMode: item.pcbSideMode,
     unitPrice: item.unitPrice,
     setupUnitPrice: item.setupUnitPrice,
-    smdUnitPrice: item.smdUnitPrice,
+    smdUnitPrice:
+      item.smdUnitPrice > 0
+        ? item.smdUnitPrice
+        : item.dipUnitPrice > 0
+          ? 0
+          : item.unitPrice,
     dipUnitPrice: item.dipUnitPrice,
     materialUnitPrice: item.materialUnitPrice,
     additionalUnitPrice: item.otherUnitPrice,
@@ -197,7 +202,6 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
   const dip = money(form.dipUnitPrice)
   const material = money(form.materialUnitPrice)
   const additional = money(form.additionalUnitPrice)
-  const breakdownTotal = setup + smd + dip + material
   const baseCodeInput = form.id.trim()
   const { baseCode, version } = resolveItemCodeParts({
     codeOrId: baseCodeInput,
@@ -222,7 +226,7 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     pcbSideMode: isSemiFinishedItemCategory(itemCategory) ? form.pcbSideMode || 'single' : '',
     processType: isProduct ? form.processType : '',
     unitPrice: isSemiFinishedItemCategory(itemCategory)
-      ? breakdownTotal > 0
+      ? smd + dip > 0
         ? smd + dip
         : money(form.unitPrice)
       : 0,

@@ -30,15 +30,22 @@ export async function loginWithPassword(
     return { ok: false, message: '이메일과 비밀번호를 입력해 주세요.' }
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  try {
+    const supabase = await createSupabaseServerClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
 
-  if (error) {
+    if (error) {
+      return {
+        ok: false,
+        message: error.message.includes('Invalid login')
+          ? '이메일 또는 비밀번호가 올바르지 않습니다.'
+          : error.message,
+      }
+    }
+  } catch (error) {
     return {
       ok: false,
-      message: error.message.includes('Invalid login')
-        ? '이메일 또는 비밀번호가 올바르지 않습니다.'
-        : error.message,
+      message: error instanceof Error ? error.message : '로그인 중 오류가 발생했습니다.',
     }
   }
 

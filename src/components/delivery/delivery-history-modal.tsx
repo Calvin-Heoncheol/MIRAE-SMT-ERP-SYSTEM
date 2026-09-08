@@ -17,6 +17,7 @@ import {
 } from '@/lib/delivery/repository'
 import {
   findShippableOptionsForProduct,
+  parseShipmentExtraLines,
   type DeliveryShippableOption,
 } from '@/lib/delivery/register-form'
 import type { DeliveryHistoryShipmentGroup } from '@/lib/delivery/history-utils'
@@ -699,6 +700,19 @@ export function DeliveryHistoryModal({
         unitPrice: order.unitPrice,
       })),
     })
+
+    for (const line of group.lines) {
+      for (const extra of parseShipmentExtraLines(line.note)) {
+        shippedLines.push({
+          orderNumber: extra.orderNumber || '',
+          productCode: extra.productCode,
+          productName: extra.productName,
+          qty: extra.qty,
+          unitPrice: extra.unitPrice,
+          billingOnly: true,
+        })
+      }
+    }
 
     const built = await buildDeliveryStatementDataFromShipment({
       shipmentId,

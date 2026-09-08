@@ -14,7 +14,9 @@ import {
   isProductItemCategory,
 } from '@/lib/items/types'
 import {
-  displayItemListUnitPrice,
+  displayItemDipUnitPrice,
+  displayItemMaterialUnitPrice,
+  displayItemSmdUnitPrice,
   formatItemDisplayCode,
   formatItemPcbSideModeLabel,
   formatItemProductionProcessLabel,
@@ -38,15 +40,10 @@ function productionProcessCell(item: Item) {
   return cell(formatItemProductionProcessLabel(item))
 }
 
-function listUnitPrice(item: Item) {
-  return displayItemListUnitPrice(item)
-}
-
-function unitPriceCell(item: Item) {
-  const total = listUnitPrice(item)
+function moneyCell(amount: number) {
   return (
     <td className="whitespace-nowrap px-3 py-2.5 text-right text-sm tabular-nums text-slate-800">
-      {total > 0 ? formatItemUnitPrice(total) : '-'}
+      {amount > 0 ? formatItemUnitPrice(amount) : '-'}
     </td>
   )
 }
@@ -66,10 +63,10 @@ export function ItemListTable({
 
   const tableMinWidth = showProductColumns
     ? showPcbSideColumn
-      ? 'min-w-[1100px]'
-      : 'min-w-[1000px]'
+      ? 'min-w-[1200px]'
+      : 'min-w-[1100px]'
     : showProductionProcessColumn
-      ? 'min-w-[1360px]'
+      ? 'min-w-[1460px]'
       : 'min-w-[1180px]'
 
   if (!items.length) {
@@ -93,7 +90,9 @@ export function ItemListTable({
               <>
                 {showProductionProcessColumn ? <col className="w-[108px]" /> : null}
                 {showPcbSideColumn ? <col className="w-[72px]" /> : null}
-                <col className="w-[100px]" />
+                <col className="w-[88px]" />
+                <col className="w-[88px]" />
+                <col className="w-[88px]" />
               </>
             ) : null}
             {hideMaterialDetailColumns ? null : (
@@ -109,7 +108,9 @@ export function ItemListTable({
               <>
                 <col className="w-[108px]" />
                 {showPcbSideColumn ? <col className="w-[72px]" /> : null}
-                <col className="w-[100px]" />
+                <col className="w-[88px]" />
+                <col className="w-[88px]" />
+                <col className="w-[88px]" />
               </>
             ) : null}
             <col className="w-[88px]" />
@@ -128,7 +129,9 @@ export function ItemListTable({
                     <th className="px-3 py-2.5 text-center">생산 공정</th>
                   ) : null}
                   {showPcbSideColumn ? <th className="px-3 py-2.5 text-center">면</th> : null}
-                  <th className="px-3 py-2.5 text-right">기본단가</th>
+                  <th className="px-3 py-2.5 text-right">SMD</th>
+                  <th className="px-3 py-2.5 text-right">후공정</th>
+                  <th className="px-3 py-2.5 text-right">자재비</th>
                 </>
               ) : null}
               {hideMaterialDetailColumns ? null : (
@@ -144,7 +147,9 @@ export function ItemListTable({
                 <>
                   <th className="px-3 py-2.5 text-center">생산 공정</th>
                   {showPcbSideColumn ? <th className="px-3 py-2.5 text-center">면</th> : null}
-                  <th className="px-3 py-2.5 text-right">기본단가</th>
+                  <th className="px-3 py-2.5 text-right">SMD</th>
+                  <th className="px-3 py-2.5 text-right">후공정</th>
+                  <th className="px-3 py-2.5 text-right">자재비</th>
                 </>
               ) : null}
               <th className="px-3 py-2.5 text-center">사용여부</th>
@@ -185,7 +190,9 @@ export function ItemListTable({
                         {cell(formatItemPcbSideModeLabel(item.pcbSideMode))}
                       </td>
                     ) : null}
-                    {unitPriceCell(item)}
+                    {moneyCell(displayItemSmdUnitPrice(item))}
+                    {moneyCell(displayItemDipUnitPrice(item))}
+                    {moneyCell(displayItemMaterialUnitPrice(item))}
                   </>
                 ) : null}
                 {hideMaterialDetailColumns ? null : (
@@ -217,7 +224,9 @@ export function ItemListTable({
                         {cell(formatItemPcbSideModeLabel(item.pcbSideMode))}
                       </td>
                     ) : null}
-                    {unitPriceCell(item)}
+                    {moneyCell(displayItemSmdUnitPrice(item))}
+                    {moneyCell(displayItemDipUnitPrice(item))}
+                    {moneyCell(displayItemMaterialUnitPrice(item))}
                   </>
                 ) : null}
                 <td className="whitespace-nowrap px-3 py-2.5 text-center">

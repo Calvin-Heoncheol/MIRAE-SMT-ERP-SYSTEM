@@ -7,7 +7,7 @@ import type {
   QuoteType,
   SmtPcbBoard,
 } from './types'
-import { postProcessLinesToModels, sumPostProcessLineMinutes } from './post-process-lines'
+import { postProcessLinesToModels, parsePostProcessBufferPercent, sumPostProcessLineMinutes } from './post-process-lines'
 import type { PostProcessLineForm } from './post-process-lines'
 import { getPostRate } from './constants'
 
@@ -28,6 +28,8 @@ export type QuoteFormSnapshot = {
   postPacking?: string
   specialDiscount: string
   productionKind?: '샘플' | '양산'
+  /** true = VAT 포함 표시 */
+  includeVat?: boolean
   includeSmd?: boolean
   includeDip?: boolean
   /** false = 원자재·관리비 제외 */
@@ -39,6 +41,8 @@ export type QuoteFormSnapshot = {
   downloadLines?: PostProcessLineForm[]
   testLines?: PostProcessLineForm[]
   packingLines?: PostProcessLineForm[]
+  /** 후공정 시간 여유 % (수동, 비우면 수량 기본) */
+  postProcessBufferPercent?: string
 }
 
 export type QuoteRowPayload = {
@@ -75,20 +79,23 @@ export function buildQuoteDetailInfo(
     (result.common.auxiliaryMaterial || 0) / (qty || 1)
   const productionKind = form.productionKind === '샘플' ? '샘플' : '양산'
   const postRate = getPostRate(quoteType)
+  const boardQty = form.boardQty
+  const bufferPercent = form.postProcessBufferPercent
+  const savedBufferPercent = parsePostProcessBufferPercent(bufferPercent)
 
   const assemblyLines: PostProcessLine[] = form.assemblyLines
-    ? postProcessLinesToModels(form.assemblyLines, productionKind)
+    ? postProcessLinesToModels(form.assemblyLines, boardQty, bufferPercent)
     : form.postProcessLines
-      ? postProcessLinesToModels(form.postProcessLines, productionKind)
+      ? postProcessLinesToModels(form.postProcessLines, boardQty, bufferPercent)
       : []
   const downloadLines: PostProcessLine[] = form.downloadLines
-    ? postProcessLinesToModels(form.downloadLines, productionKind)
+    ? postProcessLinesToModels(form.downloadLines, boardQty, bufferPercent)
     : []
   const testLines: PostProcessLine[] = form.testLines
-    ? postProcessLinesToModels(form.testLines, productionKind)
+    ? postProcessLinesToModels(form.testLines, boardQty, bufferPercent)
     : []
   const packingLines: PostProcessLine[] = form.packingLines
-    ? postProcessLinesToModels(form.packingLines, productionKind)
+    ? postProcessLinesToModels(form.packingLines, boardQty, bufferPercent)
     : []
 
   const postAssembly =
@@ -159,6 +166,7 @@ export function buildQuoteDetailInfo(
         postDownload,
         postTest,
         postPacking,
+        ...(savedBufferPercent != null ? { timeBufferPercent: savedBufferPercent } : {}),
         assemblyLines,
         downloadLines,
         testLines,
@@ -174,6 +182,7 @@ export function buildQuoteDetailInfo(
       pcbBoardCount: Number(form.pcbBoardCount) || pcbBoards.length,
       specialDiscount: Number(form.specialDiscount) || 0,
       productionKind: form.productionKind === '샘플' ? '샘플' : '양산',
+      includeVat: form.includeVat === true,
       quoteType,
       quoteStatus: quoteStatus === 'confirmed' ? 'confirmed' : 'draft',
       includeSmd: Boolean(form.includeSmd),

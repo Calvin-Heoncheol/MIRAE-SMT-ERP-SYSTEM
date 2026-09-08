@@ -327,33 +327,54 @@ export function displayItemUnitPrice(
     'unitPrice' | 'setupUnitPrice' | 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice' | 'otherUnitPrice'
   >,
 ) {
+  return displayItemProcessingUnitPrice(item)
+}
+
+/** SMD 단가(대당) */
+export function displayItemSmdUnitPrice(item: Pick<Item, 'smdUnitPrice' | 'dipUnitPrice' | 'unitPrice'>) {
+  const smd = Math.round(Number(item.smdUnitPrice) || 0)
+  if (smd > 0) return smd
+  const dip = Math.round(Number(item.dipUnitPrice) || 0)
+  // 레거시: 세부 단가 없이 unit_price만 있으면 SMD 칸에 표시
+  if (dip <= 0) return Math.round(Number(item.unitPrice) || 0)
+  return 0
+}
+
+/** 후공정 단가(대당) — DB dip_unit_price */
+export function displayItemDipUnitPrice(item: Pick<Item, 'dipUnitPrice'>) {
+  return Math.max(0, Math.round(Number(item.dipUnitPrice) || 0))
+}
+
+/** 가공비(대당) — SMD+후공정. 세부 단가 없으면 unit_price(레거시) */
+export function displayItemProcessingUnitPrice(
+  item: Pick<Item, 'unitPrice' | 'smdUnitPrice' | 'dipUnitPrice'>,
+) {
   const perUnit =
     Math.round(Number(item.smdUnitPrice) || 0) + Math.round(Number(item.dipUnitPrice) || 0)
   if (perUnit > 0) return perUnit
   return Math.round(Number(item.unitPrice) || 0)
 }
 
-/** 반제품 기본단가 — 세부 단가 합계가 있으면 합계, 없으면 unit_price(레거시) */
+/** 자재비(대당) */
+export function displayItemMaterialUnitPrice(item: Pick<Item, 'materialUnitPrice'>) {
+  return Math.max(0, Math.round(Number(item.materialUnitPrice) || 0))
+}
+
+/** @deprecated displayItemProcessingUnitPrice + displayItemMaterialUnitPrice 사용 */
 export function displayItemBaselineUnitPrice(
   item: Pick<
     Item,
     'setupUnitPrice' | 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice' | 'unitPrice'
   > & { otherUnitPrice?: number },
 ) {
-  const breakdownTotal =
-    Math.round(Number(item.setupUnitPrice) || 0) +
-    Math.round(Number(item.smdUnitPrice) || 0) +
-    Math.round(Number(item.dipUnitPrice) || 0) +
-    Math.round(Number(item.materialUnitPrice) || 0)
-  if (breakdownTotal > 0) return breakdownTotal
-
-  const unitPrice = Math.round(Number(item.unitPrice) || 0)
-  if (unitPrice > 0) return unitPrice
-
-  return 0
+  return (
+    displayItemProcessingUnitPrice(item) +
+    displayItemMaterialUnitPrice(item) +
+    Math.round(Number(item.setupUnitPrice) || 0)
+  )
 }
 
-/** 품목등록 목록·엑셀 — 모달 기본단가 + 추가비용 */
+/** 품목등록 목록·엑셀 — 가공비 + 자재비 + 추가비용 */
 export function displayItemAdditionalUnitPrice(
   item: Pick<Item, 'itemCategory' | 'otherUnitPrice'>,
 ) {
@@ -375,7 +396,7 @@ export function displayItemListUnitPrice(
   >,
 ) {
   const baseline = isSemiFinishedItemCategory(item.itemCategory)
-    ? displayItemBaselineUnitPrice(item)
+    ? displayItemProcessingUnitPrice(item) + displayItemMaterialUnitPrice(item)
     : isFinishedItemCategory(item.itemCategory)
       ? displayItemUnitPrice(item)
       : Math.max(0, Math.round(Number(item.unitPrice) || 0))

@@ -129,16 +129,27 @@ function DeliveryRegisterModalContent({
     setSaving(true)
     setSaveError(null)
 
+    const productLines = validation.lines.filter((line) => !line.billingOnly)
     const result = await busyUi.run(() =>
       createDeliveryShipment({
         customer: customerName,
         recordDate: shipDate,
         note: '',
-        lines: validation.lines.map((line) => ({
+        lines: productLines.map((line) => ({
           assemblyGroupId: line.assemblyGroupId,
           quantity: Math.floor(Number(line.quantity) || 0),
           allocations: line.lotManual ? line.allocations : undefined,
         })),
+        extraStatementLines: validation.lines
+          .filter((line) => Boolean(line.manualEntry))
+          .map((line) => ({
+            productCode: line.productCode,
+            productName: line.productName,
+            qty: Math.floor(Number(line.quantity) || 0),
+            unitPrice: Math.round(Number(line.unitPrice) || 0),
+            lineKind: line.lineKind === 'material' ? 'material' : 'additional_work',
+            orderNumber: line.orderNumber || undefined,
+          })),
       }),
     )
 
@@ -155,7 +166,7 @@ function DeliveryRegisterModalContent({
 
     onShipped?.({
       shipmentId: result.shipmentId,
-      deltas: validation.lines.map((line) => ({
+      deltas: productLines.map((line) => ({
         assemblyGroupId: line.assemblyGroupId,
         quantity: Math.floor(Number(line.quantity) || 0),
       })),

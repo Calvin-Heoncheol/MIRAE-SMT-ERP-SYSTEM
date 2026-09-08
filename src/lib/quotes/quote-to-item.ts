@@ -1,4 +1,4 @@
-import { displayItemBaselineUnitPrice } from '@/lib/items/utils'
+import { displayItemProcessingUnitPrice } from '@/lib/items/utils'
 import type { ItemFormState } from '@/lib/items/form-state'
 import { smtSideToItemPcbSide } from '@/lib/items/smt-quote-parts'
 import {
@@ -104,7 +104,7 @@ export function displayItemFormUnitPrice(
     'unitPrice' | 'setupUnitPrice' | 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice'
   >,
 ) {
-  return displayItemBaselineUnitPrice(form)
+  return displayItemProcessingUnitPrice(form)
 }
 
 export function formatQuoteOptionLabel(quote: QuoteListItem) {

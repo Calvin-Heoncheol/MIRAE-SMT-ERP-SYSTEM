@@ -14,7 +14,6 @@ import {
   isMultiSideSmt,
   normalizeSmtSide,
   RAW_MATERIAL_MANAGEMENT_RATE,
-  computeAuxiliaryMaterialAmount,
   computePostProcessProfitAmount,
   toBillingSmtSide,
 } from './constants'
@@ -409,11 +408,12 @@ export function calculateEstimate(
   const dipTotal = dipUnit * qty
   const postProcessTotal = postProcessUnit * qty
   const dipSectionTotal = dipTotal + postProcessTotal
-  const smtAuxiliaryMaterialTotal = computeAuxiliaryMaterialAmount(smtPlacementTotal)
+  const smtAuxiliaryMaterialTotal = 0
   /** 후공정 부자재는 견적에 미포함(항상 0). 필드 호환용 */
   const postAuxiliaryMaterialTotal = 0
   const auxiliaryMaterialTotal = smtAuxiliaryMaterialTotal
-  const postProcessProfitTotal = computePostProcessProfitAmount(postProcessTotal)
+  /** 기업이윤 — 견적 미포함(항상 0) */
+  const postProcessProfitTotal = computePostProcessProfitAmount(0)
   const laborFinal = smtTotal + dipTotal + postProcessTotal
   const materialManagementTotal =
     data.includeMaterialCosts === false || matTotalRaw <= 0
@@ -430,8 +430,11 @@ export function calculateEstimate(
     postProcessProfitTotal
   let specialDiscount = Math.max(0, Number(data.specialDiscount) || 0)
   if (specialDiscount > subtotalBeforeDiscount) specialDiscount = subtotalBeforeDiscount
-  const grandTotal = subtotalBeforeDiscount - specialDiscount
-  const unitTotal = grandTotal / (qty || 1)
+  const rawGrandTotal = subtotalBeforeDiscount - specialDiscount
+  const safeQty = qty || 1
+  /** 견적 면 금액: 대당(원) 반올림 × 수량 = 합계 — 표시·저장·단가 일치 */
+  const unitTotal = Math.round(rawGrandTotal / safeQty)
+  const grandTotal = unitTotal * safeQty
 
   return {
     estNo: quoteNumber,
@@ -464,7 +467,7 @@ export function calculateEstimate(
       smtPlacementTotal,
       smtAuxiliaryMaterial: smtAuxiliaryMaterialTotal,
       postAuxiliaryMaterial: postAuxiliaryMaterialTotal,
-      /** 후공정(분) 비용의 10% 기업이윤 */
+      /** 기업이윤 — 견적 미포함(항상 0) */
       postProcessProfit: postProcessProfitTotal,
       auxiliaryMaterial: auxiliaryMaterialTotal,
       materialManagement: materialManagementTotal,

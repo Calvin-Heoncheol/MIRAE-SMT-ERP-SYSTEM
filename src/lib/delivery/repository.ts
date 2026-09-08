@@ -56,7 +56,7 @@ import {
   computeDeliveryAvailability,
   describeDeliveryBlockReason,
 } from './utils'
-import { resolveDeliveryRecordMaxShippable } from './register-form'
+import { encodeShipmentExtraNote, resolveDeliveryRecordMaxShippable } from './register-form'
 import { DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from './config'
 
 export type FetchDeliveryInputPageResult =
@@ -824,7 +824,20 @@ export async function createDeliveryShipment(
     }
 
     const recordDate = input.recordDate?.trim() || todayYmdSeoul()
-    const note = input.note?.trim() || ''
+    const extraLines = (input.extraStatementLines || [])
+      .map((line) => ({
+        productCode: String(line.productCode || '').trim(),
+        productName: String(line.productName || '').trim(),
+        qty: Math.max(0, Math.floor(Number(line.qty) || 0)),
+        unitPrice: Math.max(0, Math.round(Number(line.unitPrice) || 0)),
+        lineKind:
+          line.lineKind === 'material'
+            ? ('material' as const)
+            : ('additional_work' as const),
+        orderNumber: String(line.orderNumber || '').trim() || undefined,
+      }))
+      .filter((line) => line.productName && line.qty >= 1)
+    const note = encodeShipmentExtraNote(input.note?.trim() || '', extraLines)
     const records: DeliveryRecord[] = []
     let usedCatchUp = false
 

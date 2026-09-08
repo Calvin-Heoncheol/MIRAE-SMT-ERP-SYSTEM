@@ -9,8 +9,33 @@ import {
   COMPANY_QUOTE_EMAIL_DOMESTIC,
   COMPANY_QUOTE_EMAIL_EXPORT,
 } from '@/lib/app-config'
-import { exportPage1SummaryAmounts, formatExportSummaryUsd, formatQuoteMoneyTotal, formatQuoteValidityText, domesticPage1SummaryAmounts, formatQuoteKrw } from './format'
-import { breakdownSmtSectionTitle, getPreviewLabels, resolveLabelQuoteType, type QuoteDocumentLanguage } from './preview-i18n'
+import {
+  AOI_UNIT,
+  DIP_UNIT,
+  POST_RATE_ADMIN,
+  POST_RATE_CORPORATE_PROFIT,
+  POST_RATE_DIRECT_LABOR,
+  POST_RATE_OVERHEAD,
+  SMT_SETUP_BASE_TIME_DESCRIPTION,
+  SMT_SETUP_FIRST_ARTICLE_DESCRIPTION,
+  SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
+  SMT_SETUP_SETTING_DESCRIPTION,
+  getPostRate,
+  getSmtSetupBaseMinutes,
+  getSmtSetupMinutesPerPart,
+  getSmtSetupRate,
+  getSmtUnitRates,
+} from './constants'
+import { formatQuoteProcessTypeCodes } from './production-flags'
+import { exportPage1SummaryAmounts, formatExportSummaryUsd, formatQuoteMoneyTotal, formatQuoteValidityText, domesticPage1SummaryAmounts, domesticVatBreakdown, formatQuoteKrw, formatQuoteKrwRate } from './format'
+import {
+  breakdownSmtSectionTitle,
+  getPreviewLabels,
+  resolveLabelQuoteType,
+  resolvePdfLanguage,
+  type QuoteDocumentLanguage,
+  type QuoteLabelType,
+} from './preview-i18n'
 import {
   breakdownBoardColLabel,
   buildPdfSummaryBreakdownLines,
@@ -47,8 +72,19 @@ function resolveQuoteContactEmail(
   return useDomesticCompany ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT
 }
 
-function pdfLabelType(quote: QuoteListItem, language?: QuoteDocumentLanguage): QuoteType {
+function pdfLabelType(quote: QuoteListItem, language?: QuoteDocumentLanguage): QuoteLabelType {
   return resolveLabelQuoteType(quote.quoteType, language)
+}
+
+function pdfLang(quote: QuoteListItem, language?: QuoteDocumentLanguage): QuoteDocumentLanguage {
+  return resolvePdfLanguage(quote.quoteType, language)
+}
+
+/** PDF 문구 — 한글 / 영문 / 중문 */
+function pdfText(lang: QuoteDocumentLanguage, ko: string, en: string, zh: string) {
+  if (lang === 'zh') return zh
+  if (lang === 'en') return en
+  return ko
 }
 
 function escapeHtml(value: string) {
@@ -113,15 +149,12 @@ function buildSummaryBreakdownTableHtml(quote: QuoteListItem, language?: QuoteDo
   const lines = buildPdfSummaryBreakdownLines(estimate, form, quote.quoteType, labelType)
   if (!lines.length) return ''
 
-  const isKorean = labelType === 'domestic'
-  const itemLabel = isKorean ? '항목' : 'ITEM'
-  const unitLabel = isKorean ? '대당합계' : 'UNIT TOTAL'
-  const amountLabel = isKorean ? '합계' : 'TOTAL'
-  const totalLabel = isKorean ? '총합계' : 'GRAND TOTAL'
-  const grandUnitTotal = lines.reduce(
-    (sum, line) => (line.fixedCost ? sum : sum + line.unitTotal),
-    0,
-  )
+  const lang = resolvePdfLanguage(quote.quoteType, language)
+  const itemLabel = pdfText(lang, '항목', 'ITEM', '项目')
+  const unitLabel = pdfText(lang, '대당합계', 'UNIT TOTAL', '单价合计')
+  const amountLabel = pdfText(lang, '합계', 'TOTAL', '合计')
+  const totalLabel = pdfText(lang, '총합계', 'GRAND TOTAL', '总计')
+  const grandUnitTotal = lines.reduce((sum, line) => sum + line.unitTotal, 0)
   const grandTotal = lines.reduce((sum, line) => sum + line.total, 0)
 
   return `<table class="quote-table board-details-table board-summary-table summary-breakdown-table">
@@ -178,7 +211,7 @@ function buildPreviewRowHtml(
   options: {
     showBoardColumn?: boolean
     showProductionQty?: boolean
-    showPostUnitPrice?: boolean
+    showUnitTotal?: boolean
     boardRowSpan?: number
     boardGroupStart?: boolean
     swapUnitAndCount?: boolean
@@ -187,7 +220,7 @@ function buildPreviewRowHtml(
   const {
     showBoardColumn = false,
     showProductionQty = false,
-    showPostUnitPrice = false,
+    showUnitTotal = false,
     boardRowSpan,
     boardGroupStart = false,
     swapUnitAndCount = false,
@@ -230,7 +263,7 @@ function buildPreviewRowHtml(
       ? ''
       : isBoardSubtotal && !row.unitLabel && row.unit == null
         ? ''
-        : showPostUnitPrice && row.unit == null && !row.unitLabel
+        : showUnitTotal && row.unit == null && !row.unitLabel
           ? ''
           : formatPreviewRowUnit(row, quoteType)
   const unitAlign = row.unitLabel ? 'left' : 'right'
@@ -258,7 +291,7 @@ function buildPreviewRowHtml(
     isBoardSubtotal
       ? ''
       : row.unitPrice == null
-        ? showPostUnitPrice
+        ? showUnitTotal
           ? '-'
           : ''
         : formatQuoteMoneyTotal(row.unitPrice, quoteType)
@@ -283,7 +316,7 @@ function buildPreviewRowHtml(
     const boardCellBg = row.boardName || isBoardSubtotal ? 'background:#e2e8f0;' : cellBg
     boardCell = `<td class="breakdown-col-board"${rowspanAttr} style="padding:8px 12px;white-space:nowrap;vertical-align:middle;${boardCellBg}${cellBorder}${boardBorderRight}font-size:13px;font-weight:600;color:#1e293b;">${row.boardName ? escapeHtml(row.boardName) : ''}</td>`
   }
-  const unitPriceCell = showPostUnitPrice
+  const unitPriceCell = showUnitTotal
     ? `<td style="padding:8px 12px;text-align:right;white-space:nowrap;${cellBg}${cellBorder}font-size:13px;color:#475569;">${unitPrice}</td>`
     : ''
   const productionQtyCell = showProductionQty
@@ -308,7 +341,7 @@ function buildQuoteBreakdownTableHtml(
     variant?: 'default' | 'board-summary'
     continuous?: boolean
     showBoardColumn?: boolean
-    labelType?: QuoteType
+    labelType?: QuoteLabelType
     sectionKey?: PreviewSection
   } = {},
 ) {
@@ -339,9 +372,7 @@ function buildQuoteBreakdownTableHtml(
       ? 'quote-table line-items-table board-summary-table'
       : 'quote-table line-items-table'
   const boardHeader = showBoardColumn ? `<th class="breakdown-col-board">${breakdownBoardColLabel(labelType)}</th>` : ''
-  const postUnitPriceHeader = isPostSection
-    ? `<th style="text-align:right;">${labels.colUnit}</th>`
-    : ''
+  const unitTotalHeader = `<th style="text-align:right;">${labels.colUnitTotal}</th>`
   const productionQtyHeader = showProductionQty
     ? `<th style="text-align:center;">${labels.colProductionQty}</th>`
     : ''
@@ -351,7 +382,7 @@ function buildQuoteBreakdownTableHtml(
         <th>${labels.colItem}</th>
         <th>${firstMetricHeader}</th>
         <th style="text-align:${secondMetricHeaderAlign};">${secondMetricHeader}</th>
-        ${postUnitPriceHeader}
+        ${unitTotalHeader}
         ${productionQtyHeader}
         <th>${labels.colPerUnitTotal}</th>
       </tr>
@@ -364,7 +395,7 @@ function buildQuoteBreakdownTableHtml(
         buildPreviewRowHtml(row, quoteType, {
           showBoardColumn,
           showProductionQty,
-          showPostUnitPrice: isPostSection,
+          showUnitTotal: true,
           boardRowSpan: showBoardColumn ? boardSpans[index] : undefined,
           boardGroupStart: showBoardColumn && isBreakdownBoardGroupStart(rows, index),
           swapUnitAndCount: isPostSection,
@@ -388,7 +419,7 @@ function buildQuoteBreakdownTableHtml(
           buildPreviewRowHtml(row, quoteType, {
             showBoardColumn,
             showProductionQty,
-            showPostUnitPrice: isPostSection,
+            showUnitTotal: true,
             boardRowSpan: showBoardColumn ? boardSpans[index] : undefined,
             boardGroupStart: showBoardColumn && isBreakdownBoardGroupStart(group, index),
             swapUnitAndCount: isPostSection,
@@ -412,12 +443,12 @@ function buildBreakdownSectionHtml(
   quoteType: QuoteType,
   sectionKey: PreviewSection,
   modifier = '',
-  labelType: QuoteType = quoteType,
+  labelType: QuoteLabelType = quoteType,
   qty = 1,
 ) {
   if (!rows.length) return ''
 
-  const tableRows = prepareBreakdownSectionTableRows(rows, sectionKey, labelType, qty)
+  const tableRows = prepareBreakdownSectionTableRows(rows, sectionKey, quoteType, qty, labelType)
 
   const showBoardColumn = tableRows.some((row) => row.boardName)
   const sectionClass = `breakdown-section-${sectionKey}`
@@ -443,47 +474,48 @@ function buildQuoteSummaryMetaHtml(
   contactEmail?: string,
 ) {
   const labelType = pdfLabelType(quote, language)
-  const isKorean = labelType === 'domestic'
+  const lang = pdfLang(quote, language)
   const labels = getPreviewLabels(labelType)
   const issueDate = quote.quoteDate || estimate.date
   const validityText = formatQuoteValidityText(issueDate)
   const qtyText = labels.formatQty(estimate.qty)
   const customer = quote.customer?.trim() || '-'
   const productName = quote.productName?.trim() || '-'
-  const recipientLabel = isKorean ? '수신' : 'Bill To'
-  const supplierLabel = isKorean ? '공급' : 'From'
-  const customerLabel = isKorean ? '고객사' : 'Customer'
-  const productLabel = isKorean ? '제품명' : 'Product'
-  const issueLabel = isKorean ? '발행일자' : 'Issue Date'
-  const validityLabel = isKorean ? '유효기간' : 'Valid Until'
-  const qtyLabelText = isKorean ? '생산 수량' : 'Quantity'
-  const kindLabelText = labels.productionKind
-  const contactLabel = isKorean ? '담당' : 'Contact'
-  const addressLabel = isKorean ? '주소' : 'Address'
+  const recipientLabel = pdfText(lang, '수신', 'Bill To', '收件方')
+  const supplierLabel = pdfText(lang, '공급', 'From', '供应方')
+  const customerLabel = pdfText(lang, '고객사', 'Customer', '客户')
+  const productLabel = pdfText(lang, '제품명', 'Product', '产品名')
+  const issueLabel = pdfText(lang, '발행일자', 'Issue Date', '发行日期')
+  const validityLabel = pdfText(lang, '유효기간', 'Valid Until', '有效期')
+  const qtyLabelText = pdfText(lang, '생산 수량', 'Quantity', '生产数量')
+  const processLabelText = pdfText(lang, '공정', 'Type', '工序')
+  const kindLabelText = pdfText(lang, '구분', 'Category', '类别')
+  const contactLabel = pdfText(lang, '담당', 'Contact', '负责人')
+  const addressLabel = pdfText(lang, '주소', 'Address', '地址')
   const emailLabel = 'E-mail'
   const productionKind = quote.detailInfo.settings?.productionKind === '샘플' ? '샘플' : '양산'
   const productionKindText =
     productionKind === '샘플' ? labels.productionKindSample : labels.productionKindMass
+  const processTypeText = formatQuoteProcessTypeCodes(quote)
 
-  // 국내용: 국문=미래SMT / 영문=MIRAE SMT · 해외용: MIRAE SMT AMERICA
+  // 국내용: 국문=미래SMT / 영·중문=MIRAE SMT · 해외용: MIRAE SMT AMERICA
   const isDomesticQuote = quote.quoteType === 'domestic'
+  const useKoreanCompany = lang === 'ko'
   const companyName = isDomesticQuote
-    ? isKorean
+    ? useKoreanCompany
       ? APP_SHORT_NAME
       : COMPANY_NAME_DOMESTIC_EN
     : COMPANY_NAME_EN
   const email = resolveQuoteContactEmail(isDomesticQuote, contactEmail)
   const companyAddress = isDomesticQuote
-    ? isKorean
+    ? useKoreanCompany
       ? COMPANY_ADDRESS_DOMESTIC
       : COMPANY_ADDRESS_DOMESTIC_EN
     : COMPANY_ADDRESS_EXPORT
-  const brandTagline = isKorean ? 'SMT 전자조립 · EMS' : 'SMT Assembly · EMS'
-  const companyNameLabel = isKorean ? '업체명' : 'Company'
+  const brandTagline = pdfText(lang, 'SMT 전자조립 · EMS', 'SMT Assembly · EMS', 'SMT电子组装 · EMS')
+  const companyNameLabel = pdfText(lang, '업체명', 'Company', '公司名')
   const contactName = isDomesticQuote
-    ? isKorean
-      ? '영업관리팀'
-      : 'Sales Team'
+    ? pdfText(lang, '영업관리팀', 'Sales Team', '营业管理团队')
     : COMPANY_QUOTE_CONTACT_EXPORT
 
   return `<div class="summary-hero">
@@ -507,6 +539,10 @@ function buildQuoteSummaryMetaHtml(
         <div class="summary-party-row">
           <dt>${productLabel}</dt>
           <dd>${escapeHtml(productName)}</dd>
+        </div>
+        <div class="summary-party-row">
+          <dt>${processLabelText}</dt>
+          <dd>${escapeHtml(processTypeText)}</dd>
         </div>
         <div class="summary-party-row">
           <dt>${kindLabelText}</dt>
@@ -569,19 +605,66 @@ function buildQuoteSummaryTableHtml(
       ? formatQuoteKrw(page1Domestic.totalKrw)
       : formatQuoteMoneyTotal(estimate.values.grandTotal, quote.quoteType)
   const labelType = pdfLabelType(quote, language)
+  const lang = pdfLang(quote, language)
   const labels = getPreviewLabels(labelType)
   const qtyText = labels.formatQty(qty)
   const productName = quote.productName?.trim() || '-'
-  const isKorean = labelType === 'domestic'
-  const sectionTitle = isKorean ? '견적 금액' : 'Quote Amount'
-  const unitPriceLabel = isKorean ? '단가 (VAT 별도)' : 'Unit Price (excl. VAT)'
-  const qtyColLabel = isKorean ? '개수' : 'Qty'
-  const totalLabel = isKorean ? '총 합계 (VAT 별도)' : 'Total (excl. VAT)'
-  const productColLabel = isKorean ? '제품명' : 'Product'
-  const grandLabel = isKorean ? '최종 합계 금액 (VAT 별도)' : 'Grand Total (excl. VAT)'
-  const note = isKorean
-    ? '※ 항목별 요약·세부 산정내역은 다음 페이지를 참고해 주세요.'
-    : '※ See the summary breakdown and detailed breakdown on the following pages.'
+  const includeVat = quote.detailInfo.settings?.includeVat === true
+  const sectionTitle = pdfText(lang, '견적 금액', 'Quote Amount', '报价金额')
+  const unitPriceLabel = includeVat
+    ? pdfText(lang, '단가 (VAT 포함)', 'Unit Price (incl. VAT)', '单价 (含增值税)')
+    : pdfText(lang, '단가', 'Unit Price', '单价')
+  const qtyColLabel = pdfText(lang, '개수', 'Qty', '数量')
+  const totalLabel = includeVat
+    ? pdfText(lang, '총 합계 (VAT 포함)', 'Total (incl. VAT)', '合计 (含增值税)')
+    : pdfText(lang, '총 합계', 'Total', '合计')
+  const productColLabel = pdfText(lang, '제품명', 'Product', '产品名')
+  const supplyLabel = pdfText(lang, '공급가액', 'Supply Amount', '供应金额')
+  const vatLabel = pdfText(lang, '부가세 (10%)', 'VAT (10%)', '增值税 (10%)')
+  const grandLabel = includeVat
+    ? pdfText(lang, '최종 합계 금액 (VAT 포함)', 'Grand Total (incl. VAT)', '最终合计 (含增值税)')
+    : pdfText(lang, '최종 합계 금액', 'Grand Total', '最终合计')
+  const note = includeVat
+    ? pdfText(
+        lang,
+        '※ 기본 단가 안내와 공정별 세부 산정내역은 다음 페이지를 참고해 주세요. 표기 단가·합계는 VAT 포함이며, 부가세는 공급가액의 10%입니다.',
+        '※ See the following pages for the base unit price guide and detailed process breakdown. Listed unit prices and totals include VAT (10% of supply amount).',
+        '※ 基本单价说明与各工序明细请参见后续页面。所示单价与合计含增值税，增值税为供应金额的10%。',
+      )
+    : pdfText(
+        lang,
+        '※ 기본 단가 안내와 공정별 세부 산정내역은 다음 페이지를 참고해 주세요.',
+        '※ See the following pages for the base unit price guide and detailed process breakdown.',
+        '※ 基本单价说明与各工序明细请参见后续页面。',
+      )
+
+  let displayUnitText = unitPriceText
+  let displayTotalText = totalText
+  let supplyText = totalText
+  let vatText = ''
+  let grandText = totalText
+  let vatBreakdownHtml = ''
+
+  if (includeVat && page1Domestic != null) {
+    const unitIncl = domesticVatBreakdown(page1Domestic.unitKrw).totalIncl
+    const totalIncl = unitIncl * qty
+    const vatAmount = Math.max(0, totalIncl - page1Domestic.totalKrw)
+    displayUnitText = formatQuoteKrw(unitIncl)
+    displayTotalText = formatQuoteKrw(totalIncl)
+    supplyText = formatQuoteKrw(page1Domestic.totalKrw)
+    vatText = formatQuoteKrw(vatAmount)
+    grandText = displayTotalText
+    vatBreakdownHtml = `<div class="summary-vat-breakdown">
+      <div class="summary-vat-row">
+        <span>${supplyLabel}</span>
+        <span>${supplyText}</span>
+      </div>
+      <div class="summary-vat-row">
+        <span>${vatLabel}</span>
+        <span>${vatText}</span>
+      </div>
+    </div>`
+  }
 
   return `<div class="summary-amount-section">
     <h2 class="summary-section-title">${sectionTitle}</h2>
@@ -597,32 +680,373 @@ function buildQuoteSummaryTableHtml(
       <tbody>
         <tr class="summary-main-row">
           <td>${escapeHtml(productName)}</td>
-          <td>${unitPriceText}</td>
+          <td>${displayUnitText}</td>
           <td>${escapeHtml(qtyText)}</td>
-          <td class="summary-row-total">${totalText}</td>
+          <td class="summary-row-total">${displayTotalText}</td>
         </tr>
       </tbody>
     </table>
+    ${vatBreakdownHtml}
     <div class="summary-grand-total">
       <span class="summary-grand-label">${grandLabel}</span>
-      <strong class="summary-grand-value">${totalText}</strong>
+      <strong class="summary-grand-value">${grandText}</strong>
     </div>
     <p class="summary-note">${note}</p>
   </div>`
 }
 
-function buildQuoteDetailHeaderHtml(
+type UnitPriceExplainRow = {
+  label: string
+  amount: string
+  unit: string
+  hint: string
+}
+
+function buildUnitPriceExplainSectionHtml(input: {
+  title: string
+  intro: string
+  rows: UnitPriceExplainRow[]
+  total?: { label: string; amount: string }
+  labels: { item: string; amount: string; unit: string; desc: string }
+}) {
+  const { title, intro, rows, total, labels } = input
+  return `<div class="unit-price-section">
+    <h3 class="unit-price-section-title">${escapeHtml(title)}</h3>
+    <p class="unit-price-section-intro">${escapeHtml(intro)}</p>
+    <table class="quote-table unit-price-table">
+      <thead>
+        <tr>
+          <th>${labels.item}</th>
+          <th>${labels.amount}</th>
+          <th>${labels.unit}</th>
+          <th>${labels.desc}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map(
+            (row) => `<tr>
+          <td class="unit-price-item">${escapeHtml(row.label)}</td>
+          <td class="unit-price-amount">${escapeHtml(row.amount)}</td>
+          <td class="unit-price-unit">${escapeHtml(row.unit)}</td>
+          <td class="unit-price-desc">${escapeHtml(row.hint)}</td>
+        </tr>`,
+          )
+          .join('')}
+        ${
+          total
+            ? `<tr class="unit-price-total-row">
+          <td class="unit-price-item">${escapeHtml(total.label)}</td>
+          <td class="unit-price-amount">${escapeHtml(total.amount)}</td>
+          <td class="unit-price-unit"></td>
+          <td class="unit-price-desc"></td>
+        </tr>`
+            : ''
+        }
+      </tbody>
+    </table>
+  </div>`
+}
+
+function buildUnitPriceExplanationHtml(
   quote: QuoteListItem,
-  estimate: ReturnType<typeof buildQuotePreviewData>['estimate'],
   language?: QuoteDocumentLanguage,
 ) {
-  const isKorean = pdfLabelType(quote, language) === 'domestic'
-  const title = isKorean ? '항목별 요약' : 'Summary Breakdown'
-  const note = isKorean
-    ? 'SMD(SET-UP·실장)·후공정·자재 대당합계와 생산수량 기준 합계입니다.'
-    : 'Unit totals and quantity totals for SMD (SET-UP, placement), post-process, and materials.'
+  const lang = pdfLang(quote, language)
+  const quoteType = quote.quoteType
+  const smtRates = getSmtUnitRates(quoteType)
+  const setupRate = getSmtSetupRate(quoteType)
+  const setupPerPart = getSmtSetupMinutesPerPart(quoteType)
+  const setupBaseSingle = getSmtSetupBaseMinutes('single', quoteType)
+  const setupBaseDouble = getSmtSetupBaseMinutes('double', quoteType)
+  const postRate = getPostRate(quoteType)
 
-  return `${buildSectionPageHeaderHtml(quote, estimate, title, note)}`
+  const tableLabels = {
+    item: pdfText(lang, '항목', 'Item', '项目'),
+    amount: pdfText(lang, '단가', 'Rate', '单价'),
+    unit: pdfText(lang, '단위', 'Unit', '单位'),
+    desc: pdfText(lang, '설명', 'Description', '说明'),
+  }
+
+  const perPc = pdfText(lang, '/개', '/pc', '/个')
+  const perMin = pdfText(lang, '/분', '/min', '/分钟')
+  const minUnit = pdfText(lang, '분', 'min', '分钟')
+
+  const intro = pdfText(
+    lang,
+    '아래는 본 견적에 적용되는 기본 단가 기준입니다. 제품별 수량·작업시간에 단가를 곱해 견적 금액이 산정됩니다.',
+    'These are the base unit rates applied to this quotation. Quote amounts are calculated by multiplying quantities and work time by the rates below.',
+    '以下为本报价适用的基本单价标准。按产品数量、作业时间乘以单价计算报价金额。',
+  )
+
+  const smtSection = buildUnitPriceExplainSectionHtml({
+    title: pdfText(lang, '1. SMD 실장 단가', '1. SMD Placement Rates', '1. SMD贴装单价'),
+    intro: pdfText(
+      lang,
+      '부품 종류별 실장 단가입니다. CHIP·이형·특수/모듈은 개당, IC는 PIN당, BGA는 BALL당으로 산정합니다.',
+      'Placement rates by part type. CHIP / odd / special are per piece, IC per PIN, and BGA per BALL.',
+      '按部品类型的贴装单价。CHIP·异形·特殊/模块按个、IC按PIN、BGA按BALL计算。',
+    ),
+    labels: tableLabels,
+    rows: [
+      {
+        label: 'CHIP',
+        amount: formatQuoteKrwRate(smtRates.chip),
+        unit: perPc,
+        hint: pdfText(lang, '일반 CHIP 부품 실장', 'Standard chip placement', '普通CHIP部品贴装'),
+      },
+      {
+        label: pdfText(lang, '이형', 'Odd-form', '异形'),
+        amount: formatQuoteKrwRate(smtRates.odd),
+        unit: perPc,
+        hint: pdfText(lang, '이형 부품 실장', 'Odd-form / irregular parts', '异形部品贴装'),
+      },
+      {
+        label: pdfText(lang, '특수/모듈', 'Special / Module', '特殊/模块'),
+        amount: formatQuoteKrwRate(smtRates.special),
+        unit: perPc,
+        hint: pdfText(lang, '특수 부품·모듈 실장', 'Special parts and modules', '特殊部品·模块贴装'),
+      },
+      {
+        label: 'IC PIN',
+        amount: formatQuoteKrwRate(smtRates.icPin),
+        unit: pdfText(lang, '/PIN', '/PIN', '/PIN'),
+        hint: pdfText(lang, 'IC 핀 수 기준 실장', 'IC placement by pin count', '按IC引脚数贴装'),
+      },
+      {
+        label: 'BGA BALL',
+        amount: formatQuoteKrwRate(smtRates.bgaBall),
+        unit: pdfText(lang, '/BALL', '/BALL', '/BALL'),
+        hint: pdfText(lang, 'BGA 볼 수 기준 실장', 'BGA placement by ball count', '按BGA球数贴装'),
+      },
+      {
+        label: 'AOI',
+        amount: formatQuoteKrw(AOI_UNIT),
+        unit: pdfText(lang, '/면', '/side', '/面'),
+        hint: pdfText(
+          lang,
+          '자동 광학 검사 (양면은 2배)',
+          'Automated optical inspection (×2 for double-sided)',
+          '自动光学检查 (双面为2倍)',
+        ),
+      },
+    ],
+  })
+
+  const setupSection = buildUnitPriceExplainSectionHtml({
+    title: pdfText(lang, '2. SET-UP 단가', '2. SET-UP Rates', '2. SET-UP单价'),
+    intro: pdfText(
+      lang,
+      '프로그램·세팅 등 생산 준비 비용입니다. 장비 임률(분당) × 소요 시간으로 산정합니다.',
+      'Production preparation (program/setting). Calculated as equipment rate per minute × required time.',
+      '程序·调试等生产准备费用。按设备费率(每分钟) × 所需时间计算。',
+    ),
+    labels: tableLabels,
+    rows: [
+      {
+        label: pdfText(lang, '장비 임률', 'Equipment Rate', '设备费率'),
+        amount: formatQuoteKrw(setupRate),
+        unit: perMin,
+        hint: pdfText(
+          lang,
+          'SET-UP 작업 분당 임률',
+          'SET-UP labor/equipment rate per minute',
+          'SET-UP作业每分钟费率',
+        ),
+      },
+      {
+        label: pdfText(lang, '기본시간 (단면)', 'Base Time (Single)', '基本时间 (单面)'),
+        amount: String(setupBaseSingle),
+        unit: minUnit,
+        hint: pdfText(
+          lang,
+          SMT_SETUP_BASE_TIME_DESCRIPTION,
+          'Loader/Unloader · Screen Print & SPI · Reflow profile',
+          'Loader/Unloader · Screen Print & SPI · Reflow Profile 测定',
+        ),
+      },
+      {
+        label: pdfText(lang, '기본시간 (양면)', 'Base Time (Double)', '基本时间 (双面)'),
+        amount: String(setupBaseDouble),
+        unit: minUnit,
+        hint: pdfText(
+          lang,
+          '양면·듀얼 PCB 기본 준비시간',
+          'Base preparation time for double-sided / dual PCB',
+          '双面·Dual PCB基本准备时间',
+        ),
+      },
+      {
+        label: pdfText(lang, '초품검사', 'First Article', '首件检查'),
+        amount: String(SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART),
+        unit: pdfText(lang, '초/종', 'sec/type', '秒/种'),
+        hint: pdfText(
+          lang,
+          SMT_SETUP_FIRST_ARTICLE_DESCRIPTION,
+          'BOM placement check and LCR measurement',
+          'BOM贴装确认及LCR测定',
+        ),
+      },
+      {
+        label: 'SETTING',
+        amount: String(setupPerPart),
+        unit: pdfText(lang, '분/종', 'min/type', '分钟/种'),
+        hint: pdfText(
+          lang,
+          SMT_SETUP_SETTING_DESCRIPTION,
+          'Feeder setup and coordinate verification',
+          '供料器安装及坐标确认',
+        ),
+      },
+    ],
+  })
+
+  const solderingSection = buildUnitPriceExplainSectionHtml({
+    title: pdfText(lang, '3. 납땜(SOLDERING) 단가', '3. Soldering Rates', '3. 焊接(SOLDERING)单价'),
+    intro: pdfText(
+      lang,
+      '수납땜·웨이브 납땜 단가입니다. 부품 유형·작업 방식에 따라 개당(또는 PIN당)으로 산정합니다.',
+      'Manual and wave soldering rates by part/process type.',
+      '手工焊·波峰焊单价。按部品类型·作业方式以个(或PIN)计算。',
+    ),
+    labels: tableLabels,
+    rows: [
+      {
+        label: pdfText(lang, '수납땜 소형', 'Hand Solder (Small)', '手工焊小型'),
+        amount: formatQuoteKrw(DIP_UNIT.dipGeneral),
+        unit: perPc,
+        hint: pdfText(lang, '1~3 PIN 소형 부품', 'Small parts (1–3 PIN)', '1~3 PIN小型部品'),
+      },
+      {
+        label: pdfText(lang, '수납땜 커넥터', 'Hand Solder (Connector)', '手工焊连接器'),
+        amount: formatQuoteKrw(DIP_UNIT.dipConnector),
+        unit: perPc,
+        hint: pdfText(lang, '커넥터 수납땜', 'Connector hand soldering', '连接器手工焊'),
+      },
+      {
+        label: pdfText(lang, '수납땜 와이어', 'Hand Solder (Wire)', '手工焊线材'),
+        amount: formatQuoteKrw(DIP_UNIT.dipWire),
+        unit: perPc,
+        hint: pdfText(lang, '와이어 수납땜', 'Wire hand soldering', '线材手工焊'),
+      },
+      {
+        label: pdfText(lang, '웨이브 소형', 'Wave (Small)', '波峰小型'),
+        amount: formatQuoteKrw(DIP_UNIT.waveGeneral),
+        unit: perPc,
+        hint: pdfText(lang, '웨이브 솔더 소형 부품', 'Wave soldering for small parts', '波峰焊小型部品'),
+      },
+      {
+        label: pdfText(lang, '웨이브 커넥터', 'Wave (Connector)', '波峰连接器'),
+        amount: formatQuoteKrw(DIP_UNIT.waveConnector),
+        unit: perPc,
+        hint: pdfText(lang, '웨이브 솔더 커넥터', 'Wave soldering for connectors', '波峰焊连接器'),
+      },
+      {
+        label: pdfText(lang, '웨이브 와이어', 'Wave (Wire)', '波峰线材'),
+        amount: formatQuoteKrw(DIP_UNIT.waveWire),
+        unit: perPc,
+        hint: pdfText(lang, '웨이브 솔더 와이어', 'Wave soldering for wires', '波峰焊线材'),
+      },
+    ],
+  })
+
+  const postSection = buildUnitPriceExplainSectionHtml({
+    title: pdfText(lang, '4. 후공정 분당임률', '4. Post-Process Rate / Minute', '4. 后工序每分钟费率'),
+    intro: pdfText(
+      lang,
+      '조립·다운로드·테스트·포장 등 후공정 작업시간은 아래 분당임률로 산정합니다.',
+      'Assembly, download, test, packing and other post-process work time uses the per-minute rate below.',
+      '组装·下载·测试·包装等后工序作业时间按以下每分钟费率计算。',
+    ),
+    labels: tableLabels,
+    rows: [
+      {
+        label: pdfText(lang, '직접노무비', 'Direct Labor', '直接人工费'),
+        amount: formatQuoteKrw(POST_RATE_DIRECT_LABOR),
+        unit: perMin,
+        hint: pdfText(
+          lang,
+          '후공정 작업 직접 인건비',
+          'Direct labor for post-process work',
+          '后工序作业直接人工费',
+        ),
+      },
+      {
+        label: pdfText(lang, '제조간접비', 'Manufacturing Overhead', '制造间接费'),
+        amount: formatQuoteKrw(POST_RATE_OVERHEAD),
+        unit: perMin,
+        hint: pdfText(
+          lang,
+          '설비·유틸리티·현장 지원',
+          'Equipment, utilities, and shop support',
+          '设备·公用工程·现场支援',
+        ),
+      },
+      {
+        label: pdfText(lang, '기업이윤', 'Corporate Profit', '企业利润'),
+        amount: formatQuoteKrw(POST_RATE_CORPORATE_PROFIT),
+        unit: perMin,
+        hint: pdfText(
+          lang,
+          '지속 가능한 운영을 위한 최소 이윤',
+          'Minimum sustainable operating margin',
+          '可持续经营所需最低利润',
+        ),
+      },
+      {
+        label: pdfText(lang, '일반관리비', 'General & Administrative', '一般管理费'),
+        amount: formatQuoteKrw(POST_RATE_ADMIN),
+        unit: perMin,
+        hint: pdfText(
+          lang,
+          '영업·관리·품질 지원',
+          'Sales, admin, and quality support',
+          '营业·管理·品质支援',
+        ),
+      },
+    ],
+    total: {
+      label: pdfText(lang, '합계 (분당임률)', 'Total (Rate / Minute)', '合计 (每分钟费率)'),
+      amount: formatQuoteKrw(postRate),
+    },
+  })
+
+  const footer = pdfText(
+    lang,
+    '※ 제품별 적용 수량·시간·합계는 다음 페이지의 공정별 세부 산정내역을 참고해 주세요.',
+    '※ See the next page for the detailed process breakdown by product quantity and work time.',
+    '※ 各产品适用数量·时间·合计请参见下一页各工序明细。',
+  )
+
+  return `<div class="unit-price-explain">
+    <p class="unit-price-explain-note">${escapeHtml(intro)}</p>
+    <div class="unit-price-grid">
+      ${smtSection}
+      ${setupSection}
+      ${solderingSection}
+      ${postSection}
+    </div>
+    <p class="unit-price-footer">${footer}</p>
+  </div>`
+}
+
+function buildQuoteDetailPage(quote: QuoteListItem, language?: QuoteDocumentLanguage) {
+  const { estimate } = buildQuotePreviewData(quote, { labelLanguage: language })
+  const lang = pdfLang(quote, language)
+  const title = pdfText(lang, '기본 단가 안내', 'Base Unit Price Guide', '基本单价说明')
+  const note = pdfText(
+    lang,
+    'SMD · SET-UP · 납땜 · 후공정 기본 단가 구성입니다.',
+    'Base unit rates for SMD, SET-UP, soldering, and post-process.',
+    'SMD · SET-UP · 焊接 · 后工序基本单价构成。',
+  )
+
+  return `<section class="quote-page quote-page-detail">
+    <div class="quote-card">
+      ${buildSectionPageHeaderHtml(quote, estimate, title, note)}
+      ${buildUnitPriceExplanationHtml(quote, language)}
+    </div>
+  </section>`
 }
 
 function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteDocumentLanguage) {
@@ -632,22 +1056,28 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
   const labels = getPreviewLabels(labelType)
   const smtRows = filterPdfBreakdownRows(pdfBreakdownRows, 'smt', quote.quoteType)
   const setupRows = filterPdfBreakdownRows(pdfBreakdownRows, 'setup', quote.quoteType)
+  const dipRows = filterPdfBreakdownRows(pdfBreakdownRows, 'dip', quote.quoteType)
   const postRows = filterPdfBreakdownRows(pdfBreakdownRows, 'post', quote.quoteType)
   const materialRows = filterPdfBreakdownRows(pdfBreakdownRows, 'material', quote.quoteType)
   if (
     !smtRows.length &&
     !setupRows.length &&
+    !dipRows.length &&
     !postRows.length &&
     !materialRows.length
   ) {
     return ''
   }
 
-  const isKorean = labelType === 'domestic'
-  const pageTitle = isKorean ? '공정별 세부 산정내역' : 'Detailed Breakdown by Process'
-  const pageNote = isKorean
-    ? 'SMD(SET-UP·실장·검사)·후공정(납땜 포함)·자재 항목별 단가·수량 기준 산정식입니다.'
-    : 'Itemized calculation for SMD (SET-UP, placement, inspection), post-process (incl. soldering), and materials.'
+  const lang = resolvePdfLanguage(quote.quoteType, language)
+  const pageTitle = pdfText(lang, '공정별 세부 산정내역', 'Detailed Breakdown by Process', '各工序明细')
+  const pageNote = pdfText(
+    lang,
+    'SMD(SET-UP·실장·검사)·납땜·후공정·자재 항목별 단가·수량 기준 산정식입니다.',
+    'Itemized calculation for SMD (SET-UP, placement, inspection), soldering, post-process, and materials.',
+    'SMD(SET-UP·贴装·检查)·焊接·后工序·材料各项单价·数量计算式。',
+  )
+  const solderingTitle = labels.soldering
   const postTitle = pdfSummarySectionLabel(labels.postProcess, labelType)
   const materialTitle = pdfSummarySectionLabel(labels.materials, labelType)
 
@@ -657,6 +1087,7 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
       <div class="breakdown-sections">
         ${buildBreakdownSectionHtml('SET-UP', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated', labelType, estimate.qty || 1)}
         ${buildBreakdownSectionHtml(breakdownSmtSectionTitle(labelType), smtRows, quote.quoteType, 'smt', 'breakdown-section-smt', labelType, estimate.qty || 1)}
+        ${buildBreakdownSectionHtml(solderingTitle, dipRows, quote.quoteType, 'dip', 'breakdown-section-separated', labelType, estimate.qty || 1)}
         ${buildBreakdownSectionHtml(postTitle, postRows, quote.quoteType, 'post', 'breakdown-section-separated', labelType, estimate.qty || 1)}
         ${buildBreakdownSectionHtml(materialTitle, materialRows, quote.quoteType, 'material', 'breakdown-section-separated', labelType, estimate.qty || 1)}
       </div>
@@ -676,22 +1107,6 @@ function buildQuoteSummaryPage(
     <div class="quote-card quote-card-summary">
       ${buildQuoteSummaryMetaHtml(quote, estimate, labels.title, language, contactEmail)}
       ${buildQuoteSummaryTableHtml(quote, estimate, language)}
-    </div>
-  </section>`
-}
-
-function buildQuoteDetailPage(quote: QuoteListItem, language?: QuoteDocumentLanguage) {
-  const { estimate } = buildQuotePreviewData(quote, { labelLanguage: language })
-  const isKorean = pdfLabelType(quote, language) === 'domestic'
-  const footerNote = isKorean
-    ? '※ 공정별 세부 산정내역은 다음 페이지를 참고해 주세요.'
-    : '※ See the following page for the detailed breakdown by process.'
-
-  return `<section class="quote-page quote-page-detail">
-    <div class="quote-card">
-      ${buildQuoteDetailHeaderHtml(quote, estimate, language)}
-      ${buildBoardDetailsTableHtml(quote, language)}
-      <p class="detail-footer-note">${footerNote}</p>
     </div>
   </section>`
 }
@@ -729,12 +1144,19 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
   const language = options?.language
   const contactEmail = options?.contactEmail
   const pages = quotes.map((quote) => buildQuotePages(quote, language, contactEmail)).join('')
-  const isEnglish = language === 'en' || quotes.every((q) => q.quoteType === 'export')
-  const docLang = isEnglish ? 'en' : 'ko'
-  const printHint = isEnglish
-    ? 'In the print dialog: turn off “Headers and footers”, then choose “Save as PDF”.'
-    : '인쇄 설정에서 「머리글 및 바닥글」 체크를 해제한 뒤 「PDF로 저장」을 선택하세요.'
-  const printButton = isEnglish ? 'Save as PDF' : 'PDF로 저장'
+  const primaryQuoteType = quotes[0]?.quoteType ?? 'domestic'
+  const docLang = resolvePdfLanguage(primaryQuoteType, language)
+  const printHint = pdfText(
+    docLang,
+    '인쇄 설정에서 「머리글 및 바닥글」 체크를 해제한 뒤 「PDF로 저장」을 선택하세요.',
+    'In the print dialog: turn off “Headers and footers”, then choose “Save as PDF”.',
+    '请在打印设置中取消勾选「页眉和页脚」，然后选择「另存为PDF」。',
+  )
+  const printButton = pdfText(docLang, 'PDF로 저장', 'Save as PDF', '另存为PDF')
+  const fontStack =
+    docLang === 'zh'
+      ? '"Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif'
+      : '"Malgun Gothic", "Apple SD Gothic Neo", "Microsoft YaHei", sans-serif'
 
   return `<!DOCTYPE html>
 <html lang="${docLang}">
@@ -747,7 +1169,7 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
     body {
       margin: 0;
       padding: 24px;
-      font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      font-family: ${fontStack};
       color: #0f172a;
       background: #f8fafc;
     }
@@ -1000,12 +1422,31 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       color: #1d4ed8 !important;
       font-weight: 800 !important;
     }
+    .summary-vat-breakdown {
+      margin-top: 14px;
+      padding: 12px 20px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #f8fafc;
+    }
+    .summary-vat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      color: #475569;
+      font-weight: 600;
+    }
+    .summary-vat-row + .summary-vat-row {
+      margin-top: 8px;
+    }
     .summary-grand-total {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 16px;
-      margin-top: 20px;
+      margin-top: 12px;
       padding: 18px 24px;
       border: 2px solid #1d4ed8;
       border-radius: 6px;
@@ -1049,6 +1490,87 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       margin: 6px 0 0;
       font-size: 12px;
       color: #94a3b8;
+    }
+    .unit-price-explain {
+      margin-top: 8px;
+    }
+    .unit-price-explain-note {
+      margin: 0 0 14px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #475569;
+    }
+    .unit-price-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 14px;
+      align-items: stretch;
+    }
+    .unit-price-section {
+      margin: 0;
+      padding: 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      background: #f8fafc;
+      min-width: 0;
+    }
+    .unit-price-section-title {
+      margin: 0 0 4px;
+      font-size: 13px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.01em;
+    }
+    .unit-price-section-intro {
+      margin: 0 0 8px;
+      font-size: 10px;
+      line-height: 1.4;
+      color: #64748b;
+    }
+    .unit-price-table {
+      width: 100%;
+      margin: 0;
+      background: #fff;
+    }
+    .unit-price-table th,
+    .unit-price-table td {
+      padding: 5px 6px;
+      font-size: 10px;
+    }
+    .unit-price-table th:nth-child(2),
+    .unit-price-table th:nth-child(3),
+    .unit-price-amount,
+    .unit-price-unit {
+      text-align: right;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .unit-price-amount {
+      font-weight: 700;
+    }
+    .unit-price-unit {
+      color: #64748b;
+      font-weight: 600;
+    }
+    .unit-price-item {
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .unit-price-desc {
+      color: #64748b;
+      word-break: keep-all;
+    }
+    .unit-price-total-row td {
+      background: #e2e8f0 !important;
+      font-weight: 800;
+      border-top: 1px solid #94a3b8;
+    }
+    .unit-price-footer {
+      margin: 12px 0 0;
+      font-size: 11px;
+      color: #94a3b8;
+      text-align: center;
     }
     .detail-footer-note {
       margin: 16px 0 0;

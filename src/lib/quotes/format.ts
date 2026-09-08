@@ -120,12 +120,22 @@ export function formatQuoteMoneyUnit(krw: number, quoteType?: QuoteType) {
   return quoteType === 'export' ? formatQuoteUsd(krw) : formatQuoteKrw(krw)
 }
 
-/** 국내용 대당·합계 요약 (원 단위 반올림) */
+/** 국내용 대당·합계 요약 — 대당(원) 반올림 후 합계 = 대당 × 수량 */
 export function domesticPage1SummaryAmounts(grandTotalKrw: number, qty: number) {
   const safeQty = qty || 1
-  const totalKrw = roundDomesticKrw(grandTotalKrw)
-  const unitKrw = roundDomesticKrw(totalKrw / safeQty)
+  const unitKrw = roundDomesticKrw((Number(grandTotalKrw) || 0) / safeQty)
+  const totalKrw = unitKrw * safeQty
   return { unitKrw, totalKrw }
+}
+
+/** 국내 부가세율 10% */
+export const DOMESTIC_VAT_RATE = 0.1
+
+/** 공급가액 기준 부가세·VAT 포함 합계 */
+export function domesticVatBreakdown(supplyKrw: number) {
+  const supply = roundDomesticKrw(supplyKrw)
+  const vat = roundDomesticKrw(supply * DOMESTIC_VAT_RATE)
+  return { supply, vat, totalIncl: supply + vat }
 }
 
 export function formatQuotePreviewSummary(
@@ -140,9 +150,16 @@ export function formatQuotePreviewSummary(
 
   if (quoteType === 'domestic') {
     const { unitKrw, totalKrw } = domesticPage1SummaryAmounts(grandTotalKrw, qty)
+    const unitVat = domesticVatBreakdown(unitKrw)
+    /** VAT 포함 표시 시 대당×수량 = 합계가 되도록 대당 포함가 × 수량 */
+    const totalInclFromUnit = unitVat.totalIncl * (qty || 1)
+    const vatFromUnitPricing = Math.max(0, totalInclFromUnit - totalKrw)
     return {
       unitFormatted: formatQuoteKrw(unitKrw),
       totalFormatted: formatQuoteKrw(totalKrw),
+      vatFormatted: formatQuoteKrw(vatFromUnitPricing),
+      totalInclFormatted: formatQuoteKrw(totalInclFromUnit),
+      unitInclFormatted: formatQuoteKrw(unitVat.totalIncl),
     }
   }
 

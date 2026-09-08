@@ -33,6 +33,7 @@ import {
   ITEM_PROCESS_TYPES,
   type ItemPcbSideMode,
   canEditItemCodeOnCreate,
+  deriveItemProcessType,
   isProductItemCategory,
   isRawMaterialItemCategory,
   isSemiFinishedItemCategory,
@@ -47,7 +48,6 @@ import { nextItemCodeForCategory, itemFromPayload, displayItemUnitPrice, formatI
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
-import { displayItemFormUnitPrice } from '@/lib/quotes/quote-to-item'
 import { hasItemUnitPriceChange } from '@/lib/change-logs/utils'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS, ERP_ROW_ADD_BUTTON_CLASS } from '@/lib/ui/tokens'
 
@@ -238,22 +238,29 @@ function ItemModalContent({
     form.itemCategory !== '' &&
     (isSemiFinishedItemCategory(form.itemCategory) || isFinishedItemCategory(form.itemCategory))
 
-  function updateBaselineUnitPrice(raw: string) {
+  function updateSemiFinishedPriceField(
+    key: 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice',
+    raw: string,
+  ) {
     const next = Math.max(0, Math.round(Number(raw) || 0))
-    setForm((current) => ({
-      ...current,
-      unitPrice: next,
-      setupUnitPrice: 0,
-      smdUnitPrice: 0,
-      dipUnitPrice: 0,
-      materialUnitPrice: 0,
-    }))
+    setForm((current) => {
+      const smd = key === 'smdUnitPrice' ? next : current.smdUnitPrice
+      const dip = key === 'dipUnitPrice' ? next : current.dipUnitPrice
+      const updated: ItemFormState = {
+        ...current,
+        [key]: next,
+      }
+      if (key === 'smdUnitPrice' || key === 'dipUnitPrice') {
+        updated.unitPrice = smd + dip
+        const derived = deriveItemProcessType(smd, dip)
+        if (derived) updated.processType = derived
+      }
+      return updated
+    })
   }
 
   const showVersionField =
     form.itemCategory !== '' && isProductItemCategory(form.itemCategory)
-
-  const displayUnitPrice = displayItemFormUnitPrice(form)
 
   const displayItemCode = (() => {
     if (form.itemCategory === '') return ''
@@ -713,22 +720,44 @@ function ItemModalContent({
           </div>
         ) : null}
         {showProductUnitPriceField ? (
-          <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-2">
-            <label className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>기본단가</span>
-              <QuoteNumericInput
-                min={0}
-                value={String(displayUnitPrice > 0 ? displayUnitPrice : form.unitPrice || '')}
-                onChange={updateBaselineUnitPrice}
-                className={ERP_FIELD_INPUT_CLASS}
-                placeholder="0"
-              />
-              <p className="mt-1 text-xs text-slate-500">
-                직접 입력해 주세요. 직접 수정 시 세부 단가는 초기화됩니다.
-              </p>
-            </label>
-            {showAdditionalUnitPriceField ? (
+          <div className="space-y-4 sm:col-span-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>SMD</span>
+                <QuoteNumericInput
+                  min={0}
+                  value={String(form.smdUnitPrice > 0 ? form.smdUnitPrice : '')}
+                  onChange={(raw) => updateSemiFinishedPriceField('smdUnitPrice', raw)}
+                  className={ERP_FIELD_INPUT_CLASS}
+                  placeholder="0"
+                />
+                <p className="mt-1 text-xs text-slate-500">대당 SMD 가공비입니다.</p>
+              </label>
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>후공정</span>
+                <QuoteNumericInput
+                  min={0}
+                  value={String(form.dipUnitPrice > 0 ? form.dipUnitPrice : '')}
+                  onChange={(raw) => updateSemiFinishedPriceField('dipUnitPrice', raw)}
+                  className={ERP_FIELD_INPUT_CLASS}
+                  placeholder="0"
+                />
+                <p className="mt-1 text-xs text-slate-500">대당 후공정 가공비입니다.</p>
+              </label>
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>자재비</span>
+                <QuoteNumericInput
+                  min={0}
+                  value={String(form.materialUnitPrice > 0 ? form.materialUnitPrice : '')}
+                  onChange={(raw) => updateSemiFinishedPriceField('materialUnitPrice', raw)}
+                  className={ERP_FIELD_INPUT_CLASS}
+                  placeholder="0"
+                />
+                <p className="mt-1 text-xs text-slate-500">대당 자재비입니다.</p>
+              </label>
+            </div>
+            {showAdditionalUnitPriceField ? (
+              <label className="block text-sm sm:max-w-[33%]">
                 <span className={ERP_FIELD_LABEL_CLASS}>추가비용</span>
                 <QuoteNumericInput
                   min={0}
