@@ -57,3 +57,25 @@ export function deliveryUrgencyClass(daysUntilDelivery: number | null) {
 export function isConfirmedStatus(status: ProductionPlanBoardStatus) {
   return status === 'confirmed'
 }
+
+/** SMT 양면: 발주 수량 대비 면별 미계획(미배정) 수량 */
+export function computeSmtSideUnplannedQty(
+  rows: ProductionPlanBoardRow[],
+  targetId: string,
+  orderQty: number,
+): { top: number; bot: number } {
+  let plannedTop = 0
+  let plannedBot = 0
+  for (const row of rows) {
+    if (row.scope !== 'smt' || row.targetId !== targetId) continue
+    if (!isProductionPlanScheduleRow(row)) continue
+    const qty = Math.max(0, Math.round(Number(row.plannedQuantity) || 0))
+    if (row.pcbSide === 'TOP' || row.pcbSide === 'BOTH') plannedTop += qty
+    if (row.pcbSide === 'BOT' || row.pcbSide === 'BOTH') plannedBot += qty
+  }
+  const cap = Math.max(0, Math.round(Number(orderQty) || 0))
+  return {
+    top: Math.max(0, cap - plannedTop),
+    bot: Math.max(0, cap - plannedBot),
+  }
+}

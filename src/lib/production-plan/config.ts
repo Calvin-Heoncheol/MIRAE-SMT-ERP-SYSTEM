@@ -13,8 +13,20 @@ export function parseProductionPlanDragPayload(raw: string): ProductionPlanDragP
   try {
     const payload = JSON.parse(raw) as ProductionPlanDragPayload
     if (payload.kind !== 'order' || !payload.key?.trim()) return null
+    if (payload.scope !== 'material' && payload.scope !== 'smt' && payload.scope !== 'post') {
+      return null
+    }
     return payload
   } catch {
     return null
   }
 }
+
+export function readProductionPlanDragPayloadFromDataTransfer(
+  dataTransfer: DataTransfer,
+): ProductionPlanDragPayload | null {
+  const raw =
+    dataTransfer.getData(SHARED_PRODUCTION_PLAN_DRAG_MIME) || dataTransfer.getData('text/plain')
+  return parseProductionPlanDragPayload(raw)
+}
+

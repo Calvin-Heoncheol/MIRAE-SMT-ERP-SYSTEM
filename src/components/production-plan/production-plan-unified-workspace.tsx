@@ -1,11 +1,8 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
-import {
-  ProductionPlanAssignModal,
-  type ProductionPlanAssignTarget,
-} from '@/components/production-plan/production-plan-assign-modal'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ProductionPlanFetchError } from '@/components/production-plan/production-plan-fetch-error'
+import { ProductionPlanPendingSidebar } from '@/components/production-plan/production-plan-pending-sidebar'
 import { ProductionPlanPostWeekCalendar } from '@/components/production-plan/production-plan-post-week-calendar'
 import { ProductionPlanSmtWeekCalendar } from '@/components/production-plan/production-plan-smt-week-calendar'
 import {
@@ -13,6 +10,7 @@ import {
   ProductionPlanScheduleModal,
   type ProductionPlanScheduleFormValues,
 } from '@/components/production-plan/production-plan-schedule-modal'
+import { useDashboardChrome } from '@/components/dashboard/dashboard-chrome'
 import { useToast } from '@/components/ui/toast-provider'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import {
@@ -21,6 +19,7 @@ import {
   getWeekStartYmd,
   isYmdInWeek,
 } from '@/lib/production-plan/calendar'
+import type { ProductionPlanDragPayload } from '@/lib/production-plan/config'
 import { canPlanPost, validatePostPlanDate } from '@/lib/production-plan/pipeline'
 import {
   confirmProductionPlanItem,
@@ -89,9 +88,13 @@ export function ProductionPlanUnifiedWorkspace({
   const [modalDeleting, setModalDeleting] = useState(false)
   const [search, setSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
-  const [assignTarget, setAssignTarget] = useState<ProductionPlanAssignTarget | null>(null)
   const lastCommittedQtyRef = useRef<Record<string, number>>({})
   const toast = useToast()
+  const { focusMode, toggleFocusMode, setFocusMode } = useDashboardChrome()
+
+  useEffect(() => {
+    return () => setFocusMode(false)
+  }, [setFocusMode])
 
   const allLines = useMemo(() => buildUnifiedPlanSheetLines(rows), [rows])
 
@@ -181,24 +184,50 @@ export function ProductionPlanUnifiedWorkspace({
     }
   }
 
-  function handleSmtCellClick(target: { plannedDate: string; lineNo: number }) {
-    handleSelectDate(target.plannedDate)
-    setAssignTarget({ scope: 'smt', plannedDate: target.plannedDate, lineNo: target.lineNo })
+  function resolveDropRow(payload: ProductionPlanDragPayload): ProductionPlanBoardRow | null {
+    for (const line of pendingLines) {
+      const planRow = pickPlanningRowForLine(line, payload.scope)
+      if (planRow && planRow.key === payload.key) return planRow
+    }
+    return rows.find((row) => row.key === payload.key && row.scope === payload.scope) ?? null
   }
 
-  function handlePostCellClick(target: { plannedDate: string; team: PostProcessTeam }) {
-    handleSelectDate(target.plannedDate)
-    setAssignTarget({ scope: 'post', plannedDate: target.plannedDate, team: target.team })
-  }
-
-  function handleAssignSelect(row: ProductionPlanBoardRow) {
-    if (!assignTarget) return
-    const target = assignTarget
-    setAssignTarget(null)
-    if (target.scope === 'smt') {
-      openScheduleModal(row, target.plannedDate, { lineNo: target.lineNo })
+  function handleSmtDrop(
+    payload: ProductionPlanDragPayload,
+    target: { plannedDate: string; lineNo: number },
+  ) {
+    if (payload.scope !== 'smt') {
+      toast.error('배정 불가', 'SMT 탭에는 SMT 미배정 발주만 놓을 수 있습니다.')
       return
     }
+    const row = resolveDropRow(payload)
+    if (!row) {
+      toast.error('배정 불가', '해당 발주를 찾을 수 없습니다.')
+      return
+    }
+    handleSelectDate(target.plannedDate)
+    openScheduleModal(row, target.plannedDate, { lineNo: target.lineNo })
+  }
+
+  function handlePostDrop(
+    payload: ProductionPlanDragPayload,
+    target: { plannedDate: string; team: PostProcessTeam },
+  ) {
+    if (payload.scope !== 'post') {
+      toast.error('배정 불가', '후공정 탭에는 후공정 미배정 발주만 놓을 수 있습니다.')
+      return
+    }
+    const row = resolveDropRow(payload)
+    if (!row) {
+      toast.error('배정 불가', '해당 발주를 찾을 수 없습니다.')
+      return
+    }
+    const validationError = validateBeforeSchedule(row, target.plannedDate)
+    if (validationError) {
+      toast.error('배정 불가', validationError)
+      return
+    }
+    handleSelectDate(target.plannedDate)
     openScheduleModal(row, target.plannedDate, { team: target.team })
   }
 
@@ -341,40 +370,58 @@ export function ProductionPlanUnifiedWorkspace({
               ) : null}
             </div>
 
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="발주·고객사·제품 검색"
-              className="h-8 w-full max-w-[14rem] rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100 sm:ml-auto"
-            />
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleFocusMode}
+                title={focusMode ? '전체화면 종료 (Esc)' : '전체화면 — 계획표만 보기'}
+                aria-label={focusMode ? '전체화면 종료' : '전체화면'}
+                aria-pressed={focusMode}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+                  focusMode
+                    ? 'border-slate-800 bg-slate-800 text-white hover:bg-slate-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                {focusMode ? (
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 9H4V4M15 9h5V4M9 15H4v5M15 15h5v5" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
-        {isSmtTab ? (
-          <ProductionPlanSmtWeekCalendar
-            weekDates={weekDates}
-            scheduledRows={scheduledRows}
-            onCellClick={handleSmtCellClick}
-            onSelectRow={(row) => openScheduleModal(row)}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+          <ProductionPlanPendingSidebar
+            pendingLines={pendingLines}
+            allRows={rows}
+            scope={scopeFilter}
+            search={search}
+            onSearchChange={setSearch}
           />
-        ) : isPostTab ? (
-          <ProductionPlanPostWeekCalendar
-            weekDates={weekDates}
-            scheduledRows={scheduledRows}
-            onCellClick={handlePostCellClick}
-            onSelectRow={(row) => openScheduleModal(row)}
-          />
-        ) : null}
+          {isSmtTab ? (
+            <ProductionPlanSmtWeekCalendar
+              weekDates={weekDates}
+              scheduledRows={scheduledRows}
+              onDropOrder={handleSmtDrop}
+              onSelectRow={(row) => openScheduleModal(row)}
+            />
+          ) : isPostTab ? (
+            <ProductionPlanPostWeekCalendar
+              weekDates={weekDates}
+              scheduledRows={scheduledRows}
+              onDropOrder={handlePostDrop}
+              onSelectRow={(row) => openScheduleModal(row)}
+            />
+          ) : null}
+        </div>
       </div>
-
-      <ProductionPlanAssignModal
-        open={assignTarget != null}
-        target={assignTarget}
-        pendingLines={pendingLines}
-        onClose={() => setAssignTarget(null)}
-        onSelectRow={handleAssignSelect}
-      />
 
       <ProductionPlanScheduleModal
         open={modal.open}

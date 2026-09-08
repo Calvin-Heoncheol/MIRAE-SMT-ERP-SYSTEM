@@ -1,4 +1,5 @@
 import { SideNav } from '@/components/dashboard/side-nav'
+import { DashboardChromeProvider } from '@/components/dashboard/dashboard-chrome'
 import { AuthProfileProvider } from '@/components/auth/auth-profile-provider'
 import { ForcePasswordChangeModal } from '@/components/auth/force-password-change-modal'
 import { BusyProvider } from '@/components/ui/busy-provider'
@@ -7,6 +8,7 @@ import { PageLocationHeader } from '@/components/ui/page-location-header'
 import { ToastProvider } from '@/components/ui/toast-provider'
 import { isAuthDisabled } from '@/lib/auth/config'
 import { getAuthProfile } from '@/lib/auth/session'
+import { DashboardChromeShell } from '@/components/dashboard/dashboard-chrome-shell'
 
 /** Supabase 데이터가 빌드 시점 HTML에 고정되지 않도록 매 요청마다 조회합니다. */
 export const dynamic = 'force-dynamic'
@@ -24,14 +26,15 @@ export default async function DashboardLayout({
       <ToastProvider>
         <BusyProvider>
           <ErpConfirmProvider>
-            <div className="flex h-dvh flex-col overflow-hidden text-slate-900 lg:flex-row">
-              <SideNav profile={profile} authDisabled={authDisabled} />
-              <main className="flex min-h-0 min-w-0 w-full flex-1 flex-col gap-3 overflow-hidden px-4 py-4 lg:px-6 lg:py-5">
-                <PageLocationHeader />
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
-              </main>
+            <DashboardChromeProvider>
+              <DashboardChromeShell
+                sideNav={<SideNav profile={profile} authDisabled={authDisabled} />}
+                pageHeader={<PageLocationHeader />}
+              >
+                {children}
+              </DashboardChromeShell>
               <ForcePasswordChangeModal open={Boolean(profile?.mustChangePassword)} />
-            </div>
+            </DashboardChromeProvider>
           </ErpConfirmProvider>
         </BusyProvider>
       </ToastProvider>

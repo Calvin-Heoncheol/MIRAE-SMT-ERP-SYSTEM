@@ -1,6 +1,11 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState, type DragEvent } from 'react'
+import { ProductionPlanBoardCard } from '@/components/production-plan/production-plan-board-card'
+import {
+  readProductionPlanDragPayloadFromDataTransfer,
+  type ProductionPlanDragPayload,
+} from '@/lib/production-plan/config'
 import type { ProductionPlanBoardRow } from '@/lib/production-plan/types'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
@@ -11,7 +16,10 @@ type ProductionPlanSmtWeekCalendarProps = {
   weekDates: string[]
   scheduledRows: ProductionPlanBoardRow[]
   onSelectRow?: (row: ProductionPlanBoardRow) => void
-  onCellClick?: (target: { plannedDate: string; lineNo: number }) => void
+  onDropOrder?: (
+    payload: ProductionPlanDragPayload,
+    target: { plannedDate: string; lineNo: number },
+  ) => void
 }
 
 function cellKey(plannedDate: string, lineNo: number) {
@@ -22,10 +30,11 @@ export function ProductionPlanSmtWeekCalendar({
   weekDates,
   scheduledRows,
   onSelectRow,
-  onCellClick,
+  onDropOrder,
 }: ProductionPlanSmtWeekCalendarProps) {
   const today = todayYmdSeoul()
   const lineNos = SMT_PLAN_LINE_NOS
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
 
   const rowsByCell = useMemo(() => {
     const map = new Map<string, ProductionPlanBoardRow[]>()
@@ -41,6 +50,22 @@ export function ProductionPlanSmtWeekCalendar({
     }
     return map
   }, [scheduledRows])
+
+  function handleDragOver(event: DragEvent, key: string) {
+    if (!onDropOrder) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setDragOverKey(key)
+  }
+
+  function handleDrop(event: DragEvent, plannedDate: string, lineNo: number) {
+    if (!onDropOrder) return
+    event.preventDefault()
+    setDragOverKey(null)
+    const payload = readProductionPlanDragPayloadFromDataTransfer(event.dataTransfer)
+    if (!payload || payload.scope !== 'smt') return
+    onDropOrder(payload, { plannedDate, lineNo })
+  }
 
   return (
     <div className="min-h-0 flex-1 overflow-auto bg-white">
@@ -87,44 +112,44 @@ export function ProductionPlanSmtWeekCalendar({
                 const key = cellKey(plannedDate, lineNo)
                 const cellRows = rowsByCell.get(key) ?? []
                 const isToday = plannedDate === today
+                const isDropTarget = dragOverKey === key
 
                 return (
                   <td
                     key={key}
-                    className={`min-h-[110px] cursor-pointer border-r align-top p-1.5 last:border-r-0 hover:bg-slate-50/80 ${
-                      isToday ? 'border-sky-200 bg-sky-50/70' : 'border-slate-100'
+                    className={`min-h-[110px] border-r align-top p-1.5 last:border-r-0 ${
+                      isDropTarget
+                        ? 'border-sky-300 bg-sky-100 ring-2 ring-inset ring-sky-400'
+                        : isToday
+                          ? 'border-sky-200 bg-sky-50/70'
+                          : 'border-slate-100'
                     }`}
-                    onClick={() => onCellClick?.({ plannedDate, lineNo })}
+                    onDragOver={(event) => handleDragOver(event, key)}
+                    onDragLeave={() => setDragOverKey((current) => (current === key ? null : current))}
+                    onDrop={(event) => handleDrop(event, plannedDate, lineNo)}
                   >
                     <div className="flex min-h-[96px] flex-col gap-1">
                       {cellRows.map((row) => (
-                        <button
+                        <ProductionPlanBoardCard
                           key={row.key}
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            onSelectRow?.(row)
-                          }}
-                          className="w-full rounded-md border border-sky-200 bg-sky-50 px-1.5 py-1.5 text-left text-[10px] leading-snug text-sky-900 shadow-sm transition hover:brightness-95"
-                        >
-                          <div className="flex min-w-0 items-center gap-1">
-                            <p className="min-w-0 truncate font-semibold">{row.productName || '—'}</p>
-                            {row.pcbSide === 'TOP' || row.pcbSide === 'BOT' ? (
-                              <span className="shrink-0 rounded bg-white/80 px-1 py-0.5 text-[9px] font-bold text-sky-800">
-                                {row.pcbSide}
-                              </span>
-                            ) : null}
-                          </div>
-                          {row.plannedQuantity ? (
-                            <p className="mt-0.5 tabular-nums opacity-90">
-                              {row.plannedQuantity.toLocaleString('ko-KR')}대
-                            </p>
-                          ) : null}
-                        </button>
+                          row={row}
+                          tone="smt"
+                          onSelect={onSelectRow}
+                        />
                       ))}
                       {cellRows.length === 0 ? (
-                        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-200 px-1 py-6 text-[11px] text-slate-400">
-                          클릭하여 배정
+                        <div
+                          className={`flex flex-1 items-center justify-center rounded-lg border border-dashed px-1 py-6 text-[11px] ${
+                            isDropTarget
+                              ? 'border-sky-400 bg-sky-50 text-sky-700'
+                              : 'border-slate-200 text-slate-400'
+                          }`}
+                        >
+                          {isDropTarget ? '여기에 놓기' : '끌어다 놓기'}
+                        </div>
+                      ) : isDropTarget ? (
+                        <div className="rounded-md border border-dashed border-sky-400 bg-sky-50 px-1 py-2 text-center text-[10px] font-semibold text-sky-700">
+                          여기에 추가
                         </div>
                       ) : null}
                     </div>
