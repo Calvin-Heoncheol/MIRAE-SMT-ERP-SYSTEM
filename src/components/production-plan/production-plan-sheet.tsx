@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { buildScheduleFormValues } from '@/components/production-plan/production-plan-schedule-modal'
+import { ErpNumericInput } from '@/components/ui/erp-numeric-input'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { isYmdInMonth } from '@/lib/production-plan/calendar'
 import {
@@ -327,17 +328,12 @@ export function ProductionPlanSheet({
           </div>
         </td>
         <td className={`border-r border-slate-100 px-1 py-1 ${STAGE_COL_CLASS}`}>
-          <input
-            type="number"
+          <ErpNumericInput
             min={1}
             max={maxQuantity(row)}
             value={draft.plannedQuantity}
             disabled={disabled}
-            onChange={(event) =>
-              updateDraft(row.key, {
-                plannedQuantity: Math.max(1, Math.floor(Number(event.target.value) || 0)),
-              })
-            }
+            onValueChange={(plannedQuantity) => updateDraft(row.key, { plannedQuantity })}
             className={`${cellInputClass} text-right tabular-nums`}
           />
         </td>

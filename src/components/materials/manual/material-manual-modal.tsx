@@ -20,6 +20,7 @@ type MaterialManualModalProps = {
     inboundQty: number
     outboundQty: number
   }) => Promise<boolean>
+  onHistoryChanged?: () => void
 }
 
 export function MaterialManualModal({
@@ -29,6 +30,7 @@ export function MaterialManualModal({
   refreshing = false,
   onClose,
   onSave,
+  onHistoryChanged,
 }: MaterialManualModalProps) {
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
 
@@ -77,7 +79,11 @@ export function MaterialManualModal({
           />
         </div>
 
-        <MaterialManualOrderHistory order={order} refreshKey={historyRefreshKey} />
+        <MaterialManualOrderHistory
+          order={order}
+          refreshKey={historyRefreshKey}
+          onHistoryChanged={onHistoryChanged}
+        />
       </div>
     </ErpModal>
   )

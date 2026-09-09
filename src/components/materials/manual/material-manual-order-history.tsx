@@ -1,7 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { fetchMaterialManualHistoryByOrderLine } from '@/lib/materials/manual/repository'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
+import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
+import {
+  deleteMaterialManualHistory,
+  fetchMaterialManualHistoryByOrderLine,
+} from '@/lib/materials/manual/repository'
 import type { MaterialManualHistoryRow } from '@/lib/materials/manual/types'
 import { materialManualHistoryKindLabel } from '@/lib/materials/manual/utils'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
@@ -18,6 +24,7 @@ import {
 type MaterialManualOrderHistoryProps = {
   order: ProductionOrderLine | null
   refreshKey?: number
+  onHistoryChanged?: () => void
 }
 
 function kindBadgeClass(kind: MaterialManualHistoryRow['kind']) {
@@ -25,7 +32,17 @@ function kindBadgeClass(kind: MaterialManualHistoryRow['kind']) {
   return 'bg-sky-50 text-sky-800 ring-sky-200'
 }
 
-function HistoryTable({ rows }: { rows: MaterialManualHistoryRow[] }) {
+function HistoryTable({
+  rows,
+  canDelete,
+  deletingId,
+  onDelete,
+}: {
+  rows: MaterialManualHistoryRow[]
+  canDelete: boolean
+  deletingId: string
+  onDelete: (row: MaterialManualHistoryRow) => void
+}) {
   if (!rows.length) {
     return <p className="px-3 py-6 text-center text-xs text-slate-400">등록 이력이 없습니다.</p>
   }
@@ -38,6 +55,7 @@ function HistoryTable({ rows }: { rows: MaterialManualHistoryRow[] }) {
           <th className={ERP_TABLE_TH_CLASS}>구분</th>
           <th className={ERP_TABLE_TH_CLASS}>수량</th>
           <th className={ERP_TABLE_TH_CLASS}>등록</th>
+          {canDelete ? <th className={`${ERP_TABLE_TH_CLASS} w-8`} /> : null}
         </tr>
       </thead>
       <tbody>
@@ -47,9 +65,9 @@ function HistoryTable({ rows }: { rows: MaterialManualHistoryRow[] }) {
               {row.recordDate || '—'}
             </td>
             <td className={ERP_TABLE_TD_CLASS}>
-<span className={`${ERP_BADGE_COMPACT_CLASS} ${kindBadgeClass(row.kind)}`}>
-                    {materialManualHistoryKindLabel(row.kind)}
-                  </span>
+              <span className={`${ERP_BADGE_COMPACT_CLASS} ${kindBadgeClass(row.kind)}`}>
+                {materialManualHistoryKindLabel(row.kind)}
+              </span>
             </td>
             <td className={`${ERP_TABLE_TD_CLASS} text-xs font-semibold tabular-nums text-slate-800`}>
               +{row.quantity.toLocaleString('ko-KR')}
@@ -57,6 +75,19 @@ function HistoryTable({ rows }: { rows: MaterialManualHistoryRow[] }) {
             <td className={`${ERP_TABLE_TD_CLASS} text-[11px] text-slate-500`}>
               {row.createdByName || '—'}
             </td>
+            {canDelete ? (
+              <td className={`${ERP_TABLE_TD_CLASS} px-1 text-center`}>
+                <button
+                  type="button"
+                  onClick={() => onDelete(row)}
+                  disabled={Boolean(deletingId)}
+                  aria-label={`${materialManualHistoryKindLabel(row.kind)} 이력 삭제`}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-base leading-none text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+                >
+                  {deletingId === row.id ? '…' : '×'}
+                </button>
+              </td>
+            ) : null}
           </tr>
         ))}
       </tbody>
@@ -67,10 +98,15 @@ function HistoryTable({ rows }: { rows: MaterialManualHistoryRow[] }) {
 export function MaterialManualOrderHistory({
   order,
   refreshKey = 0,
+  onHistoryChanged,
 }: MaterialManualOrderHistoryProps) {
+  const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
+  const { notifyAuthOrFailure } = useWriteFailureToast()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [rows, setRows] = useState<MaterialManualHistoryRow[]>([])
+  const [deletingId, setDeletingId] = useState('')
 
   useEffect(() => {
     if (!order) {
@@ -101,6 +137,32 @@ export function MaterialManualOrderHistory({
     }
   }, [order?.uiKey, order?.orderLineId, refreshKey])
 
+  async function handleDelete(row: MaterialManualHistoryRow) {
+    if (
+      !(await confirm({
+        title: `${materialManualHistoryKindLabel(row.kind)} 이력 삭제`,
+        message: `${row.recordDate || '—'} · ${row.quantity.toLocaleString('ko-KR')}세트 기록을 삭제할까요?`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
+
+    setDeletingId(row.id)
+    setError('')
+    const result = await deleteMaterialManualHistory(row)
+    setDeletingId('')
+    if (!result.ok) {
+      notifyAuthOrFailure(result, { toastAllFailures: true, title: '이력 삭제 실패' })
+      setError(result.detail)
+      return
+    }
+
+    setRows((current) => current.filter((item) => item.id !== row.id))
+    onHistoryChanged?.()
+  }
+
   return (
     <aside className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch border-t border-slate-200 bg-slate-50 lg:min-w-0 lg:flex-1 lg:border-t-0 lg:border-l">
       <div className="shrink-0 border-b border-slate-200 px-3 py-2.5">
@@ -113,7 +175,12 @@ export function MaterialManualOrderHistory({
         ) : error ? (
           <p className="px-3 py-6 text-center text-xs text-rose-600">{error}</p>
         ) : (
-          <HistoryTable rows={rows} />
+          <HistoryTable
+            rows={rows}
+            canDelete={canDelete}
+            deletingId={deletingId}
+            onDelete={(row) => void handleDelete(row)}
+          />
         )}
       </div>
     </aside>

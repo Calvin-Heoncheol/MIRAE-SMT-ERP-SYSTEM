@@ -349,10 +349,14 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       productIdByOrderLine.get(line.orderLineId) ||
       String(line.productCode || '').trim()
     let producedQty = 0
+    let producedQtyTop: number | undefined
+    let producedQtyBot: number | undefined
     if (line.splitPcbSides) {
       const top = resolveProductionSideCount(line, smtCountsResult.counts, 'TOP')
       const bot = resolveProductionSideCount(line, smtCountsResult.counts, 'BOT')
       producedQty = Math.min(top, bot)
+      producedQtyTop = top
+      producedQtyBot = bot
     } else {
       producedQty = resolveProductionSideCount(line, smtCountsResult.counts, 'SINGLE')
     }
@@ -370,6 +374,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     const materialUnplanned = Math.max(0, remainingQty - materialPlannedTotal)
     const hint = manualMaterialHint(materialPlannedTotal, remainingQty)
 
+    const smtMetrics = smtPlanMetricsByLine.get(line.orderLineId)
     const shared = {
       orderId: line.orderId,
       orderNumber: line.orderNumber,
@@ -385,6 +390,14 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       splitPcbSides: line.splitPcbSides,
       orderQty: Math.floor(line.quantity),
       producedQty,
+      ...(line.splitPcbSides
+        ? {
+            producedQtyTop,
+            producedQtyBot,
+            unplannedQtyTop: smtMetrics?.unplannedBySide.TOP ?? 0,
+            unplannedQtyBot: smtMetrics?.unplannedBySide.BOT ?? 0,
+          }
+        : {}),
       remainingQty,
       ...hint,
     }
@@ -434,7 +447,6 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       )
     }
 
-    const smtMetrics = smtPlanMetricsByLine.get(line.orderLineId)
     const smtPlans = smtPlansByLine.get(line.orderLineId) ?? []
     const smtBoardConfirm = confirmedSmtBoardByLine.get(line.orderLineId)
     const smtPlannedTotal = smtMetrics?.plannedTotal ?? 0
@@ -496,6 +508,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
           plannedTotalQty: smtPlannedTotal,
           unplannedQty: smtUnplanned,
           planId: plan.id,
+          note: plan.note || '',
         })
       }
       appendRemainderRow(rows, { scope: 'smt', ...shared }, smtUnplanned)
@@ -597,6 +610,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
           plannedTotalQty: postPlannedTotal,
           unplannedQty: postUnplanned,
           planId: plan.id,
+          note: plan.note || '',
         })
       }
       appendRemainderRow(rows, { scope: 'post', ...shared }, postUnplanned)

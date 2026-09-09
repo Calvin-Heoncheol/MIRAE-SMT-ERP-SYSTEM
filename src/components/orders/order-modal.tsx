@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useCanDeleteRecords, useAuthProfile } from '@/components/auth/auth-profile-provider'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { OrderItemsForm } from '@/components/orders/order-items-form'
 import { EntityChangeHistoryButton } from '@/components/change-logs/entity-change-history-button'
@@ -19,7 +19,6 @@ import {
   type OrderFormState,
   type OrderItemForm,
 } from '@/lib/orders/form-state'
-import { buildOrderPrintData, printOrder } from '@/lib/orders/print-order'
 import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
 import { ORDER_CATEGORIES, ORDER_CURRENCIES, ORDER_CURRENCY_LABELS } from '@/lib/orders/types'
 import type { OrderCurrency, OrderListGroup, OrderRowPayload } from '@/lib/orders/types'
@@ -85,8 +84,6 @@ function OrderModalContent({
 }: Omit<OrderModalProps, 'open'>) {
   const canDelete = useCanDeleteRecords()
   const confirm = useErpConfirm()
-  const { profile } = useAuthProfile()
-  const contactEmail = String(profile?.email || '').trim()
   const [form, setForm] = useState<OrderFormState>(() => createInitialForm(order))
   const [items, setItems] = useState<OrderItemForm[]>(() =>
     order
@@ -319,21 +316,6 @@ function OrderModalContent({
               <span />
             )}
             <div className="flex gap-2">
-              {mode === 'edit' && order ? (
-                <ErpButton
-                  variant="secondary"
-                  onClick={() => {
-                    const ok = printOrder({
-                      ...buildOrderPrintData(order),
-                      ...(contactEmail ? { contactEmail } : {}),
-                    })
-                    if (!ok) setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
-                  }}
-                  disabled={busy}
-                >
-                  발주서 인쇄
-                </ErpButton>
-              ) : null}
               <CancelButton disabled={busy} />
               <ErpButton onClick={() => void handleSave()} disabled={busy} loading={saving}>
                 저장

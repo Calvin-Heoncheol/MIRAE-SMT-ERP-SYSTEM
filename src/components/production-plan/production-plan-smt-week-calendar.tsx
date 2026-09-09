@@ -16,21 +16,30 @@ type ProductionPlanSmtWeekCalendarProps = {
   weekDates: string[]
   scheduledRows: ProductionPlanBoardRow[]
   onSelectRow?: (row: ProductionPlanBoardRow) => void
+  onEmptyCellClick?: (target: { plannedDate: string; lineNo: number }) => void
   onDropOrder?: (
     payload: ProductionPlanDragPayload,
     target: { plannedDate: string; lineNo: number },
   ) => void
+  /** false면 카드 드래그 비활성 (기본 true) */
+  cardDraggable?: boolean
 }
 
 function cellKey(plannedDate: string, lineNo: number) {
   return `${plannedDate}:${lineNo}`
 }
 
+function cellPlannedTotal(rows: ProductionPlanBoardRow[]) {
+  return rows.reduce((sum, row) => sum + Math.max(0, Math.round(Number(row.plannedQuantity) || 0)), 0)
+}
+
 export function ProductionPlanSmtWeekCalendar({
   weekDates,
   scheduledRows,
   onSelectRow,
+  onEmptyCellClick,
   onDropOrder,
+  cardDraggable = true,
 }: ProductionPlanSmtWeekCalendarProps) {
   const today = todayYmdSeoul()
   const lineNos = SMT_PLAN_LINE_NOS
@@ -111,6 +120,7 @@ export function ProductionPlanSmtWeekCalendar({
               {weekDates.map((plannedDate) => {
                 const key = cellKey(plannedDate, lineNo)
                 const cellRows = rowsByCell.get(key) ?? []
+                const loadQty = cellPlannedTotal(cellRows)
                 const isToday = plannedDate === today
                 const isDropTarget = dragOverKey === key
 
@@ -129,28 +139,46 @@ export function ProductionPlanSmtWeekCalendar({
                     onDrop={(event) => handleDrop(event, plannedDate, lineNo)}
                   >
                     <div className="flex min-h-[96px] flex-col gap-1">
+                      {loadQty > 0 ? (
+                        <p className="px-0.5 text-[10px] font-semibold tabular-nums text-slate-500">
+                          부하 {loadQty.toLocaleString('ko-KR')}
+                        </p>
+                      ) : null}
                       {cellRows.map((row) => (
                         <ProductionPlanBoardCard
                           key={row.key}
                           row={row}
                           tone="smt"
                           onSelect={onSelectRow}
+                          draggable={cardDraggable && Boolean(onDropOrder)}
                         />
                       ))}
                       {cellRows.length === 0 ? (
-                        <div
-                          className={`flex flex-1 items-center justify-center rounded-lg border border-dashed px-1 py-6 text-[11px] ${
-                            isDropTarget
-                              ? 'border-sky-400 bg-sky-50 text-sky-700'
-                              : 'border-slate-200 text-slate-400'
-                          }`}
-                        >
-                          {isDropTarget ? '여기에 놓기' : '끌어다 놓기'}
-                        </div>
+                        onDropOrder ? (
+                          <div
+                            className={`flex flex-1 items-center justify-center rounded-lg border border-dashed px-1 py-6 text-[11px] transition ${
+                              isDropTarget
+                                ? 'border-sky-400 bg-sky-50 text-sky-700'
+                                : 'border-slate-200 text-slate-400'
+                            }`}
+                          >
+                            {isDropTarget ? '여기에 놓기' : '끌어다 놓기'}
+                          </div>
+                        ) : (
+                          <div className="min-h-[48px] flex-1" />
+                        )
                       ) : isDropTarget ? (
                         <div className="rounded-md border border-dashed border-sky-400 bg-sky-50 px-1 py-2 text-center text-[10px] font-semibold text-sky-700">
                           여기에 추가
                         </div>
+                      ) : onEmptyCellClick ? (
+                        <button
+                          type="button"
+                          onClick={() => onEmptyCellClick({ plannedDate, lineNo })}
+                          className="rounded-md border border-dashed border-slate-200 px-1 py-1.5 text-center text-[10px] text-slate-400 hover:border-sky-300 hover:bg-sky-50/50 hover:text-sky-700"
+                        >
+                          + 배정
+                        </button>
                       ) : null}
                     </div>
                   </td>

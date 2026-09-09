@@ -1,26 +1,21 @@
-import { ProductionReportWorkspace } from '@/components/reports/production-report-workspace'
-import { buildReportHrefs, resolveReportPeriod } from '@/lib/reports/period'
-import { fetchProductionReportData } from '@/lib/reports/production-report'
-
-export const dynamic = 'force-dynamic'
+import { redirect } from 'next/navigation'
 
 type ProductionReportPageProps = {
   searchParams?: Promise<{ period?: string | string[]; date?: string | string[] }>
 }
 
+function firstParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0]
+  return value
+}
+
 export default async function ProductionReportPage({ searchParams }: ProductionReportPageProps) {
   const params = searchParams ? await searchParams : {}
-  const resolved = resolveReportPeriod(params)
-  const hrefs = buildReportHrefs('/reports/production', resolved)
-
-  const result = await fetchProductionReportData(resolved.startDate, resolved.endDate)
-
-  return (
-    <ProductionReportWorkspace
-      result={result}
-      period={resolved.period}
-      rangeLabel={resolved.rangeLabel}
-      {...hrefs}
-    />
-  )
+  const query = new URLSearchParams()
+  const period = firstParam(params.period)
+  const date = firstParam(params.date)
+  if (period) query.set('period', period)
+  if (date) query.set('date', date)
+  const qs = query.toString()
+  redirect(qs ? `/production/performance?${qs}` : '/production/performance')
 }

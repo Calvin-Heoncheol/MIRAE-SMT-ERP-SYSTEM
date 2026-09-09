@@ -117,6 +117,7 @@ export function ProductionInputModal({
           postProcessTeam={postProcessTeam}
           highlightPcbSide={activeSide}
           refreshKey={historyRefreshKey}
+          onCountUpdated={handleCountUpdated}
         />
       </div>
     </ErpModal>

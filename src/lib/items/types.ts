@@ -1,3 +1,4 @@
+import type { MaterialCostLine } from './material-cost-lines'
 import type { ItemSmtQuoteParts } from './smt-quote-parts'
 
 export type ItemMaterialType = '' | 'SMD' | 'DIP'
@@ -164,8 +165,10 @@ export type Item = {
   smdUnitPrice: number
   dipUnitPrice: number
   materialUnitPrice: number
-  /** 추가비용 — 발주 추가작업 자동 반영 (DB: other_unit_price) */
+  /** @deprecated 품목등록 추가비용 제거 — DB other_unit_price 호환 */
   otherUnitPrice: number
+  /** 자재비 세부 행 — 2개 이상이면 발주 시 금액전용 행으로 분할 */
+  materialCostLines: MaterialCostLine[]
   /** @deprecated 미사용 */
   smtQuoteParts: ItemSmtQuoteParts
   /** @deprecated 미사용 */
@@ -198,6 +201,7 @@ export type ItemPayload = {
   dipUnitPrice: number
   materialUnitPrice: number
   otherUnitPrice: number
+  materialCostLines: MaterialCostLine[]
   smtQuoteParts: ItemSmtQuoteParts
   baselineQuoteId: string
   itemCategory: ItemCategory

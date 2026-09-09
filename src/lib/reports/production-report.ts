@@ -42,8 +42,12 @@ export type ProductionReportDetailRow = {
 
 export type ProductionReportDailyRow = {
   date: string
+  /** 일자별 팀 실적 */
   byTeam: Record<string, number>
+  /** 일자별 팀 계획 (기간 내 전체 날짜, 미래 포함) */
+  plannedByTeam: Record<string, number>
   total: number
+  plannedTotal: number
 }
 
 export type ProductionReportData = {
@@ -414,14 +418,24 @@ export async function fetchProductionReportData(
     const producedPastByTeam = new Map<string, number>(
       PRODUCTION_REPORT_TEAMS.map((team) => [team, 0]),
     )
+    const dailyPlannedByDate = new Map<string, Record<string, number>>()
 
     function addPlanned(team: string, quantity: number) {
       plannedByTeam.set(team, (plannedByTeam.get(team) ?? 0) + Math.max(0, quantity))
     }
 
+    function addDailyPlanned(date: string, team: string, quantity: number) {
+      const qty = Math.max(0, Math.floor(Number(quantity) || 0))
+      if (qty <= 0 || date < startDate || date > endDate) return
+      const byTeam = dailyPlannedByDate.get(date) ?? {}
+      byTeam[team] = (byTeam[team] ?? 0) + qty
+      dailyPlannedByDate.set(date, byTeam)
+    }
+
     if (smtPlansResult.ok) {
       for (const plan of smtPlansResult.plans) {
         if (plan.plannedDate < startDate || plan.plannedDate > endDate) continue
+        addDailyPlanned(plan.plannedDate, SMT_REPORT_TEAM, plan.plannedQuantity)
         if (plan.plannedDate >= today) continue
         addPlanned(SMT_REPORT_TEAM, plan.plannedQuantity)
       }
@@ -429,14 +443,18 @@ export async function fetchProductionReportData(
     if (postPlansResult.ok) {
       for (const plan of postPlansResult.plans) {
         if (plan.plannedDate < startDate || plan.plannedDate > endDate) continue
+        const team = normalizeTeam(plan.team)
+        addDailyPlanned(plan.plannedDate, team, plan.plannedQuantity)
         if (plan.plannedDate >= today) continue
-        addPlanned(normalizeTeam(plan.team), plan.plannedQuantity)
+        addPlanned(team, plan.plannedQuantity)
       }
     }
     if (closeLogsResult.ok) {
       for (const log of closeLogsResult.logs) {
         const team = log.module === 'smt' ? SMT_REPORT_TEAM : normalizeTeam(log.team)
-        addPlanned(team, log.originalQuantity - log.producedQuantity)
+        const restored = Math.max(0, log.originalQuantity - log.producedQuantity)
+        addDailyPlanned(log.plannedDate, team, restored)
+        addPlanned(team, restored)
       }
     }
 
@@ -492,10 +510,13 @@ export async function fetchProductionReportData(
       date = addDaysYmd(date, 1), steps += 1
     ) {
       const byTeam = dailyByDate.get(date) ?? {}
+      const plannedByTeamForDate = dailyPlannedByDate.get(date) ?? {}
       daily.push({
         date,
         byTeam,
+        plannedByTeam: plannedByTeamForDate,
         total: Object.values(byTeam).reduce((sum, value) => sum + value, 0),
+        plannedTotal: Object.values(plannedByTeamForDate).reduce((sum, value) => sum + value, 0),
       })
     }
 

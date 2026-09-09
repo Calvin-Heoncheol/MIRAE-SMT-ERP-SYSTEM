@@ -1,3 +1,5 @@
+import type { MaterialCostLine } from './material-cost-lines'
+import { normalizeMaterialCostLines, sumMaterialCostLines } from './material-cost-lines'
 import type {
   Item,
   ItemPayload,
@@ -10,7 +12,7 @@ import {
   isProductItemCategory,
   isRawMaterialItemCategory,
   isSemiFinishedItemCategory,
-  isFinishedItemCategory,
+  deriveItemProcessType,
   ITEM_SUPPLY_TYPE_OPTIONS,
 } from './types'
 import { EMPTY_SMT_QUOTE_PARTS } from './smt-quote-parts'
@@ -44,8 +46,8 @@ export type ItemFormState = {
   smdUnitPrice: number
   dipUnitPrice: number
   materialUnitPrice: number
-  /** 추가비용 — 발주 시 추가작업 행으로 자동 반영 (DB: other_unit_price) */
-  additionalUnitPrice: number
+  /** 자재비 세부 (2개 이상이면 분할 모드) */
+  materialCostLines: MaterialCostLine[]
   /** 연결된 기준 견적 ID */
   baselineQuoteId: string
   /** 표시용 (저장하지 않음) */
@@ -117,7 +119,7 @@ export function emptyItemForm(): ItemFormState {
     smdUnitPrice: 0,
     dipUnitPrice: 0,
     materialUnitPrice: 0,
-    additionalUnitPrice: 0,
+    materialCostLines: [],
     baselineQuoteId: '',
     baselineQuoteLabel: '',
   }
@@ -151,7 +153,7 @@ export function itemToForm(item: Item): ItemFormState {
           : item.unitPrice,
     dipUnitPrice: item.dipUnitPrice,
     materialUnitPrice: item.materialUnitPrice,
-    additionalUnitPrice: item.otherUnitPrice,
+    materialCostLines: normalizeMaterialCostLines(item.materialCostLines),
     baselineQuoteId: item.baselineQuoteId || '',
     baselineQuoteLabel: '',
   }
@@ -176,15 +178,14 @@ export function validateItemForm(form: ItemFormState, options?: { isCreate?: boo
       return '도급/사급을 선택해 주세요.'
     }
   }
-  if (isSemiFinishedItemCategory(category) && !form.processType) {
-    return '생산 공정(SMD/후공정)을 선택해 주세요.'
-  }
-  if (
-    isSemiFinishedItemCategory(category) &&
-    (form.processType === 'smt' || form.processType === 'smt_post') &&
-    !form.pcbSideMode
-  ) {
-    return '면(단면/더블/양면)을 선택해 주세요.'
+  if (isSemiFinishedItemCategory(category)) {
+    const processType = deriveItemProcessType(form.smdUnitPrice, form.dipUnitPrice)
+    if (!processType) {
+      return 'SMD 또는 후공정 단가를 입력해 주세요.'
+    }
+    if ((processType === 'smt' || processType === 'smt_post') && !form.pcbSideMode) {
+      return '면(단면/더블/양면)을 선택해 주세요.'
+    }
   }
   return null
 }
@@ -200,8 +201,11 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
   const setup = money(form.setupUnitPrice)
   const smd = money(form.smdUnitPrice)
   const dip = money(form.dipUnitPrice)
-  const material = money(form.materialUnitPrice)
-  const additional = money(form.additionalUnitPrice)
+  const materialLines = isSemiFinishedItemCategory(itemCategory)
+    ? normalizeMaterialCostLines(form.materialCostLines)
+    : []
+  const material =
+    materialLines.length > 0 ? sumMaterialCostLines(materialLines) : money(form.materialUnitPrice)
   const baseCodeInput = form.id.trim()
   const { baseCode, version } = resolveItemCodeParts({
     codeOrId: baseCodeInput,
@@ -224,7 +228,11 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     supplyType: isProduct ? '' : form.supplyType,
     supplier: form.supplier.trim(),
     pcbSideMode: isSemiFinishedItemCategory(itemCategory) ? form.pcbSideMode || 'single' : '',
-    processType: isProduct ? form.processType : '',
+    processType: isSemiFinishedItemCategory(itemCategory)
+      ? deriveItemProcessType(smd, dip)
+      : isProduct
+        ? form.processType
+        : '',
     unitPrice: isSemiFinishedItemCategory(itemCategory)
       ? smd + dip > 0
         ? smd + dip
@@ -234,10 +242,8 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     smdUnitPrice: isSemiFinishedItemCategory(itemCategory) ? smd : 0,
     dipUnitPrice: isSemiFinishedItemCategory(itemCategory) ? dip : 0,
     materialUnitPrice: isSemiFinishedItemCategory(itemCategory) ? material : 0,
-    otherUnitPrice:
-      isSemiFinishedItemCategory(itemCategory) || isFinishedItemCategory(itemCategory)
-        ? additional
-        : 0,
+    otherUnitPrice: 0,
+    materialCostLines: materialLines,
     smtQuoteParts: { ...EMPTY_SMT_QUOTE_PARTS },
     baselineQuoteId: form.baselineQuoteId.trim(),
     itemCategory,

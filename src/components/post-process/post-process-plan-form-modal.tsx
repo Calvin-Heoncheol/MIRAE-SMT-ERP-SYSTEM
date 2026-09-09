@@ -5,6 +5,7 @@ import { MaterialInboundStatusBadge } from '@/components/materials/material-inbo
 import { filterPostProcessPlanOrderCandidates } from '@/components/post-process/post-process-plan-order-sidebar'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
+import { ErpNumericInput } from '@/components/ui/erp-numeric-input'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionPlanStatus } from '@/lib/production-plan/schedule'
 import type { PostProcessPlanBlock, PostProcessPlanOrderCandidate } from '@/lib/post-process/plan/types'
@@ -348,16 +349,12 @@ function PostProcessPlanFormModalInner({
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium text-slate-600">계획 수량</span>
-          <input
-            type="number"
+          <ErpNumericInput
             min={1}
             max={sideMax}
             value={values.plannedQuantity}
-            onChange={(event) =>
-              setValues((current) => ({
-                ...current,
-                plannedQuantity: Math.max(1, Math.floor(Number(event.target.value) || 1)),
-              }))
+            onValueChange={(plannedQuantity) =>
+              setValues((current) => ({ ...current, plannedQuantity }))
             }
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
             required

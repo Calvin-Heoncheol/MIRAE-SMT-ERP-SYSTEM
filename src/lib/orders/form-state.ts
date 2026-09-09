@@ -1,5 +1,5 @@
 import type { OrderCurrency } from './types'
-import { isBillingOnlyOrderItem, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost } from './utils'
+import { isBillingOnlyOrderItem, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, resolveOrderLineSmdUnitPrice } from './utils'
 import type { Product } from '@/lib/products/types'
 import { findProductsByCode } from '@/lib/products/utils'
 
@@ -140,7 +140,7 @@ export function orderItemsFromDetail(
       quantity: String(item.quantity || 0),
       unitPrice: String(unit),
       setupCost: String(setupCost),
-      smdUnitPrice: String(smd || unit),
+      smdUnitPrice: String(resolveOrderLineSmdUnitPrice(smd, dip, Number(item.unitPrice) || 0)),
       dipUnitPrice: String(dip),
       materialUnitPrice: String(materialUnitPrice),
       materialCost: String(materialCost),
@@ -159,33 +159,57 @@ export function hydrateOrderItemsFromDetail(
   customer: string,
 ): OrderItemForm[] {
   const customerName = customer.trim()
-  return items.map((item, index) => {
+  const withProductIds = items.map((item) => {
     if (!item.isAdhoc) return item
 
-    const prev = index > 0 ? items[index - 1] : null
-    const followsProduct =
-      prev &&
-      !prev.isAdhoc &&
-      prev.productCode.trim() &&
-      prev.productCode.trim() === item.productCode.trim() &&
-      (!item.productName.trim() || item.productName.trim() === prev.productName.trim())
-
     let productId = item.productId.trim()
-    if (!productId && followsProduct && prev.productId.trim()) {
-      productId = prev.productId.trim()
-    }
     if (!productId && item.productCode.trim()) {
       const matches = findProductsByCode(products, item.productCode, customerName)
       const narrowed = item.productName.trim()
         ? matches.filter((product) => product.productName === item.productName.trim())
         : matches
       if (narrowed.length === 1) productId = narrowed[0]!.id
+      else if (matches.length === 1) productId = matches[0]!.id
     }
 
     return {
       ...item,
-      ...(followsProduct ? { companionOfRowKey: prev!.rowKey } : {}),
       ...(productId ? { productId } : {}),
+    }
+  })
+
+  let parentKey = ''
+  let parentCode = ''
+  let parentProductId = ''
+  let parentProductName = ''
+
+  return withProductIds.map((item) => {
+    if (!item.isAdhoc) {
+      parentKey = item.rowKey
+      parentCode = item.productCode.trim()
+      parentProductId = item.productId.trim()
+      parentProductName = item.productName.trim()
+      return item
+    }
+
+    const sameCode = Boolean(parentKey && parentCode && item.productCode.trim() === parentCode)
+    if (!sameCode) {
+      parentKey = ''
+      parentCode = ''
+      parentProductId = ''
+      parentProductName = ''
+      return item
+    }
+
+    const productId = item.productId.trim() || parentProductId
+    return {
+      ...item,
+      companionOfRowKey: parentKey,
+      ...(productId ? { productId } : {}),
+      // 추가비용 companion 은 부모 품명과 동일 — 표시용 productId 유지
+      ...(parentProductName && !item.productName.trim()
+        ? { productName: parentProductName }
+        : {}),
     }
   })
 }

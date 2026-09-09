@@ -1,5 +1,6 @@
 import type { Product, ProductKind, ProductPcbSideMode, ProductProcessType } from './types'
 import { deriveItemProcessType } from '@/lib/items/types'
+import { normalizeMaterialCostLines } from '@/lib/items/material-cost-lines'
 import { EMPTY_SMT_QUOTE_PARTS, normalizeItemSmtQuoteParts } from '@/lib/items/smt-quote-parts'
 import { normalizeVersionLabel, parseItemVersionCode } from '@/lib/items/version-code'
 
@@ -65,6 +66,7 @@ export function mapProductRecord(row: {
     dipUnitPrice: 0,
     materialUnitPrice: 0,
     additionalUnitPrice: 0,
+    materialCostLines: [],
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
     processType: normalizeProductProcessType(row.process_type),
     productKind: normalizeProductKind(row.product_kind),
@@ -88,6 +90,7 @@ export function mapItemRowToProduct(row: {
   dip_unit_price?: number | null
   material_unit_price?: number | null
   other_unit_price?: number | null
+  material_cost_lines?: unknown
   setup_unit_price?: number | null
   smt_quote_parts?: unknown
   baseline_quote_id?: string | null
@@ -110,6 +113,10 @@ export function mapItemRowToProduct(row: {
   const setupUnitPrice = Math.max(0, Math.round(Number(setupRaw) || 0))
   const unitPrice = Number(row.unit_price) || 0
   const breakdownTotal = setupUnitPrice + smdUnitPrice + dipUnitPrice + materialUnitPrice
+  const materialCostLines =
+    itemCategory === 3 || itemCategory === 4
+      ? normalizeMaterialCostLines(row.material_cost_lines)
+      : []
 
   if (itemCategory === 3 || itemCategory === 4) {
     processType = normalizeProductProcessType(row.process_type)
@@ -130,6 +137,7 @@ export function mapItemRowToProduct(row: {
     dipUnitPrice,
     materialUnitPrice,
     additionalUnitPrice: itemCategory === 3 || itemCategory === 4 ? otherUnitPrice : 0,
+    materialCostLines,
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
     processType,
     productKind: itemCategory === 4 ? 'assembly' : 'pcb',

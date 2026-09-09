@@ -410,7 +410,7 @@ export function DeliveryInputWorkspace({
         <WorkspaceHeader
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="명세서, 발주번호, 고객사, 품목, 출하일 검색…"
+          searchPlaceholder="명세서, 발주번호, 고객사, 품목, 출하일, 등록자 검색…"
           accent="sky"
           inlineFilters={
             <DateRangeFilter

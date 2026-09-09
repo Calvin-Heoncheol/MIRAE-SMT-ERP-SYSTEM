@@ -29,8 +29,6 @@ import {
   ITEM_SUPPLY_TYPE_OPTIONS,
   ITEM_PCB_SIDE_MODE_LABELS,
   ITEM_PCB_SIDE_MODES,
-  ITEM_PROCESS_TYPE_LABELS,
-  ITEM_PROCESS_TYPES,
   type ItemPcbSideMode,
   canEditItemCodeOnCreate,
   deriveItemProcessType,
@@ -41,10 +39,14 @@ import {
   type Item,
   type ItemCategory,
   type ItemMaterialType,
-  type ItemProcessType,
   type ItemSupplyType,
 } from '@/lib/items/types'
 import { nextItemCodeForCategory, itemFromPayload, displayItemUnitPrice, formatItemUnitPrice } from '@/lib/items/utils'
+import {
+  emptyMaterialCostLine,
+  sumMaterialCostLines,
+  type MaterialCostLine,
+} from '@/lib/items/material-cost-lines'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
@@ -207,6 +209,7 @@ function ItemModalContent({
         next.smdUnitPrice = 0
         next.dipUnitPrice = 0
         next.materialUnitPrice = 0
+        next.materialCostLines = []
         next.processType = ''
         next.baselineQuoteId = ''
         next.baselineQuoteLabel = ''
@@ -227,16 +230,13 @@ function ItemModalContent({
     form.itemCategory !== '' && !isProductItemCategory(form.itemCategory)
   const showRawMaterialTypeField =
     form.itemCategory !== '' && isRawMaterialItemCategory(form.itemCategory)
-  const showProductProcessTypeField =
+  const showPcbSideModeField =
     form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
-  const showPcbSideModeField = showProductProcessTypeField
+  const derivedProcessType = deriveItemProcessType(form.smdUnitPrice, form.dipUnitPrice)
   const showProductUnitPriceField =
     form.itemCategory !== '' && isSemiFinishedItemCategory(form.itemCategory)
   const showFinishedProductUnitPriceInfo =
     form.itemCategory !== '' && isFinishedItemCategory(form.itemCategory)
-  const showAdditionalUnitPriceField =
-    form.itemCategory !== '' &&
-    (isSemiFinishedItemCategory(form.itemCategory) || isFinishedItemCategory(form.itemCategory))
 
   function updateSemiFinishedPriceField(
     key: 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice',
@@ -252,10 +252,72 @@ function ItemModalContent({
       }
       if (key === 'smdUnitPrice' || key === 'dipUnitPrice') {
         updated.unitPrice = smd + dip
-        const derived = deriveItemProcessType(smd, dip)
-        if (derived) updated.processType = derived
+        updated.processType = deriveItemProcessType(smd, dip)
+      }
+      if (key === 'materialUnitPrice' && current.materialCostLines.length > 0) {
+        updated.materialCostLines = []
       }
       return updated
+    })
+  }
+
+  function updateMaterialCostLine(index: number, patch: Partial<MaterialCostLine>) {
+    setForm((current) => {
+      const lines = current.materialCostLines.map((line, lineIndex) =>
+        lineIndex === index ? { ...line, ...patch } : line,
+      )
+      return {
+        ...current,
+        materialCostLines: lines,
+        materialUnitPrice: sumMaterialCostLines(lines),
+      }
+    })
+  }
+
+  function addMaterialCostLine() {
+    setForm((current) => {
+      // 첫 + : 같은 자리에서 이름·금액 입력 모드로 전환 (한 줄)
+      if (current.materialCostLines.length === 0) {
+        const lines: MaterialCostLine[] = [
+          {
+            label: '',
+            unitPrice: Math.max(0, Math.round(Number(current.materialUnitPrice) || 0)),
+          },
+        ]
+        return {
+          ...current,
+          materialCostLines: lines,
+          materialUnitPrice: sumMaterialCostLines(lines),
+        }
+      }
+      const lines = [...current.materialCostLines, emptyMaterialCostLine()]
+      return {
+        ...current,
+        materialCostLines: lines,
+        materialUnitPrice: sumMaterialCostLines(lines),
+      }
+    })
+  }
+
+  function removeMaterialCostLine(index: number) {
+    setForm((current) => {
+      const lines = current.materialCostLines.filter((_, lineIndex) => lineIndex !== index)
+      if (lines.length === 0) {
+        return {
+          ...current,
+          materialCostLines: [],
+          materialUnitPrice: Math.max(
+            0,
+            Math.round(Number(current.materialCostLines[index]?.unitPrice) || 0) ||
+              current.materialUnitPrice,
+          ),
+        }
+      }
+      return {
+        ...current,
+        materialCostLines: lines,
+        materialUnitPrice: sumMaterialCostLines(lines),
+      }
     })
   }
 
@@ -630,35 +692,11 @@ function ItemModalContent({
             </p>
           </label>
         ) : null}
-        {showProductProcessTypeField ? (
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>
-              생산 공정 <RequiredMark />
-            </span>
-            <select
-              value={form.processType}
-              onChange={(event) =>
-                updateForm('processType', event.target.value as ItemProcessType)
-              }
-              className={ERP_FIELD_INPUT_CLASS}
-            >
-              <option value="">선택</option>
-              {ITEM_PROCESS_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {ITEM_PROCESS_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-slate-500">
-              생산등록(SMD·후공정) 카드 표시 기준입니다.
-            </p>
-          </label>
-        ) : null}
         {showPcbSideModeField ? (
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>
               면
-              {form.processType === 'smt' || form.processType === 'smt_post' ? (
+              {derivedProcessType === 'smt' || derivedProcessType === 'smt_post' ? (
                 <RequiredMark />
               ) : null}
             </span>
@@ -682,41 +720,20 @@ function ItemModalContent({
           </label>
         ) : null}
         {showFinishedProductUnitPriceInfo ? (
-          <div className="block text-sm sm:col-span-2">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <span className={ERP_FIELD_LABEL_CLASS}>기본 단가</span>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                  {!isCreate && item && displayItemUnitPrice(item) > 0 ? (
-                    <p className="font-medium text-slate-800">
-                      {formatItemUnitPrice(displayItemUnitPrice(item))}원
-                    </p>
-                  ) : (
-                    <p className="text-slate-500">BOM 등록 후 자동 계산</p>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  조립제품 단가는 BOM 등록에서 구성 반제품 단가 합으로 자동 반영됩니다.
+          <div className="block text-sm sm:col-span-2 sm:max-w-[50%]">
+            <span className={ERP_FIELD_LABEL_CLASS}>기본 단가</span>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+              {!isCreate && item && displayItemUnitPrice(item) > 0 ? (
+                <p className="font-medium text-slate-800">
+                  {formatItemUnitPrice(displayItemUnitPrice(item))}원
                 </p>
-              </div>
-              {showAdditionalUnitPriceField ? (
-                <label className="block text-sm">
-                  <span className={ERP_FIELD_LABEL_CLASS}>추가비용</span>
-                  <QuoteNumericInput
-                    min={0}
-                    value={String(form.additionalUnitPrice > 0 ? form.additionalUnitPrice : '')}
-                    onChange={(raw) =>
-                      updateForm('additionalUnitPrice', Math.max(0, Math.round(Number(raw) || 0)))
-                    }
-                    className={ERP_FIELD_INPUT_CLASS}
-                    placeholder="0"
-                  />
-                  <p className="mt-1 text-xs text-slate-500">
-                    발주서 등록 시 같은 품목 아래 추가작업 행으로 자동 반영됩니다.
-                  </p>
-                </label>
-              ) : null}
+              ) : (
+                <p className="text-slate-500">BOM 등록 후 자동 계산</p>
+              )}
             </div>
+            <p className="mt-1 text-xs text-slate-500">
+              조립제품 단가는 BOM 등록에서 구성 반제품 단가 합으로 자동 반영됩니다.
+            </p>
           </div>
         ) : null}
         {showProductUnitPriceField ? (
@@ -744,35 +761,93 @@ function ItemModalContent({
                 />
                 <p className="mt-1 text-xs text-slate-500">대당 후공정 가공비입니다.</p>
               </label>
-              <label className="block text-sm">
+              <div className="block min-w-0 text-sm">
                 <span className={ERP_FIELD_LABEL_CLASS}>자재비</span>
-                <QuoteNumericInput
-                  min={0}
-                  value={String(form.materialUnitPrice > 0 ? form.materialUnitPrice : '')}
-                  onChange={(raw) => updateSemiFinishedPriceField('materialUnitPrice', raw)}
-                  className={ERP_FIELD_INPUT_CLASS}
-                  placeholder="0"
-                />
-                <p className="mt-1 text-xs text-slate-500">대당 자재비입니다.</p>
-              </label>
+                {form.materialCostLines.length === 0 ? (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <QuoteNumericInput
+                        min={0}
+                        value={String(form.materialUnitPrice > 0 ? form.materialUnitPrice : '')}
+                        onChange={(raw) => updateSemiFinishedPriceField('materialUnitPrice', raw)}
+                        className={`${ERP_FIELD_INPUT_CLASS} min-w-0 flex-1`}
+                        placeholder="0"
+                      />
+                      <button
+                        type="button"
+                        className={ERP_ROW_ADD_BUTTON_CLASS}
+                        onClick={addMaterialCostLine}
+                        title="자재비 세부 행 추가"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      대당 자재비입니다. + 로 이름·금액을 나눠 입력할 수 있습니다.
+                    </p>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    {form.materialCostLines.map((line, lineIndex) => {
+                      const isLast = lineIndex === form.materialCostLines.length - 1
+                      return (
+                        <div
+                          key={`material-line-${lineIndex}`}
+                          className="flex min-w-0 items-center gap-1.5"
+                        >
+                          <input
+                            value={line.label}
+                            onChange={(event) =>
+                              updateMaterialCostLine(lineIndex, { label: event.target.value })
+                            }
+                            className={`${ERP_FIELD_INPUT_CLASS} !w-auto min-w-0 flex-[1.6]`}
+                            placeholder=""
+                            aria-label={`자재비 세부 ${lineIndex + 1} 명칭`}
+                          />
+                          <QuoteNumericInput
+                            min={0}
+                            value={String(line.unitPrice > 0 ? line.unitPrice : '')}
+                            onChange={(raw) =>
+                              updateMaterialCostLine(lineIndex, {
+                                unitPrice: Math.max(0, Math.round(Number(raw) || 0)),
+                              })
+                            }
+                            className={`${ERP_FIELD_INPUT_CLASS} !w-24 shrink-0`}
+                            placeholder="0"
+                            aria-label={`자재비 세부 ${lineIndex + 1} 단가`}
+                          />
+                          {form.materialCostLines.length > 1 ? (
+                            <button
+                              type="button"
+                              className="inline-flex h-8 w-7 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-50 hover:text-rose-600"
+                              onClick={() => removeMaterialCostLine(lineIndex)}
+                              aria-label={`자재비 세부 ${lineIndex + 1} 삭제`}
+                            >
+                              ×
+                            </button>
+                          ) : null}
+                          {isLast ? (
+                            <button
+                              type="button"
+                              className={ERP_ROW_ADD_BUTTON_CLASS}
+                              onClick={addMaterialCostLine}
+                              title="자재비 세부 행 추가"
+                            >
+                              +
+                            </button>
+                          ) : null}
+                        </div>
+                      )
+                    })}
+                    <p className="text-xs text-slate-500">
+                      {form.materialCostLines.length >= 2
+                        ? `합계 ${formatItemUnitPrice(form.materialUnitPrice)}원 · 발주·명세에서 행이 나뉩니다.`
+                        : '이름과 금액을 입력하세요. + 로 행을 더하면 명세에서 나뉩니다.'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-            {showAdditionalUnitPriceField ? (
-              <label className="block text-sm sm:max-w-[33%]">
-                <span className={ERP_FIELD_LABEL_CLASS}>추가비용</span>
-                <QuoteNumericInput
-                  min={0}
-                  value={String(form.additionalUnitPrice > 0 ? form.additionalUnitPrice : '')}
-                  onChange={(raw) =>
-                    updateForm('additionalUnitPrice', Math.max(0, Math.round(Number(raw) || 0)))
-                  }
-                  className={ERP_FIELD_INPUT_CLASS}
-                  placeholder="0"
-                />
-                <p className="mt-1 text-xs text-slate-500">
-                  발주서 등록 시 같은 품목 아래 추가작업 행으로 자동 반영됩니다.
-                </p>
-              </label>
-            ) : null}
           </div>
         ) : null}
         {showRawMaterialTypeField ? (

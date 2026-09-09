@@ -28,6 +28,9 @@ export type ProductionPlanBoardRow = {
   splitPcbSides: boolean
   orderQty: number
   producedQty: number
+  /** SMT 양면 — 면별 누적 실적 */
+  producedQtyTop?: number
+  producedQtyBot?: number
   remainingQty: number
   materialReadyQty: number
   materialScheduledQty?: number
@@ -51,12 +54,17 @@ export type ProductionPlanBoardRow = {
   plannedTotalQty?: number
   /** 아직 계획되지 않은 수량 */
   unplannedQty?: number
+  /** SMT 양면 — 면별 미계획(실적·계획 반영) */
+  unplannedQtyTop?: number
+  unplannedQtyBot?: number
   /** schedule=확정 일정, remainder=미계획 잔량 대기 */
   rowKind?: 'schedule' | 'remainder'
   /** smt/post 생산계획 테이블 id */
   planId?: string
   /** material 등 보드 테이블 id */
   boardItemId?: string
+  /** 계획 메모 */
+  note?: string
 }
 
 export type ConfirmProductionPlanScheduleInput = {

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { buildScheduleFormValues } from '@/components/production-plan/production-plan-schedule-modal'
 import type { ProductionPlanSheetAction } from '@/components/production-plan/production-plan-sheet'
+import { ErpNumericInput } from '@/components/ui/erp-numeric-input'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { POST_PROCESS_TEAMS } from '@/lib/post-process/teams'
 import { canPlanPost, canPlanSmt, validatePostPlanDate } from '@/lib/production-plan/pipeline'
@@ -453,17 +454,12 @@ export function ProductionPlanUnifiedSheet({
           className={`border-r border-slate-300 ${stageCell} ${QTY_COL} ${tone}`}
         >
           <div className={stageInputWrap}>
-            <input
-              type="number"
+            <ErpNumericInput
               min={1}
               max={maxQuantity(row)}
               value={draft.plannedQuantity}
               disabled={disabled || saving || blocked}
-              onChange={(event) =>
-                updateDraft(key, {
-                  plannedQuantity: Math.max(1, Math.floor(Number(event.target.value) || 0)),
-                })
-              }
+              onValueChange={(plannedQuantity) => updateDraft(key, { plannedQuantity })}
               onBlur={() => handleStageFieldBlur(row, 'material', line.key)}
               onKeyDown={(event) => handleStageEnter(event, row, 'material', line.key)}
               className={`${cellInputClass} text-center tabular-nums`}
@@ -504,17 +500,12 @@ export function ProductionPlanUnifiedSheet({
         </td>
         <td data-stage-key={stageAttr} className={`border-r border-slate-100 ${stageCell} ${QTY_COL} ${tone}`}>
           <div className={stageInputWrap}>
-            <input
-              type="number"
+            <ErpNumericInput
               min={1}
               max={maxQuantity(row)}
               value={draft.plannedQuantity}
               disabled={disabled || saving || blocked}
-              onChange={(event) =>
-                updateDraft(key, {
-                  plannedQuantity: Math.max(1, Math.floor(Number(event.target.value) || 0)),
-                })
-              }
+              onValueChange={(plannedQuantity) => updateDraft(key, { plannedQuantity })}
               onBlur={() => handleStageFieldBlur(row, 'smt', line.key)}
               onKeyDown={(event) => handleStageEnter(event, row, 'smt', line.key)}
               className={`${cellInputClass} text-center tabular-nums`}
@@ -584,17 +575,12 @@ export function ProductionPlanUnifiedSheet({
         </td>
         <td data-stage-key={stageAttr} className={`border-r border-slate-100 ${stageCell} ${QTY_COL} ${tone}`}>
           <div className={stageInputWrap}>
-            <input
-              type="number"
+            <ErpNumericInput
               min={1}
               max={maxQuantity(row)}
               value={draft.plannedQuantity}
               disabled={disabled || saving || blocked}
-              onChange={(event) =>
-                updateDraft(key, {
-                  plannedQuantity: Math.max(1, Math.floor(Number(event.target.value) || 0)),
-                })
-              }
+              onValueChange={(plannedQuantity) => updateDraft(key, { plannedQuantity })}
               onBlur={() => handleStageFieldBlur(row, 'post', line.key)}
               onKeyDown={(event) => handleStageEnter(event, row, 'post', line.key)}
               className={`${cellInputClass} text-center tabular-nums`}

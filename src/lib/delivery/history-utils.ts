@@ -14,6 +14,7 @@ export type DeliveryHistoryShipmentGroup = {
   quantity: number
   /** 명세서 기준 공급가액 합계 (추가작업 포함) */
   supplyAmount?: number | null
+  createdByName: string
   lines: DeliveryHistoryRow[]
 }
 
@@ -37,6 +38,7 @@ export function legacyStatementGroupToTableGroup(
     productName: group.productName,
     quantity: group.quantity,
     supplyAmount: group.amount,
+    createdByName: '',
     lines: [],
     source: 'legacy',
     legacyGroup: group,
@@ -52,7 +54,7 @@ export function filterStatementTableGroups(
   return groups.filter((group) => {
     if (!matchesDateRange(group.recordDate, dateRange)) return false
     if (!q) return true
-    return [group.shipmentId, group.customer, group.productName, group.recordDate]
+    return [group.shipmentId, group.customer, group.productName, group.recordDate, group.createdByName]
       .join(' ')
       .toLowerCase()
       .includes(q)
@@ -71,6 +73,7 @@ export function filterDeliveryHistory<
     recordDate: string
     note: string
     lotLabel?: string
+    createdByName?: string
   },
 >(rows: T[], query: string, dateRange: DateRangeFilterValue = {}) {
   const q = query.trim().toLowerCase()
@@ -89,6 +92,7 @@ export function filterDeliveryHistory<
       row.recordDate,
       row.note,
       row.lotLabel,
+      row.createdByName,
     ]
       .join(' ')
       .toLowerCase()
@@ -124,6 +128,8 @@ export function groupDeliveryHistoryByShipment(
     const productNames = [
       ...new Set(sorted.map((line) => line.productName.trim()).filter(Boolean)),
     ]
+    const createdByName =
+      sorted.map((line) => String(line.createdByName || '').trim()).find(Boolean) || ''
     result.push({
       shipmentId,
       recordDate,
@@ -136,6 +142,7 @@ export function groupDeliveryHistoryByShipment(
         (sum, line) => sum + Math.max(0, Math.floor(Number(line.quantity) || 0)),
         0,
       ),
+      createdByName,
       lines: sorted,
     })
   }

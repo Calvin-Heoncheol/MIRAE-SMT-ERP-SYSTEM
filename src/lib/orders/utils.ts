@@ -143,7 +143,7 @@ export function mapOrderLineRecord(
     unitPrice,
     orderAmount: Number(line.order_amount) || 0,
     setupCost,
-    smdUnitPrice: smd || unitPrice,
+    smdUnitPrice: resolveOrderLineSmdUnitPrice(smd, dip, Number(line.unit_price) || 0),
     dipUnitPrice: dip,
     materialCost,
     deliveryDate: formatOrderDate(line.delivery_date) || fallbackDeliveryDate,
@@ -274,6 +274,21 @@ export function computeOrderLineBreakdownAmount(input: {
 /** 대당 가공 단가 (SMD + 후공정, SET-UP 제외) */
 export function orderLinePerUnitPrice(smdUnitPrice: number, dipUnitPrice: number) {
   return Math.max(0, Math.round(Number(smdUnitPrice) || 0) + Math.round(Number(dipUnitPrice) || 0))
+}
+
+/**
+ * SMD/후공정 breakdown이 있으면 SMD는 0이어도 유지.
+ * 둘 다 0일 때만 레거시 unit_price를 SMD로 사용 (후공정만 있는 품목에서 이중합산 방지).
+ */
+export function resolveOrderLineSmdUnitPrice(
+  smdUnitPrice: number,
+  dipUnitPrice: number,
+  legacyUnitPrice = 0,
+) {
+  const smd = Math.max(0, Math.round(Number(smdUnitPrice) || 0))
+  const dip = Math.max(0, Math.round(Number(dipUnitPrice) || 0))
+  if (smd > 0 || dip > 0) return smd
+  return Math.max(0, Math.round(Number(legacyUnitPrice) || 0))
 }
 
 export function formatInternalCodeLabel(code: string) {

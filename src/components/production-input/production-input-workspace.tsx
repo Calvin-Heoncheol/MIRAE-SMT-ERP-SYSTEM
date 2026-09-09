@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ProductionFetchError } from '@/components/production-input/production-fetch-error'
 import { ProductionInputModal } from '@/components/production-input/production-input-modal'
 import { ProductionInputPanel } from '@/components/production-input/production-input-panel'
+import { ProductionInputPlanCalendarPanel } from '@/components/production-input/production-input-plan-calendar-panel'
 import { ProductionInputTable } from '@/components/production-input/production-input-table'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
@@ -21,6 +22,7 @@ import {
   filterProductionOrders,
   getProductionOrderState,
 } from '@/lib/production-input/utils'
+import type { ProductionPlanBoardRow } from '@/lib/production-plan/types'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 import { buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
 import type { SmtPlanBlock } from '@/lib/smt/plan/types'
@@ -77,6 +79,13 @@ function postProcessPlanProgressKey(plan: PostProcessPlanBlock, today: string = 
 
 type ProductionStatusFilter = 'all' | ProductionOrderState
 
+type SmtInputView = 'register' | 'plan'
+
+const SMT_INPUT_VIEW_TABS: { id: SmtInputView; label: string }[] = [
+  { id: 'register', label: '생산등록' },
+  { id: 'plan', label: '생산계획' },
+]
+
 function countProductionOrderStates(
   orders: ProductionOrderLine[],
   counts: Record<string, number>,
@@ -117,9 +126,13 @@ export function ProductionInputWorkspace({
   const [planProgress, setPlanProgress] = useState<Record<string, number>>(initialPlanProgress)
   const [statusFilter, setStatusFilter] = useState<ProductionStatusFilter>('all')
   const [inputOpen, setInputOpen] = useState(false)
+  const [smtView, setSmtView] = useState<SmtInputView>('register')
   const [initialPcbSide, setInitialPcbSide] = useState<SmtPcbSide | null>(null)
+  const [lineLockedFromPlan, setLineLockedFromPlan] = useState(false)
 
   const isPostProcess = config.productionModule === 'post_process'
+  const enablePlanView = showOrderSidebar && !isPostProcess
+  const showRegisterView = !enablePlanView || smtView === 'register'
 
   useEffect(() => {
     setSelectedKey(initialUiKey)
@@ -245,13 +258,30 @@ export function ProductionInputWorkspace({
 
   function handleOrderClick(order: ProductionOrderLine, side?: 'TOP' | 'BOT') {
     setSelectedKey(order.uiKey)
+    setSelectedLineNo(null)
+    setLineLockedFromPlan(false)
     setInitialPcbSide(side ?? null)
+    setInputOpen(true)
+  }
+
+  function handlePlanCardSelect(row: ProductionPlanBoardRow) {
+    const orders = data?.orders ?? []
+    const order =
+      orders.find((item) => item.orderLineId === row.targetId) ??
+      orders.find((item) => item.orderId === row.orderId) ??
+      null
+    if (!order) return
+    setSelectedKey(order.uiKey)
+    setSelectedLineNo(row.lineNo != null && row.lineNo >= 1 ? row.lineNo : null)
+    setLineLockedFromPlan(true)
+    setInitialPcbSide(row.pcbSide === 'TOP' || row.pcbSide === 'BOT' ? row.pcbSide : null)
     setInputOpen(true)
   }
 
   function closeInputModal() {
     setInputOpen(false)
     setInitialPcbSide(null)
+    setLineLockedFromPlan(false)
   }
 
   if (!result.ok) {
@@ -369,35 +399,71 @@ export function ProductionInputWorkspace({
 
     return (
       <>
-        <div className={`${flushShellClass} gap-3 p-3 sm:p-4`}>
-          <WorkspaceHeader
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="발주번호, 품목코드, 품목명, 고객사 검색…"
-            accent={isPostProcess ? 'emerald' : 'sky'}
-            filters={
-              <FilterChipBar
-                options={statusChips}
-                value={statusFilter}
-                onChange={setStatusFilter}
-              />
-            }
-          />
-
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <ProductionInputTable
-              orders={filtered}
-              counts={counts}
-              defectCounts={defectCounts}
-              config={config}
-              onOrderClick={handleOrderClick}
-              emptyMessage={formatEmptyListMessage({
-                hasQuery: Boolean(search.trim()) || statusFilter !== 'all',
-                emptyLabel: '표시할 발주가 없습니다',
-                actionHint: '발주를 선택하면 생산 등록 모달이 열립니다',
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+          {enablePlanView ? (
+            <nav
+              className="inline-flex shrink-0 flex-wrap items-center self-start rounded-xl border border-slate-200 bg-white p-1"
+              aria-label="생산1팀 보기"
+            >
+              {SMT_INPUT_VIEW_TABS.map((tab) => {
+                const isActive = smtView === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setSmtView(tab.id)}
+                    className={[
+                      'rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors',
+                      isActive
+                        ? 'bg-slate-800 text-white'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                    ].join(' ')}
+                    aria-pressed={isActive}
+                  >
+                    {tab.label}
+                  </button>
+                )
               })}
+            </nav>
+          ) : null}
+
+          {showRegisterView ? (
+            <div className={`${flushShellClass} gap-3 p-3 sm:p-4`}>
+              <WorkspaceHeader
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="발주번호, 품목코드, 품목명, 고객사 검색…"
+                accent={isPostProcess ? 'emerald' : 'sky'}
+                filters={
+                  <FilterChipBar
+                    options={statusChips}
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                  />
+                }
+              />
+
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <ProductionInputTable
+                  orders={filtered}
+                  counts={counts}
+                  defectCounts={defectCounts}
+                  config={config}
+                  onOrderClick={handleOrderClick}
+                  emptyMessage={formatEmptyListMessage({
+                    hasQuery: Boolean(search.trim()) || statusFilter !== 'all',
+                    emptyLabel: '표시할 발주가 없습니다',
+                    actionHint: '발주를 선택하면 생산 등록 모달이 열립니다',
+                  })}
+                />
+              </div>
+            </div>
+          ) : (
+            <ProductionInputPlanCalendarPanel
+              active={smtView === 'plan'}
+              onSelectPlan={handlePlanCardSelect}
             />
-          </div>
+          )}
         </div>
 
         <ProductionInputModal
@@ -407,9 +473,9 @@ export function ProductionInputWorkspace({
           defectCounts={defectCounts}
           config={config}
           onClose={closeInputModal}
-          showLineSelector={!isPostProcess}
+          showLineSelector={!isPostProcess && !lineLockedFromPlan}
           lineNo={!isPostProcess ? selectedLineNo : null}
-          onLineNoChange={!isPostProcess ? handleSelectLine : undefined}
+          onLineNoChange={!isPostProcess && !lineLockedFromPlan ? handleSelectLine : undefined}
           postProcessTeam={isPostProcess ? selectedTeam : undefined}
           initialPcbSide={initialPcbSide}
           onCountUpdated={(countKey, cumulative, defectCumulative) => {

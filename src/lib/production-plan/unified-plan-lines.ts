@@ -290,16 +290,13 @@ export function pickPlanningRowForLine(
   }
 
   const smtUnplanned = line.smtRow?.unplannedQty ?? 0
-  if (
-    (scopeFilter === 'all' || scopeFilter === 'smt') &&
-    smtUnplanned > 0 &&
-    line.smtRow &&
-    canPlanSmt(line.smtRow)
-  ) {
-    return line.smtRow
+  if ((scopeFilter === 'all' || scopeFilter === 'smt') && smtUnplanned > 0 && line.smtRow) {
+    // 자재 미준비도 목록에는 노출(사이드바에서 차단 표시). all 필터는 배정 가능만.
+    if (scopeFilter === 'smt' || canPlanSmt(line.smtRow)) {
+      return line.smtRow
+    }
   }
 
-  if (scopeFilter === 'smt') return line.smtRow
   return null
 }
 

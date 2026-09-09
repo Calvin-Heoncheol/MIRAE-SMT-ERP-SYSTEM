@@ -130,6 +130,7 @@ export function buildItemDefaultsFromQuote(quote: QuoteListItem): Partial<ItemFo
     smdUnitPrice,
     dipUnitPrice,
     materialUnitPrice,
+    materialCostLines: [],
     unitPrice: smdUnitPrice + dipUnitPrice,
   }
 }

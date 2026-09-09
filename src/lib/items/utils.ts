@@ -18,6 +18,10 @@ import {
   type ItemPcbSideModeValue,
 } from './types'
 import { normalizeVersionLabel, parseItemVersionCode } from './version-code'
+import {
+  materialCostLinesToJson,
+  normalizeMaterialCostLines,
+} from './material-cost-lines'
 import { EMPTY_SMT_QUOTE_PARTS, normalizeItemSmtQuoteParts, itemSmtQuotePartsToJson } from './smt-quote-parts'
 
 export const ITEM_INTERNAL_ID_PREFIX = 'MR-'
@@ -184,6 +188,7 @@ export function mapItemRecord(row: {
   dip_unit_price?: number | null
   material_unit_price?: number | null
   other_unit_price?: number | null
+  material_cost_lines?: unknown
   smt_quote_parts?: unknown
   baseline_quote_id?: string | null
   safety_stock?: number | null
@@ -207,6 +212,7 @@ export function mapItemRecord(row: {
   const resolvedDip = isProduct ? dipUnitPrice : 0
   const resolvedMaterial = isProduct ? materialUnitPrice : 0
   const resolvedAdditional = isProduct ? otherUnitPrice : 0
+  const materialCostLines = isProduct ? normalizeMaterialCostLines(row.material_cost_lines) : []
   const perUnitBreakdown = resolvedSmd + resolvedDip
   const { baseCode, version } = resolveBaseCodeAndVersion(row)
   const mpns = parseItemMpnFields(row.mpn || '', row.alternate_mpns)
@@ -239,6 +245,7 @@ export function mapItemRecord(row: {
     dipUnitPrice: resolvedDip,
     materialUnitPrice: resolvedMaterial,
     otherUnitPrice: resolvedAdditional,
+    materialCostLines,
     smtQuoteParts: isProduct
       ? normalizeItemSmtQuoteParts(row.smt_quote_parts)
       : { ...EMPTY_SMT_QUOTE_PARTS },
@@ -275,6 +282,7 @@ export function toItemInsertRow(payload: ItemPayload) {
     dip_unit_price: payload.dipUnitPrice,
     material_unit_price: payload.materialUnitPrice,
     other_unit_price: payload.otherUnitPrice,
+    material_cost_lines: materialCostLinesToJson(payload.materialCostLines),
     smt_quote_parts: itemSmtQuotePartsToJson(payload.smtQuoteParts),
     baseline_quote_id: payload.baselineQuoteId.trim() || null,
     item_category: payload.itemCategory,
@@ -306,6 +314,7 @@ export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
     dip_unit_price: payload.dipUnitPrice,
     material_unit_price: payload.materialUnitPrice,
     other_unit_price: payload.otherUnitPrice,
+    material_cost_lines: materialCostLinesToJson(payload.materialCostLines),
     smt_quote_parts: itemSmtQuotePartsToJson(payload.smtQuoteParts),
     baseline_quote_id: payload.baselineQuoteId.trim() || null,
     item_category: payload.itemCategory,
@@ -374,7 +383,7 @@ export function displayItemBaselineUnitPrice(
   )
 }
 
-/** 품목등록 목록·엑셀 — 가공비 + 자재비 + 추가비용 */
+/** @deprecated 품목등록 추가비용 제거 — 레거시 other_unit_price 호환용 */
 export function displayItemAdditionalUnitPrice(
   item: Pick<Item, 'itemCategory' | 'otherUnitPrice'>,
 ) {
@@ -400,7 +409,7 @@ export function displayItemListUnitPrice(
     : isFinishedItemCategory(item.itemCategory)
       ? displayItemUnitPrice(item)
       : Math.max(0, Math.round(Number(item.unitPrice) || 0))
-  return baseline + displayItemAdditionalUnitPrice(item)
+  return baseline
 }
 
 /** 저장 직후 UI에 바로 반영할 때 — 서버 round-trip 없이 payload로 Item 구성 */
@@ -435,7 +444,8 @@ export function itemFromPayload(
     smdUnitPrice: payload.smdUnitPrice,
     dipUnitPrice: payload.dipUnitPrice,
     materialUnitPrice: payload.materialUnitPrice,
-    otherUnitPrice: payload.setupUnitPrice,
+    otherUnitPrice: payload.otherUnitPrice,
+    materialCostLines: normalizeMaterialCostLines(payload.materialCostLines),
     smtQuoteParts: normalizeItemSmtQuoteParts(payload.smtQuoteParts),
     baselineQuoteId: String(payload.baselineQuoteId || '').trim(),
     itemCategory: payload.itemCategory,

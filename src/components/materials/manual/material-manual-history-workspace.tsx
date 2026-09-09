@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MaterialManualHistoryTable } from '@/components/materials/manual/material-manual-history-table'
 import { DateRangeFilter } from '@/components/ui/date-range-filter'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
@@ -8,7 +8,7 @@ import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchMaterialManualHistoryResult } from '@/lib/materials/manual/types'
-import type { MaterialManualHistoryKindFilter } from '@/lib/materials/manual/types'
+import type { MaterialManualHistoryKindFilter, MaterialManualHistoryRow } from '@/lib/materials/manual/types'
 import { filterMaterialManualHistory } from '@/lib/materials/manual/utils'
 import { DATE_RANGE_FILTER_LABEL } from '@/lib/ui/date-range'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
@@ -24,8 +24,12 @@ export function MaterialManualHistoryWorkspace({
   const [kindFilter, setKindFilter] = useState<MaterialManualHistoryKindFilter>('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [rows, setRows] = useState<MaterialManualHistoryRow[]>(result.ok ? result.rows : [])
 
-  const rows = result.ok ? result.rows : []
+  useEffect(() => {
+    if (result.ok) setRows(result.rows)
+  }, [result])
+
   const dateRange = useMemo(() => ({ startDate, endDate }), [startDate, endDate])
 
   const filtered = useMemo(
@@ -99,6 +103,7 @@ export function MaterialManualHistoryWorkspace({
           emptyLabel: '등록된 입고·불출 이력이 없습니다',
           actionHint: '입고 및 불출 메뉴에서 등록하세요',
         })}
+        onDeleted={(rowId) => setRows((current) => current.filter((row) => row.id !== rowId))}
       />
     </PageShell>
   )

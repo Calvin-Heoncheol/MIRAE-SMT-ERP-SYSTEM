@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { ErpNumericInput } from '@/components/ui/erp-numeric-input'
 import { ExcelPasteSampleTable } from '@/components/ui/excel-paste-sample-table'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import type { BusinessPartner } from '@/lib/partners/types'
@@ -348,24 +349,18 @@ export function LegacyStatementModal({
                         />
                       </td>
                       <td className="px-2 py-1.5">
-                        <input
-                          type="number"
+                        <ErpNumericInput
                           min={1}
                           value={line.quantity}
-                          onChange={(event) =>
-                            updateLine(line.key, { quantity: Math.floor(Number(event.target.value) || 0) })
-                          }
+                          onValueChange={(quantity) => updateLine(line.key, { quantity })}
                           className={`${inputClass} text-right tabular-nums`}
                         />
                       </td>
                       <td className="px-2 py-1.5">
-                        <input
-                          type="number"
+                        <ErpNumericInput
                           min={0}
                           value={line.unitPrice}
-                          onChange={(event) =>
-                            updateLine(line.key, { unitPrice: Math.round(Number(event.target.value) || 0) })
-                          }
+                          onValueChange={(unitPrice) => updateLine(line.key, { unitPrice })}
                           className={`${inputClass} text-right tabular-nums`}
                         />
                       </td>

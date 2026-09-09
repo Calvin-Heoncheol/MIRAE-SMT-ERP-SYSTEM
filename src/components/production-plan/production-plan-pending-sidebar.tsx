@@ -7,7 +7,7 @@ import {
   SHARED_PRODUCTION_PLAN_DRAG_MIME,
   type ProductionPlanDragPayload,
 } from '@/lib/production-plan/config'
-import { canPlanPost } from '@/lib/production-plan/pipeline'
+import { canPlanPost, canPlanSmt } from '@/lib/production-plan/pipeline'
 import type { ProductionPlanBoardRow } from '@/lib/production-plan/types'
 import { computeSmtSideUnplannedQty } from '@/lib/production-plan/utils'
 import {
@@ -40,20 +40,20 @@ function formatQty(value: number) {
 }
 
 function PendingCardBody({
+  customer,
   orderLabel,
   productName,
   splitPcbSides = false,
   deliveryDate,
-  orderQty,
   remainingQty,
   sideUnplanned = null,
   muted = false,
 }: {
+  customer: string
   orderLabel: string
   productName: string
   splitPcbSides?: boolean
   deliveryDate: string
-  orderQty: number
   remainingQty: number
   sideUnplanned?: SideUnplanned | null
   muted?: boolean
@@ -64,17 +64,9 @@ function PendingCardBody({
 
   return (
     <>
-      <p className={`truncate font-mono text-xs font-bold ${valueClass}`}>{orderLabel || '—'}</p>
+      <p className={`truncate text-xs font-semibold ${labelClass}`}>{customer || '—'}</p>
+      <p className={`mt-0.5 truncate font-mono text-xs font-bold ${valueClass}`}>{orderLabel || '—'}</p>
       <p className={`mt-1 truncate text-sm font-bold ${valueClass}`}>{productName || '—'}</p>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
-        <span
-          className={`rounded-md px-2 py-1 text-xs font-bold tabular-nums ${
-            muted ? 'bg-slate-200 text-slate-600' : 'bg-emerald-100 text-emerald-800'
-          }`}
-        >
-          총 수량 {formatQty(orderQty)}
-        </span>
-      </div>
       {showSideRemaining && sideUnplanned ? (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           <span
@@ -152,7 +144,9 @@ export function ProductionPlanPendingSidebar({
         } else if (unplanned <= 0) {
           return null
         }
-        const blocked = scope === 'post' && !canPlanPost(planRow, allRows)
+        const blocked =
+          (scope === 'post' && !canPlanPost(planRow, allRows)) ||
+          (scope === 'smt' && !canPlanSmt(planRow))
         return {
           line,
           planRow,
@@ -169,18 +163,12 @@ export function ProductionPlanPendingSidebar({
 
   return (
     <aside className="flex min-h-0 w-full shrink-0 flex-col overflow-hidden border-b border-slate-200 bg-slate-50 lg:w-[20rem] lg:border-b-0 lg:border-r xl:w-[22rem]">
-      <div className="shrink-0 border-b border-slate-200 bg-white px-3 py-2.5">
-        <h4 className="text-sm font-bold text-slate-900">
-          {scope === 'smt' ? 'SMT' : '후공정'} 미배정
-        </h4>
-      </div>
-
       <div className="shrink-0 border-b border-slate-200 bg-white px-3 py-2">
         <input
           type="search"
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="발주번호·납기 검색…"
+          placeholder="발주·PO·고객·제품 검색…"
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
         />
       </div>
@@ -217,11 +205,11 @@ export function ProductionPlanPendingSidebar({
                   } ${isDragging ? 'opacity-50' : 'hover:shadow'}`}
                 >
                   <PendingCardBody
+                    customer={line.rep.customer}
                     orderLabel={orderLabel}
                     productName={line.rep.productName}
                     splitPcbSides={line.rep.splitPcbSides}
                     deliveryDate={line.rep.deliveryDate}
-                    orderQty={line.rep.orderQty}
                     remainingQty={unplanned}
                     sideUnplanned={sideUnplanned}
                   />
@@ -238,17 +226,19 @@ export function ProductionPlanPendingSidebar({
                   className="rounded-xl border border-l-4 border-slate-200 border-l-slate-300 bg-slate-50 p-2.5 opacity-80"
                 >
                   <PendingCardBody
+                    customer={line.rep.customer}
                     orderLabel={orderLabel}
                     productName={line.rep.productName}
                     splitPcbSides={line.rep.splitPcbSides}
                     deliveryDate={line.rep.deliveryDate}
-                    orderQty={line.rep.orderQty}
                     remainingQty={unplanned}
                     sideUnplanned={sideUnplanned}
                     muted
                   />
                   <p className="mt-1.5 text-[10px] font-semibold text-amber-700">
-                    SMD 생산계획 확정 후 배정 가능
+                    {scope === 'smt'
+                      ? '자재 준비 후 SMT 배정 가능'
+                      : 'SMD 생산계획 확정 후 배정 가능'}
                   </p>
                 </article>
               )

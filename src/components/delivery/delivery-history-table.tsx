@@ -29,7 +29,7 @@ export function DeliveryHistoryTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="erp-data-table min-w-[880px] w-full border-collapse">
+        <table className="erp-data-table min-w-[960px] w-full border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
@@ -45,6 +45,9 @@ export function DeliveryHistoryTable({
               </th>
               <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                 공급가액
+              </th>
+              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
+                등록자
               </th>
             </tr>
           </thead>
@@ -79,6 +82,9 @@ export function DeliveryHistoryTable({
                   {group.supplyAmount == null
                     ? '…'
                     : group.supplyAmount.toLocaleString('ko-KR')}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-600">
+                  {cell(group.createdByName)}
                 </td>
               </tr>
             ))}

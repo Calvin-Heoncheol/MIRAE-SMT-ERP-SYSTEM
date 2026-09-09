@@ -229,6 +229,7 @@ export function MaterialManualWorkspace({
         refreshing={refreshing}
         onClose={closeInputModal}
         onSave={handleSave}
+        onHistoryChanged={() => void reload()}
       />
     </>
   )

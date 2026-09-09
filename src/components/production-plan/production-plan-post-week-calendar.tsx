@@ -19,6 +19,7 @@ type ProductionPlanPostWeekCalendarProps = {
   weekDates: string[]
   scheduledRows: ProductionPlanBoardRow[]
   onSelectRow?: (row: ProductionPlanBoardRow) => void
+  onEmptyCellClick?: (target: { plannedDate: string; team: PostProcessTeam }) => void
   onDropOrder?: (
     payload: ProductionPlanDragPayload,
     target: { plannedDate: string; team: PostProcessTeam },
@@ -29,10 +30,15 @@ function cellKey(plannedDate: string, team: string) {
   return `${plannedDate}:${team}`
 }
 
+function cellPlannedTotal(rows: ProductionPlanBoardRow[]) {
+  return rows.reduce((sum, row) => sum + Math.max(0, Math.round(Number(row.plannedQuantity) || 0)), 0)
+}
+
 export function ProductionPlanPostWeekCalendar({
   weekDates,
   scheduledRows,
   onSelectRow,
+  onEmptyCellClick,
   onDropOrder,
 }: ProductionPlanPostWeekCalendarProps) {
   const today = todayYmdSeoul()
@@ -113,6 +119,7 @@ export function ProductionPlanPostWeekCalendar({
               {weekDates.map((plannedDate) => {
                 const key = cellKey(plannedDate, team)
                 const cellRows = rowsByCell.get(key) ?? []
+                const loadQty = cellPlannedTotal(cellRows)
                 const isToday = plannedDate === today
                 const isDropTarget = dragOverKey === key
 
@@ -131,28 +138,46 @@ export function ProductionPlanPostWeekCalendar({
                     onDrop={(event) => handleDrop(event, plannedDate, team)}
                   >
                     <div className="flex min-h-[96px] flex-col gap-1">
+                      {loadQty > 0 ? (
+                        <p className="px-0.5 text-[10px] font-semibold tabular-nums text-slate-500">
+                          부하 {loadQty.toLocaleString('ko-KR')}
+                        </p>
+                      ) : null}
                       {cellRows.map((row) => (
                         <ProductionPlanBoardCard
                           key={row.key}
                           row={row}
                           tone="post"
                           onSelect={onSelectRow}
+                          draggable={Boolean(onDropOrder)}
                         />
                       ))}
                       {cellRows.length === 0 ? (
-                        <div
-                          className={`flex flex-1 items-center justify-center rounded-lg border border-dashed px-1 py-6 text-[11px] ${
-                            isDropTarget
-                              ? 'border-violet-400 bg-violet-50 text-violet-700'
-                              : 'border-slate-200 text-slate-400'
-                          }`}
-                        >
-                          {isDropTarget ? '여기에 놓기' : '끌어다 놓기'}
-                        </div>
+                        onDropOrder ? (
+                          <div
+                            className={`flex flex-1 items-center justify-center rounded-lg border border-dashed px-1 py-6 text-[11px] transition ${
+                              isDropTarget
+                                ? 'border-violet-400 bg-violet-50 text-violet-700'
+                                : 'border-slate-200 text-slate-400'
+                            }`}
+                          >
+                            {isDropTarget ? '여기에 놓기' : '끌어다 놓기'}
+                          </div>
+                        ) : (
+                          <div className="min-h-[48px] flex-1" />
+                        )
                       ) : isDropTarget ? (
                         <div className="rounded-md border border-dashed border-violet-400 bg-violet-50 px-1 py-2 text-center text-[10px] font-semibold text-violet-700">
                           여기에 추가
                         </div>
+                      ) : onEmptyCellClick ? (
+                        <button
+                          type="button"
+                          onClick={() => onEmptyCellClick({ plannedDate, team })}
+                          className="rounded-md border border-dashed border-slate-200 px-1 py-1.5 text-center text-[10px] text-slate-400 hover:border-violet-300 hover:bg-violet-50/50 hover:text-violet-700"
+                        >
+                          + 배정
+                        </button>
                       ) : null}
                     </div>
                   </td>

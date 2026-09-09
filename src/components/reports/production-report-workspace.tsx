@@ -20,13 +20,16 @@ import { downloadExcelSheets, type ExcelColumn } from '@/lib/excel/export'
 import { exportReportPdf } from '@/lib/reports/export-report-pdf'
 import type { ReportPeriod } from '@/lib/reports/period'
 import {
-  PRODUCTION_REPORT_TEAMS,
+  SMT_REPORT_TEAM,
   type FetchProductionReportResult,
   type ProductionReportDailyRow,
   type ProductionReportDetailRow,
   type ProductionReportTeamSummary,
 } from '@/lib/reports/production-report'
 import { formatWeekdayLabel, getWeekStartMondayYmd } from '@/lib/smt/plan/utils'
+
+/** 당분간 생산실적 화면은 생산1팀(SMT)만 표시 */
+const PERFORMANCE_TEAMS = [SMT_REPORT_TEAM] as const
 
 type ProductionReportWorkspaceProps = {
   result: FetchProductionReportResult
@@ -46,41 +49,46 @@ function formatMonthDay(ymd: string) {
   return `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`
 }
 
-/** 팀 순서(생산1~4팀)에 맞춘 차트 색상 */
-const TEAM_CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6']
+function rateLabel(planned: number, actual: number) {
+  if (planned <= 0) return '—'
+  return `${Math.round((actual / planned) * 100)}%`
+}
 
-type ProductionTrendRow = {
+type PlanActualTrendRow = {
   key: string
   label: string
   subLabel: string
-  byTeam: Record<string, number>
-  total: number
+  planned: number
+  actual: number
 }
 
-/** 주간 뷰: 일별 그대로, 월간 뷰: 월요일 시작 주 단위로 합산 */
-function buildTrendRows(
+/** 주간: 일별 계획/실적, 월간: 월요일 시작 주 단위 합산 (표시 팀만) */
+function buildPlanActualTrendRows(
   daily: ProductionReportDailyRow[],
   period: ReportPeriod,
-): ProductionTrendRow[] {
+): PlanActualTrendRow[] {
+  const teamPlanned = (row: ProductionReportDailyRow) =>
+    PERFORMANCE_TEAMS.reduce((sum, team) => sum + (row.plannedByTeam[team] ?? 0), 0)
+  const teamActual = (row: ProductionReportDailyRow) =>
+    PERFORMANCE_TEAMS.reduce((sum, team) => sum + (row.byTeam[team] ?? 0), 0)
+
   if (period !== 'month') {
     return daily.map((row) => ({
       key: row.date,
       label: formatMonthDay(row.date),
       subLabel: formatWeekdayLabel(row.date),
-      byTeam: row.byTeam,
-      total: row.total,
+      planned: teamPlanned(row),
+      actual: teamActual(row),
     }))
   }
 
-  const weekMap = new Map<string, { dates: string[]; byTeam: Record<string, number>; total: number }>()
+  const weekMap = new Map<string, { dates: string[]; planned: number; actual: number }>()
   for (const row of daily) {
     const weekStart = getWeekStartMondayYmd(row.date)
-    const bucket = weekMap.get(weekStart) ?? { dates: [], byTeam: {}, total: 0 }
+    const bucket = weekMap.get(weekStart) ?? { dates: [], planned: 0, actual: 0 }
     bucket.dates.push(row.date)
-    for (const [team, value] of Object.entries(row.byTeam)) {
-      bucket.byTeam[team] = (bucket.byTeam[team] ?? 0) + value
-    }
-    bucket.total += row.total
+    bucket.planned += teamPlanned(row)
+    bucket.actual += teamActual(row)
     weekMap.set(weekStart, bucket)
   }
 
@@ -93,8 +101,89 @@ function buildTrendRows(
         key: weekStart,
         label: `${index + 1}주차`,
         subLabel: `${formatMonthDay(first)} ~ ${formatMonthDay(last)}`,
-        byTeam: bucket.byTeam,
-        total: bucket.total,
+        planned: bucket.planned,
+        actual: bucket.actual,
+      }
+    })
+}
+
+type MatrixColumn = {
+  key: string
+  label: string
+  subLabel: string
+  planned: number
+  actual: number
+  plannedByTeam: Record<string, number>
+  actualByTeam: Record<string, number>
+}
+
+function buildMatrixColumns(
+  daily: ProductionReportDailyRow[],
+  period: ReportPeriod,
+): MatrixColumn[] {
+  const teamPlanned = (row: ProductionReportDailyRow) =>
+    PERFORMANCE_TEAMS.reduce((sum, team) => sum + (row.plannedByTeam[team] ?? 0), 0)
+  const teamActual = (row: ProductionReportDailyRow) =>
+    PERFORMANCE_TEAMS.reduce((sum, team) => sum + (row.byTeam[team] ?? 0), 0)
+  const pickTeams = (source: Record<string, number>) =>
+    Object.fromEntries(PERFORMANCE_TEAMS.map((team) => [team, source[team] ?? 0]))
+
+  if (period !== 'month') {
+    return daily.map((row) => ({
+      key: row.date,
+      label: formatMonthDay(row.date),
+      subLabel: formatWeekdayLabel(row.date),
+      planned: teamPlanned(row),
+      actual: teamActual(row),
+      plannedByTeam: pickTeams(row.plannedByTeam),
+      actualByTeam: pickTeams(row.byTeam),
+    }))
+  }
+
+  const weekMap = new Map<
+    string,
+    {
+      dates: string[]
+      planned: number
+      actual: number
+      plannedByTeam: Record<string, number>
+      actualByTeam: Record<string, number>
+    }
+  >()
+
+  for (const row of daily) {
+    const weekStart = getWeekStartMondayYmd(row.date)
+    const bucket = weekMap.get(weekStart) ?? {
+      dates: [],
+      planned: 0,
+      actual: 0,
+      plannedByTeam: {},
+      actualByTeam: {},
+    }
+    bucket.dates.push(row.date)
+    bucket.planned += teamPlanned(row)
+    bucket.actual += teamActual(row)
+    for (const team of PERFORMANCE_TEAMS) {
+      bucket.plannedByTeam[team] =
+        (bucket.plannedByTeam[team] ?? 0) + (row.plannedByTeam[team] ?? 0)
+      bucket.actualByTeam[team] = (bucket.actualByTeam[team] ?? 0) + (row.byTeam[team] ?? 0)
+    }
+    weekMap.set(weekStart, bucket)
+  }
+
+  return [...weekMap.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([weekStart, bucket], index) => {
+      const first = bucket.dates[0]
+      const last = bucket.dates[bucket.dates.length - 1]
+      return {
+        key: weekStart,
+        label: `${index + 1}주차`,
+        subLabel: `${formatMonthDay(first)}~${formatMonthDay(last)}`,
+        planned: bucket.planned,
+        actual: bucket.actual,
+        plannedByTeam: bucket.plannedByTeam,
+        actualByTeam: bucket.actualByTeam,
       }
     })
 }
@@ -109,9 +198,28 @@ export function ProductionReportWorkspace({
   monthHref,
 }: ProductionReportWorkspaceProps) {
   const data = result.ok ? result.data : null
+  const visibleTeams = data
+    ? data.teams.filter((team) =>
+        (PERFORMANCE_TEAMS as readonly string[]).includes(team.team),
+      )
+    : []
+  const teamSummary = visibleTeams[0] ?? null
+  const visibleDetails = data
+    ? data.details.filter((row) => (PERFORMANCE_TEAMS as readonly string[]).includes(row.team))
+    : []
+  const trendRows = data ? buildPlanActualTrendRows(data.daily, period) : []
+  const matrixColumns = data ? buildMatrixColumns(data.daily, period) : []
+
+  function rateToneClass(planned: number, actual: number) {
+    if (planned <= 0) return 'text-slate-400'
+    const rate = Math.round((actual / planned) * 100)
+    if (rate >= 100) return 'font-semibold text-emerald-700'
+    if (rate >= 80) return 'text-slate-800'
+    return 'font-semibold text-rose-700'
+  }
 
   async function handleExcelDownload() {
-    if (!data) return
+    if (!data || !teamSummary) return
 
     const summaryColumns: ExcelColumn<ProductionReportTeamSummary>[] = [
       { header: '팀', value: (row) => row.team, width: 12 },
@@ -129,12 +237,18 @@ export function ProductionReportWorkspace({
 
     const dailyColumns: ExcelColumn<ProductionReportDailyRow>[] = [
       { header: '날짜', value: (row) => row.date, width: 12 },
-      ...PRODUCTION_REPORT_TEAMS.map((team) => ({
-        header: team,
-        value: (row: ProductionReportDailyRow) => row.byTeam[team] ?? 0,
-        width: 10,
-      })),
-      { header: '합계', value: (row) => row.total, width: 10 },
+      ...PERFORMANCE_TEAMS.flatMap((team) => [
+        {
+          header: `${team} 계획`,
+          value: (row: ProductionReportDailyRow) => row.plannedByTeam[team] ?? 0,
+          width: 10,
+        },
+        {
+          header: `${team} 실적`,
+          value: (row: ProductionReportDailyRow) => row.byTeam[team] ?? 0,
+          width: 10,
+        },
+      ]),
     ]
 
     const detailColumns: ExcelColumn<ProductionReportDetailRow>[] = [
@@ -149,87 +263,64 @@ export function ProductionReportWorkspace({
     ]
 
     await downloadExcelSheets({
-      fileName: `생산실적_${data.startDate}_${data.endDate}`,
+      fileName: `생산실적_생산1팀_${data.startDate}_${data.endDate}`,
       sheets: [
         {
-          sheetName: '팀별 요약',
+          sheetName: '팀 요약',
           columns: summaryColumns as ExcelColumn<unknown>[],
-          rows: data.teams as unknown[],
+          rows: visibleTeams as unknown[],
         },
         {
-          sheetName: '일별 생산량',
+          sheetName: '일별 계획대비',
           columns: dailyColumns as ExcelColumn<unknown>[],
           rows: data.daily as unknown[],
         },
         {
           sheetName: '상세 내역',
           columns: detailColumns as ExcelColumn<unknown>[],
-          rows: data.details as unknown[],
+          rows: visibleDetails as unknown[],
         },
       ],
     })
   }
 
   function handlePdfDownload() {
-    if (!data) return
-
-    const trendRows = buildTrendRows(data.daily, period)
-    const trendTitle =
-      period === 'month' ? '월별 생산량' : '주별 생산량'
+    if (!data || !teamSummary) return
 
     exportReportPdf({
-      title: '생산실적 리포트',
+      title: '생산실적 리포트 (생산1팀)',
       rangeLabel,
       stats: [
-        { label: '총 생산수량', value: `${formatCount(data.totalQuantity)} EA` },
-        { label: '총 생산금액', value: `${formatCount(data.totalAmount)} 원` },
+        { label: '총 생산수량', value: `${formatCount(teamSummary.quantity)} EA` },
+        { label: '총 생산금액', value: `${formatCount(teamSummary.amount)} 원` },
         {
           label: '계획 달성률',
-          value: data.totalAchievementRate != null ? `${data.totalAchievementRate}%` : '—',
+          value: teamSummary.achievementRate != null ? `${teamSummary.achievementRate}%` : '—',
           sub:
-            data.totalPlannedQuantity > 0
-              ? `원계획 ${formatCount(data.totalPlannedQuantity)} EA`
+            teamSummary.plannedQuantity > 0
+              ? `원계획 ${formatCount(teamSummary.plannedQuantity)} EA`
               : undefined,
         },
         {
           label: '납기 지연 주문',
-          value: `${formatCount(data.totalOverdueOrders)} 건`,
+          value: `${formatCount(teamSummary.overdueOrders)} 건`,
           sub: '납기 경과 · 출하 미완료',
         },
       ],
       tables: [
         {
-          title: '팀별 요약',
-          columns: [
-            { header: '팀' },
-            { header: '생산수량', align: 'right' },
-            { header: '생산금액(원)', align: 'right' },
-            { header: '계획 달성률', align: 'right' },
-            { header: '가동일수', align: 'right' },
-            { header: '납기지연 주문', align: 'right' },
-          ],
-          rows: data.teams.map((team) => [
-            team.team,
-            formatCount(team.quantity),
-            formatCount(team.amount),
-            team.achievementRate != null
-              ? `${team.achievementRate}% (계획 ${formatCount(team.plannedQuantity)})`
-              : '—',
-            `${formatCount(team.activeDays)}일`,
-            `${formatCount(team.overdueOrders)}건`,
-          ]),
-        },
-        {
-          title: trendTitle,
+          title: period === 'month' ? '주차별 계획 대비 실적' : '일별 계획 대비 실적',
           columns: [
             { header: period === 'month' ? '주' : '날짜' },
-            ...PRODUCTION_REPORT_TEAMS.map((team) => ({ header: team, align: 'right' as const })),
-            { header: '합계', align: 'right' },
+            { header: '계획', align: 'right' },
+            { header: '실적', align: 'right' },
+            { header: '달성률', align: 'right' },
           ],
           rows: trendRows.map((row) => [
             `${row.label} (${row.subLabel})`,
-            ...PRODUCTION_REPORT_TEAMS.map((team) => formatCount(row.byTeam[team] ?? 0)),
-            formatCount(row.total),
+            formatCount(row.planned),
+            formatCount(row.actual),
+            rateLabel(row.planned, row.actual),
           ]),
         },
       ],
@@ -238,34 +329,34 @@ export function ProductionReportWorkspace({
 
   return (
     <PageShell>
-      {data ? (
+      {data && teamSummary ? (
         <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4">
-          <KpiStatCard label="총 생산수량" value={data.totalQuantity} unit="EA" />
-          <KpiStatCard label="총 생산금액" value={data.totalAmount} unit="원" />
+          <KpiStatCard label="총 생산수량" value={teamSummary.quantity} unit="EA" />
+          <KpiStatCard label="총 생산금액" value={teamSummary.amount} unit="원" />
           <KpiStatCard
             label="계획 달성률"
-            value={data.totalAchievementRate != null ? `${data.totalAchievementRate}%` : null}
+            value={teamSummary.achievementRate != null ? `${teamSummary.achievementRate}%` : null}
             hint={
-              data.totalPlannedQuantity > 0
-                ? `원계획 ${formatCount(data.totalPlannedQuantity)} EA (지난 날짜 기준)`
+              teamSummary.plannedQuantity > 0
+                ? `원계획 ${formatCount(teamSummary.plannedQuantity)} EA (지난 날짜 기준)`
                 : '기간 내 마감된 계획 없음'
             }
             tone={
-              data.totalAchievementRate == null
+              teamSummary.achievementRate == null
                 ? 'slate'
-                : data.totalAchievementRate >= 100
+                : teamSummary.achievementRate >= 100
                   ? 'emerald'
-                  : data.totalAchievementRate >= 80
+                  : teamSummary.achievementRate >= 80
                     ? 'default'
                     : 'rose'
             }
           />
           <KpiStatCard
             label="납기 지연 주문"
-            value={data.totalOverdueOrders}
+            value={teamSummary.overdueOrders}
             unit="건"
             hint="납기 경과 · 출하 미완료 (현재 기준)"
-            tone={data.totalOverdueOrders > 0 ? 'rose' : 'default'}
+            tone={teamSummary.overdueOrders > 0 ? 'rose' : 'default'}
           />
         </div>
       ) : null}
@@ -293,93 +384,168 @@ export function ProductionReportWorkspace({
         <FetchErrorBanner title="리포트 데이터를 불러오지 못했습니다" detail={result.detail} />
       ) : data ? (
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-          <div className={`${ERP_TABLE_WRAP_CLASS} h-auto flex-none`}>
-            <div className={ERP_TABLE_SCROLL_CLASS}>
-              <table className={`${ERP_TABLE_CLASS} min-w-[720px]`}>
-                <thead className={ERP_TABLE_HEAD_CLASS}>
-                  <tr>
-                    <th className={`${ERP_TABLE_TH_CLASS} text-left`}>팀</th>
-                    <th className={`${ERP_TABLE_TH_CLASS} text-right`}>생산수량</th>
-                    <th className={`${ERP_TABLE_TH_CLASS} text-right`}>생산금액</th>
-                    <th className={`${ERP_TABLE_TH_CLASS} text-right`}>계획 달성률</th>
-                    <th className={`${ERP_TABLE_TH_CLASS} text-right`}>가동일수</th>
-                    <th className={`${ERP_TABLE_TH_CLASS} text-right`}>납기지연 주문</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.teams.map((team) => (
-                    <tr key={team.team} className="border-t border-slate-100 hover:bg-slate-50/80">
-                      <td className={`${ERP_TABLE_TD_CLASS} font-bold text-slate-900`}>{team.team}</td>
-                      <td className={`${ERP_TABLE_TD_CLASS} text-right font-semibold tabular-nums text-slate-900`}>
-                        {formatCount(team.quantity)}
-                      </td>
-                      <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums text-slate-700`}>
-                        {formatCount(team.amount)} 원
-                      </td>
-                      <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums`}>
-                        {team.achievementRate != null ? (
-                          <span
-                            className={[
-                              'font-semibold',
-                              team.achievementRate >= 100
-                                ? 'text-emerald-700'
-                                : team.achievementRate >= 80
-                                  ? 'text-slate-900'
-                                  : 'text-rose-700',
-                            ].join(' ')}
-                          >
-                            {team.achievementRate}%
-                            <span className="ml-1 text-xs font-normal text-slate-400">
-                              / {formatCount(team.plannedQuantity)}
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums text-slate-700`}>
-                        {formatCount(team.activeDays)}일
-                      </td>
-                      <td className={`${ERP_TABLE_TD_CLASS} text-right tabular-nums`}>
-                        {team.overdueOrders > 0 ? (
-                          <span className="font-semibold text-rose-700">
-                            {formatCount(team.overdueOrders)}건
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">0건</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className={ERP_TABLE_WRAP_CLASS}>
+          <div className={`${ERP_TABLE_WRAP_CLASS} flex min-h-[280px] flex-[0.9] flex-col`}>
             <div className="shrink-0 border-b border-slate-100 px-4 py-3">
-              <h2 className="text-sm font-bold text-slate-900">
-                {period === 'month' ? '월별 생산량' : '주별 생산량'}
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-500">팀별 누적 — EA</p>
+              <h2 className="text-sm font-bold text-slate-900">계획 대비 실적 (생산1팀)</h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {period === 'month' ? '주차별' : '일별'} 계획 · 실적 수량 (EA)
+              </p>
             </div>
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4">
               <ReportBarChart
-                rows={buildTrendRows(data.daily, period).map((row) => ({
+                rows={trendRows.map((row) => ({
                   label: row.label,
                   subLabel: row.subLabel,
-                  ...Object.fromEntries(
-                    PRODUCTION_REPORT_TEAMS.map((team) => [team, row.byTeam[team] ?? 0]),
-                  ),
+                  planned: row.planned,
+                  actual: row.actual,
                 }))}
-                series={PRODUCTION_REPORT_TEAMS.map((team, index) => ({
-                  key: team,
-                  label: team,
-                  color: TEAM_CHART_COLORS[index % TEAM_CHART_COLORS.length],
-                }))}
+                series={[
+                  { key: 'planned', label: '계획', color: '#94a3b8' },
+                  { key: 'actual', label: '실적', color: '#2563eb' },
+                ]}
                 unit="EA"
-                stacked
+                height={260}
               />
+            </div>
+          </div>
+
+          <div className={`${ERP_TABLE_WRAP_CLASS} min-h-0 flex-1`}>
+            <div className="shrink-0 border-b border-slate-100 px-4 py-3">
+              <h2 className="text-sm font-bold text-slate-900">
+                {period === 'month' ? '생산1팀 주차별 계획 대비 실적' : '생산1팀 일별 계획 대비 실적'}
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">날짜별 계획 수량과 생산등록(실적) 수량</p>
+            </div>
+            <div className={ERP_TABLE_SCROLL_CLASS}>
+              <table className={`${ERP_TABLE_CLASS} min-w-max`}>
+                <thead className={ERP_TABLE_HEAD_CLASS}>
+                  <tr>
+                    <th
+                      className={`${ERP_TABLE_TH_CLASS} sticky left-0 z-20 min-w-[5.5rem] bg-slate-50 text-left`}
+                    >
+                      팀
+                    </th>
+                    <th
+                      className={`${ERP_TABLE_TH_CLASS} sticky left-[5.5rem] z-20 min-w-[3.5rem] bg-slate-50 text-left`}
+                    >
+                      구분
+                    </th>
+                    {matrixColumns.map((col) => (
+                      <th
+                        key={col.key}
+                        className={`${ERP_TABLE_TH_CLASS} min-w-[4.5rem] text-center`}
+                      >
+                        <div>{col.label}</div>
+                        <div className="mt-0.5 text-[10px] font-medium text-slate-400">
+                          {col.subLabel}
+                        </div>
+                      </th>
+                    ))}
+                    <th className={`${ERP_TABLE_TH_CLASS} min-w-[4.5rem] text-center`}>합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PERFORMANCE_TEAMS.map((team) => {
+                    const teamPlannedTotal = matrixColumns.reduce(
+                      (sum, col) => sum + (col.plannedByTeam[team] ?? 0),
+                      0,
+                    )
+                    const teamActualTotal = matrixColumns.reduce(
+                      (sum, col) => sum + (col.actualByTeam[team] ?? 0),
+                      0,
+                    )
+                    const metrics = [
+                      {
+                        key: 'plan',
+                        label: '계획',
+                        labelClass: 'text-slate-600',
+                        valueClass: 'text-slate-700',
+                        totalClass: 'font-semibold text-slate-800',
+                        value: (col: (typeof matrixColumns)[number]) => col.plannedByTeam[team] ?? 0,
+                        total: teamPlannedTotal,
+                        format: (value: number) => (value > 0 ? formatCount(value) : '—'),
+                      },
+                      {
+                        key: 'actual',
+                        label: '실적',
+                        labelClass: 'text-blue-800',
+                        valueClass: 'text-slate-900',
+                        totalClass: 'font-semibold text-slate-900',
+                        value: (col: (typeof matrixColumns)[number]) => col.actualByTeam[team] ?? 0,
+                        total: teamActualTotal,
+                        format: (value: number) => (value > 0 ? formatCount(value) : '—'),
+                      },
+                      {
+                        key: 'rate',
+                        label: '달성률',
+                        labelClass: 'text-slate-600',
+                        valueClass: '',
+                        totalClass: rateToneClass(teamPlannedTotal, teamActualTotal),
+                        value: (col: (typeof matrixColumns)[number]) => {
+                          const planned = col.plannedByTeam[team] ?? 0
+                          const actual = col.actualByTeam[team] ?? 0
+                          return planned > 0 ? Math.round((actual / planned) * 100) : null
+                        },
+                        total: null as number | null,
+                        format: (value: number | null) => (value == null ? '—' : `${value}%`),
+                      },
+                    ] as const
+
+                    return metrics.map((metric, metricIndex) => (
+                      <tr
+                        key={`${team}-${metric.key}`}
+                        className={`border-t border-slate-100 hover:bg-slate-50/80 ${
+                          metricIndex === 0 ? 'border-t-slate-200' : ''
+                        }`}
+                      >
+                        {metricIndex === 0 ? (
+                          <td
+                            rowSpan={3}
+                            className={`${ERP_TABLE_TD_CLASS} sticky left-0 z-10 border-r border-slate-100 bg-white align-middle font-bold text-slate-900`}
+                          >
+                            {team}
+                          </td>
+                        ) : null}
+                        <td
+                          className={`${ERP_TABLE_TD_CLASS} sticky left-[5.5rem] z-10 bg-white font-medium ${metric.labelClass}`}
+                        >
+                          {metric.label}
+                        </td>
+                        {matrixColumns.map((col) => {
+                          if (metric.key === 'rate') {
+                            const planned = col.plannedByTeam[team] ?? 0
+                            const actual = col.actualByTeam[team] ?? 0
+                            return (
+                              <td
+                                key={`${team}-${metric.key}-${col.key}`}
+                                className={`${ERP_TABLE_TD_CLASS} text-center tabular-nums ${rateToneClass(planned, actual)}`}
+                              >
+                                {rateLabel(planned, actual)}
+                              </td>
+                            )
+                          }
+                          const value = metric.value(col) as number
+                          return (
+                            <td
+                              key={`${team}-${metric.key}-${col.key}`}
+                              className={`${ERP_TABLE_TD_CLASS} text-center tabular-nums ${metric.valueClass}`}
+                            >
+                              {metric.format(value)}
+                            </td>
+                          )
+                        })}
+                        <td
+                          className={`${ERP_TABLE_TD_CLASS} text-center tabular-nums ${metric.totalClass}`}
+                        >
+                          {metric.key === 'rate'
+                            ? rateLabel(teamPlannedTotal, teamActualTotal)
+                            : metric.format(metric.total as number)}
+                        </td>
+                      </tr>
+                    ))
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

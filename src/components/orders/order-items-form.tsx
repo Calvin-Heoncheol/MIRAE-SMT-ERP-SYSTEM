@@ -5,11 +5,16 @@ import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { ProductCombobox } from '@/components/orders/product-combobox'
 import { parseItemVersionCode } from '@/lib/items/version-code'
 import {
+  normalizeMaterialCostLines,
+  shouldSplitMaterialCostLines,
+  type MaterialCostLine,
+} from '@/lib/items/material-cost-lines'
+import {
   defaultAdhocOrderItemForm,
   defaultOrderItemForm,
   type OrderItemForm,
 } from '@/lib/orders/form-state'
-import { computeLineAmount, computeOrderLineBreakdownAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, formatAdditionalWorkProductNameLabel, formatOrderMoney, isBillingOnlyOrderItem, orderCurrencySymbol, orderLinePerUnitPrice } from '@/lib/orders/utils'
+import { computeLineAmount, computeOrderLineBreakdownAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, formatAdditionalWorkProductNameLabel, formatOrderMoney, isBillingOnlyOrderItem, orderCurrencySymbol, orderLinePerUnitPrice, resolveOrderLineSmdUnitPrice } from '@/lib/orders/utils'
 import type { OrderCurrency } from '@/lib/orders/types'
 import type { Product } from '@/lib/products/types'
 import { findProductsByCode, findProductsByName, filterProductsForCustomerStrict } from '@/lib/products/utils'
@@ -29,50 +34,58 @@ function unitPriceFromProduct(product: Product) {
     Math.max(0, Math.round(Number(product.defaultUnitPrice) || 0))
 }
 
-function productAdditionalCost(product: Product) {
-  return Math.max(0, Math.round(Number(product.additionalUnitPrice) || 0))
-}
-
 function isCompanionRow(row: OrderItemForm) {
   return Boolean(row.isAdhoc && row.companionOfRowKey?.trim())
-}
-
-function findCompanionIndex(items: OrderItemForm[], parentRowKey: string) {
-  return items.findIndex((row) => row.isAdhoc && row.companionOfRowKey === parentRowKey)
 }
 
 function stripCompanionRows(items: OrderItemForm[], parentRowKey: string) {
   return items.filter((row) => !(row.isAdhoc && row.companionOfRowKey === parentRowKey))
 }
 
-function buildAdditionalCostRow(parent: OrderItemForm, product: Product): OrderItemForm {
+function buildCompanionRow(
+  parent: OrderItemForm,
+  product: Product,
+  opts: { productName: string; unitPrice: number },
+): OrderItemForm {
   const row = defaultAdhocOrderItemForm(String(parent.deliveryDate || ''))
   return {
     ...row,
     productId: product.id,
     productCode: product.productCode,
-    productName: product.productName,
+    productName: opts.productName,
     quantity: String(parent.quantity || '0'),
-    unitPrice: String(productAdditionalCost(product)),
+    unitPrice: String(opts.unitPrice),
     companionOfRowKey: parent.rowKey,
     deliveryDate: parent.deliveryDate,
   }
 }
 
-function syncAdditionalCostRow(items: OrderItemForm[], index: number, product: Product) {
+function productMaterialCostLines(product: Product): MaterialCostLine[] {
+  return normalizeMaterialCostLines(product.materialCostLines)
+}
+
+function syncProductCompanionRows(items: OrderItemForm[], index: number, product: Product) {
   const parent = items[index]
   if (!parent || parent.isAdhoc) return items
 
-  const additional = productAdditionalCost(product)
   let next = stripCompanionRows(items, parent.rowKey)
   const parentIndex = next.findIndex((row) => row.rowKey === parent.rowKey)
   if (parentIndex < 0) return next
 
-  if (additional <= 0) return next
+  const companions: OrderItemForm[] = []
+  const materialLines = productMaterialCostLines(product)
+  if (shouldSplitMaterialCostLines(materialLines)) {
+    for (const line of materialLines) {
+      const unitPrice = Math.max(0, Math.round(Number(line.unitPrice) || 0))
+      if (unitPrice <= 0) continue
+      const label = String(line.label || '').trim() || '자재비'
+      companions.push(buildCompanionRow(parent, product, { productName: label, unitPrice }))
+    }
+  }
 
-  const companion = buildAdditionalCostRow(parent, product)
+  if (!companions.length) return next
   const insertAt = parentIndex + 1
-  return [...next.slice(0, insertAt), companion, ...next.slice(insertAt)]
+  return [...next.slice(0, insertAt), ...companions, ...next.slice(insertAt)]
 }
 
 function applyProductSelection(items: OrderItemForm[], index: number, product: Product, isAmbiguous: boolean) {
@@ -93,7 +106,7 @@ function applyProductSelection(items: OrderItemForm[], index: number, product: P
   })
 
   if (isAmbiguous) return next
-  return syncAdditionalCostRow(next, parentIndex, product)
+  return syncProductCompanionRows(next, parentIndex, product)
 }
 
 function applyProductToItem(item: OrderItemForm, product: Product): OrderItemForm {
@@ -109,14 +122,19 @@ function applyProductToItem(item: OrderItemForm, product: Product): OrderItemFor
   }
   const smd = Math.max(0, Math.round(Number(product.smdUnitPrice) || 0))
   const dip = Math.max(0, Math.round(Number(product.dipUnitPrice) || 0))
-  const perUnit = orderLinePerUnitPrice(smd, dip) || unitPriceFromProduct(product)
+  const legacyUnit = Math.max(0, Math.round(Number(product.defaultUnitPrice) || 0))
+  const resolvedSmd = resolveOrderLineSmdUnitPrice(smd, dip, legacyUnit)
+  const perUnit = orderLinePerUnitPrice(resolvedSmd, dip) || legacyUnit
   const setupCost = Math.max(0, Math.round(Number(product.setupUnitPrice) || 0))
-  const materialUnitPrice = Math.max(0, Math.round(Number(product.materialUnitPrice) || 0))
+  const materialLines = productMaterialCostLines(product)
+  const materialUnitPrice = shouldSplitMaterialCostLines(materialLines)
+    ? 0
+    : Math.max(0, Math.round(Number(product.materialUnitPrice) || 0))
   const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
   const unitPrice = computeOrderLineAmortizedUnitPrice({
     quantity,
     setupCost,
-    smdUnitPrice: smd,
+    smdUnitPrice: resolvedSmd,
     dipUnitPrice: dip,
     materialUnitPrice,
   }) || perUnit + materialUnitPrice
@@ -127,7 +145,7 @@ function applyProductToItem(item: OrderItemForm, product: Product): OrderItemFor
     productCode: product.productCode,
     productName: product.productName,
     setupCost: String(setupCost),
-    smdUnitPrice: String(smd || perUnit),
+    smdUnitPrice: String(resolvedSmd),
     dipUnitPrice: String(dip),
     materialUnitPrice: String(materialUnitPrice),
     materialCost: String(materialCost),
@@ -265,12 +283,11 @@ export function OrderItemsForm({
         itemIndex === index ? { ...row, ...merged } : row,
       )
       if (item && !item.isAdhoc && patch.quantity != null) {
-        const companionIndex = findCompanionIndex(next, item.rowKey)
-        if (companionIndex >= 0) {
-          next = next.map((row, itemIndex) =>
-            itemIndex === companionIndex ? { ...row, quantity: patch.quantity! } : row,
-          )
-        }
+        next = next.map((row) =>
+          row.isAdhoc && row.companionOfRowKey === item.rowKey
+            ? { ...row, quantity: patch.quantity! }
+            : row,
+        )
       }
       return next
     })
@@ -320,6 +337,7 @@ export function OrderItemsForm({
       <h3 className="text-sm font-bold text-slate-900">제품</h3>
       <p className="text-xs text-slate-500">
         제품 선택 시 품목 마스터의 SET-UP·SMD·후공정·자재가 적용되고 고객사가 자동 입력됩니다. 수량 변경 시
+        단가가 다시 계산됩니다. 자재비 세부(2행 이상)가 있으면 아래 금액전용 행으로 자동 붙습니다.
         SET-UP÷수량이 자동 재계산됩니다.
       </p>
 
@@ -365,6 +383,15 @@ export function OrderItemsForm({
               const versionCandidates = productVersionCandidates(item, searchableProducts, lockedCustomer)
               const isAdhoc = Boolean(item.isAdhoc)
               const isCompanion = isCompanionRow(item)
+              const companionParent = isCompanion
+                ? items.find((row) => row.rowKey === item.companionOfRowKey)
+                : null
+              const companionNameLabel =
+                companionParent &&
+                item.productName.trim() &&
+                item.productName.trim() === companionParent.productName.trim()
+                  ? formatAdditionalWorkProductNameLabel(item.productName)
+                  : item.productName
               const canRemove = isCompanion
                 ? false
                 : isAdhoc || items.filter((row) => !row.isAdhoc).length > 1
@@ -427,10 +454,10 @@ export function OrderItemsForm({
                   <td className="px-2 py-2 align-top">
                     {isCompanion ? (
                       <input
-                        value={formatAdditionalWorkProductNameLabel(item.productName)}
+                        value={companionNameLabel}
                         readOnly
                         className={`${inputClassName} bg-slate-50 text-slate-700`}
-                        aria-label={`${index + 1}행 추가작업 제품명`}
+                        aria-label={`${index + 1}행 동반 품목명`}
                       />
                     ) : (
                     <ProductCombobox
@@ -538,7 +565,7 @@ export function OrderItemsForm({
                     ) : (
                       <div
                         className="flex h-[34px] items-center justify-end text-sm font-medium tabular-nums text-slate-800"
-                        title={isCompanion ? '품목등록 추가비용' : 'SET-UP÷수량 + SMD + 후공정 + 자재'}
+                        title={isCompanion ? '품목 자재비 세부' : 'SET-UP÷수량 + SMD + 후공정 + 자재'}
                       >
                         {unitPrice > 0 ? formatOrderMoney(unitPrice, currency) : '—'}
                       </div>
@@ -593,9 +620,9 @@ export function OrderItemsForm({
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        제품·추가 작업 모두 품목등록에 있는 항목만 저장됩니다. 반제품·조립제품에 추가비용이 등록되어
-        있으면 품목 선택 시 아래에 추가작업 행이 자동으로 붙고 제품 수량과 연동됩니다. 발주 목록·인쇄
-        수량 합계에는 제품만 집계되며, 추가 작업은 거래명세서 금액 표시용입니다.
+        제품·추가 작업 모두 품목등록에 있는 항목만 저장됩니다. 자재비 세부가 2행 이상이면 품목 선택 시
+        아래에 금액전용 행이 자동으로 붙고 제품 수량과 연동됩니다. 발주 목록·인쇄 수량 합계에는 제품만
+        집계되며, 금액전용 행은 거래명세서 금액 표시용입니다.
       </p>
     </div>
   )

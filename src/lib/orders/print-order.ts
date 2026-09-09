@@ -8,6 +8,7 @@ import {
 } from '@/lib/app-config'
 import type { OrderCurrency, OrderListGroup } from '@/lib/orders/types'
 import { formatOrderDate, formatOrderMoney, normalizeOrderCurrency, sumCommercialOrderQuantity } from '@/lib/orders/utils'
+import { domesticVatBreakdown } from '@/lib/quotes/format'
 
 export type OrderPrintLine = {
   productId?: string | null
@@ -32,6 +33,8 @@ export type OrderPrintData = {
   customerPoNumber?: string
   /** 발주서 상단 연락 이메일 — 없으면 회사 기본값 */
   contactEmail?: string
+  /** 원본 견적이 VAT 포함 표시일 때 발주 PDF에도 VAT 표기 */
+  includeVat?: boolean
 }
 
 const ORDER_PRINT_LOGO_PATH = '/branding/logo.png'
@@ -122,14 +125,35 @@ export function buildOrderHtml(
   const totalAmount = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.orderAmount) || 0), 0)
   const currency = normalizeOrderCurrency(data.currency)
   const moneyPrefix = currency === 'USD' ? '$' : '₩'
+  const includeVat = data.includeVat === true && currency === 'KRW'
+  const unitPriceHeader = includeVat ? '단가 (VAT 포함)' : '단가'
+  const amountHeader = includeVat ? '금액 (VAT 포함)' : '금액'
+
+  let displayTotalIncl = totalAmount
+  let vatAmount = 0
+  if (includeVat) {
+    displayTotalIncl = data.items.reduce((sum, item) => {
+      const qty = Math.max(0, Math.floor(Number(item.quantity) || 0))
+      const unitIncl = domesticVatBreakdown(Number(item.unitPrice) || 0).totalIncl
+      return sum + unitIncl * qty
+    }, 0)
+    vatAmount = Math.max(0, displayTotalIncl - totalAmount)
+  }
 
   const rows = data.items
     .map((item, index) => {
       const name = escapeHtml(item.productName || '—')
       const code = escapeHtml(item.productCode || '—')
       const qty = formatNumber(item.quantity)
-      const unitPrice = formatNumber(item.unitPrice)
-      const amount = formatNumber(item.orderAmount)
+      const unitSupply = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+      const amountSupply = Math.max(0, Math.round(Number(item.orderAmount) || 0))
+      const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
+      const unitDisplay = includeVat ? domesticVatBreakdown(unitSupply).totalIncl : unitSupply
+      const amountDisplay = includeVat
+        ? domesticVatBreakdown(unitSupply).totalIncl * quantity
+        : amountSupply
+      const unitPrice = formatNumber(unitDisplay)
+      const amount = formatNumber(amountDisplay)
       return `<tr>
         <td class="c-no">${index + 1}</td>
         <td class="mono">${code}</td>
@@ -140,6 +164,32 @@ export function buildOrderHtml(
       </tr>`
     })
     .join('')
+
+  const totalsHtml = includeVat
+    ? `<div class="row">
+        <span class="label">수량 합계</span>
+        <span class="value">${formatNumber(totalQuantity)}</span>
+      </div>
+      <div class="row">
+        <span class="label">공급가액</span>
+        <span class="value">${escapeHtml(formatOrderMoney(totalAmount, currency))}</span>
+      </div>
+      <div class="row">
+        <span class="label">부가세 (10%)</span>
+        <span class="value">${escapeHtml(formatOrderMoney(vatAmount, currency))}</span>
+      </div>
+      <div class="row grand">
+        <span class="label">최종 합계 (VAT 포함)</span>
+        <span class="value">${escapeHtml(formatOrderMoney(displayTotalIncl, currency))}</span>
+      </div>`
+    : `<div class="row">
+        <span class="label">수량 합계</span>
+        <span class="value">${formatNumber(totalQuantity)}</span>
+      </div>
+      <div class="row grand">
+        <span class="label">금액 합계</span>
+        <span class="value">${escapeHtml(formatOrderMoney(totalAmount, currency))}</span>
+      </div>`
 
   const confirmationBody = noteRaw
     ? note
@@ -486,8 +536,8 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
         <th class="col-code">제품코드</th>
         <th class="col-name">제품명</th>
         <th class="col-qty">수량</th>
-        <th class="col-price">단가</th>
-        <th class="col-amt">금액</th>
+        <th class="col-price">${unitPriceHeader}</th>
+        <th class="col-amt">${amountHeader}</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -499,14 +549,7 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
       <div class="body">${confirmationBody}</div>
     </div>
     <div class="totals">
-      <div class="row">
-        <span class="label">수량 합계</span>
-        <span class="value">${formatNumber(totalQuantity)}</span>
-      </div>
-      <div class="row grand">
-        <span class="label">금액 합계</span>
-        <span class="value">${escapeHtml(formatOrderMoney(totalAmount, currency))}</span>
-      </div>
+      ${totalsHtml}
     </div>
   </div>
 
@@ -602,7 +645,10 @@ export function printOrder(data: OrderPrintData) {
   return true
 }
 
-export function buildOrderPrintData(order: OrderListGroup): OrderPrintData {
+export function buildOrderPrintData(
+  order: OrderListGroup,
+  options?: { includeVat?: boolean },
+): OrderPrintData {
   return {
     orderNumber: order.orderNumber,
     sourceQuoteNumber: order.sourceQuoteId || null,
@@ -613,6 +659,7 @@ export function buildOrderPrintData(order: OrderListGroup): OrderPrintData {
     currency: normalizeOrderCurrency(order.currency),
     note: order.note,
     customerPoNumber: order.customerPoNumber,
+    includeVat: options?.includeVat === true,
     items: order.items.map((item) => ({
       productId: item.productId,
       productCode: item.productCode,
@@ -622,5 +669,64 @@ export function buildOrderPrintData(order: OrderListGroup): OrderPrintData {
       orderAmount: item.orderAmount,
       deliveryDate: item.deliveryDate || order.deliveryDate,
     })),
+  }
+}
+
+type QuotePrintSource = {
+  quoteId: string
+  quoteNumber: string
+  quoteDate: string
+  quoteType: 'domestic' | 'export'
+  customer: string
+  productName: string
+  boardQty: number
+  totalAmount: number
+  detailInfo?: {
+    settings?: {
+      includeVat?: boolean
+      productionKind?: '샘플' | '양산'
+    }
+  }
+}
+
+/** 견적서 기준으로 발주서 인쇄 데이터 구성 (실제 발주 저장 없이 PDF용) */
+export function buildOrderPrintDataFromQuote(
+  quote: QuotePrintSource,
+  options?: {
+    productCode?: string
+    productId?: string | null
+    contactEmail?: string
+  },
+): OrderPrintData {
+  const quantity = Math.max(0, Math.floor(Number(quote.boardQty) || 0))
+  const totalAmount = Math.max(0, Math.round(Number(quote.totalAmount) || 0))
+  const unitPrice = quantity > 0 ? Math.round(totalAmount / quantity) : 0
+  const productionKind =
+    quote.detailInfo?.settings?.productionKind === '샘플' ? '샘플' : '양산'
+  const includeVat =
+    quote.detailInfo?.settings?.includeVat === true && quote.quoteType === 'domestic'
+
+  return {
+    orderNumber: quote.quoteNumber,
+    sourceQuoteNumber: quote.quoteNumber,
+    orderDate: quote.quoteDate,
+    deliveryDate: '',
+    customer: quote.customer,
+    category: productionKind,
+    currency: 'KRW',
+    note: `견적 ${quote.quoteNumber} 기준 발주서`,
+    includeVat,
+    contactEmail: options?.contactEmail,
+    items: [
+      {
+        productId: options?.productId ?? null,
+        productCode: String(options?.productCode || '').trim() || '—',
+        productName: quote.productName || '—',
+        quantity,
+        unitPrice,
+        orderAmount: quantity * unitPrice,
+        deliveryDate: '',
+      },
+    ],
   }
 }

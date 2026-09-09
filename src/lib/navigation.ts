@@ -55,6 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { label: '생산현황', href: '/production/status' },
       { label: '생산계획', href: '/production/plan' },
+      { label: '생산실적', href: '/production/performance' },
       { label: '생산등록', href: '/production/input' },
       { label: '생산이력', href: '/production/history' },
     ],

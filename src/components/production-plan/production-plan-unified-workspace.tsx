@@ -20,7 +20,7 @@ import {
   isYmdInWeek,
 } from '@/lib/production-plan/calendar'
 import type { ProductionPlanDragPayload } from '@/lib/production-plan/config'
-import { canPlanPost, validatePostPlanDate } from '@/lib/production-plan/pipeline'
+import { canPlanPost, canPlanSmt, validatePostPlanDate } from '@/lib/production-plan/pipeline'
 import {
   confirmProductionPlanItem,
   fetchProductionPlanBoard,
@@ -63,13 +63,15 @@ function lastCommittedQtyKey(row: ProductionPlanBoardRow) {
   return `${row.targetId}:${row.scope}`
 }
 
-function defaultNewQuantity(row: ProductionPlanBoardRow, lastByTarget: Record<string, number>) {
-  const cap = Math.max(1, row.unplannedQty ?? row.remainingQty)
-  const last = lastByTarget[lastCommittedQtyKey(row)]
-  if (last != null && last >= 1) {
-    return Math.max(1, Math.min(cap, last))
-  }
-  return cap
+function matchesSearchHaystack(
+  fields: Array<string | null | undefined>,
+  query: string,
+) {
+  if (!query) return true
+  return fields
+    .map((value) => String(value || '').toLowerCase())
+    .join(' ')
+    .includes(query)
 }
 
 export function ProductionPlanUnifiedWorkspace({
@@ -86,7 +88,7 @@ export function ProductionPlanUnifiedWorkspace({
   const [refreshing, setRefreshing] = useState(false)
   const [modalSaving, setModalSaving] = useState(false)
   const [modalDeleting, setModalDeleting] = useState(false)
-  const [search, setSearch] = useState('')
+  const [pendingSearch, setPendingSearch] = useState('')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const lastCommittedQtyRef = useRef<Record<string, number>>({})
   const toast = useToast()
@@ -99,39 +101,34 @@ export function ProductionPlanUnifiedWorkspace({
   const allLines = useMemo(() => buildUnifiedPlanSheetLines(rows), [rows])
 
   const pendingLines = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = pendingSearch.trim().toLowerCase()
     return filterUnifiedPlanSheetLines(allLines, 'now', weekStart, rows).filter((line) => {
       if (!pickPlanningRowForLine(line, scopeFilter)) return false
-      if (!q) return true
-      const haystack = [
-        line.rep.orderNumber,
-        line.rep.customer,
-        line.rep.productName,
-        line.rep.deliveryDate,
-      ]
-        .join(' ')
-        .toLowerCase()
-      return haystack.includes(q)
+      return matchesSearchHaystack(
+        [
+          line.rep.orderNumber,
+          line.rep.customerPoNumber,
+          line.rep.customer,
+          line.rep.productName,
+          line.rep.productCode,
+          line.rep.deliveryDate,
+        ],
+        q,
+      )
     })
-  }, [allLines, weekStart, rows, scopeFilter, search])
+  }, [allLines, weekStart, rows, scopeFilter, pendingSearch])
 
   const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart])
   const isSmtTab = scopeFilter === 'smt'
   const isPostTab = scopeFilter === 'post'
 
   const scheduledRows = useMemo(() => {
-    const q = search.trim().toLowerCase()
     return rows.filter((row) => {
       if (!isProductionPlanScheduleRow(row)) return false
       if (row.scope !== scopeFilter) return false
-      if (!isYmdInWeek(row.plannedDate, weekStart)) return false
-      if (!q) return true
-      const haystack = [row.orderNumber, row.customer, row.productName, row.deliveryDate]
-        .join(' ')
-        .toLowerCase()
-      return haystack.includes(q)
+      return isYmdInWeek(row.plannedDate, weekStart)
     })
-  }, [rows, weekStart, scopeFilter, search])
+  }, [rows, weekStart, scopeFilter])
 
   const reload = useCallback(async (options?: { background?: boolean }) => {
     const background = options?.background ?? false
@@ -157,18 +154,12 @@ export function ProductionPlanUnifiedWorkspace({
   ) {
     const seed =
       dateSeed ?? (isProductionPlanScheduleRow(row) ? row.plannedDate.slice(0, 10) : selectedYmd)
-    const base = buildScheduleFormValues(row, seed)
-    const withTarget = {
+    const base = buildScheduleFormValues(row, seed, rows)
+    const initialValues = {
       ...base,
       ...(options?.lineNo != null && options.lineNo >= 1 ? { lineNo: options.lineNo } : {}),
       ...(options?.team ? { team: options.team } : {}),
     }
-    const initialValues = isProductionPlanRemainderRow(row)
-      ? {
-          ...withTarget,
-          plannedQuantity: defaultNewQuantity(row, lastCommittedQtyRef.current),
-        }
-      : withTarget
 
     setModal({
       open: true,
@@ -205,6 +196,10 @@ export function ProductionPlanUnifiedWorkspace({
       toast.error('배정 불가', '해당 발주를 찾을 수 없습니다.')
       return
     }
+    if (isProductionPlanRemainderRow(row) && !canPlanSmt(row)) {
+      toast.error('배정 불가', '자재 준비 후 SMT 배정이 가능합니다.')
+      return
+    }
     handleSelectDate(target.plannedDate)
     openScheduleModal(row, target.plannedDate, { lineNo: target.lineNo })
   }
@@ -232,6 +227,9 @@ export function ProductionPlanUnifiedWorkspace({
   }
 
   function validateBeforeSchedule(row: ProductionPlanBoardRow, plannedDate: string) {
+    if (row.scope === 'smt' && isProductionPlanRemainderRow(row) && !canPlanSmt(row)) {
+      return '자재 준비 후 SMT 배정이 가능합니다.'
+    }
     if (row.scope === 'post') {
       if (!canPlanPost(row, rows)) {
         return 'SMD 생산계획을 먼저 확정해 주세요.'
@@ -402,8 +400,8 @@ export function ProductionPlanUnifiedWorkspace({
             pendingLines={pendingLines}
             allRows={rows}
             scope={scopeFilter}
-            search={search}
-            onSearchChange={setSearch}
+            search={pendingSearch}
+            onSearchChange={setPendingSearch}
           />
           {isSmtTab ? (
             <ProductionPlanSmtWeekCalendar
@@ -463,6 +461,7 @@ export function ProductionPlanUnifiedWorkspace({
                   plannedQuantity: null,
                 },
                 todayYmdSeoul(),
+                [],
               )
         }
         saving={modalSaving}

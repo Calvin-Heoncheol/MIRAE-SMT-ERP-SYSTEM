@@ -3,7 +3,11 @@ import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { fetchProductionInputPageData } from '@/lib/production-input/repository'
 import { formatProductionProductName } from '@/lib/production-input/utils'
 import { SMT_PRODUCTION_INPUT_CONFIG } from '@/lib/smt/config'
-import { confirmProductionPlanItem, fetchProductionPlanBoard } from '@/lib/production-plan/repository'
+import {
+  confirmProductionPlanItem,
+  fetchProductionPlanBoard,
+  unconfirmProductionPlanItem,
+} from '@/lib/production-plan/repository'
 import { isProductionPlanScheduleRow } from '@/lib/production-plan/utils'
 import { createSupabaseClient } from '@/lib/supabase'
 import type {
@@ -354,6 +358,45 @@ export async function saveMaterialManualOutbound(input: {
     created_by_name: createdBy.createdByName,
   })
 
+  if (error) {
+    return { ok: false, reason: 'query', detail: error.message }
+  }
+
+  return { ok: true }
+}
+
+export async function deleteMaterialManualHistory(
+  row: Pick<MaterialManualHistoryRow, 'id' | 'kind' | 'orderLineId'>,
+): Promise<MaterialManualSaveResult> {
+  const rawId = String(row.id || '').trim()
+  const orderLineId = String(row.orderLineId || '').trim()
+
+  if (row.kind === 'inbound') {
+    const boardItemId = rawId.startsWith('in-') ? rawId.slice(3) : rawId
+    if (!boardItemId || !orderLineId) {
+      return { ok: false, reason: 'validation', detail: '삭제할 입고 이력이 올바르지 않습니다.' }
+    }
+    return unconfirmProductionPlanItem({
+      scope: 'material',
+      targetId: orderLineId,
+      boardItemId,
+    })
+  }
+
+  const gate = await assertCanWrite({ module: 'materials', action: 'delete' })
+  if (!gate.ok) return gate
+
+  const logId = rawId.startsWith('out-') ? rawId.slice(4) : rawId
+  if (!logId) {
+    return { ok: false, reason: 'validation', detail: '삭제할 불출 이력이 올바르지 않습니다.' }
+  }
+
+  const supabase = createSupabaseClient()
+  if (!supabase) {
+    return { ok: false, reason: 'env', detail: 'Supabase 설정이 없습니다.' }
+  }
+
+  const { error } = await supabase.from('material_order_set_outbound_logs').delete().eq('id', logId)
   if (error) {
     return { ok: false, reason: 'query', detail: error.message }
   }

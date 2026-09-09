@@ -99,6 +99,7 @@ export function resolveAccessModule(
 ): AuthAccessModule | null {
   if (pathname === '/') return 'dashboard'
   if (pathname.startsWith('/production/plan')) return 'production_plan'
+  if (pathname.startsWith('/production/performance')) return 'reports_production'
   // 생산현황은 생산관리 메뉴 — 전 부서 공용 조회
   if (pathname.startsWith('/production/status')) return 'dashboard'
   if (pathname.startsWith('/reports/production')) return 'reports_production'

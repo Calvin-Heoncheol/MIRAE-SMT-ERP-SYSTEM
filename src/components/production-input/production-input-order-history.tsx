@@ -1,12 +1,20 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
+import { useErpConfirm } from '@/components/ui/erp-confirm'
+import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { fetchPostProcessProductionHistoryByAssemblyGroup } from '@/lib/post-process/repository'
+import { deletePostProcessProductionRecord } from '@/lib/post-process/repository'
 import type { PostProcessProductionHistoryRow } from '@/lib/post-process/types'
 import type { PostProcessTeam } from '@/lib/post-process/teams'
 import type { ProductionInputConfig, ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionHistoryDateTime } from '@/lib/production-history/utils'
-import { fetchSmtProductionHistoryByOrderLine } from '@/lib/smt/repository'
+import { buildSmtCountKey } from '@/lib/smt/count-keys'
+import {
+  deleteSmtProductionRecord,
+  fetchSmtProductionHistoryByOrderLine,
+} from '@/lib/smt/repository'
 import type { SmtProductionHistoryRow } from '@/lib/smt/types'
 import type { SmtPcbSide } from '@/lib/smt/types'
 import {
@@ -24,6 +32,7 @@ type ProductionInputOrderHistoryProps = {
   postProcessTeam?: PostProcessTeam
   highlightPcbSide?: SmtPcbSide | null
   refreshKey?: number
+  onCountUpdated?: (countKey: string, cumulative: number, defectCumulative?: number) => void
 }
 
 function formatQty(good: number, defect: number) {
@@ -32,12 +41,43 @@ function formatQty(good: number, defect: number) {
   return parts.join(' · ')
 }
 
+function resolveSmtSide(row: SmtProductionHistoryRow): SmtPcbSide {
+  return row.pcbSide === 'TOP' || row.pcbSide === 'BOT' ? row.pcbSide : 'SINGLE'
+}
+
+function sumSmtSideTotals(rows: SmtProductionHistoryRow[], side: SmtPcbSide) {
+  let good = 0
+  let defect = 0
+  for (const row of rows) {
+    if (resolveSmtSide(row) !== side) continue
+    good += Math.max(0, Math.floor(Number(row.quantity) || 0))
+    defect += Math.max(0, Math.floor(Number(row.defectQuantity) || 0))
+  }
+  return { good, defect }
+}
+
+function sumPostTotals(rows: PostProcessProductionHistoryRow[]) {
+  let good = 0
+  let defect = 0
+  for (const row of rows) {
+    good += Math.max(0, Math.floor(Number(row.quantity) || 0))
+    defect += Math.max(0, Math.floor(Number(row.defectQuantity) || 0))
+  }
+  return { good, defect }
+}
+
 function SmtHistoryTable({
   rows,
   highlightPcbSide,
+  canDelete,
+  deletingId,
+  onDelete,
 }: {
   rows: SmtProductionHistoryRow[]
   highlightPcbSide?: SmtPcbSide | null
+  canDelete: boolean
+  deletingId: string
+  onDelete: (row: SmtProductionHistoryRow) => void
 }) {
   if (!rows.length) {
     return <p className="px-3 py-6 text-center text-xs text-slate-400">등록 이력이 없습니다.</p>
@@ -51,11 +91,12 @@ function SmtHistoryTable({
           <th className={ERP_TABLE_TH_CLASS}>수량</th>
           <th className={ERP_TABLE_TH_CLASS}>면</th>
           <th className={ERP_TABLE_TH_CLASS}>등록</th>
+          {canDelete ? <th className={`${ERP_TABLE_TH_CLASS} w-8`} /> : null}
         </tr>
       </thead>
       <tbody>
         {rows.map((row) => {
-          const side = row.pcbSide === 'TOP' || row.pcbSide === 'BOT' ? row.pcbSide : 'SINGLE'
+          const side = resolveSmtSide(row)
           const highlighted =
             highlightPcbSide != null &&
             (highlightPcbSide === side ||
@@ -79,6 +120,19 @@ function SmtHistoryTable({
                 <p>{row.createdByName || '—'}</p>
                 <p className="tabular-nums">{formatProductionHistoryDateTime(row.createdAt)}</p>
               </td>
+              {canDelete ? (
+                <td className={`${ERP_TABLE_TD_CLASS} px-1 text-center`}>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(row)}
+                    disabled={Boolean(deletingId)}
+                    aria-label="생산 이력 삭제"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded text-base leading-none text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+                  >
+                    {deletingId === row.id ? '…' : '×'}
+                  </button>
+                </td>
+              ) : null}
             </tr>
           )
         })}
@@ -87,7 +141,17 @@ function SmtHistoryTable({
   )
 }
 
-function PostProcessHistoryTable({ rows }: { rows: PostProcessProductionHistoryRow[] }) {
+function PostProcessHistoryTable({
+  rows,
+  canDelete,
+  deletingId,
+  onDelete,
+}: {
+  rows: PostProcessProductionHistoryRow[]
+  canDelete: boolean
+  deletingId: string
+  onDelete: (row: PostProcessProductionHistoryRow) => void
+}) {
   if (!rows.length) {
     return <p className="px-3 py-6 text-center text-xs text-slate-400">등록 이력이 없습니다.</p>
   }
@@ -99,6 +163,7 @@ function PostProcessHistoryTable({ rows }: { rows: PostProcessProductionHistoryR
           <th className={ERP_TABLE_TH_CLASS}>생산일</th>
           <th className={ERP_TABLE_TH_CLASS}>수량</th>
           <th className={ERP_TABLE_TH_CLASS}>등록</th>
+          {canDelete ? <th className={`${ERP_TABLE_TH_CLASS} w-8`} /> : null}
         </tr>
       </thead>
       <tbody>
@@ -115,6 +180,19 @@ function PostProcessHistoryTable({ rows }: { rows: PostProcessProductionHistoryR
               <p className="tabular-nums">{formatProductionHistoryDateTime(row.createdAt)}</p>
               {row.note ? <p className="mt-0.5 text-slate-400">{row.note}</p> : null}
             </td>
+            {canDelete ? (
+              <td className={`${ERP_TABLE_TD_CLASS} px-1 text-center`}>
+                <button
+                  type="button"
+                  onClick={() => onDelete(row)}
+                  disabled={Boolean(deletingId)}
+                  aria-label="생산 이력 삭제"
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-base leading-none text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+                >
+                  {deletingId === row.id ? '…' : '×'}
+                </button>
+              </td>
+            ) : null}
           </tr>
         ))}
       </tbody>
@@ -128,9 +206,14 @@ export function ProductionInputOrderHistory({
   postProcessTeam,
   highlightPcbSide = null,
   refreshKey = 0,
+  onCountUpdated,
 }: ProductionInputOrderHistoryProps) {
+  const canDelete = useCanDeleteRecords()
+  const confirm = useErpConfirm()
+  const { notifyAuthOrFailure } = useWriteFailureToast()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [deletingId, setDeletingId] = useState('')
   const [smtRows, setSmtRows] = useState<SmtProductionHistoryRow[]>([])
   const [postRows, setPostRows] = useState<PostProcessProductionHistoryRow[]>([])
 
@@ -183,6 +266,64 @@ export function ProductionInputOrderHistory({
     }
   }, [order?.uiKey, order?.orderLineId, order?.assemblyGroupId, isPostProcess, postProcessTeam, refreshKey])
 
+  async function handleDeleteSmt(row: SmtProductionHistoryRow) {
+    if (
+      !(await confirm({
+        title: '생산 이력 삭제',
+        message: `${row.recordDate || '—'} · ${formatQty(row.quantity, row.defectQuantity)} 기록을 삭제할까요?`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
+
+    setDeletingId(row.id)
+    setError('')
+    const result = await deleteSmtProductionRecord(row.id)
+    setDeletingId('')
+    if (!result.ok) {
+      notifyAuthOrFailure(result, { toastAllFailures: true, title: '이력 삭제 실패' })
+      setError(result.detail)
+      return
+    }
+
+    const nextRows = smtRows.filter((item) => item.id !== row.id)
+    setSmtRows(nextRows)
+    const side = resolveSmtSide(row)
+    const totals = sumSmtSideTotals(nextRows, side)
+    onCountUpdated?.(buildSmtCountKey(row.orderLineId, side), totals.good, totals.defect)
+  }
+
+  async function handleDeletePost(row: PostProcessProductionHistoryRow) {
+    if (
+      !(await confirm({
+        title: '생산 이력 삭제',
+        message: `${row.recordDate || '—'} · ${formatQty(row.quantity, row.defectQuantity)} 기록을 삭제할까요?`,
+        confirmLabel: '삭제',
+        tone: 'danger',
+      }))
+    ) {
+      return
+    }
+
+    setDeletingId(row.id)
+    setError('')
+    const result = await deletePostProcessProductionRecord(row.id)
+    setDeletingId('')
+    if (!result.ok) {
+      notifyAuthOrFailure(result, { toastAllFailures: true, title: '이력 삭제 실패' })
+      setError(result.detail)
+      return
+    }
+
+    const nextRows = postRows.filter((item) => item.id !== row.id)
+    setPostRows(nextRows)
+    const totals = sumPostTotals(nextRows)
+    const groupId = row.assemblyGroupId || order?.assemblyGroupId || order?.orderLineId || ''
+    if (groupId) onCountUpdated?.(groupId, totals.good, totals.defect)
+  }
+
   return (
     <aside className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch border-t border-slate-200 bg-slate-50 lg:min-w-0 lg:flex-1 lg:border-t-0 lg:border-l">
       <div className="shrink-0 border-b border-slate-200 px-3 py-2.5">
@@ -195,9 +336,20 @@ export function ProductionInputOrderHistory({
         ) : error ? (
           <p className="px-3 py-6 text-center text-xs text-rose-600">{error}</p>
         ) : isPostProcess ? (
-          <PostProcessHistoryTable rows={postRows} />
+          <PostProcessHistoryTable
+            rows={postRows}
+            canDelete={canDelete}
+            deletingId={deletingId}
+            onDelete={(row) => void handleDeletePost(row)}
+          />
         ) : (
-          <SmtHistoryTable rows={smtRows} highlightPcbSide={highlightPcbSide} />
+          <SmtHistoryTable
+            rows={smtRows}
+            highlightPcbSide={highlightPcbSide}
+            canDelete={canDelete}
+            deletingId={deletingId}
+            onDelete={(row) => void handleDeleteSmt(row)}
+          />
         )}
       </div>
     </aside>

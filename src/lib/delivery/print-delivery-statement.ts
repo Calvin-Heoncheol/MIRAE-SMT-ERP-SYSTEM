@@ -70,6 +70,8 @@ function formatStatementProductLabel(item: DeliveryStatementLine) {
   const trimmed = base.trim()
   if (!trimmed) return '(추가작업)'
   if (trimmed.includes('(추가작업)')) return trimmed
+  // 자재비 세부 행(PCB 자재비 등) — 이미 구분된 이름이면 접미사 생략
+  if (/자재/.test(trimmed)) return trimmed
   return `${trimmed} (추가작업)`
 }
 

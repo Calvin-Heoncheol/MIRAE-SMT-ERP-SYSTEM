@@ -63,7 +63,8 @@ import type { BusinessPartner } from '@/lib/partners/types'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
-import { formatProductOptionLabel } from '@/lib/products/utils'
+import { formatProductOptionLabel, resolveOrderLineProduct } from '@/lib/products/utils'
+import { buildOrderPrintDataFromQuote, printOrder } from '@/lib/orders/print-order'
 import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
 
 type QuoteModalProps = {
@@ -605,6 +606,33 @@ function QuoteModalContent({
     })
   }
 
+  function handlePrintOrder() {
+    const snapshot = buildExportQuoteSnapshot()
+    if (!snapshot) return
+    if (!snapshot.customer.trim() || !snapshot.productName.trim()) {
+      setSaveError('발주서 인쇄 전에 고객사와 제품명을 입력해 주세요.')
+      return
+    }
+    if (!(snapshot.boardQty > 0) || !(snapshot.totalAmount > 0)) {
+      setSaveError('발주서 인쇄 전에 수량·금액이 있어야 합니다.')
+      return
+    }
+
+    const matched = resolveOrderLineProduct(products, snapshot.customer, {
+      productId: null,
+      productName: snapshot.productName,
+    })
+
+    const ok = printOrder(
+      buildOrderPrintDataFromQuote(snapshot, {
+        productCode: matched?.productCode,
+        productId: matched?.id ?? null,
+        ...(contactEmail ? { contactEmail } : {}),
+      }),
+    )
+    if (!ok) setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
+  }
+
   async function handleDelete() {
     if (!quote) return
 
@@ -731,15 +759,24 @@ function QuoteModalContent({
               <QuoteCurrencyToggle value={displayCurrency} onChange={setDisplayCurrency} />
             ) : null}
             {mode === 'edit' ? (
-              <PdfDownloadButton
-                onDownload={() => handleDownloadPdf()}
-                disabled={busy}
-                menuItems={[
-                  { label: '한글', onDownload: () => handleDownloadPdf('ko') },
-                  { label: '영문', onDownload: () => handleDownloadPdf('en') },
-                  { label: '중국어', onDownload: () => handleDownloadPdf('zh') },
-                ]}
-              />
+              <>
+                <ErpButton
+                  variant="secondary"
+                  onClick={handlePrintOrder}
+                  disabled={busy}
+                >
+                  발주서 인쇄
+                </ErpButton>
+                <PdfDownloadButton
+                  onDownload={() => handleDownloadPdf()}
+                  disabled={busy}
+                  menuItems={[
+                    { label: '한글', onDownload: () => handleDownloadPdf('ko') },
+                    { label: '영문', onDownload: () => handleDownloadPdf('en') },
+                    { label: '중국어', onDownload: () => handleDownloadPdf('zh') },
+                  ]}
+                />
+              </>
             ) : null}
             <button
               type="button"

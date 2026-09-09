@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { ErpNumericInput } from '@/components/ui/erp-numeric-input'
 import {
   DEFAULT_LABEL_PRINT_SETTINGS,
   formatLabelPrintSize,
@@ -214,35 +215,23 @@ function MaterialLabelSettingsModal({
         <div className="grid grid-cols-2 gap-3">
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>가로 (mm)</span>
-            <input
-              type="number"
+            <ErpNumericInput
               min={10}
               max={200}
-              step={0.5}
+              integer={false}
               value={form.widthMm}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  widthMm: Number(event.target.value) || current.widthMm,
-                }))
-              }
+              onValueChange={(widthMm) => setForm((current) => ({ ...current, widthMm }))}
               className={ERP_FIELD_INPUT_CLASS}
             />
           </label>
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>세로 (mm)</span>
-            <input
-              type="number"
+            <ErpNumericInput
               min={10}
               max={200}
-              step={0.5}
+              integer={false}
               value={form.heightMm}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  heightMm: Number(event.target.value) || current.heightMm,
-                }))
-              }
+              onValueChange={(heightMm) => setForm((current) => ({ ...current, heightMm }))}
               className={ERP_FIELD_INPUT_CLASS}
             />
           </label>

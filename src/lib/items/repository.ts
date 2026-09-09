@@ -440,6 +440,13 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
       error = retry.error
     }
 
+    if (error && /material_cost_lines/i.test(error.message)) {
+      const { material_cost_lines: _omitLines, ...withoutLines } = insertRow as Record<string, unknown>
+      const retry = await supabase.from('items').insert(withoutLines).select('id').single()
+      data = retry.data
+      error = retry.error
+    }
+
     if (!error && data?.id) {
       return { ok: true, id: data.id }
     }
@@ -849,6 +856,19 @@ export async function updateItem(
         const row = toItemUpdateRow(updatePayload) as Record<string, unknown>
         const { smt_quote_parts: _omit, ...withoutParts } = row
         const retry = await supabase.from('items').update(withoutParts).eq('id', key)
+        if (retry.error && /material_cost_lines/i.test(retry.error.message)) {
+          const { material_cost_lines: _omitLines, ...withoutLines } = withoutParts
+          const retryLines = await supabase.from('items').update(withoutLines).eq('id', key)
+          if (retryLines.error) {
+            return { ok: false, reason: 'query', detail: retryLines.error.message }
+          }
+        } else if (retry.error) {
+          return { ok: false, reason: 'query', detail: retry.error.message }
+        }
+      } else if (/material_cost_lines/i.test(error.message)) {
+        const row = toItemUpdateRow(updatePayload) as Record<string, unknown>
+        const { material_cost_lines: _omitLines, ...withoutLines } = row
+        const retry = await supabase.from('items').update(withoutLines).eq('id', key)
         if (retry.error) {
           return { ok: false, reason: 'query', detail: retry.error.message }
         }
@@ -868,7 +888,7 @@ export async function updateItem(
           smdUnitPrice: beforeItem.smdUnitPrice,
           dipUnitPrice: beforeItem.dipUnitPrice,
           materialUnitPrice: beforeItem.materialUnitPrice,
-          otherUnitPrice: beforeItem.setupUnitPrice,
+          otherUnitPrice: beforeItem.otherUnitPrice,
         },
         after: {
           name: updatePayload.name,
@@ -877,7 +897,7 @@ export async function updateItem(
           smdUnitPrice: updatePayload.smdUnitPrice,
           dipUnitPrice: updatePayload.dipUnitPrice,
           materialUnitPrice: updatePayload.materialUnitPrice,
-          otherUnitPrice: updatePayload.setupUnitPrice,
+          otherUnitPrice: updatePayload.otherUnitPrice,
         },
       }
       const { beforeData, afterData } = buildItemChangeDataPayload(snapshot)

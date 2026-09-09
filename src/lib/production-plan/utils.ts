@@ -58,24 +58,84 @@ export function isConfirmedStatus(status: ProductionPlanBoardStatus) {
   return status === 'confirmed'
 }
 
-/** SMT 양면: 발주 수량 대비 면별 미계획(미배정) 수량 */
+/** SMT 양면: 발주 수량 − 면별 실적 − 면별 계획 = 미계획 */
 export function computeSmtSideUnplannedQty(
   rows: ProductionPlanBoardRow[],
   targetId: string,
   orderQty: number,
+  options?: { excludePlanKey?: string },
 ): { top: number; bot: number } {
+  const excludeKey = String(options?.excludePlanKey || '').trim()
+  const rep = rows.find((row) => row.scope === 'smt' && row.targetId === targetId)
+
   let plannedTop = 0
   let plannedBot = 0
   for (const row of rows) {
     if (row.scope !== 'smt' || row.targetId !== targetId) continue
     if (!isProductionPlanScheduleRow(row)) continue
+    if (excludeKey && row.key === excludeKey) continue
     const qty = Math.max(0, Math.round(Number(row.plannedQuantity) || 0))
     if (row.pcbSide === 'TOP' || row.pcbSide === 'BOTH') plannedTop += qty
     if (row.pcbSide === 'BOT' || row.pcbSide === 'BOTH') plannedBot += qty
   }
+
   const cap = Math.max(0, Math.round(Number(orderQty) || 0))
-  return {
-    top: Math.max(0, cap - plannedTop),
-    bot: Math.max(0, cap - plannedBot),
+  const producedTop = Math.max(0, Math.round(Number(rep?.producedQtyTop) || 0))
+  const producedBot = Math.max(0, Math.round(Number(rep?.producedQtyBot) || 0))
+
+  // 보드에 면별 미계획이 이미 있고, 편집 제외가 없으면 그대로 사용
+  if (
+    !excludeKey &&
+    (rep?.unplannedQtyTop != null || rep?.unplannedQtyBot != null)
+  ) {
+    return {
+      top: Math.max(0, Math.round(Number(rep?.unplannedQtyTop) || 0)),
+      bot: Math.max(0, Math.round(Number(rep?.unplannedQtyBot) || 0)),
+    }
   }
+
+  return {
+    top: Math.max(0, cap - producedTop - plannedTop),
+    bot: Math.max(0, cap - producedBot - plannedBot),
+  }
+}
+
+/** 일정 모달 계획 수량 상한 (양면은 선택 면 기준) */
+export function resolveScheduleMaxQuantity(
+  row: ProductionPlanBoardRow,
+  pcbSide: ProductionPlanPcbSide,
+  allRows: ProductionPlanBoardRow[] = [],
+): number {
+  const materialCap =
+    row.materialShort && row.materialReadyQty > 0 ? row.materialReadyQty : null
+
+  if (row.scope === 'smt' && row.splitPcbSides) {
+    const sides = computeSmtSideUnplannedQty(allRows, row.targetId, row.orderQty, {
+      excludePlanKey: isProductionPlanScheduleRow(row) ? row.key : undefined,
+    })
+    let sideCap =
+      pcbSide === 'BOT'
+        ? sides.bot
+        : pcbSide === 'BOTH'
+          ? Math.min(sides.top, sides.bot)
+          : sides.top
+    if (materialCap != null) sideCap = Math.min(sideCap, materialCap)
+    return Math.max(0, sideCap)
+  }
+
+  if (isProductionPlanRemainderRow(row)) {
+    let cap = Math.max(1, row.unplannedQty ?? row.remainingQty)
+    if (materialCap != null) cap = Math.min(cap, materialCap)
+    return Math.max(1, cap)
+  }
+
+  if (isProductionPlanScheduleRow(row) && row.plannedQuantity) {
+    let cap = Math.min(row.remainingQty, row.plannedQuantity + (row.unplannedQty ?? 0))
+    if (materialCap != null) cap = Math.min(cap, materialCap)
+    return Math.max(1, cap)
+  }
+
+  let cap = Math.max(1, row.unplannedQty ?? row.remainingQty)
+  if (materialCap != null) cap = Math.min(cap, materialCap)
+  return Math.max(1, cap)
 }
