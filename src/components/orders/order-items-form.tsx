@@ -6,15 +6,14 @@ import { ProductCombobox } from '@/components/orders/product-combobox'
 import { parseItemVersionCode } from '@/lib/items/version-code'
 import {
   normalizeMaterialCostLines,
-  shouldSplitMaterialCostLines,
+  sumMaterialCostLines,
   type MaterialCostLine,
 } from '@/lib/items/material-cost-lines'
 import {
-  defaultAdhocOrderItemForm,
   defaultOrderItemForm,
   type OrderItemForm,
 } from '@/lib/orders/form-state'
-import { computeLineAmount, computeOrderLineBreakdownAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, formatAdditionalWorkProductNameLabel, formatOrderMoney, isBillingOnlyOrderItem, orderCurrencySymbol, orderLinePerUnitPrice, resolveOrderLineSmdUnitPrice } from '@/lib/orders/utils'
+import { computeLineAmount, computeOrderLineBreakdownAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, formatAdditionalWorkProductNameLabel, formatOrderMoney, isBillingOnlyOrderItem, orderCurrencySymbol, orderLinePerUnitPrice, previewOrderLineWorkNumbers, resolveOrderLineSmdUnitPrice } from '@/lib/orders/utils'
 import type { OrderCurrency } from '@/lib/orders/types'
 import type { Product } from '@/lib/products/types'
 import { findProductsByCode, findProductsByName, filterProductsForCustomerStrict } from '@/lib/products/utils'
@@ -25,13 +24,10 @@ type OrderItemsFormProps = {
   customer: string
   products: Product[]
   currency?: OrderCurrency
+  /** 발주번호 — 있으면 작업번호 미리보기({발주번호}-01 …) 표시 */
+  customerPoNumber?: string
   onChange: Dispatch<SetStateAction<OrderItemForm[]>>
   onCustomerResolved?: (customer: string) => void
-}
-
-function unitPriceFromProduct(product: Product) {
-  return orderLinePerUnitPrice(product.smdUnitPrice, product.dipUnitPrice) ||
-    Math.max(0, Math.round(Number(product.defaultUnitPrice) || 0))
 }
 
 function isCompanionRow(row: OrderItemForm) {
@@ -42,50 +38,14 @@ function stripCompanionRows(items: OrderItemForm[], parentRowKey: string) {
   return items.filter((row) => !(row.isAdhoc && row.companionOfRowKey === parentRowKey))
 }
 
-function buildCompanionRow(
-  parent: OrderItemForm,
-  product: Product,
-  opts: { productName: string; unitPrice: number },
-): OrderItemForm {
-  const row = defaultAdhocOrderItemForm(String(parent.deliveryDate || ''))
-  return {
-    ...row,
-    productId: product.id,
-    productCode: product.productCode,
-    productName: opts.productName,
-    quantity: String(parent.quantity || '0'),
-    unitPrice: String(opts.unitPrice),
-    companionOfRowKey: parent.rowKey,
-    deliveryDate: parent.deliveryDate,
-  }
-}
-
 function productMaterialCostLines(product: Product): MaterialCostLine[] {
   return normalizeMaterialCostLines(product.materialCostLines)
 }
 
-function syncProductCompanionRows(items: OrderItemForm[], index: number, product: Product) {
-  const parent = items[index]
-  if (!parent || parent.isAdhoc) return items
-
-  let next = stripCompanionRows(items, parent.rowKey)
-  const parentIndex = next.findIndex((row) => row.rowKey === parent.rowKey)
-  if (parentIndex < 0) return next
-
-  const companions: OrderItemForm[] = []
-  const materialLines = productMaterialCostLines(product)
-  if (shouldSplitMaterialCostLines(materialLines)) {
-    for (const line of materialLines) {
-      const unitPrice = Math.max(0, Math.round(Number(line.unitPrice) || 0))
-      if (unitPrice <= 0) continue
-      const label = String(line.label || '').trim() || '자재비'
-      companions.push(buildCompanionRow(parent, product, { productName: label, unitPrice }))
-    }
-  }
-
-  if (!companions.length) return next
-  const insertAt = parentIndex + 1
-  return [...next.slice(0, insertAt), ...companions, ...next.slice(insertAt)]
+function resolveProductMaterialUnitPrice(product: Product) {
+  const lines = productMaterialCostLines(product)
+  if (lines.length) return sumMaterialCostLines(lines)
+  return Math.max(0, Math.round(Number(product.materialUnitPrice) || 0))
 }
 
 function applyProductSelection(items: OrderItemForm[], index: number, product: Product, isAmbiguous: boolean) {
@@ -96,7 +56,7 @@ function applyProductSelection(items: OrderItemForm[], index: number, product: P
   const parentIndex = next.findIndex((row) => row.rowKey === parent.rowKey)
   if (parentIndex < 0) return next
 
-  next = next.map((item, itemIndex) => {
+  return next.map((item, itemIndex) => {
     if (itemIndex !== parentIndex) return item
     const applied = applyProductToItem(item, product)
     if (isAmbiguous) {
@@ -104,9 +64,6 @@ function applyProductSelection(items: OrderItemForm[], index: number, product: P
     }
     return applied
   })
-
-  if (isAmbiguous) return next
-  return syncProductCompanionRows(next, parentIndex, product)
 }
 
 function applyProductToItem(item: OrderItemForm, product: Product): OrderItemForm {
@@ -126,10 +83,7 @@ function applyProductToItem(item: OrderItemForm, product: Product): OrderItemFor
   const resolvedSmd = resolveOrderLineSmdUnitPrice(smd, dip, legacyUnit)
   const perUnit = orderLinePerUnitPrice(resolvedSmd, dip) || legacyUnit
   const setupCost = Math.max(0, Math.round(Number(product.setupUnitPrice) || 0))
-  const materialLines = productMaterialCostLines(product)
-  const materialUnitPrice = shouldSplitMaterialCostLines(materialLines)
-    ? 0
-    : Math.max(0, Math.round(Number(product.materialUnitPrice) || 0))
+  const materialUnitPrice = resolveProductMaterialUnitPrice(product)
   const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
   const unitPrice = computeOrderLineAmortizedUnitPrice({
     quantity,
@@ -226,6 +180,7 @@ export function OrderItemsForm({
   customer,
   products,
   currency = 'KRW',
+  customerPoNumber = '',
   onChange,
   onCustomerResolved,
 }: OrderItemsFormProps) {
@@ -237,6 +192,10 @@ export function OrderItemsForm({
     return products.filter((product) => product.isActive)
   }, [products, lockedCustomer])
 
+  const workNumberPreviewByRowKey = useMemo(
+    () => previewOrderLineWorkNumbers(items, customerPoNumber),
+    [items, customerPoNumber],
+  )
   function notifyCustomerFromProduct(product: Product) {
     const name = product.customer.trim()
     if (name) onCustomerResolved?.(name)
@@ -297,10 +256,6 @@ export function OrderItemsForm({
     onChange((current) => [...current, defaultOrderItemForm()])
   }
 
-  function addAdhocRow() {
-    onChange((current) => [...current, defaultAdhocOrderItemForm()])
-  }
-
   function removeRow(index: number) {
     const target = items[index]
     if (!target) return
@@ -337,23 +292,24 @@ export function OrderItemsForm({
       <h3 className="text-sm font-bold text-slate-900">제품</h3>
       <p className="text-xs text-slate-500">
         제품 선택 시 품목 마스터의 SET-UP·SMD·후공정·자재가 적용되고 고객사가 자동 입력됩니다. 수량 변경 시
-        단가가 다시 계산됩니다. 자재비 세부(2행 이상)가 있으면 아래 금액전용 행으로 자동 붙습니다.
-        SET-UP÷수량이 자동 재계산됩니다.
+        단가가 다시 계산됩니다.
       </p>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="erp-data-table erp-data-table--compact min-w-[760px] w-full border-collapse text-sm">
+        <table className="erp-data-table erp-data-table--compact min-w-[880px] w-full border-collapse text-sm">
           <colgroup>
-            <col className="w-[16%]" />
-            <col className="w-[28%]" />
+            <col className="w-[14%]" />
+            <col className="w-[14%]" />
+            <col className="w-[24%]" />
             <col className="w-[8%]" />
             <col className="w-[10%]" />
-            <col className="w-[16%]" />
-            <col className="w-[16%]" />
+            <col className="w-[14%]" />
+            <col className="w-[14%]" />
             <col className="w-8" />
           </colgroup>
           <thead className="bg-slate-50">
             <tr>
+              <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600">작업번호</th>
               <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600">제품코드</th>
               <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600">제품명</th>
               <th className="px-2 py-2 text-center text-xs font-semibold text-slate-600">버전</th>
@@ -395,12 +351,26 @@ export function OrderItemsForm({
               const canRemove = isCompanion
                 ? false
                 : isAdhoc || items.filter((row) => !row.isAdhoc).length > 1
+              const displayWorkNumber =
+                workNumberPreviewByRowKey[item.rowKey] || item.workNumber?.trim() || ''
 
               return (
                 <tr
                   key={item.rowKey}
                   className={['border-t border-slate-100', isAdhoc ? 'bg-amber-50/40' : ''].join(' ')}
                 >
+                  <td className="px-2 py-2 align-top">
+                    {displayWorkNumber ? (
+                      <span
+                        className="block truncate font-mono text-xs font-semibold text-slate-700"
+                        title={displayWorkNumber}
+                      >
+                        {displayWorkNumber}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className="px-2 py-2 align-top">
                     {isCompanion ? (
                       <input
@@ -604,15 +574,6 @@ export function OrderItemsForm({
                   >
                     + 행 추가
                   </button>
-                  <button
-                    type="button"
-                    onClick={addAdhocRow}
-                    className={ERP_ROW_ADD_BUTTON_CLASS}
-                    title="추가 작업"
-                    aria-label="추가 작업"
-                  >
-                    + 추가 작업
-                  </button>
                 </div>
               </td>
             </tr>
@@ -620,9 +581,8 @@ export function OrderItemsForm({
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        제품·추가 작업 모두 품목등록에 있는 항목만 저장됩니다. 자재비 세부가 2행 이상이면 품목 선택 시
-        아래에 금액전용 행이 자동으로 붙고 제품 수량과 연동됩니다. 발주 목록·인쇄 수량 합계에는 제품만
-        집계되며, 금액전용 행은 거래명세서 금액 표시용입니다.
+        품목등록에 있는 제품만 저장됩니다. 추가작업·자재 청구 행은 출하 등록(거래명세서)에서
+        입력합니다.
       </p>
     </div>
   )

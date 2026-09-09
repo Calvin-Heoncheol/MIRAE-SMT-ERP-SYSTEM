@@ -63,7 +63,7 @@ import type { BusinessPartner } from '@/lib/partners/types'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
-import { formatProductOptionLabel, resolveOrderLineProduct } from '@/lib/products/utils'
+import { formatProductOptionLabel, findProductById, resolveOrderLineProduct } from '@/lib/products/utils'
 import { buildOrderPrintDataFromQuote, printOrder } from '@/lib/orders/print-order'
 import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
 
@@ -85,6 +85,7 @@ type QuoteModalProps = {
 
 type FormState = {
   customer: string
+  productCode: string
   productName: string
   productId: string
   boardQty: string
@@ -110,6 +111,7 @@ type FormState = {
 
 const INITIAL_FORM: FormState = {
   customer: '',
+  productCode: '',
   productName: '',
   productId: '',
   boardQty: '1000',
@@ -210,6 +212,7 @@ function buildStateFromQuote(quote: QuoteListItem) {
   return {
     form: {
       customer: quote.customer,
+      productCode: '',
       productName: quote.productName,
       productId: quote.detailInfo.settings?.productId || '',
       boardQty,
@@ -415,6 +418,34 @@ function QuoteModalContent({
   }, [])
 
   useEffect(() => {
+    if (!products.length) return
+    setForm((current) => {
+      if (current.productCode.trim()) return current
+      const byId = current.productId.trim()
+        ? findProductById(products, current.productId)
+        : null
+      if (byId) {
+        return {
+          ...current,
+          productCode: byId.productCode,
+          productId: byId.id,
+        }
+      }
+      if (!current.productName.trim()) return current
+      const byName = resolveOrderLineProduct(products, current.customer, {
+        productId: current.productId || null,
+        productName: current.productName,
+      })
+      if (!byName) return current
+      return {
+        ...current,
+        productCode: byName.productCode,
+        productId: byName.id,
+      }
+    })
+  }, [products, mode, quote?.quoteId, copyFrom?.quoteId])
+
+  useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape' && !busy) {
         onClose()
@@ -606,7 +637,7 @@ function QuoteModalContent({
     })
   }
 
-  function handlePrintOrder() {
+  function handlePrintOrder(language: 'ko' | 'en' = 'ko') {
     const snapshot = buildExportQuoteSnapshot()
     if (!snapshot) return
     if (!snapshot.customer.trim() || !snapshot.productName.trim()) {
@@ -618,18 +649,48 @@ function QuoteModalContent({
       return
     }
 
-    const matched = resolveOrderLineProduct(products, snapshot.customer, {
-      productId: null,
+    const codeFromForm = form.productCode.trim()
+    const settingsProductId =
+      form.productId.trim() || String(snapshot.detailInfo?.settings?.productId || '').trim()
+    const matchedById = settingsProductId ? findProductById(products, settingsProductId) : null
+    const matchedByCode = codeFromForm
+      ? products.find(
+          (product) =>
+            product.isActive &&
+            product.productCode.trim().toUpperCase() === codeFromForm.toUpperCase(),
+        ) || null
+      : null
+    const matchedByName = resolveOrderLineProduct(products, snapshot.customer, {
+      productId: settingsProductId || null,
       productName: snapshot.productName,
     })
+    const matchedByLabel =
+      !matchedById && !matchedByCode && !matchedByName
+        ? products.find(
+            (product) =>
+              product.isActive &&
+              formatProductOptionLabel(product) === snapshot.productName.trim(),
+          ) || null
+        : null
+    const matched = matchedById || matchedByCode || matchedByName || matchedByLabel
+    const productCode =
+      codeFromForm ||
+      matchedById?.productCode ||
+      matchedByCode?.productCode ||
+      matchedByName?.productCode ||
+      matchedByLabel?.productCode ||
+      ''
 
-    const ok = printOrder(
-      buildOrderPrintDataFromQuote(snapshot, {
-        productCode: matched?.productCode,
-        productId: matched?.id ?? null,
-        ...(contactEmail ? { contactEmail } : {}),
-      }),
-    )
+    const printData = buildOrderPrintDataFromQuote(snapshot, {
+      productCode: productCode || undefined,
+      productId: matched?.id ?? (settingsProductId || null),
+      ...(contactEmail ? { contactEmail } : {}),
+    })
+    if (language === 'en') {
+      printData.note = `Purchase order based on quote ${snapshot.quoteNumber}`
+    }
+
+    const ok = printOrder(printData, { language })
     if (!ok) setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
   }
 
@@ -760,13 +821,15 @@ function QuoteModalContent({
             ) : null}
             {mode === 'edit' ? (
               <>
-                <ErpButton
-                  variant="secondary"
-                  onClick={handlePrintOrder}
+                <PdfDownloadButton
+                  label="발주서"
+                  onDownload={() => handlePrintOrder('ko')}
                   disabled={busy}
-                >
-                  발주서 인쇄
-                </ErpButton>
+                  menuItems={[
+                    { label: '한글', onDownload: () => handlePrintOrder('ko') },
+                    { label: '영문', onDownload: () => handlePrintOrder('en') },
+                  ]}
+                />
                 <PdfDownloadButton
                   onDownload={() => handleDownloadPdf()}
                   disabled={busy}
@@ -796,7 +859,7 @@ function QuoteModalContent({
               <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
                 <h3 className="mb-3 text-sm font-bold text-slate-900">기본 정보</h3>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <label className="block text-sm">
+                  <label className="block text-sm sm:col-span-2">
                     <span className="mb-1 block font-medium text-slate-600">고객사</span>
                     <CustomerCombobox
                       value={form.customer}
@@ -817,6 +880,34 @@ function QuoteModalContent({
                     </p>
                   </label>
                   <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-slate-600">제품코드</span>
+                    <ProductCombobox
+                      value={form.productCode}
+                      products={products}
+                      customer={form.customer}
+                      field="code"
+                      placeholder="코드 검색"
+                      ariaLabel="제품코드"
+                      inputClassName={ERP_FIELD_INPUT_CLASS}
+                      onValueChange={(value) => {
+                        setForm((current) => ({
+                          ...current,
+                          productCode: value,
+                          productId: '',
+                          productName: '',
+                        }))
+                      }}
+                      onProductSelect={(product) =>
+                        setForm((current) => ({
+                          ...current,
+                          productCode: product.productCode,
+                          productName: formatProductOptionLabel(product),
+                          productId: product.id,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="block text-sm">
                     <span className="mb-1 block font-medium text-slate-600">제품명</span>
                     <ProductCombobox
                       value={form.productName}
@@ -831,21 +922,23 @@ function QuoteModalContent({
                           ...current,
                           productName: value,
                           productId: '',
+                          productCode: '',
                         }))
                       }}
                       onProductSelect={(product) =>
                         setForm((current) => ({
                           ...current,
+                          productCode: product.productCode,
                           productName: formatProductOptionLabel(product),
                           productId: product.id,
                         }))
                       }
                     />
-                    <p className="mt-1 text-xs text-slate-500">
-                      품목등록의 반제품·조립제품을 검색해 선택하거나, 직접 입력할 수 있습니다.
-                    </p>
                   </label>
                 </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  품목등록의 반제품·조립제품을 코드 또는 이름으로 검색해 선택하거나, 직접 입력할 수 있습니다.
+                </p>
 
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <label className="block text-sm">

@@ -177,6 +177,17 @@ export function parseShipmentExtraLines(note: string | null | undefined): Shipme
   }
 }
 
+/** 출하 묶음 note에 복제된 SHIP_EXTRA 중 첫 유효 목록 */
+export function firstShipmentExtraLinesFromNotes(
+  notes: Array<string | null | undefined>,
+): ShipmentExtraStatementLine[] {
+  for (const note of notes) {
+    const lines = parseShipmentExtraLines(note)
+    if (lines.length) return lines
+  }
+  return []
+}
+
 export function collectManualRegisterStatementLines(
   items: DeliveryRegisterItemForm[],
 ): ShipmentExtraStatementLine[] {

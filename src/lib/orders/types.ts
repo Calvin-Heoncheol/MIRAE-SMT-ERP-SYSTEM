@@ -35,7 +35,7 @@ export type OrderLineItem = {
   deliveryDate: string
   /** BOM 펼침으로 생성된 반제품 줄 */
   derivedFromLineId?: string | null
-  /** 작업번호 — {고객접두}-{발주일}-{NN} (예: LEE-260904-01, 추가작업은 없음) */
+  /** 작업번호 — {발주번호}-{NN} (예: PO123-01). 추가작업은 없음. */
   workNumber?: string | null
 }
 

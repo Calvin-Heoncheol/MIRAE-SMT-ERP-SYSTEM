@@ -306,12 +306,39 @@ export function displayOrderPoNumber(
   return String(customerPoNumber || '').trim() || String(orderId || '').trim()
 }
 
-/** 작업번호 — {고객접두}-{발주일YYMMDD}-{NN} (예: LEE-260904-01) */
+/** 작업번호 — {발주번호}-{NN} (예: PO123-01, LEE-260904-01-01) */
 export function formatOrderWorkNumber(workNumberBase: string, workSeq: number) {
   const base = String(workNumberBase || '').trim()
   const seq = Math.max(1, Math.floor(Number(workSeq) || 0))
   if (!base) return ''
   return `${base}-${String(seq).padStart(2, '0')}`
+}
+
+/**
+ * 발주 모달용 작업번호 미리보기.
+ * 발주번호(base)가 있고 제품이 선택된(비추가작업) 행만 {base}-01 … 부여.
+ */
+export function previewOrderLineWorkNumbers(
+  items: Array<{
+    rowKey: string
+    productId?: string | null
+    isAdhoc?: boolean
+    companionOfRowKey?: string | null
+  }>,
+  workNumberBase: string | null | undefined,
+): Record<string, string> {
+  const base = String(workNumberBase || '').trim()
+  if (!base) return {}
+
+  const result: Record<string, string> = {}
+  let workSeq = 0
+  for (const item of items) {
+    if (item.isAdhoc || String(item.companionOfRowKey || '').trim()) continue
+    if (!String(item.productId || '').trim()) continue
+    workSeq += 1
+    result[item.rowKey] = formatOrderWorkNumber(base, workSeq)
+  }
+  return result
 }
 
 /** 작업번호 끝 순번 파싱 (접두사 무관, `-NN` 형태) */

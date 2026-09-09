@@ -1,6 +1,6 @@
 -- Supabase SQL Editor에서 실행하세요 (setup-quotations.sql 이후)
 --
--- 내부 발주ID = id — MRO-YYMMDD-NN 자동 발급 또는 직접 입력 (FK 기준키, 수정 불가)
+-- 내부 발주ID = id — {고객사접두}-YYMMDD-NN 자동 발급 또는 직접 입력 (FK 기준키, 수정 불가)
 -- 발주번호 = customer_po_number — 고객사 PO/NO (나중에 수정 가능)
 
 create table if not exists public.orders (
@@ -27,7 +27,7 @@ create table if not exists public.orders (
 );
 
 comment on table public.orders is '주문 마스터 — 내부 발주ID=id, 발주번호=customer_po_number';
-comment on column public.orders.id is '내부 발주ID — MRO-YYMMDD-NN 또는 직접 입력 (INSERT 시 비어 있으면 자동 발급)';
+comment on column public.orders.id is '내부 발주ID — {고객사접두}-YYMMDD-NN 또는 직접 입력 (INSERT 시 비어 있으면 자동 발급)';
 comment on column public.orders.source_quote_id is '원본 견적 FK (quotations.id = MRQ-YYMMDD-NN)';
 comment on column public.orders.note is '주문서 비고';
 comment on column public.orders.customer_po_number is '발주번호(PO/NO) — 미입력 시 INSERT 때 발주ID(id)와 동일하게 자동 발급, 이후 수정 가능';
@@ -56,7 +56,7 @@ create table if not exists public.order_lines (
 
 comment on column public.order_lines.derived_from_line_id is '조립제품 주문 줄에서 BOM 펼침으로 생성된 반제품 줄 (주문 UI 비표시)';
 comment on column public.order_lines.delivery_date is '제품(라인)별 납기일';
-comment on column public.order_lines.work_number is '작업번호 — {고객접두}-{발주일YYMMDD}-{순번} (예: LEE-260904-01). 추가작업(금액전용)은 null';
+comment on column public.order_lines.work_number is '작업번호 — {발주번호}-{순번} (예: PO123-01, LEE-260904-01-01). 발주번호=고객PO 우선, 없으면 내부 발주ID. 추가작업(금액전용)은 null';
 comment on column public.order_lines.setup_cost is 'SET-UP 전체 비용 (수량 무관)';
 comment on column public.order_lines.smd_unit_price is 'SMD 대당 단가';
 comment on column public.order_lines.dip_unit_price is '후공정 대당 단가';
@@ -113,7 +113,102 @@ begin
 end;
 $$;
 
+create or replace function public.work_number_prefix_from_customer(customer text)
+returns text
+language plpgsql
+immutable
+as $$
+declare
+  cho text[] := array[
+    'g','kk','n','d','tt','r','m','b','pp','s','ss','',
+    'j','jj','ch','k','t','p','h'
+  ];
+  jung text[] := array[
+    'a','ae','ya','yae','eo','e','yeo','ye','o','wa','wae','oe','yo',
+    'u','wo','we','wi','yu','eu','ui','i'
+  ];
+  n text;
+  src text;
+  ch text;
+  code integer;
+  s integer;
+  cho_i integer;
+  jung_i integer;
+  initial text;
+  vowel text;
+  roman text;
+  letters text := '';
+  prefix text;
+begin
+  n := lower(regexp_replace(coalesce(customer, ''), '\s+', '', 'g'));
+  n := regexp_replace(n, '[()\[\]（）【】㈜]', '', 'g');
+  n := regexp_replace(n, '^주식회사', '');
+  n := regexp_replace(n, '주식회사$', '');
+  n := regexp_replace(n, '^주', '');
+  n := regexp_replace(n, '주$', '');
+
+  if position('리텍' in n) > 0 then
+    return 'LEE';
+  end if;
+  if position('파스텍' in n) > 0 then
+    return 'FAS';
+  end if;
+  if position('서창' in n) > 0 then
+    return 'SC';
+  end if;
+
+  src := regexp_replace(coalesce(customer, ''), '\s+', '', 'g');
+  for i in 1..char_length(src) loop
+    ch := substr(src, i, 1);
+
+    if ch ~ '[A-Za-z]' then
+      letters := letters || upper(ch);
+      continue;
+    end if;
+
+    if ch ~ '[0-9]' then
+      letters := letters || ch;
+      continue;
+    end if;
+
+    code := ascii(ch);
+    if code < 44032 or code > 55203 then
+      continue;
+    end if;
+
+    s := code - 44032;
+    cho_i := s / 588;
+    jung_i := (s % 588) / 28;
+    initial := cho[cho_i + 1];
+    vowel := jung[jung_i + 1];
+    roman := nullif(initial, '');
+    if roman is null then
+      roman := vowel;
+    end if;
+    if roman is null or roman = '' then
+      continue;
+    end if;
+
+    letters := letters || upper(substr(roman, 1, 1));
+  end loop;
+
+  prefix := letters;
+  if char_length(prefix) > 4 then
+    prefix := substr(prefix, 1, 3);
+  end if;
+
+  if prefix is null or prefix = '' then
+    return 'MRO';
+  end if;
+
+  return prefix;
+end;
+$$;
+
+grant execute on function public.work_number_prefix_from_customer(text) to anon, authenticated;
+
 create or replace function public.generate_order_code(
+  p_customer text default '',
   p_order_date date default (timezone('Asia/Seoul', now()))::date
 )
 returns text
@@ -121,6 +216,7 @@ language plpgsql
 as $fn$
 declare
   d date;
+  cust_prefix text;
   prefix text;
   max_suffix integer := 0;
   row_id text;
@@ -128,13 +224,13 @@ declare
   suffix_num integer;
 begin
   d := coalesce(p_order_date, (timezone('Asia/Seoul', now()))::date);
-  prefix := 'MRO-' || to_char(d, 'YYMMDD');
+  cust_prefix := public.work_number_prefix_from_customer(p_customer);
+  prefix := cust_prefix || '-' || to_char(d, 'YYMMDD');
 
   for row_id in
     select id
     from public.orders
     where id like prefix || '-%'
-       or order_date = d
   loop
     if length(row_id) = length(prefix) + 3
        and row_id like prefix || '-__' then
@@ -155,7 +251,7 @@ begin
 end;
 $fn$;
 
-grant execute on function public.generate_order_code(date) to anon, authenticated;
+grant execute on function public.generate_order_code(text, date) to anon, authenticated;
 
 create or replace function public.normalize_orders_row()
 returns trigger
@@ -168,9 +264,9 @@ begin
 
   if tg_op = 'INSERT' then
     if new.id is null or trim(new.id) = '' then
-      new.id := public.generate_order_code(new.order_date);
+      new.id := public.generate_order_code(new.customer, new.order_date);
     end if;
-    -- 발주번호 미입력 → 발주ID(MRO-YYMMDD-NN)와 동일하게 자동 발급
+    -- 발주번호 미입력 → 발주ID와 동일하게 자동 발급
     if new.customer_po_number = '' then
       new.customer_po_number := new.id;
     end if;
@@ -217,7 +313,7 @@ alter table public.orders
   check (payment_term_type in ('', 'installment', 'net', 'monthly'));
 create index if not exists orders_created_by_idx on public.orders (created_by);
 
-comment on column public.orders.id is '발주ID — MRO-YYMMDD-NN 자동 발급 (수정 불가, FK 기준키)';
+comment on column public.orders.id is '발주ID — {고객사접두}-YYMMDD-NN 자동 발급 (수정 불가, FK 기준키)';
 comment on column public.orders.customer_po_number is '발주번호(PO/NO) — 미입력 시 INSERT 때 발주ID(id)와 동일하게 자동 발급, 이후 수정 가능';
 
 -- 발주번호가 비어 있으면 발주ID와 동일하게 채움 (과거 데이터)

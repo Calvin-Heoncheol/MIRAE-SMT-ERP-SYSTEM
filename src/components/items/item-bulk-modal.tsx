@@ -34,19 +34,28 @@ import {
   ITEM_MATERIAL_TYPE_OPTIONS,
   ITEM_PCB_SIDE_MODE_LABELS,
   ITEM_PCB_SIDE_MODES,
-  ITEM_PROCESS_TYPE_LABELS,
-  ITEM_PROCESS_TYPES,
   ITEM_SUPPLY_TYPE_OPTIONS,
   type ItemCategory,
   type ItemMaterialType,
   type ItemPcbSideMode,
   type ItemPayload,
-  type ItemProcessType,
   type ItemSupplyType,
 } from '@/lib/items/types'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
+
+const ITEM_BULK_MONEY_KEYS = new Set<keyof ItemFormState>([
+  'unitPrice',
+  'smdUnitPrice',
+  'dipUnitPrice',
+  'materialUnitPrice',
+  'setupUnitPrice',
+])
+
+function isItemBulkMoneyColumn(key: keyof ItemFormState) {
+  return ITEM_BULK_MONEY_KEYS.has(key)
+}
 
 type ItemBulkModalProps = {
   open: boolean
@@ -438,7 +447,12 @@ function ItemBulkModalContent({
                     className={[
                       'whitespace-nowrap px-3 py-2 text-left text-sm font-semibold text-slate-600',
                       column.widthClass || '',
-                      column.key === 'unitPrice' ? 'text-right' : '',
+                      column.key === 'unitPrice' ||
+                      column.key === 'smdUnitPrice' ||
+                      column.key === 'dipUnitPrice' ||
+                      column.key === 'materialUnitPrice'
+                        ? 'text-right'
+                        : '',
                     ]
                       .filter(Boolean)
                       .join(' ')}
@@ -534,23 +548,6 @@ function ItemBulkModalContent({
                               </option>
                             ))}
                           </select>
-                        ) : column.key === 'processType' ? (
-                          <select
-                            value={row.processType}
-                            onChange={(event) =>
-                              patchRow(index, {
-                                processType: event.target.value as ItemProcessType,
-                              })
-                            }
-                            className={rowInputClass}
-                          >
-                            <option value="">선택</option>
-                            {ITEM_PROCESS_TYPES.map((value) => (
-                              <option key={value} value={value}>
-                                {ITEM_PROCESS_TYPE_LABELS[value]}
-                              </option>
-                            ))}
-                          </select>
                         ) : column.key === 'pcbSideMode' ? (
                           <select
                             value={row.pcbSideMode}
@@ -568,21 +565,25 @@ function ItemBulkModalContent({
                               </option>
                             ))}
                           </select>
-                        ) : column.key === 'unitPrice' ? (
+                        ) : isItemBulkMoneyColumn(column.key) ? (
                           <input
                             type="text"
                             inputMode="numeric"
-                            value={row.unitPrice ? String(row.unitPrice) : ''}
+                            value={
+                              Number(row[column.key]) > 0 ? String(row[column.key]) : ''
+                            }
                             onChange={(event) => {
                               const digits = event.target.value.replace(/[^\d]/g, '')
                               patchRow(index, {
-                                unitPrice: digits ? Math.max(0, Math.round(Number(digits))) : 0,
-                              })
+                                [column.key]: digits
+                                  ? Math.max(0, Math.round(Number(digits)))
+                                  : 0,
+                              } as Partial<ItemFormState>)
                             }}
                             onPaste={(event) => handleColumnPaste(index, column.key, event)}
                             placeholder="0"
                             className={`${rowInputClass} text-right tabular-nums`}
-                            aria-label={`${index + 1}행 단가`}
+                            aria-label={`${index + 1}행 ${column.label}`}
                           />
                         ) : (
                           <input

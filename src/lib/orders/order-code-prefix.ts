@@ -154,7 +154,7 @@ export function yymmddFromYmd(ymd: string): string {
   return `${match[1].slice(2)}${match[2]}${match[3]}`
 }
 
-/** 작업번호 접두 구간 — {고객접두}-{YYMMDD} (예: LEE-260904) */
+/** 작업번호 접두 구간 — 레거시 {고객접두}-{YYMMDD} (현재 작업번호는 발주번호 기준) */
 export function formatOrderWorkNumberBase(
   customer: string,
   orderDate?: string | null,
@@ -165,8 +165,13 @@ export function formatOrderWorkNumberBase(
   return `${prefix}-${yymmddFromYmd(ymd)}`
 }
 
-/** 자동 발급 예시: MRO-YYMMDD-01 (발주일 기준) */
-export function formatAutoOrderCodeExample(orderDate?: string): string {
+/** 자동 발급 예시: {고객사접두}-YYMMDD-01 (고객사·발주일 기준) */
+export function formatAutoOrderCodeExample(
+  orderDate?: string,
+  customer?: string,
+  partnerCodePrefix?: string | null,
+): string {
   const ymd = String(orderDate || '').trim() || todayYmdSeoul()
-  return `MRO-${yymmddFromYmd(ymd)}-01`
+  const prefix = resolveCustomerCodePrefix(String(customer || ''), partnerCodePrefix)
+  return `${prefix}-${yymmddFromYmd(ymd)}-01`
 }

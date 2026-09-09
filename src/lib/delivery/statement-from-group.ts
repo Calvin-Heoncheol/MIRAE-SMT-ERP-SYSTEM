@@ -5,7 +5,7 @@ import {
   buildShipmentStatementLinesFromHistory,
   type DeliveryBillingOnlyLine,
 } from '@/lib/delivery/utils'
-import { parseShipmentExtraLines } from '@/lib/delivery/register-form'
+import { firstShipmentExtraLinesFromNotes } from '@/lib/delivery/register-form'
 
 type BuildStatementContext = {
   unitPriceByDeliveryId: Record<string, number>
@@ -67,7 +67,7 @@ export async function buildDeliveryStatementDataFromTableGroup(
     productionOrders: context.productionOrders,
   })
 
-  const extraLines = group.lines.flatMap((line) => parseShipmentExtraLines(line.note))
+  const extraLines = firstShipmentExtraLinesFromNotes(group.lines.map((line) => line.note))
   for (const extra of extraLines) {
     shippedLines.push({
       orderNumber: extra.orderNumber || '',

@@ -20,6 +20,7 @@ import {
   type OrderItemForm,
 } from '@/lib/orders/form-state'
 import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
+import { formatAutoOrderCodeExample } from '@/lib/orders/order-code-prefix'
 import { ORDER_CATEGORIES, ORDER_CURRENCIES, ORDER_CURRENCY_LABELS } from '@/lib/orders/types'
 import type { OrderCurrency, OrderListGroup, OrderRowPayload } from '@/lib/orders/types'
 import { normalizeOrderCurrency, todayYmdSeoul } from '@/lib/orders/utils'
@@ -364,14 +365,14 @@ function OrderModalContent({
             onChange={(event) => updateForm('customerPoNumber', event.target.value)}
             placeholder={
               mode === 'create'
-                ? '비우면 발주ID와 동일하게 자동 발급'
+                ? '비우면 고객사-YYMMDD-NN 자동 발급'
                 : '고객사 PO/NO (나중에 입력·수정 가능)'
             }
             className={ERP_FIELD_INPUT_CLASS}
           />
           <p className="mt-1 text-xs text-slate-500">
             {mode === 'create'
-              ? '입력하지 않으면 저장 시 MRO-YYMMDD-NN 형식으로 자동 발급됩니다. 고객 PO를 받으면 나중에 수정할 수 있습니다.'
+              ? `입력하지 않으면 저장 시 ${formatAutoOrderCodeExample(form.orderDate, form.customer)} 형식으로 자동 발급됩니다. 고객 PO를 받으면 나중에 수정할 수 있습니다.`
               : '고객 발주서를 늦게 받아도 이 칸만 수정하면 됩니다.'}
           </p>
         </label>
@@ -434,6 +435,10 @@ function OrderModalContent({
           customer={resolvePartnerFromInput(salesPartners, form.customer)?.name ?? form.customer}
           products={products}
           currency={form.currency}
+          customerPoNumber={
+            form.customerPoNumber.trim() ||
+            (mode === 'edit' ? order?.customerPoNumber || order?.orderNumber || '' : '')
+          }
           onChange={setItems}
           onCustomerResolved={
             mode === 'create'

@@ -51,9 +51,10 @@ const SEMI_FINISHED_BULK_COLUMNS: ItemBulkColumn[] = [
   { key: 'id', label: '품목코드' },
   { key: 'name', label: '품목명', required: true },
   { key: 'version', label: '버전', widthClass: 'w-20' },
-  { key: 'processType', label: '생산 공정', required: true },
   { key: 'pcbSideMode', label: '면', required: true, widthClass: 'w-24' },
-  { key: 'unitPrice', label: '단가', widthClass: 'w-28' },
+  { key: 'smdUnitPrice', label: 'SMD', widthClass: 'w-24' },
+  { key: 'dipUnitPrice', label: '후공정', widthClass: 'w-24' },
+  { key: 'materialUnitPrice', label: '자재', widthClass: 'w-24' },
 ]
 
 export function itemBulkColumns(category: ItemCategory): ItemBulkColumn[] {
@@ -74,7 +75,7 @@ export function itemBulkPasteSampleValues(category: ItemCategory): string[] {
     return ['미래전자', '', '나사 M3', 'SUS', '', '', '도급']
   }
   if (category === 3) {
-    return ['미래전자', '', '메인보드', 'A1', 'SMD', '단면', '15000']
+    return ['미래전자', '', '메인보드', 'A1', '단면', '10000', '5000', '2000']
   }
   if (category === 4) {
     return ['미래전자', '', '조립제품 A', 'V1']
@@ -266,7 +267,13 @@ function splitPasteColumns(
 function isHeaderColumns(cols: string[], category: ItemCategory) {
   const first = normalizePasteCell(cols[0] || '')
   if (!first) return false
-  if (/^(고객사(명)?|품목(코드|명)|공정(\s*구분)?|생산\s*공정|버전|면|단가|기본\s*단가|도급\/사급|MPN)$/i.test(first)) return true
+  if (
+    /^(고객사(명)?|품목(코드|명)|공정(\s*구분)?|생산\s*공정|버전|면|단가|기본\s*단가|SMD|후공정|자재|도급\/사급|MPN)$/i.test(
+      first,
+    )
+  ) {
+    return true
+  }
   return itemBulkColumns(category).some((column) => column.label === first)
 }
 
@@ -316,6 +323,11 @@ function normalizePastePcbSideMode(value: string): ItemPcbSideMode {
   return ''
 }
 
+function parsePasteMoney(value: string) {
+  const digits = value.replace(/[^\d.-]/g, '')
+  return Math.max(0, Math.round(Number(digits) || 0))
+}
+
 function applyPasteValue(
   form: ItemFormState,
   key: keyof ItemFormState,
@@ -331,11 +343,12 @@ function applyPasteValue(
       return { ...form, processType: normalizePasteProcessType(value) }
     case 'pcbSideMode':
       return { ...form, pcbSideMode: normalizePastePcbSideMode(value) }
-    case 'unitPrice': {
-      const digits = value.replace(/[^\d.-]/g, '')
-      const amount = Math.max(0, Math.round(Number(digits) || 0))
-      return { ...form, unitPrice: amount }
-    }
+    case 'unitPrice':
+    case 'smdUnitPrice':
+    case 'dipUnitPrice':
+    case 'materialUnitPrice':
+    case 'setupUnitPrice':
+      return { ...form, [key]: parsePasteMoney(value) }
     case 'itemCategory':
       return form
     default:

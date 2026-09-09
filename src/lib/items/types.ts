@@ -167,7 +167,7 @@ export type Item = {
   materialUnitPrice: number
   /** @deprecated 품목등록 추가비용 제거 — DB other_unit_price 호환 */
   otherUnitPrice: number
-  /** 자재비 세부 행 — 2개 이상이면 발주 시 금액전용 행으로 분할 */
+  /** 자재비 세부 행 — 품목 단가 합산에 사용 (청구 행 분할은 출하·거래명세서에서) */
   materialCostLines: MaterialCostLine[]
   /** @deprecated 미사용 */
   smtQuoteParts: ItemSmtQuoteParts

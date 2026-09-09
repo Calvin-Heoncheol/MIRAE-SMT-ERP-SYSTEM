@@ -21,7 +21,7 @@ export function sumMaterialCostLines(lines: MaterialCostLine[]) {
   return lines.reduce((sum, line) => sum + Math.max(0, Math.round(Number(line.unitPrice) || 0)), 0)
 }
 
-/** 발주·명세 분할이 필요한지 (세부 행 2개 이상) */
+/** 세부 행 합산용 (출하·명세에서 행 분할 시 참고) */
 export function shouldSplitMaterialCostLines(lines: MaterialCostLine[]) {
   return normalizeMaterialCostLines(lines).length >= 2
 }

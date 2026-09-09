@@ -46,6 +46,8 @@ drop function if exists public.generate_approval_code() cascade;
 drop function if exists public.generate_quote_code() cascade;
 drop function if exists public.generate_order_code() cascade;
 drop function if exists public.generate_order_code(text) cascade;
+drop function if exists public.generate_order_code(date) cascade;
+drop function if exists public.generate_order_code(text, date) cascade;
 drop function if exists public.order_code_prefix_from_customer(text) cascade;
 drop function if exists public.generate_order_number() cascade;
 drop function if exists public.generate_quote_number(text) cascade;

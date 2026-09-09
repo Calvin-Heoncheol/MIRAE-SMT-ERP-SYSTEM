@@ -1,14 +1,25 @@
 import {
   APP_SHORT_NAME,
+  COMPANY_ADDRESS_DOMESTIC_EN,
+  COMPANY_ADDRESS_EXPORT,
   COMPANY_ADDRESS_STATEMENT,
   COMPANY_BIZ_NO,
   COMPANY_CEO_NAME,
+  COMPANY_NAME_DOMESTIC_EN,
+  COMPANY_NAME_EN,
   COMPANY_QUOTE_EMAIL_DOMESTIC,
   COMPANY_TEL,
 } from '@/lib/app-config'
 import type { OrderCurrency, OrderListGroup } from '@/lib/orders/types'
 import { formatOrderDate, formatOrderMoney, normalizeOrderCurrency, sumCommercialOrderQuantity } from '@/lib/orders/utils'
 import { domesticVatBreakdown } from '@/lib/quotes/format'
+import {
+  getQuoteProcessTypeCodes,
+  type QuoteProcessTypeCode,
+} from '@/lib/quotes/production-flags'
+import type { QuoteDetailInfo } from '@/lib/quotes/types'
+
+export type OrderPrintLanguage = 'ko' | 'en'
 
 export type OrderPrintLine = {
   productId?: string | null
@@ -35,6 +46,10 @@ export type OrderPrintData = {
   contactEmail?: string
   /** 원본 견적이 VAT 포함 표시일 때 발주 PDF에도 VAT 표기 */
   includeVat?: boolean
+  /** 해외 견적 기준이면 영문 업체명·주소를 미국 법인으로 */
+  quoteType?: 'domestic' | 'export'
+  /** Confirmation 공정 표기 — 예: SMD + Assembly + Testing + Packing */
+  processLabel?: string
 }
 
 const ORDER_PRINT_LOGO_PATH = '/branding/logo.png'
@@ -94,29 +109,72 @@ function buildOrderPdfDocumentTitle(data: OrderPrintData) {
   return `${customer}_${orderNumber}`
 }
 
+function orderPrintText(language: OrderPrintLanguage, ko: string, en: string) {
+  return language === 'en' ? en : ko
+}
+
+const ORDER_PROCESS_LABELS: Record<QuoteProcessTypeCode, string> = {
+  SMD: 'SMD',
+  SOLDERING: 'Soldering',
+  ASSEMBLY: 'Assembly',
+  DOWNLOAD: 'Download',
+  TEST: 'Testing',
+  PACKING: 'Packing',
+}
+
+/** Confirmation용 공정 문구 — 예: SMD + Assembly + Testing + Packing */
+export function formatOrderProcessLabel(codes: QuoteProcessTypeCode[]) {
+  if (!codes.length) return ''
+  return codes.map((code) => ORDER_PROCESS_LABELS[code]).join(' + ')
+}
+
+function formatCategoryLabel(category: string, language: OrderPrintLanguage) {
+  const value = category.trim()
+  if (language !== 'en') return value || '—'
+  if (value === '샘플') return 'Sample'
+  if (value === '양산') return 'Mass Production'
+  return value || '—'
+}
+
 export function buildOrderHtml(
   data: OrderPrintData,
   logoSrc = ORDER_PRINT_LOGO_PATH,
   sealSrc = ORDER_PRINT_SEAL_PATH,
+  language: OrderPrintLanguage = 'ko',
 ) {
+  const t = (ko: string, en: string) => orderPrintText(language, ko, en)
   const orderNumber = escapeHtml(data.orderNumber)
   const sourceQuote = String(data.sourceQuoteNumber || '').trim()
   const sourceQuoteHtml = sourceQuote
-    ? `<div class="meta-chip">견적번호 <strong>${escapeHtml(sourceQuote)}</strong></div>`
+    ? `<div class="meta-chip">${t('견적번호', 'Quote No.')} <strong>${escapeHtml(sourceQuote)}</strong></div>`
     : ''
   const customerPo = String(data.customerPoNumber || '').trim()
   const customerPoHtml = customerPo
-    ? `<div class="meta-chip">발주번호 <strong>${escapeHtml(customerPo)}</strong></div>`
+    ? `<div class="meta-chip">${t('발주번호', 'PO No.')} <strong>${escapeHtml(customerPo)}</strong></div>`
     : ''
   const orderDate = escapeHtml(formatOrderDate(data.orderDate) || data.orderDate)
   const deliveryDate = escapeHtml(formatOrderDate(data.deliveryDate) || data.deliveryDate || '—')
   const customer = escapeHtml(data.customer.trim() || '—')
-  const category = escapeHtml(data.category.trim() || '—')
+  const category = escapeHtml(formatCategoryLabel(data.category, language))
   const noteRaw = String(data.note || '').trim()
   const note = escapeHtml(noteRaw)
   const logo = escapeHtml(logoSrc)
   const seal = escapeHtml(sealSrc)
-  const companyName = escapeHtml(APP_SHORT_NAME)
+  const isExport = data.quoteType === 'export'
+  const companyName = escapeHtml(
+    language === 'en'
+      ? isExport
+        ? COMPANY_NAME_EN
+        : COMPANY_NAME_DOMESTIC_EN
+      : APP_SHORT_NAME,
+  )
+  const companyAddress = escapeHtml(
+    language === 'en'
+      ? isExport
+        ? COMPANY_ADDRESS_EXPORT
+        : COMPANY_ADDRESS_DOMESTIC_EN
+      : COMPANY_ADDRESS_STATEMENT,
+  )
   const contactEmail = escapeHtml(
     String(data.contactEmail || '').trim() || COMPANY_QUOTE_EMAIL_DOMESTIC,
   )
@@ -126,8 +184,12 @@ export function buildOrderHtml(
   const currency = normalizeOrderCurrency(data.currency)
   const moneyPrefix = currency === 'USD' ? '$' : '₩'
   const includeVat = data.includeVat === true && currency === 'KRW'
-  const unitPriceHeader = includeVat ? '단가 (VAT 포함)' : '단가'
-  const amountHeader = includeVat ? '금액 (VAT 포함)' : '금액'
+  const unitPriceHeader = includeVat
+    ? t('단가 (VAT 포함)', 'Unit Price (incl. VAT)')
+    : t('단가', 'Unit Price')
+  const amountHeader = includeVat
+    ? t('금액 (VAT 포함)', 'Amount (incl. VAT)')
+    : t('금액', 'Amount')
 
   let displayTotalIncl = totalAmount
   let vatAmount = 0
@@ -167,35 +229,45 @@ export function buildOrderHtml(
 
   const totalsHtml = includeVat
     ? `<div class="row">
-        <span class="label">수량 합계</span>
+        <span class="label">${t('수량 합계', 'Total Qty')}</span>
         <span class="value">${formatNumber(totalQuantity)}</span>
       </div>
       <div class="row">
-        <span class="label">공급가액</span>
+        <span class="label">${t('공급가액', 'Supply Amount')}</span>
         <span class="value">${escapeHtml(formatOrderMoney(totalAmount, currency))}</span>
       </div>
       <div class="row">
-        <span class="label">부가세 (10%)</span>
+        <span class="label">${t('부가세 (10%)', 'VAT (10%)')}</span>
         <span class="value">${escapeHtml(formatOrderMoney(vatAmount, currency))}</span>
       </div>
       <div class="row grand">
-        <span class="label">최종 합계 (VAT 포함)</span>
+        <span class="label">${t('최종 합계 (VAT 포함)', 'Grand Total (incl. VAT)')}</span>
         <span class="value">${escapeHtml(formatOrderMoney(displayTotalIncl, currency))}</span>
       </div>`
     : `<div class="row">
-        <span class="label">수량 합계</span>
+        <span class="label">${t('수량 합계', 'Total Qty')}</span>
         <span class="value">${formatNumber(totalQuantity)}</span>
       </div>
       <div class="row grand">
-        <span class="label">금액 합계</span>
+        <span class="label">${t('금액 합계', 'Total Amount')}</span>
         <span class="value">${escapeHtml(formatOrderMoney(totalAmount, currency))}</span>
       </div>`
 
-  const confirmationBody = noteRaw
+  const confirmationNote = noteRaw
     ? note
-    : '위 발주 내용을 확인합니다.'
+    : t('위 발주 내용을 확인합니다.', 'We confirm the purchase order above.')
+  const processRaw = String(data.processLabel || '').trim()
+  const confirmationBody = processRaw
+    ? `${escapeHtml(`${t('공정', 'Process')}: ${processRaw}`)}<br /><br />${confirmationNote}`
+    : confirmationNote
 
-  return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+  const htmlLang = language === 'en' ? 'en' : 'ko'
+  const fontStack =
+    language === 'en'
+      ? '"Segoe UI", "Helvetica Neue", Arial, sans-serif'
+      : '"Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif'
+
+  return `<!DOCTYPE html><html lang="${htmlLang}"><head><meta charset="UTF-8">
 <title></title><style>
 @page { size: A4 portrait; margin: 0; }
 html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -205,7 +277,7 @@ body {
   padding: 0;
   color: #0f172a;
   background: #fff;
-  font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-family: ${fontStack};
   font-size: 10px;
   line-height: 1.45;
 }
@@ -483,14 +555,14 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
         <div class="name">${companyName}</div>
         <div class="en">MIRAE SMT</div>
         <div class="contact">
-          ${escapeHtml(COMPANY_ADDRESS_STATEMENT)}<br />
+          ${companyAddress}<br />
           Tel ${escapeHtml(formatTel(COMPANY_TEL))} · ${contactEmail}
         </div>
       </div>
     </div>
     <div class="doc-badge">
       <div class="en">PURCHASE ORDER</div>
-      <h1>발주서</h1>
+      <h1>${t('발주서', 'P.O.')}</h1>
       <div class="order-no">${orderNumber}</div>
     </div>
   </div>
@@ -498,16 +570,16 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
 
   <div class="party-grid">
     <div class="party-box">
-      <div class="label">발주처 · Customer</div>
+      <div class="label">${t('발주처 · Customer', 'Customer')}</div>
       <div class="name">${customer}</div>
-      <div class="detail">발주일자 ${orderDate} · 분류 ${category}</div>
+      <div class="detail">${t('발주일자', 'Order Date')} ${orderDate} · ${t('분류', 'Category')} ${category}</div>
     </div>
     <div class="party-box supplier">
       <div class="supplier-body">
-        <div class="label">수주처 · Supplier</div>
+        <div class="label">${t('수주처 · Supplier', 'Supplier')}</div>
         <div class="name">${companyName}</div>
         <div class="detail">
-          사업자등록번호 ${escapeHtml(COMPANY_BIZ_NO)} · 대표자 ${escapeHtml(COMPANY_CEO_NAME)}
+          ${t('사업자등록번호', 'Business Reg. No.')} ${escapeHtml(COMPANY_BIZ_NO)} · ${t('대표자', 'CEO')} ${escapeHtml(COMPANY_CEO_NAME)}
         </div>
       </div>
       <img class="company-seal" src="${seal}" alt="" />
@@ -515,8 +587,8 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
   </div>
 
   <div class="meta-row">
-    <div class="meta-chip">납기(최초) <strong>${deliveryDate}</strong></div>
-    <div class="meta-chip">품목 <strong>${formatNumber(data.items.length)}종</strong></div>
+    <div class="meta-chip">${t('납기(최초)', 'Delivery')} <strong>${deliveryDate}</strong></div>
+    <div class="meta-chip">${t('품목', 'Items')} <strong>${formatNumber(data.items.length)}${t('종', '')}</strong></div>
     ${customerPoHtml}
     ${sourceQuoteHtml}
   </div>
@@ -533,9 +605,9 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
     <thead>
       <tr>
         <th class="c-no">No</th>
-        <th class="col-code">제품코드</th>
-        <th class="col-name">제품명</th>
-        <th class="col-qty">수량</th>
+        <th class="col-code">${t('제품코드', 'Product Code')}</th>
+        <th class="col-name">${t('제품명', 'Product Model')}</th>
+        <th class="col-qty">${t('수량', 'Qty')}</th>
         <th class="col-price">${unitPriceHeader}</th>
         <th class="col-amt">${amountHeader}</th>
       </tr>
@@ -545,7 +617,7 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
 
   <div class="bottom-grid">
     <div class="sign">
-      <div class="label">확인 · Confirmation</div>
+      <div class="label">${t('확인 · Confirmation', 'Confirmation')}</div>
       <div class="body">${confirmationBody}</div>
     </div>
     <div class="totals">
@@ -554,17 +626,21 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
   </div>
 
   <div class="footer">
-    <span>${companyName} · 정식 발주서</span>
+    <span>${companyName} · ${t('정식 발주서', 'Official Purchase Order')}</span>
     <span>${orderNumber}</span>
   </div>
 </div></body></html>`
 }
 
-export function printOrder(data: OrderPrintData) {
+export function printOrder(
+  data: OrderPrintData,
+  options?: { language?: OrderPrintLanguage },
+) {
   if (typeof document === 'undefined') return false
 
+  const language = options?.language === 'en' ? 'en' : 'ko'
   const pdfTitle = buildOrderPdfDocumentTitle(data)
-  const html = buildOrderHtml(data, resolvePrintLogoSrc(), resolvePrintSealSrc())
+  const html = buildOrderHtml(data, resolvePrintLogoSrc(), resolvePrintSealSrc(), language)
   const iframe = document.createElement('iframe')
   iframe.setAttribute('title', pdfTitle)
   iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
@@ -681,12 +757,7 @@ type QuotePrintSource = {
   productName: string
   boardQty: number
   totalAmount: number
-  detailInfo?: {
-    settings?: {
-      includeVat?: boolean
-      productionKind?: '샘플' | '양산'
-    }
-  }
+  detailInfo?: QuoteDetailInfo
 }
 
 /** 견적서 기준으로 발주서 인쇄 데이터 구성 (실제 발주 저장 없이 PDF용) */
@@ -705,6 +776,7 @@ export function buildOrderPrintDataFromQuote(
     quote.detailInfo?.settings?.productionKind === '샘플' ? '샘플' : '양산'
   const includeVat =
     quote.detailInfo?.settings?.includeVat === true && quote.quoteType === 'domestic'
+  const processLabel = formatOrderProcessLabel(getQuoteProcessTypeCodes(quote))
 
   return {
     orderNumber: quote.quoteNumber,
@@ -717,6 +789,8 @@ export function buildOrderPrintDataFromQuote(
     note: `견적 ${quote.quoteNumber} 기준 발주서`,
     includeVat,
     contactEmail: options?.contactEmail,
+    quoteType: quote.quoteType,
+    processLabel: processLabel || undefined,
     items: [
       {
         productId: options?.productId ?? null,

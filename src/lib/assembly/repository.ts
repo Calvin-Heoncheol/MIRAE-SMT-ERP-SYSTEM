@@ -249,11 +249,17 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
     }
 
     const bomGroups = computeAssemblyGroupsForOrder(derivedResult.lines, finishedProductBomRows)
-    const computed = [
-      ...bomGroups,
-      ...computeStandaloneFinishedProductGroups(derivedResult.lines, bomGroups, productById),
-      ...computeStandaloneSemiProductGroups(derivedResult.lines, bomGroups, productById),
-    ]
+    const finishedExtras = computeStandaloneFinishedProductGroups(
+      derivedResult.lines,
+      bomGroups,
+      productById,
+    )
+    const semiExtras = computeStandaloneSemiProductGroups(
+      derivedResult.lines,
+      [...bomGroups, ...finishedExtras],
+      productById,
+    )
+    const computed = [...bomGroups, ...finishedExtras, ...semiExtras]
     const supabase = createSupabaseClient()
 
     const { data: existingGroups, error: existingError } = await supabase
@@ -270,7 +276,11 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
             '조립 그룹 테이블이 없습니다. supabase/setup-bom.sql 또는 조립 그룹 마이그레이션을 적용하세요.',
         }
       }
-      return { ok: false, reason: 'query', detail: existingError.message }
+      return {
+        ok: false,
+        reason: 'query',
+        detail: `조립 그룹 동기화 실패: ${existingError.message}`,
+      }
     }
 
     const existingByParent = new Map(
@@ -291,6 +301,23 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
       }
     }
 
+    // 그룹별 라인 교체 전에 주문 단위로 비워, 중간 상태 duplicate key 를 막는다
+    const retainedGroupIds = [...existingByParent.entries()]
+      .filter(([parentProductId]) => computedParentIds.has(parentProductId))
+      .map(([, groupId]) => groupId)
+    if (retainedGroupIds.length) {
+      const { error: clearAllLinesError } = await supabase
+        .from('order_assembly_group_lines')
+        .delete()
+        .in('assembly_group_id', retainedGroupIds)
+
+      if (clearAllLinesError) {
+        return { ok: false, reason: 'query', detail: clearAllLinesError.message }
+      }
+    }
+
+    const claimedLineIds = new Set<string>()
+
     for (let index = 0; index < computed.length; index += 1) {
       const group = computed[index]
       const existingGroupId = existingByParent.get(group.parentProductId)
@@ -308,15 +335,6 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
 
         if (updateError) {
           return { ok: false, reason: 'query', detail: updateError.message }
-        }
-
-        const { error: clearLinesError } = await supabase
-          .from('order_assembly_group_lines')
-          .delete()
-          .eq('assembly_group_id', existingGroupId)
-
-        if (clearLinesError) {
-          return { ok: false, reason: 'query', detail: clearLinesError.message }
         }
       } else {
         const { data: inserted, error: insertGroupError } = await supabase
@@ -343,17 +361,23 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
           return {
             ok: false,
             reason: 'query',
-            detail,
+            detail: `조립 그룹 저장 실패: ${detail}`,
           }
         }
 
         groupId = inserted.id
       }
 
-      if (!group.lines.length || !groupId) continue
+      const uniqueLines = group.lines.filter((line) => {
+        if (!line.orderLineId || claimedLineIds.has(line.orderLineId)) return false
+        claimedLineIds.add(line.orderLineId)
+        return true
+      })
+
+      if (!uniqueLines.length || !groupId) continue
 
       const { error: insertLinesError } = await supabase.from('order_assembly_group_lines').insert(
-        group.lines.map((line) => ({
+        uniqueLines.map((line) => ({
           assembly_group_id: groupId,
           order_line_id: line.orderLineId,
           child_product_id: line.childProductId,
@@ -370,7 +394,11 @@ export async function syncAssemblyGroupsForOrder(orderId: string): Promise<SyncA
               '조립 그룹 테이블이 없습니다. supabase/setup-bom.sql 또는 조립 그룹 마이그레이션을 적용하세요.',
           }
         }
-        return { ok: false, reason: 'query', detail: insertLinesError.message }
+        return {
+          ok: false,
+          reason: 'query',
+          detail: `조립 그룹 라인 저장 실패: ${insertLinesError.message}`,
+        }
       }
     }
 
@@ -559,6 +587,11 @@ export async function repairMissingSemiFinishedDeliveryGroups(
   for (const orderId of orderIds) {
     const orderGroups = groupsByOrder.get(orderId) ?? []
     const parentIds = new Set(orderGroups.map((group) => group.parentProductId))
+    const coveredLineIds = new Set(
+      orderGroups.flatMap((group) =>
+        group.lines.map((line) => String(line.orderLineId || '').trim()).filter(Boolean),
+      ),
+    )
     let nextSeq =
       orderGroups.reduce((max, group) => Math.max(max, Math.floor(Number(group.groupSeq) || 0)), 0) + 1
 
@@ -568,6 +601,7 @@ export async function repairMissingSemiFinishedDeliveryGroups(
       targetQuantity: number,
     ) => {
       if (!parentProductId || !orderLineId) return
+      if (coveredLineIds.has(orderLineId)) return
       const product =
         productById[parentProductId] ||
         Object.values(productById).find((item) => {
@@ -582,6 +616,7 @@ export async function repairMissingSemiFinishedDeliveryGroups(
       if (parentIds.has(product.id)) return
       if (targetQuantity < 1) return
       parentIds.add(product.id)
+      coveredLineIds.add(orderLineId)
       toInsert.push({
         orderId,
         parentProductId: product.id,
@@ -592,19 +627,8 @@ export async function repairMissingSemiFinishedDeliveryGroups(
       nextSeq += 1
     }
 
-    for (const group of orderGroups) {
-      const parent = productById[group.parentProductId]
-      if (parent?.productKind !== 'assembly') continue
-
-      for (const line of group.lines) {
-        const childId = String(line.childProductId || '').trim()
-        const orderLineId = String(line.orderLineId || '').trim()
-        const quantityPer = Math.max(1, Math.floor(Number(line.quantityPer) || 1))
-        const targetQuantity = Math.max(0, Math.floor(Number(group.targetQuantity) || 0) * quantityPer)
-        addSemiGroup(childId, orderLineId, targetQuantity)
-      }
-    }
-
+    // 조립제품 그룹에 이미 묶인 자식 라인은 order_line_id unique 때문에 SFG 그룹을 또 만들 수 없음.
+    // 주문에 명시된 반제품 라인만 그룹이 없을 때 보완한다.
     const order = orderById.get(orderId)
     for (const item of order?.items || []) {
       const productId = String(item.productId || '').trim()

@@ -133,8 +133,8 @@ export function computeStandaloneFinishedProductGroups(
 
 /**
  * 반제품 단독 출하·생산 그룹.
- * 조립제품 BOM 자식이어도 반제품 코드로 따로 출하할 수 있게 부모 그룹을 만든다.
- * (파생 SMT 라인 포함)
+ * 이미 조립제품 BOM 그룹에 들어간 주문 라인은 제외한다
+ * (order_line_id 는 조립 그룹 라인에 한 번만 들어갈 수 있음).
  */
 export function computeStandaloneSemiProductGroups(
   orderLines: OrderLineRecord[],
@@ -142,12 +142,16 @@ export function computeStandaloneSemiProductGroups(
   productById: Record<string, Product>,
 ): ComputedAssemblyGroup[] {
   const parentIdsInGroups = new Set(existingGroups.map((group) => group.parentProductId))
+  const coveredLineIds = new Set(
+    existingGroups.flatMap((group) => group.lines.map((line) => line.orderLineId)),
+  )
   const extras: ComputedAssemblyGroup[] = []
 
   for (const line of orderLines) {
     const productId = resolveLineProductId(line)
     if (!productId || !line.id) continue
     if (parentIdsInGroups.has(productId)) continue
+    if (coveredLineIds.has(line.id)) continue
 
     const product = productById[productId]
     if (product?.productKind !== 'pcb') continue
@@ -156,6 +160,7 @@ export function computeStandaloneSemiProductGroups(
     if (targetQuantity <= 0) continue
 
     parentIdsInGroups.add(productId)
+    coveredLineIds.add(line.id)
     extras.push({
       parentProductId: productId,
       targetQuantity,
@@ -241,14 +246,22 @@ export function mapAssemblyGroupRecord(
   }
 }
 
+const ASSEMBLY_RELATED_TABLES = [
+  'order_assembly_groups',
+  'order_assembly_group_lines',
+  'bom_items',
+  'bom_detail',
+] as const
+
+/** 테이블/뷰가 실제로 없을 때만 true (FK·컬럼·권한 오류는 오탐하지 않음) */
 export function isMissingAssemblyTable(detail: string) {
-  return (
-    detail.includes('order_assembly_groups') ||
-    detail.includes('order_assembly_group_lines') ||
-    detail.includes('bom_items') ||
-    detail.includes('bom_detail') ||
-    detail.includes('schema cache')
-  )
+  return ASSEMBLY_RELATED_TABLES.some((name) => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return (
+      new RegExp(`could not find the table[^\\n]*${escaped}`, 'i').test(detail) ||
+      new RegExp(`relation ["'\`]?(?:public\\.)?${escaped}["'\`]? does not exist`, 'i').test(detail)
+    )
+  })
 }
 
 /**
