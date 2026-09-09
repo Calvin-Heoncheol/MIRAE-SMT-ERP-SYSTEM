@@ -5,7 +5,11 @@ import {
   buildShipmentStatementLinesFromHistory,
   type DeliveryBillingOnlyLine,
 } from '@/lib/delivery/utils'
-import { firstShipmentExtraLinesFromNotes } from '@/lib/delivery/register-form'
+import {
+  firstShipmentExtraLinesFromNotes,
+  isExtrasOnlyDeliveryStub,
+  stripShipmentInternalNotes,
+} from '@/lib/delivery/register-form'
 
 type BuildStatementContext = {
   unitPriceByDeliveryId: Record<string, number>
@@ -52,8 +56,9 @@ export async function buildDeliveryStatementDataFromTableGroup(
     return { ok: false, detail: `${group.shipmentId}: 출하 품목이 없습니다.` }
   }
 
+  const productHistoryLines = group.lines.filter((line) => !isExtrasOnlyDeliveryStub(line))
   const shippedLines = buildShipmentStatementLinesFromHistory({
-    lines: group.lines.map((line) => ({
+    lines: productHistoryLines.map((line) => ({
       id: line.id,
       orderNumber: line.orderNumber,
       assemblyGroupId: line.assemblyGroupId,
@@ -87,7 +92,10 @@ export async function buildDeliveryStatementDataFromTableGroup(
     shipmentId: group.shipmentId,
     shipDate: group.recordDate,
     customer: group.customer,
-    note: group.lines.find((line) => line.note.trim() && !line.note.includes('<!--SHIP_EXTRA:'))?.note || '',
+    note:
+      stripShipmentInternalNotes(
+        group.lines.find((line) => stripShipmentInternalNotes(line.note))?.note || '',
+      ) || '',
     shippedLines: shippedLines.map((line) => ({
       orderNumber: line.orderNumber,
       productCode: line.productCode,

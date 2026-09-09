@@ -110,6 +110,8 @@ export type NewCompanyInquiryFormState = {
   status: NewCompanyStatus
   sourceChannel: string
   closeReason: string
+  /** 등록일 (YYYY-MM-DD) — 수정 화면에서 편집 */
+  createdAt: string
 }
 
 export function emptyNewCompanyInquiryForm(): NewCompanyInquiryFormState {
@@ -125,6 +127,7 @@ export function emptyNewCompanyInquiryForm(): NewCompanyInquiryFormState {
     status: 'received',
     sourceChannel: '',
     closeReason: '',
+    createdAt: '',
   }
 }
 
@@ -141,6 +144,7 @@ export function inquiryToForm(inquiry: NewCompanyInquiry): NewCompanyInquiryForm
     status: inquiry.status,
     sourceChannel: inquiry.sourceChannel,
     closeReason: inquiry.closeReason,
+    createdAt: String(inquiry.createdAt || '').slice(0, 10),
   }
 }
 
@@ -151,6 +155,8 @@ export function formToInquiryPayload(form: NewCompanyInquiryFormState): NewCompa
     const parsed = Number(trimmedQty.replace(/,/g, ''))
     quantity = Number.isFinite(parsed) ? parsed : null
   }
+
+  const createdAt = form.createdAt.trim().slice(0, 10)
 
   return {
     contactName: form.contactName.trim(),
@@ -164,15 +170,25 @@ export function formToInquiryPayload(form: NewCompanyInquiryFormState): NewCompa
     status: form.status,
     sourceChannel: form.sourceChannel.trim(),
     closeReason: form.closeReason.trim(),
+    ...(createdAt ? { createdAt } : {}),
   }
 }
 
-export function validateNewCompanyInquiryForm(form: NewCompanyInquiryFormState): string | null {
+export function validateNewCompanyInquiryForm(
+  form: NewCompanyInquiryFormState,
+  options?: { requireCreatedAt?: boolean },
+): string | null {
   if (!form.contactName.trim()) return '담당자를 입력해 주세요.'
   if (!form.companyName.trim()) return '회사명을 입력해 주세요.'
   if (form.quantity.trim()) {
     const parsed = Number(form.quantity.trim().replace(/,/g, ''))
     if (!Number.isFinite(parsed) || parsed < 0) return '예상수량은 0 이상의 숫자로 입력해 주세요.'
+  }
+  if (options?.requireCreatedAt) {
+    const createdAt = form.createdAt.trim().slice(0, 10)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(createdAt)) {
+      return '등록일을 선택해 주세요.'
+    }
   }
   return null
 }

@@ -500,7 +500,7 @@ export function DeliveryRegisterItemsForm({
       </div>
       <p className="mt-2 text-xs text-slate-500">
         추가에서 품목·추가작업·자재를 고를 수 있습니다. 품목은 품목등록에서 선택하고, 추가작업·자재는 직접
-        입력합니다. 추가작업·자재는 거래명세서에만 반영됩니다.
+        입력합니다. 추가작업·자재는 발주번호 없이 출하할 수 있으며 거래명세서에만 반영됩니다.
       </p>
     </div>
   )

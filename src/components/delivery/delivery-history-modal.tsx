@@ -21,6 +21,7 @@ import {
   encodeShipmentExtraNote,
   findShippableOptionsForProduct,
   firstShipmentExtraLinesFromNotes,
+  isExtrasOnlyDeliveryStub,
   type DeliveryRegisterLineKind,
   type DeliveryShippableOption,
   type ShipmentExtraStatementLine,
@@ -361,15 +362,17 @@ function buildDisplayDrafts(
   unitPriceByDeliveryId: Record<string, number>,
 ): LineDraft[] {
   const statementLines = buildShipmentStatementLinesFromHistory({
-    lines: group.lines.map((line) => ({
-      id: line.id,
-      orderNumber: line.orderNumber,
-      assemblyGroupId: line.assemblyGroupId,
-      productId: line.productId,
-      productCode: line.productCode,
-      productName: line.productName,
-      quantity: line.quantity,
-    })),
+    lines: group.lines
+      .filter((line) => !isExtrasOnlyDeliveryStub(line))
+      .map((line) => ({
+        id: line.id,
+        orderNumber: line.orderNumber,
+        assemblyGroupId: line.assemblyGroupId,
+        productId: line.productId,
+        productCode: line.productCode,
+        productName: line.productName,
+        quantity: line.quantity,
+      })),
     unitPriceByDeliveryId,
     billingOnlyLines,
     productionOrders: productionOrders.map((order) => ({
@@ -770,7 +773,7 @@ export function DeliveryHistoryModal({
     const working = drafts.filter((line) => !isBlankNewDraft(line))
     const productDrafts = working.filter((line) => !line.billingOnly)
     const manualDrafts = working.filter((line) => line.manualEntry)
-    if (!productDrafts.length) {
+    if (!productDrafts.length && !manualDrafts.length) {
       setError('출하할 품목을 하나 이상 남겨 주세요.')
       return
     }
@@ -909,6 +912,11 @@ export function DeliveryHistoryModal({
         .map((line) => line.id),
       ...createdIds,
     ]
+    if (!noteTargetIds.length && extraLines.length) {
+      setSaving(false)
+      setError('추가작업·자재를 저장할 출하 기록이 없습니다.')
+      return
+    }
     for (const deliveryId of noteTargetIds) {
       const noteResult = await updateDeliveryRecord(deliveryId, { note: nextNote })
       if (!noteResult.ok) {

@@ -7,6 +7,7 @@ import { NewCompanyModal } from '@/components/new-companies/new-company-modal'
 import { ErpButton } from '@/components/ui/erp-button'
 import { FilterChipBar } from '@/components/ui/filter-chip'
 import { PageShell } from '@/components/ui/page-shell'
+import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchNewCompanyInquiriesResult } from '@/lib/new-companies/repository'
 import type { NewCompanyInquiry, NewCompanyStatus } from '@/lib/new-companies/types'
@@ -15,6 +16,7 @@ import {
   NEW_COMPANY_STATUS_LABELS,
   NEW_COMPANY_STATUSES,
 } from '@/lib/new-companies/types'
+import { printNewCompanyInquiryList } from '@/lib/new-companies/print-new-company-inquiry'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
@@ -54,6 +56,7 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
+  const [printError, setPrintError] = useState<string | null>(null)
 
   const inquiries = result.ok ? result.inquiries : []
   const query = search.trim().toLowerCase()
@@ -107,6 +110,14 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
     afterDelete(message ?? '신규업체가 삭제되었습니다.', { close: closeModal })
   }
 
+  function handlePrintListPdf() {
+    setPrintError(null)
+    const ok = printNewCompanyInquiryList(filtered)
+    if (!ok) {
+      setPrintError('인쇄 창을 열 수 없습니다. 브라우저 팝업 차단을 해제한 뒤 다시 시도해 주세요.')
+    }
+  }
+
   if (!result.ok) {
     return <NewCompanyFetchError result={result} />
   }
@@ -126,8 +137,23 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
               onChange={setStatusFilter}
             />
           }
-          actions={<ErpButton onClick={openCreate}>신규업체 등록</ErpButton>}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <ErpButton onClick={openCreate}>신규업체 등록</ErpButton>
+              <PdfDownloadButton
+                onDownload={handlePrintListPdf}
+                disabled={filtered.length === 0}
+                label="PDF"
+              />
+            </div>
+          }
         />
+
+        {printError ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">
+            {printError}
+          </div>
+        ) : null}
 
         <NewCompanyListTable
           inquiries={filtered}

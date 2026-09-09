@@ -5,6 +5,7 @@ import {
   buildShipmentStatementLinesFromHistory,
   type DeliveryBillingOnlyLine,
 } from '@/lib/delivery/utils'
+import { firstShipmentExtraLinesFromNotes, isExtrasOnlyDeliveryStub } from '@/lib/delivery/register-form'
 
 export type DeliveryHistoryShipmentGroup = {
   shipmentId: string
@@ -171,21 +172,32 @@ export function computeShipmentGroupSupplyAmount(
   },
 ): number {
   const statementLines = buildShipmentStatementLinesFromHistory({
-    lines: group.lines.map((line) => ({
-      id: line.id,
-      orderNumber: line.orderNumber,
-      assemblyGroupId: line.assemblyGroupId,
-      productId: line.productId,
-      productCode: line.productCode,
-      productName: line.productName,
-      quantity: line.quantity,
-    })),
+    lines: group.lines
+      .filter((line) => !isExtrasOnlyDeliveryStub(line))
+      .map((line) => ({
+        id: line.id,
+        orderNumber: line.orderNumber,
+        assemblyGroupId: line.assemblyGroupId,
+        productId: line.productId,
+        productCode: line.productCode,
+        productName: line.productName,
+        quantity: line.quantity,
+      })),
     unitPriceByDeliveryId: input.unitPriceByDeliveryId,
     billingOnlyLines: input.billingOnlyLines,
     productionOrders: input.productionOrders,
   })
 
-  return statementLines.reduce((sum, line) => {
+  const extraLines = firstShipmentExtraLinesFromNotes(group.lines.map((line) => line.note))
+  const allLines = [
+    ...statementLines,
+    ...extraLines.map((extra) => ({
+      qty: extra.qty,
+      unitPrice: extra.unitPrice,
+    })),
+  ]
+
+  return allLines.reduce((sum, line) => {
     const qty = Math.max(0, Math.floor(Number(line.qty) || 0))
     const price = Math.max(0, Math.round(Number(line.unitPrice) || 0))
     return sum + qty * price

@@ -53,7 +53,7 @@ export function mapNewCompanyInquiryRecord(row: NewCompanyInquiryRow): NewCompan
 }
 
 export function toNewCompanyInquiryRow(payload: NewCompanyInquiryPayload) {
-  return {
+  const row: Record<string, unknown> = {
     contact_name: payload.contactName.trim(),
     company_name: payload.companyName.trim(),
     region: payload.region.trim(),
@@ -66,6 +66,16 @@ export function toNewCompanyInquiryRow(payload: NewCompanyInquiryPayload) {
     source_channel: payload.sourceChannel.trim(),
     close_reason: payload.closeReason.trim(),
   }
+
+  const createdAt = String(payload.createdAt || '')
+    .trim()
+    .slice(0, 10)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(createdAt)) {
+    // 날짜만 바꿀 때 UTC 자정으로 밀리지 않도록 KST 정오 기준
+    row.created_at = `${createdAt}T12:00:00+09:00`
+  }
+
+  return row
 }
 
 export function formatInquiryQuantity(value: number | null) {

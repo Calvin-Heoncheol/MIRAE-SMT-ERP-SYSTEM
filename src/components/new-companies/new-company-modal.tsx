@@ -99,7 +99,9 @@ function NewCompanyModalContent({
   }
 
   async function handleSave() {
-    const validationError = validateNewCompanyInquiryForm(form)
+    const validationError = validateNewCompanyInquiryForm(form, {
+      requireCreatedAt: !isCreate,
+    })
     if (validationError) {
       setSaveError(validationError)
       return
@@ -212,6 +214,21 @@ function NewCompanyModalContent({
             })}
           </div>
         </div>
+
+        {!isCreate ? (
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>
+              등록일 <span className="text-red-500">*</span>
+            </span>
+            <input
+              type="date"
+              value={form.createdAt}
+              disabled={busy}
+              onChange={(event) => updateForm('createdAt', event.target.value)}
+              className={`${ERP_FIELD_INPUT_CLASS} max-w-[12rem] tabular-nums`}
+            />
+          </label>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm">

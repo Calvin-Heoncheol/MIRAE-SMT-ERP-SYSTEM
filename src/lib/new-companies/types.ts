@@ -101,6 +101,8 @@ export type NewCompanyInquiryPayload = {
   status: NewCompanyStatus
   sourceChannel: string
   closeReason: string
+  /** 수정 시 등록일 (YYYY-MM-DD). 생성 시에는 생략 */
+  createdAt?: string
 }
 
 export function isNewCompanyStatus(value: string): value is NewCompanyStatus {

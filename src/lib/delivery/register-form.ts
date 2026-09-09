@@ -135,6 +135,27 @@ export type ShipmentExtraStatementLine = {
 }
 
 const SHIPMENT_EXTRA_NOTE_RE = /<!--SHIP_EXTRA:([\s\S]*?)-->/
+const SHIPMENT_CUSTOMER_NOTE_RE = /<!--SHIP_CUSTOMER:([\s\S]*?)-->/
+
+export function encodeShipmentCustomerNote(existingNote: string, customer: string) {
+  const name = String(customer || '').trim()
+  const base = String(existingNote || '')
+    .replace(SHIPMENT_CUSTOMER_NOTE_RE, '')
+    .trim()
+  if (!name) return base
+  const marker = `<!--SHIP_CUSTOMER:${encodeURIComponent(name)}-->`
+  return base ? `${base}\n${marker}` : marker
+}
+
+export function parseShipmentCustomerFromNote(note: string | null | undefined) {
+  const match = String(note || '').match(SHIPMENT_CUSTOMER_NOTE_RE)
+  if (!match?.[1]) return ''
+  try {
+    return decodeURIComponent(match[1]).trim()
+  } catch {
+    return String(match[1] || '').trim()
+  }
+}
 
 export function encodeShipmentExtraNote(existingNote: string, lines: ShipmentExtraStatementLine[]) {
   const base = String(existingNote || '')
@@ -186,6 +207,22 @@ export function firstShipmentExtraLinesFromNotes(
     if (lines.length) return lines
   }
   return []
+}
+
+/** 발주 없이 추가작업·자재만 담은 출하 스텁 (assembly_group_id null) */
+export function isExtrasOnlyDeliveryStub(row: {
+  assemblyGroupId?: string | null
+  note?: string | null
+}) {
+  if (String(row.assemblyGroupId || '').trim()) return false
+  return parseShipmentExtraLines(row.note).length > 0
+}
+
+export function stripShipmentInternalNotes(note: string | null | undefined) {
+  return String(note || '')
+    .replace(SHIPMENT_EXTRA_NOTE_RE, '')
+    .replace(SHIPMENT_CUSTOMER_NOTE_RE, '')
+    .trim()
 }
 
 export function collectManualRegisterStatementLines(
@@ -957,13 +994,23 @@ export function validateDeliveryRegisterItems(
   }
 
   const productLines = lines.filter((item) => !isManualRegisterItem(item))
-  if (!productLines.length) {
-    return { ok: false, detail: '출하할 품목(제품)을 하나 이상 선택해 주세요.' }
+  const manualLines = lines.filter((item) => isManualRegisterItem(item))
+  if (!productLines.length && !manualLines.length) {
+    return { ok: false, detail: '출하할 품목을 하나 이상 선택해 주세요.' }
   }
 
-  const customer = productLines[0]!.customer.trim() || customerName
+  const customer =
+    productLines[0]?.customer.trim() ||
+    customerName ||
+    manualLines.find((item) => item.customer.trim())?.customer.trim() ||
+    ''
   if (!customer) {
-    return { ok: false, detail: '고객사 정보가 없는 품목입니다.' }
+    return {
+      ok: false,
+      detail: productLines.length
+        ? '고객사 정보가 없는 품목입니다.'
+        : '추가작업·자재만 출하할 때는 고객사를 선택해 주세요.',
+    }
   }
 
   const seen = new Set<string>()
@@ -1010,7 +1057,13 @@ export function validateDeliveryRegisterItems(
     }
   }
 
-  return { ok: true, lines, customer }
+  return {
+    ok: true,
+    lines: lines.map((item) =>
+      isManualRegisterItem(item) ? { ...item, customer: item.customer.trim() || customer } : item,
+    ),
+    customer,
+  }
 }
 
 function shippableOptionSearchValues(option: DeliveryShippableOption) {

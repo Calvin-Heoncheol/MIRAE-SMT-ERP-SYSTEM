@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from 'react'
 import { DeliveryRegisterItemsForm } from '@/components/delivery/delivery-register-items-form'
+import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { useBusy } from '@/components/ui/busy-provider'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
   isBillingRegisterItem,
+  isManualRegisterItem,
   padDeliveryRegisterItems,
   resolveDeliveryRegisterCustomer,
   validateDeliveryRegisterItems,
@@ -17,6 +19,7 @@ import {
 import { createDeliveryShipment } from '@/lib/delivery/repository'
 import type { DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
+import type { BusinessPartner } from '@/lib/partners/types'
 import type { Product } from '@/lib/products/types'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
@@ -25,6 +28,7 @@ type DeliveryRegisterModalProps = {
   options: DeliveryShippableOption[]
   billingOnlyLines?: DeliveryBillingOnlyLine[]
   products: Product[]
+  partners?: BusinessPartner[]
   initialItems?: DeliveryRegisterItemForm[] | null
   onClose: () => void
   onShipped?: (payload: {
@@ -64,10 +68,22 @@ function resolveRegisterSeedCustomer(
   return ''
 }
 
+function productLinkedCustomer(items: DeliveryRegisterItemForm[]) {
+  for (const item of items) {
+    if (isManualRegisterItem(item) || isBillingRegisterItem(item)) continue
+    const customer = item.customer.trim()
+    if (customer && (item.assemblyGroupId.trim() || item.productCode.trim())) {
+      return customer
+    }
+  }
+  return ''
+}
+
 function DeliveryRegisterModalContent({
   options,
   billingOnlyLines = [],
   products,
+  partners = [],
   initialItems,
   onClose,
   onShipped,
@@ -79,6 +95,7 @@ function DeliveryRegisterModalContent({
     [initialItems, options],
   )
   const [recordDate, setRecordDate] = useState(todayYmdSeoul())
+  const [customerOverride, setCustomerOverride] = useState(seedCustomer)
   const [items, setItems] = useState<DeliveryRegisterItemForm[]>(() => {
     if (initialItems?.length) {
       return padDeliveryRegisterItems(
@@ -91,15 +108,28 @@ function DeliveryRegisterModalContent({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const customer = useMemo(
-    () => resolveDeliveryRegisterCustomer(items, seedCustomer),
-    [items, seedCustomer],
-  )
+  const lockedCustomer = useMemo(() => productLinkedCustomer(items), [items])
+  const customer = lockedCustomer || customerOverride.trim()
+  const customerEditable = !lockedCustomer
+
+  function applyCustomer(nextCustomer: string) {
+    const name = nextCustomer.trim()
+    setCustomerOverride(name)
+    setItems((current) =>
+      current.map((item) =>
+        isManualRegisterItem(item) ? { ...item, customer: name } : item,
+      ),
+    )
+  }
 
   async function handleShip() {
-    const customerName = resolveDeliveryRegisterCustomer(items, seedCustomer)
+    const customerName = lockedCustomer || customerOverride.trim()
     if (!customerName) {
-      setSaveError('품목을 선택하면 고객사가 자동으로 입력됩니다.')
+      setSaveError(
+        lockedCustomer
+          ? '품목을 선택하면 고객사가 자동으로 입력됩니다.'
+          : '추가작업·자재만 출하할 때는 고객사를 선택해 주세요.',
+      )
       return
     }
 
@@ -176,7 +206,7 @@ function DeliveryRegisterModalContent({
       open
       size="wide"
       title="출하 등록"
-      description="출하일을 입력한 뒤 품목을 선택하면 고객사와 발주(생산현황) 잔량이 자동으로 연결됩니다."
+      description="출하일을 입력한 뒤 품목을 선택하거나, 추가작업·자재만으로도 출하할 수 있습니다."
       onClose={onClose}
       closeOnEscape={!busy}
       contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
@@ -195,14 +225,34 @@ function DeliveryRegisterModalContent({
       <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>고객사</span>
-            <input
-              value={customer}
-              readOnly
-              placeholder="품목 선택 시 자동 입력"
-              className={readOnlyClass}
-              aria-label="고객사 (품목 선택 시 자동 입력)"
-            />
+            <span className={ERP_FIELD_LABEL_CLASS}>
+              고객사{' '}
+              {customerEditable ? <span className="text-rose-600">*</span> : null}
+            </span>
+            {customerEditable ? (
+              <CustomerCombobox
+                value={customerOverride}
+                partners={partners}
+                placeholder="거래처명 검색"
+                ariaLabel="고객사"
+                inputClassName={inputClass}
+                onValueChange={applyCustomer}
+                onPartnerSelect={(partner) => applyCustomer(partner.name)}
+              />
+            ) : (
+              <input
+                value={customer}
+                readOnly
+                placeholder="품목 선택 시 자동 입력"
+                className={readOnlyClass}
+                aria-label="고객사 (품목 선택 시 자동 입력)"
+              />
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              {customerEditable
+                ? '추가작업·자재만 출하할 때 고객사를 선택하세요. 품목을 고르면 자동으로 바뀝니다.'
+                : '품목에 연결된 고객사가 적용됩니다.'}
+            </p>
           </label>
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>
@@ -237,6 +287,7 @@ export function DeliveryRegisterModal({
   options,
   billingOnlyLines,
   products,
+  partners,
   initialItems,
   onClose,
   onShipped,
@@ -247,6 +298,7 @@ export function DeliveryRegisterModal({
       options={options}
       billingOnlyLines={billingOnlyLines}
       products={products}
+      partners={partners}
       initialItems={initialItems}
       onClose={onClose}
       onShipped={onShipped}

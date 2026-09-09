@@ -56,7 +56,13 @@ import {
   computeDeliveryAvailability,
   describeDeliveryBlockReason,
 } from './utils'
-import { encodeShipmentExtraNote, resolveDeliveryRecordMaxShippable } from './register-form'
+import {
+  encodeShipmentCustomerNote,
+  encodeShipmentExtraNote,
+  parseShipmentCustomerFromNote,
+  parseShipmentExtraLines,
+  resolveDeliveryRecordMaxShippable,
+} from './register-form'
 import { DELIVERY_PERSIST_PRODUCTION_LOTS, DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from './config'
 
 /** 출하 저장용 LOT 반영 — 끄면 발주 잔량만으로 출하하고 생산실적 sync를 하지 않음 */
@@ -802,13 +808,38 @@ export async function createDeliveryShipment(
     })
   }
   const lines = [...merged.values()]
+  const extraLines = (input.extraStatementLines || [])
+    .map((line) => ({
+      productCode: String(line.productCode || '').trim(),
+      productName: String(line.productName || '').trim(),
+      qty: Math.max(0, Math.floor(Number(line.qty) || 0)),
+      unitPrice: Math.max(0, Math.round(Number(line.unitPrice) || 0)),
+      lineKind:
+        line.lineKind === 'material'
+          ? ('material' as const)
+          : ('additional_work' as const),
+      orderNumber: String(line.orderNumber || '').trim() || undefined,
+    }))
+    .filter((line) => line.productName && line.qty >= 1)
 
-  if (!lines.length) {
+  if (!lines.length && !extraLines.length) {
     return { ok: false, reason: 'validation', detail: '출하목록에 품목을 추가해 주세요.' }
   }
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return { ok: false, reason: 'env', detail: 'Supabase 환경 변수가 설정되지 않았습니다.' }
+  }
+
+  const recordDate = input.recordDate?.trim() || todayYmdSeoul()
+
+  // 추가작업·자재만 (발주/제품 없음) — assembly_group_id null 스텁
+  if (!lines.length) {
+    return createExtrasOnlyDeliveryShipment({
+      customer,
+      recordDate,
+      note: input.note?.trim() || '',
+      extraLines,
+    })
   }
 
   try {
@@ -854,20 +885,6 @@ export async function createDeliveryShipment(
       }
     }
 
-    const recordDate = input.recordDate?.trim() || todayYmdSeoul()
-    const extraLines = (input.extraStatementLines || [])
-      .map((line) => ({
-        productCode: String(line.productCode || '').trim(),
-        productName: String(line.productName || '').trim(),
-        qty: Math.max(0, Math.floor(Number(line.qty) || 0)),
-        unitPrice: Math.max(0, Math.round(Number(line.unitPrice) || 0)),
-        lineKind:
-          line.lineKind === 'material'
-            ? ('material' as const)
-            : ('additional_work' as const),
-        orderNumber: String(line.orderNumber || '').trim() || undefined,
-      }))
-      .filter((line) => line.productName && line.qty >= 1)
     const note = encodeShipmentExtraNote(input.note?.trim() || '', extraLines)
     const records: DeliveryRecord[] = []
     let usedCatchUp = false
@@ -929,6 +946,88 @@ export async function createDeliveryShipment(
       shipmentId,
       records: records.map((record) => ({ ...record, shipmentId })),
       usedCatchUp: usedCatchUp || undefined,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+async function createExtrasOnlyDeliveryShipment(input: {
+  customer: string
+  recordDate: string
+  note: string
+  extraLines: Array<{
+    productCode: string
+    productName: string
+    qty: number
+    unitPrice: number
+    lineKind: 'additional_work' | 'material'
+    orderNumber?: string
+  }>
+}): Promise<CreateDeliveryShipmentResult> {
+  const gate = await assertCanWrite({ module: 'sales', action: 'create' })
+  if (!gate.ok) return gate
+
+  try {
+    const supabase = createSupabaseClient()
+    const quantity = Math.max(
+      1,
+      input.extraLines.reduce((sum, line) => sum + Math.max(0, Math.floor(Number(line.qty) || 0)), 0),
+    )
+    let note = encodeShipmentExtraNote(input.note, input.extraLines)
+    note = encodeShipmentCustomerNote(note, input.customer)
+
+    const basePayload = await withCreatedByFields({
+      record_date: input.recordDate,
+      assembly_group_id: null,
+      quantity,
+      source: 'manual' as DeliverySource,
+      note,
+      shipment_id: '',
+    })
+
+    let { data: inserted, error: insertError } = await supabase
+      .from('delivery_records')
+      .insert(basePayload)
+      .select('*')
+      .single()
+
+    if (insertError && isMissingCreatedByColumn(insertError.message)) {
+      ;({ data: inserted, error: insertError } = await supabase
+        .from('delivery_records')
+        .insert(stripCreatedByFields(basePayload))
+        .select('*')
+        .single())
+    }
+
+    if (insertError || !inserted) {
+      return {
+        ok: false,
+        reason: 'query',
+        detail: insertError?.message || '출하 기록 저장에 실패했습니다.',
+      }
+    }
+
+    const record = mapDeliveryRecord(inserted)
+    const shipmentId = record.id
+    if (record.shipmentId !== shipmentId) {
+      await supabase.from('delivery_records').update({ shipment_id: shipmentId }).eq('id', shipmentId)
+    }
+
+    await persistPaymentTermSnapshot(
+      'delivery_records',
+      shipmentId,
+      await resolveDeliveryPaymentSnapshot({ customer: input.customer }),
+    )
+
+    return {
+      ok: true,
+      shipmentId,
+      records: [{ ...record, shipmentId }],
     }
   } catch (error) {
     return {
@@ -1190,12 +1289,17 @@ export async function updateDeliveryRecord(
       return { ok: false, reason: 'validation', detail: '출하 수량은 1 이상이어야 합니다.' }
     }
 
-    const validation = await validateDeliveryQuantityChange(existing.assembly_group_id, quantity, {
-      previousQuantity: existing.quantity,
-    })
+    const assemblyGroupId = String(existing.assembly_group_id || '').trim()
+    let cumulative = quantity
+    if (assemblyGroupId) {
+      const validation = await validateDeliveryQuantityChange(assemblyGroupId, quantity, {
+        previousQuantity: existing.quantity,
+      })
 
-    if (!validation.ok) {
-      return validation
+      if (!validation.ok) {
+        return validation
+      }
+      cumulative = validation.cumulative
     }
 
     const recordDate = input.recordDate?.trim() || String(existing.record_date || '').slice(0, 10)
@@ -1220,14 +1324,15 @@ export async function updateDeliveryRecord(
       }
     }
 
-    const assemblyGroupId = String(existing.assembly_group_id || '').trim()
-    const lotsResult = await maybePersistDeliveryLots({
-      deliveryRecordId: id,
-      assemblyGroupId,
-      quantity,
-      preferDate: recordDate,
-      mode: 'replace',
-    })
+    const lotsResult = assemblyGroupId
+      ? await maybePersistDeliveryLots({
+          deliveryRecordId: id,
+          assemblyGroupId,
+          quantity,
+          preferDate: recordDate,
+          mode: 'replace',
+        })
+      : { ok: true as const, usedCatchUp: undefined as boolean | undefined }
     if (!lotsResult.ok && lotsResult.reason === 'validation') {
       await supabase
         .from('delivery_records')
@@ -1246,7 +1351,7 @@ export async function updateDeliveryRecord(
     return {
       ok: true,
       record: mapDeliveryRecord(updated),
-      cumulative: validation.cumulative,
+      cumulative,
       usedCatchUp: lotsResult.ok ? lotsResult.usedCatchUp : undefined,
     }
   } catch (error) {
@@ -1373,8 +1478,41 @@ type DeliveryHistoryRecordRow = {
 }
 
 function mapDeliveryHistoryRow(row: DeliveryHistoryRecordRow): DeliveryHistoryRow | null {
+  const record = mapDeliveryRecord(row)
   const assemblyGroups = row.order_assembly_groups
-  if (!assemblyGroups) return null
+
+  if (!assemblyGroups) {
+    // legacy_statement:… 스텁은 과거명세 경로에서 처리 (순환 import 방지로 prefix 직접 비교)
+    if (String(record.note || '').trim().startsWith('legacy_statement:')) return null
+    const extras = parseShipmentExtraLines(record.note)
+    if (!extras.length) return null
+    const customer = parseShipmentCustomerFromNote(record.note)
+    const productNames = [...new Set(extras.map((line) => line.productName.trim()).filter(Boolean))]
+    return {
+      id: record.id,
+      shipmentId: record.shipmentId,
+      assemblyGroupId: '',
+      recordDate: record.recordDate,
+      createdAt: record.createdAt,
+      orderNumber: '',
+      customerPoNumber: '',
+      customer,
+      productName:
+        productNames.length <= 1
+          ? productNames[0] || '추가작업·자재'
+          : `${productNames[0]} 외 ${productNames.length - 1}건`,
+      productCode: extras[0]?.productCode || '',
+      productId: '',
+      targetQuantity: 0,
+      quantity: record.quantity,
+      shipmentRound: 0,
+      source: record.source,
+      note: record.note,
+      createdBy: record.createdBy,
+      createdByName: record.createdByName,
+      lotLabel: '',
+    }
+  }
 
   const assemblyGroup = Array.isArray(assemblyGroups) ? assemblyGroups[0] : assemblyGroups
   if (!assemblyGroup) return null
@@ -1386,7 +1524,6 @@ function mapDeliveryHistoryRow(row: DeliveryHistoryRecordRow): DeliveryHistoryRo
   const order = Array.isArray(orders) ? orders[0] : orders
   if (!order) return null
 
-  const record = mapDeliveryRecord(row)
   const { productId, productCode } = resolveHistoryProductIdentity(
     product,
     assemblyGroup.parent_product_id,
