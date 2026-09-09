@@ -1,6 +1,7 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { insertChangeLog } from '@/lib/change-logs/repository'
 import { deleteDeliveryRecord, updateDeliveryRecord } from '@/lib/delivery/repository'
+import { parseItemVersionCode } from '@/lib/items/version-code'
 import { deleteOrder } from '@/lib/orders/repository'
 import {
   deleteLegacyShipmentStub,
@@ -14,9 +15,11 @@ export type UpdateStatementLineInput = {
   deliveryId: string
   orderNumber: string
   orderLineId?: string
+  assemblyGroupId?: string
   recordDate: string
   customer?: string
   productCode?: string
+  productId?: string
   productName?: string
   quantity: number
   unitPrice: number
@@ -37,6 +40,7 @@ type OrderLineMatch = {
   quantity: number
   product_id: string | null
   product_code: string | null
+  product_name?: string | null
   derived_from_line_id: string | null
   unit_price: number | null
 }
@@ -49,46 +53,136 @@ function missingEnvResult(): StatementEditResult {
   }
 }
 
+function codesEqual(left: string, right: string) {
+  const a = String(left || '').trim()
+  const b = String(right || '').trim()
+  if (!a || !b) return false
+  if (a === b) return true
+  const aBase = parseItemVersionCode(a).base
+  const bBase = parseItemVersionCode(b).base
+  return Boolean(aBase && bBase && (aBase === b || bBase === a || aBase === bBase))
+}
+
 function matchOrderLine(
   lines: OrderLineMatch[],
-  options: { orderLineId?: string; productCode?: string },
+  options: {
+    orderLineId?: string
+    productCode?: string
+    productId?: string
+    productName?: string
+  },
 ): OrderLineMatch | undefined {
+  const usable = lines.filter((line) => !line.derived_from_line_id)
   const lineId = String(options.orderLineId || '').trim()
   if (lineId) {
-    const byId = lines.find((line) => line.id === lineId)
+    const byId = usable.find((line) => line.id === lineId) || lines.find((line) => line.id === lineId)
     if (byId) return byId
   }
 
-  const productCode = String(options.productCode || '').trim()
-  if (!productCode) return undefined
+  const productId = String(options.productId || '').trim()
+  if (productId) {
+    const byProductId = usable.find((line) => String(line.product_id || '').trim() === productId)
+    if (byProductId) return byProductId
+  }
 
-  return (
-    lines.find(
-      (line) =>
-        !line.derived_from_line_id &&
-        (line.product_id === productCode || line.product_code === productCode),
-    ) ||
-    lines.find((line) => line.product_id === productCode || line.product_code === productCode)
-  )
+  const productCode = String(options.productCode || '').trim()
+  if (productCode) {
+    const byCode =
+      usable.find(
+        (line) =>
+          Boolean(String(line.product_id || '').trim()) &&
+          (codesEqual(String(line.product_id || ''), productCode) ||
+            codesEqual(String(line.product_code || ''), productCode)),
+      ) ||
+      usable.find(
+        (line) =>
+          codesEqual(String(line.product_id || ''), productCode) ||
+          codesEqual(String(line.product_code || ''), productCode),
+      )
+    if (byCode) return byCode
+  }
+
+  const productName = String(options.productName || '').trim()
+  if (productName) {
+    const nameMatches = usable.filter(
+      (line) => String(line.product_name || '').trim() === productName,
+    )
+    if (nameMatches.length === 1) return nameMatches[0]
+  }
+
+  return undefined
+}
+
+async function resolveParentProductIdFromAssembly(assemblyGroupId: string) {
+  const id = String(assemblyGroupId || '').trim()
+  if (!id) return { orderId: '', parentProductId: '' }
+
+  const supabase = createSupabaseClient()
+  const { data, error } = await supabase
+    .from('order_assembly_groups')
+    .select('order_id, parent_product_id')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error || !data) return { orderId: '', parentProductId: '' }
+  return {
+    orderId: String(data.order_id || '').trim(),
+    parentProductId: String(data.parent_product_id || '').trim(),
+  }
+}
+
+async function resolveAssemblyGroupIdFromDelivery(deliveryId: string) {
+  const id = String(deliveryId || '').trim()
+  if (!id) return ''
+
+  const supabase = createSupabaseClient()
+  const { data, error } = await supabase
+    .from('delivery_records')
+    .select('assembly_group_id')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error || !data) return ''
+  return String(data.assembly_group_id || '').trim()
 }
 
 async function updateOrderLineUnitPrice(input: {
   orderNumber: string
   orderLineId?: string
+  assemblyGroupId?: string
+  deliveryId?: string
   productCode?: string
+  productId?: string
   productName?: string
   unitPrice: number
   reason?: string
+  /** true면 라인을 못 찾을 때 실패. false면 단가 갱신만 건너뜀 */
+  requireMatch?: boolean
 }): Promise<StatementEditResult> {
-  const orderNumber = String(input.orderNumber || '').trim()
+  let orderNumber = String(input.orderNumber || '').trim()
+  let productId = String(input.productId || '').trim()
+  let assemblyGroupId = String(input.assemblyGroupId || '').trim()
+
+  if (!assemblyGroupId && input.deliveryId) {
+    assemblyGroupId = await resolveAssemblyGroupIdFromDelivery(input.deliveryId)
+  }
+
+  if (assemblyGroupId) {
+    const resolved = await resolveParentProductIdFromAssembly(assemblyGroupId)
+    if (!orderNumber && resolved.orderId) orderNumber = resolved.orderId
+    if (!productId && resolved.parentProductId) productId = resolved.parentProductId
+  }
+
   if (!orderNumber) {
-    return { ok: true }
+    return input.requireMatch
+      ? { ok: false, reason: 'validation', detail: '단가를 저장할 발주서를 찾지 못했습니다.' }
+      : { ok: true }
   }
 
   const supabase = createSupabaseClient()
   const { data, error } = await supabase
     .from('order_lines')
-    .select('id, quantity, product_id, product_code, derived_from_line_id, unit_price')
+    .select('id, quantity, product_id, product_code, product_name, derived_from_line_id, unit_price')
     .eq('order_id', orderNumber)
 
   if (error) {
@@ -98,13 +192,19 @@ async function updateOrderLineUnitPrice(input: {
   const match = matchOrderLine((data || []) as OrderLineMatch[], {
     orderLineId: input.orderLineId,
     productCode: input.productCode,
+    productId,
+    productName: input.productName,
   })
   if (!match) {
-    return {
-      ok: false,
-      reason: 'validation',
-      detail: '단가를 저장할 발주서 라인을 찾지 못했습니다.',
+    if (input.requireMatch) {
+      return {
+        ok: false,
+        reason: 'validation',
+        detail: '단가를 저장할 발주서 라인을 찾지 못했습니다.',
+      }
     }
+    // 출하일·수량은 이미 반영된 상태 — 단가 매칭 실패로 전체 저장을 막지 않음
+    return { ok: true }
   }
 
   const beforePrice = Math.max(0, Math.round(Number(match.unit_price) || 0))
@@ -232,16 +332,22 @@ export async function updateStatementLine(
       const priceResult = await updateOrderLineUnitPrice({
         orderNumber: input.orderNumber,
         orderLineId: input.orderLineId,
+        assemblyGroupId: input.assemblyGroupId,
+        deliveryId: input.deliveryId,
         productCode: input.productCode,
+        productId: input.productId,
         productName: input.productName,
         unitPrice,
         reason: options?.reason,
+        requireMatch: Boolean(input.billingOnly),
       })
       if (!priceResult.ok) {
         return {
           ok: false,
           reason: priceResult.reason,
-          detail: `${priceResult.detail} (출하일·수량은 저장되었습니다.)`,
+          detail: input.billingOnly
+            ? priceResult.detail
+            : `${priceResult.detail} (출하일·수량은 저장되었습니다.)`,
         }
       }
 

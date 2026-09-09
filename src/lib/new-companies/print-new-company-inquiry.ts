@@ -2,6 +2,7 @@ import { APP_SHORT_NAME } from '@/lib/app-config'
 import {
   NEW_COMPANY_STATUS_LABELS,
   type NewCompanyInquiry,
+  type NewCompanyStatus,
 } from '@/lib/new-companies/types'
 
 function escapeHtml(value: string) {
@@ -23,6 +24,20 @@ function formatCreatedAt(value: string) {
   return escapeHtml(raw.slice(0, 10))
 }
 
+/** 화면 뱃지와 동일한 톤 (인쇄용 inline color) */
+const STATUS_BADGE_STYLE: Record<NewCompanyStatus, string> = {
+  received: 'background:#f1f5f9;color:#334155;border-color:#e2e8f0;',
+  in_progress: 'background:#f0f9ff;color:#075985;border-color:#bae6fd;',
+  converted: 'background:#ecfdf5;color:#065f46;border-color:#a7f3d0;',
+  closed: 'background:#fff1f2;color:#be123c;border-color:#fecdd3;',
+}
+
+function statusBadgeHtml(status: NewCompanyStatus) {
+  const label = NEW_COMPANY_STATUS_LABELS[status] || status
+  const style = STATUS_BADGE_STYLE[status] || STATUS_BADGE_STYLE.received
+  return `<span class="badge" style="${style}">${escapeHtml(label)}</span>`
+}
+
 export function buildNewCompanyInquiryListHtml(inquiries: NewCompanyInquiry[]) {
   const printedAt = new Date().toLocaleString('ko-KR', { hour12: false })
   const titleDate = new Date().toISOString().slice(0, 10)
@@ -41,9 +56,9 @@ export function buildNewCompanyInquiryListHtml(inquiries: NewCompanyInquiry[]) {
         <td>${dash(inquiry.contactName)}</td>
         <td>${dash(inquiry.email)}</td>
         <td class="c-phone">${dash(inquiry.phone)}</td>
+        <td>${dash(inquiry.product)}</td>
         <td>${dash(inquiry.sourceChannel)}</td>
-        <td>${dash(inquiry.createdByName)}</td>
-        <td>${escapeHtml(NEW_COMPANY_STATUS_LABELS[inquiry.status] || inquiry.status)}</td>
+        <td class="c-status">${statusBadgeHtml(inquiry.status)}</td>
       </tr>`
           })
           .join('')
@@ -82,7 +97,7 @@ export function buildNewCompanyInquiryListHtml(inquiries: NewCompanyInquiry[]) {
   th, td {
     border: 1px solid #cbd5e1;
     padding: 5px 6px;
-    vertical-align: top;
+    vertical-align: middle;
     word-break: break-word;
   }
   th {
@@ -90,7 +105,8 @@ export function buildNewCompanyInquiryListHtml(inquiries: NewCompanyInquiry[]) {
     font-weight: 700;
     text-align: center;
   }
-  td.c-no, td.c-date, td.c-phone, th.c-no, th.c-date, th.c-phone {
+  td.c-no, td.c-date, td.c-phone, td.c-status,
+  th.c-no, th.c-date, th.c-phone {
     text-align: center;
     white-space: nowrap;
   }
@@ -99,6 +115,18 @@ export function buildNewCompanyInquiryListHtml(inquiries: NewCompanyInquiry[]) {
     text-align: center;
     color: #94a3b8;
     padding: 24px 8px;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.4;
+    white-space: nowrap;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .footer {
     display: flex;
@@ -126,8 +154,8 @@ export function buildNewCompanyInquiryListHtml(inquiries: NewCompanyInquiry[]) {
         <th>담당자</th>
         <th>이메일</th>
         <th class="c-phone">연락처</th>
+        <th>제품</th>
         <th>유입경로</th>
-        <th>등록자</th>
         <th>상태</th>
       </tr>
     </thead>

@@ -46,15 +46,14 @@ export function NewCompanyListTable({
               <th className="px-3 py-2.5">담당자</th>
               <th className="px-3 py-2.5">이메일</th>
               <th className="px-3 py-2.5">연락처</th>
+              <th className="px-3 py-2.5">제품</th>
               <th className="px-3 py-2.5">유입경로</th>
-              <th className="px-3 py-2.5">등록자</th>
               <th className="px-3 py-2.5">상태</th>
             </tr>
           </thead>
           <tbody>
             {inquiries.map((inquiry) => {
               const contactLabel = cell(inquiry.contactName)
-              const registrantLabel = cell(inquiry.createdByName)
               const emailLabel = cell(inquiry.email)
               const regionLabel = cell(inquiry.region)
               return (
@@ -85,10 +84,10 @@ export function NewCompanyListTable({
                     {cell(inquiry.phone)}
                   </td>
                   <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {cell(inquiry.sourceChannel)}
+                    {cell(inquiry.product)}
                   </td>
                   <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {registrantLabel}
+                    {cell(inquiry.sourceChannel)}
                   </td>
                   <td className="px-3 py-2.5">
                     <StatusBadge

@@ -71,6 +71,7 @@ type LineDraft = {
   orderLineId?: string
   customerPoNumber: string
   productCode: string
+  productId?: string
   productName: string
   quantity: string
   unitPrice: string
@@ -179,6 +180,7 @@ function toDraft(
     billingOnly?: boolean
     orderLineId?: string
     assemblyGroupId?: string
+    productId?: string
     manualEntry?: boolean
     lineKind?: DeliveryRegisterLineKind
   },
@@ -192,6 +194,7 @@ function toDraft(
     orderLineId: line.orderLineId,
     customerPoNumber: line.customerPoNumber || '',
     productCode: line.productCode,
+    productId: String(line.productId || '').trim() || undefined,
     productName: line.productName,
     quantity: String(line.quantity),
     unitPrice: formatMoneyInput(line.unitPrice ?? 0),
@@ -428,6 +431,7 @@ function buildDisplayDrafts(
       orderNumber: line.orderNumber,
       customerPoNumber: historyLine?.customerPoNumber || '',
       productCode: production?.productCode || historyLine?.productCode || line.productCode,
+      productId: production?.productId || historyLine?.productId || line.productId,
       productName: line.productName,
       quantity: line.qty,
       unitPrice: line.unitPrice ?? 0,
@@ -664,6 +668,7 @@ export function DeliveryHistoryModal({
       orderLineId: production?.orderLineId,
       customerPoNumber: option.customerPoNumber || '',
       productCode: option.productCode,
+      productId: option.productId || production?.productId,
       productName: option.productName,
       unitPrice: formatMoneyInput(option.unitPrice),
       maxQuantity: Math.max(0, Math.floor(Number(option.maxQuantity) || 0)),
@@ -832,8 +837,10 @@ export function DeliveryHistoryModal({
           deliveryId: line.deliveryId,
           orderNumber: line.orderNumber,
           orderLineId: line.orderLineId,
+          assemblyGroupId: line.assemblyGroupId,
           recordDate: recordDate.trim(),
           productCode: line.productCode,
+          productId: line.productId,
           productName: line.productName,
           quantity: Math.max(0, Math.floor(Number(line.quantity) || 0)),
           unitPrice: parseMoneyInput(line.unitPrice),
@@ -881,8 +888,10 @@ export function DeliveryHistoryModal({
             deliveryId: created.record.id,
             orderNumber: line.orderNumber,
             orderLineId: line.orderLineId,
+            assemblyGroupId: line.assemblyGroupId,
             recordDate: recordDate.trim(),
             productCode: line.productCode,
+            productId: line.productId,
             productName: line.productName,
             quantity: Math.max(0, Math.floor(Number(line.quantity) || 0)),
             unitPrice: parseMoneyInput(line.unitPrice),
