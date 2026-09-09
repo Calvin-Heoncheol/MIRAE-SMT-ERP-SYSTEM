@@ -66,9 +66,9 @@ function postLinesHaveInput(
  * 후공정 = SOLDERING + ASSEMBLY + DOWNLOAD + TEST + PACKING
  */
 export function getQuoteProcessTypeCodes(
-  quote: Pick<QuoteListItem, 'detailInfo'>,
+  quote: { detailInfo?: QuoteListItem['detailInfo'] | null },
 ): QuoteProcessTypeCode[] {
-  const detail = quote.detailInfo
+  const detail = quote.detailInfo ?? undefined
   const amounts = detail?.amounts
   const post = detail?.inputs?.postProcess || {}
   const settings = detail?.settings || {}
