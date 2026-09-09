@@ -6,12 +6,18 @@ import { ProductionInputModal } from '@/components/production-input/production-i
 import { ProductionInputPanel } from '@/components/production-input/production-input-panel'
 import { ProductionInputPlanCalendarPanel } from '@/components/production-input/production-input-plan-calendar-panel'
 import { ProductionInputTable } from '@/components/production-input/production-input-table'
+import { ProductionHistoryWorkspace } from '@/components/production-history/production-history-workspace'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import type { PostProcessPlanBlock } from '@/lib/post-process/plan/types'
 import { DEFAULT_POST_PROCESS_TEAM, type PostProcessTeam } from '@/lib/post-process/teams'
 import { todayYmdSeoul } from '@/lib/orders/utils'
+import type { FetchProductionHistoryResult } from '@/lib/production-history/repository'
+import {
+  isProductionHistoryTeam,
+  type ProductionHistoryTeamFilter,
+} from '@/lib/production-history/types'
 import type { FetchProductionInputPageResult } from '@/lib/production-input/repository'
 import type {
   ProductionInputConfig,
@@ -28,6 +34,8 @@ import { buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
 import type { SmtPlanBlock } from '@/lib/smt/plan/types'
 import type { SmtPcbSide } from '@/lib/smt/types'
 
+type InputView = 'register' | 'plan' | 'history'
+
 type ProductionInputWorkspaceProps = {
   result: FetchProductionInputPageResult
   config: ProductionInputConfig
@@ -42,6 +50,10 @@ type ProductionInputWorkspaceProps = {
   initialPlanProgress?: Record<string, number>
   /** 후공정 — 내비(생산2/3/4)에서 URL로 결정되는 팀 */
   postProcessTeam?: PostProcessTeam
+  /** 생산이력 탭 데이터 */
+  historyResult?: FetchProductionHistoryResult | null
+  /** register | plan | history */
+  initialView?: InputView
 }
 
 function findOrderForSmtPlan(
@@ -79,13 +91,6 @@ function postProcessPlanProgressKey(plan: PostProcessPlanBlock, today: string = 
 
 type ProductionStatusFilter = 'all' | ProductionOrderState
 
-type SmtInputView = 'register' | 'plan'
-
-const SMT_INPUT_VIEW_TABS: { id: SmtInputView; label: string }[] = [
-  { id: 'register', label: '생산등록' },
-  { id: 'plan', label: '생산계획' },
-]
-
 function countProductionOrderStates(
   orders: ProductionOrderLine[],
   counts: Record<string, number>,
@@ -111,6 +116,8 @@ export function ProductionInputWorkspace({
   todayPostProcessPlans = [],
   initialPlanProgress = {},
   postProcessTeam = DEFAULT_POST_PROCESS_TEAM,
+  historyResult = null,
+  initialView = 'register',
 }: ProductionInputWorkspaceProps) {
   const [search, setSearch] = useState('')
   const [selectedKey, setSelectedKey] = useState(initialUiKey)
@@ -126,13 +133,73 @@ export function ProductionInputWorkspace({
   const [planProgress, setPlanProgress] = useState<Record<string, number>>(initialPlanProgress)
   const [statusFilter, setStatusFilter] = useState<ProductionStatusFilter>('all')
   const [inputOpen, setInputOpen] = useState(false)
-  const [smtView, setSmtView] = useState<SmtInputView>('register')
+  const [inputView, setInputView] = useState<InputView>(initialView)
   const [initialPcbSide, setInitialPcbSide] = useState<SmtPcbSide | null>(null)
   const [lineLockedFromPlan, setLineLockedFromPlan] = useState(false)
 
   const isPostProcess = config.productionModule === 'post_process'
   const enablePlanView = showOrderSidebar && !isPostProcess
-  const showRegisterView = !enablePlanView || smtView === 'register'
+  const showPlanView = enablePlanView && inputView === 'plan'
+  const showHistoryView = inputView === 'history' && Boolean(historyResult)
+
+  const viewTabs = useMemo(() => {
+    const tabs: { id: InputView; label: string }[] = [{ id: 'register', label: '생산등록' }]
+    if (enablePlanView) tabs.push({ id: 'plan', label: '생산계획' })
+    if (historyResult) tabs.push({ id: 'history', label: '생산이력' })
+    return tabs
+  }, [enablePlanView, historyResult])
+
+  const historyTeamFilter: ProductionHistoryTeamFilter = useMemo(() => {
+    if (isPostProcess && isProductionHistoryTeam(selectedTeam)) return selectedTeam
+    if (!isPostProcess) return '생산1팀'
+    return 'all'
+  }, [isPostProcess, selectedTeam])
+
+  useEffect(() => {
+    setInputView(initialView === 'plan' && !enablePlanView ? 'register' : initialView)
+  }, [initialView, enablePlanView])
+
+  useEffect(() => {
+    if (inputView === 'plan' && !enablePlanView) setInputView('register')
+    if (inputView === 'history' && !historyResult) setInputView('register')
+  }, [inputView, enablePlanView, historyResult])
+
+  function syncViewInUrl(next: InputView) {
+    setInputView(next)
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    if (next === 'register') url.searchParams.delete('view')
+    else url.searchParams.set('view', next)
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}`)
+  }
+
+  const viewTabsNav =
+    viewTabs.length > 1 ? (
+      <nav
+        className="inline-flex shrink-0 flex-wrap items-center rounded-xl border border-slate-200 bg-white p-1"
+        aria-label="생산등록 보기"
+      >
+        {viewTabs.map((tab) => {
+          const isActive = inputView === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => syncViewInUrl(tab.id)}
+              className={[
+                'rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors',
+                isActive
+                  ? 'bg-slate-800 text-white'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+              ].join(' ')}
+              aria-pressed={isActive}
+            >
+              {tab.label}
+            </button>
+          )
+        })}
+      </nav>
+    ) : null
 
   useEffect(() => {
     setSelectedKey(initialUiKey)
@@ -400,40 +467,29 @@ export function ProductionInputWorkspace({
     return (
       <>
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-          {enablePlanView ? (
-            <nav
-              className="inline-flex shrink-0 flex-wrap items-center self-start rounded-xl border border-slate-200 bg-white p-1"
-              aria-label="생산1팀 보기"
-            >
-              {SMT_INPUT_VIEW_TABS.map((tab) => {
-                const isActive = smtView === tab.id
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setSmtView(tab.id)}
-                    className={[
-                      'rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors',
-                      isActive
-                        ? 'bg-slate-800 text-white'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
-                    ].join(' ')}
-                    aria-pressed={isActive}
-                  >
-                    {tab.label}
-                  </button>
-                )
-              })}
-            </nav>
-          ) : null}
-
-          {showRegisterView ? (
+          {showHistoryView && historyResult ? (
+            <ProductionHistoryWorkspace
+              result={historyResult}
+              initialTeamFilter={historyTeamFilter}
+              embedded
+              headerActions={viewTabsNav}
+            />
+          ) : showPlanView ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+              <div className="flex shrink-0 items-center justify-end">{viewTabsNav}</div>
+              <ProductionInputPlanCalendarPanel
+                active={showPlanView}
+                onSelectPlan={handlePlanCardSelect}
+              />
+            </div>
+          ) : (
             <div className={`${flushShellClass} gap-3 p-3 sm:p-4`}>
               <WorkspaceHeader
                 search={search}
                 onSearchChange={setSearch}
                 searchPlaceholder="발주번호, 품목코드, 품목명, 고객사 검색…"
                 accent={isPostProcess ? 'emerald' : 'sky'}
+                actions={viewTabsNav}
                 filters={
                   <FilterChipBar
                     options={statusChips}
@@ -458,11 +514,6 @@ export function ProductionInputWorkspace({
                 />
               </div>
             </div>
-          ) : (
-            <ProductionInputPlanCalendarPanel
-              active={smtView === 'plan'}
-              onSelectPlan={handlePlanCardSelect}
-            />
           )}
         </div>
 

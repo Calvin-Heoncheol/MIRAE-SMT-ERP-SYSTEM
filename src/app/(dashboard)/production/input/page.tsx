@@ -1,5 +1,6 @@
 import { ProductionTeamTabs } from '@/components/production/production-team-tabs'
 import { ProductionInputWorkspace } from '@/components/production-input/production-input-workspace'
+import { fetchProductionHistory } from '@/lib/production-history/repository'
 import { fetchProductionInputPageData } from '@/lib/production-input/repository'
 import { POST_PROCESS_PRODUCTION_INPUT_CONFIG } from '@/lib/post-process/config'
 import {
@@ -29,8 +30,19 @@ function parseProductionInputTeam(value: string | null | undefined): ProductionI
   return null
 }
 
+function parseInputView(value: string | null | undefined): 'register' | 'plan' | 'history' {
+  const raw = String(value || '').trim().toLowerCase()
+  if (raw === 'plan') return 'plan'
+  if (raw === 'history') return 'history'
+  return 'register'
+}
+
 type ProductionInputPageProps = {
-  searchParams?: Promise<{ uiKey?: string | string[]; team?: string | string[] }>
+  searchParams?: Promise<{
+    uiKey?: string | string[]
+    team?: string | string[]
+    view?: string | string[]
+  }>
 }
 
 export default async function ProductionInputPage({ searchParams }: ProductionInputPageProps) {
@@ -40,6 +52,9 @@ export default async function ProductionInputPage({ searchParams }: ProductionIn
   const rawTeam = params.team
   const requestedRaw = Array.isArray(rawTeam) ? rawTeam[0] : rawTeam
   const team = parseProductionInputTeam(requestedRaw)
+  const rawView = params.view
+  const initialView = parseInputView(Array.isArray(rawView) ? rawView[0] : rawView)
+  const historyResult = await fetchProductionHistory()
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
@@ -57,15 +72,32 @@ export default async function ProductionInputPage({ searchParams }: ProductionIn
           </p>
         </div>
       ) : team === '생산1팀' ? (
-        <SmtProductionInput initialUiKey={initialUiKey} />
+        <SmtProductionInput
+          initialUiKey={initialUiKey}
+          initialView={initialView}
+          historyResult={historyResult}
+        />
       ) : (
-        <PostProcessProductionInput team={team} initialUiKey={initialUiKey} />
+        <PostProcessProductionInput
+          team={team}
+          initialUiKey={initialUiKey}
+          initialView={initialView === 'plan' ? 'register' : initialView}
+          historyResult={historyResult}
+        />
       )}
     </div>
   )
 }
 
-async function SmtProductionInput({ initialUiKey }: { initialUiKey: string }) {
+async function SmtProductionInput({
+  initialUiKey,
+  initialView,
+  historyResult,
+}: {
+  initialUiKey: string
+  initialView: 'register' | 'plan' | 'history'
+  historyResult: Awaited<ReturnType<typeof fetchProductionHistory>>
+}) {
   const result = await fetchProductionInputPageData(SMT_PRODUCTION_INPUT_CONFIG)
   return (
     <ProductionInputWorkspace
@@ -73,6 +105,8 @@ async function SmtProductionInput({ initialUiKey }: { initialUiKey: string }) {
       config={SMT_PRODUCTION_INPUT_CONFIG}
       showOrderSidebar
       initialUiKey={initialUiKey}
+      initialView={initialView}
+      historyResult={historyResult}
     />
   )
 }
@@ -80,9 +114,13 @@ async function SmtProductionInput({ initialUiKey }: { initialUiKey: string }) {
 async function PostProcessProductionInput({
   team,
   initialUiKey,
+  initialView,
+  historyResult,
 }: {
   team: PostProcessTeam
   initialUiKey: string
+  initialView: 'register' | 'plan' | 'history'
+  historyResult: Awaited<ReturnType<typeof fetchProductionHistory>>
 }) {
   const result = await fetchProductionInputPageData(POST_PROCESS_PRODUCTION_INPUT_CONFIG)
   return (
@@ -91,6 +129,8 @@ async function PostProcessProductionInput({
       config={POST_PROCESS_PRODUCTION_INPUT_CONFIG}
       showOrderSidebar
       initialUiKey={initialUiKey}
+      initialView={initialView}
+      historyResult={historyResult}
       postProcessTeam={team}
     />
   )

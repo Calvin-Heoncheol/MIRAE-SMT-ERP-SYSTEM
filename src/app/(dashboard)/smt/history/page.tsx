@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-/** 구 SMT 생산이력 → 팀별 생산이력 */
+/** 구 SMT 생산이력 → 생산등록 생산이력 탭 */
 export default function SmtHistoryRedirectPage() {
-  redirect('/production/history?team=생산1팀')
+  redirect('/production/input?team=생산1팀&view=history')
 }

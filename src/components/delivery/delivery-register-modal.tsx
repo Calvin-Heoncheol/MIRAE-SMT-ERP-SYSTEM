@@ -5,7 +5,6 @@ import { DeliveryRegisterItemsForm } from '@/components/delivery/delivery-regist
 import { useBusy } from '@/components/ui/busy-provider'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
-import { useToast } from '@/components/ui/toast-provider'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
   isBillingRegisterItem,
@@ -18,7 +17,6 @@ import {
 import { createDeliveryShipment } from '@/lib/delivery/repository'
 import type { DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
-import { CATCH_UP_LOT_WARNING } from '@/lib/production-lots/types'
 import type { Product } from '@/lib/products/types'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
@@ -75,7 +73,6 @@ function DeliveryRegisterModalContent({
   onShipped,
 }: Omit<DeliveryRegisterModalProps, 'open'>) {
   const busyUi = useBusy()
-  const toast = useToast()
   const { notifyAuthOrFailure } = useWriteFailureToast()
   const seedCustomer = useMemo(
     () => resolveRegisterSeedCustomer(options, initialItems),
@@ -160,10 +157,6 @@ function DeliveryRegisterModalContent({
       return
     }
 
-    if (result.usedCatchUp) {
-      toast.info('LOT 보충', CATCH_UP_LOT_WARNING)
-    }
-
     onShipped?.({
       shipmentId: result.shipmentId,
       deltas: productLines.map((line) => ({
@@ -183,7 +176,7 @@ function DeliveryRegisterModalContent({
       open
       size="wide"
       title="출하 등록"
-      description="출하일을 입력한 뒤 품목을 선택하면 고객사와 생산현황 진행 중 발주가 자동으로 연결됩니다."
+      description="출하일을 입력한 뒤 품목을 선택하면 고객사와 발주(생산현황) 잔량이 자동으로 연결됩니다."
       onClose={onClose}
       closeOnEscape={!busy}
       contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"

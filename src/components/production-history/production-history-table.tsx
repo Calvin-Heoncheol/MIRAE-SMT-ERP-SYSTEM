@@ -17,10 +17,6 @@ type ProductionHistoryTableProps = {
   onRowClick?: (row: ProductionHistoryRow) => void
   /** SMT(생산1팀) 전용 컬럼 — 후공정 팀 필터 시 false */
   showSmtColumns?: boolean
-  selectedIds?: Set<string>
-  onToggleSelectAll?: () => void
-  onToggleSelectOne?: (key: string) => void
-  selectionDisabled?: boolean
 }
 
 function cell(value: string) {
@@ -33,15 +29,7 @@ export function ProductionHistoryTable({
   emptyMessage,
   onRowClick,
   showSmtColumns = true,
-  selectedIds,
-  onToggleSelectAll,
-  onToggleSelectOne,
-  selectionDisabled = false,
 }: ProductionHistoryTableProps) {
-  const selectable = Boolean(selectedIds && onToggleSelectAll && onToggleSelectOne)
-  const allSelected =
-    selectable && rows.length > 0 && rows.every((row) => selectedIds!.has(productionHistoryRowKey(row)))
-
   if (!rows.length) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
@@ -62,18 +50,6 @@ export function ProductionHistoryTable({
         >
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
-              {selectable ? (
-                <th className="erp-table-check text-xs font-semibold text-slate-500">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    disabled={selectionDisabled}
-                    onChange={onToggleSelectAll}
-                    aria-label="전체 선택"
-                    className="size-4 accent-slate-700"
-                  />
-                </th>
-              ) : null}
               <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
                 기록일
               </th>
@@ -109,7 +85,6 @@ export function ProductionHistoryTable({
           <tbody>
             {rows.map((row) => {
               const key = productionHistoryRowKey(row)
-              const selected = selectedIds?.has(key) ?? false
               return (
                 <tr
                   key={key}
@@ -120,21 +95,6 @@ export function ProductionHistoryTable({
                   ].join(' ')}
                   title={onRowClick ? '클릭하여 상세 보기' : undefined}
                 >
-                  {selectable ? (
-                    <td
-                      className="erp-table-check"
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        disabled={selectionDisabled}
-                        onChange={() => onToggleSelectOne?.(key)}
-                        aria-label={`${displayOrderPoNumber(row.customerPoNumber, row.orderNumber)} 생산이력 선택`}
-                        className="size-4 accent-slate-700"
-                      />
-                    </td>
-                  ) : null}
                   <td className="whitespace-nowrap px-3 py-2.5 text-sm tabular-nums text-slate-700">
                     {formatProductionHistoryRecordAt(row)}
                   </td>

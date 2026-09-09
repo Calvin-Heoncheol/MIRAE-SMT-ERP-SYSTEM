@@ -11,7 +11,6 @@ import type {
 import {
   applyProductToRegisterItem,
   applyShippableOptionToItem,
-  allocationsForRegisterQuantity,
   bindSingleRegisterOrderOption,
   computeDeliveryLineAmount,
   DELIVERY_REGISTER_MIN_ROWS,
@@ -28,7 +27,6 @@ import {
 import type { DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
 import { DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from '@/lib/delivery/config'
 import { displayOrderPoNumber, formatAdditionalWorkProductNameLabel } from '@/lib/orders/utils'
-import { fetchAvailableLots, syncFinishedGoodsLots } from '@/lib/production-lots/repository'
 import type { Product } from '@/lib/products/types'
 import { filterProductsForCustomerStrict } from '@/lib/products/utils'
 import { ERP_ROW_ADD_BUTTON_CLASS } from '@/lib/ui/tokens'
@@ -150,28 +148,7 @@ export function DeliveryRegisterItemsForm({
     commitItems(items.filter((_, itemIndex) => itemIndex !== index))
   }
 
-  async function attachLots(index: number, item: DeliveryRegisterItemForm) {
-    if (isBillingRegisterItem(item) || !item.assemblyGroupId.trim()) return
-    await syncFinishedGoodsLots({ assemblyGroupId: item.assemblyGroupId })
-    const result = await fetchAvailableLots(item.assemblyGroupId)
-    const lots = result.ok ? result.lots : []
-    const quantity = Math.floor(Number(item.quantity) || 0)
-    onChange((current) =>
-      current.map((row, rowIndex) =>
-        rowIndex === index
-          ? {
-              ...row,
-              availableLots: lots,
-              allocations: row.lotManual
-                ? row.allocations
-                : allocationsForRegisterQuantity(lots, quantity),
-            }
-          : row,
-      ),
-    )
-  }
-
-  async function selectOrderOption(index: number, assemblyGroupId: string) {
+  function selectOrderOption(index: number, assemblyGroupId: string) {
     const option = optionsForRow(index).find((row) => row.assemblyGroupId === assemblyGroupId)
     if (!option) return
     const nextItem = applyShippableOptionToItem(
@@ -182,10 +159,9 @@ export function DeliveryRegisterItemsForm({
     commitItems((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? nextItem : item)),
     )
-    await attachLots(index, nextItem)
   }
 
-  async function selectProduct(index: number, product: Product) {
+  function selectProduct(index: number, product: Product) {
     const baseItem = items[index] ?? emptyDeliveryRegisterItemForm()
     const productCustomer = lockedCustomer || product.customer.trim() || baseItem.customer.trim()
     const nextItem = bindSingleRegisterOrderOption(
@@ -210,7 +186,6 @@ export function DeliveryRegisterItemsForm({
         return item
       }),
     )
-    await attachLots(index, nextItem)
   }
 
   function patchQuantity(index: number, quantity: string) {

@@ -57,7 +57,6 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '생산계획', href: '/production/plan' },
       { label: '생산실적', href: '/production/performance' },
       { label: '생산등록', href: '/production/input' },
-      { label: '생산이력', href: '/production/history' },
     ],
   },
   {
@@ -73,6 +72,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '구매발주', href: '/materials/purchase-orders' },
       { label: '입고 및 불출', href: '/materials/in-out' },
       { label: '입고 및 불출 이력', href: '/materials/in-out/history' },
+      { label: '라벨 출력', href: '/materials/labels' },
     ],
   },
   {

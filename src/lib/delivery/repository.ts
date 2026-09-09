@@ -36,7 +36,7 @@ import {
   persistDeliveryRecordLots,
   replaceDeliveryRecordLots,
 } from '@/lib/production-lots/repository'
-import type { LotAllocation } from '@/lib/production-lots/types'
+import type { LotAllocation, LotSyncResult } from '@/lib/production-lots/types'
 import { createSupabaseClient } from '@/lib/supabase'
 import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { assignShipmentRounds } from './history-utils'
@@ -57,7 +57,36 @@ import {
   describeDeliveryBlockReason,
 } from './utils'
 import { encodeShipmentExtraNote, resolveDeliveryRecordMaxShippable } from './register-form'
-import { DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from './config'
+import { DELIVERY_PERSIST_PRODUCTION_LOTS, DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from './config'
+
+/** 출하 저장용 LOT 반영 — 끄면 발주 잔량만으로 출하하고 생산실적 sync를 하지 않음 */
+async function maybePersistDeliveryLots(input: {
+  deliveryRecordId: string
+  assemblyGroupId: string
+  quantity: number
+  preferDate: string
+  allocations?: LotAllocation[]
+  mode: 'create' | 'replace'
+}): Promise<LotSyncResult> {
+  if (!DELIVERY_PERSIST_PRODUCTION_LOTS) {
+    return { ok: true }
+  }
+  if (input.mode === 'replace') {
+    return replaceDeliveryRecordLots({
+      deliveryRecordId: input.deliveryRecordId,
+      assemblyGroupId: input.assemblyGroupId,
+      quantity: input.quantity,
+      preferDate: input.preferDate,
+    })
+  }
+  return persistDeliveryRecordLots({
+    deliveryRecordId: input.deliveryRecordId,
+    assemblyGroupId: input.assemblyGroupId,
+    quantity: input.quantity,
+    preferDate: input.preferDate,
+    allocations: input.allocations,
+  })
+}
 
 export type FetchDeliveryInputPageResult =
   | { ok: true; data: DeliveryInputPageData }
@@ -582,12 +611,13 @@ export async function createDeliveryRecord(
         record.id,
         await resolveDeliveryPaymentSnapshot({ assemblyGroupId }),
       )
-      const lotsResult = await persistDeliveryRecordLots({
+      const lotsResult = await maybePersistDeliveryLots({
         deliveryRecordId: record.id,
         assemblyGroupId,
         quantity,
         preferDate: recordDate,
         allocations: input.allocations as LotAllocation[] | undefined,
+        mode: 'create',
       })
       if (!lotsResult.ok && lotsResult.reason === 'validation') {
         await supabase.from('delivery_records').delete().eq('id', record.id)
@@ -668,12 +698,13 @@ export async function createDeliveryRecord(
       record.id,
       await resolveDeliveryPaymentSnapshot({ assemblyGroupId }),
     )
-    const lotsResult = await persistDeliveryRecordLots({
+    const lotsResult = await maybePersistDeliveryLots({
       deliveryRecordId: record.id,
       assemblyGroupId,
       quantity,
       preferDate: recordDate,
       allocations: input.allocations as LotAllocation[] | undefined,
+      mode: 'create',
     })
     if (!lotsResult.ok && lotsResult.reason === 'validation') {
       await supabase.from('delivery_records').delete().eq('id', record.id)
@@ -1190,11 +1221,12 @@ export async function updateDeliveryRecord(
     }
 
     const assemblyGroupId = String(existing.assembly_group_id || '').trim()
-    const lotsResult = await replaceDeliveryRecordLots({
+    const lotsResult = await maybePersistDeliveryLots({
       deliveryRecordId: id,
       assemblyGroupId,
       quantity,
       preferDate: recordDate,
+      mode: 'replace',
     })
     if (!lotsResult.ok && lotsResult.reason === 'validation') {
       await supabase
