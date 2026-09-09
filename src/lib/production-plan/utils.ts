@@ -1,6 +1,11 @@
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { daysUntilYmd } from '@/lib/smt/plan/utils'
-import type { ProductionPlanBoardRow, ProductionPlanBoardStatus, ProductionPlanScope } from './types'
+import type {
+  ProductionPlanBoardRow,
+  ProductionPlanBoardStatus,
+  ProductionPlanPcbSide,
+  ProductionPlanScope,
+} from './types'
 
 export function productionPlanRowKey(scope: ProductionPlanScope, targetId: string, suffix?: string) {
   return suffix ? `${scope}:${targetId}:${suffix}` : `${scope}:${targetId}`
