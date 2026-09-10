@@ -1372,6 +1372,7 @@ export async function updateDeliveryRecord(
           assemblyGroupId,
           quantity,
           preferDate: recordDate,
+          allocations: input.allocations as LotAllocation[] | undefined,
           mode: 'replace',
         })
       : { ok: true as const, usedCatchUp: undefined as boolean | undefined }

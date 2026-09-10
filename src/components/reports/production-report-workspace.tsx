@@ -225,7 +225,7 @@ export function ProductionReportWorkspace({
       { header: '팀', value: (row) => row.team, width: 12 },
       { header: '생산수량', value: (row) => row.quantity, width: 12 },
       { header: '생산금액(원)', value: (row) => row.amount, width: 16 },
-      { header: '원계획수량', value: (row) => row.plannedQuantity, width: 12 },
+      { header: '계획수량', value: (row) => row.plannedQuantity, width: 12 },
       {
         header: '계획 달성률(%)',
         value: (row) => (row.achievementRate != null ? row.achievementRate : ''),
@@ -298,7 +298,7 @@ export function ProductionReportWorkspace({
           value: teamSummary.achievementRate != null ? `${teamSummary.achievementRate}%` : '—',
           sub:
             teamSummary.plannedQuantity > 0
-              ? `원계획 ${formatCount(teamSummary.plannedQuantity)} EA`
+              ? `계획배정 ${formatCount(teamSummary.plannedQuantity)} EA`
               : undefined,
         },
         {
@@ -338,8 +338,8 @@ export function ProductionReportWorkspace({
             value={teamSummary.achievementRate != null ? `${teamSummary.achievementRate}%` : null}
             hint={
               teamSummary.plannedQuantity > 0
-                ? `원계획 ${formatCount(teamSummary.plannedQuantity)} EA (지난 날짜 기준)`
-                : '기간 내 마감된 계획 없음'
+                ? `계획배정 ${formatCount(teamSummary.plannedQuantity)} EA (지난 날짜 · 생산계획 배정분)`
+                : '기간 내 생산계획 배정 없음'
             }
             tone={
               teamSummary.achievementRate == null

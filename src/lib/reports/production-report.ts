@@ -1,10 +1,12 @@
 import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
+import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import { fetchAllPostProcessProductionPlans } from '@/lib/post-process/plan/repository'
 import { POST_PROCESS_TEAMS } from '@/lib/post-process/teams'
-import { fetchPlanCloseLogsRange } from '@/lib/production-plan-close-logs'
 import { fetchProductionStatusPageData } from '@/lib/production-status/repository'
+import { buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
 import { fetchAllSmtProductionPlans } from '@/lib/smt/plan/repository'
 import { daysUntilYmd } from '@/lib/smt/plan/utils'
+import type { SmtPcbSide } from '@/lib/smt/types'
 import { createSupabaseClient } from '@/lib/supabase'
 
 export const SMT_REPORT_TEAM = '생산1팀'
@@ -22,9 +24,9 @@ export type ProductionReportTeamSummary = {
   activeDays: number
   /** 납기 경과 + 미출하 발주 중 이 팀 잔량이 남은 건수 */
   overdueOrders: number
-  /** 기간 내 원계획 수량 (지난 날짜 기준, 마감 로그로 원계획 복원) */
+  /** 기간 내 원계획 수량 (지난 날짜 · 생산계획에 배정된 계획만) */
   plannedQuantity: number
-  /** 계획 달성률 % (지난 날짜 실적 ÷ 원계획). 계획이 없으면 null */
+  /** 계획 달성률 % (지난 날짜 · 계획배정 대비 계획탭 실적). 계획이 없으면 null */
   achievementRate: number | null
 }
 
@@ -60,9 +62,9 @@ export type ProductionReportData = {
   totalAmount: number
   /** 납기 경과했는데 출하 미완료인 주문 수 (회사 전체) */
   totalOverdueOrders: number
-  /** 기간 내 원계획 수량 합 (지난 날짜 기준) */
+  /** 기간 내 원계획 수량 합 (지난 날짜 · 생산계획 배정분만) */
   totalPlannedQuantity: number
-  /** 전체 계획 달성률 % (지난 날짜 실적 ÷ 원계획). 계획이 없으면 null */
+  /** 전체 계획 달성률 % (지난 날짜 · 계획배정 대비 계획탭 실적). 계획이 없으면 null */
   totalAchievementRate: number | null
 }
 
@@ -73,6 +75,8 @@ export type FetchProductionReportResult =
 type SmtRecordRow = {
   record_date: string
   order_line_id: string | null
+  line_no: number | null
+  pcb_side: string | null
   quantity: number
 }
 
@@ -142,11 +146,12 @@ export async function fetchProductionReportData(
   try {
     const supabase = createSupabaseClient()
 
-    // ── 1. 기간 내 생산 기록 (SMT + 후공정) ─────────────────────
-    const [smtRecordsResult, postRecordsResult] = await Promise.all([
+    // ── 1. 기간 내 생산 기록 + 생산계획 배정 ─────────────────────
+    // 계획/실적 모두 「생산계획 페이지 배정」과 「생산등록>생산계획 탭 등록」만 인정.
+    const [smtRecordsResult, postRecordsResult, smtPlansResult, postPlansResult] = await Promise.all([
       supabase
         .from('smt_production_records')
-        .select('record_date, order_line_id, quantity')
+        .select('record_date, order_line_id, line_no, pcb_side, quantity')
         .gte('record_date', startDate)
         .lte('record_date', endDate),
       supabase
@@ -154,6 +159,8 @@ export async function fetchProductionReportData(
         .select('record_date, assembly_group_id, team, quantity')
         .gte('record_date', startDate)
         .lte('record_date', endDate),
+      fetchAllSmtProductionPlans(),
+      fetchAllPostProcessProductionPlans(),
     ])
 
     if (smtRecordsResult.error) {
@@ -180,7 +187,63 @@ export async function fetchProductionReportData(
       postRows = (postRecordsResult.data || []) as PostRecordRow[]
     }
 
-    const smtRows = (smtRecordsResult.data || []) as SmtRecordRow[]
+    const smtPlansInRange = smtPlansResult.ok
+      ? smtPlansResult.plans.filter(
+          (plan) => plan.plannedDate >= startDate && plan.plannedDate <= endDate,
+        )
+      : []
+    const postPlansInRange = postPlansResult.ok
+      ? postPlansResult.plans.filter(
+          (plan) => plan.plannedDate >= startDate && plan.plannedDate <= endDate,
+        )
+      : []
+
+    if (!smtPlansResult.ok) {
+      return { ok: false, reason: smtPlansResult.reason, detail: smtPlansResult.detail }
+    }
+    if (!postPlansResult.ok) {
+      return { ok: false, reason: postPlansResult.reason, detail: postPlansResult.detail }
+    }
+
+    /** SMT: 생산계획에 배정된 (일자·발주라인·면·라인) 키 */
+    const smtPlanKeys = new Set<string>()
+    for (const plan of smtPlansInRange) {
+      const lineNo = Math.floor(Number(plan.lineNo) || 0)
+      if (lineNo < 1) continue
+      smtPlanKeys.add(
+        buildSmtPlanProgressKey(
+          plan.orderLineId,
+          plan.pcbSide,
+          lineNo,
+          plan.plannedDate,
+        ),
+      )
+    }
+
+    /** 후공정: 생산계획에 배정된 (일자·조립그룹·팀) 키 */
+    const postPlanKeys = new Set<string>()
+    for (const plan of postPlansInRange) {
+      postPlanKeys.add(
+        buildPostProcessPlanProgressKey(plan.assemblyGroupId, plan.plannedDate, plan.team),
+      )
+    }
+
+    const smtRows = ((smtRecordsResult.data || []) as SmtRecordRow[]).filter((row) => {
+      const orderLineId = String(row.order_line_id || '').trim()
+      const lineNo = Math.floor(Number(row.line_no) || 0)
+      const pcbSide = String(row.pcb_side || '').trim() as SmtPcbSide
+      const recordDate = String(row.record_date || '').trim()
+      if (!orderLineId || lineNo < 1 || !pcbSide || !recordDate) return false
+      return smtPlanKeys.has(buildSmtPlanProgressKey(orderLineId, pcbSide, lineNo, recordDate))
+    })
+
+    postRows = postRows.filter((row) => {
+      const groupId = String(row.assembly_group_id || '').trim()
+      const recordDate = String(row.record_date || '').trim()
+      const team = normalizeTeam(row.team)
+      if (!groupId || !recordDate) return false
+      return postPlanKeys.has(buildPostProcessPlanProgressKey(groupId, recordDate, team))
+    })
 
     // ── 2. SMT 기록 → 주문라인 정보 (제품·고객사) ────────────────
     const smtLineIds = [...new Set(smtRows.map((row) => row.order_line_id).filter(Boolean))] as string[]
@@ -372,21 +435,14 @@ export async function fetchProductionReportData(
     let totalOverdueOrders = 0
     const overdueByTeam = new Map<string, number>(PRODUCTION_REPORT_TEAMS.map((team) => [team, 0]))
 
-    const [statusResult, postPlansResult, smtPlansResult, closeLogsResult] = await Promise.all([
-      fetchProductionStatusPageData(),
-      fetchAllPostProcessProductionPlans(),
-      fetchAllSmtProductionPlans(),
-      fetchPlanCloseLogsRange(supabase, startDate, endDate),
-    ])
+    const statusResult = await fetchProductionStatusPageData()
 
     if (statusResult.ok) {
       const plansByOrderId = new Map<string, Set<string>>()
-      if (postPlansResult.ok) {
-        for (const plan of postPlansResult.plans) {
-          const teams = plansByOrderId.get(plan.orderId) ?? new Set<string>()
-          teams.add(normalizeTeam(plan.team))
-          plansByOrderId.set(plan.orderId, teams)
-        }
+      for (const plan of postPlansInRange) {
+        const teams = plansByOrderId.get(plan.orderId) ?? new Set<string>()
+        teams.add(normalizeTeam(plan.team))
+        plansByOrderId.set(plan.orderId, teams)
       }
 
       for (const line of statusResult.data.lines) {
@@ -411,9 +467,7 @@ export async function fetchProductionReportData(
       }
     }
 
-    // ── 7. 계획 달성률 (지난 날짜 기준 · 마감 로그로 원계획 복원) ──
-    // 과거 마감 시 계획수량이 실적으로 조정/삭제되므로, 현재 계획 + 마감 로그의
-    // 손실분(원계획 − 마감시점 실적)을 더해 원래 계획 수량을 되살린다.
+    // ── 7. 계획 수량 (생산계획 페이지에 배정된 행만 · 마감로그 복원 없음) ──
     const plannedByTeam = new Map<string, number>(PRODUCTION_REPORT_TEAMS.map((team) => [team, 0]))
     const producedPastByTeam = new Map<string, number>(
       PRODUCTION_REPORT_TEAMS.map((team) => [team, 0]),
@@ -432,30 +486,16 @@ export async function fetchProductionReportData(
       dailyPlannedByDate.set(date, byTeam)
     }
 
-    if (smtPlansResult.ok) {
-      for (const plan of smtPlansResult.plans) {
-        if (plan.plannedDate < startDate || plan.plannedDate > endDate) continue
-        addDailyPlanned(plan.plannedDate, SMT_REPORT_TEAM, plan.plannedQuantity)
-        if (plan.plannedDate >= today) continue
-        addPlanned(SMT_REPORT_TEAM, plan.plannedQuantity)
-      }
+    for (const plan of smtPlansInRange) {
+      addDailyPlanned(plan.plannedDate, SMT_REPORT_TEAM, plan.plannedQuantity)
+      if (plan.plannedDate >= today) continue
+      addPlanned(SMT_REPORT_TEAM, plan.plannedQuantity)
     }
-    if (postPlansResult.ok) {
-      for (const plan of postPlansResult.plans) {
-        if (plan.plannedDate < startDate || plan.plannedDate > endDate) continue
-        const team = normalizeTeam(plan.team)
-        addDailyPlanned(plan.plannedDate, team, plan.plannedQuantity)
-        if (plan.plannedDate >= today) continue
-        addPlanned(team, plan.plannedQuantity)
-      }
-    }
-    if (closeLogsResult.ok) {
-      for (const log of closeLogsResult.logs) {
-        const team = log.module === 'smt' ? SMT_REPORT_TEAM : normalizeTeam(log.team)
-        const restored = Math.max(0, log.originalQuantity - log.producedQuantity)
-        addDailyPlanned(log.plannedDate, team, restored)
-        addPlanned(team, restored)
-      }
+    for (const plan of postPlansInRange) {
+      const team = normalizeTeam(plan.team)
+      addDailyPlanned(plan.plannedDate, team, plan.plannedQuantity)
+      if (plan.plannedDate >= today) continue
+      addPlanned(team, plan.plannedQuantity)
     }
 
     // ── 8. 팀별 요약 + 일별 매트릭스 ────────────────────────────

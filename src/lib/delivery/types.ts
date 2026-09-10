@@ -54,6 +54,8 @@ export type UpdateDeliveryRecordInput = {
   recordDate?: string
   quantity?: number
   note?: string
+  /** 비우면 출하 시 FIFO 자동 배정 (수량 변경 시) */
+  allocations?: Array<{ lotId: string; lotDate?: string; quantity: number; remaining?: number }>
 }
 
 export type DeliveryHistoryRow = {

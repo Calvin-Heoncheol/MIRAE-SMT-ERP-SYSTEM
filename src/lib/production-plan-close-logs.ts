@@ -2,8 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * 생산계획 자동 마감 로그 (production_plan_close_logs).
- * 지난 계획을 실적에 맞춰 조정/삭제할 때 원래 계획 수량을 남겨
- * 리포트의 "계획 달성률" 계산에 사용한다.
+ * 지난 계획을 실적에 맞춰 조정/삭제할 때 원래 계획 수량을 남긴다.
+ * 생산실적 리포트(계획 대비)는 「현재 배정된 계획」만 쓰므로 이 로그를 합산하지 않는다.
  */
 
 export type PlanCloseLogModule = 'smt' | 'post_process'
