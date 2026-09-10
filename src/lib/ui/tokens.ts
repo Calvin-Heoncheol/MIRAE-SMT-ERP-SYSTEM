@@ -9,30 +9,42 @@ export type ErpModuleAccent =
   | 'emerald'
   | 'slate'
 
-/** 모듈별 악센트 (검색 focus, 건수 tint, 배지) */
+/** 모듈별 악센트 (검색 focus, 건수 tint) — WorkspaceHeader accent에 연결 */
 export const ERP_MODULE_ACCENT = {
   orders: 'slate',
-  quotes: 'slate',
+  quotes: 'violet',
   master: 'slate',
   inventory: 'slate',
-  inbound: 'slate',
-  outbound: 'slate',
+  inbound: 'sky',
+  outbound: 'orange',
   purchaseOrders: 'slate',
   smt: 'sky',
-  postProcess: 'emerald',
+  postProcess: 'violet',
   delivery: 'sky',
   production: 'sky',
   approvals: 'slate',
+  newCompanies: 'emerald',
+  solderCream: 'sky',
 } as const satisfies Record<string, ErpModuleAccent>
 
 export const ERP_PRIMARY_BUTTON_CLASS =
   'rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300'
+
+/** Primary 소형 (사이드바·표 액션) */
+export const ERP_PRIMARY_BUTTON_SM_CLASS =
+  'rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300'
 
 export const ERP_SECONDARY_BUTTON_CLASS =
   'rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50'
 
 export const ERP_DANGER_BUTTON_CLASS =
   'rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50'
+
+/** 인라인 에러 문구 (모달·폼) — red 대신 rose */
+export const ERP_ERROR_TEXT_CLASS = 'text-sm text-rose-600'
+
+/** 품목·발주·출하 코드 mono — 의미색 금지, slate 통일 */
+export const ERP_CODE_TEXT_CLASS = 'font-mono text-xs text-slate-700'
 
 /** 내보내기 — Excel / PDF 공통. CTA가 아니므로 secondary 톤 */
 export const ERP_EXPORT_BUTTON_CLASS =
@@ -111,6 +123,15 @@ export const ERP_BADGE_CLASS =
 export const ERP_BADGE_COMPACT_CLASS =
   'inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-bold ring-1'
 
+/**
+ * 생산계획 보드·캘린더 최소 글자 크기 (9~10px 금지).
+ * 메타/라벨/칩 모두 11px 이상.
+ */
+export const ERP_BOARD_META_CLASS = 'text-[11px] leading-snug'
+export const ERP_BOARD_LABEL_CLASS = 'text-[11px] font-semibold leading-snug'
+export const ERP_BOARD_CHIP_CLASS =
+  'inline-flex shrink-0 items-center rounded px-1 py-0.5 text-[11px] font-bold'
+
 /** 테이블 밖 긴 한글 텍스트(모달·카드) */
 export const ERP_TEXT_WRAP_CLASS =
   'min-w-0 whitespace-normal break-keep [overflow-wrap:break-word]'
@@ -141,7 +162,39 @@ export const ERP_DANGER_BOX_CLASS =
 export const ERP_INPUT_WIDGET_RULE =
   'master→combobox · fixed-enum→select' as const
 
-/** radius 스케일: 필드/버튼 lg · 표 wrap·empty xl · 모달 2xl · 칩 full · compact badge md */
+/**
+ * 타이포 스케일 (임의 px 금지 원칙)
+ * - compact/board: 11px (ERP_BOARD_*)
+ * - xs / caption: text-xs (12)
+ * - sm: text-sm (14)
+ * - base: text-base (16)
+ * - lg: text-lg (18)
+ * - KPI value: 22px
+ * - 9~10px: 금지 (최소 11)
+ * - 생산입력 스캔 대형 타이포: ERP_SCAN_* (현장 터치 전용 예외)
+ */
+export const ERP_KPI_VALUE_CLASS = 'text-[22px] leading-none font-bold tabular-nums'
+export const ERP_KPI_LABEL_CLASS = 'text-[11px] leading-none font-semibold text-slate-500'
+export const ERP_TEXT_CAPTION_CLASS = 'text-[11px] leading-snug'
+export const ERP_TEXT_NAV_CLASS = 'text-[13px] font-semibold'
+export const ERP_TEXT_BRAND_CLASS = 'text-[15px] font-bold tracking-tight'
+export const ERP_PAGE_TITLE_CLASS = 'text-base font-bold text-slate-900'
+
+/** 패널·카드 표면 (모달은 rounded-2xl 유지) */
+export const ERP_PANEL_CLASS =
+  'rounded-xl border border-slate-200 bg-white shadow-sm'
+
+/**
+ * 생산입력 스캔 density — embedded가 아닐 때만 초대형.
+ * 목록/보드와 맞출 대상이 아님.
+ */
+export const ERP_SCAN_COUNT_LG_CLASS = 'text-2xl sm:text-3xl'
+export const ERP_SCAN_STEPPER_CLASS =
+  'flex aspect-square min-h-[3.75rem] w-14 items-center justify-center rounded-xl border-2 border-slate-200 text-3xl font-bold sm:min-h-[4.25rem] sm:w-16 sm:text-4xl'
+export const ERP_SCAN_QTY_INPUT_CLASS =
+  'min-h-[3.75rem] w-full rounded-xl border-2 bg-slate-50 px-2 text-center text-4xl font-bold tabular-nums outline-none focus:bg-white disabled:text-slate-400 sm:min-h-[4.25rem] sm:text-5xl'
+
+/** radius 스케일: 필드/버튼 lg · 패널·표 wrap·empty xl · 모달 2xl · 칩 full · compact badge md */
 
 /** 폼 필드 공통 */
 export const ERP_FIELD_LABEL_CLASS = 'mb-1 block font-medium text-slate-600'

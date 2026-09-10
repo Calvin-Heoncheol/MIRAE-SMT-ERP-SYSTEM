@@ -17,6 +17,7 @@ import {
   ERP_INFO_BOX_CLASS,
   ERP_INFO_BOX_TEXT_CLASS,
   ERP_INFO_BOX_TITLE_CLASS,
+  ERP_PAGE_TITLE_CLASS,
 } from '@/lib/ui/tokens'
 
 const MAX_SEQUENCE = 500
@@ -104,7 +105,7 @@ export function MaterialLabelsWorkspace() {
     <PageShell className="overflow-y-auto">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 pb-8">
         <div>
-          <h1 className="text-lg font-bold text-slate-900">라벨 출력</h1>
+          <h1 className={ERP_PAGE_TITLE_CLASS}>라벨 출력</h1>
           <p className="mt-1 text-sm text-slate-500">
             Zebra Browser Print(ZPL)로 출력합니다. 용지 설정에서 실물 라벨 크기·DPI를 맞춘 뒤
             출력하세요.

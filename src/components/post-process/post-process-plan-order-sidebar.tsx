@@ -164,7 +164,7 @@ export function PostProcessPlanOrderSidebar({
                   </p>
                   {dueLabel ? (
                     <span
-                      className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${urgencyBadgeClass(candidate.daysUntilDelivery)}`}
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ${urgencyBadgeClass(candidate.daysUntilDelivery)}`}
                     >
                       {dueLabel}
                     </span>

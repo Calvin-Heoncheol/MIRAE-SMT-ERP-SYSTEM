@@ -23,7 +23,7 @@ import type { MaterialPurchaseOrderListGroup } from '@/lib/materials/purchase-or
 import type { Material, MaterialSupplyType, MaterialType } from '@/lib/materials/types'
 import { formatMaterialDisplayCode, resolveMaterialByInventoryCode } from '@/lib/materials/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
-import { ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_PRIMARY_BUTTON_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 import { playScanSound } from '@/lib/ui/toast-sound'
 import { useToast } from '@/components/ui/toast-provider'
 
@@ -564,7 +564,7 @@ export function InboundScanPanel({
           'flex min-h-0 flex-1 flex-col bg-white',
           embedded
             ? 'overflow-hidden rounded-xl border border-slate-200'
-            : 'rounded-2xl border border-slate-200 shadow-sm',
+            : 'rounded-xl border border-slate-200 shadow-sm',
         ].join(' ')}
       >
         <div className={`shrink-0 border-b border-slate-200 bg-slate-50 ${embedded ? 'px-3 py-2.5' : 'px-4 py-3'}`}>
@@ -800,7 +800,7 @@ export function InboundScanPanel({
               type="button"
               onClick={() => void handleSaveAll()}
               disabled={saving || !lines.length}
-              className="rounded-lg bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900 disabled:opacity-50"
+              className={`${ERP_PRIMARY_BUTTON_CLASS} px-5 disabled:opacity-50`}
             >
               {saving ? '처리 중…' : '입고 처리'}
             </button>

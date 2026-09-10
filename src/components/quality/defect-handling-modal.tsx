@@ -19,7 +19,7 @@ import {
 } from '@/lib/quality/defects/utils'
 import { formatSmtPcbSideLabel } from '@/lib/smt/history-utils'
 import type { SmtPcbSide } from '@/lib/smt/types'
-import { ERP_TEXT_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_ERROR_TEXT_CLASS, ERP_TEXT_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type DefectHandlingModalProps = {
   open: boolean
@@ -156,7 +156,7 @@ export function DefectHandlingModal({ open, row, onClose, onSaved }: DefectHandl
           />
         </label>
 
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {error ? <p className={ERP_ERROR_TEXT_CLASS}>{error}</p> : null}
       </div>
     </ErpModal>
   )

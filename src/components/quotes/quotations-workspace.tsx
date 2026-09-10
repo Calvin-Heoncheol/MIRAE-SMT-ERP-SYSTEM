@@ -17,7 +17,7 @@ import type { FetchQuotesResult } from '@/lib/quotes/repository'
 import { updateQuoteStatus } from '@/lib/quotes/repository'
 import type { QuoteListItem, QuoteType } from '@/lib/quotes/types'
 import { filterQuotesForSearch, isLegacyQuoteDetail } from '@/lib/quotes/utils'
-import { formatEmptyListMessage } from '@/lib/ui/tokens'
+import { ERP_MODULE_ACCENT, formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type QuotationsWorkspaceProps = {
   result: FetchQuotesResult
@@ -136,7 +136,7 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="견적번호, 고객사, 제품명, 상태, 견적일 검색…"
-          accent="slate"
+          accent={ERP_MODULE_ACCENT.quotes}
           actions={
             <QuoteNewMenu
               onOpenNew={openCreate}

@@ -387,7 +387,7 @@ export function InboundForm({
   )
 
   if (isPage) {
-    return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">{body}</div>
+    return <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">{body}</div>
   }
 
   return <div className="flex h-full min-h-0 flex-col">{body}</div>

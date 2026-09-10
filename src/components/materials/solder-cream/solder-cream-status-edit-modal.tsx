@@ -6,7 +6,7 @@ import { ErpModal } from '@/components/ui/erp-modal'
 import { upsertSolderCreamLotStatus } from '@/lib/materials/solder-cream/repository'
 import type { SolderCreamStatusRow } from '@/lib/materials/solder-cream/types'
 import { formatSolderCreamDate } from '@/lib/materials/solder-cream/utils'
-import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
+import { ERP_CODE_TEXT_CLASS, ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
 
 type SolderCreamStatusEditModalProps = {
   open: boolean
@@ -77,7 +77,7 @@ export function SolderCreamStatusEditModal({
     >
       <div className="space-y-4">
         <div>
-          <p className="font-mono text-xs font-semibold text-blue-800">{current.barcode}</p>
+          <p className={`${ERP_CODE_TEXT_CLASS} font-semibold`}>{current.barcode}</p>
           <p className="mt-1 text-xs text-slate-500">
             제조 {formatSolderCreamDate(current.manufacturedAt)} · 유통기한{' '}
             {formatSolderCreamDate(current.expiresAt)} · 입고 {current.inboundCount}회

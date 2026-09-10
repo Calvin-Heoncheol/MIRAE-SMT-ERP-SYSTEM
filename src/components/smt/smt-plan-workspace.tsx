@@ -290,7 +290,7 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-300 bg-white">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
           <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5">
             <div className="flex flex-wrap items-baseline gap-3">
@@ -307,9 +307,9 @@ export function SmtPlanWorkspace({ initialResult, initialWeekStart }: SmtPlanWor
                 계획 추가
               </ErpButton>
               <div className="mr-1 flex flex-wrap gap-1">
-                <StatusBadge label="예정" tone="info" className="!text-[10px]" />
-                <StatusBadge label="진행" tone="warning" className="!text-[10px]" />
-                <StatusBadge label="완료 · 재배정" tone="success" className="!text-[10px]" />
+                <StatusBadge label="예정" tone="info" className="!text-[11px]" />
+                <StatusBadge label="진행" tone="warning" className="!text-[11px]" />
+                <StatusBadge label="완료 · 재배정" tone="success" className="!text-[11px]" />
               </div>
               <button
                 type="button"

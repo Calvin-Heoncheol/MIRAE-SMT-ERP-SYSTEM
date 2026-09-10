@@ -32,7 +32,7 @@ import {
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { Material } from '@/lib/materials/types'
 import type { OrderListGroup } from '@/lib/orders/types'
-import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
+import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type OutboundModalProps = {
   open: boolean
@@ -159,7 +159,7 @@ function OutboundModalContent({
       closeOnEscape={!busy}
       footer={
         <div className="flex w-full flex-col gap-2">
-          {error ? <p className="text-sm font-medium text-red-600">{error}</p> : null}
+          {error ? <p className={`${ERP_ERROR_TEXT_CLASS} font-medium`}>{error}</p> : null}
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             {isEdit && canDelete ? (
               <ErpButton variant="danger" disabled={busy} onClick={() => void handleDelete()}>
@@ -269,7 +269,7 @@ function OutboundModalContent({
                 <button
                   type="button"
                   onClick={() => setLines((current) => current.filter((_, i) => i !== index))}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-red-50 hover:text-red-600"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-rose-50 hover:text-rose-600"
                   aria-label={`${index + 1}행 삭제`}
                 >
                   ×

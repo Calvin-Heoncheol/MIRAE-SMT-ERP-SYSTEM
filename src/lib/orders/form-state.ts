@@ -30,7 +30,7 @@ export type OrderItemForm = {
   materialCost: string | number
   /** 제품(라인)별 납기일 YYYY-MM-DD */
   deliveryDate: string
-  /** 작업번호 — 저장 후 표시 (신규 행은 빈 문자열) */
+  /** 작업번호 — 사용자가 직접 입력 (자동 채번 없음) */
   workNumber?: string
   /** 추가 작업(금액 전용) — 품목등록 필수, 저장 시 product_id 는 비움 */
   isAdhoc?: boolean
@@ -69,6 +69,7 @@ export function defaultOrderItemForm(deliveryDate = ''): OrderItemForm {
     materialUnitPrice: '0',
     materialCost: '0',
     deliveryDate,
+    workNumber: '',
     isAdhoc: false,
     quoteId: '',
   }
@@ -89,6 +90,7 @@ export function defaultAdhocOrderItemForm(deliveryDate = ''): OrderItemForm {
     materialUnitPrice: '0',
     materialCost: '0',
     deliveryDate,
+    workNumber: '',
     isAdhoc: true,
     quoteId: '',
   }

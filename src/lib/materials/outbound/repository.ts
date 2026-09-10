@@ -734,6 +734,9 @@ export async function updateMaterialOutbound(
     return missingEnvResult()
   }
 
+  const gate = await assertCanWrite({ module: 'materials', action: 'update' })
+  if (!gate.ok) return gate
+
   const validationError = validateOutboundPayload(payload)
   if (validationError) {
     return { ok: false, reason: 'validation', detail: validationError }

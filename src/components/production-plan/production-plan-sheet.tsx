@@ -323,7 +323,7 @@ export function ProductionPlanSheet({
             />
             {options?.extra}
             {options?.hint ? (
-              <div className="px-0.5 text-[10px] font-semibold text-amber-700">{options.hint}</div>
+              <div className="px-0.5 text-[11px] font-semibold text-amber-700">{options.hint}</div>
             ) : null}
           </div>
         </td>
@@ -445,15 +445,15 @@ export function ProductionPlanSheet({
                   >
                     <td className="border-r border-slate-100 px-2 py-1.5">
                       {isRemainder ? (
-                        <span className="inline-flex rounded-md bg-sky-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        <span className="inline-flex rounded-md bg-sky-600 px-1.5 py-0.5 text-[11px] font-bold text-white">
                           추가 배정
                         </span>
                       ) : isSchedule ? (
-                        <span className="inline-flex rounded-md bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        <span className="inline-flex rounded-md bg-slate-700 px-1.5 py-0.5 text-[11px] font-bold text-white">
                           확정
                         </span>
                       ) : (
-                        <span className="inline-flex rounded-md bg-slate-300 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">
+                        <span className="inline-flex rounded-md bg-slate-300 px-1.5 py-0.5 text-[11px] font-bold text-slate-700">
                           대기
                         </span>
                       )}
@@ -475,7 +475,7 @@ export function ProductionPlanSheet({
                     </td>
                     <td className="border-r border-slate-100 px-2 py-1.5 text-right tabular-nums text-slate-800">
                       <div>{row.orderQty.toLocaleString('ko-KR')}</div>
-                      <div className="text-[10px] text-slate-400">
+                      <div className="text-[11px] text-slate-400">
                         {isRemainder ? (
                           <>미계획 {(row.unplannedQty ?? row.remainingQty).toLocaleString('ko-KR')}</>
                         ) : (
@@ -488,7 +488,7 @@ export function ProductionPlanSheet({
                         )}
                       </div>
                       {activeScope === 'smt' ? (
-                        <div className="text-[10px] font-semibold text-amber-700">
+                        <div className="text-[11px] font-semibold text-amber-700">
                           입고 {row.materialReadyQty.toLocaleString('ko-KR')}
                         </div>
                       ) : null}
@@ -497,7 +497,7 @@ export function ProductionPlanSheet({
                       <div className="text-slate-700">{row.deliveryDate || '-'}</div>
                       {countdown ? (
                         <div
-                          className={`text-[10px] font-semibold tabular-nums ${deliveryUrgencyClass(row.daysUntilDelivery)}`}
+                          className={`text-[11px] font-semibold tabular-nums ${deliveryUrgencyClass(row.daysUntilDelivery)}`}
                         >
                           {countdown}
                         </div>

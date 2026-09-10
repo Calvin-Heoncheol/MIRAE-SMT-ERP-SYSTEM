@@ -30,7 +30,7 @@ import {
   type NewCompanyInquiry,
   type NewCompanyStatus,
 } from '@/lib/new-companies/types'
-import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
+import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type NewCompanyModalProps = {
   open: boolean
@@ -169,7 +169,7 @@ function NewCompanyModalContent({
       closeOnEscape={!busy}
       footer={
         <div className="flex w-full flex-col gap-3">
-          {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+          {saveError ? <p className={ERP_ERROR_TEXT_CLASS}>{saveError}</p> : null}
           <div className="flex justify-between gap-2">
             {!isCreate && canDelete ? (
               <ErpButton variant="danger" onClick={() => void handleDelete()} disabled={busy}>
@@ -218,7 +218,7 @@ function NewCompanyModalContent({
         {!isCreate ? (
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>
-              등록일 <span className="text-red-500">*</span>
+              등록일 <span className="text-rose-500">*</span>
             </span>
             <input
               type="date"
@@ -233,7 +233,7 @@ function NewCompanyModalContent({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>
-              회사명 <span className="text-red-500">*</span>
+              회사명 <span className="text-rose-500">*</span>
             </span>
             <input
               value={form.companyName}
@@ -255,7 +255,7 @@ function NewCompanyModalContent({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>
-              담당자 <span className="text-red-500">*</span>
+              담당자 <span className="text-rose-500">*</span>
             </span>
             <input
               value={form.contactName}
@@ -373,7 +373,7 @@ function NewCompanyModalContent({
                       type="button"
                       disabled={busy}
                       onClick={() => removeProgressLine(index)}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:opacity-50"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-rose-600 disabled:opacity-50"
                       aria-label={`${index + 1}번 진행사항 삭제`}
                     >
                       ×

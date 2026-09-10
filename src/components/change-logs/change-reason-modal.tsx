@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
-import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
+import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type ChangeReasonModalProps = {
   open: boolean
@@ -51,7 +51,7 @@ export function ChangeReasonModal({
       zIndexClassName="z-[60]"
       footer={
         <div className="flex w-full flex-col gap-2">
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? <p className={ERP_ERROR_TEXT_CLASS}>{error}</p> : null}
           <div className="flex justify-end gap-2">
             <ErpButton variant="secondary" onClick={onCancel} disabled={saving}>
               취소

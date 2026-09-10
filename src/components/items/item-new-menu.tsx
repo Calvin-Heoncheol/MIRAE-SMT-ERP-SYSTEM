@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ErpButton } from '@/components/ui/erp-button'
 
 type ItemNewMenuProps = {
   onOpenCreate: () => void
@@ -28,14 +29,10 @@ export function ItemNewMenu({ onOpenCreate, onOpenBulk }: ItemNewMenuProps) {
 
   return (
     <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
-      >
+      <ErpButton type="button" onClick={() => setOpen((value) => !value)}>
         품목 등록
         <span className="ml-1 text-xs opacity-80">▾</span>
-      </button>
+      </ErpButton>
 
       {open ? (
         <div className="absolute right-0 z-20 mt-2 min-w-[220px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">

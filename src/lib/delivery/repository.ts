@@ -1,8 +1,5 @@
 import {
   fetchAssemblyGroups,
-  repairChildrenOnlyAssemblyGroups,
-  repairMissingSemiFinishedDeliveryGroups,
-  repairOrphanAssemblyGroups,
 } from '@/lib/assembly/repository'
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
@@ -39,6 +36,7 @@ import {
 import type { LotAllocation, LotSyncResult } from '@/lib/production-lots/types'
 import { createSupabaseClient } from '@/lib/supabase'
 import { isMissingRpcFunction } from '@/lib/supabase/rpc'
+import { missingRpcMigrationMessage } from '@/lib/supabase/required-migrations'
 import { assignShipmentRounds } from './history-utils'
 import type {
   CreateDeliveryRecordInput,
@@ -61,6 +59,9 @@ import {
   encodeShipmentExtraNote,
   parseShipmentCustomerFromNote,
   parseShipmentExtraLines,
+  resolveShipmentCustomer,
+  resolveShipmentExtraLines,
+  type ShipmentExtraStatementLine,
   resolveDeliveryRecordMaxShippable,
 } from './register-form'
 import { DELIVERY_PERSIST_PRODUCTION_LOTS, DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from './config'
@@ -242,6 +243,39 @@ function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }
   } as T
 }
 
+function isMissingDeliveryExtraColumns(detail: string) {
+  const text = String(detail || '').toLowerCase()
+  return (
+    (text.includes('extra_lines') || text.includes('ship_customer')) &&
+    (text.includes('schema cache') ||
+      text.includes('does not exist') ||
+      text.includes('could not find') ||
+      text.includes('column'))
+  )
+}
+
+async function persistDeliveryExtraColumns(
+  recordIds: string[],
+  extraLines: ShipmentExtraStatementLine[],
+  shipCustomer = '',
+): Promise<{ ok: true } | { ok: false; detail: string }> {
+  const ids = [...new Set(recordIds.map((id) => String(id || '').trim()).filter(Boolean))]
+  if (!ids.length) return { ok: true }
+  const supabase = createSupabaseClient()
+  const { error } = await supabase
+    .from('delivery_records')
+    .update({
+      extra_lines: extraLines,
+      ship_customer: String(shipCustomer || '').trim(),
+    })
+    .in('id', ids)
+  if (error) {
+    if (isMissingDeliveryExtraColumns(error.message)) return { ok: true }
+    return { ok: false, detail: error.message }
+  }
+  return { ok: true }
+}
+
 function mapDeliveryRecord(row: {
   id?: unknown
   shipment_id?: unknown
@@ -320,30 +354,20 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
   if (!deliveryCountsResult.ok) return deliveryCountsResult
   if (!quotesResult.ok) return quotesResult
 
-  let assemblyResult = await repairChildrenOnlyAssemblyGroups(
-    assemblyFetchResult.groups,
-    orders,
-    productById,
-  )
-  if (!assemblyResult.ok) return assemblyResult
-
-  assemblyResult = await repairOrphanAssemblyGroups(assemblyResult.groups, productById)
-  if (!assemblyResult.ok) return assemblyResult
-
-  assemblyResult = await repairMissingSemiFinishedDeliveryGroups(
-    assemblyResult.groups,
-    productById,
-    derivedOrdersResult.orders,
-  )
-  if (!assemblyResult.ok) return assemblyResult
+  let assemblyResult = assemblyFetchResult
 
   const deliveryCounts = deliveryCountsResult.counts
+  const orderById = Object.fromEntries(orders.map((order) => [order.orderId, order]))
   const availabilityByGroupId = buildDeliveryAvailabilityMap(
     assemblyResult.groups,
     smtCountsResult.counts,
     postCountsResult.counts,
     deliveryCounts,
     productById,
+    {
+      quotes: quotesResult.quotes,
+      orderById,
+    },
   )
 
   const smtOrders = buildProductionOrderLines(
@@ -653,74 +677,10 @@ export async function createDeliveryRecord(
       return { ok: false, reason: 'query', detail: rpcError.message }
     }
 
-    const basePayload: {
-      id?: string
-      shipment_id: string
-      record_date: string
-      assembly_group_id: string
-      quantity: number
-      source: DeliverySource
-      note: string
-    } = {
-      record_date: recordDate,
-      assembly_group_id: assemblyGroupId,
-      quantity,
-      source,
-      note: input.note?.trim() || '',
-      // DB 트리거가 빈 값이면 id 로 채움. null 삽입 금지(NOT NULL 위반)
-      shipment_id: shipmentGroupId || shipmentNumber || '',
-    }
-
-    if (shipmentNumber) {
-      basePayload.id = shipmentNumber
-    }
-
-    const insertPayload = await withCreatedByFields(basePayload)
-    let { data: inserted, error: insertError } = await supabase
-      .from('delivery_records')
-      .insert(insertPayload)
-      .select('*')
-      .single()
-
-    if (insertError && isMissingCreatedByColumn(insertError.message)) {
-      ;({ data: inserted, error: insertError } = await supabase
-        .from('delivery_records')
-        .insert(stripCreatedByFields(insertPayload))
-        .select('*')
-        .single())
-    }
-
-    if (insertError || !inserted) {
-      return {
-        ok: false,
-        reason: 'query',
-        detail: insertError?.message || '출하 기록 저장에 실패했습니다.',
-      }
-    }
-
-    const record = mapDeliveryRecord(inserted)
-    await persistPaymentTermSnapshot(
-      'delivery_records',
-      record.id,
-      await resolveDeliveryPaymentSnapshot({ assemblyGroupId }),
-    )
-    const lotsResult = await maybePersistDeliveryLots({
-      deliveryRecordId: record.id,
-      assemblyGroupId,
-      quantity,
-      preferDate: recordDate,
-      allocations: input.allocations as LotAllocation[] | undefined,
-      mode: 'create',
-    })
-    if (!lotsResult.ok && lotsResult.reason === 'validation') {
-      await supabase.from('delivery_records').delete().eq('id', record.id)
-      return { ok: false, reason: 'validation', detail: lotsResult.detail }
-    }
     return {
-      ok: true,
-      record,
-      cumulative: currentTotal + quantity,
-      usedCatchUp: lotsResult.ok ? lotsResult.usedCatchUp : undefined,
+      ok: false,
+      reason: 'query',
+      detail: missingRpcMigrationMessage('insert_delivery_record_atomic'),
     }
   } catch (error) {
     return {
@@ -941,6 +901,17 @@ export async function createDeliveryShipment(
       return { ok: false, reason: 'query', detail: updateError.message }
     }
 
+    const extraPersist = await persistDeliveryExtraColumns(
+      records.map((record) => record.id),
+      extraLines,
+    )
+    if (!extraPersist.ok) {
+      for (const record of records) {
+        await deleteDeliveryRecord(record.id)
+      }
+      return { ok: false, reason: 'query', detail: extraPersist.detail }
+    }
+
     return {
       ok: true,
       shipmentId,
@@ -988,6 +959,8 @@ async function createExtrasOnlyDeliveryShipment(input: {
       source: 'manual' as DeliverySource,
       note,
       shipment_id: '',
+      extra_lines: input.extraLines,
+      ship_customer: input.customer,
     })
 
     let { data: inserted, error: insertError } = await supabase
@@ -995,6 +968,18 @@ async function createExtrasOnlyDeliveryShipment(input: {
       .insert(basePayload)
       .select('*')
       .single()
+
+    if (insertError && isMissingDeliveryExtraColumns(insertError.message)) {
+      const { extra_lines: _el, ship_customer: _sc, ...withoutExtra } = basePayload as Record<
+        string,
+        unknown
+      > & { extra_lines?: unknown; ship_customer?: unknown }
+      ;({ data: inserted, error: insertError } = await supabase
+        .from('delivery_records')
+        .insert(withoutExtra)
+        .select('*')
+        .single())
+    }
 
     if (insertError && isMissingCreatedByColumn(insertError.message)) {
       ;({ data: inserted, error: insertError } = await supabase
@@ -1304,6 +1289,21 @@ export async function updateDeliveryRecord(
 
     const recordDate = input.recordDate?.trim() || String(existing.record_date || '').slice(0, 10)
     const note = input.note != null ? input.note.trim() : existing.note || ''
+    // note를 넘긴 수정은 마커가 최신 — 컬럼보다 note 우선
+    const extraLines =
+      input.note != null
+        ? parseShipmentExtraLines(note)
+        : resolveShipmentExtraLines({
+            note,
+            extraLines: (existing as { extra_lines?: unknown }).extra_lines,
+          })
+    const shipCustomer =
+      input.note != null
+        ? parseShipmentCustomerFromNote(note)
+        : resolveShipmentCustomer({
+            note,
+            shipCustomer: (existing as { ship_customer?: string | null }).ship_customer,
+          })
 
     const { data: updated, error: updateError } = await supabase
       .from('delivery_records')
@@ -1311,10 +1311,52 @@ export async function updateDeliveryRecord(
         record_date: recordDate,
         quantity,
         note,
+        extra_lines: extraLines,
+        ship_customer: shipCustomer,
       })
       .eq('id', id)
       .select('*')
       .single()
+
+    if (updateError && isMissingDeliveryExtraColumns(updateError.message)) {
+      const fallback = await supabase
+        .from('delivery_records')
+        .update({
+          record_date: recordDate,
+          quantity,
+          note,
+        })
+        .eq('id', id)
+        .select('*')
+        .single()
+      if (fallback.error || !fallback.data) {
+        return {
+          ok: false,
+          reason: 'query',
+          detail: fallback.error?.message || '출하 기록 수정에 실패했습니다.',
+        }
+      }
+      // continue with fallback.data below via reassignment
+      const lotsResult = assemblyGroupId
+        ? await maybePersistDeliveryLots({
+            deliveryRecordId: id,
+            assemblyGroupId,
+            quantity,
+            preferDate: recordDate,
+            allocations: input.allocations as LotAllocation[] | undefined,
+            mode: 'replace',
+          })
+        : ({ ok: true as const, usedCatchUp: false })
+      if (!lotsResult.ok && lotsResult.reason === 'validation') {
+        return { ok: false, reason: 'validation', detail: lotsResult.detail }
+      }
+      return {
+        ok: true,
+        record: mapDeliveryRecord(fallback.data),
+        cumulative,
+        usedCatchUp: lotsResult.ok ? lotsResult.usedCatchUp : undefined,
+      }
+    }
 
     if (updateError || !updated) {
       return {
@@ -1450,6 +1492,8 @@ type DeliveryHistoryRecordRow = {
   quantity: number
   source: string
   note: string
+  extra_lines?: unknown
+  ship_customer?: string | null
   created_by?: string | null
   created_by_name?: string | null
   created_at: string
@@ -1484,9 +1528,15 @@ function mapDeliveryHistoryRow(row: DeliveryHistoryRecordRow): DeliveryHistoryRo
   if (!assemblyGroups) {
     // legacy_statement:… 스텁은 과거명세 경로에서 처리 (순환 import 방지로 prefix 직접 비교)
     if (String(record.note || '').trim().startsWith('legacy_statement:')) return null
-    const extras = parseShipmentExtraLines(record.note)
+    const extras = resolveShipmentExtraLines({
+      note: record.note,
+      extraLines: row.extra_lines,
+    })
     if (!extras.length) return null
-    const customer = parseShipmentCustomerFromNote(record.note)
+    const customer = resolveShipmentCustomer({
+      note: record.note,
+      shipCustomer: row.ship_customer,
+    })
     const productNames = [...new Set(extras.map((line) => line.productName.trim()).filter(Boolean))]
     return {
       id: record.id,
@@ -1597,6 +1647,8 @@ async function fetchDeliveryRecords(options?: {
         quantity,
         source,
         note,
+        extra_lines,
+        ship_customer,
         created_by,
         created_by_name,
         created_at,
@@ -1626,6 +1678,8 @@ async function fetchDeliveryRecords(options?: {
         quantity,
         source,
         note,
+        extra_lines,
+        ship_customer,
         created_at,
         order_assembly_groups (
           target_quantity,
@@ -1666,6 +1720,27 @@ async function fetchDeliveryRecords(options?: {
     }
 
     let { data, error } = await query
+
+    if (error && isMissingDeliveryExtraColumns(error.message)) {
+      const withoutExtra = selectWithCreatedBy
+        .replace(/\s*extra_lines,\s*/m, '\n')
+        .replace(/\s*ship_customer,\s*/m, '\n')
+      let retry = supabase
+        .from('delivery_records')
+        .select(withoutExtra)
+        .order('created_at', { ascending: false })
+        .limit(options?.limit ?? 1000)
+      if (options?.recordDate) retry = retry.eq('record_date', options.recordDate)
+      if (options?.shipmentId) retry = retry.eq('shipment_id', options.shipmentId)
+      if (options?.assemblyGroupIds?.length === 1) {
+        retry = retry.eq('assembly_group_id', options.assemblyGroupIds[0]!)
+      } else if (options?.assemblyGroupIds && options.assemblyGroupIds.length > 1) {
+        retry = retry.in('assembly_group_id', options.assemblyGroupIds)
+      }
+      const retried = await retry
+      data = (retried.data || null) as typeof data
+      error = retried.error
+    }
 
     if (error && isMissingCreatedByColumn(error.message)) {
       let legacyQuery = supabase

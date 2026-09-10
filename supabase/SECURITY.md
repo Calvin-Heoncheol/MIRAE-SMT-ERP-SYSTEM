@@ -25,6 +25,9 @@ anon 키만으로 전 테이블 CRUD 되던 정책을 막습니다.
 7. (무결성) **`migrate-atomic-quantity-inserts.sql`** — 생산·출하 동시 등록 레이스 방지
 8. (P1) **`migrate-p1-inbound-fingerprint-po-lock.sql`** — 릴 fingerprint 유니크 + PO 입고 원자 RPC
 9. (P1) **`migrate-p1-items-product-unique.sql`** — 반·조립 유니크(고객사+코드+버전)
+10. (정본) **`migrate-orders-canonical-id-work-number.sql`** — 작업번호 PO 기반 백필
+11. (출하) **`migrate-delivery-extra-lines.sql`** — 추가작업·자재 컬럼 정규화
+12. (품목) **`migrate-items-material-cost-lines.sql`** — 자재비 세부 행
 
 적용 후:
 
@@ -35,7 +38,9 @@ anon 키만으로 전 테이블 CRUD 되던 정책을 막습니다.
 - **변경이력 INSERT**: 로그인만 (SELECT는 공개 유지)
 - **profiles**: `trg_enforce_profile_safe_update` — 비관리자 본인의 role/department 변경 차단
 
-`AUTH_ENABLED=false` 개발 모드에서는 JWT가 없어 쓰기가 막힐 수 있습니다. RLS 적용 환경에서는 로그인을 켜 주세요.
+`AUTH_ENABLED=false` 는 **production에서 무시**됩니다 (인증 강제). 개발 환경에서만 AUTH 끔이 가능하며, OPEN 모드에서는 삭제·직접재고·기초등록이 차단됩니다.
+
+RLS 적용 환경에서는 로컬도 `AUTH_ENABLED=true` 권장.
 
 ## 앱 레이어 가드
 

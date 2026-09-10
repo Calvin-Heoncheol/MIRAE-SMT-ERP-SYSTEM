@@ -351,19 +351,19 @@ export function PostProcessScanInputPanel({
             </p>
             <div className="mt-3 grid grid-cols-3 gap-2 text-center">
               <div className="rounded-lg bg-slate-50 px-2 py-2">
-                <p className="text-[10px] font-semibold text-slate-500">누적</p>
+                <p className="text-[11px] font-semibold text-slate-500">누적</p>
                 <p className="text-lg font-bold tabular-nums text-slate-900">
                   {cumulative.toLocaleString('ko-KR')}
                 </p>
               </div>
               <div className="rounded-lg bg-slate-50 px-2 py-2">
-                <p className="text-[10px] font-semibold text-slate-500">목표</p>
+                <p className="text-[11px] font-semibold text-slate-500">목표</p>
                 <p className="text-lg font-bold tabular-nums text-slate-900">
                   {target.toLocaleString('ko-KR')}
                 </p>
               </div>
               <div className="rounded-lg bg-emerald-50 px-2 py-2">
-                <p className="text-[10px] font-semibold text-emerald-700">잔량</p>
+                <p className="text-[11px] font-semibold text-emerald-700">잔량</p>
                 <p className="text-lg font-bold tabular-nums text-emerald-800">
                   {remaining.toLocaleString('ko-KR')}
                 </p>

@@ -235,7 +235,7 @@ export function ProductionPlanPendingSidebar({
                     sideUnplanned={sideUnplanned}
                     muted
                   />
-                  <p className="mt-1.5 text-[10px] font-semibold text-amber-700">
+                  <p className="mt-1.5 text-[11px] font-semibold text-amber-700">
                     {scope === 'smt'
                       ? '자재 준비 후 SMT 배정 가능'
                       : 'SMD 생산계획 확정 후 배정 가능'}

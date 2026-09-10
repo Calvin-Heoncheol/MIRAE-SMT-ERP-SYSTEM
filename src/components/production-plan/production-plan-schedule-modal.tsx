@@ -244,7 +244,7 @@ export function ProductionPlanScheduleModal({
                           {option.label}
                         </span>
                         <span
-                          className={`mt-0.5 block text-[10px] font-semibold tabular-nums ${
+                          className={`mt-0.5 block text-[11px] font-semibold tabular-nums ${
                             option.done ? 'text-slate-400' : 'text-slate-500'
                           }`}
                         >

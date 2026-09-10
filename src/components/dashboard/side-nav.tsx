@@ -19,6 +19,7 @@ import {
   type NavItem,
   type NavSearch,
 } from '@/lib/navigation'
+import { ERP_TEXT_BRAND_CLASS } from '@/lib/ui/tokens'
 
 type SideNavProps = {
   profile?: AuthProfile | null
@@ -212,7 +213,7 @@ function NavChildLink({
     >
       <span className="min-w-0 flex-1 truncate">{child.label}</span>
       {child.locked ? (
-        <span className="shrink-0 text-[10px] font-semibold text-slate-400">잠금</span>
+        <span className="shrink-0 text-[11px] font-semibold text-slate-400">잠금</span>
       ) : null}
     </Link>
   )
@@ -260,7 +261,7 @@ function NavChildSection({
         aria-expanded={expanded}
       >
         <span className="min-w-0 truncate">{child.label}</span>
-        <span className="shrink-0 pl-2 text-[10px] opacity-70">{expanded ? '▾' : '▸'}</span>
+        <span className="shrink-0 pl-2 text-[11px] opacity-70">{expanded ? '▾' : '▸'}</span>
       </button>
       {expanded ? (
         <div className="space-y-0.5 pl-3">
@@ -369,7 +370,7 @@ function NavSection({
         <NavSectionIcon href={item.href} />
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
         {item.locked ? (
-          <span className="shrink-0 text-[10px] font-semibold text-slate-400">잠금</span>
+          <span className="shrink-0 text-[11px] font-semibold text-slate-400">잠금</span>
         ) : null}
       </LockedAwareNavLink>
     )
@@ -388,7 +389,7 @@ function NavSection({
       >
         <NavSectionIcon href={item.href} />
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
-        <span className="shrink-0 text-[10px] opacity-70">{expanded ? '▾' : '▸'}</span>
+        <span className="shrink-0 text-[11px] opacity-70">{expanded ? '▾' : '▸'}</span>
       </button>
       {expanded ? (
         <div className="mt-0.5 space-y-0.5 pl-3">
@@ -425,7 +426,7 @@ function SidebarBrand({ onNavigate }: { onNavigate?: () => void }) {
           className="object-contain object-left"
         />
       </span>
-      <span className="min-w-0 truncate text-[15px] font-bold tracking-tight text-slate-900">
+      <span className={`min-w-0 truncate ${ERP_TEXT_BRAND_CLASS} text-slate-900`}>
         {APP_SHORT_NAME}
       </span>
     </Link>

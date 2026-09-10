@@ -13,9 +13,11 @@ import type {
 import { loadHomeTeamProductionAction } from '@/lib/dashboard/actions'
 import type { ChangeLogRecord } from '@/lib/change-logs/types'
 import { ChangeLogDetailText } from '@/components/change-logs/change-log-detail-text'
+import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import {
   ERP_BADGE_COMPACT_CLASS,
   ERP_FIELD_INPUT_CLASS,
+  ERP_PANEL_CLASS,
   ERP_SECONDARY_BUTTON_CLASS,
   ERP_TABLE_TD_WRAP_CLASS,
 } from '@/lib/ui/tokens'
@@ -31,14 +33,6 @@ const DEPARTMENT_CHIP = {
   material: 'bg-amber-50 text-amber-800 ring-amber-200',
   sales: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
 } as const
-
-const VALUE_TONE: Record<HomeHeadlineMetric['tone'], string> = {
-  default: 'text-slate-900',
-  sky: 'text-sky-700',
-  emerald: 'text-emerald-700',
-  amber: 'text-amber-700',
-  rose: 'text-rose-700',
-}
 
 function attentionToneClass(tone: HomeAttentionItem['tone']) {
   if (tone === 'danger') return 'border-l-rose-500 bg-rose-50/40'
@@ -59,22 +53,22 @@ function formatProductionTime(iso: string) {
 function HeadlineCards({ metrics }: { metrics: HomeHeadlineMetric[] }) {
   return (
     <section className="grid shrink-0 grid-cols-2 gap-3 xl:grid-cols-4">
-      {metrics.map((metric) => {
-        const display =
-          metric.value == null ? '–' : metric.value.toLocaleString('ko-KR')
-        return (
-          <Link
-            key={metric.key}
-            href={metric.href}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
-          >
-            <p className="text-xs font-semibold text-slate-500">{metric.label}</p>
-            <p className={`mt-1.5 text-3xl font-bold tabular-nums ${VALUE_TONE[metric.tone]}`}>
-              {display}
-            </p>
-          </Link>
-        )
-      })}
+      {metrics.map((metric) => (
+        <Link
+          key={metric.key}
+          href={metric.href}
+          className="block transition hover:opacity-95"
+        >
+          <KpiStatCard
+            label={metric.label}
+            value={metric.value}
+            unit={metric.unit}
+            hint={metric.hint}
+            tone={metric.tone === 'default' ? 'default' : metric.tone}
+            className="h-full hover:border-slate-300 hover:shadow-md"
+          />
+        </Link>
+      ))}
     </section>
   )
 }
@@ -129,7 +123,7 @@ function ChangesPanel({
         : null
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${ERP_PANEL_CLASS}`}>
       <header className="shrink-0 border-b border-slate-100 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-base font-bold text-slate-900">변경사항</h2>
@@ -189,7 +183,7 @@ function ChangesPanel({
 
 function AttentionPanel({ items }: { items: HomeAttentionItem[] }) {
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${ERP_PANEL_CLASS}`}>
       <header className="shrink-0 border-b border-slate-100 px-4 py-3">
         <h2 className="text-base font-bold text-slate-900">관심 필요</h2>
         <p className="mt-0.5 text-xs text-slate-500">바로 조치가 필요한 항목</p>
@@ -362,7 +356,7 @@ function TeamProduction({
 
   return (
     <>
-      <aside className="flex min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:w-[22rem] xl:shrink-0">
+      <aside className={`flex min-h-0 w-full flex-col overflow-hidden ${ERP_PANEL_CLASS} xl:w-[22rem] xl:shrink-0`}>
         <header className="shrink-0 border-b border-slate-100 px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-base font-bold text-slate-900">팀별 생산</h2>

@@ -49,6 +49,7 @@ export function orderItemFormToModel(item: OrderItemForm) {
     materialCost: isAdhoc ? 0 : materialCost,
     orderAmount,
     deliveryDate: String(item.deliveryDate || '').trim(),
+    workNumber: isAdhoc ? '' : String(item.workNumber || '').trim(),
     isAdhoc,
     /** 폼 선택용 id (추가작업 검증용, 저장하지 않음) */
     formProductId: productId || null,
@@ -157,6 +158,7 @@ export function validateOrderItems(
     materialCost: number
     orderAmount: number
     deliveryDate: string
+    workNumber: string
     isAdhoc: boolean
   }> = []
 
@@ -204,6 +206,7 @@ export function validateOrderItems(
         materialCost: 0,
         orderAmount: item.orderAmount,
         deliveryDate: headerDeliveryDate || item.deliveryDate,
+        workNumber: '',
         isAdhoc: true,
       })
       continue
@@ -222,6 +225,7 @@ export function validateOrderItems(
       materialCost: item.materialCost,
       orderAmount: item.orderAmount,
       deliveryDate: headerDeliveryDate || item.deliveryDate,
+      workNumber: item.workNumber,
       isAdhoc: false,
     })
   }

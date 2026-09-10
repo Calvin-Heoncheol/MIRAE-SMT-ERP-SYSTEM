@@ -1,6 +1,7 @@
 import { EmptyListState } from '@/components/ui/empty-list-state'
-import { ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ErpTableHead, ErpTableShell, ErpTableTd, ErpTableTh } from '@/components/ui/erp-table'
 import type { DeliveryStatementTableGroup } from '@/lib/delivery/history-utils'
+import { ERP_CODE_TEXT_CLASS, ERP_TABLE_ROW_CLASS } from '@/lib/ui/tokens'
 
 type DeliveryHistoryTableProps = {
   groups: DeliveryStatementTableGroup[]
@@ -27,70 +28,48 @@ export function DeliveryHistoryTable({
   }
 
   return (
-    <div className={ERP_TABLE_WRAP_CLASS}>
-      <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="erp-data-table min-w-[960px] w-full border-collapse">
-          <thead className="sticky top-0 z-[1] bg-slate-50">
-            <tr>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                출하일
-              </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                출하번호
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">고객사</th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">품목</th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                수량
-              </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                공급가액
-              </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                등록자
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((group) => (
-              <tr
-                key={`${group.source}:${group.shipmentId}`}
-                onClick={() => onRowClick?.(group)}
-                className={`border-t border-slate-100 hover:bg-slate-50/80 ${
-                  onRowClick ? 'cursor-pointer' : ''
-                }`}
-              >
-                <td className="whitespace-nowrap px-3 py-2.5 text-sm tabular-nums text-slate-700">
-                  {cell(group.recordDate)}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs font-semibold text-slate-800">
-                  {cell(group.shipmentId)}
-                </td>
-                <td className="px-3 py-2.5 text-sm font-semibold text-slate-900">
-                  {cell(group.customer)}
-                </td>
-                <td className="px-3 py-2.5 text-sm text-slate-800">
-                  {cell(group.productName)}
-                  {group.source === 'legacy' ? (
-                    <span className="ml-2 text-xs font-semibold text-amber-700">과거</span>
-                  ) : null}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right text-sm font-bold tabular-nums text-slate-900">
-                  {group.quantity.toLocaleString('ko-KR')}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900">
-                  {group.supplyAmount == null
-                    ? '…'
-                    : group.supplyAmount.toLocaleString('ko-KR')}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-sm text-slate-600">
-                  {cell(group.createdByName)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <ErpTableShell tableClassName="min-w-[960px]">
+      <ErpTableHead>
+        <tr>
+          <ErpTableTh>출하일</ErpTableTh>
+          <ErpTableTh>출하번호</ErpTableTh>
+          <ErpTableTh>고객사</ErpTableTh>
+          <ErpTableTh>품목</ErpTableTh>
+          <ErpTableTh align="right">수량</ErpTableTh>
+          <ErpTableTh align="right">공급가액</ErpTableTh>
+          <ErpTableTh>등록자</ErpTableTh>
+        </tr>
+      </ErpTableHead>
+      <tbody>
+        {groups.map((group) => (
+          <tr
+            key={`${group.source}:${group.shipmentId}`}
+            onClick={() => onRowClick?.(group)}
+            className={`${ERP_TABLE_ROW_CLASS} ${onRowClick ? 'cursor-pointer' : ''}`}
+          >
+            <ErpTableTd className="tabular-nums text-slate-700">{cell(group.recordDate)}</ErpTableTd>
+            <ErpTableTd className={`${ERP_CODE_TEXT_CLASS} font-semibold`}>
+              {cell(group.shipmentId)}
+            </ErpTableTd>
+            <ErpTableTd text="wrap" className="max-w-[160px] font-semibold text-slate-900">
+              {cell(group.customer)}
+            </ErpTableTd>
+            <ErpTableTd text="wrap" className="max-w-[220px] text-slate-800">
+              {cell(group.productName)}
+              {group.source === 'legacy' ? (
+                <span className="ml-2 text-xs font-semibold text-amber-700">과거</span>
+              ) : null}
+            </ErpTableTd>
+            <ErpTableTd align="right" className="font-bold tabular-nums text-slate-900">
+              {group.quantity.toLocaleString('ko-KR')}
+            </ErpTableTd>
+            <ErpTableTd align="right" className="font-semibold tabular-nums text-slate-900">
+              {group.supplyAmount == null ? '…' : group.supplyAmount.toLocaleString('ko-KR')}
+            </ErpTableTd>
+            <ErpTableTd className="text-slate-600">{cell(group.createdByName)}</ErpTableTd>
+          </tr>
+        ))}
+      </tbody>
+    </ErpTableShell>
   )
 }

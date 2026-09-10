@@ -18,6 +18,7 @@ import {
   getUnplannedRemainingForSide,
 } from '@/lib/smt/plan/utils'
 import type { SmtPcbSide } from '@/lib/smt/types'
+import { ERP_FIELD_INPUT_CLASS, ERP_PRIMARY_BUTTON_SM_CLASS } from '@/lib/ui/tokens'
 
 export type SmtPlanFormValues = {
   id?: string
@@ -146,7 +147,7 @@ function SmtPlanCandidatePicker({
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="발주번호, 고객사, 제품명 검색…"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+          className={`${ERP_FIELD_INPUT_CLASS} py-2.5 placeholder:text-slate-400`}
           autoFocus
         />
       </div>
@@ -178,7 +179,7 @@ function SmtPlanCandidatePicker({
                     </p>
                     {dueLabel ? (
                       <span
-                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${urgencyBadgeClass(candidate.daysUntilDelivery)}`}
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ${urgencyBadgeClass(candidate.daysUntilDelivery)}`}
                       >
                         {dueLabel}
                       </span>
@@ -191,7 +192,7 @@ function SmtPlanCandidatePicker({
                     </p>
                     <span
                       className={[
-                        'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold',
+                        'shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold',
                         candidate.pcbSideMode === 'double'
                           ? 'bg-sky-100 text-sky-800'
                           : candidate.pcbSideMode === 'duo'
@@ -223,7 +224,7 @@ function SmtPlanCandidatePicker({
                     />
                   </div>
 
-                  <span className="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-slate-800 px-2.5 py-1.5 text-[12px] font-bold text-white">
+                  <span className={`mt-3 w-full ${ERP_PRIMARY_BUTTON_SM_CLASS} text-[12px] font-bold`}>
                     이번 차 등록
                     {readyUnits > 0 && readyUnits < candidate.unplannedRemaining
                       ? ` · ${readyUnits.toLocaleString('ko-KR')}대`
@@ -464,7 +465,7 @@ function SmtPlanFormModalInner({
                   return { ...current, plannedDate, plannedEndDate }
                 })
               }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+              className={ERP_FIELD_INPUT_CLASS}
               required
             />
           </label>
@@ -477,7 +478,7 @@ function SmtPlanFormModalInner({
               onChange={(event) =>
                 setValues((current) => ({ ...current, plannedEndDate: event.target.value }))
               }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+              className={ERP_FIELD_INPUT_CLASS}
               required
             />
           </label>
@@ -493,7 +494,7 @@ function SmtPlanFormModalInner({
                 planStatus: event.target.value === 'draft' ? 'draft' : 'confirmed',
               }))
             }
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+            className={ERP_FIELD_INPUT_CLASS}
           >
             <option value="draft">가계획 (입고예정 기준)</option>
             <option value="confirmed">확정 (이번 주 실행)</option>
@@ -507,7 +508,7 @@ function SmtPlanFormModalInner({
             onChange={(event) =>
               setValues((current) => ({ ...current, lineNo: Number(event.target.value) }))
             }
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+            className={ERP_FIELD_INPUT_CLASS}
           >
             {SMT_PLAN_LINE_NOS.map((lineNo) => (
               <option key={lineNo} value={lineNo}>
@@ -553,7 +554,7 @@ function SmtPlanFormModalInner({
               onValueChange={(plannedQuantity) =>
                 setValues((current) => ({ ...current, plannedQuantity }))
               }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+              className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
               required
             />
           </label>
@@ -579,7 +580,7 @@ function SmtPlanFormModalInner({
             value={values.note}
             onChange={(event) => setValues((current) => ({ ...current, note: event.target.value }))}
             placeholder="예: 1차 / 자재 대기"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+            className={ERP_FIELD_INPUT_CLASS}
           />
         </label>
       </form>

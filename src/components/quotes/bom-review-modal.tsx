@@ -55,7 +55,7 @@ function CrossRefRow({ row }: { row: BomPickPlaceCrossRefRow }) {
         <div className="flex flex-wrap items-center gap-1">
           <span>{STATUS_LABELS[row.status]}</span>
           {bomExcluded ? (
-            <span className="inline-flex rounded-full bg-slate-200 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-300">
+            <span className="inline-flex rounded-full bg-slate-200 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-300">
               미실장
             </span>
           ) : null}
@@ -87,10 +87,10 @@ function BomLineRow({ line }: { line: AltiumBomAnalysis['lines'][number] }) {
       <td className="px-2 py-2 text-xs">
         {line.excluded ? (
           <span className="inline-flex flex-col gap-0.5">
-            <span className="inline-flex w-fit rounded-full bg-slate-200 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">
+            <span className="inline-flex w-fit rounded-full bg-slate-200 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">
               미실장
             </span>
-            <span className="text-[10px] text-slate-500">
+            <span className="text-[11px] text-slate-500">
               {bomExcludeReasonLabel(line.excludeReason ?? 'strikethrough', line)}
             </span>
           </span>

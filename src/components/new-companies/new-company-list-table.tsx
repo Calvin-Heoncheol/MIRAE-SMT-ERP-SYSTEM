@@ -1,14 +1,14 @@
 'use client'
 
 import { EmptyListState } from '@/components/ui/empty-list-state'
-
+import { ErpTableHead, ErpTableShell, ErpTableTd, ErpTableTh } from '@/components/ui/erp-table'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { NewCompanyInquiry } from '@/lib/new-companies/types'
 import {
   NEW_COMPANY_STATUS_BADGE_CLASS,
   NEW_COMPANY_STATUS_LABELS,
 } from '@/lib/new-companies/types'
-import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_SCROLL_CLASS, ERP_TABLE_TD_WRAP_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_TABLE_ROW_CLASS } from '@/lib/ui/tokens'
 
 type NewCompanyListTableProps = {
   inquiries: NewCompanyInquiry[]
@@ -35,72 +35,58 @@ export function NewCompanyListTable({
   }
 
   return (
-    <div className={ERP_TABLE_WRAP_CLASS}>
-      <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="erp-data-table w-full min-w-[1060px] border-collapse text-left text-sm">
-          <thead className={ERP_TABLE_HEAD_CLASS}>
-            <tr>
-              <th className="px-3 py-2.5">등록일</th>
-              <th className="px-3 py-2.5">회사명</th>
-              <th className="px-3 py-2.5">지역</th>
-              <th className="px-3 py-2.5">담당자</th>
-              <th className="px-3 py-2.5">이메일</th>
-              <th className="px-3 py-2.5">연락처</th>
-              <th className="px-3 py-2.5">제품</th>
-              <th className="px-3 py-2.5">유입경로</th>
-              <th className="px-3 py-2.5">상태</th>
-            </tr>
-          </thead>
-          <tbody>
-            {inquiries.map((inquiry) => {
-              const contactLabel = cell(inquiry.contactName)
-              const emailLabel = cell(inquiry.email)
-              const regionLabel = cell(inquiry.region)
-              return (
-                <tr
-                  key={inquiry.id}
-                  className={[
-                    'border-t border-slate-100',
-                    onSelectInquiry ? 'cursor-pointer hover:bg-slate-50' : '',
-                  ].join(' ')}
-                  onClick={onSelectInquiry ? () => onSelectInquiry(inquiry) : undefined}
-                >
-                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-600">
-                    {inquiry.createdAt.slice(0, 10)}
-                  </td>
-                  <td className={`px-3 py-2.5 font-medium text-slate-900 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {cell(inquiry.companyName)}
-                  </td>
-                  <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {regionLabel}
-                  </td>
-                  <td className={`px-3 py-2.5 text-slate-800 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {contactLabel}
-                  </td>
-                  <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {emailLabel}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-600">
-                    {cell(inquiry.phone)}
-                  </td>
-                  <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {cell(inquiry.product)}
-                  </td>
-                  <td className={`px-3 py-2.5 text-slate-600 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {cell(inquiry.sourceChannel)}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <StatusBadge
-                      label={NEW_COMPANY_STATUS_LABELS[inquiry.status]}
-                      className={`ring-1 ${NEW_COMPANY_STATUS_BADGE_CLASS[inquiry.status]}`}
-                    />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <ErpTableShell tableClassName="min-w-[1060px]">
+      <ErpTableHead>
+        <tr>
+          <ErpTableTh>등록일</ErpTableTh>
+          <ErpTableTh>회사명</ErpTableTh>
+          <ErpTableTh>지역</ErpTableTh>
+          <ErpTableTh>담당자</ErpTableTh>
+          <ErpTableTh>이메일</ErpTableTh>
+          <ErpTableTh>연락처</ErpTableTh>
+          <ErpTableTh>제품</ErpTableTh>
+          <ErpTableTh>유입경로</ErpTableTh>
+          <ErpTableTh>상태</ErpTableTh>
+        </tr>
+      </ErpTableHead>
+      <tbody>
+        {inquiries.map((inquiry) => (
+          <tr
+            key={inquiry.id}
+            className={`${ERP_TABLE_ROW_CLASS} ${onSelectInquiry ? 'cursor-pointer' : ''}`}
+            onClick={onSelectInquiry ? () => onSelectInquiry(inquiry) : undefined}
+          >
+            <ErpTableTd className="tabular-nums text-slate-600">
+              {inquiry.createdAt.slice(0, 10)}
+            </ErpTableTd>
+            <ErpTableTd text="wrap" className="max-w-[180px] font-medium text-slate-900">
+              {cell(inquiry.companyName)}
+            </ErpTableTd>
+            <ErpTableTd text="wrap" className="max-w-[120px] text-slate-600">
+              {cell(inquiry.region)}
+            </ErpTableTd>
+            <ErpTableTd text="wrap" className="max-w-[120px] text-slate-800">
+              {cell(inquiry.contactName)}
+            </ErpTableTd>
+            <ErpTableTd text="wrap" className="max-w-[180px] text-slate-600">
+              {cell(inquiry.email)}
+            </ErpTableTd>
+            <ErpTableTd className="tabular-nums text-slate-600">{cell(inquiry.phone)}</ErpTableTd>
+            <ErpTableTd text="wrap" className="max-w-[160px] text-slate-600">
+              {cell(inquiry.product)}
+            </ErpTableTd>
+            <ErpTableTd text="wrap" className="max-w-[120px] text-slate-600">
+              {cell(inquiry.sourceChannel)}
+            </ErpTableTd>
+            <ErpTableTd>
+              <StatusBadge
+                label={NEW_COMPANY_STATUS_LABELS[inquiry.status]}
+                className={`ring-1 ${NEW_COMPANY_STATUS_BADGE_CLASS[inquiry.status]}`}
+              />
+            </ErpTableTd>
+          </tr>
+        ))}
+      </tbody>
+    </ErpTableShell>
   )
 }

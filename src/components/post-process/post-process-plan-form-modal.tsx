@@ -15,7 +15,7 @@ import {
   getDeliveryUrgencyTone,
 } from '@/lib/post-process/plan/utils'
 import type { PostProcessTeam } from '@/lib/post-process/teams'
-import { ERP_BADGE_COMPACT_CLASS } from '@/lib/ui/tokens'
+import { ERP_BADGE_COMPACT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_PRIMARY_BUTTON_SM_CLASS } from '@/lib/ui/tokens'
 
 export type PostProcessPlanFormValues = {
   id?: string
@@ -139,7 +139,7 @@ function PostProcessPlanCandidatePicker({
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="발주번호, 고객사, 제품명 검색…"
-          className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+          className={`${ERP_FIELD_INPUT_CLASS} py-2.5 placeholder:text-slate-400`}
           autoFocus
         />
       </div>
@@ -167,7 +167,7 @@ function PostProcessPlanCandidatePicker({
                     </p>
                     {dueLabel ? (
                       <span
-                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${urgencyBadgeClass(candidate.daysUntilDelivery)}`}
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ${urgencyBadgeClass(candidate.daysUntilDelivery)}`}
                       >
                         {dueLabel}
                       </span>
@@ -205,7 +205,7 @@ function PostProcessPlanCandidatePicker({
                     ) : null}
                   </div>
 
-                  <span className="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-slate-800 px-2.5 py-1.5 text-[12px] font-bold text-white">
+                  <span className={`mt-3 w-full ${ERP_PRIMARY_BUTTON_SM_CLASS} text-[12px] font-bold`}>
                     선택 · 계획수량 입력
                   </span>
                 </button>
@@ -311,7 +311,7 @@ function PostProcessPlanFormModalInner({
                   return { ...current, plannedDate, plannedEndDate }
                 })
               }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+              className={ERP_FIELD_INPUT_CLASS}
               required
             />
           </label>
@@ -324,7 +324,7 @@ function PostProcessPlanFormModalInner({
               onChange={(event) =>
                 setValues((current) => ({ ...current, plannedEndDate: event.target.value }))
               }
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+              className={ERP_FIELD_INPUT_CLASS}
               required
             />
           </label>
@@ -340,7 +340,7 @@ function PostProcessPlanFormModalInner({
                 planStatus: event.target.value === 'draft' ? 'draft' : 'confirmed',
               }))
             }
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+            className={ERP_FIELD_INPUT_CLASS}
           >
             <option value="draft">가계획</option>
             <option value="confirmed">확정</option>
@@ -356,7 +356,7 @@ function PostProcessPlanFormModalInner({
             onValueChange={(plannedQuantity) =>
               setValues((current) => ({ ...current, plannedQuantity }))
             }
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm tabular-nums outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+            className={`${ERP_FIELD_INPUT_CLASS} tabular-nums`}
             required
             autoFocus
           />
@@ -401,7 +401,7 @@ function PostProcessPlanFormModalInner({
             value={values.note}
             onChange={(event) => setValues((current) => ({ ...current, note: event.target.value }))}
             placeholder="선택 입력"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+            className={ERP_FIELD_INPUT_CLASS}
           />
         </label>
       </form>

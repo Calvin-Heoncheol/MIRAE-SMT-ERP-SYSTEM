@@ -1,7 +1,6 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import {
   isMissingCreatedByColumn,
-  stripCreatedByFields,
   withCreatedByFields,
 } from '@/lib/auth/created-by'
 import { insertChangeLog, formatChangeLogWarning } from '@/lib/change-logs/repository'
@@ -9,10 +8,7 @@ import { buildOrderChangeDetail } from '@/lib/change-logs/utils'
 import {
   fetchPaymentTermSnapshotForCustomer,
   firstNonEmptyPaymentTermSnapshot,
-  isMissingPaymentTermSnapshotColumn,
-  omitPaymentTermSnapshotFields,
   paymentTermSnapshotFromDbRow,
-  paymentTermSnapshotToDbRow,
   persistPaymentTermSnapshot,
   resolvePaymentTermSnapshotForUpdate,
   type PaymentTermSnapshot,
@@ -20,12 +16,11 @@ import {
 import { fetchQuotePaymentSnapshot } from '@/lib/quotes/repository'
 import { createSupabaseClient } from '@/lib/supabase'
 import { isMissingRpcFunction } from '@/lib/supabase/rpc'
+import { missingRpcMigrationMessage } from '@/lib/supabase/required-migrations'
 import { syncAssemblyGroupsForOrder } from '@/lib/assembly/repository'
 import { parseOrderRecord, parseOrderRecords } from '@/lib/db/parse-row'
 import type { OrderCurrency, OrderListGroup, OrderRecord, OrderRowPayload } from './types'
 import {
-  displayOrderPoNumber,
-  formatOrderWorkNumber,
   groupOrdersFromRecords,
   isBillingOnlyOrderItem,
   normalizeOrderCurrency,
@@ -120,36 +115,20 @@ function orderLinesJson(items: OrderRowPayload['items']) {
     unit_price: item.unitPrice,
     order_amount: item.orderAmount,
     delivery_date: item.deliveryDate?.trim() || null,
+    work_number: String(item.workNumber || '').trim() || null,
   }))
 }
 
-async function resolveOrderWorkNumberBase(
+/**
+ * 작업번호는 화면에서 직접 입력한 값을 저장한다 (자동 채번 없음).
+ * 추가작업·파생(BOM) 라인은 부모 제품 라인의 작업번호를 따른다.
+ */
+async function applyManualOrderWorkNumbers(
   orderId: string,
-  customerPoNumber?: string | null,
-) {
-  const supabase = createSupabaseClient()
-  let po = String(customerPoNumber || '').trim()
-  if (!po) {
-    const { data: orderRow } = await supabase
-      .from('orders')
-      .select('customer_po_number')
-      .eq('id', orderId)
-      .maybeSingle()
-    po = String(orderRow?.customer_po_number || '').trim()
-  }
-  return displayOrderPoNumber(po, orderId)
-}
-
-/** 작업번호 = {발주번호}-01 … (발주번호 = 고객 PO 우선, 없으면 내부 발주ID) */
-async function reassignOrderWorkNumbers(
-  orderId: string,
-  customerPoNumber?: string | null,
+  items: OrderRowPayload['items'],
 ): Promise<{ ok: true } | { ok: false; reason: 'query'; detail: string }> {
   try {
     const supabase = createSupabaseClient()
-    const workNumberBase = await resolveOrderWorkNumberBase(orderId, customerPoNumber)
-    if (!workNumberBase) return { ok: true }
-
     const { data: lines, error } = await supabase
       .from('order_lines')
       .select('id, product_id, derived_from_line_id, line_seq, work_number')
@@ -159,16 +138,13 @@ async function reassignOrderWorkNumbers(
     if (error) return { ok: false, reason: 'query', detail: error.message }
 
     const uiLines = (lines || []).filter((line) => !line.derived_from_line_id)
-    let workSeq = 0
     const workNumberById = new Map<string, string | null>()
 
-    for (const line of uiLines) {
-      const hasProduct = Boolean(String(line.product_id || '').trim())
-      let workNumber: string | null = null
-      if (hasProduct) {
-        workSeq += 1
-        workNumber = formatOrderWorkNumber(workNumberBase, workSeq)
-      }
+    for (let index = 0; index < uiLines.length; index += 1) {
+      const line = uiLines[index]!
+      const fromPayload = String(items[index]?.workNumber || '').trim() || null
+      const isBillingOnly = !String(line.product_id || '').trim()
+      const workNumber = isBillingOnly ? null : fromPayload
       workNumberById.set(String(line.id), workNumber)
       if (workNumber === (line.work_number ?? null)) continue
       const { error: updateError } = await supabase
@@ -200,115 +176,6 @@ async function reassignOrderWorkNumbers(
   }
 }
 
-async function replaceOrderLinesSafely(
-  orderId: string,
-  items: OrderRowPayload['items'],
-  customerPoNumber?: string | null,
-) {
-  const supabase = createSupabaseClient()
-  const { data: existingLines, error: fetchError } = await supabase
-    .from('order_lines')
-    .select('id, product_code, product_name, derived_from_line_id, work_number')
-    .eq('order_id', orderId)
-
-  if (fetchError) throw new Error(fetchError.message)
-
-  const workNumberBase = await resolveOrderWorkNumberBase(orderId, customerPoNumber)
-
-  const keepIds = new Set(
-    items.map((item) => String(item.lineId || '').trim()).filter(Boolean),
-  )
-  const uiLines = (existingLines || []).filter((line) => !line.derived_from_line_id)
-  const toRemove = uiLines.filter((line) => !keepIds.has(String(line.id)))
-
-  for (const line of toRemove) {
-    const lineId = String(line.id)
-    const { count: smtCount, error: smtError } = await supabase
-      .from('smt_production_records')
-      .select('id', { count: 'exact', head: true })
-      .eq('order_line_id', lineId)
-    if (smtError) throw new Error(smtError.message)
-    if ((smtCount || 0) > 0) {
-      throw new Error(`LINE_HAS_PRODUCTION:${line.product_code || ''}:${line.product_name || ''}`)
-    }
-
-    const { count: planCount, error: planError } = await supabase
-      .from('smt_production_plans')
-      .select('id', { count: 'exact', head: true })
-      .eq('order_line_id', lineId)
-    if (planError) throw new Error(planError.message)
-    if ((planCount || 0) > 0) {
-      throw new Error(`LINE_HAS_PRODUCTION:${line.product_code || ''}:${line.product_name || ''}`)
-    }
-  }
-
-  if (toRemove.length) {
-    const { error: deleteUiError } = await supabase
-      .from('order_lines')
-      .delete()
-      .in(
-        'id',
-        toRemove.map((line) => String(line.id)),
-      )
-    if (deleteUiError) throw new Error(deleteUiError.message)
-  }
-
-  const { error: deleteDerivedError } = await supabase
-    .from('order_lines')
-    .delete()
-    .eq('order_id', orderId)
-    .not('derived_from_line_id', 'is', null)
-  if (deleteDerivedError) throw new Error(deleteDerivedError.message)
-
-  const remainingUi = uiLines.filter((line) => keepIds.has(String(line.id)))
-  for (let index = 0; index < remainingUi.length; index += 1) {
-    const line = remainingUi[index]!
-    const { error } = await supabase
-      .from('order_lines')
-      .update({ line_seq: -1000 - index })
-      .eq('id', String(line.id))
-      .eq('order_id', orderId)
-    if (error) throw new Error(error.message)
-  }
-
-  let workSeq = 0
-  for (let index = 0; index < items.length; index += 1) {
-    const item = items[index]!
-    const lineId = String(item.lineId || '').trim()
-    let workNumber: string | null = null
-    if (!isBillingOnlyOrderItem(item)) {
-      workSeq += 1
-      workNumber = formatOrderWorkNumber(workNumberBase, workSeq)
-    }
-    const row = {
-      line_seq: index,
-      product_id: item.productId || null,
-      product_code: item.productCode || item.productId || '',
-      product_name: item.productName,
-      quantity: item.quantity,
-      setup_cost: item.setupCost ?? 0,
-      smd_unit_price: item.smdUnitPrice ?? 0,
-      dip_unit_price: item.dipUnitPrice ?? 0,
-      material_cost: item.materialCost ?? 0,
-      unit_price: item.unitPrice,
-      order_amount: item.orderAmount,
-      delivery_date: item.deliveryDate?.trim() || null,
-      work_number: workNumber,
-    }
-
-    if (lineId && remainingUi.some((line) => String(line.id) === lineId)) {
-      const { error } = await supabase.from('order_lines').update(row).eq('id', lineId).eq('order_id', orderId)
-      if (error) throw new Error(error.message)
-    } else {
-      const { error } = await supabase.from('order_lines').insert({
-        order_id: orderId,
-        ...row,
-      })
-      if (error) throw new Error(error.message)
-    }
-  }
-}
-
 async function resolveOrderPaymentSnapshot(payload: OrderRowPayload): Promise<PaymentTermSnapshot> {
   const fromPayload = payload.paymentTerms
   const fromQuote = payload.source_quote_id
@@ -316,43 +183,6 @@ async function resolveOrderPaymentSnapshot(payload: OrderRowPayload): Promise<Pa
     : paymentTermSnapshotFromDbRow(null)
   const fromPartner = await fetchPaymentTermSnapshotForCustomer(payload.customer)
   return firstNonEmptyPaymentTermSnapshot(fromPayload, fromQuote, fromPartner)
-}
-
-async function insertOrderLines(
-  orderId: string,
-  items: OrderRowPayload['items'],
-  customerPoNumber?: string | null,
-) {
-  const supabase = createSupabaseClient()
-  const workNumberBase = await resolveOrderWorkNumberBase(orderId, customerPoNumber)
-
-  let workSeq = 0
-  const rows = items.map((item, index) => {
-    let workNumber: string | null = null
-    if (!isBillingOnlyOrderItem(item)) {
-      workSeq += 1
-      workNumber = formatOrderWorkNumber(workNumberBase, workSeq)
-    }
-    return {
-      order_id: orderId,
-      line_seq: index,
-      product_id: item.productId || null,
-      product_code: item.productCode || item.productId || '',
-      product_name: item.productName,
-      quantity: item.quantity,
-      setup_cost: item.setupCost ?? 0,
-      smd_unit_price: item.smdUnitPrice ?? 0,
-      dip_unit_price: item.dipUnitPrice ?? 0,
-      material_cost: item.materialCost ?? 0,
-      unit_price: item.unitPrice,
-      order_amount: item.orderAmount,
-      delivery_date: item.deliveryDate?.trim() || null,
-      work_number: workNumber,
-    }
-  })
-
-  const { error } = await supabase.from('order_lines').insert(rows)
-  if (error) throw new Error(error.message)
 }
 
 export async function fetchOrders(options?: {
@@ -525,7 +355,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       if (!assemblySync.ok) {
         return { ok: false, reason: assemblySync.reason, detail: assemblySync.detail }
       }
-      const workNumbers = await reassignOrderWorkNumbers(orderId, payload.customer_po_number)
+      const workNumbers = await applyManualOrderWorkNumbers(orderId, payload.items)
       if (!workNumbers.ok) {
         return { ok: false, reason: workNumbers.reason, detail: workNumbers.detail }
       }
@@ -536,63 +366,11 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       return { ok: false, reason: 'query', detail: mapOrderSaveError(rpcError.message) }
     }
 
-    // RPC 미적용 환경 — 레거시 비원자 경로 (발주ID 자동 발급)
-    const baseRow = {
-      order_date: payload.order_date,
-      delivery_date: payload.delivery_date || null,
-      customer: payload.customer,
-      category: payload.category,
-      source: payload.source || 'manual',
-      source_quote_id: payload.source_quote_id || null,
-      note: payload.note?.trim() || '',
-      customer_po_number: payload.customer_po_number?.trim() || '',
-      currency,
-      ...paymentTermSnapshotToDbRow(paymentSnapshot),
+    return {
+      ok: false,
+      reason: 'query',
+      detail: missingRpcMigrationMessage('save_order_create'),
     }
-
-    const insertRow = await withCreatedByFields(baseRow)
-    let { data: inserted, error } = await supabase.from('orders').insert(insertRow).select('id').single()
-
-    if (error && isMissingCreatedByColumn(error.message)) {
-      ;({ data: inserted, error } = await supabase
-        .from('orders')
-        .insert(stripCreatedByFields(insertRow))
-        .select('id')
-        .single())
-    }
-
-    if (error && isMissingPaymentTermSnapshotColumn(error.message)) {
-      ;({ data: inserted, error } = await supabase
-        .from('orders')
-        .insert(omitPaymentTermSnapshotFields(insertRow))
-        .select('id')
-        .single())
-    }
-
-    if (error && isMissingOrdersCurrencyColumn(error.message)) {
-      return {
-        ok: false,
-        reason: 'query',
-        detail:
-          '발주서 통화(currency) 컬럼이 없습니다. Supabase에서 supabase/migrate-orders-currency.sql 을 실행해 주세요.',
-      }
-    }
-
-    if (error || !inserted?.id) {
-      return { ok: false, reason: 'query', detail: error?.message || '발주서 저장에 실패했습니다.' }
-    }
-
-    await persistPaymentTermSnapshot('orders', inserted.id, paymentSnapshot)
-    await insertOrderLines(inserted.id, payload.items, payload.customer_po_number)
-    const assemblySync = await syncAssemblyGroupsForOrder(inserted.id)
-    if (!assemblySync.ok) {
-      return { ok: false, reason: assemblySync.reason, detail: assemblySync.detail }
-    }
-    const workNumbers = await reassignOrderWorkNumbers(inserted.id, payload.customer_po_number)
-    if (!workNumbers.ok) {
-      return { ok: false, reason: workNumbers.reason, detail: workNumbers.detail }
-    }
-    return { ok: true, orderId: inserted.id, orderNumber: inserted.id }
   } catch (error) {
     return {
       ok: false,
@@ -662,34 +440,11 @@ export async function updateOrder(
       if (!isMissingRpcFunction(rpcError.message)) {
         return { ok: false, reason: 'query', detail: mapOrderSaveError(rpcError.message) }
       }
-
-      const updatePayload: Record<string, unknown> = {
-        order_date: payload.order_date,
-        delivery_date: payload.delivery_date || null,
-        customer: payload.customer,
-        category: payload.category,
-        note: payload.note?.trim() || '',
-        customer_po_number: payload.customer_po_number?.trim() || '',
-        currency,
-        updated_at: new Date().toISOString(),
+      return {
+        ok: false,
+        reason: 'query',
+        detail: missingRpcMigrationMessage('save_order_update'),
       }
-      let { error: updateError } = await supabase
-        .from('orders')
-        .update(updatePayload)
-        .eq('id', existing.id)
-
-      if (updateError && isMissingOrdersCurrencyColumn(updateError.message)) {
-        return {
-          ok: false,
-          reason: 'query',
-          detail:
-            '발주서 통화(currency) 컬럼이 없습니다. Supabase에서 supabase/migrate-orders-currency.sql 을 실행해 주세요.',
-        }
-      }
-
-      if (updateError) return { ok: false, reason: 'query', detail: updateError.message }
-
-      await replaceOrderLinesSafely(existing.id, payload.items, payload.customer_po_number)
     }
 
     await persistPaymentTermSnapshot('orders', existing.id, paymentSnapshot)
@@ -698,7 +453,7 @@ export async function updateOrder(
     if (!assemblySync.ok) {
       return { ok: false, reason: assemblySync.reason, detail: assemblySync.detail }
     }
-    const workNumbers = await reassignOrderWorkNumbers(existing.id, payload.customer_po_number)
+    const workNumbers = await applyManualOrderWorkNumbers(existing.id, payload.items)
     if (!workNumbers.ok) {
       return { ok: false, reason: workNumbers.reason, detail: workNumbers.detail }
     }

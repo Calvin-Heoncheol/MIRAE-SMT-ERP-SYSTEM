@@ -2,6 +2,7 @@
 -- 예: LEE-260909-01, FAS-260909-01 (고객사 미인식 시 MRO-…)
 -- 발주번호(customer_po_number) 미입력 시 발주ID와 동일하게 복사 (기존 동작 유지)
 --
+-- 정본. 작업번호 PO 백필은 migrate-orders-canonical-id-work-number.sql
 -- Supabase SQL Editor에서 실행하세요.
 
 -- 고객사 → 접두 (관용 매핑 + 로마자) — 없으면 생성, 있으면 동일 규칙 유지

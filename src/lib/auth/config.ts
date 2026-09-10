@@ -1,11 +1,16 @@
 /**
  * 인증 강제 여부.
- * - production: 기본 ON (AUTH_ENABLED=false 일 때만 끔)
+ * - production: 항상 ON. AUTH_ENABLED=false 는 무시하고 경고만 남김.
  * - development: 기본 OFF (AUTH_ENABLED=true 일 때만 켬)
  */
 export function isAuthDisabled() {
   if (process.env.NODE_ENV === 'production') {
-    return process.env.AUTH_ENABLED === 'false'
+    if (process.env.AUTH_ENABLED === 'false') {
+      console.error(
+        '[auth] AUTH_ENABLED=false 는 production에서 허용되지 않습니다. 인증을 강제합니다.',
+      )
+    }
+    return false
   }
   return process.env.AUTH_ENABLED !== 'true'
 }

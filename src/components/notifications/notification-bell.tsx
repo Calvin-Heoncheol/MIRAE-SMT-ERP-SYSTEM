@@ -250,14 +250,14 @@ export function NotificationBell({
                           ].join(' ')}
                         >
                           <div className="flex items-start gap-2">
-                            <span className="mt-0.5 shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">
+                            <span className="mt-0.5 shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600 ring-1 ring-slate-200">
                               {ACTIVITY_KIND_LABELS[item.kind]}
                             </span>
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                               <p className="mt-0.5 text-xs text-slate-500">{item.detail}</p>
                               <div className="mt-1.5 flex items-end justify-between gap-2">
-                                <span className="text-[10px] text-slate-400">
+                                <span className="text-[11px] text-slate-400">
                                   {new Date(item.createdAt).toLocaleString('ko-KR', {
                                     month: 'numeric',
                                     day: 'numeric',
@@ -267,7 +267,7 @@ export function NotificationBell({
                                   })}
                                 </span>
                                 {item.actorName && item.actorName !== '누군가' ? (
-                                  <span className="truncate text-[10px] text-slate-400">
+                                  <span className="truncate text-[11px] text-slate-400">
                                     {item.actorName}
                                   </span>
                                 ) : null}
@@ -306,7 +306,7 @@ export function NotificationBell({
         <span className="relative inline-flex">
           <BellIcon className="h-[18px] w-[18px]" />
           {unreadCount > 0 ? (
-            <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white">
+            <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[11px] font-bold text-white">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           ) : null}

@@ -286,6 +286,11 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
             postCountsResult.counts,
             deliveryCounts,
             productById,
+            {
+              orderById: Object.fromEntries(
+                ordersResult.orders.map((order) => [order.orderId, order]),
+              ),
+            },
           )
         : {}
 

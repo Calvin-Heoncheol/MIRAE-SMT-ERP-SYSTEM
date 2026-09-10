@@ -13,7 +13,7 @@ import {
   defaultOrderItemForm,
   type OrderItemForm,
 } from '@/lib/orders/form-state'
-import { computeLineAmount, computeOrderLineBreakdownAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, formatAdditionalWorkProductNameLabel, formatOrderMoney, isBillingOnlyOrderItem, orderCurrencySymbol, orderLinePerUnitPrice, previewOrderLineWorkNumbers, resolveOrderLineSmdUnitPrice } from '@/lib/orders/utils'
+import { computeLineAmount, computeOrderLineBreakdownAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, formatAdditionalWorkProductNameLabel, formatOrderMoney, isBillingOnlyOrderItem, orderCurrencySymbol, orderLinePerUnitPrice, resolveOrderLineSmdUnitPrice } from '@/lib/orders/utils'
 import type { OrderCurrency } from '@/lib/orders/types'
 import type { Product } from '@/lib/products/types'
 import { findProductsByCode, findProductsByName, filterProductsForCustomerStrict } from '@/lib/products/utils'
@@ -24,8 +24,6 @@ type OrderItemsFormProps = {
   customer: string
   products: Product[]
   currency?: OrderCurrency
-  /** 발주번호 — 있으면 작업번호 미리보기({발주번호}-01 …) 표시 */
-  customerPoNumber?: string
   onChange: Dispatch<SetStateAction<OrderItemForm[]>>
   onCustomerResolved?: (customer: string) => void
 }
@@ -180,7 +178,6 @@ export function OrderItemsForm({
   customer,
   products,
   currency = 'KRW',
-  customerPoNumber = '',
   onChange,
   onCustomerResolved,
 }: OrderItemsFormProps) {
@@ -192,10 +189,6 @@ export function OrderItemsForm({
     return products.filter((product) => product.isActive)
   }, [products, lockedCustomer])
 
-  const workNumberPreviewByRowKey = useMemo(
-    () => previewOrderLineWorkNumbers(items, customerPoNumber),
-    [items, customerPoNumber],
-  )
   function notifyCustomerFromProduct(product: Product) {
     const name = product.customer.trim()
     if (name) onCustomerResolved?.(name)
@@ -291,8 +284,8 @@ export function OrderItemsForm({
     <div className="space-y-3">
       <h3 className="text-sm font-bold text-slate-900">제품</h3>
       <p className="text-xs text-slate-500">
-        제품 선택 시 품목 마스터의 SET-UP·SMD·후공정·자재가 적용되고 고객사가 자동 입력됩니다. 수량 변경 시
-        단가가 다시 계산됩니다.
+        작업번호는 직접 입력합니다. 제품 선택 시 품목 마스터의 SET-UP·SMD·후공정·자재가 적용되고 고객사가
+        자동 입력됩니다. 수량 변경 시 단가가 다시 계산됩니다.
       </p>
 
       <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -351,8 +344,6 @@ export function OrderItemsForm({
               const canRemove = isCompanion
                 ? false
                 : isAdhoc || items.filter((row) => !row.isAdhoc).length > 1
-              const displayWorkNumber =
-                workNumberPreviewByRowKey[item.rowKey] || item.workNumber?.trim() || ''
 
               return (
                 <tr
@@ -360,15 +351,16 @@ export function OrderItemsForm({
                   className={['border-t border-slate-100', isAdhoc ? 'bg-amber-50/40' : ''].join(' ')}
                 >
                   <td className="px-2 py-2 align-top">
-                    {displayWorkNumber ? (
-                      <span
-                        className="block truncate font-mono text-xs font-semibold text-slate-700"
-                        title={displayWorkNumber}
-                      >
-                        {displayWorkNumber}
-                      </span>
-                    ) : (
+                    {isAdhoc ? (
                       <span className="text-xs text-slate-300">—</span>
+                    ) : (
+                      <input
+                        value={item.workNumber || ''}
+                        onChange={(event) => patchItem(index, { workNumber: event.target.value })}
+                        placeholder="직접 입력"
+                        className={`${inputClassName} font-mono text-xs font-semibold text-slate-700`}
+                        aria-label={`${index + 1}행 작업번호`}
+                      />
                     )}
                   </td>
                   <td className="px-2 py-2 align-top">

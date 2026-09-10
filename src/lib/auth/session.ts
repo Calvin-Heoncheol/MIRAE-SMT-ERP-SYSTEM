@@ -17,14 +17,8 @@ export async function getAuthUser() {
 
 export async function getAuthProfile(): Promise<AuthProfile | null> {
   if (isAuthDisabled()) {
-    return {
-      id: 'dev',
-      email: 'dev@local',
-      displayName: '개발모드',
-      role: 'admin',
-      department: null,
-      mustChangePassword: false,
-    }
+    const { OPEN_MODE_PROFILE } = await import('@/lib/auth/resolve-acting-profile')
+    return OPEN_MODE_PROFILE
   }
 
   const supabase = await createSupabaseServerClient()

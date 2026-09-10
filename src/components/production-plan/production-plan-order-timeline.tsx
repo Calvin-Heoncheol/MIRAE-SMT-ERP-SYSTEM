@@ -17,6 +17,7 @@ import {
   type ProductionPlanBoardRow,
   type ProductionPlanScope,
 } from '@/lib/production-plan/types'
+import { ERP_BOARD_CHIP_CLASS } from '@/lib/ui/tokens'
 
 type ProductionPlanOrderTimelineProps = {
   rows: ProductionPlanBoardRow[]
@@ -164,19 +165,19 @@ function ScopeColumn({
               >
                 <div className="flex items-center gap-1">
                   {remainder ? (
-                    <span className="rounded bg-sky-600 px-1 py-0.5 text-[9px] font-bold text-white">
+                    <span className={`${ERP_BOARD_CHIP_CLASS} bg-sky-600 text-white`}>
                       추가 배정
                     </span>
                   ) : waiting ? (
                     <span
-                      className={`rounded px-1 py-0.5 text-[9px] font-bold text-white ${
+                      className={`${ERP_BOARD_CHIP_CLASS} text-white ${
                         blockReason ? 'bg-slate-400' : 'bg-amber-600'
                       }`}
                     >
                       {blockReason ? '대기' : '미배정'}
                     </span>
                   ) : (
-                    <span className="rounded bg-slate-700 px-1 py-0.5 text-[9px] font-bold text-white">
+                    <span className={`${ERP_BOARD_CHIP_CLASS} bg-slate-700 text-white`}>
                       확정
                     </span>
                   )}
@@ -185,9 +186,9 @@ function ScopeColumn({
                   {waiting && !remainder ? '일정 미입력' : scheduleLabel(row)}
                 </p>
                 {blockReason ? (
-                  <p className="mt-0.5 text-[10px] font-medium text-slate-500">{blockReason}</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-slate-500">{blockReason}</p>
                 ) : waiting && clickable && !remainder ? (
-                  <p className="mt-0.5 text-[10px] font-medium text-amber-800">클릭하여 배정</p>
+                  <p className="mt-0.5 text-[11px] font-medium text-amber-800">클릭하여 배정</p>
                 ) : null}
               </button>
             )
@@ -245,7 +246,7 @@ export function ProductionPlanOrderTimeline({
               return (
                 <article
                   key={group.orderId}
-                  className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm"
+                  className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm"
                 >
                   <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
                     <div>

@@ -1,3 +1,8 @@
+import {
+  ERP_KPI_LABEL_CLASS,
+  ERP_KPI_VALUE_CLASS,
+} from '@/lib/ui/tokens'
+
 type KpiStatCardProps = {
   label: string
   value: number | string | null
@@ -41,18 +46,18 @@ export function KpiStatCard({
         .filter(Boolean)
         .join(' ')}
     >
-      <p className="text-[11px] leading-none font-semibold text-slate-500">{label}</p>
-      <p className={`mt-1.5 text-[22px] leading-none font-bold tabular-nums ${VALUE_TONE[tone]}`}>
+      <p className={ERP_KPI_LABEL_CLASS}>{label}</p>
+      <p className={`mt-1.5 ${ERP_KPI_VALUE_CLASS} ${VALUE_TONE[tone]}`}>
         {display}
         {unit ? <span className="ml-1 text-[11px] font-semibold text-slate-400">{unit}</span> : null}
       </p>
       {secondaryText ? (
-        <p className="mt-1 text-[12px] leading-none font-semibold tabular-nums text-slate-600">
+        <p className="mt-1 text-xs leading-none font-semibold tabular-nums text-slate-600">
           {secondaryText}
         </p>
       ) : null}
       {hint ? (
-        <p className="mt-1 truncate text-[10px] leading-none font-medium text-slate-500">{hint}</p>
+        <p className="mt-1 truncate text-[11px] leading-none font-medium text-slate-500">{hint}</p>
       ) : null}
     </div>
   )

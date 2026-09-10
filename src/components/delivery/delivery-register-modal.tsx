@@ -21,7 +21,7 @@ import type { DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
 import type { Product } from '@/lib/products/types'
-import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
+import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type DeliveryRegisterModalProps = {
   open: boolean
@@ -212,7 +212,7 @@ function DeliveryRegisterModalContent({
       contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
       footer={
         <div className="flex w-full flex-col gap-3">
-          {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+          {saveError ? <p className={ERP_ERROR_TEXT_CLASS}>{saveError}</p> : null}
           <div className="flex flex-wrap justify-end gap-2">
             <CancelButton disabled={busy} />
             <ErpButton disabled={busy} loading={saving} onClick={() => void handleShip()}>

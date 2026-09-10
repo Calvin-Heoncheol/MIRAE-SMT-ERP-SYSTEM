@@ -19,6 +19,7 @@ import {
   SOLDER_CREAM_EVENT_LABELS,
 } from '@/lib/materials/solder-cream/utils'
 import {
+  ERP_CODE_TEXT_CLASS,
   ERP_INFO_BOX_CLASS,
   ERP_INFO_BOX_TEXT_CLASS,
   ERP_INFO_BOX_TITLE_CLASS,
@@ -268,7 +269,7 @@ function SolderCreamLogImportModalContent({
                       {SOLDER_CREAM_EQUIPMENT_LABELS[row.equipmentType]}
                       {row.equipmentId ? ` · ${row.equipmentId}` : ''}
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs font-semibold text-blue-800">
+                    <td className={`px-3 py-2 ${ERP_CODE_TEXT_CLASS} font-semibold`}>
                       {row.lotNumber}
                     </td>
                     <td className="px-3 py-2 text-xs text-slate-700">

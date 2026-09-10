@@ -342,7 +342,7 @@ export function InboundPurchaseLinesForm({
   }
 
   return (
-    <div className="flex min-h-[360px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
+    <div className="flex min-h-[360px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <div>

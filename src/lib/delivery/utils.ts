@@ -1,9 +1,11 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
+import { DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from '@/lib/delivery/config'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { isBillingOnlyOrderItem } from '@/lib/orders/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
 import type { Product, ProductPcbSideMode } from '@/lib/products/types'
 import { isSplitProductPcbSideMode } from '@/lib/products/utils'
+import type { QuoteListItem } from '@/lib/quotes/types'
 import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import type { ProductionStatusLine } from '@/lib/production-status/types'
@@ -43,9 +45,24 @@ export type DeliveryAvailability = {
   postProduced: number
   shipped: number
   productionCap: number
+  /** 생산완료 기준 출하 가능 수량 (productionCap − shipped) */
   shippable: number
   needsSmt: boolean
   needsPost: boolean
+}
+
+/** 화면·알림·필터용 실제 출하 가능 수량 (정책 플래그 반영) */
+export function resolveDeliveryActionableQuantity(availability: DeliveryAvailability): number {
+  const orderRemaining =
+    availability.targetQuantity > 0
+      ? Math.max(0, availability.targetQuantity - availability.shipped)
+      : 0
+  if (DELIVERY_REGISTER_SKIP_PRODUCTION_CAP) {
+    return availability.targetQuantity > 0 ? orderRemaining : 0
+  }
+  return availability.targetQuantity > 0
+    ? Math.min(orderRemaining, Math.max(0, availability.shippable))
+    : Math.max(0, availability.shippable)
 }
 
 export type DeliveryBillingOnlyLine = {
@@ -447,9 +464,15 @@ export function computeDeliveryAvailability(
   postCounts: Record<string, number>,
   deliveryCounts: Record<string, number>,
   productById: Record<string, Product>,
+  options?: {
+    quotes?: QuoteListItem[]
+    order?: OrderListGroup
+  },
 ): DeliveryAvailability {
-  const needsSmt = assemblyGroupIncludesSmt(group, productById)
-  const needsPost = assemblyGroupIncludesPostProcess(group, productById)
+  const quotes = options?.quotes
+  const order = options?.order
+  const needsSmt = assemblyGroupIncludesSmt(group, productById, quotes, order)
+  const needsPost = assemblyGroupIncludesPostProcess(group, productById, quotes, order)
   const smtSets = computeAssemblySmtSets(group, smtCounts, productById)
   const postProduced = Math.max(0, Math.floor(Number(postCounts[group.id]) || 0))
   const shipped = Math.max(0, Math.floor(Number(deliveryCounts[group.id]) || 0))
@@ -458,6 +481,8 @@ export function computeDeliveryAvailability(
     smtSets,
     postProduced,
     productById,
+    quotes,
+    order,
   })
   const shippable = Math.max(0, productionCap - shipped)
 
@@ -479,10 +504,24 @@ export function buildDeliveryAvailabilityMap(
   postCounts: Record<string, number>,
   deliveryCounts: Record<string, number>,
   productById: Record<string, Product>,
+  options?: {
+    quotes?: QuoteListItem[]
+    orderById?: Record<string, OrderListGroup>
+  },
 ) {
   const map: Record<string, DeliveryAvailability> = {}
   for (const group of groups) {
-    map[group.id] = computeDeliveryAvailability(group, smtCounts, postCounts, deliveryCounts, productById)
+    map[group.id] = computeDeliveryAvailability(
+      group,
+      smtCounts,
+      postCounts,
+      deliveryCounts,
+      productById,
+      {
+        quotes: options?.quotes,
+        order: options?.orderById?.[group.orderId],
+      },
+    )
   }
   return map
 }
@@ -513,15 +552,22 @@ export function getDeliveryOrderPrefix(state: DeliveryOrderState) {
 }
 
 export function describeDeliveryBlockReason(availability: DeliveryAvailability) {
-  const { smtSets, postProduced, shipped, productionCap, shippable, targetQuantity, needsSmt, needsPost } =
+  const { smtSets, postProduced, shipped, productionCap, targetQuantity, needsSmt, needsPost } =
     availability
+  const actionable = resolveDeliveryActionableQuantity(availability)
 
-  if (shippable > 0) {
-    return `최대 ${shippable.toLocaleString('ko-KR')}대까지 출하할 수 있습니다.`
+  if (actionable > 0) {
+    return DELIVERY_REGISTER_SKIP_PRODUCTION_CAP
+      ? `발주 잔량 ${actionable.toLocaleString('ko-KR')}대까지 출하할 수 있습니다.`
+      : `최대 ${actionable.toLocaleString('ko-KR')}대까지 출하할 수 있습니다.`
   }
 
   if (targetQuantity > 0 && shipped >= targetQuantity) {
     return '발주 수량만큼 출하가 완료되었습니다.'
+  }
+
+  if (DELIVERY_REGISTER_SKIP_PRODUCTION_CAP) {
+    return '출하 가능한 발주 잔량이 없습니다.'
   }
 
   if (productionCap > 0 && shipped >= productionCap) {
@@ -616,7 +662,7 @@ export function summarizeDeliveryInputOrders(
       continue
     }
 
-    if (availability.shippable > 0) {
+    if (resolveDeliveryActionableQuantity(availability) > 0) {
       shippable += 1
       if (state === 'progress') partial += 1
       continue
@@ -646,9 +692,10 @@ export function filterDeliveryOrdersByStatus(
     const state = getDeliveryOrderState(availability)
 
     if (filter === 'complete') return state === 'full'
-    if (filter === 'shippable') return availability.shippable > 0
+    if (filter === 'shippable') return resolveDeliveryActionableQuantity(availability) > 0
     if (filter === 'partial') return state === 'progress'
-    if (filter === 'blocked') return state !== 'full' && availability.shippable <= 0
+    if (filter === 'blocked')
+      return state !== 'full' && resolveDeliveryActionableQuantity(availability) <= 0
     return true
   })
 }
@@ -656,7 +703,9 @@ export function filterDeliveryOrdersByStatus(
 export function getDeliveryStatusLabel(availability: DeliveryAvailability) {
   const state = getDeliveryOrderState(availability)
   if (state === 'full') return '출하완료'
-  if (availability.shippable > 0) return '출하가능'
+  if (resolveDeliveryActionableQuantity(availability) > 0) {
+    return DELIVERY_REGISTER_SKIP_PRODUCTION_CAP ? '출하가능(잔량)' : '출하가능'
+  }
   if (state === 'progress') return '부분출하'
   return '출하불가'
 }
@@ -664,7 +713,7 @@ export function getDeliveryStatusLabel(availability: DeliveryAvailability) {
 export function getDeliveryStatusTone(availability: DeliveryAvailability) {
   const state = getDeliveryOrderState(availability)
   if (state === 'full') return 'complete' as const
-  if (availability.shippable > 0) return 'shippable' as const
+  if (resolveDeliveryActionableQuantity(availability) > 0) return 'shippable' as const
   if (state === 'progress') return 'partial' as const
   return 'blocked' as const
 }

@@ -42,6 +42,7 @@ import { fetchMaterials } from '@/lib/materials/repository'
 import type { Material } from '@/lib/materials/types'
 import { resolveMaterialByInventoryCode } from '@/lib/materials/utils'
 import {
+  ERP_ERROR_TEXT_CLASS,
   ERP_FIELD_INPUT_CLASS,
   ERP_FIELD_LABEL_CLASS,
   ERP_WARNING_BOX_CLASS,
@@ -440,7 +441,7 @@ function MaterialPurchaseOrderModalContent({
         }
         footer={
           <div className="flex w-full flex-col gap-2">
-            {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+            {saveError ? <p className={ERP_ERROR_TEXT_CLASS}>{saveError}</p> : null}
             <div className="flex w-full flex-wrap items-center justify-between gap-2">
               {mode === 'edit' && !readOnly && canDelete ? (
                 <ErpButton

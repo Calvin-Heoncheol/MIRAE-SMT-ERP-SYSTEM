@@ -1,4 +1,4 @@
-import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups, repairOrphanAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import {
   assertCanWrite,
   postProcessTeamToAccessModule,
@@ -411,15 +411,7 @@ export async function fetchPostProcessPlanPageData(
   if (!deliveryCountsResult.ok) return deliveryCountsResult
   if (!quotesResult.ok) return quotesResult
 
-  let assemblyResult = await repairChildrenOnlyAssemblyGroups(
-    assemblyFetchResult.groups,
-    ordersResult.orders,
-    productById,
-  )
-  if (!assemblyResult.ok) return assemblyResult
-
-  assemblyResult = await repairOrphanAssemblyGroups(assemblyResult.groups, productById)
-  if (!assemblyResult.ok) return assemblyResult
+  let assemblyResult = assemblyFetchResult
 
   const [onHandResult, pendingResult, bomEdges] = await Promise.all([
     fetchOnHandByMaterialId(),

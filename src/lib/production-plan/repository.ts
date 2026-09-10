@@ -1,6 +1,6 @@
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
-import { fetchAssemblyGroups, repairChildrenOnlyAssemblyGroups, repairOrphanAssemblyGroups } from '@/lib/assembly/repository'
+import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
 import { fetchOrders } from '@/lib/orders/repository'
@@ -279,15 +279,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
   if (!deliveryCountsResult.ok) return deliveryCountsResult
   if (!postCountsResult.ok) return postCountsResult
 
-  let assemblyResult = await repairChildrenOnlyAssemblyGroups(
-    assemblyFetch.groups,
-    ordersResult.orders,
-    productById,
-  )
-  if (!assemblyResult.ok) return assemblyResult
-
-  assemblyResult = await repairOrphanAssemblyGroups(assemblyResult.groups, productById)
-  if (!assemblyResult.ok) return assemblyResult
+  let assemblyResult = assemblyFetch
 
   const smtOrders = excludeDeliveryCompleteProductionOrders(
     buildProductionOrderLines(

@@ -30,7 +30,7 @@ import type { Product } from '@/lib/products/types'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
-import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
+import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type OrderModalProps = {
   open: boolean
@@ -295,7 +295,7 @@ function OrderModalContent({
       closeOnEscape={!busy}
       footer={
         <div className="flex w-full flex-col gap-2">
-          {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+          {saveError ? <p className={ERP_ERROR_TEXT_CLASS}>{saveError}</p> : null}
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             {mode === 'edit' && canDelete ? (
               <div className="flex flex-wrap gap-2">
@@ -435,10 +435,6 @@ function OrderModalContent({
           customer={resolvePartnerFromInput(salesPartners, form.customer)?.name ?? form.customer}
           products={products}
           currency={form.currency}
-          customerPoNumber={
-            form.customerPoNumber.trim() ||
-            (mode === 'edit' ? order?.customerPoNumber || order?.orderNumber || '' : '')
-          }
           onChange={setItems}
           onCustomerResolved={
             mode === 'create'

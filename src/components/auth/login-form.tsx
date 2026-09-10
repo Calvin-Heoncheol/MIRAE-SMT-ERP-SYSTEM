@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react'
 import { loginWithPassword, type LoginActionState } from '@/lib/auth/actions'
+import { ERP_FIELD_INPUT_CLASS, ERP_PRIMARY_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 const initialState: LoginActionState = { ok: false, message: null }
 
@@ -25,7 +26,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
           required
           autoFocus
           placeholder="name@company.com"
-          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+          className={`${ERP_FIELD_INPUT_CLASS} h-11 rounded-xl`}
         />
       </label>
 
@@ -37,7 +38,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
           autoComplete="current-password"
           required
           placeholder="비밀번호"
-          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+          className={`${ERP_FIELD_INPUT_CLASS} h-11 rounded-xl`}
         />
       </label>
 
@@ -50,7 +51,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
       <button
         type="submit"
         disabled={pending}
-        className="flex h-11 w-full items-center justify-center rounded-xl bg-slate-900 text-sm font-bold text-white transition hover:bg-slate-800 disabled:opacity-60"
+        className={`${ERP_PRIMARY_BUTTON_CLASS} flex h-11 w-full items-center justify-center rounded-xl font-bold disabled:opacity-60`}
       >
         {pending ? '로그인 중…' : '로그인'}
       </button>

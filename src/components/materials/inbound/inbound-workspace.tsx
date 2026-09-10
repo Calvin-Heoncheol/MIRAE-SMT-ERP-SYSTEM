@@ -13,7 +13,7 @@ import type { FetchMaterialInboundPageResult } from '@/lib/materials/inbound/rep
 import type { MaterialInboundListGroup } from '@/lib/materials/inbound/types'
 import { getInboundTypeLabel } from '@/lib/materials/inbound/utils'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
-import { formatEmptyListMessage } from '@/lib/ui/tokens'
+import { ERP_MODULE_ACCENT, formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type InboundWorkspaceProps = {
   result: FetchMaterialInboundPageResult
@@ -97,7 +97,7 @@ export function InboundWorkspace({ result }: InboundWorkspaceProps) {
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="입고번호, 구매발주번호, 자재명, 자재코드 검색…"
-          accent="slate"
+          accent={ERP_MODULE_ACCENT.inbound}
           actions={<ErpButton onClick={openRegister}>입고 등록</ErpButton>}
         />
 

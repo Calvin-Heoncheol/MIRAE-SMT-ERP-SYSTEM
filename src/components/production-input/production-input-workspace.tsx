@@ -29,7 +29,7 @@ import {
   getProductionOrderState,
 } from '@/lib/production-input/utils'
 import type { ProductionPlanBoardRow } from '@/lib/production-plan/types'
-import { formatEmptyListMessage } from '@/lib/ui/tokens'
+import { ERP_MODULE_ACCENT, formatEmptyListMessage } from '@/lib/ui/tokens'
 import { buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
 import type { SmtPlanBlock } from '@/lib/smt/plan/types'
 import type { SmtPcbSide } from '@/lib/smt/types'
@@ -488,7 +488,9 @@ export function ProductionInputWorkspace({
                 search={search}
                 onSearchChange={setSearch}
                 searchPlaceholder="발주번호, 품목코드, 품목명, 고객사 검색…"
-                accent={isPostProcess ? 'emerald' : 'sky'}
+                accent={
+                  isPostProcess ? ERP_MODULE_ACCENT.postProcess : ERP_MODULE_ACCENT.smt
+                }
                 actions={viewTabsNav}
                 filters={
                   <FilterChipBar

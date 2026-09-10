@@ -309,7 +309,7 @@ export function ProductionPlanUnifiedWorkspace({
     <>
       {error ? <ProductionPlanFetchError result={{ ok: false, reason: 'query', detail: error }} /> : null}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-300 bg-white">
         <div className="flex shrink-0 flex-col gap-3 border-b border-slate-200 px-4 py-3">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-slate-50">

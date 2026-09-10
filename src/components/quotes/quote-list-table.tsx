@@ -2,17 +2,13 @@
 
 import { OrderCategoryBadge } from '@/components/orders/order-category-badge'
 import { EmptyListState } from '@/components/ui/empty-list-state'
+import { ErpTableHead, ErpTableShell, ErpTableTd, ErpTableTh } from '@/components/ui/erp-table'
 import { exportSummaryFromKrw, formatQuoteMoneyTotal, formatQuoteMoneyUnit } from '@/lib/quotes/format'
 import { formatQuoteProcessLabel } from '@/lib/quotes/production-flags'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { QUOTE_STATUS_LABELS, type QuoteListItem, type QuoteStatus } from '@/lib/quotes/types'
 import { isLegacyQuoteDetail, quoteRegistrantLabel } from '@/lib/quotes/utils'
-import {
-  ERP_TABLE_SCROLL_CLASS,
-  ERP_TABLE_TD_FIXED_CLASS,
-  ERP_TABLE_TD_WRAP_CLASS,
-  ERP_TABLE_WRAP_CLASS,
-} from '@/lib/ui/tokens'
+import { ERP_CODE_TEXT_CLASS, ERP_TABLE_ROW_CLASS } from '@/lib/ui/tokens'
 
 type QuoteListTableProps = {
   quotes: QuoteListItem[]
@@ -39,7 +35,7 @@ function statusButtonClass(status: QuoteStatus) {
   if (status === 'confirmed') {
     return 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
   }
-  return 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+  return 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
 }
 
 export function QuoteListTable({
@@ -59,138 +55,99 @@ export function QuoteListTable({
   }
 
   return (
-    <div className={ERP_TABLE_WRAP_CLASS}>
-      <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="erp-data-table min-w-[1340px] w-full border-collapse">
-          <thead className="sticky top-0 z-[1] bg-slate-50">
-            <tr>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                견적일
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                견적코드
-              </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
-                구분
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                고객사
-              </th>
-              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                제품명
-              </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
-                공정
-              </th>
-              <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                대당단가
-              </th>
-              <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                수량
-              </th>
-              <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                총 견적금액
-              </th>
-              <th className="whitespace-nowrap px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
-                등록자
-              </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
-                상태
-              </th>
-              <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
-                복사
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {quotes.map((quote) => {
-              const canCopy = !isLegacyQuoteDetail(quote.detailInfo)
-              return (
-                <tr
-                  key={quote.quoteNumber}
-                  className="cursor-pointer border-t border-slate-100 hover:bg-slate-50/80"
-                  onClick={() => onSelectQuote?.(quote)}
+    <ErpTableShell tableClassName="min-w-[1340px]">
+      <ErpTableHead>
+        <tr>
+          <ErpTableTh>견적일</ErpTableTh>
+          <ErpTableTh>견적코드</ErpTableTh>
+          <ErpTableTh align="center">구분</ErpTableTh>
+          <ErpTableTh>고객사</ErpTableTh>
+          <ErpTableTh>제품명</ErpTableTh>
+          <ErpTableTh align="center">공정</ErpTableTh>
+          <ErpTableTh align="right">대당단가</ErpTableTh>
+          <ErpTableTh align="right">수량</ErpTableTh>
+          <ErpTableTh align="right">총 견적금액</ErpTableTh>
+          <ErpTableTh>등록자</ErpTableTh>
+          <ErpTableTh align="center">상태</ErpTableTh>
+          <ErpTableTh align="center">복사</ErpTableTh>
+        </tr>
+      </ErpTableHead>
+      <tbody>
+        {quotes.map((quote) => {
+          const canCopy = !isLegacyQuoteDetail(quote.detailInfo)
+          return (
+            <tr
+              key={quote.quoteNumber}
+              className={`${ERP_TABLE_ROW_CLASS} cursor-pointer`}
+              onClick={() => onSelectQuote?.(quote)}
+            >
+              <ErpTableTd className="text-slate-700">{quote.quoteDate || '-'}</ErpTableTd>
+              <ErpTableTd className={ERP_CODE_TEXT_CLASS} title={quote.quoteNumber}>
+                {formatInternalCodeLabel(quote.quoteNumber)}
+              </ErpTableTd>
+              <ErpTableTd align="center">
+                <OrderCategoryBadge category={quoteProductionKind(quote)} />
+              </ErpTableTd>
+              <ErpTableTd text="wrap" className="max-w-[160px] text-slate-700">
+                {quote.customer || '-'}
+              </ErpTableTd>
+              <ErpTableTd text="wrap" className="max-w-[200px] text-slate-700">
+                {quote.productName || '-'}
+              </ErpTableTd>
+              <ErpTableTd align="center" className="text-slate-700">
+                {formatQuoteProcessLabel(quote)}
+              </ErpTableTd>
+              <ErpTableTd align="right" className="font-semibold tabular-nums text-slate-900">
+                {quoteUnitPriceDisplay(quote)}
+              </ErpTableTd>
+              <ErpTableTd align="right" className="tabular-nums text-slate-700">
+                {quote.boardQty.toLocaleString('ko-KR')}
+              </ErpTableTd>
+              <ErpTableTd align="right" className="font-semibold tabular-nums text-slate-900">
+                {formatQuoteMoneyTotal(quote.totalAmount, quote.quoteType)}
+              </ErpTableTd>
+              <ErpTableTd className="text-slate-700">
+                {quoteRegistrantLabel(quote) || '-'}
+              </ErpTableTd>
+              <ErpTableTd align="center">
+                <button
+                  type="button"
+                  disabled={statusBusyId === quote.quoteNumber}
+                  title={
+                    quote.quoteStatus === 'confirmed'
+                      ? '클릭하면 미확정으로 변경'
+                      : '클릭하면 확정으로 변경'
+                  }
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onToggleStatus?.(quote)
+                  }}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition disabled:cursor-wait disabled:opacity-60 ${statusButtonClass(quote.quoteStatus)}`}
                 >
-                  <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                    {quote.quoteDate || '-'}
-                  </td>
-                  <td
-                    className={`px-3 py-2.5 font-mono text-xs text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}
-                    title={quote.quoteNumber}
+                  {QUOTE_STATUS_LABELS[quote.quoteStatus]}
+                </button>
+              </ErpTableTd>
+              <ErpTableTd align="center">
+                {canCopy ? (
+                  <button
+                    type="button"
+                    title="이 견적으로 새 견적 작성"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onCopyQuote?.(quote)
+                    }}
+                    className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
-                    {formatInternalCodeLabel(quote.quoteNumber)}
-                  </td>
-                  <td className={`px-3 py-2.5 text-center ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                    <OrderCategoryBadge category={quoteProductionKind(quote)} />
-                  </td>
-                  <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {quote.customer || '-'}
-                  </td>
-                  <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
-                    {quote.productName || '-'}
-                  </td>
-                  <td className={`px-3 py-2.5 text-center text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                    {formatQuoteProcessLabel(quote)}
-                  </td>
-                  <td
-                    className={`px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900 ${ERP_TABLE_TD_FIXED_CLASS}`}
-                  >
-                    {quoteUnitPriceDisplay(quote)}
-                  </td>
-                  <td
-                    className={`px-3 py-2.5 text-right text-sm tabular-nums text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}
-                  >
-                    {quote.boardQty.toLocaleString('ko-KR')}
-                  </td>
-                  <td
-                    className={`px-3 py-2.5 text-right text-sm font-semibold tabular-nums text-slate-900 ${ERP_TABLE_TD_FIXED_CLASS}`}
-                  >
-                    {formatQuoteMoneyTotal(quote.totalAmount, quote.quoteType)}
-                  </td>
-                  <td className={`px-3 py-2.5 text-sm text-slate-700 ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                    {quoteRegistrantLabel(quote) || '-'}
-                  </td>
-                  <td className={`px-3 py-2.5 text-center ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                    <button
-                      type="button"
-                      disabled={statusBusyId === quote.quoteNumber}
-                      title={
-                        quote.quoteStatus === 'confirmed'
-                          ? '클릭하면 미확정으로 변경'
-                          : '클릭하면 확정으로 변경'
-                      }
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onToggleStatus?.(quote)
-                      }}
-                      className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition disabled:cursor-wait disabled:opacity-60 ${statusButtonClass(quote.quoteStatus)}`}
-                    >
-                      {QUOTE_STATUS_LABELS[quote.quoteStatus]}
-                    </button>
-                  </td>
-                  <td className={`px-3 py-2.5 text-center ${ERP_TABLE_TD_FIXED_CLASS}`}>
-                    {canCopy ? (
-                      <button
-                        type="button"
-                        title="이 견적으로 새 견적 작성"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onCopyQuote?.(quote)
-                        }}
-                        className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        복사
-                      </button>
-                    ) : (
-                      <span className="text-xs text-slate-300">—</span>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+                    복사
+                  </button>
+                ) : (
+                  <span className="text-xs text-slate-300">—</span>
+                )}
+              </ErpTableTd>
+            </tr>
+          )
+        })}
+      </tbody>
+    </ErpTableShell>
   )
 }

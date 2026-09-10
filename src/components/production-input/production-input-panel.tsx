@@ -27,7 +27,14 @@ import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
 import type { SmtPlanBlock } from '@/lib/smt/plan/types'
 import { createSmtProductionRecord } from '@/lib/smt/repository'
 import type { SmtPcbSide } from '@/lib/smt/types'
-import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
+import {
+  ERP_DANGER_BOX_CLASS,
+  ERP_FIELD_INPUT_CLASS,
+  ERP_PRIMARY_BUTTON_CLASS,
+  ERP_SCAN_COUNT_LG_CLASS,
+  ERP_SCAN_QTY_INPUT_CLASS,
+  ERP_SCAN_STEPPER_CLASS,
+} from '@/lib/ui/tokens'
 import { playScanSound } from '@/lib/ui/toast-sound'
 
 function formatSmtPlanChipLabel(plan: SmtPlanBlock) {
@@ -436,17 +443,17 @@ export function ProductionInputPanel({
   const headerTeamTone = isPostProcess ? ('success' as const) : ('info' as const)
   const blockGap = embedded ? 'mt-2 border-t border-slate-100 pt-2' : 'mt-4 border-t border-slate-100 pt-4'
   const cardPad = embedded ? 'p-2.5' : 'p-3.5 sm:p-4'
-  const countTextLg = embedded ? 'text-lg' : 'text-2xl sm:text-3xl'
+  const countTextLg = embedded ? 'text-lg' : ERP_SCAN_COUNT_LG_CLASS
   const countTextMd = embedded ? 'text-base' : 'text-xl sm:text-2xl'
   const presetBtnClass = embedded
     ? 'min-h-[2.35rem] rounded-lg border-2 text-base font-bold'
     : 'min-h-[3.25rem] rounded-xl border-2 text-lg font-bold sm:min-h-[3.5rem] sm:text-xl'
   const qtyStepperClass = embedded
     ? 'flex aspect-square min-h-[3rem] w-11 items-center justify-center rounded-lg border-2 border-slate-200 text-2xl font-bold'
-    : 'flex aspect-square min-h-[3.75rem] w-14 items-center justify-center rounded-xl border-2 border-slate-200 text-3xl font-bold sm:min-h-[4.25rem] sm:w-16 sm:text-4xl'
+    : ERP_SCAN_STEPPER_CLASS
   const qtyInputClass = embedded
     ? 'min-h-[3rem] w-full rounded-lg border-2 bg-slate-50 px-2 text-center text-3xl font-bold tabular-nums outline-none focus:bg-white disabled:text-slate-400'
-    : 'min-h-[3.75rem] w-full rounded-xl border-2 bg-slate-50 px-3 text-center text-4xl font-bold text-slate-900 tabular-nums outline-none focus:bg-white disabled:text-slate-400 sm:min-h-[4.25rem] sm:text-5xl'
+    : `${ERP_SCAN_QTY_INPUT_CLASS} text-slate-900`
   const submitBtnClass = embedded
     ? 'mt-2 min-h-[2.75rem] w-full rounded-lg text-sm font-bold text-white'
     : 'mt-3 min-h-[3.25rem] w-full rounded-xl text-base font-bold text-white sm:min-h-[3.5rem] sm:text-lg'
@@ -544,7 +551,7 @@ export function ProductionInputPanel({
                 customerPoNumber={order.customerPoNumber}
                 orderNumber={order.orderNumber}
                 workNumber={order.workNumber}
-                workClassName="mt-0.5 block truncate font-mono text-[10px] font-medium leading-tight text-slate-400"
+                workClassName="mt-0.5 block truncate font-mono text-[11px] font-medium leading-tight text-slate-400"
               />
             </span>
           ) : null}
@@ -936,7 +943,7 @@ export function ProductionInputPanel({
               </button>
 
               {message?.kind === 'err' ? (
-                <p className="mt-3 rounded-lg bg-red-50 px-3 py-2.5 text-center text-sm font-medium text-red-700">
+                <p className={`mt-3 text-center font-medium ${ERP_DANGER_BOX_CLASS}`}>
                   {message.text}
                 </p>
               ) : null}
@@ -997,7 +1004,7 @@ export function ProductionInputPanel({
               planSetupHref ? (
                 <Link
                   href={planSetupHref}
-                  className="mt-4 inline-flex rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-900"
+                  className={`mt-4 inline-flex ${ERP_PRIMARY_BUTTON_CLASS}`}
                 >
                   생산계획 열기
                 </Link>

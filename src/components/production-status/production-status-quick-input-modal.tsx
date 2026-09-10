@@ -11,6 +11,7 @@ import {
 } from '@/lib/delivery/repository'
 import type { DeliveryHistoryRow } from '@/lib/delivery/types'
 import type { DeliveryAvailability } from '@/lib/delivery/utils'
+import { resolveDeliveryActionableQuantity } from '@/lib/delivery/utils'
 import { createPostProcessProductionRecord } from '@/lib/post-process/repository'
 import { DEFAULT_POST_PROCESS_TEAM } from '@/lib/post-process/teams'
 import type { ProductionCounts, ProductionOrderLine } from '@/lib/production-input/types'
@@ -97,12 +98,11 @@ function buildDeliveryRowMeta(
   const produced = resolveProductionCount(order, counts)
   const target = order.quantity
   const groupId = order.assemblyGroupId || order.orderLineId
-  const shippable = Math.max(
-    0,
-    Math.floor(Number(availabilityByGroupId[groupId]?.shippable) || 0),
-  )
-  const orderRemaining = Math.max(0, target - produced)
-  const registerMax = orderRemaining
+  const availability = availabilityByGroupId[groupId]
+  const shippable = availability
+    ? resolveDeliveryActionableQuantity(availability)
+    : 0
+  const registerMax = shippable
   return { order, produced, target, shippable, registerMax }
 }
 
@@ -269,7 +269,13 @@ export function ProductionStatusQuickInputModal({
     : 0
 
   const target = selectedOrder?.quantity ?? 0
-  const registerMax = Math.max(0, target - produced)
+  const deliveryAvailability = selectedOrder
+    ? localAvailability[selectedOrder.assemblyGroupId || selectedOrder.orderLineId]
+    : undefined
+  const registerMax =
+    stage === 'delivery' && deliveryAvailability
+      ? resolveDeliveryActionableQuantity(deliveryAvailability)
+      : Math.max(0, target - produced)
   const percent = getProgressPercent(produced, target)
 
   useEffect(() => {

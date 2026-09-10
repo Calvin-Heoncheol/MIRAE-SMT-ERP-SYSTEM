@@ -7,6 +7,7 @@ import {
 } from '@/lib/production-plan/config'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionPlanBoardRow, ProductionPlanPcbSide } from '@/lib/production-plan/types'
+import { ERP_BOARD_CHIP_CLASS } from '@/lib/ui/tokens'
 
 function pcbSideBadge(pcbSide: ProductionPlanPcbSide | undefined) {
   if (pcbSide === 'TOP' || pcbSide === 'BOT') return pcbSide
@@ -58,7 +59,7 @@ export function ProductionPlanBoardCard({
         })
       }}
       onClick={() => onSelect?.(row)}
-      className={`w-full rounded-md border px-1.5 py-1.5 text-left text-[10px] leading-snug shadow-sm transition hover:brightness-95 ${
+      className={`w-full rounded-md border px-1.5 py-1.5 text-left text-[11px] leading-snug shadow-sm transition hover:brightness-95 ${
         draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
       } ${
         isSmt
@@ -66,12 +67,12 @@ export function ProductionPlanBoardCard({
           : 'border-violet-200 bg-violet-50 text-violet-900'
       }`}
     >
-      <p className="truncate font-mono text-[9px] font-semibold opacity-80">{orderLabel}</p>
+      <p className="truncate font-mono text-[11px] font-semibold opacity-80">{orderLabel}</p>
       <div className="mt-0.5 flex min-w-0 items-center gap-1">
         <p className="min-w-0 flex-1 truncate font-semibold">{row.productName || '—'}</p>
         {showSideBadge ? (
           <span
-            className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold ${
+            className={`${ERP_BOARD_CHIP_CLASS} ${
               isSmt ? 'bg-white/80 text-sky-800' : 'bg-white/80 text-violet-800'
             }`}
           >
@@ -83,7 +84,7 @@ export function ProductionPlanBoardCard({
         <span>
           계획 <strong>{planned.toLocaleString('ko-KR')}</strong>
         </span>
-        {deliveryShort ? <span className="truncate text-[9px] opacity-80">납기 {deliveryShort}</span> : null}
+        {deliveryShort ? <span className="truncate text-[11px] opacity-80">납기 {deliveryShort}</span> : null}
       </div>
     </button>
   )

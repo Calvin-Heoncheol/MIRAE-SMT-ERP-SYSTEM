@@ -84,7 +84,7 @@ function BomUnpopulatedBadge({
       className="inline-flex flex-col items-center gap-0.5"
       title={detail || 'BOM 미실장'}
     >
-      <span className="inline-flex rounded-full bg-slate-200 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">
+      <span className="inline-flex rounded-full bg-slate-200 px-1.5 py-0.5 text-[11px] font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">
         미실장
       </span>
       {hint ? <span className="text-[8px] font-medium text-slate-500">{hint}</span> : null}
@@ -107,7 +107,7 @@ function ReviewSourceBadge({ source }: { source?: PickPlaceReviewSource }) {
   return (
     <span
       className={[
-        'inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-semibold ring-1 ring-inset',
+        'inline-flex rounded-full px-1.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
         styles,
       ].join(' ')}
     >
@@ -125,7 +125,7 @@ function ConfidenceBadge({
   onClick?: () => void
 }) {
   const className = [
-    'inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+    'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
     PICK_PLACE_CONFIDENCE_STYLES[confidence].badge,
     interactive ? 'cursor-pointer hover:ring-2' : '',
   ].join(' ')
@@ -175,11 +175,11 @@ function QuoteFieldCard({
         ].join(' ')}
       >
         <div className="flex items-center justify-between gap-1.5">
-          <p className="text-[10px] font-medium leading-tight text-slate-600">{label}</p>
+          <p className="text-[11px] font-medium leading-tight text-slate-600">{label}</p>
           <ConfidenceDot confidence={confidence} />
         </div>
         <p className="mt-0.5 text-xs font-semibold tabular-nums leading-tight text-slate-900">{value}</p>
-        {note ? <p className="mt-0.5 truncate text-[9px] text-slate-500" title={note}>{note}</p> : null}
+        {note ? <p className="mt-0.5 truncate text-[11px] text-slate-500" title={note}>{note}</p> : null}
       </div>
     )
   }
@@ -196,7 +196,7 @@ function QuoteFieldCard({
         <ConfidenceBadge confidence={confidence} />
       </div>
       <p className="mt-1 text-sm font-semibold tabular-nums text-slate-900">{value}</p>
-      {note ? <p className="mt-1 text-[10px] text-slate-500">{note}</p> : null}
+      {note ? <p className="mt-1 text-[11px] text-slate-500">{note}</p> : null}
     </div>
   )
 }
@@ -455,7 +455,7 @@ function ManualReviewPanel({
                 ].join(' ')}
               >
                 <span className="font-semibold">{option.label}</span>
-                <span className="mt-0.5 block text-[10px] text-slate-500">{option.hint}</span>
+                <span className="mt-0.5 block text-[11px] text-slate-500">{option.hint}</span>
               </button>
             ))}
           </div>
@@ -502,7 +502,7 @@ function ManualReviewPanel({
             </button>
           </div>
           <div>
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">수납땜</p>
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">수납땜</p>
             <div className="grid gap-2 sm:grid-cols-3">
               {dipHandOptions.map((option) => (
                 <button
@@ -517,13 +517,13 @@ function ManualReviewPanel({
                   ].join(' ')}
                 >
                   <span className="font-semibold">{option.label}</span>
-                  <span className="mt-0.5 block text-[10px] text-slate-500">{option.hint}</span>
+                  <span className="mt-0.5 block text-[11px] text-slate-500">{option.hint}</span>
                 </button>
               ))}
             </div>
           </div>
           <div>
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">WAVE</p>
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">WAVE</p>
             <div className="grid gap-2 sm:grid-cols-3">
               {dipWaveOptions.map((option) => (
                 <button
@@ -538,7 +538,7 @@ function ManualReviewPanel({
                   ].join(' ')}
                 >
                   <span className="font-semibold">{option.label}</span>
-                  <span className="mt-0.5 block text-[10px] text-slate-500">{option.hint}</span>
+                  <span className="mt-0.5 block text-[11px] text-slate-500">{option.hint}</span>
                 </button>
               ))}
             </div>
@@ -588,7 +588,7 @@ function ProcessBadge({ row }: { row: PickPlaceClassifiedRow }) {
   return (
     <span
       className={[
-        'inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+        'inline-flex rounded-full px-1.5 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
         style,
       ].join(' ')}
       title={hint}
@@ -631,7 +631,7 @@ function ReviewRow({
           <div className="flex flex-wrap items-center gap-1">
             <span className={bomUnpopulated ? 'text-slate-500' : undefined}>{row.categoryLabel}</span>
             {bomUnpopulated ? (
-              <span className="inline-flex rounded-full bg-slate-200 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-300">
+              <span className="inline-flex rounded-full bg-slate-200 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-300">
                 미실장
               </span>
             ) : null}
@@ -823,7 +823,7 @@ function PickPlaceReviewContent({
             type="button"
             onClick={() => onReasonFilterChange(null)}
             className={[
-              'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+              'rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
               reasonFilter === null
                 ? 'bg-amber-200 text-amber-950 ring-amber-300'
                 : 'bg-white text-amber-800 ring-amber-200 hover:bg-amber-100',
@@ -837,7 +837,7 @@ function PickPlaceReviewContent({
               type="button"
               onClick={() => onReasonFilterChange(reasonFilter === tag ? null : tag)}
               className={[
-                'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+                'rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
                 reasonFilter === tag
                   ? 'bg-amber-200 text-amber-950 ring-amber-300'
                   : 'bg-white text-amber-800 ring-amber-200 hover:bg-amber-100',
@@ -853,7 +853,7 @@ function PickPlaceReviewContent({
                 onReasonFilterChange(reasonFilter === 'digikey_eligible' ? null : 'digikey_eligible')
               }
               className={[
-                'rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+                'rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset',
                 reasonFilter === 'digikey_eligible'
                   ? 'bg-red-200 text-red-950 ring-red-300'
                   : 'bg-white text-red-800 ring-red-200 hover:bg-red-50',
@@ -914,7 +914,7 @@ function PickPlaceReviewContent({
         {bulkDigiKeySuccess?.length ? (
           <div className="mb-2 rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-[11px] text-red-900">
             <p className="font-semibold">DigiKey로 {bulkDigiKeySuccess.length}건 확인됨</p>
-            <p className="mt-1 font-mono text-[10px] leading-relaxed text-red-800">
+            <p className="mt-1 font-mono text-[11px] leading-relaxed text-red-800">
               {bulkDigiKeySuccess.join(', ')}
             </p>
           </div>
@@ -960,7 +960,7 @@ function PickPlaceReviewContent({
 
       <aside className="flex w-full shrink-0 flex-col gap-2.5 lg:w-44 xl:w-48">
         <div className="space-y-1.5">
-          <p className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+          <p className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             견적 반영값
           </p>
           {analysis.quoteFields.map((field) => (
@@ -976,7 +976,7 @@ function PickPlaceReviewContent({
         </div>
 
         {analysis.summary.warnings.length ? (
-          <ul className="space-y-1 rounded-lg border border-amber-200 bg-amber-50/50 px-2.5 py-2 text-[10px] leading-snug text-amber-900">
+          <ul className="space-y-1 rounded-lg border border-amber-200 bg-amber-50/50 px-2.5 py-2 text-[11px] leading-snug text-amber-900">
             {analysis.summary.warnings.map((warning, index) => (
               <li key={`${index}-${warning}`}>· {warning}</li>
             ))}

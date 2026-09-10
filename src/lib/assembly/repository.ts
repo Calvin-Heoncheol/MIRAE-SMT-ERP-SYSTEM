@@ -515,6 +515,7 @@ export async function fetchAssemblyGroups(
 }
 
 /**
+ * 명시적 수리용 — 페이지 조회(write-on-read)에서는 호출하지 말 것.
  * 반제품만 주문했는데 조립제품으로 합쳐진 조립 그룹을 다시 동기화해
  * 반제품 단독 그룹으로 분리한다. 변경이 있으면 그룹을 다시 조회한다.
  */
@@ -554,6 +555,7 @@ export async function repairChildrenOnlyAssemblyGroups(
 }
 
 /**
+ * 명시적 수리용 — 페이지 조회(write-on-read)에서는 호출하지 말 것.
  * 조립제품 그룹의 반제품 자식이 단독 출하 그룹으로 없으면 만든다.
  * (기존 주문은 ensureAssemblyGroupsForOrders 가 재동기화하지 않음)
  */
@@ -689,6 +691,7 @@ export async function repairMissingSemiFinishedDeliveryGroups(
 }
 
 /**
+ * 명시적 수리용 — 페이지 조회(write-on-read)에서는 호출하지 말 것.
  * TEMP 등 품목마스터에 없는 parent_product_id 로 생긴 조립 그룹을 삭제하도록
  * 해당 주문을 다시 동기화한다.
  */

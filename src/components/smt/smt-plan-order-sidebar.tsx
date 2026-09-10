@@ -10,6 +10,7 @@ import {
   formatDeliveryCountdown,
   getDeliveryUrgencyTone,
 } from '@/lib/smt/plan/utils'
+import { ERP_PRIMARY_BUTTON_SM_CLASS } from '@/lib/ui/tokens'
 
 type SmtPlanOrderSidebarProps = {
   candidates: SmtPlanOrderCandidate[]
@@ -157,7 +158,7 @@ export function SmtPlanOrderSidebar({
                   </p>
                   {dueLabel ? (
                     <span
-                      className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${urgencyBadgeClass(candidate.daysUntilDelivery)}`}
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ${urgencyBadgeClass(candidate.daysUntilDelivery)}`}
                     >
                       {dueLabel}
                     </span>
@@ -170,7 +171,7 @@ export function SmtPlanOrderSidebar({
                   </p>
                   <span
                     className={[
-                      'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold',
+                      'shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold',
                       candidate.pcbSideMode === 'double'
                         ? 'bg-sky-100 text-sky-800'
                         : candidate.pcbSideMode === 'duo'
@@ -209,7 +210,7 @@ export function SmtPlanOrderSidebar({
                       event.stopPropagation()
                       onQuickBatch(candidate.orderLineId)
                     }}
-                    className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-slate-800 px-2.5 py-1.5 text-[12px] font-bold text-white hover:bg-slate-900"
+                    className={`mt-2 w-full ${ERP_PRIMARY_BUTTON_SM_CLASS} text-[12px] font-bold`}
                   >
                     이번 차 등록
                     {readyUnits > 0 && readyUnits < candidate.unplannedRemaining

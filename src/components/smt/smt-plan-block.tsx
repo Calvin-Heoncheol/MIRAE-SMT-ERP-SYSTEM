@@ -84,34 +84,34 @@ export function SmtPlanBlockCard({
       className={`w-full rounded-lg border px-2 py-1.5 text-left shadow-sm transition hover:shadow ${executionClass(status, daysUntilDelivery)} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
       <div className="flex items-start justify-between gap-1">
-        <p className="min-w-0 truncate text-[10px] text-slate-500">
+        <p className="min-w-0 truncate text-[11px] text-slate-500">
           {plan.customer || '—'} · {displayOrderPoNumber(plan.customerPoNumber, plan.orderNumber)}
         </p>
         <div className="flex shrink-0 items-center gap-1">
           {plan.planStatus === 'draft' ? (
-            <StatusBadge label="가계획" tone="neutral" className="!px-1 !py-0.5 !text-[9px]" />
+            <StatusBadge label="가계획" tone="neutral" className="!px-1 !py-0.5 !text-[11px]" />
           ) : null}
           <StatusBadge
             label={status === 'done' ? '완료' : status === 'progress' ? '진행' : '예정'}
             tone={executionTone(status)}
-            className="!px-1 !py-0.5 !text-[9px]"
+            className="!px-1 !py-0.5 !text-[11px]"
           />
           {dueLabel ? (
             <StatusBadge
               label={dueLabel}
               tone={urgencyTone(daysUntilDelivery)}
-              className="!px-1 !py-0.5 !text-[9px]"
+              className="!px-1 !py-0.5 !text-[11px]"
             />
           ) : null}
         </div>
       </div>
-      <p className="mt-0.5 text-[10px] font-semibold tabular-nums text-slate-600">
+      <p className="mt-0.5 text-[11px] font-semibold tabular-nums text-slate-600">
         {formatPlanDateRangeLabel(plan.plannedDate, plan.plannedEndDate)}
       </p>
       <div className="mt-0.5 flex min-w-0 items-center gap-1">
         <p className="min-w-0 truncate text-[11px] font-bold text-slate-900">{plan.productSummary}</p>
         {plan.pcbSide === 'TOP' || plan.pcbSide === 'BOT' ? (
-          <span className="shrink-0 rounded bg-white/80 px-1 py-0.5 text-[9px] font-bold text-slate-700">
+          <span className="shrink-0 rounded bg-white/80 px-1 py-0.5 text-[11px] font-bold text-slate-700">
             {plan.pcbSide}
           </span>
         ) : null}
@@ -123,7 +123,7 @@ export function SmtPlanBlockCard({
             style={{ width: `${progressPct}%` }}
           />
         </div>
-        <p className="text-[10px] font-semibold tabular-nums text-sky-800">
+        <p className="text-[11px] font-semibold tabular-nums text-sky-800">
           {produced.toLocaleString('ko-KR')}/{planned.toLocaleString('ko-KR')}대
         </p>
       </div>

@@ -51,7 +51,7 @@ import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { hasItemUnitPriceChange } from '@/lib/change-logs/utils'
-import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS, ERP_ROW_ADD_BUTTON_CLASS } from '@/lib/ui/tokens'
+import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS, ERP_ROW_ADD_BUTTON_CLASS } from '@/lib/ui/tokens'
 
 type ItemModalProps = {
   open: boolean
@@ -534,7 +534,7 @@ function ItemModalContent({
       zIndexClassName={zIndexClassName}
       footer={
         <div className="flex w-full flex-col gap-3">
-          {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+          {saveError ? <p className={ERP_ERROR_TEXT_CLASS}>{saveError}</p> : null}
           <div className="flex justify-between gap-2">
             {!isCreate ? (
               <div className="flex flex-wrap gap-2">

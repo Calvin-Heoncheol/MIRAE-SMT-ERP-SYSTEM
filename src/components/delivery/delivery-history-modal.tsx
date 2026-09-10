@@ -7,7 +7,6 @@ import { ProductCombobox } from '@/components/orders/product-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
-import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { buildDeliveryStatementDataFromShipment } from '@/lib/delivery/build-delivery-statement-data'
 import { printDeliveryStatement } from '@/lib/delivery/print-delivery-statement'
 import {
@@ -45,9 +44,16 @@ import {
   ERP_DANGER_BUTTON_CLASS,
   ERP_FIELD_INPUT_CLASS,
   ERP_FIELD_LABEL_CLASS,
+  ERP_ROW_ADD_BUTTON_CLASS,
   ERP_SECONDARY_BUTTON_CLASS,
   ERP_TABLE_TD_WRAP_CLASS,
 } from '@/lib/ui/tokens'
+
+const ADD_MENU_OPTIONS: Array<{ kind: DeliveryRegisterLineKind; label: string; hint: string }> = [
+  { kind: 'product', label: '품목', hint: '품목등록에서 선택' },
+  { kind: 'additional_work', label: '작업', hint: '코드·품명·수량·단가 직접 입력' },
+  { kind: 'material', label: '자재', hint: '코드·품명·수량·단가 직접 입력' },
+]
 
 type DeliveryHistoryModalProps = {
   open: boolean
@@ -503,8 +509,28 @@ export function DeliveryHistoryModal({
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reasonOpen, setReasonOpen] = useState(false)
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const addMenuRef = useRef<HTMLDivElement | null>(null)
   const initialUnitPricesRef = useRef<Record<string, number>>({})
   const draftsReadyRef = useRef(false)
+
+  useEffect(() => {
+    if (!addMenuOpen) return
+    function handlePointerDown(event: MouseEvent) {
+      if (!addMenuRef.current?.contains(event.target as Node)) {
+        setAddMenuOpen(false)
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setAddMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [addMenuOpen])
 
   const searchableProducts = useMemo(
     () => (customer ? filterProductsForCustomerStrict(products, customer) : products.filter((product) => product.isActive)),
@@ -675,7 +701,13 @@ export function DeliveryHistoryModal({
     }
   }
 
-  function addRow() {
+  function addRow(kind: DeliveryRegisterLineKind = 'product') {
+    if (kind === 'additional_work' || kind === 'material') {
+      commitDrafts((current) => [...current, emptyManualDraft(kind)])
+      setAddMenuOpen(false)
+      setError(null)
+      return
+    }
     commitDrafts((current) => {
       const insertAt = current.findIndex((line) => line.billingOnly && !line.manualEntry)
       const next = emptyProductDraft()
@@ -686,11 +718,7 @@ export function DeliveryHistoryModal({
       }
       return [...current.slice(0, insertAt), next, ...current.slice(insertAt)]
     })
-    setError(null)
-  }
-
-  function addManualRow(kind: 'additional_work' | 'material') {
-    commitDrafts((current) => [...current, emptyManualDraft(kind)])
+    setAddMenuOpen(false)
     setError(null)
   }
 
@@ -1047,7 +1075,7 @@ export function DeliveryHistoryModal({
     <ErpModal
       open={open && Boolean(group)}
       title="출하"
-      description="출하일·수량·단가를 품목별로 수정하고, 추가작업·자재 행을 추가하거나 삭제할 수 있습니다. 제품 단가는 발주서에 반영됩니다."
+      description="출하일·수량·단가를 품목별로 수정하고, 추가에서 품목·작업·자재 행을 넣을 수 있습니다. 제품 단가는 발주서에 반영됩니다."
       size="lg"
       onClose={onClose}
       closeOnEscape={!busy}
@@ -1120,25 +1148,35 @@ export function DeliveryHistoryModal({
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-bold text-slate-900">품목</h3>
-            <div className="flex flex-wrap gap-2">
-              <ErpRowAddButton onClick={addRow} disabled={busy} title="품목 행 추가" />
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => addManualRow('additional_work')}
-                className={ERP_SECONDARY_BUTTON_CLASS}
-              >
-                + 추가작업
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => addManualRow('material')}
-                className={ERP_SECONDARY_BUTTON_CLASS}
-              >
-                + 자재
-              </button>
-            </div>
+            {!busy ? (
+              <div className="relative" ref={addMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setAddMenuOpen((open) => !open)}
+                  title="행 추가"
+                  aria-label="행 추가"
+                  aria-expanded={addMenuOpen}
+                  className={ERP_ROW_ADD_BUTTON_CLASS}
+                >
+                  추가
+                </button>
+                {addMenuOpen ? (
+                  <div className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                    {ADD_MENU_OPTIONS.map((option) => (
+                      <button
+                        key={option.kind}
+                        type="button"
+                        onClick={() => addRow(option.kind)}
+                        className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-slate-50"
+                      >
+                        <span className="text-sm font-semibold text-slate-800">{option.label}</span>
+                        <span className="text-[11px] text-slate-500">{option.hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-slate-200">

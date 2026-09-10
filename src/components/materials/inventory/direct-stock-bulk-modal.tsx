@@ -18,6 +18,7 @@ import type { MaterialInventoryRow } from '@/lib/materials/inventory/types'
 import { formatInventoryQuantity } from '@/lib/materials/inventory/utils'
 import { formatMaterialDisplayCode } from '@/lib/materials/utils'
 import {
+  ERP_CODE_TEXT_CLASS,
   ERP_INFO_BOX_CLASS,
   ERP_INFO_BOX_TEXT_CLASS,
   ERP_INFO_BOX_TITLE_CLASS,
@@ -235,7 +236,7 @@ function DirectStockBulkModalContent({
                   const material = rows.find((row) => row.id === line.materialId)
                   return (
                     <tr key={line.materialId} className="border-t border-slate-100">
-                      <td className="px-3 py-2 font-mono text-xs font-semibold text-blue-800">
+                      <td className={`px-3 py-2 ${ERP_CODE_TEXT_CLASS} font-semibold`}>
                         {material ? formatMaterialDisplayCode(material) : line.materialId}
                       </td>
                       <td className="px-3 py-2 text-slate-800">{line.materialName || '—'}</td>

@@ -1,6 +1,6 @@
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionProductName } from '@/lib/production-input/utils'
-import { DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from '@/lib/delivery/config'
+import { DELIVERY_PERSIST_PRODUCTION_LOTS, DELIVERY_REGISTER_SKIP_PRODUCTION_CAP } from '@/lib/delivery/config'
 import type { DeliveryAvailability, DeliveryBillingOnlyLine } from '@/lib/delivery/utils'
 import type { ProductionStatusLine } from '@/lib/production-status/types'
 import { collectActiveDeliveryAssemblyGroupIds } from '@/lib/production-status/status-filter'
@@ -172,30 +172,53 @@ export function parseShipmentExtraLines(note: string | null | undefined): Shipme
   if (!match?.[1]) return []
   try {
     const parsed = JSON.parse(decodeURIComponent(match[1])) as unknown
-    if (!Array.isArray(parsed)) return []
-    const lines: ShipmentExtraStatementLine[] = []
-    for (const row of parsed) {
-      const item = row as Partial<ShipmentExtraStatementLine>
-      const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
-      const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
-      const productName = String(item.productName || '').trim()
-      const lineKind =
-        item.lineKind === 'material' ? ('material' as const) : ('additional_work' as const)
-      if (!productName || qty < 1) continue
-      const orderNumber = String(item.orderNumber || '').trim()
-      lines.push({
-        productCode: String(item.productCode || '').trim() || (lineKind === 'material' ? 'MAT' : 'TEMP'),
-        productName,
-        qty,
-        unitPrice,
-        lineKind,
-        ...(orderNumber ? { orderNumber } : {}),
-      })
-    }
-    return lines
+    return normalizeShipmentExtraLines(parsed)
   } catch {
     return []
   }
+}
+
+export function normalizeShipmentExtraLines(value: unknown): ShipmentExtraStatementLine[] {
+  if (!Array.isArray(value)) return []
+  const lines: ShipmentExtraStatementLine[] = []
+  for (const row of value) {
+    const item = row as Partial<ShipmentExtraStatementLine>
+    const qty = Math.max(0, Math.floor(Number(item.qty) || 0))
+    const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+    const productName = String(item.productName || '').trim()
+    const lineKind =
+      item.lineKind === 'material' ? ('material' as const) : ('additional_work' as const)
+    if (!productName || qty < 1) continue
+    const orderNumber = String(item.orderNumber || '').trim()
+    lines.push({
+      productCode: String(item.productCode || '').trim() || (lineKind === 'material' ? 'MAT' : 'TEMP'),
+      productName,
+      qty,
+      unitPrice,
+      lineKind,
+      ...(orderNumber ? { orderNumber } : {}),
+    })
+  }
+  return lines
+}
+
+/** 컬럼 우선, 없으면 note 마커 폴백 */
+export function resolveShipmentExtraLines(input: {
+  extraLines?: unknown
+  note?: string | null
+}): ShipmentExtraStatementLine[] {
+  const fromColumn = normalizeShipmentExtraLines(input.extraLines)
+  if (fromColumn.length) return fromColumn
+  return parseShipmentExtraLines(input.note)
+}
+
+export function resolveShipmentCustomer(input: {
+  shipCustomer?: string | null
+  note?: string | null
+}) {
+  const fromColumn = String(input.shipCustomer || '').trim()
+  if (fromColumn) return fromColumn
+  return parseShipmentCustomerFromNote(input.note)
 }
 
 /** 출하 묶음 note에 복제된 SHIP_EXTRA 중 첫 유효 목록 */
@@ -213,9 +236,10 @@ export function firstShipmentExtraLinesFromNotes(
 export function isExtrasOnlyDeliveryStub(row: {
   assemblyGroupId?: string | null
   note?: string | null
+  extraLines?: unknown
 }) {
   if (String(row.assemblyGroupId || '').trim()) return false
-  return parseShipmentExtraLines(row.note).length > 0
+  return resolveShipmentExtraLines(row).length > 0
 }
 
 export function stripShipmentInternalNotes(note: string | null | undefined) {
@@ -1046,7 +1070,7 @@ export function validateDeliveryRegisterItems(
           : `${item.productName || item.productCode} 출하가능 수량(${item.maxQuantity.toLocaleString('ko-KR')})을 초과할 수 없습니다.`,
       }
     }
-    if (item.lotManual) {
+    if (DELIVERY_PERSIST_PRODUCTION_LOTS && item.lotManual) {
       const allocated = sumLotAllocationQuantity(item.allocations)
       if (allocated !== quantity) {
         return {

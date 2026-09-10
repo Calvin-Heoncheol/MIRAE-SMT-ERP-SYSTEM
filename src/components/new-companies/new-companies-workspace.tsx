@@ -12,13 +12,12 @@ import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import type { FetchNewCompanyInquiriesResult } from '@/lib/new-companies/repository'
 import type { NewCompanyInquiry, NewCompanyStatus } from '@/lib/new-companies/types'
 import {
-  NEW_COMPANY_STATUS_BADGE_CLASS,
   NEW_COMPANY_STATUS_LABELS,
   NEW_COMPANY_STATUSES,
 } from '@/lib/new-companies/types'
 import { printNewCompanyInquiryList } from '@/lib/new-companies/print-new-company-inquiry'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
-import { formatEmptyListMessage } from '@/lib/ui/tokens'
+import { ERP_MODULE_ACCENT, formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type NewCompaniesWorkspaceProps = {
   result: FetchNewCompanyInquiriesResult
@@ -73,19 +72,11 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
 
   const statusChips = [
     { value: 'all' as const, label: '전체', count: inquiries.length },
-    ...NEW_COMPANY_STATUSES.map((status) => {
-      const badge = NEW_COMPANY_STATUS_BADGE_CLASS[status]
-      return {
-        value: status as StatusFilter,
-        label: NEW_COMPANY_STATUS_LABELS[status],
-        count: inquiries.filter((inquiry) => inquiry.status === status).length,
-        tone: {
-          idleClassName: `ring-1 opacity-80 hover:opacity-100 ${badge}`,
-          activeClassName: `ring-2 ring-offset-1 ring-slate-400 ${badge}`,
-          activeCountClassName: 'opacity-80',
-        },
-      }
-    }),
+    ...NEW_COMPANY_STATUSES.map((status) => ({
+      value: status as StatusFilter,
+      label: NEW_COMPANY_STATUS_LABELS[status],
+      count: inquiries.filter((inquiry) => inquiry.status === status).length,
+    })),
   ]
 
   function openCreate() {
@@ -129,7 +120,7 @@ export function NewCompaniesWorkspace({ result }: NewCompaniesWorkspaceProps) {
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="회사명, 담당자, 유입경로, 상태, 이메일, 연락처, 제품, 진행사항 검색…"
-          accent="slate"
+          accent={ERP_MODULE_ACCENT.newCompanies}
           filters={
             <FilterChipBar
               options={statusChips}

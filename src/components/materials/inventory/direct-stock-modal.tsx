@@ -8,7 +8,7 @@ import { setMaterialDirectStockBatch } from '@/lib/materials/inventory/direct-st
 import { formatInventoryQuantity } from '@/lib/materials/inventory/utils'
 import { formatMaterialDisplayCode } from '@/lib/materials/utils'
 import type { MaterialInventoryRow } from '@/lib/materials/inventory/types'
-import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
+import { ERP_CODE_TEXT_CLASS, ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
 
 type DirectStockModalProps = {
   open: boolean
@@ -92,7 +92,7 @@ export function DirectStockModal({ open, row, onClose, onSaved }: DirectStockMod
     >
       <div className="space-y-4">
         <div>
-          <p className="font-mono text-xs font-semibold text-blue-800">
+          <p className={`${ERP_CODE_TEXT_CLASS} font-semibold`}>
             {formatMaterialDisplayCode(row)}
           </p>
           <p className="mt-1 text-base font-bold text-slate-900">{row.materialName || '—'}</p>

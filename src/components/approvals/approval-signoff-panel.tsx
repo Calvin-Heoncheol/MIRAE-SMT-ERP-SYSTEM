@@ -70,7 +70,7 @@ export function ApprovalSignoffPanel({
                   key={item.role}
                   className={[
                     'border-r border-slate-200 text-center font-semibold text-slate-700 last:border-r-0',
-                    compact ? 'px-1 py-1 text-[10px]' : 'px-1 py-1.5 text-[11px]',
+                    compact ? 'px-1 py-1 text-[11px]' : 'px-1 py-1.5 text-[11px]',
                   ].join(' ')}
                 >
                   {item.label}
@@ -84,7 +84,7 @@ export function ApprovalSignoffPanel({
                 const approved = item.status === 'approved'
                 const canApprove = canSign && canApproveSignoff(signoffs, item.role)
                 const canRevoke = canSign && canRevokeSignoff(signoffs, item.role)
-                const boxSize = compact ? 'h-[18px] w-[18px] text-[10px]' : 'h-5 w-5 text-[11px]'
+                const boxSize = compact ? 'h-[18px] w-[18px] text-[11px]' : 'h-5 w-5 text-[11px]'
 
                 return (
                   <td
@@ -122,7 +122,7 @@ export function ApprovalSignoffPanel({
                             ✓
                           </span>
                           {!compact ? (
-                            <p className="text-[10px] leading-tight text-slate-500">
+                            <p className="text-[11px] leading-tight text-slate-500">
                               {formatSignoffDate(item.approvedAt)}
                             </p>
                           ) : null}
@@ -164,7 +164,7 @@ export function ApprovalSignoffPanel({
         </div>
       </div>
 
-      <p className="no-print mt-1.5 text-right text-[10px] text-slate-400">
+      <p className="no-print mt-1.5 text-right text-[11px] text-slate-400">
         {progress.approvedCount}/{progress.total} 완료
         {!canSign ? ' · 저장 후 결재' : ''}
       </p>

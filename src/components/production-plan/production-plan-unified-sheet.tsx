@@ -158,16 +158,16 @@ function OrderInfoCell({ line, countdown }: { line: UnifiedPlanSheetLine; countd
       <div className="truncate font-mono text-[11px] text-slate-500">
         {formatInternalCodeLabel(line.rep.orderNumber)}
       </div>
-      <div className="text-[10px] tabular-nums text-slate-500">
+      <div className="text-[11px] tabular-nums text-slate-500">
         {line.rep.deliveryDate || '-'}
       </div>
       {countdown ? (
-        <div className={`text-[10px] font-semibold tabular-nums ${deliveryUrgencyClass(line.rep.daysUntilDelivery)}`}>
+        <div className={`text-[11px] font-semibold tabular-nums ${deliveryUrgencyClass(line.rep.daysUntilDelivery)}`}>
           {countdown}
         </div>
       ) : null}
       {line.rowKind === 'smt_work' && isMain ? (
-        <div className="text-[10px] font-semibold text-amber-700">
+        <div className="text-[11px] font-semibold text-amber-700">
           입 {line.rep.materialReadyQty.toLocaleString('ko-KR')}
         </div>
       ) : null}
@@ -405,7 +405,7 @@ export function ProductionPlanUnifiedSheet({
         type="button"
         disabled={disabled || saving}
         onClick={() => void cancelConfirmedPlan(row, side, line.key)}
-        className="mt-0.5 text-[9px] font-semibold text-slate-500 underline-offset-2 hover:text-rose-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-0.5 text-[11px] font-semibold text-slate-500 underline-offset-2 hover:text-rose-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
       >
         취소
       </button>
@@ -568,7 +568,7 @@ export function ProductionPlanUnifiedSheet({
             {renderStageCancelLink(line, row, 'post', saving, disabled)}
           </div>
           {blocked && row.status !== 'confirmed' ? (
-            <div className="truncate text-[9px] font-semibold text-violet-700" title="SMD 확정 후">
+            <div className="truncate text-[11px] font-semibold text-violet-700" title="SMD 확정 후">
               SMD후
             </div>
           ) : null}

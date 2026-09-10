@@ -104,7 +104,7 @@ export function SmtLineMachineCards({
               </span>
               <span
                 className={[
-                  'rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1',
+                  'rounded-full px-1.5 py-0.5 text-[11px] font-bold ring-1',
                   badgeClass(selected, line.planStatus),
                 ].join(' ')}
               >
@@ -112,7 +112,7 @@ export function SmtLineMachineCards({
               </span>
             </div>
             <SmtLineGlyph active={selected || line.hasPlan} />
-            <p className="mt-1.5 line-clamp-2 min-h-[2.4em] text-[10px] leading-snug font-medium text-slate-600">
+            <p className="mt-1.5 line-clamp-2 min-h-[2.4em] text-[11px] leading-snug font-medium text-slate-600">
               {line.jobLabel}
             </p>
           </button>

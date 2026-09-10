@@ -9,7 +9,7 @@ import type {
   MaterialPurchaseSuggestionLine,
   OrderPurchaseCard,
 } from '@/lib/materials/purchase-orders/types'
-import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_FIELD_INPUT_CLASS, ERP_PRIMARY_BUTTON_CLASS, ERP_PRIMARY_BUTTON_SM_CLASS, ERP_TABLE_HEAD_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 export type PurchaseAssistFillPayload = {
   items: {
@@ -209,10 +209,10 @@ export function MaterialPurchaseAssistPanel({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-2xl text-slate-500 hover:bg-slate-100"
+            className="rounded-lg px-2 py-1 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             aria-label="닫기"
           >
-            ×
+            ✕
           </button>
         </div>
 
@@ -226,7 +226,7 @@ export function MaterialPurchaseAssistPanel({
                 ? '발주번호, 고객사, 제품명 검색…'
                 : '자재코드, 자재명, 공급사 검색…'
             }
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100"
+            className={ERP_FIELD_INPUT_CLASS}
           />
         </div>
 
@@ -309,7 +309,7 @@ export function MaterialPurchaseAssistPanel({
                               <button
                                 type="button"
                                 onClick={() => void applyOrderProduct(card, product.orderLineId)}
-                                className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-900"
+                                className={ERP_PRIMARY_BUTTON_SM_CLASS}
                               >
                                 BOM 채우기
                               </button>
@@ -446,7 +446,7 @@ export function MaterialPurchaseAssistPanel({
             <button
               type="button"
               onClick={applyStockSelection}
-              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900"
+              className={ERP_PRIMARY_BUTTON_CLASS}
             >
               선택 자재 채우기 ({selectedMaterialIds.size.toLocaleString('ko-KR')})
             </button>

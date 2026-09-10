@@ -74,7 +74,7 @@ function OrderCard({
     >
       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
         <span
-          className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+          className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
             row.scope === 'material'
               ? 'bg-amber-100 text-amber-800'
               : row.scope === 'smt'
@@ -85,13 +85,13 @@ function OrderCard({
           {PRODUCTION_PLAN_SCOPE_LABELS[row.scope]}
         </span>
         {row.materialInboundStatus && materialStatusLabel(row.materialInboundStatus) ? (
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">
             {materialStatusLabel(row.materialInboundStatus)}
           </span>
         ) : null}
         {countdown ? (
           <span
-            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${deliveryUrgencyClass(row.daysUntilDelivery)}`}
+            className={`rounded px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${deliveryUrgencyClass(row.daysUntilDelivery)}`}
           >
             {countdown}
           </span>
@@ -111,7 +111,7 @@ function OrderCard({
         </span>
         {row.deliveryDate ? <span>납기 {row.deliveryDate}</span> : null}
       </div>
-      {hint ? <p className="mt-1.5 text-[10px] font-semibold text-amber-700">{hint}</p> : null}
+      {hint ? <p className="mt-1.5 text-[11px] font-semibold text-amber-700">{hint}</p> : null}
     </article>
   )
 }
@@ -132,9 +132,9 @@ function Section({
       <div className="sticky top-0 z-[1] border-b border-slate-100 bg-slate-50/95 px-3 py-2 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-2">
           <h5 className="text-xs font-bold text-slate-800">{title}</h5>
-          <span className="text-[10px] font-semibold text-slate-400 tabular-nums">{count}건</span>
+          <span className="text-[11px] font-semibold text-slate-400 tabular-nums">{count}건</span>
         </div>
-        {description ? <p className="mt-0.5 text-[10px] leading-snug text-slate-500">{description}</p> : null}
+        {description ? <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{description}</p> : null}
       </div>
       <div className="space-y-2 px-2.5 py-2.5">{children}</div>
     </section>
@@ -186,7 +186,7 @@ export function ProductionPlanOrderSidebar({
         <h4 className="text-sm font-bold text-slate-900">
           {productionPlanTeamTabLabel(activeScope)} 생산계획 대기함
         </h4>
-        <p className="mt-0.5 text-[10px] text-slate-500">{meta.description}</p>
+        <p className="mt-0.5 text-[11px] text-slate-500">{meta.description}</p>
       </div>
 
       <div className="shrink-0 border-b border-slate-200 bg-white px-3 py-2">

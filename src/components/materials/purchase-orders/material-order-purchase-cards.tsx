@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { OrderPurchaseCard, OrderPurchaseStatus } from '@/lib/materials/purchase-orders/types'
+import { ERP_PRIMARY_BUTTON_SM_CLASS } from '@/lib/ui/tokens'
 
 type MaterialOrderPurchaseCardsProps = {
   cards: OrderPurchaseCard[]
@@ -195,7 +196,7 @@ export function MaterialOrderPurchaseCards({
                         <button
                           type="button"
                           onClick={() => onPurchaseProduct(card, product.orderLineId)}
-                          className="mt-2.5 w-full rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-900"
+                          className={`mt-2.5 w-full ${ERP_PRIMARY_BUTTON_SM_CLASS}`}
                         >
                           구매발주
                         </button>

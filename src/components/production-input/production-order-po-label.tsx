@@ -26,7 +26,7 @@ export function ProductionOrderPoLabel({
         <span
           className={
             workClassName ||
-            'mt-0.5 truncate font-mono text-[10px] font-medium leading-tight text-slate-500'
+            'mt-0.5 truncate font-mono text-[11px] font-medium leading-tight text-slate-500'
           }
         >
           {work}

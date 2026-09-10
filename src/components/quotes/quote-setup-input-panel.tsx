@@ -59,7 +59,7 @@ export function QuoteSetupInputPanel({
       <div className="flex items-center gap-3 bg-sky-50/80 px-3 py-2.5">
         <h4 className="min-w-0 flex-1 text-xs font-bold tracking-wide text-sky-950">SET-UP</h4>
         <div className="shrink-0 text-right">
-          <p className="text-[10px] font-medium text-sky-800/80">{isDomestic ? '합계' : 'Total'}</p>
+          <p className="text-[11px] font-medium text-sky-800/80">{isDomestic ? '합계' : 'Total'}</p>
           <p className="text-sm font-semibold tabular-nums text-sky-950">
             {formatAmount(orderLevelTotal)}
           </p>

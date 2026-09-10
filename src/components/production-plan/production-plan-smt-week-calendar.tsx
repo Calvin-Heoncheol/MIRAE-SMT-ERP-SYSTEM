@@ -140,7 +140,7 @@ export function ProductionPlanSmtWeekCalendar({
                   >
                     <div className="flex min-h-[96px] flex-col gap-1">
                       {loadQty > 0 ? (
-                        <p className="px-0.5 text-[10px] font-semibold tabular-nums text-slate-500">
+                        <p className="px-0.5 text-[11px] font-semibold tabular-nums text-slate-500">
                           부하 {loadQty.toLocaleString('ko-KR')}
                         </p>
                       ) : null}
@@ -168,14 +168,14 @@ export function ProductionPlanSmtWeekCalendar({
                           <div className="min-h-[48px] flex-1" />
                         )
                       ) : isDropTarget ? (
-                        <div className="rounded-md border border-dashed border-sky-400 bg-sky-50 px-1 py-2 text-center text-[10px] font-semibold text-sky-700">
+                        <div className="rounded-md border border-dashed border-sky-400 bg-sky-50 px-1 py-2 text-center text-[11px] font-semibold text-sky-700">
                           여기에 추가
                         </div>
                       ) : onEmptyCellClick ? (
                         <button
                           type="button"
                           onClick={() => onEmptyCellClick({ plannedDate, lineNo })}
-                          className="rounded-md border border-dashed border-slate-200 px-1 py-1.5 text-center text-[10px] text-slate-400 hover:border-sky-300 hover:bg-sky-50/50 hover:text-sky-700"
+                          className="rounded-md border border-dashed border-slate-200 px-1 py-1.5 text-center text-[11px] text-slate-400 hover:border-sky-300 hover:bg-sky-50/50 hover:text-sky-700"
                         >
                           + 배정
                         </button>

@@ -65,7 +65,7 @@ import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
 import { formatProductOptionLabel, findProductById, resolveOrderLineProduct } from '@/lib/products/utils'
 import { buildOrderPrintDataFromQuote, printOrder } from '@/lib/orders/print-order'
-import { ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
+import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
 
 type QuoteModalProps = {
   open: boolean
@@ -845,10 +845,10 @@ function QuoteModalContent({
               type="button"
               onClick={requestClose}
               disabled={busy}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-2xl text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
+              className="rounded-lg px-2 py-1 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
               aria-label="닫기"
             >
-              ×
+              ✕
             </button>
           </div>
         </div>
@@ -1307,7 +1307,7 @@ function QuoteModalContent({
                   </ErpButton>
                 </div>
               </div>
-              {saveError ? <p className="mt-2 text-sm text-red-600">{saveError}</p> : null}
+              {saveError ? <p className={`mt-2 ${ERP_ERROR_TEXT_CLASS}`}>{saveError}</p> : null}
             </div>
           </div>
 

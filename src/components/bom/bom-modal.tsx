@@ -38,7 +38,7 @@ import type { BomGroup } from '@/lib/bom/types'
 import type { Item } from '@/lib/items/types'
 import { ITEM_CATEGORY_LABELS, isProductItemCategory, isSemiFinishedItemCategory } from '@/lib/items/types'
 import { normalizeVersionLabel, suggestNextVersionForItem } from '@/lib/items/version-code'
-import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS, ERP_INFO_BOX_CLASS, ERP_INFO_BOX_TEXT_CLASS, ERP_INFO_BOX_TITLE_CLASS, ERP_PASTE_TEXTAREA_CLASS } from '@/lib/ui/tokens'
+import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS, ERP_INFO_BOX_CLASS, ERP_INFO_BOX_TEXT_CLASS, ERP_INFO_BOX_TITLE_CLASS, ERP_PASTE_TEXTAREA_CLASS } from '@/lib/ui/tokens'
 
 type BomModalProps = {
   open: boolean
@@ -389,7 +389,7 @@ function BomModalContent({
       closeOnEscape={!busy}
       footer={
         <div className="flex w-full flex-col gap-2">
-          {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+          {saveError ? <p className={ERP_ERROR_TEXT_CLASS}>{saveError}</p> : null}
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             {!isCreate ? (
               <div className="flex flex-wrap gap-2">

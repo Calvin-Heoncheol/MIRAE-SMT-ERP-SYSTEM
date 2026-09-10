@@ -306,7 +306,7 @@ export function displayOrderPoNumber(
   return String(customerPoNumber || '').trim() || String(orderId || '').trim()
 }
 
-/** 작업번호 — {발주번호}-{NN} (예: PO123-01, LEE-260904-01-01) */
+/** 작업번호 포맷 헬퍼 (레거시·표시용). 발주 저장 시 자동 채번에는 쓰지 않음. */
 export function formatOrderWorkNumber(workNumberBase: string, workSeq: number) {
   const base = String(workNumberBase || '').trim()
   const seq = Math.max(1, Math.floor(Number(workSeq) || 0))
@@ -315,8 +315,7 @@ export function formatOrderWorkNumber(workNumberBase: string, workSeq: number) {
 }
 
 /**
- * 발주 모달용 작업번호 미리보기.
- * 발주번호(base)가 있고 제품이 선택된(비추가작업) 행만 {base}-01 … 부여.
+ * @deprecated 작업번호는 발주 모달에서 직접 입력. 미리보기 자동 채번은 사용하지 않음.
  */
 export function previewOrderLineWorkNumbers(
   items: Array<{

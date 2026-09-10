@@ -11,6 +11,7 @@ import {
   resolveSmtPlanExecutionStatus,
   type PostProcessPlanExecutionStatus,
 } from '@/lib/post-process/plan/utils'
+import { ERP_BOARD_CHIP_CLASS } from '@/lib/ui/tokens'
 
 type PostProcessPlanBlockProps = {
   plan: PostProcessPlanBlock
@@ -83,26 +84,26 @@ export function PostProcessPlanBlockCard({
       className={`w-full rounded-lg border px-2 py-1.5 text-left shadow-sm transition hover:shadow ${executionClass(status, daysUntilDelivery)} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
       <div className="flex items-start justify-between gap-1">
-        <p className="min-w-0 truncate text-[10px] text-slate-500">
+        <p className="min-w-0 truncate text-[11px] text-slate-500">
           {plan.customer || '—'} · {displayOrderPoNumber(plan.customerPoNumber, plan.orderNumber)}
         </p>
         <div className="flex shrink-0 items-center gap-1">
           {plan.planStatus === 'draft' ? (
-            <span className="rounded px-1 py-0.5 text-[9px] font-bold bg-slate-200 text-slate-700">
+            <span className={`${ERP_BOARD_CHIP_CLASS} bg-slate-200 text-slate-700`}>
               가계획
             </span>
           ) : null}
-          <span className={`rounded px-1 py-0.5 text-[9px] font-bold ${executionBadgeClass(status)}`}>
+          <span className={`${ERP_BOARD_CHIP_CLASS} ${executionBadgeClass(status)}`}>
             {status === 'done' ? '완료' : status === 'progress' ? '진행' : '예정'}
           </span>
           {dueLabel ? (
-            <span className={`rounded px-1 py-0.5 text-[9px] font-bold ${urgencyBadgeClass(daysUntilDelivery)}`}>
+            <span className={`${ERP_BOARD_CHIP_CLASS} ${urgencyBadgeClass(daysUntilDelivery)}`}>
               {dueLabel}
             </span>
           ) : null}
         </div>
       </div>
-      <p className="mt-0.5 text-[10px] font-semibold tabular-nums text-slate-600">
+      <p className="mt-0.5 text-[11px] font-semibold tabular-nums text-slate-600">
         {formatPlanDateRangeLabel(plan.plannedDate, plan.plannedEndDate)}
       </p>
       <p className="mt-0.5 truncate text-[11px] font-bold text-slate-900">{plan.productSummary}</p>
@@ -113,7 +114,7 @@ export function PostProcessPlanBlockCard({
             style={{ width: `${progressPct}%` }}
           />
         </div>
-        <p className="text-[10px] font-semibold tabular-nums text-sky-800">
+        <p className="text-[11px] font-semibold tabular-nums text-sky-800">
           {produced.toLocaleString('ko-KR')}/{planned.toLocaleString('ko-KR')}대
         </p>
       </div>

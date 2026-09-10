@@ -5,7 +5,6 @@ import { formatItemDisplayCode } from '@/lib/items/utils'
 import { parseItemVersionCode } from '@/lib/items/version-code'
 import { fetchProducts } from '@/lib/products/repository'
 import {
-  ensureLegacyShipmentNumber,
   isLegacyShipmentNote,
   isLegacyStatementOrder,
   orderIdFromLegacyShipmentNote,
@@ -451,20 +450,12 @@ export async function fetchSalesReportData(
 
     for (const order of legacyOrders) {
       const userLines = order.items.filter((item) => !item.derivedFromLineId)
-      const totalQty = userLines.reduce((sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity) || 0)), 0)
-      let shipmentId =
+      const shipmentId =
         legacyShipmentByOrderId.get(order.orderId) ||
-        parseLegacyShipmentIdFromOrderNote(order.note)
-      if (!shipmentId) {
-        shipmentId = await ensureLegacyShipmentNumber({
-          orderId: order.orderId,
-          shipDate: order.orderDate,
-          quantity: totalQty,
-          orderNote: order.note,
-        })
-        if (shipmentId) legacyShipmentByOrderId.set(order.orderId, shipmentId)
-      }
-      const displayShipmentId = shipmentId || order.orderNumber
+        parseLegacyShipmentIdFromOrderNote(order.note) ||
+        order.orderNumber ||
+        order.orderId
+      const displayShipmentId = shipmentId
       for (const item of userLines) {
         const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
         const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
@@ -650,23 +641,12 @@ export async function fetchLegacyStatementGroups(): Promise<FetchLegacyStatement
     const shipments: SalesReportShipmentRow[] = []
     for (const order of legacyOrders) {
       const userLines = order.items.filter((item) => !item.derivedFromLineId)
-      const totalQty = userLines.reduce(
-        (sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity) || 0)),
-        0,
-      )
-      let shipmentId =
+      const shipmentId =
         legacyShipmentByOrderId.get(order.orderId) ||
-        parseLegacyShipmentIdFromOrderNote(order.note)
-      if (!shipmentId) {
-        shipmentId = await ensureLegacyShipmentNumber({
-          orderId: order.orderId,
-          shipDate: order.orderDate,
-          quantity: totalQty,
-          orderNote: order.note,
-        })
-        if (shipmentId) legacyShipmentByOrderId.set(order.orderId, shipmentId)
-      }
-      const displayShipmentId = shipmentId || order.orderNumber
+        parseLegacyShipmentIdFromOrderNote(order.note) ||
+        order.orderNumber ||
+        order.orderId
+      const displayShipmentId = shipmentId
       for (const item of userLines) {
         const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
         const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))

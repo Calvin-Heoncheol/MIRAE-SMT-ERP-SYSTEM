@@ -6,7 +6,7 @@ import { useBusy } from '@/components/ui/busy-provider'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpButton } from '@/components/ui/erp-button'
 import { RequiredMark } from '@/components/ui/required-mark'
-import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
+import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
@@ -152,7 +152,7 @@ function PartnerModalContent({
       closeOnEscape={!busy}
       footer={
         <div className="flex w-full flex-col gap-3">
-          {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
+          {saveError ? <p className={ERP_ERROR_TEXT_CLASS}>{saveError}</p> : null}
           <div className="flex justify-between gap-2">
             {!isCreate && canDelete ? (
               <ErpButton

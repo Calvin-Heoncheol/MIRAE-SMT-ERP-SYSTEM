@@ -15,7 +15,7 @@ import type {
 } from '@/lib/materials/outbound/types'
 import { buildOutboundOrderCards, getOutboundTypeLabel } from '@/lib/materials/outbound/utils'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
-import { formatEmptyListMessage } from '@/lib/ui/tokens'
+import { ERP_MODULE_ACCENT, formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type OutboundWorkspaceProps = {
   result: FetchMaterialOutboundPageResult
@@ -108,7 +108,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="발주번호, 고객사, 품목 검색…"
-          accent="slate"
+          accent={ERP_MODULE_ACCENT.outbound}
         />
 
         <OutboundNeedsTable
@@ -133,7 +133,7 @@ export function OutboundWorkspace({ result, view }: OutboundWorkspaceProps) {
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="불출번호, 발주번호, 자재명, 자재코드 검색…"
-          accent="slate"
+          accent={ERP_MODULE_ACCENT.outbound}
         />
 
         <OutboundListTable

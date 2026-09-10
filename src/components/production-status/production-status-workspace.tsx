@@ -8,7 +8,7 @@ import { DateRangeFilter } from '@/components/ui/date-range-filter'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { FilterChipBar, STATUS_FILTER_TONES } from '@/components/ui/filter-chip'
 import { DATE_RANGE_FILTER_LABEL, hasDateRangeFilter } from '@/lib/ui/date-range'
-import { formatEmptyListMessage } from '@/lib/ui/tokens'
+import { ERP_MODULE_ACCENT, formatEmptyListMessage } from '@/lib/ui/tokens'
 import { KpiStatCard } from '@/components/ui/kpi-stat-card'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
@@ -175,7 +175,7 @@ export function ProductionStatusWorkspace({ result }: ProductionStatusWorkspaceP
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="발주번호, 고객사, 제품명 검색…"
-        accent="slate"
+        accent={ERP_MODULE_ACCENT.production}
         inlineFilters={
           <DateRangeFilter
             startDate={startDate}

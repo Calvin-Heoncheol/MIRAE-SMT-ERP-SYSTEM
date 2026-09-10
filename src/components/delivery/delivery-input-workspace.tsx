@@ -45,7 +45,7 @@ import {
   resolveMonthlyClosingCustomerLabel,
 } from '@/lib/reports/monthly-closing'
 import { DATE_RANGE_FILTER_LABEL, hasDateRangeFilter } from '@/lib/ui/date-range'
-import { formatEmptyListMessage } from '@/lib/ui/tokens'
+import { ERP_MODULE_ACCENT, formatEmptyListMessage } from '@/lib/ui/tokens'
 import type {
   FetchLegacyStatementGroupsResult,
   SalesReportStatementGroup,
@@ -412,7 +412,7 @@ export function DeliveryInputWorkspace({
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="명세서, 발주번호, 고객사, 품목, 출하일, 등록자 검색…"
-          accent="sky"
+          accent={ERP_MODULE_ACCENT.delivery}
           inlineFilters={
             <DateRangeFilter
               startDate={startDate}

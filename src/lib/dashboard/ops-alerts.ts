@@ -1,5 +1,6 @@
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import type { DeliveryAvailability } from '@/lib/delivery/utils'
+import { resolveDeliveryActionableQuantity } from '@/lib/delivery/utils'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
 import {
@@ -35,8 +36,8 @@ function groupAssembliesByOrderId(groups: OrderAssemblyGroup[]) {
 
 /**
  * 납기 임박·지연 미출하 발주.
- * - 출하가능 수량 있음 → 영업 (생산은 됐고 출하 대기)
- * - 아니면 → 생산 (아직 생산이 막혀 납기 위험)
+ * - 출하 가능(정책 반영) 수량 있음 → 영업
+ * - 아니면 → 생산
  */
 export function buildDeliveryDueNotifications(input: {
   today: string
@@ -65,7 +66,9 @@ export function buildDeliveryDueNotifications(input: {
     )
     let shippable = 0
     for (const group of groups) {
-      shippable += Math.max(0, Math.floor(input.availabilityByGroupId[group.id]?.shippable || 0))
+      const availability = input.availabilityByGroupId[group.id]
+      if (!availability) continue
+      shippable += resolveDeliveryActionableQuantity(availability)
     }
     return shippable
   }

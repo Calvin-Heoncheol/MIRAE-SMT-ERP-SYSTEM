@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
 import type { MaterialPurchaseSuggestionLine } from '@/lib/materials/purchase-orders/types'
-import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ERP_PRIMARY_BUTTON_CLASS, ERP_TABLE_HEAD_CLASS, ERP_TABLE_TD_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type MaterialPurchaseSuggestionTableProps = {
   lines: MaterialPurchaseSuggestionLine[]
@@ -85,7 +85,7 @@ export function MaterialPurchaseSuggestionTable({
           type="button"
           onClick={handleCreateOrder}
           disabled={!selectedLines.length}
-          className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className={ERP_PRIMARY_BUTTON_CLASS}
         >
           선택 구매발주 ({selectedLines.length.toLocaleString('ko-KR')})
         </button>

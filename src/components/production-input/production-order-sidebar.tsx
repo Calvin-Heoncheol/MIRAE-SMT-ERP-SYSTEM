@@ -543,7 +543,7 @@ export function ProductionOrderSidebar({
                         customerPoNumber={order.customerPoNumber}
                         orderNumber={order.orderNumber}
                         workNumber={order.workNumber}
-                        workClassName="mt-0.5 block font-mono text-[10px] font-medium leading-tight text-slate-500"
+                        workClassName="mt-0.5 block font-mono text-[11px] font-medium leading-tight text-slate-500"
                       />
                     </span>
                   </p>

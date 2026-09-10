@@ -10,7 +10,7 @@ import {
   formatProductSummary,
 } from '@/lib/orders/utils'
 import type { OrderListGroup } from '@/lib/orders/types'
-import { ERP_TABLE_ROW_CLASS } from '@/lib/ui/tokens'
+import { ERP_CODE_TEXT_CLASS, ERP_TABLE_ROW_CLASS } from '@/lib/ui/tokens'
 
 type OrderListTableProps = {
   orders: OrderListGroup[]
@@ -58,7 +58,7 @@ export function OrderListTable({ orders, emptyMessage, onSelectOrder }: OrderLis
               {formatOrderDeliverySummary(order)}
             </ErpTableTd>
             <ErpTableTd
-              className="font-mono text-xs text-emerald-800"
+              className={ERP_CODE_TEXT_CLASS}
               title={order.customerPoNumber || undefined}
             >
               {order.customerPoNumber?.trim()

@@ -134,7 +134,7 @@ export function ProductionPlanWeekCalendar({
                   {cell.day}
                 </span>
                 {dayRows.length > 0 ? (
-                  <span className="text-[10px] font-semibold text-slate-400 tabular-nums">
+                  <span className="text-[11px] font-semibold text-slate-400 tabular-nums">
                     {dayRows.length}
                   </span>
                 ) : null}
@@ -158,7 +158,7 @@ export function ProductionPlanWeekCalendar({
                         event.stopPropagation()
                         onSelectRow?.(row)
                       }}
-                      className={`block w-full cursor-pointer rounded-md border px-1.5 py-1.5 text-[10px] leading-snug shadow-sm transition hover:brightness-95 ${scopeTone(row.scope)}`}
+                      className={`block w-full cursor-pointer rounded-md border px-1.5 py-1.5 text-[11px] leading-snug shadow-sm transition hover:brightness-95 ${scopeTone(row.scope)}`}
                     >
                       <div className="flex items-center gap-1">
                         <span className="font-bold">{PRODUCTION_PLAN_SCOPE_LABELS[row.scope]}</span>

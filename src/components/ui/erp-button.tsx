@@ -4,11 +4,13 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import {
   ERP_DANGER_BUTTON_CLASS,
   ERP_PRIMARY_BUTTON_CLASS,
+  ERP_PRIMARY_BUTTON_SM_CLASS,
   ERP_SECONDARY_BUTTON_CLASS,
 } from '@/lib/ui/tokens'
 
 type ErpButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'danger'
+  size?: 'md' | 'sm'
   /** true면 스피너 + disabled */
   loading?: boolean
   children: ReactNode
@@ -34,6 +36,7 @@ function Spinner() {
 
 export function ErpButton({
   variant = 'primary',
+  size = 'md',
   loading = false,
   className = '',
   type = 'button',
@@ -43,15 +46,20 @@ export function ErpButton({
 }: ErpButtonProps) {
   const base =
     variant === 'primary'
-      ? ERP_PRIMARY_BUTTON_CLASS
+      ? size === 'sm'
+        ? ERP_PRIMARY_BUTTON_SM_CLASS
+        : ERP_PRIMARY_BUTTON_CLASS
       : variant === 'danger'
         ? ERP_DANGER_BUTTON_CLASS
         : ERP_SECONDARY_BUTTON_CLASS
 
+  const sizeTweaks =
+    variant !== 'primary' && size === 'sm' ? 'px-3 py-1.5 text-xs' : ''
+
   return (
     <button
       type={type}
-      className={[base, 'inline-flex items-center justify-center gap-1.5', className]
+      className={[base, sizeTweaks, 'inline-flex items-center justify-center gap-1.5', className]
         .filter(Boolean)
         .join(' ')}
       disabled={disabled || loading}

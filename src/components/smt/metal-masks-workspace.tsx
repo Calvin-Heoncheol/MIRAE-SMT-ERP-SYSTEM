@@ -19,7 +19,15 @@ import {
 import { isMetalMaskNearLimit, metalMaskRemaining } from '@/lib/metal-masks/utils'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
-import { ERP_TABLE_HEAD_CLASS, ERP_TABLE_SCROLL_CLASS, ERP_TABLE_WRAP_CLASS } from '@/lib/ui/tokens'
+import { ErpModal } from '@/components/ui/erp-modal'
+import {
+  ERP_ERROR_TEXT_CLASS,
+  ERP_PRIMARY_BUTTON_CLASS,
+  ERP_SECONDARY_BUTTON_CLASS,
+  ERP_TABLE_HEAD_CLASS,
+  ERP_TABLE_SCROLL_CLASS,
+  ERP_TABLE_WRAP_CLASS,
+} from '@/lib/ui/tokens'
 
 type MetalMasksWorkspaceProps = {
   result: FetchMetalMasksResult
@@ -57,21 +65,6 @@ function MetalMaskCreateModal({
     setSaving(false)
     setError(null)
   }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !saving) onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = ''
-    }
-  }, [open, onClose, saving])
-
-  if (!open) return null
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -113,131 +106,117 @@ function MetalMaskCreateModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="metal-mask-create-title"
-        className="flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
-      >
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <div>
-            <h2 id="metal-mask-create-title" className="text-lg font-bold text-slate-900">
-              마스크 등록
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              한도 기본 {DEFAULT_METAL_MASK_USE_LIMIT.toLocaleString('ko-KR')}회
-            </p>
-          </div>
+    <ErpModal
+      open={open}
+      size="form"
+      title="마스크 등록"
+      description={`한도 기본 ${DEFAULT_METAL_MASK_USE_LIMIT.toLocaleString('ko-KR')}회`}
+      onClose={onClose}
+      closeOnEscape={!saving}
+      footer={
+        <>
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-lg px-2 py-1 text-2xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
-            aria-label="닫기"
+            className={ERP_SECONDARY_BUTTON_CLASS}
           >
-            ×
+            취소
           </button>
+          <button
+            type="submit"
+            form="metal-mask-create-form"
+            disabled={saving || !barcode.trim()}
+            className={ERP_PRIMARY_BUTTON_CLASS}
+          >
+            {saving ? '등록 중…' : '등록'}
+          </button>
+        </>
+      }
+    >
+      <form
+        id="metal-mask-create-form"
+        onSubmit={(event) => void handleSubmit(event)}
+        className="space-y-3"
+      >
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-600">바코드 *</span>
+          <input
+            type="text"
+            value={barcode}
+            onChange={(event) => setBarcode(event.target.value)}
+            placeholder="바코드 스캔 또는 입력"
+            autoComplete="off"
+            required
+            autoFocus
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
+          />
+        </label>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-slate-600">면 *</span>
+            <select
+              value={pcbSide}
+              onChange={(event) => setPcbSide(event.target.value as MetalMaskPcbSide)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            >
+              {(Object.keys(METAL_MASK_PCB_SIDE_LABELS) as MetalMaskPcbSide[]).map((side) => (
+                <option key={side} value={side}>
+                  {METAL_MASK_PCB_SIDE_LABELS[side]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-slate-600">한도</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={useLimit}
+              onChange={(event) => setUseLimit(event.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            />
+          </label>
         </div>
 
-        <form onSubmit={(event) => void handleSubmit(event)} className="space-y-3 px-5 py-4">
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-600">바코드 *</span>
-            <input
-              type="text"
-              value={barcode}
-              onChange={(event) => setBarcode(event.target.value)}
-              placeholder="바코드 스캔 또는 입력"
-              autoComplete="off"
-              required
-              autoFocus
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-sky-400 focus:bg-white focus:ring-2 focus:ring-sky-100"
-            />
-          </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-600">품명</span>
+          <SemiFinishedItemCombobox
+            value={name}
+            items={semiFinishedItems}
+            placeholder="반제품 품명 검색"
+            ariaLabel="품명"
+            onValueChange={(next) => {
+              setName(next)
+              setItemId(null)
+            }}
+            onItemSelect={(item) => {
+              setName(item.name)
+              setItemId(item.id)
+            }}
+            inputClassName="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+          />
+          <span className="mt-1 block text-[11px] text-slate-400">
+            기초등록 · 반제품 목록에서 선택합니다
+          </span>
+        </label>
 
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">면 *</span>
-              <select
-                value={pcbSide}
-                onChange={(event) => setPcbSide(event.target.value as MetalMaskPcbSide)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-              >
-                {(Object.keys(METAL_MASK_PCB_SIDE_LABELS) as MetalMaskPcbSide[]).map((side) => (
-                  <option key={side} value={side}>
-                    {METAL_MASK_PCB_SIDE_LABELS[side]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium text-slate-600">한도</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={useLimit}
-                onChange={(event) => setUseLimit(event.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm tabular-nums text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-              />
-            </label>
-          </div>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-slate-600">비고</span>
+          <input
+            type="text"
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="선택"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+          />
+        </label>
 
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-600">품명</span>
-            <SemiFinishedItemCombobox
-              value={name}
-              items={semiFinishedItems}
-              placeholder="반제품 품명 검색"
-              ariaLabel="품명"
-              onValueChange={(next) => {
-                setName(next)
-                setItemId(null)
-              }}
-              onItemSelect={(item) => {
-                setName(item.name)
-                setItemId(item.id)
-              }}
-              inputClassName="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-            />
-            <span className="mt-1 block text-[11px] text-slate-400">
-              기초등록 · 반제품 목록에서 선택합니다
-            </span>
-          </label>
-
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium text-slate-600">비고</span>
-            <input
-              type="text"
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="선택"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-            />
-          </label>
-
-          {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              className="rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-            >
-              취소
-            </button>
-            <button
-              type="submit"
-              disabled={saving || !barcode.trim()}
-              className="rounded-lg bg-slate-800 px-3.5 py-2 text-sm font-bold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {saving ? '등록 중…' : '등록'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        {error ? <p className={`${ERP_ERROR_TEXT_CLASS} font-medium`}>{error}</p> : null}
+      </form>
+    </ErpModal>
   )
 }
 
@@ -334,7 +313,7 @@ export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWor
             {listMessage ? (
               <p
                 className={`text-sm font-medium ${
-                  listMessage.kind === 'ok' ? 'text-emerald-700' : 'text-red-700'
+                  listMessage.kind === 'ok' ? 'text-emerald-700' : 'text-rose-700'
                 }`}
               >
                 {listMessage.text}
@@ -355,7 +334,7 @@ export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWor
             <button
               type="button"
               onClick={() => setCreateOpen(true)}
-              className="rounded-lg bg-slate-800 px-3.5 py-2 text-sm font-bold text-white transition hover:bg-slate-900"
+              className={ERP_PRIMARY_BUTTON_CLASS}
             >
               마스크 등록
             </button>
@@ -415,7 +394,7 @@ export function MetalMasksWorkspace({ result, semiFinishedItems }: MetalMasksWor
                         </td>
                         <td
                           className={`px-3 py-2.5 text-right font-semibold tabular-nums ${
-                            over ? 'text-red-700' : near ? 'text-amber-800' : 'text-slate-800'
+                            over ? 'text-rose-700' : near ? 'text-amber-800' : 'text-slate-800'
                           }`}
                         >
                           {remaining.toLocaleString('ko-KR')}
