@@ -148,6 +148,23 @@ async function syncDerivedOrderLines(
     }
   }
 
+  // line_seq 재배치 전 음수로 비워 unique(order_id, line_seq) 충돌 방지
+  const retainedDerived = orderLines.filter(
+    (line) =>
+      Boolean(line.derived_from_line_id) &&
+      activeParentIds.has(String(line.derived_from_line_id || '')),
+  )
+  for (let index = 0; index < retainedDerived.length; index += 1) {
+    const line = retainedDerived[index]!
+    const { error } = await supabase
+      .from('order_lines')
+      .update({ line_seq: -(index + 1) })
+      .eq('id', line.id)
+    if (error) {
+      return { ok: false, detail: error.message }
+    }
+  }
+
   for (const spec of specs) {
     const parentLine = orderLines.find((line) => line.id === spec.parentLineId)
     const parentDeliveryDate = parentLine?.delivery_date || null

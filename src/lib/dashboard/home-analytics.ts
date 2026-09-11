@@ -1,17 +1,31 @@
 import { createSupabaseClient } from '@/lib/supabase'
 import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
-import { getWeekStartMondayYmd } from '@/lib/smt/plan/utils'
+import { formatWeekRangeLabel, getWeekStartMondayYmd } from '@/lib/smt/plan/utils'
 import { addMonthsYmd, getMonthStartYmd } from '@/lib/production-plan/calendar'
 import { POST_PROCESS_TEAMS, normalizePostProcessTeam } from '@/lib/post-process/teams'
 import { SMT_REPORT_TEAM } from '@/lib/reports/production-report'
 
-export type HomeWeekStatusItem = {
+export type HomeDashboardPeriod = 'day' | 'week' | 'month'
+
+export type HomeResolvedPeriod = {
+  period: HomeDashboardPeriod
+  startDate: string
+  endDate: string
+  rangeLabel: string
+  periodLabel: string
+  prevDate: string
+  nextDate: string
+}
+
+export type HomeStatusItem = {
   key: string
   label: string
   value: number
   unit: string
   href: string
   tone: 'sky' | 'violet' | 'rose' | 'amber' | 'emerald' | 'slate'
+  /** 기간과 무관한 현재 스냅샷이면 true */
+  snapshot?: boolean
 }
 
 export type HomeInventorySegment = {
@@ -28,151 +42,230 @@ export type HomeTeamRankItem = {
   href: string
 }
 
-export type HomeMonthSeriesPoint = {
+export type HomeSeriesPoint = {
   key: string
   label: string
   planned: number
   actual: number
 }
 
-export type HomeMonthCountPoint = {
-  key: string
-  label: string
-  value: number
-}
-
 export type HomeCalendarDotTone = 'due' | 'plan' | 'ship'
 
 export type HomeVisualAnalytics = {
-  weekStatus: HomeWeekStatusItem[]
+  period: HomeResolvedPeriod
+  status: HomeStatusItem[]
   inventory: {
     total: number
     segments: HomeInventorySegment[]
   }
   teamRanking: HomeTeamRankItem[]
-  /** 납품: 출하 수량(실적). 계획은 동일 기간 출하가능 추정이 없어 0 유지 가능 */
-  deliveryMonthly: HomeMonthSeriesPoint[]
-  productionMonthly: HomeMonthSeriesPoint[]
-  orderMonthly: HomeMonthCountPoint[]
+  deliverySeries: HomeSeriesPoint[]
+  productionSeries: HomeSeriesPoint[]
   calendarMonthStart: string
   calendarDots: Record<string, HomeCalendarDotTone[]>
 }
 
+/** @deprecated 이름 호환 */
+export type HomeWeekStatusItem = HomeStatusItem
+/** @deprecated */
+export type HomeMonthSeriesPoint = HomeSeriesPoint
+
 export type HomeVisualAnalyticsInput = {
   dueSoonOrders: number
   unshippedOrders: number
-  todayShipped: number
   negativeStockMaterials: number
   positiveStockSkus: number
   expectedInboundSkus: number
   openDeliveryDates: string[]
 }
 
+function sanitizeYmd(value: string, fallback: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : fallback
+}
+
+function monthEndYmd(monthStart: string) {
+  const year = Number(monthStart.slice(0, 4))
+  const month = Number(monthStart.slice(5, 7))
+  const lastDay = new Date(year, month, 0).getDate()
+  return `${monthStart.slice(0, 7)}-${String(lastDay).padStart(2, '0')}`
+}
+
 function monthKey(ymd: string) {
   return ymd.slice(0, 7)
 }
 
-function monthLabel(ym: string) {
+function dayLabel(ymd: string) {
+  return `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`
+}
+
+function monthLabelShort(ym: string) {
   return `${Number(ym.slice(5, 7))}월`
 }
 
-function lastSixMonthKeys(today: string) {
-  const start = getMonthStartYmd(today)
-  const keys: string[] = []
-  for (let i = 5; i >= 0; i -= 1) {
-    keys.push(monthKey(addMonthsYmd(start, -i)))
+function weekLabelShort(weekStart: string) {
+  return `${Number(weekStart.slice(5, 7))}/${Number(weekStart.slice(8, 10))}주`
+}
+
+export function resolveHomeDashboardPeriod(params: {
+  period?: string | string[]
+  date?: string | string[]
+}): HomeResolvedPeriod {
+  const rawPeriod = Array.isArray(params.period) ? params.period[0] : params.period
+  const rawDate = Array.isArray(params.date) ? params.date[0] : params.date
+  const today = todayYmdSeoul()
+  const period: HomeDashboardPeriod =
+    rawPeriod === 'day' || rawPeriod === 'month' ? rawPeriod : 'week'
+  const anchor = sanitizeYmd(String(rawDate || ''), today)
+
+  if (period === 'day') {
+    return {
+      period,
+      startDate: anchor,
+      endDate: anchor,
+      rangeLabel: `${Number(anchor.slice(5, 7))}월 ${Number(anchor.slice(8, 10))}일`,
+      periodLabel: '오늘',
+      prevDate: addDaysYmd(anchor, -1),
+      nextDate: addDaysYmd(anchor, 1),
+    }
   }
-  return keys
+
+  if (period === 'month') {
+    const startDate = getMonthStartYmd(anchor)
+    const endDate = monthEndYmd(startDate)
+    return {
+      period,
+      startDate,
+      endDate: endDate > today && startDate.slice(0, 7) === today.slice(0, 7) ? today : endDate,
+      rangeLabel: `${startDate.slice(0, 4)}년 ${Number(startDate.slice(5, 7))}월`,
+      periodLabel: '월간',
+      prevDate: addMonthsYmd(startDate, -1),
+      nextDate: addMonthsYmd(startDate, 1),
+    }
+  }
+
+  const startDate = getWeekStartMondayYmd(anchor)
+  const endDate = addDaysYmd(startDate, 6)
+  return {
+    period: 'week',
+    startDate,
+    endDate: endDate > today && startDate <= today ? today : endDate,
+    rangeLabel: formatWeekRangeLabel(startDate),
+    periodLabel: '주간',
+    prevDate: addDaysYmd(startDate, -7),
+    nextDate: addDaysYmd(startDate, 7),
+  }
 }
 
-function emptyMonthSeries(keys: string[]): HomeMonthSeriesPoint[] {
-  return keys.map((key) => ({ key, label: monthLabel(key), planned: 0, actual: 0 }))
+export function buildHomeDashboardHrefs(resolved: HomeResolvedPeriod) {
+  const base = '/'
+  const date = resolved.startDate
+  return {
+    dayHref: `${base}?period=day&date=${date}`,
+    weekHref: `${base}?period=week&date=${date}`,
+    monthHref: `${base}?period=month&date=${date}`,
+    prevHref: `${base}?period=${resolved.period}&date=${resolved.prevDate}`,
+    nextHref: `${base}?period=${resolved.period}&date=${resolved.nextDate}`,
+  }
 }
 
-function emptyMonthCounts(keys: string[]): HomeMonthCountPoint[] {
-  return keys.map((key) => ({ key, label: monthLabel(key), value: 0 }))
+type SeriesBucket = { key: string; label: string; start: string; end: string }
+
+/** 추이 차트용 버킷 — 선택 기간 단위로 최근 구간 */
+function buildTrendBuckets(period: HomeDashboardPeriod, endDate: string): SeriesBucket[] {
+  if (period === 'day') {
+    const buckets: SeriesBucket[] = []
+    for (let i = 6; i >= 0; i -= 1) {
+      const day = addDaysYmd(endDate, -i)
+      buckets.push({ key: day, label: dayLabel(day), start: day, end: day })
+    }
+    return buckets
+  }
+
+  if (period === 'week') {
+    const endWeek = getWeekStartMondayYmd(endDate)
+    const buckets: SeriesBucket[] = []
+    for (let i = 5; i >= 0; i -= 1) {
+      const start = addDaysYmd(endWeek, -i * 7)
+      const end = addDaysYmd(start, 6)
+      buckets.push({
+        key: start,
+        label: weekLabelShort(start),
+        start,
+        end,
+      })
+    }
+    return buckets
+  }
+
+  const endMonth = getMonthStartYmd(endDate)
+  const buckets: SeriesBucket[] = []
+  for (let i = 5; i >= 0; i -= 1) {
+    const start = addMonthsYmd(endMonth, -i)
+    const end = monthEndYmd(start)
+    buckets.push({
+      key: monthKey(start),
+      label: monthLabelShort(monthKey(start)),
+      start,
+      end,
+    })
+  }
+  return buckets
+}
+
+function bucketKeyForDate(period: HomeDashboardPeriod, ymd: string) {
+  if (period === 'day') return ymd.slice(0, 10)
+  if (period === 'week') return getWeekStartMondayYmd(ymd)
+  return monthKey(ymd)
 }
 
 type LooseRow = Record<string, unknown>
 
-/** 동적 테이블·컬럼 조회 — Supabase 생성 타입이 템플릿 select를 거부함 */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function looseFrom(table: string): any {
   return createSupabaseClient().from(table)
 }
 
-async function sumQtyByMonth(
+async function fetchQtyRows(
   table: string,
   dateColumn: string,
   qtyColumn: string,
   start: string,
   end: string,
-): Promise<Map<string, number>> {
-  const map = new Map<string, number>()
+): Promise<{ date: string; qty: number }[]> {
   try {
     const { data, error } = await looseFrom(table)
       .select(`${dateColumn}, ${qtyColumn}`)
       .gte(dateColumn, start)
       .lte(dateColumn, end)
-    if (error || !data) return map
-    for (const row of data as LooseRow[]) {
-      const date = String(row[dateColumn] || '').slice(0, 10)
-      if (!date) continue
-      const qty = Math.max(0, Math.floor(Number(row[qtyColumn]) || 0))
-      const key = monthKey(date)
-      map.set(key, (map.get(key) ?? 0) + qty)
-    }
+    if (error || !data) return []
+    return (data as LooseRow[])
+      .map((row) => ({
+        date: String(row[dateColumn] || '').slice(0, 10),
+        qty: Math.max(0, Math.floor(Number(row[qtyColumn]) || 0)),
+      }))
+      .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.date))
   } catch {
-    /* ignore */
+    return []
   }
-  return map
 }
 
-async function countRowsByMonth(
+async function fetchDateRows(
   table: string,
   dateColumn: string,
   start: string,
   end: string,
-): Promise<Map<string, number>> {
-  const map = new Map<string, number>()
+): Promise<string[]> {
   try {
     const { data, error } = await looseFrom(table)
       .select(dateColumn)
       .gte(dateColumn, start)
       .lte(dateColumn, end)
-    if (error || !data) return map
-    for (const row of data as LooseRow[]) {
-      const raw = String(row[dateColumn] || '')
-      const date = raw.slice(0, 10)
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
-      const key = monthKey(date)
-      map.set(key, (map.get(key) ?? 0) + 1)
-    }
+    if (error || !data) return []
+    return (data as LooseRow[])
+      .map((row) => String(row[dateColumn] || '').slice(0, 10))
+      .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
   } catch {
-    /* ignore */
-  }
-  return map
-}
-
-async function sumQtyInRange(
-  table: string,
-  dateColumn: string,
-  qtyColumn: string,
-  start: string,
-  end: string,
-): Promise<number> {
-  try {
-    const { data, error } = await looseFrom(table)
-      .select(qtyColumn)
-      .gte(dateColumn, start)
-      .lte(dateColumn, end)
-    if (error || !data) return 0
-    return (data as LooseRow[]).reduce(
-      (sum, row) => sum + Math.max(0, Math.floor(Number(row[qtyColumn]) || 0)),
-      0,
-    )
-  } catch {
-    return 0
+    return []
   }
 }
 
@@ -194,30 +287,32 @@ async function countInRange(
   }
 }
 
-async function fetchDistinctDatesInMonth(
+async function sumQtyInRange(
   table: string,
   dateColumn: string,
+  qtyColumn: string,
   start: string,
   end: string,
-): Promise<string[]> {
-  try {
-    const { data, error } = await looseFrom(table)
-      .select(dateColumn)
-      .gte(dateColumn, start)
-      .lte(dateColumn, end)
-    if (error || !data) return []
-    const set = new Set<string>()
-    for (const row of data as LooseRow[]) {
-      const date = String(row[dateColumn] || '').slice(0, 10)
-      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) set.add(date)
-    }
-    return [...set]
-  } catch {
-    return []
-  }
+): Promise<number> {
+  const rows = await fetchQtyRows(table, dateColumn, qtyColumn, start, end)
+  return rows.reduce((sum, row) => sum + row.qty, 0)
 }
 
-async function fetchMonthTeamProduction(start: string, end: string) {
+function aggregateByBucket(
+  period: HomeDashboardPeriod,
+  buckets: SeriesBucket[],
+  rows: { date: string; qty: number }[],
+) {
+  const map = new Map(buckets.map((b) => [b.key, 0]))
+  for (const row of rows) {
+    const key = bucketKeyForDate(period, row.date)
+    if (!map.has(key)) continue
+    map.set(key, (map.get(key) ?? 0) + row.qty)
+  }
+  return map
+}
+
+async function fetchTeamProduction(start: string, end: string) {
   const byTeam = new Map<string, number>()
   byTeam.set(SMT_REPORT_TEAM, 0)
   for (const team of POST_PROCESS_TEAMS) byTeam.set(team, 0)
@@ -259,69 +354,67 @@ async function fetchMonthTeamProduction(start: string, end: string) {
   return [...byTeam.entries()].map(([team, quantity]) => ({ team, quantity }))
 }
 
-/** 시각형 대시보드용 집계 */
+/** 시각형 대시보드 — 선택 기간 기준으로 통일 집계 */
 export async function fetchHomeVisualAnalytics(
   input: HomeVisualAnalyticsInput,
+  resolved: HomeResolvedPeriod,
 ): Promise<HomeVisualAnalytics> {
-  const today = todayYmdSeoul()
-  const weekStart = getWeekStartMondayYmd(today)
-  const weekEnd = addDaysYmd(weekStart, 6)
-  const monthStart = getMonthStartYmd(today)
-  const monthKeys = lastSixMonthKeys(today)
-  const seriesStart = `${monthKeys[0]}-01`
+  const { period, startDate, endDate } = resolved
+  const trendBuckets = buildTrendBuckets(period, endDate)
+  const trendStart = trendBuckets[0]?.start ?? startDate
+  const calendarMonthStart = getMonthStartYmd(endDate)
+  const calendarMonthEnd = monthEndYmd(calendarMonthStart)
 
   const [
-    weekInboundCount,
-    weekProductionQty,
-    weekDeliveryCount,
-    deliveryActualByMonth,
-    smtActualByMonth,
-    postActualByMonth,
-    smtPlanByMonth,
-    postPlanByMonth,
-    orderCountByMonth,
-    teamMonth,
-    monthPlanDates,
-    monthShipDates,
+    inboundCount,
+    productionQty,
+    deliveryCount,
+    orderCount,
+    deliveryRows,
+    smtActualRows,
+    postActualRows,
+    smtPlanRows,
+    postPlanRows,
+    teamRows,
+    planDates,
+    shipDates,
   ] = await Promise.all([
-    countInRange('material_inbound_records', 'inbound_date', weekStart, weekEnd),
+    countInRange('material_inbound_records', 'inbound_date', startDate, endDate),
     Promise.all([
-      sumQtyInRange('smt_production_records', 'record_date', 'quantity', weekStart, weekEnd),
-      sumQtyInRange('post_process_production_records', 'record_date', 'quantity', weekStart, weekEnd),
+      sumQtyInRange('smt_production_records', 'record_date', 'quantity', startDate, endDate),
+      sumQtyInRange('post_process_production_records', 'record_date', 'quantity', startDate, endDate),
     ]).then(([a, b]) => a + b),
-    countInRange('delivery_records', 'record_date', weekStart, weekEnd),
-    sumQtyByMonth('delivery_records', 'record_date', 'quantity', seriesStart, today),
-    sumQtyByMonth('smt_production_records', 'record_date', 'quantity', seriesStart, today),
-    sumQtyByMonth('post_process_production_records', 'record_date', 'quantity', seriesStart, today),
-    sumQtyByMonth('smt_production_plans', 'planned_date', 'planned_quantity', seriesStart, today),
-    sumQtyByMonth(
+    countInRange('delivery_records', 'record_date', startDate, endDate),
+    countInRange('orders', 'created_at', startDate, `${endDate}T23:59:59.999Z`),
+    fetchQtyRows('delivery_records', 'record_date', 'quantity', trendStart, endDate),
+    fetchQtyRows('smt_production_records', 'record_date', 'quantity', trendStart, endDate),
+    fetchQtyRows('post_process_production_records', 'record_date', 'quantity', trendStart, endDate),
+    fetchQtyRows('smt_production_plans', 'planned_date', 'planned_quantity', trendStart, endDate),
+    fetchQtyRows(
       'post_process_production_plans',
       'planned_date',
       'planned_quantity',
-      seriesStart,
-      today,
+      trendStart,
+      endDate,
     ),
-    countRowsByMonth('orders', 'created_at', seriesStart, `${today}T23:59:59.999Z`),
-    fetchMonthTeamProduction(monthStart, today),
-    fetchDistinctDatesInMonth('smt_production_plans', 'planned_date', monthStart, today).then(
-      async (smt) => [
-        ...smt,
-        ...(await fetchDistinctDatesInMonth(
-          'post_process_production_plans',
-          'planned_date',
-          monthStart,
-          today,
-        )),
-      ],
-    ),
-    fetchDistinctDatesInMonth('delivery_records', 'record_date', monthStart, today),
+    fetchTeamProduction(startDate, endDate),
+    Promise.all([
+      fetchDateRows('smt_production_plans', 'planned_date', calendarMonthStart, calendarMonthEnd),
+      fetchDateRows(
+        'post_process_production_plans',
+        'planned_date',
+        calendarMonthStart,
+        calendarMonthEnd,
+      ),
+    ]).then(([a, b]) => [...a, ...b]),
+    fetchDateRows('delivery_records', 'record_date', calendarMonthStart, calendarMonthEnd),
   ])
 
-  const weekStatus: HomeWeekStatusItem[] = [
+  const status: HomeStatusItem[] = [
     {
       key: 'inbound',
       label: '자재 입고',
-      value: weekInboundCount,
+      value: inboundCount,
       unit: '건',
       href: '/materials/inbound',
       tone: 'sky',
@@ -333,11 +426,12 @@ export async function fetchHomeVisualAnalytics(
       unit: '건',
       href: '/production/status',
       tone: 'violet',
+      snapshot: true,
     },
     {
       key: 'production',
       label: '생산 실적',
-      value: weekProductionQty,
+      value: productionQty,
       unit: 'EA',
       href: '/production/performance',
       tone: 'rose',
@@ -349,21 +443,22 @@ export async function fetchHomeVisualAnalytics(
       unit: '건',
       href: '/production/status',
       tone: 'amber',
+      snapshot: true,
     },
     {
-      key: 'weekShip',
-      label: '주간 출하',
-      value: weekDeliveryCount,
+      key: 'delivery',
+      label: '출하',
+      value: deliveryCount,
       unit: '건',
       href: '/delivery/history',
       tone: 'emerald',
     },
     {
-      key: 'todayShip',
-      label: '오늘 출하',
-      value: input.todayShipped,
+      key: 'orders',
+      label: '수주',
+      value: orderCount,
       unit: '건',
-      href: '/delivery/input',
+      href: '/orders',
       tone: 'slate',
     },
   ]
@@ -389,7 +484,7 @@ export async function fetchHomeVisualAnalytics(
     },
   ]
 
-  const teamRanking: HomeTeamRankItem[] = [...teamMonth]
+  const teamRanking: HomeTeamRankItem[] = [...teamRows]
     .sort((a, b) => b.quantity - a.quantity)
     .slice(0, 5)
     .map((row, index) => ({
@@ -399,48 +494,51 @@ export async function fetchHomeVisualAnalytics(
       href: `/production/history?team=${encodeURIComponent(row.team)}`,
     }))
 
-  const deliveryMonthly = emptyMonthSeries(monthKeys).map((point) => ({
-    ...point,
+  const deliveryByBucket = aggregateByBucket(period, trendBuckets, deliveryRows)
+  const smtActualByBucket = aggregateByBucket(period, trendBuckets, smtActualRows)
+  const postActualByBucket = aggregateByBucket(period, trendBuckets, postActualRows)
+  const smtPlanByBucket = aggregateByBucket(period, trendBuckets, smtPlanRows)
+  const postPlanByBucket = aggregateByBucket(period, trendBuckets, postPlanRows)
+
+  const deliverySeries: HomeSeriesPoint[] = trendBuckets.map((bucket) => ({
+    key: bucket.key,
+    label: bucket.label,
     planned: 0,
-    actual: deliveryActualByMonth.get(point.key) ?? 0,
+    actual: deliveryByBucket.get(bucket.key) ?? 0,
   }))
 
-  const productionMonthly = emptyMonthSeries(monthKeys).map((point) => ({
-    ...point,
+  const productionSeries: HomeSeriesPoint[] = trendBuckets.map((bucket) => ({
+    key: bucket.key,
+    label: bucket.label,
     planned:
-      (smtPlanByMonth.get(point.key) ?? 0) + (postPlanByMonth.get(point.key) ?? 0),
+      (smtPlanByBucket.get(bucket.key) ?? 0) + (postPlanByBucket.get(bucket.key) ?? 0),
     actual:
-      (smtActualByMonth.get(point.key) ?? 0) + (postActualByMonth.get(point.key) ?? 0),
-  }))
-
-  const orderMonthly = emptyMonthCounts(monthKeys).map((point) => ({
-    ...point,
-    value: orderCountByMonth.get(point.key) ?? 0,
+      (smtActualByBucket.get(bucket.key) ?? 0) + (postActualByBucket.get(bucket.key) ?? 0),
   }))
 
   const calendarDots: Record<string, HomeCalendarDotTone[]> = {}
   const addDot = (ymd: string, tone: HomeCalendarDotTone) => {
     const day = String(ymd || '').slice(0, 10)
-    if (!day.startsWith(monthStart.slice(0, 7))) return
+    if (!day.startsWith(calendarMonthStart.slice(0, 7))) return
     const list = calendarDots[day] ?? []
     if (!list.includes(tone)) list.push(tone)
     calendarDots[day] = list
   }
   for (const ymd of input.openDeliveryDates) addDot(ymd, 'due')
-  for (const ymd of monthPlanDates) addDot(ymd, 'plan')
-  for (const ymd of monthShipDates) addDot(ymd, 'ship')
+  for (const ymd of planDates) addDot(ymd, 'plan')
+  for (const ymd of shipDates) addDot(ymd, 'ship')
 
   return {
-    weekStatus,
+    period: resolved,
+    status,
     inventory: {
       total: segments.reduce((sum, s) => sum + s.value, 0),
       segments,
     },
     teamRanking,
-    deliveryMonthly,
-    productionMonthly,
-    orderMonthly,
-    calendarMonthStart: monthStart,
+    deliverySeries,
+    productionSeries,
+    calendarMonthStart,
     calendarDots,
   }
 }

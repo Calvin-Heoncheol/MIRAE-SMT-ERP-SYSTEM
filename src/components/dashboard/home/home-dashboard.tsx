@@ -1,25 +1,23 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
-import { HomeNoticesSlimBar } from '@/components/dashboard/home/home-notices-panel'
+import { HomeImportantNoticesBoard } from '@/components/dashboard/home/home-important-notices'
 import type { HomeDashboardData } from '@/lib/dashboard/home-data'
-import type { HomeCalendarDotTone } from '@/lib/dashboard/home-analytics'
+import type {
+  HomeCalendarDotTone,
+  HomeDashboardPeriod,
+} from '@/lib/dashboard/home-analytics'
 import {
   addMonthsYmd,
   buildMonthGrid,
@@ -43,6 +41,21 @@ const DOT_CLASS: Record<HomeCalendarDotTone, string> = {
   ship: 'bg-sky-500',
 }
 
+const NAV_BUTTON_CLASS =
+  'inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50'
+
+function trendSpanLabel(period: HomeDashboardPeriod) {
+  if (period === 'day') return '최근 7일'
+  if (period === 'week') return '최근 6주'
+  return '최근 6개월'
+}
+
+function currentBucketLabel(period: HomeDashboardPeriod) {
+  if (period === 'day') return '당일'
+  if (period === 'week') return '당주'
+  return '당월'
+}
+
 function Panel({
   title,
   period,
@@ -59,47 +72,100 @@ function Panel({
   return (
     <section
       className={[
-        'flex min-h-0 flex-col overflow-hidden rounded-xl border shadow-sm',
-        dark
-          ? 'border-slate-800 bg-slate-900 text-white'
-          : `${ERP_PANEL_CLASS}`,
+        'flex h-full min-h-0 flex-col overflow-hidden rounded-xl border shadow-sm',
+        dark ? 'border-slate-800 bg-slate-900 text-white' : `${ERP_PANEL_CLASS}`,
         className,
       ].join(' ')}
     >
-      <header className={`shrink-0 px-4 py-3 ${dark ? '' : 'border-b border-slate-100'}`}>
+      <header className={`shrink-0 px-4 py-2.5 ${dark ? '' : 'border-b border-slate-100'}`}>
         <h2 className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>
           {title}
           {period ? (
-            <span className={`ml-1.5 text-xs font-medium ${dark ? 'text-slate-300' : 'text-slate-400'}`}>
+            <span
+              className={`ml-1.5 text-xs font-medium ${dark ? 'text-slate-300' : 'text-slate-400'}`}
+            >
               ({period})
             </span>
           ) : null}
         </h2>
       </header>
-      <div className="min-h-0 flex-1 p-3">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col p-3">{children}</div>
     </section>
   )
 }
 
-function WeekStatusGrid({ data }: { data: HomeDashboardData['visual']['weekStatus'] }) {
+function PeriodControls({ data }: { data: HomeDashboardData }) {
+  const { period, hrefs } = data
   return (
-    <Panel title="작업현황" period="주간" className="min-h-[220px]">
-      <div className="grid h-full grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="flex shrink-0 flex-wrap items-center gap-3">
+      <div className="flex gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+        {(
+          [
+            { key: 'day' as const, label: '오늘', href: hrefs.dayHref },
+            { key: 'week' as const, label: '주간', href: hrefs.weekHref },
+            { key: 'month' as const, label: '월간', href: hrefs.monthHref },
+          ] as const
+        ).map((item) => (
+          <Link
+            key={item.key}
+            href={item.href}
+            className={[
+              'rounded-md px-3 py-1.5 text-sm font-semibold transition-colors',
+              period.period === item.key
+                ? 'bg-slate-800 text-white'
+                : 'text-slate-600 hover:bg-slate-50',
+            ].join(' ')}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Link href={hrefs.prevHref} className={NAV_BUTTON_CLASS} aria-label="이전 기간">
+          ‹
+        </Link>
+        <span className="min-w-[180px] text-center text-sm font-bold text-slate-900">
+          {period.rangeLabel}
+        </span>
+        <Link href={hrefs.nextHref} className={NAV_BUTTON_CLASS} aria-label="다음 기간">
+          ›
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+function StatusGrid({
+  data,
+  periodLabel,
+}: {
+  data: HomeDashboardData['visual']['status']
+  periodLabel: string
+}) {
+  return (
+    <Panel title="작업현황" period={periodLabel}>
+      <div className="grid h-full min-h-0 grid-cols-2 gap-2 sm:grid-cols-3">
         {data.map((item) => (
           <Link
             key={item.key}
             href={item.href}
-            className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 transition hover:border-slate-300 hover:shadow-sm"
+            className="flex min-h-0 flex-col justify-between rounded-lg border border-slate-200 bg-white px-3 py-2.5 transition hover:border-slate-300 hover:shadow-sm"
           >
             <div className="flex items-start justify-between gap-2">
-              <p className="text-xs font-semibold text-slate-600">{item.label}</p>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-slate-600">{item.label}</p>
+                {item.snapshot ? (
+                  <p className="mt-0.5 text-[10px] font-medium text-slate-400">현재 기준</p>
+                ) : null}
+              </div>
               <span
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold ${TONE_ICON[item.tone]}`}
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${TONE_ICON[item.tone]}`}
               >
                 {item.unit}
               </span>
             </div>
-            <p className="mt-3 text-2xl font-bold tabular-nums text-slate-900">
+            <p className="mt-2 text-2xl font-bold tabular-nums text-slate-900 xl:text-[1.65rem]">
               {item.value.toLocaleString('ko-KR')}
             </p>
           </Link>
@@ -109,72 +175,26 @@ function WeekStatusGrid({ data }: { data: HomeDashboardData['visual']['weekStatu
   )
 }
 
-function InventoryDonut({
-  total,
-  segments,
+function TeamRanking({
+  rows,
+  periodLabel,
 }: {
-  total: number
-  segments: HomeDashboardData['visual']['inventory']['segments']
+  rows: HomeDashboardData['visual']['teamRanking']
+  periodLabel: string
 }) {
-  const chartData = segments.filter((s) => s.value > 0)
-  const fallback = chartData.length ? chartData : [{ key: 'empty', label: '데이터 없음', value: 1, color: '#334155' }]
-
-  return (
-    <Panel title="재고관리" period="현재" dark className="min-h-[220px]">
-      <div className="flex h-full items-center gap-3">
-        <div className="relative h-[140px] w-[140px] shrink-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={fallback}
-                dataKey="value"
-                nameKey="label"
-                innerRadius={42}
-                outerRadius={62}
-                paddingAngle={2}
-                stroke="none"
-              >
-                {fallback.map((entry) => (
-                  <Cell key={entry.key} fill={entry.color} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <p className="text-[10px] text-slate-300">총 건수</p>
-            <p className="text-xl font-bold tabular-nums">{total.toLocaleString('ko-KR')}</p>
-          </div>
-        </div>
-        <ul className="min-w-0 flex-1 space-y-2">
-          {segments.map((seg) => (
-            <li key={seg.key} className="flex items-center justify-between gap-2 text-xs">
-              <span className="flex items-center gap-1.5 text-slate-200">
-                <span className="h-2 w-2 rounded-full" style={{ background: seg.color }} />
-                {seg.label}
-              </span>
-              <span className="font-semibold tabular-nums text-white">
-                {seg.value.toLocaleString('ko-KR')}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </Panel>
-  )
-}
-
-function TeamRanking({ rows }: { rows: HomeDashboardData['visual']['teamRanking'] }) {
   const max = Math.max(...rows.map((r) => r.quantity), 1)
   return (
-    <Panel title="생산실적 랭킹" period="월간" className="min-h-[220px]">
+    <Panel title="생산실적 랭킹" period={periodLabel}>
       {rows.every((r) => r.quantity <= 0) ? (
-        <p className="py-8 text-center text-xs text-slate-400">이번 달 생산 실적이 없습니다.</p>
+        <div className="flex h-full items-center justify-center">
+          <p className="text-center text-xs text-slate-400">선택 기간 생산 실적이 없습니다.</p>
+        </div>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="flex h-full min-h-0 flex-col justify-evenly gap-1">
           {rows.map((row) => (
-            <li key={row.team}>
-              <Link href={row.href} className="block rounded-lg hover:bg-slate-50">
-                <div className="mb-1 flex items-center justify-between gap-2 px-0.5">
+            <li key={row.team} className="min-h-0">
+              <Link href={row.href} className="block rounded-lg px-0.5 py-1 hover:bg-slate-50">
+                <div className="mb-1 flex items-center justify-between gap-2">
                   <span className="flex items-center gap-2 text-xs font-semibold text-slate-800">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[10px] text-white">
                       {row.rank}
@@ -185,7 +205,7 @@ function TeamRanking({ rows }: { rows: HomeDashboardData['visual']['teamRanking'
                     {row.quantity.toLocaleString('ko-KR')} EA
                   </span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
                   <div
                     className="h-full rounded-full bg-indigo-500"
                     style={{ width: `${Math.round((row.quantity / max) * 100)}%` }}
@@ -200,8 +220,9 @@ function TeamRanking({ rows }: { rows: HomeDashboardData['visual']['teamRanking'
   )
 }
 
-function MonthCompareChart({
+function CompareChart({
   title,
+  periodLabel,
   period,
   rows,
   plannedLabel,
@@ -209,33 +230,36 @@ function MonthCompareChart({
   unit,
 }: {
   title: string
-  period: string
+  periodLabel: string
+  period: HomeDashboardPeriod
   rows: { label: string; planned: number; actual: number }[]
   plannedLabel: string
   actualLabel: string
   unit: string
 }) {
-  const monthActual = rows[rows.length - 1]?.actual ?? 0
-  const monthPlanned = rows[rows.length - 1]?.planned ?? 0
-  const yearActual = rows.reduce((sum, r) => sum + r.actual, 0)
+  const currentActual = rows[rows.length - 1]?.actual ?? 0
+  const currentPlanned = rows[rows.length - 1]?.planned ?? 0
+  const trendActual = rows.reduce((sum, r) => sum + r.actual, 0)
+  const bucket = currentBucketLabel(period)
+  const span = trendSpanLabel(period)
 
   return (
-    <Panel title={title} period={period} className="min-h-[260px]">
-      <div className="mb-2 flex flex-wrap gap-3 text-[11px] text-slate-500">
+    <Panel title={title} period={periodLabel}>
+      <div className="mb-2 flex shrink-0 flex-wrap gap-3 text-[11px] text-slate-500">
         <span>
-          당월 {plannedLabel}{' '}
-          <strong className="text-slate-800">{monthPlanned.toLocaleString('ko-KR')}</strong>
+          {bucket} {plannedLabel}{' '}
+          <strong className="text-slate-800">{currentPlanned.toLocaleString('ko-KR')}</strong>
         </span>
         <span>
-          당월 {actualLabel}{' '}
-          <strong className="text-slate-800">{monthActual.toLocaleString('ko-KR')}</strong>
+          {bucket} {actualLabel}{' '}
+          <strong className="text-slate-800">{currentActual.toLocaleString('ko-KR')}</strong>
         </span>
         <span>
-          최근6개월 {actualLabel}{' '}
-          <strong className="text-slate-800">{yearActual.toLocaleString('ko-KR')}</strong>
+          {span} {actualLabel}{' '}
+          <strong className="text-slate-800">{trendActual.toLocaleString('ko-KR')}</strong>
         </span>
       </div>
-      <div className="h-[180px] w-full">
+      <div className="min-h-0 w-full flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -254,37 +278,21 @@ function MonthCompareChart({
               contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e2e8f0' }}
             />
             <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8} />
-            <Bar dataKey="planned" name={plannedLabel} fill="#1e3a5f" maxBarSize={22} radius={[3, 3, 0, 0]} />
-            <Bar dataKey="actual" name={actualLabel} fill="#7dd3fc" maxBarSize={22} radius={[3, 3, 0, 0]} />
+            <Bar
+              dataKey="planned"
+              name={plannedLabel}
+              fill="#1e3a5f"
+              maxBarSize={22}
+              radius={[3, 3, 0, 0]}
+            />
+            <Bar
+              dataKey="actual"
+              name={actualLabel}
+              fill="#7dd3fc"
+              maxBarSize={22}
+              radius={[3, 3, 0, 0]}
+            />
           </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </Panel>
-  )
-}
-
-function OrderLineChart({ rows }: { rows: HomeDashboardData['visual']['orderMonthly'] }) {
-  return (
-    <Panel title="수주 건수" period="월별" className="min-h-[220px]">
-      <div className="h-[160px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
-            <YAxis width={36} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
-            <Tooltip
-              formatter={(value) => [`${Number(value).toLocaleString('ko-KR')} 건`, '수주']}
-              contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e2e8f0' }}
-            />
-            <Line
-              type="monotone"
-              dataKey="value"
-              name="수주"
-              stroke="#4f46e5"
-              strokeWidth={2.5}
-              dot={{ r: 3, fill: '#4f46e5' }}
-            />
-          </LineChart>
         </ResponsiveContainer>
       </div>
     </Panel>
@@ -300,10 +308,15 @@ function HomeCalendar({
 }) {
   const [viewMonth, setViewMonth] = useState(monthStart)
   const cells = useMemo(() => buildMonthGrid(viewMonth), [viewMonth])
+  const weekRows = Math.max(1, Math.ceil(cells.length / 7))
+
+  useEffect(() => {
+    setViewMonth(monthStart)
+  }, [monthStart])
 
   return (
-    <Panel title="캘린더" className="min-h-[260px]">
-      <div className="mb-2 flex items-center justify-between gap-2">
+    <Panel title="캘린더">
+      <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2">
         <button
           type="button"
           className="rounded px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
@@ -320,21 +333,24 @@ function HomeCalendar({
           ›
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] font-semibold text-slate-400">
+      <div className="grid shrink-0 grid-cols-7 gap-0.5 text-center text-[10px] font-semibold text-slate-400">
         {MONTH_WEEKDAY_LABELS.map((label) => (
-          <div key={label} className="py-1">
+          <div key={label} className="py-0.5">
             {label}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-0.5">
+      <div
+        className="grid min-h-0 flex-1 grid-cols-7 gap-0.5"
+        style={{ gridTemplateRows: `repeat(${weekRows}, minmax(0, 1fr))` }}
+      >
         {cells.map((cell) => {
           const dayDots = dots[cell.ymd] ?? []
           return (
             <div
               key={cell.ymd}
               className={[
-                'flex min-h-[2rem] flex-col items-center justify-center rounded-md text-xs',
+                'flex min-h-0 flex-col items-center justify-center rounded-md text-xs',
                 cell.inMonth ? 'text-slate-800' : 'text-slate-300',
                 cell.isToday ? 'bg-slate-800 font-bold text-white' : '',
               ].join(' ')}
@@ -356,7 +372,7 @@ function HomeCalendar({
           )
         })}
       </div>
-      <p className="mt-2 flex flex-wrap gap-2 text-[10px] text-slate-400">
+      <p className="mt-1.5 flex shrink-0 flex-wrap gap-2 text-[10px] text-slate-400">
         <span className="inline-flex items-center gap-1">
           <span className={`h-1.5 w-1.5 rounded-full ${DOT_CLASS.due}`} /> 납기
         </span>
@@ -371,16 +387,31 @@ function HomeCalendar({
   )
 }
 
-function DeliveryQtyChart({ rows }: { rows: HomeDashboardData['visual']['deliveryMonthly'] }) {
+function DeliveryQtyChart({
+  rows,
+  periodLabel,
+  period,
+}: {
+  rows: HomeDashboardData['visual']['deliverySeries']
+  periodLabel: string
+  period: HomeDashboardPeriod
+}) {
   return (
-    <Panel title="납품통계" period="월별" className="min-h-[220px]">
-      <div className="mb-1 text-[11px] text-slate-500">월별 출하 수량 (EA)</div>
-      <div className="h-[160px] w-full">
+    <Panel title="납품통계" period={periodLabel}>
+      <div className="mb-1 shrink-0 text-[11px] text-slate-500">
+        {trendSpanLabel(period)} 출하 수량 (EA)
+      </div>
+      <div className="min-h-0 w-full flex-1">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
-            <YAxis width={40} tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+            <YAxis
+              width={40}
+              tick={{ fontSize: 10, fill: '#94a3b8' }}
+              tickLine={false}
+              axisLine={false}
+            />
             <Tooltip
               formatter={(value) => [`${Number(value).toLocaleString('ko-KR')} EA`, '출하']}
               contentStyle={{ borderRadius: 8, fontSize: 12, border: '1px solid #e2e8f0' }}
@@ -393,9 +424,10 @@ function DeliveryQtyChart({ rows }: { rows: HomeDashboardData['visual']['deliver
   )
 }
 
-/** 참고 화면 톤의 시각형 공장 운영 대시보드 */
+/** 시각형 공장 운영 대시보드 — 화면 높이를 두 행으로 채움 */
 export function HomeDashboard({ data }: { data: HomeDashboardData }) {
-  const { visual } = data
+  const { visual, period } = data
+  const periodLabel = period.periodLabel
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col gap-3 overflow-hidden">
@@ -404,69 +436,50 @@ export function HomeDashboard({ data }: { data: HomeDashboardData }) {
         aria-hidden
       />
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-1 pr-0.5">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-12">
-          <div className="xl:col-span-5">
-            <WeekStatusGrid data={visual.weekStatus} />
+      <PeriodControls data={data} />
+
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(220px,0.9fr)_minmax(280px,1.15fr)] gap-3 overflow-y-auto xl:overflow-hidden">
+        <div className="grid min-h-0 grid-cols-1 gap-3 xl:grid-cols-12">
+          <div className="min-h-[220px] xl:col-span-5 xl:min-h-0">
+            <StatusGrid data={visual.status} periodLabel={periodLabel} />
           </div>
-          <div className="xl:col-span-4">
-            <InventoryDonut total={visual.inventory.total} segments={visual.inventory.segments} />
+          <div className="min-h-[220px] xl:col-span-4 xl:min-h-0">
+            <HomeImportantNoticesBoard
+              initialRows={data.notices}
+              status={data.noticesStatus}
+              message={data.noticesMessage}
+              canManage={data.canManageNotices}
+            />
           </div>
-          <div className="xl:col-span-3">
-            <TeamRanking rows={visual.teamRanking} />
+          <div className="min-h-[220px] xl:col-span-3 xl:min-h-0">
+            <TeamRanking rows={visual.teamRanking} periodLabel={periodLabel} />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-12">
-          <div className="xl:col-span-4">
-            <MonthCompareChart
+        <div className="grid min-h-0 grid-cols-1 gap-3 xl:grid-cols-12">
+          <div className="min-h-[280px] xl:col-span-4 xl:min-h-0">
+            <CompareChart
               title="생산통계"
-              period="월별"
-              rows={visual.productionMonthly}
+              periodLabel={periodLabel}
+              period={period.period}
+              rows={visual.productionSeries}
               plannedLabel="계획"
               actualLabel="실적"
               unit="EA"
             />
           </div>
-          <div className="xl:col-span-4">
-            <DeliveryQtyChart rows={visual.deliveryMonthly} />
+          <div className="min-h-[280px] xl:col-span-4 xl:min-h-0">
+            <DeliveryQtyChart
+              rows={visual.deliverySeries}
+              periodLabel={periodLabel}
+              period={period.period}
+            />
           </div>
-          <div className="xl:col-span-4">
+          <div className="min-h-[280px] xl:col-span-4 xl:min-h-0">
             <HomeCalendar monthStart={visual.calendarMonthStart} dots={visual.calendarDots} />
           </div>
         </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <OrderLineChart rows={visual.orderMonthly} />
-          <Panel title="빠른 이동" className="min-h-[220px]">
-            <div className="grid grid-cols-2 gap-2">
-              {data.headline.map((metric) => (
-                <Link
-                  key={metric.key}
-                  href={metric.href}
-                  className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3 transition hover:border-slate-300 hover:bg-white"
-                >
-                  <p className="text-[11px] font-semibold text-slate-500">{metric.label}</p>
-                  <p className="mt-1 text-lg font-bold tabular-nums text-slate-900">
-                    {metric.value == null ? '–' : metric.value.toLocaleString('ko-KR')}
-                    <span className="ml-1 text-[10px] font-semibold text-slate-400">{metric.unit}</span>
-                  </p>
-                  {metric.hint ? (
-                    <p className="mt-0.5 truncate text-[10px] text-slate-400">{metric.hint}</p>
-                  ) : null}
-                </Link>
-              ))}
-            </div>
-          </Panel>
-        </div>
       </div>
-
-      <HomeNoticesSlimBar
-        initialRows={data.notices}
-        status={data.noticesStatus}
-        message={data.noticesMessage}
-        canManage={data.canManageNotices}
-      />
     </div>
   )
 }

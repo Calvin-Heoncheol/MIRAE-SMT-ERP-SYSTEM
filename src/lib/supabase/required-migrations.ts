@@ -6,7 +6,7 @@ export const REQUIRED_RPC_MIGRATIONS = {
   save_order_create:
     'supabase/migrate-save-order-rpc.sql → migrate-order-lines-price-breakdown.sql → migrate-orders-customer-yymmdd-id.sql',
   save_order_update:
-    'supabase/migrate-save-order-rpc.sql → migrate-order-lines-price-breakdown.sql → migrate-orders-customer-yymmdd-id.sql',
+    'supabase/migrate-save-order-update-line-seq-fix.sql (또는 migrate-order-lines-work-number.sql)',
   insert_delivery_record_atomic: 'supabase/migrate-delivery-shipment-id-fix.sql',
 } as const
 

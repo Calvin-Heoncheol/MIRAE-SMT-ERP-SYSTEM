@@ -2,7 +2,6 @@ import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import {
   fetchDeliveryCumulativeCounts,
-  fetchDeliveryTodayRecords,
 } from '@/lib/delivery/repository'
 import { buildDeliveryAvailabilityMap } from '@/lib/delivery/utils'
 import { fetchOutboundPendingSummary } from '@/lib/materials/outbound/repository'
@@ -11,7 +10,10 @@ import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
 import { fetchRecentNotices } from '@/lib/notices/repository'
 import type { CompanyNotice } from '@/lib/notices/types'
 import {
+  buildHomeDashboardHrefs,
   fetchHomeVisualAnalytics,
+  resolveHomeDashboardPeriod,
+  type HomeResolvedPeriod,
   type HomeVisualAnalytics,
 } from '@/lib/dashboard/home-analytics'
 import {
@@ -67,28 +69,23 @@ export type HomeAttentionByLane = {
   production: HomeAttentionItem[]
 }
 
-export type HomeHeadlineMetric = {
-  key: string
-  label: string
-  value: number | null
-  unit: string
-  hint?: string
-  href: string
-  tone: 'default' | 'sky' | 'emerald' | 'amber' | 'rose'
-}
-
 export type HomeDashboardData = {
   todayYmd: string
   todayLabel: string
-  headline: HomeHeadlineMetric[]
+  period: HomeResolvedPeriod
+  hrefs: {
+    dayHref: string
+    weekHref: string
+    monthHref: string
+    prevHref: string
+    nextHref: string
+  }
   /** @deprecated 시각형 대시보드로 대체 — 하위 호환 */
   attentionByLane: HomeAttentionByLane
   visual: HomeVisualAnalytics
   notices: CompanyNotice[]
-  /** 공지 피드 상태 — 테이블 미적용·조회 실패 배지용 */
   noticesStatus: 'ok' | 'missing_table' | 'error' | 'env'
   noticesMessage?: string
-  /** 팀장 이상 공지 작성·수정 */
   canManageNotices: boolean
   productionTeams: HomeProductionTeam[]
 }
@@ -234,8 +231,16 @@ export async function fetchHomeTeamProduction(recordDate: string): Promise<{
   }
 }
 
-export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
+export async function fetchHomeDashboardData(input?: {
+  period?: string | string[] | null
+  date?: string | string[] | null
+}): Promise<HomeDashboardData> {
   const today = todayYmdSeoul()
+  const period = resolveHomeDashboardPeriod({
+    period: input?.period ?? undefined,
+    date: input?.date ?? undefined,
+  })
+  const hrefs = buildHomeDashboardHrefs(period)
 
   const [
     ordersResult,
@@ -248,7 +253,6 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     purchaseOrdersResult,
     onHandResult,
     outboundPendingResult,
-    deliveryTodayResult,
     noticesResult,
   ] = await Promise.all([
     fetchOrders(),
@@ -261,7 +265,6 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     fetchMaterialPurchaseOrders(),
     fetchOnHandByMaterialId(),
     fetchOutboundPendingSummary(),
-    fetchDeliveryTodayRecords(),
     fetchRecentNotices(),
   ])
 
@@ -402,8 +405,6 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
       outboundPendingResult.pending.etc
     : null
 
-  const todayShipped = deliveryTodayResult.ok ? deliveryTodayResult.rows.length : null
-
   const stockAlert = buildNegativeStockNotification(negativeStockMaterials ?? 0)
   if (stockAlert) {
     attention.push({
@@ -447,51 +448,6 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     })
   }
 
-  const materialIssueCount =
-    (negativeStockMaterials ?? 0) + (pendingPurchaseOrders ?? 0) + (outboundPending ?? 0)
-
-  const headline: HomeHeadlineMetric[] = [
-    {
-      key: 'dueSoon',
-      label: '납기 위험',
-      value: dueSoonOrders,
-      unit: '건',
-      hint: `D-${DUE_SOON_DAYS} 이내·지연`,
-      href: '/production/status',
-      tone: (dueSoonOrders ?? 0) > 0 ? 'rose' : 'default',
-    },
-    {
-      key: 'unshipped',
-      label: '미출하 발주',
-      value: unshippedOrders,
-      unit: '건',
-      hint: '출하 미완료',
-      href: '/production/status',
-      tone: (unshippedOrders ?? 0) > 0 ? 'amber' : 'default',
-    },
-    {
-      key: 'todayShipped',
-      label: '오늘 출하',
-      value: todayShipped,
-      unit: '건',
-      hint: '오늘 등록분',
-      href: '/delivery/input',
-      tone: 'sky',
-    },
-    {
-      key: 'materialIssues',
-      label: '자재 이슈',
-      value: materialIssueCount,
-      unit: '건',
-      hint:
-        outboundPending != null
-          ? `불출대기 ${outboundPending.toLocaleString('ko-KR')}`
-          : undefined,
-      href: '/materials/inventory',
-      tone: (negativeStockMaterials ?? 0) > 0 ? 'rose' : materialIssueCount > 0 ? 'amber' : 'emerald',
-    },
-  ]
-
   const todayLabel = formatHomeDateLabel(today)
 
   const noticesStatus = !noticesResult.ok
@@ -502,20 +458,23 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
         : ('error' as const)
     : ('ok' as const)
 
-  const visual = await fetchHomeVisualAnalytics({
-    dueSoonOrders: dueSoonOrders ?? 0,
-    unshippedOrders: unshippedOrders ?? 0,
-    todayShipped: todayShipped ?? 0,
-    negativeStockMaterials: negativeStockMaterials ?? 0,
-    positiveStockSkus,
-    expectedInboundSkus,
-    openDeliveryDates: openDueDates,
-  })
+  const visual = await fetchHomeVisualAnalytics(
+    {
+      dueSoonOrders: dueSoonOrders ?? 0,
+      unshippedOrders: unshippedOrders ?? 0,
+      negativeStockMaterials: negativeStockMaterials ?? 0,
+      positiveStockSkus,
+      expectedInboundSkus,
+      openDeliveryDates: openDueDates,
+    },
+    period,
+  )
 
   return {
     todayYmd: today,
     todayLabel,
-    headline,
+    period,
+    hrefs,
     attentionByLane: splitAttentionByLane(attention),
     visual,
     notices: noticesResult.ok ? noticesResult.rows : [],

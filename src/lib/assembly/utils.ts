@@ -198,6 +198,8 @@ export function computeDerivedOrderLineSpecs(
     userLines.map((line) => resolveLineProductId(line)).filter(Boolean),
   )
 
+  let nextDerivedSeq = 9000
+
   for (const parentLine of userLines) {
     const parentProductId = resolveLineProductId(parentLine)
     const children = byParent.get(parentProductId)
@@ -211,7 +213,7 @@ export function computeDerivedOrderLineSpecs(
     const parentQty = Math.max(0, Math.floor(Number(parentLine.quantity) || 0))
     if (parentQty <= 0) continue
 
-    children.forEach((child, index) => {
+    for (const child of children) {
       const quantityPer = Math.max(Number(child.quantityPer) || 1, 1)
       const product = productById[child.childProductId]
       specs.push({
@@ -220,9 +222,11 @@ export function computeDerivedOrderLineSpecs(
         productName: product?.productName || child.childProductId,
         quantity: parentQty * quantityPer,
         quantityPer,
-        lineSeq: 9000 + index,
+        // 주문 전체에서 유일해야 함 — 부모마다 9000+index 를 다시 쓰면 unique(order_id, line_seq) 충돌
+        lineSeq: nextDerivedSeq,
       })
-    })
+      nextDerivedSeq += 1
+    }
   }
 
   return specs

@@ -98,6 +98,12 @@ function mapOrderSaveError(detail: string) {
   if (detail.includes('AUTH_REQUIRED')) {
     return '로그인이 필요합니다.'
   }
+  if (
+    detail.includes('order_lines_order_id_line_seq_key') ||
+    /duplicate key value.*line_seq/i.test(detail)
+  ) {
+    return '발주 품목 순번이 겹쳐 저장하지 못했습니다. 페이지를 새로고침한 뒤 다시 저장해 주세요. 문제가 계속되면 개발자에게 알려 주세요.'
+  }
   return detail
 }
 
