@@ -93,6 +93,14 @@ function emptyMonthCounts(keys: string[]): HomeMonthCountPoint[] {
   return keys.map((key) => ({ key, label: monthLabel(key), value: 0 }))
 }
 
+type LooseRow = Record<string, unknown>
+
+/** 동적 테이블·컬럼 조회 — Supabase 생성 타입이 템플릿 select를 거부함 */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function looseFrom(table: string): any {
+  return createSupabaseClient().from(table)
+}
+
 async function sumQtyByMonth(
   table: string,
   dateColumn: string,
@@ -102,14 +110,12 @@ async function sumQtyByMonth(
 ): Promise<Map<string, number>> {
   const map = new Map<string, number>()
   try {
-    const supabase = createSupabaseClient()
-    const { data, error } = await supabase
-      .from(table)
+    const { data, error } = await looseFrom(table)
       .select(`${dateColumn}, ${qtyColumn}`)
       .gte(dateColumn, start)
       .lte(dateColumn, end)
     if (error || !data) return map
-    for (const row of data as Record<string, unknown>[]) {
+    for (const row of data as LooseRow[]) {
       const date = String(row[dateColumn] || '').slice(0, 10)
       if (!date) continue
       const qty = Math.max(0, Math.floor(Number(row[qtyColumn]) || 0))
@@ -130,14 +136,12 @@ async function countRowsByMonth(
 ): Promise<Map<string, number>> {
   const map = new Map<string, number>()
   try {
-    const supabase = createSupabaseClient()
-    const { data, error } = await supabase
-      .from(table)
+    const { data, error } = await looseFrom(table)
       .select(dateColumn)
       .gte(dateColumn, start)
       .lte(dateColumn, end)
     if (error || !data) return map
-    for (const row of data as Record<string, unknown>[]) {
+    for (const row of data as LooseRow[]) {
       const raw = String(row[dateColumn] || '')
       const date = raw.slice(0, 10)
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
@@ -158,14 +162,12 @@ async function sumQtyInRange(
   end: string,
 ): Promise<number> {
   try {
-    const supabase = createSupabaseClient()
-    const { data, error } = await supabase
-      .from(table)
+    const { data, error } = await looseFrom(table)
       .select(qtyColumn)
       .gte(dateColumn, start)
       .lte(dateColumn, end)
     if (error || !data) return 0
-    return (data as Record<string, unknown>[]).reduce(
+    return (data as LooseRow[]).reduce(
       (sum, row) => sum + Math.max(0, Math.floor(Number(row[qtyColumn]) || 0)),
       0,
     )
@@ -181,14 +183,12 @@ async function countInRange(
   end: string,
 ): Promise<number> {
   try {
-    const supabase = createSupabaseClient()
-    const { count, error } = await supabase
-      .from(table)
+    const { count, error } = await looseFrom(table)
       .select('*', { count: 'exact', head: true })
       .gte(dateColumn, start)
       .lte(dateColumn, end)
     if (error) return 0
-    return count ?? 0
+    return typeof count === 'number' ? count : 0
   } catch {
     return 0
   }
@@ -201,15 +201,13 @@ async function fetchDistinctDatesInMonth(
   end: string,
 ): Promise<string[]> {
   try {
-    const supabase = createSupabaseClient()
-    const { data, error } = await supabase
-      .from(table)
+    const { data, error } = await looseFrom(table)
       .select(dateColumn)
       .gte(dateColumn, start)
       .lte(dateColumn, end)
     if (error || !data) return []
     const set = new Set<string>()
-    for (const row of data as Record<string, unknown>[]) {
+    for (const row of data as LooseRow[]) {
       const date = String(row[dateColumn] || '').slice(0, 10)
       if (/^\d{4}-\d{2}-\d{2}$/.test(date)) set.add(date)
     }
