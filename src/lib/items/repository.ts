@@ -447,6 +447,13 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
       error = retry.error
     }
 
+    if (error && /production_std/i.test(error.message)) {
+      const { production_std: _omitStd, ...withoutStd } = insertRow as Record<string, unknown>
+      const retry = await supabase.from('items').insert(withoutStd).select('id').single()
+      data = retry.data
+      error = retry.error
+    }
+
     if (!error && data?.id) {
       return { ok: true, id: data.id }
     }
@@ -869,6 +876,19 @@ export async function updateItem(
         const row = toItemUpdateRow(updatePayload) as Record<string, unknown>
         const { material_cost_lines: _omitLines, ...withoutLines } = row
         const retry = await supabase.from('items').update(withoutLines).eq('id', key)
+        if (retry.error && /production_std/i.test(retry.error.message)) {
+          const { production_std: _omitStd, ...withoutStd } = withoutLines
+          const retryStd = await supabase.from('items').update(withoutStd).eq('id', key)
+          if (retryStd.error) {
+            return { ok: false, reason: 'query', detail: retryStd.error.message }
+          }
+        } else if (retry.error) {
+          return { ok: false, reason: 'query', detail: retry.error.message }
+        }
+      } else if (/production_std/i.test(error.message)) {
+        const row = toItemUpdateRow(updatePayload) as Record<string, unknown>
+        const { production_std: _omitStd, ...withoutStd } = row
+        const retry = await supabase.from('items').update(withoutStd).eq('id', key)
         if (retry.error) {
           return { ok: false, reason: 'query', detail: retry.error.message }
         }

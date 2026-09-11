@@ -2,6 +2,8 @@ import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import { fetchAllPostProcessProductionPlans } from '@/lib/post-process/plan/repository'
 import { POST_PROCESS_TEAMS } from '@/lib/post-process/teams'
+import { fetchProductionPlanBoard } from '@/lib/production-plan/repository'
+import { isProductionPlanScheduleRow } from '@/lib/production-plan/utils'
 import { fetchProductionStatusPageData } from '@/lib/production-status/repository'
 import { buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
 import { fetchAllSmtProductionPlans } from '@/lib/smt/plan/repository'
@@ -147,24 +149,47 @@ export async function fetchProductionReportData(
     const supabase = createSupabaseClient()
 
     // ── 1. 기간 내 생산 기록 + 생산계획 배정 ─────────────────────
-    // 계획/실적 모두 「생산계획 페이지 배정」과 「생산등록>생산계획 탭 등록」만 인정.
-    const [smtRecordsResult, postRecordsResult, smtPlansResult, postPlansResult] = await Promise.all([
-      supabase
-        .from('smt_production_records')
-        .select('record_date, order_line_id, line_no, pcb_side, quantity')
-        .gte('record_date', startDate)
-        .lte('record_date', endDate),
-      supabase
-        .from('post_process_production_records')
-        .select('record_date, assembly_group_id, team, quantity')
-        .gte('record_date', startDate)
-        .lte('record_date', endDate),
-      fetchAllSmtProductionPlans(),
-      fetchAllPostProcessProductionPlans(),
-    ])
+    // 계획/실적 모두 「생산계획 보드에 보이는 배정」만 인정.
+    // (출하완료·잔량0 등으로 보드에서 빠진 고아 계획은 실적 집계에서 제외)
+    const [smtRecordsResult, postRecordsResult, smtPlansResult, postPlansResult, boardResult] =
+      await Promise.all([
+        supabase
+          .from('smt_production_records')
+          .select('record_date, order_line_id, line_no, pcb_side, quantity')
+          .gte('record_date', startDate)
+          .lte('record_date', endDate),
+        supabase
+          .from('post_process_production_records')
+          .select('record_date, assembly_group_id, team, quantity')
+          .gte('record_date', startDate)
+          .lte('record_date', endDate),
+        fetchAllSmtProductionPlans(),
+        fetchAllPostProcessProductionPlans(),
+        fetchProductionPlanBoard(),
+      ])
 
     if (smtRecordsResult.error) {
       return { ok: false, reason: 'query', detail: smtRecordsResult.error.message }
+    }
+
+    if (!smtPlansResult.ok) {
+      return { ok: false, reason: smtPlansResult.reason, detail: smtPlansResult.detail }
+    }
+    if (!postPlansResult.ok) {
+      return { ok: false, reason: postPlansResult.reason, detail: postPlansResult.detail }
+    }
+    if (!boardResult.ok) {
+      return { ok: false, reason: boardResult.reason, detail: boardResult.detail }
+    }
+
+    const visibleSmtPlanIds = new Set<string>()
+    const visiblePostPlanIds = new Set<string>()
+    for (const row of boardResult.data.rows) {
+      if (!isProductionPlanScheduleRow(row)) continue
+      const planId = String(row.planId || '').trim()
+      if (!planId) continue
+      if (row.scope === 'smt') visibleSmtPlanIds.add(planId)
+      if (row.scope === 'post') visiblePostPlanIds.add(planId)
     }
 
     let postRows: PostRecordRow[] = []
@@ -187,23 +212,18 @@ export async function fetchProductionReportData(
       postRows = (postRecordsResult.data || []) as PostRecordRow[]
     }
 
-    const smtPlansInRange = smtPlansResult.ok
-      ? smtPlansResult.plans.filter(
-          (plan) => plan.plannedDate >= startDate && plan.plannedDate <= endDate,
-        )
-      : []
-    const postPlansInRange = postPlansResult.ok
-      ? postPlansResult.plans.filter(
-          (plan) => plan.plannedDate >= startDate && plan.plannedDate <= endDate,
-        )
-      : []
-
-    if (!smtPlansResult.ok) {
-      return { ok: false, reason: smtPlansResult.reason, detail: smtPlansResult.detail }
-    }
-    if (!postPlansResult.ok) {
-      return { ok: false, reason: postPlansResult.reason, detail: postPlansResult.detail }
-    }
+    const smtPlansInRange = smtPlansResult.plans.filter(
+      (plan) =>
+        plan.plannedDate >= startDate &&
+        plan.plannedDate <= endDate &&
+        visibleSmtPlanIds.has(plan.id),
+    )
+    const postPlansInRange = postPlansResult.plans.filter(
+      (plan) =>
+        plan.plannedDate >= startDate &&
+        plan.plannedDate <= endDate &&
+        visiblePostPlanIds.has(plan.id),
+    )
 
     /** SMT: 생산계획에 배정된 (일자·발주라인·면·라인) 키 */
     const smtPlanKeys = new Set<string>()

@@ -1,4 +1,9 @@
 import type { OrderCurrency } from './types'
+import {
+  inferOrderProcessTypeFromPrices,
+  normalizeOrderProcessType,
+  type OrderProcessType,
+} from './process-scope'
 import { isBillingOnlyOrderItem, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, resolveOrderLineSmdUnitPrice } from './utils'
 import type { Product } from '@/lib/products/types'
 import { findProductsByCode } from '@/lib/products/utils'
@@ -28,6 +33,8 @@ export type OrderItemForm = {
   materialUnitPrice: string | number
   /** 자재비 총액 = 수량 × materialUnitPrice */
   materialCost: string | number
+  /** 이번 작업 공정 범위 */
+  processType: OrderProcessType
   /** 제품(라인)별 납기일 YYYY-MM-DD */
   deliveryDate: string
   /** 작업번호 — 사용자가 직접 입력 (자동 채번 없음) */
@@ -68,6 +75,7 @@ export function defaultOrderItemForm(deliveryDate = ''): OrderItemForm {
     dipUnitPrice: '0',
     materialUnitPrice: '0',
     materialCost: '0',
+    processType: 'smt_post',
     deliveryDate,
     workNumber: '',
     isAdhoc: false,
@@ -89,6 +97,7 @@ export function defaultAdhocOrderItemForm(deliveryDate = ''): OrderItemForm {
     dipUnitPrice: '0',
     materialUnitPrice: '0',
     materialCost: '0',
+    processType: 'smt_post',
     deliveryDate,
     workNumber: '',
     isAdhoc: true,
@@ -108,6 +117,7 @@ export function orderItemsFromDetail(
     smdUnitPrice?: number
     dipUnitPrice?: number
     materialCost?: number
+    processType?: string | null
     deliveryDate?: string
     workNumber?: string | null
   }[],
@@ -133,6 +143,9 @@ export function orderItemsFromDetail(
             materialUnitPrice,
           })
         : Math.max(0, Math.round(Number(item.unitPrice) || 0))
+    const processType =
+      normalizeOrderProcessType(item.processType) ||
+      inferOrderProcessTypeFromPrices({ setupCost, smdUnitPrice: smd, dipUnitPrice: dip })
     return {
       rowKey: createOrderItemRowKey(),
       lineId: String(item.lineId || '').trim(),
@@ -146,6 +159,7 @@ export function orderItemsFromDetail(
       dipUnitPrice: String(dip),
       materialUnitPrice: String(materialUnitPrice),
       materialCost: String(materialCost),
+      processType,
       deliveryDate: String(item.deliveryDate || fallbackDeliveryDate || '').trim(),
       workNumber: String(item.workNumber || '').trim(),
       isAdhoc: isBillingOnlyOrderItem(item),

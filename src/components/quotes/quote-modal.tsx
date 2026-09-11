@@ -13,6 +13,7 @@ import { QuoteSetupInputPanel } from '@/components/quotes/quote-setup-input-pane
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import type { AiQuoteDraft } from '@/lib/quotes/ai-quote-draft'
 import { ErpButton } from '@/components/ui/erp-button'
+import { ErpModal } from '@/components/ui/erp-modal'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { useBusy } from '@/components/ui/busy-provider'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
@@ -65,6 +66,8 @@ import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
 import { formatProductOptionLabel, findProductById, resolveOrderLineProduct } from '@/lib/products/utils'
 import { buildOrderPrintDataFromQuote, printOrder } from '@/lib/orders/print-order'
+import { buildOrderPayloadFromQuote } from '@/lib/orders/from-quote'
+import { createOrder } from '@/lib/orders/repository'
 import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
 
 type QuoteModalProps = {
@@ -374,7 +377,7 @@ function QuoteModalContent({
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [displayCurrency, setDisplayCurrency] = useState<QuoteDisplayCurrency>('usd')
+  const [displayCurrency, setDisplayCurrency] = useState<QuoteDisplayCurrency>('krw')
   const [openSections, setOpenSections] = useState({
     setup: true,
     smt: true,
@@ -694,6 +697,44 @@ function QuoteModalContent({
     if (!ok) setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
   }
 
+  async function handleCreateOrderFromQuote() {
+    const snapshot = buildExportQuoteSnapshot()
+    if (!snapshot) return
+    if (!snapshot.customer.trim() || !snapshot.productName.trim()) {
+      setSaveError('발주 등록 전에 고객사와 제품명을 입력해 주세요.')
+      return
+    }
+    if (!(snapshot.boardQty > 0)) {
+      setSaveError('발주 등록 전에 수량이 있어야 합니다.')
+      return
+    }
+
+    if (
+      !(await confirm({
+        title: '발주서 등록',
+        message: `견적 ${snapshot.quoteNumber}의 공정·단가로 발주서를 등록할까요?`,
+        confirmLabel: '발주 등록',
+      }))
+    ) {
+      return
+    }
+
+    setSaveError(null)
+    const built = buildOrderPayloadFromQuote({ quote: snapshot }, products, salesPartners)
+    if (!built.ok) {
+      setSaveError(built.detail)
+      return
+    }
+
+    const resultOrder = await busyUi.run(() => createOrder(built.payload))
+    if (!resultOrder.ok) {
+      if (!notifyAuthOrFailure(resultOrder)) setSaveError(resultOrder.detail)
+      return
+    }
+
+    onSaved?.(`발주서 ${resultOrder.orderId}가 등록되었습니다.`)
+  }
+
   async function handleDelete() {
     if (!quote) return
 
@@ -802,57 +843,52 @@ function QuoteModalContent({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-3 sm:p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="relative flex max-h-[94dvh] w-full max-w-[min(1680px,98vw)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-5">
-          <div className="min-w-0">
-            <h2 className="text-lg font-bold text-slate-900">{title}</h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              입력값이 바뀌면 오른쪽 미리보기가 자동으로 갱신됩니다
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {!isDomestic ? (
-              <QuoteCurrencyToggle value={displayCurrency} onChange={setDisplayCurrency} />
-            ) : null}
-            {mode === 'edit' ? (
-              <>
-                <PdfDownloadButton
-                  label="발주서"
-                  onDownload={() => handlePrintOrder('ko')}
-                  disabled={busy}
-                  menuItems={[
-                    { label: '한글', onDownload: () => handlePrintOrder('ko') },
-                    { label: '영문', onDownload: () => handlePrintOrder('en') },
-                  ]}
-                />
-                <PdfDownloadButton
-                  onDownload={() => handleDownloadPdf()}
-                  disabled={busy}
-                  menuItems={[
-                    { label: '한글', onDownload: () => handleDownloadPdf('ko') },
-                    { label: '영문', onDownload: () => handleDownloadPdf('en') },
-                    { label: '중국어', onDownload: () => handleDownloadPdf('zh') },
-                  ]}
-                />
-              </>
-            ) : null}
-            <button
-              type="button"
-              onClick={requestClose}
-              disabled={busy}
-              className="rounded-lg px-2 py-1 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
-              aria-label="닫기"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-
+    <ErpModal
+      open
+      size="wide"
+      title={title}
+      description="입력값이 바뀌면 오른쪽 미리보기가 자동으로 갱신됩니다"
+      onClose={requestClose}
+      closeOnEscape={!busy}
+      contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+      headerActions={
+        <>
+          {!isDomestic ? (
+            <QuoteCurrencyToggle value={displayCurrency} onChange={setDisplayCurrency} />
+          ) : null}
+          {mode === 'edit' ? (
+            <>
+              <ErpButton
+                type="button"
+                variant="secondary"
+                disabled={busy}
+                onClick={() => void handleCreateOrderFromQuote()}
+              >
+                발주 등록
+              </ErpButton>
+              <PdfDownloadButton
+                label="발주서"
+                onDownload={() => handlePrintOrder('ko')}
+                disabled={busy}
+                menuItems={[
+                  { label: '한글', onDownload: () => handlePrintOrder('ko') },
+                  { label: '영문', onDownload: () => handlePrintOrder('en') },
+                ]}
+              />
+              <PdfDownloadButton
+                onDownload={() => handleDownloadPdf()}
+                disabled={busy}
+                menuItems={[
+                  { label: '한글', onDownload: () => handleDownloadPdf('ko') },
+                  { label: '영문', onDownload: () => handleDownloadPdf('en') },
+                  { label: '중국어', onDownload: () => handleDownloadPdf('zh') },
+                ]}
+              />
+            </>
+          ) : null}
+        </>
+      }
+    >
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
           <div className="flex min-h-0 flex-col border-slate-200 lg:border-r">
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -1327,8 +1363,7 @@ function QuoteModalContent({
             />
           </div>
         </div>
-      </div>
-    </div>
+    </ErpModal>
   )
 }
 

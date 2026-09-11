@@ -27,27 +27,6 @@ export async function assertCanWrite(input: {
 
   const profile = resolved === 'open' ? OPEN_MODE_PROFILE : resolved
 
-  // OPEN(인증 끔) 모드는 로컬 업무 입력만 — 삭제·직접재고·기초등록 불가
-  if (resolved === 'open') {
-    if (input.module === 'master') {
-      return {
-        ok: false,
-        reason: 'auth',
-        detail: '개발(OPEN) 모드에서는 기초등록을 변경할 수 없습니다. AUTH_ENABLED=true 로 로그인하세요.',
-      }
-    }
-    if (input.action === 'delete' || input.action === 'adjust') {
-      return {
-        ok: false,
-        reason: 'auth',
-        detail:
-          input.action === 'adjust'
-            ? '개발(OPEN) 모드에서는 직접재고 조정을 할 수 없습니다.'
-            : '개발(OPEN) 모드에서는 삭제를 할 수 없습니다. AUTH_ENABLED=true 로 로그인하세요.',
-      }
-    }
-  }
-
   const allowed = getAllowedModules(profile)
   if (!allowed.includes(input.module)) {
     return { ok: false, reason: 'auth', detail: '이 기능에 대한 권한이 없습니다.' }

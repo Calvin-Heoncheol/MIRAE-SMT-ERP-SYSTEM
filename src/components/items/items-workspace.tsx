@@ -13,12 +13,14 @@ import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { downloadExcel } from '@/lib/excel/export'
 import type { FetchItemsResult } from '@/lib/items/repository'
+import { excelProductionStdTopBot } from '@/lib/items/production-std'
 import {
   displayItemDipUnitPrice,
   displayItemMaterialUnitPrice,
   displayItemSmdUnitPrice,
   filterItemsForSearch,
   formatItemDisplayCode,
+  formatItemPcbSideModeLabel,
   formatItemProductionProcessLabel,
   formatItemUnitPrice,
 } from '@/lib/items/utils'
@@ -137,6 +139,51 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
             value: (row: Item) => moneyExcel(displayItemMaterialUnitPrice(row)),
             width: 12,
           },
+          ...(categoryFilter === 3
+            ? [
+                {
+                  header: '면',
+                  value: (row: Item) => formatItemPcbSideModeLabel(row.pcbSideMode),
+                  width: 10,
+                },
+                {
+                  header: '종수 TOP',
+                  value: (row: Item) =>
+                    excelProductionStdTopBot(row.pcbSideMode, row.productionStd).partCountTop,
+                  width: 10,
+                },
+                {
+                  header: '종수 BOT',
+                  value: (row: Item) =>
+                    excelProductionStdTopBot(row.pcbSideMode, row.productionStd).partCountBot,
+                  width: 10,
+                  cellStyle: (row: Item) =>
+                    row.pcbSideMode !== 'double'
+                      ? {
+                          fill: { patternType: 'solid' as const, fgColor: { rgb: 'FFCDD2' } },
+                        }
+                      : undefined,
+                },
+                {
+                  header: 'Tech Time TOP(초)',
+                  value: (row: Item) =>
+                    excelProductionStdTopBot(row.pcbSideMode, row.productionStd).tactTimeTopSec,
+                  width: 14,
+                },
+                {
+                  header: 'Tech Time BOT(초)',
+                  value: (row: Item) =>
+                    excelProductionStdTopBot(row.pcbSideMode, row.productionStd).tactTimeBotSec,
+                  width: 14,
+                  cellStyle: (row: Item) =>
+                    row.pcbSideMode !== 'double'
+                      ? {
+                          fill: { patternType: 'solid' as const, fgColor: { rgb: 'FFCDD2' } },
+                        }
+                      : undefined,
+                },
+              ]
+            : []),
         ]
       : []
 

@@ -18,7 +18,7 @@ type DipPcbBoardFormProps = {
 function UnitPreview({
   krw,
   quoteType,
-  displayCurrency = 'usd',
+  displayCurrency = 'krw',
 }: {
   krw: number
   quoteType: QuoteType
@@ -34,7 +34,7 @@ function UnitPreview({
 export function DipPcbBoardForm({
   board,
   quoteType,
-  displayCurrency = 'usd',
+  displayCurrency = 'krw',
   boardIndex = 0,
   boardCount = 1,
   onChange,

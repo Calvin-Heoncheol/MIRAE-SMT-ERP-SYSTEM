@@ -44,16 +44,53 @@ function formatCompactKr(value: number): string {
   return value.toLocaleString('ko-KR')
 }
 
+/** X축: 날짜(라벨) + 요일/구간(subLabel) 2줄 */
+function DualLineXTick(props: {
+  x?: number
+  y?: number
+  payload?: { value?: string }
+  index?: number
+  visibleTicksCount?: number
+  rows: Record<string, string | number>[]
+}) {
+  const { x = 0, y = 0, payload, index = 0, rows } = props
+  const row = rows[index]
+  const label = String(payload?.value ?? row?.label ?? '')
+  const subLabel = String(row?.subLabel ?? '').trim()
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text textAnchor="middle" fill="#475569" fontSize={12}>
+        <tspan x={0} dy="0.9em">
+          {label}
+        </tspan>
+        {subLabel ? (
+          <tspan x={0} dy="1.15em" fill="#94a3b8" fontSize={10}>
+            {subLabel}
+          </tspan>
+        ) : null}
+      </text>
+    </g>
+  )
+}
+
 export function ReportBarChart({ rows, series, unit, stacked = false, height = 300 }: ReportBarChartProps) {
+  const hasSubLabels = rows.some((row) => String(row.subLabel || '').trim())
+  // 2줄 X축(날짜+요일)이 SVG 밖으로 잘리지 않도록 여유
+  const bottomMargin = hasSubLabels ? 52 : 20
+  const xAxisHeight = hasSubLabels ? 52 : 28
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <ComposedChart data={rows} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+      <ComposedChart data={rows} margin={{ top: 28, right: 16, left: 0, bottom: bottomMargin }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
         <XAxis
           dataKey="label"
-          tick={{ fontSize: 12, fill: '#64748b' }}
+          interval={0}
+          tick={<DualLineXTick rows={rows} />}
           tickLine={false}
           axisLine={{ stroke: '#cbd5e1' }}
+          height={xAxisHeight}
         />
         <YAxis
           tick={{ fontSize: 12, fill: '#64748b' }}
@@ -75,7 +112,13 @@ export function ReportBarChart({ rows, series, unit, stacked = false, height = 3
             boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)',
           }}
         />
-        <Legend wrapperStyle={{ fontSize: 13 }} iconType="circle" iconSize={9} />
+        <Legend
+          verticalAlign="top"
+          align="right"
+          wrapperStyle={{ fontSize: 13, paddingBottom: 4 }}
+          iconType="circle"
+          iconSize={9}
+        />
         {series.map((item) =>
           item.type === 'line' ? (
             <Line

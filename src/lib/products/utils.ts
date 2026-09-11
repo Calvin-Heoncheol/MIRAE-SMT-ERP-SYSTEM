@@ -1,6 +1,6 @@
 import type { Product, ProductKind, ProductPcbSideMode, ProductProcessType } from './types'
 import { deriveItemProcessType } from '@/lib/items/types'
-import { normalizeMaterialCostLines } from '@/lib/items/material-cost-lines'
+import { normalizeMaterialCostLines, sumMaterialCostLines } from '@/lib/items/material-cost-lines'
 import { EMPTY_SMT_QUOTE_PARTS, normalizeItemSmtQuoteParts } from '@/lib/items/smt-quote-parts'
 import { normalizeVersionLabel, parseItemVersionCode } from '@/lib/items/version-code'
 
@@ -117,6 +117,8 @@ export function mapItemRowToProduct(row: {
     itemCategory === 3 || itemCategory === 4
       ? normalizeMaterialCostLines(row.material_cost_lines)
       : []
+  const resolvedMaterialUnitPrice =
+    materialUnitPrice > 0 ? materialUnitPrice : sumMaterialCostLines(materialCostLines)
 
   if (itemCategory === 3 || itemCategory === 4) {
     processType = normalizeProductProcessType(row.process_type)
@@ -135,9 +137,9 @@ export function mapItemRowToProduct(row: {
     setupUnitPrice: itemCategory === 3 || itemCategory === 4 ? setupUnitPrice : 0,
     smdUnitPrice,
     dipUnitPrice,
-    materialUnitPrice,
+    materialUnitPrice: resolvedMaterialUnitPrice,
     additionalUnitPrice: itemCategory === 3 || itemCategory === 4 ? otherUnitPrice : 0,
-    materialCostLines,
+    materialCostLines: [],
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
     processType,
     productKind: itemCategory === 4 ? 'assembly' : 'pcb',

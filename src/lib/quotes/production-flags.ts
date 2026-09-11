@@ -170,6 +170,18 @@ export function flagsFromProductProcessType(product: Product | undefined): Quote
   }
 }
 
+/** 발주 라인 공정 범위 → 생산 대상 */
+export function flagsFromOrderProcessType(
+  processType: string | null | undefined,
+): QuoteProductionFlags {
+  const value = String(processType || '').trim()
+  if (!value) return EMPTY_FLAGS
+  return {
+    hasSmd: processTypeIncludesSmt(value as ProductProcessType),
+    hasPost: processTypeIncludesPostProcess(value as ProductProcessType),
+  }
+}
+
 /** 견적 금액 기준으로 SMT / 후공정 생산 대상 여부 */
 export function getQuoteProductionFlags(
   quote: Pick<QuoteListItem, 'detailInfo'>,
@@ -268,7 +280,7 @@ function resolveQuoteFlagsForOrderLine(input: {
 
 /**
  * 주문 라인 기준 생산 플래그.
- * 1) 품목 공정구분 → 2) 파생 라인 부모 품목 → 3) 견적(레거시 보조)
+ * 1) 발주 라인 공정 범위 → 2) 품목 공정구분 → 3) 파생 라인 부모 품목 → 4) 견적(레거시 보조)
  */
 export function resolveProductionFlagsForOrderLine(input: {
   quotes: QuoteListItem[]
@@ -279,6 +291,9 @@ export function resolveProductionFlagsForOrderLine(input: {
 }): QuoteProductionFlags {
   const { order, item, product, productById } = input
 
+  const fromLine = flagsFromOrderProcessType(item.processType)
+  if (fromLine.hasSmd || fromLine.hasPost) return fromLine
+
   const fromProduct = flagsFromProductProcessType(product)
   if (fromProduct.hasSmd || fromProduct.hasPost) return fromProduct
 
@@ -286,6 +301,9 @@ export function resolveProductionFlagsForOrderLine(input: {
   if (parentLineId) {
     const parentItem = order.items.find((entry) => entry.lineId === parentLineId)
     if (parentItem) {
+      const fromParentLine = flagsFromOrderProcessType(parentItem.processType)
+      if (fromParentLine.hasSmd || fromParentLine.hasPost) return fromParentLine
+
       const parentProduct =
         productById[String(parentItem.productId || '').trim()] ||
         productById[parentItem.productCode.trim()]

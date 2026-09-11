@@ -14,9 +14,8 @@ import {
   isProductItemCategory,
 } from '@/lib/items/types'
 import {
-  displayItemDipUnitPrice,
   displayItemMaterialUnitPrice,
-  displayItemSmdUnitPrice,
+  displayItemProcessingUnitPrice,
   formatItemDisplayCode,
   formatItemPcbSideModeLabel,
   formatItemProductionProcessLabel,
@@ -57,16 +56,16 @@ export function ItemListTable({
   const showProductColumns =
     categoryFilter !== 'all' && isProductItemCategory(categoryFilter)
   const hideMaterialDetailColumns = showProductColumns
-  /** 반제품은 SMD·후공정 단가로 공정 파악 가능 — 목록에서 생산 공정 컬럼 생략 */
+  /** 반제품은 가공비로 공정 파악 가능 — 목록에서 생산 공정 컬럼 생략 */
   const showProductionProcessColumn = categoryFilter === 'all' || categoryFilter === 4
   const showPcbSideColumn = categoryFilter === 'all' || categoryFilter === 3
 
   const tableMinWidth = showProductColumns
     ? showPcbSideColumn
-      ? 'min-w-[1200px]'
-      : 'min-w-[1100px]'
+      ? 'min-w-[1120px]'
+      : 'min-w-[1020px]'
     : showProductionProcessColumn
-      ? 'min-w-[1460px]'
+      ? 'min-w-[1380px]'
       : 'min-w-[1180px]'
 
   if (!items.length) {
@@ -90,8 +89,7 @@ export function ItemListTable({
               <>
                 {showProductionProcessColumn ? <col className="w-[108px]" /> : null}
                 {showPcbSideColumn ? <col className="w-[72px]" /> : null}
-                <col className="w-[88px]" />
-                <col className="w-[88px]" />
+                <col className="w-[96px]" />
                 <col className="w-[88px]" />
               </>
             ) : null}
@@ -108,8 +106,7 @@ export function ItemListTable({
               <>
                 <col className="w-[108px]" />
                 {showPcbSideColumn ? <col className="w-[72px]" /> : null}
-                <col className="w-[88px]" />
-                <col className="w-[88px]" />
+                <col className="w-[96px]" />
                 <col className="w-[88px]" />
               </>
             ) : null}
@@ -129,8 +126,7 @@ export function ItemListTable({
                     <th className="px-3 py-2.5 text-center">생산 공정</th>
                   ) : null}
                   {showPcbSideColumn ? <th className="px-3 py-2.5 text-center">면</th> : null}
-                  <th className="px-3 py-2.5 text-right">SMD</th>
-                  <th className="px-3 py-2.5 text-right">후공정</th>
+                  <th className="px-3 py-2.5 text-right">가공비</th>
                   <th className="px-3 py-2.5 text-right">자재비</th>
                 </>
               ) : null}
@@ -147,8 +143,7 @@ export function ItemListTable({
                 <>
                   <th className="px-3 py-2.5 text-center">생산 공정</th>
                   {showPcbSideColumn ? <th className="px-3 py-2.5 text-center">면</th> : null}
-                  <th className="px-3 py-2.5 text-right">SMD</th>
-                  <th className="px-3 py-2.5 text-right">후공정</th>
+                  <th className="px-3 py-2.5 text-right">가공비</th>
                   <th className="px-3 py-2.5 text-right">자재비</th>
                 </>
               ) : null}
@@ -190,8 +185,7 @@ export function ItemListTable({
                         {cell(formatItemPcbSideModeLabel(item.pcbSideMode))}
                       </td>
                     ) : null}
-                    {moneyCell(displayItemSmdUnitPrice(item))}
-                    {moneyCell(displayItemDipUnitPrice(item))}
+                    {moneyCell(displayItemProcessingUnitPrice(item))}
                     {moneyCell(displayItemMaterialUnitPrice(item))}
                   </>
                 ) : null}
@@ -224,8 +218,7 @@ export function ItemListTable({
                         {cell(formatItemPcbSideModeLabel(item.pcbSideMode))}
                       </td>
                     ) : null}
-                    {moneyCell(displayItemSmdUnitPrice(item))}
-                    {moneyCell(displayItemDipUnitPrice(item))}
+                    {moneyCell(displayItemProcessingUnitPrice(item))}
                     {moneyCell(displayItemMaterialUnitPrice(item))}
                   </>
                 ) : null}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
@@ -21,6 +21,7 @@ import {
   validateItemForm,
   type ItemFormState,
 } from '@/lib/items/form-state'
+import { EMPTY_ITEM_PRODUCTION_STD } from '@/lib/items/production-std'
 import {
   ITEM_CATEGORIES,
   ITEM_CATEGORY_LABELS,
@@ -36,17 +37,13 @@ import {
   isRawMaterialItemCategory,
   isSemiFinishedItemCategory,
   isFinishedItemCategory,
+  isSplitItemPcbSideMode,
   type Item,
   type ItemCategory,
   type ItemMaterialType,
   type ItemSupplyType,
 } from '@/lib/items/types'
 import { nextItemCodeForCategory, itemFromPayload, displayItemUnitPrice, formatItemUnitPrice } from '@/lib/items/utils'
-import {
-  emptyMaterialCostLine,
-  sumMaterialCostLines,
-  type MaterialCostLine,
-} from '@/lib/items/material-cost-lines'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
@@ -110,6 +107,33 @@ function createFormWithCategory(
     if (initialValues.supplier !== undefined) form.supplier = initialValues.supplier
   }
   return form
+}
+
+/** React는 details에 defaultOpen을 지원하지 않음 → open + onToggle으로 초기 펼침 */
+function OpenableDetails({
+  openInitially,
+  className,
+  summary,
+  children,
+}: {
+  openInitially: boolean
+  className?: string
+  summary: ReactNode
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(openInitially)
+  return (
+    <details
+      className={className}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="cursor-pointer select-none text-sm font-semibold text-slate-800">
+        {summary}
+      </summary>
+      {children}
+    </details>
+  )
 }
 
 function ItemModalContent({
@@ -210,6 +234,7 @@ function ItemModalContent({
         next.dipUnitPrice = 0
         next.materialUnitPrice = 0
         next.materialCostLines = []
+        next.productionStd = { ...EMPTY_ITEM_PRODUCTION_STD }
         next.processType = ''
         next.baselineQuoteId = ''
         next.baselineQuoteLabel = ''
@@ -249,75 +274,13 @@ function ItemModalContent({
       const updated: ItemFormState = {
         ...current,
         [key]: next,
+        materialCostLines: [],
       }
       if (key === 'smdUnitPrice' || key === 'dipUnitPrice') {
         updated.unitPrice = smd + dip
         updated.processType = deriveItemProcessType(smd, dip)
       }
-      if (key === 'materialUnitPrice' && current.materialCostLines.length > 0) {
-        updated.materialCostLines = []
-      }
       return updated
-    })
-  }
-
-  function updateMaterialCostLine(index: number, patch: Partial<MaterialCostLine>) {
-    setForm((current) => {
-      const lines = current.materialCostLines.map((line, lineIndex) =>
-        lineIndex === index ? { ...line, ...patch } : line,
-      )
-      return {
-        ...current,
-        materialCostLines: lines,
-        materialUnitPrice: sumMaterialCostLines(lines),
-      }
-    })
-  }
-
-  function addMaterialCostLine() {
-    setForm((current) => {
-      // 첫 + : 같은 자리에서 이름·금액 입력 모드로 전환 (한 줄)
-      if (current.materialCostLines.length === 0) {
-        const lines: MaterialCostLine[] = [
-          {
-            label: '',
-            unitPrice: Math.max(0, Math.round(Number(current.materialUnitPrice) || 0)),
-          },
-        ]
-        return {
-          ...current,
-          materialCostLines: lines,
-          materialUnitPrice: sumMaterialCostLines(lines),
-        }
-      }
-      const lines = [...current.materialCostLines, emptyMaterialCostLine()]
-      return {
-        ...current,
-        materialCostLines: lines,
-        materialUnitPrice: sumMaterialCostLines(lines),
-      }
-    })
-  }
-
-  function removeMaterialCostLine(index: number) {
-    setForm((current) => {
-      const lines = current.materialCostLines.filter((_, lineIndex) => lineIndex !== index)
-      if (lines.length === 0) {
-        return {
-          ...current,
-          materialCostLines: [],
-          materialUnitPrice: Math.max(
-            0,
-            Math.round(Number(current.materialCostLines[index]?.unitPrice) || 0) ||
-              current.materialUnitPrice,
-          ),
-        }
-      }
-      return {
-        ...current,
-        materialCostLines: lines,
-        materialUnitPrice: sumMaterialCostLines(lines),
-      }
     })
   }
 
@@ -586,158 +549,159 @@ function ItemModalContent({
         </div>
       }
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>
-            품목구분 <RequiredMark />
-          </span>
-          <select
-            value={form.itemCategory === '' ? '' : String(form.itemCategory)}
-            onChange={(event) =>
-              updateItemCategory(
-                event.target.value ? (Number(event.target.value) as ItemCategory) : '',
-              )
-            }
-            className={ERP_FIELD_INPUT_CLASS}
-          >
-            <option value="">선택</option>
-            {ITEM_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {ITEM_CATEGORY_LABELS[category]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm sm:col-span-2">
-          <span className={ERP_FIELD_LABEL_CLASS}>
-            고객사명 <RequiredMark />
-          </span>
-          <CustomerCombobox
-            value={form.customerName}
-            partners={salesPartners}
-            placeholder="거래처명 검색"
-            ariaLabel="고객사"
-            inputClassName={ERP_FIELD_INPUT_CLASS}
-            onValueChange={(value) => {
-              setForm((current) => ({
-                ...current,
-                customerName: value,
-                customerId: '',
-              }))
-            }}
-            onPartnerSelect={(partner) => {
-              setForm((current) => ({
-                ...current,
-                customerName: partner.name,
-                customerId: partner.id,
-              }))
-            }}
-          />
-          <p className="mt-1 text-xs text-slate-500">
-            {partnersLoading
-              ? '고객사 목록을 불러오는 중...'
-              : salesPartners.length === 0
-                ? '등록된 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
-                : '거래처등록의 거래처를 검색해 선택하세요.'}
-          </p>
-        </label>
-        <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>
-            품목코드
-          </span>
-          <input
-            value={canEditCode ? form.id : displayItemCode}
-            onChange={(event) => updateForm('id', event.target.value)}
-            placeholder={
-              form.itemCategory === ''
-                ? '품목구분 선택 후 표시'
-                : isCreate
-                  ? `${ITEM_CATEGORY_CODE_PREFIX[form.itemCategory]}0001 형식 자동`
-                  : '품목코드'
-            }
-            readOnly={!canEditCode}
-            className={`${ERP_FIELD_INPUT_CLASS} font-mono ${
-              !canEditCode ? 'bg-slate-50 text-slate-600' : ''
-            }`}
-          />
-          {isCreate ? (
-            <p className="mt-1 text-xs text-slate-500">
-              품목코드는 구분별 자동채번입니다 (원자재 MA-, 부자재 SM-, 반제품 SFG-, 조립제품 FG-).
-              직접 수정할 수 있습니다. 내부 품목ID는 저장 시 MR-00001 형식으로 발급됩니다.
+      <div className="space-y-5">
+        {/* A. 식별 */}
+        <section className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">식별</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>
+                품목구분 <RequiredMark />
+              </span>
+              <select
+                value={form.itemCategory === '' ? '' : String(form.itemCategory)}
+                onChange={(event) =>
+                  updateItemCategory(
+                    event.target.value ? (Number(event.target.value) as ItemCategory) : '',
+                  )
+                }
+                className={ERP_FIELD_INPUT_CLASS}
+              >
+                <option value="">선택</option>
+                {ITEM_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {ITEM_CATEGORY_LABELS[category]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>
+                고객사명 <RequiredMark />
+              </span>
+              <CustomerCombobox
+                value={form.customerName}
+                partners={salesPartners}
+                placeholder="거래처명 검색"
+                ariaLabel="고객사"
+                inputClassName={ERP_FIELD_INPUT_CLASS}
+                onValueChange={(value) => {
+                  setForm((current) => ({
+                    ...current,
+                    customerName: value,
+                    customerId: '',
+                  }))
+                }}
+                onPartnerSelect={(partner) => {
+                  setForm((current) => ({
+                    ...current,
+                    customerName: partner.name,
+                    customerId: partner.id,
+                  }))
+                }}
+              />
+              {partnersLoading || salesPartners.length === 0 ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  {partnersLoading
+                    ? '고객사 목록을 불러오는 중...'
+                    : '등록된 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'}
+                </p>
+              ) : null}
+            </label>
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>품목코드</span>
+              <input
+                value={canEditCode ? form.id : displayItemCode}
+                onChange={(event) => updateForm('id', event.target.value)}
+                placeholder={
+                  form.itemCategory === ''
+                    ? '품목구분 선택 후 표시'
+                    : isCreate
+                      ? `${ITEM_CATEGORY_CODE_PREFIX[form.itemCategory]}0001 형식 자동`
+                      : '품목코드'
+                }
+                readOnly={!canEditCode}
+                className={`${ERP_FIELD_INPUT_CLASS} font-mono ${
+                  !canEditCode ? 'bg-slate-50 text-slate-600' : ''
+                }`}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>
+                품목명 <RequiredMark />
+              </span>
+              <input
+                value={form.name}
+                onChange={(event) => updateForm('name', event.target.value)}
+                className={ERP_FIELD_INPUT_CLASS}
+              />
+            </label>
+            {showVersionField ? (
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>버전</span>
+                <input
+                  value={form.version}
+                  onChange={(event) => updateForm('version', event.target.value)}
+                  placeholder="예: A1, V2 (없으면 비움)"
+                  className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
+                />
+              </label>
+            ) : null}
+            {showPcbSideModeField ? (
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>
+                  면
+                  {derivedProcessType === 'smt' || derivedProcessType === 'smt_post' ? (
+                    <RequiredMark />
+                  ) : null}
+                </span>
+                <select
+                  value={form.pcbSideMode}
+                  onChange={(event) =>
+                    updateForm('pcbSideMode', event.target.value as ItemPcbSideMode)
+                  }
+                  className={ERP_FIELD_INPUT_CLASS}
+                >
+                  <option value="">선택</option>
+                  {ITEM_PCB_SIDE_MODES.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {ITEM_PCB_SIDE_MODE_LABELS[mode]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
+          {isCreate && form.itemCategory !== '' ? (
+            <p className="text-xs text-slate-500">
+              품목코드는 구분별 자동채번(MA-/SM-/SFG-/FG-)이며 수정 가능합니다. 내부 ID는 저장 시
+              MR-00001 형식으로 발급됩니다.
             </p>
           ) : null}
-        </label>
-        <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>
-            품목명 <RequiredMark />
-          </span>
-          <input
-            value={form.name}
-            onChange={(event) => updateForm('name', event.target.value)}
-            className={ERP_FIELD_INPUT_CLASS}
-          />
-        </label>
-        {showVersionField ? (
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>버전</span>
-            <input
-              value={form.version}
-              onChange={(event) => updateForm('version', event.target.value)}
-              placeholder="예: A1, V2 (없으면 비움)"
-              className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              같은 품목코드·버전이라도 품목명이 다르면 별도 품목으로 등록됩니다. 품목코드·품명·버전이
-              모두 같을 때만 중복입니다.
-            </p>
-          </label>
-        ) : null}
-        {showPcbSideModeField ? (
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>
-              면
-              {derivedProcessType === 'smt' || derivedProcessType === 'smt_post' ? (
-                <RequiredMark />
-              ) : null}
-            </span>
-            <select
-              value={form.pcbSideMode}
-              onChange={(event) =>
-                updateForm('pcbSideMode', event.target.value as ItemPcbSideMode)
-              }
-              className={ERP_FIELD_INPUT_CLASS}
-            >
-              <option value="">선택</option>
-              {ITEM_PCB_SIDE_MODES.map((mode) => (
-                <option key={mode} value={mode}>
-                  {ITEM_PCB_SIDE_MODE_LABELS[mode]}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-slate-500">
-              양면만 TOP/BOT를 나눠 생산합니다. 단면·더블은 한 면으로 등록합니다.
-            </p>
-          </label>
-        ) : null}
+        </section>
+
+        {/* B. 단가 */}
         {showFinishedProductUnitPriceInfo ? (
-          <div className="block text-sm sm:col-span-2 sm:max-w-[50%]">
-            <span className={ERP_FIELD_LABEL_CLASS}>기본 단가</span>
+          <section className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">단가</p>
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
               {!isCreate && item && displayItemUnitPrice(item) > 0 ? (
-                <p className="font-medium text-slate-800">
+                <p className="text-sm font-medium text-slate-800">
                   {formatItemUnitPrice(displayItemUnitPrice(item))}원
                 </p>
               ) : (
-                <p className="text-slate-500">BOM 등록 후 자동 계산</p>
+                <p className="text-sm text-slate-500">BOM 등록 후 자동 계산</p>
               )}
             </div>
-            <p className="mt-1 text-xs text-slate-500">
-              조립제품 단가는 BOM 등록에서 구성 반제품 단가 합으로 자동 반영됩니다.
+            <p className="text-xs text-slate-500">
+              조립제품 단가는 BOM 구성 반제품 단가 합으로 반영됩니다.
             </p>
-          </div>
+          </section>
         ) : null}
+
         {showProductUnitPriceField ? (
-          <div className="space-y-4 sm:col-span-2">
+          <section className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">표준단가</p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <label className="block text-sm">
                 <span className={ERP_FIELD_LABEL_CLASS}>SMD</span>
@@ -748,7 +712,6 @@ function ItemModalContent({
                   className={ERP_FIELD_INPUT_CLASS}
                   placeholder="0"
                 />
-                <p className="mt-1 text-xs text-slate-500">대당 SMD 가공비입니다.</p>
               </label>
               <label className="block text-sm">
                 <span className={ERP_FIELD_LABEL_CLASS}>후공정</span>
@@ -759,213 +722,287 @@ function ItemModalContent({
                   className={ERP_FIELD_INPUT_CLASS}
                   placeholder="0"
                 />
-                <p className="mt-1 text-xs text-slate-500">대당 후공정 가공비입니다.</p>
               </label>
-              <div className="block min-w-0 text-sm">
+              <label className="block text-sm">
                 <span className={ERP_FIELD_LABEL_CLASS}>자재비</span>
-                {form.materialCostLines.length === 0 ? (
-                  <>
-                    <div className="flex items-center gap-1.5">
-                      <QuoteNumericInput
-                        min={0}
-                        value={String(form.materialUnitPrice > 0 ? form.materialUnitPrice : '')}
-                        onChange={(raw) => updateSemiFinishedPriceField('materialUnitPrice', raw)}
-                        className={`${ERP_FIELD_INPUT_CLASS} min-w-0 flex-1`}
-                        placeholder="0"
-                      />
+                <QuoteNumericInput
+                  min={0}
+                  value={String(form.materialUnitPrice > 0 ? form.materialUnitPrice : '')}
+                  onChange={(raw) => updateSemiFinishedPriceField('materialUnitPrice', raw)}
+                  className={ERP_FIELD_INPUT_CLASS}
+                  placeholder="0"
+                />
+              </label>
+            </div>
+            <p className="text-xs text-slate-500">대당 SMD · 후공정 · 자재비입니다.</p>
+          </section>
+        ) : null}
+
+        {/* C. 생산 기준 (접이식) */}
+        {showProductUnitPriceField ? (
+          <OpenableDetails
+            key={`production-std-${form.pcbSideMode || 'none'}-${item?.id || 'new'}`}
+            className="rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-3"
+            openInitially={
+              form.productionStd.partCount > 0 ||
+              form.productionStd.partCountTop > 0 ||
+              form.productionStd.partCountBot > 0 ||
+              form.productionStd.tactTimeSec > 0 ||
+              form.productionStd.tactTimeTopSec > 0 ||
+              form.productionStd.tactTimeBotSec > 0
+            }
+            summary={
+              <>
+                생산 기준
+                <span className="ml-2 text-xs font-normal text-slate-500">
+                  종수 · Tech Time(초/대) · 목록 미표시
+                </span>
+              </>
+            }
+          >
+            <div className="mt-3">
+              {isSplitItemPcbSideMode(form.pcbSideMode) ? (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block text-sm">
+                    <span className={ERP_FIELD_LABEL_CLASS}>종수 (TOP)</span>
+                    <QuoteNumericInput
+                      min={0}
+                      value={String(
+                        form.productionStd.partCountTop > 0
+                          ? form.productionStd.partCountTop
+                          : '',
+                      )}
+                      onChange={(raw) =>
+                        updateForm('productionStd', {
+                          ...form.productionStd,
+                          partCountTop: Math.max(0, Math.floor(Number(raw) || 0)),
+                        })
+                      }
+                      className={ERP_FIELD_INPUT_CLASS}
+                      placeholder="0"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className={ERP_FIELD_LABEL_CLASS}>Tech Time TOP (초)</span>
+                    <QuoteNumericInput
+                      min={0}
+                      value={String(
+                        form.productionStd.tactTimeTopSec > 0
+                          ? form.productionStd.tactTimeTopSec
+                          : '',
+                      )}
+                      onChange={(raw) =>
+                        updateForm('productionStd', {
+                          ...form.productionStd,
+                          tactTimeTopSec: Math.max(0, Math.floor(Number(raw) || 0)),
+                        })
+                      }
+                      className={ERP_FIELD_INPUT_CLASS}
+                      placeholder="0"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className={ERP_FIELD_LABEL_CLASS}>종수 (BOT)</span>
+                    <QuoteNumericInput
+                      min={0}
+                      value={String(
+                        form.productionStd.partCountBot > 0
+                          ? form.productionStd.partCountBot
+                          : '',
+                      )}
+                      onChange={(raw) =>
+                        updateForm('productionStd', {
+                          ...form.productionStd,
+                          partCountBot: Math.max(0, Math.floor(Number(raw) || 0)),
+                        })
+                      }
+                      className={ERP_FIELD_INPUT_CLASS}
+                      placeholder="0"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className={ERP_FIELD_LABEL_CLASS}>Tech Time BOT (초)</span>
+                    <QuoteNumericInput
+                      min={0}
+                      value={String(
+                        form.productionStd.tactTimeBotSec > 0
+                          ? form.productionStd.tactTimeBotSec
+                          : '',
+                      )}
+                      onChange={(raw) =>
+                        updateForm('productionStd', {
+                          ...form.productionStd,
+                          tactTimeBotSec: Math.max(0, Math.floor(Number(raw) || 0)),
+                        })
+                      }
+                      className={ERP_FIELD_INPUT_CLASS}
+                      placeholder="0"
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block text-sm">
+                    <span className={ERP_FIELD_LABEL_CLASS}>종수</span>
+                    <QuoteNumericInput
+                      min={0}
+                      value={String(
+                        form.productionStd.partCount > 0 ? form.productionStd.partCount : '',
+                      )}
+                      onChange={(raw) =>
+                        updateForm('productionStd', {
+                          ...form.productionStd,
+                          partCount: Math.max(0, Math.floor(Number(raw) || 0)),
+                        })
+                      }
+                      className={ERP_FIELD_INPUT_CLASS}
+                      placeholder="0"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className={ERP_FIELD_LABEL_CLASS}>Tech Time (초/대)</span>
+                    <QuoteNumericInput
+                      min={0}
+                      value={String(
+                        form.productionStd.tactTimeSec > 0 ? form.productionStd.tactTimeSec : '',
+                      )}
+                      onChange={(raw) =>
+                        updateForm('productionStd', {
+                          ...form.productionStd,
+                          tactTimeSec: Math.max(0, Math.floor(Number(raw) || 0)),
+                        })
+                      }
+                      className={ERP_FIELD_INPUT_CLASS}
+                      placeholder="0"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+          </OpenableDetails>
+        ) : null}
+
+        {/* D. 자재 속성 */}
+        {showRawMaterialTypeField || showMaterialDetailFields ? (
+          <section className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">자재 속성</p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {showRawMaterialTypeField ? (
+                <label className="block text-sm">
+                  <span className={ERP_FIELD_LABEL_CLASS}>
+                    공정구분 <RequiredMark />
+                  </span>
+                  <select
+                    value={form.materialType}
+                    onChange={(event) =>
+                      updateForm('materialType', event.target.value as ItemMaterialType)
+                    }
+                    className={ERP_FIELD_INPUT_CLASS}
+                  >
+                    <option value="">선택</option>
+                    {ITEM_MATERIAL_TYPE_OPTIONS.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {showMaterialDetailFields ? (
+                <>
+                  <label className="block text-sm">
+                    <span className={ERP_FIELD_LABEL_CLASS}>패키지</span>
+                    <input
+                      value={form.package}
+                      onChange={(event) => updateForm('package', event.target.value)}
+                      placeholder="예: QFN, SOP, 0603"
+                      className={ERP_FIELD_INPUT_CLASS}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className={ERP_FIELD_LABEL_CLASS}>사양</span>
+                    <input
+                      value={form.specification}
+                      onChange={(event) => updateForm('specification', event.target.value)}
+                      className={ERP_FIELD_INPUT_CLASS}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className={ERP_FIELD_LABEL_CLASS}>MPN</span>
+                    <input
+                      value={form.mpn}
+                      onChange={(event) => updateForm('mpn', event.target.value)}
+                      className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className={ERP_FIELD_LABEL_CLASS}>도급/사급</span>
+                    <select
+                      value={form.supplyType}
+                      onChange={(event) =>
+                        updateForm('supplyType', event.target.value as ItemSupplyType)
+                      }
+                      className={ERP_FIELD_INPUT_CLASS}
+                    >
+                      <option value="">선택</option>
+                      {ITEM_SUPPLY_TYPE_OPTIONS.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="space-y-2 sm:col-span-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={ERP_FIELD_LABEL_CLASS}>대체 MPN</span>
                       <button
                         type="button"
                         className={ERP_ROW_ADD_BUTTON_CLASS}
-                        onClick={addMaterialCostLine}
-                        title="자재비 세부 행 추가"
+                        onClick={() => updateForm('alternateMpns', [...form.alternateMpns, ''])}
                       >
-                        +
+                        + 추가
                       </button>
                     </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      대당 자재비입니다. + 로 이름·금액을 나눠 입력할 수 있습니다.
-                    </p>
-                  </>
-                ) : (
-                  <div className="space-y-2">
-                    {form.materialCostLines.map((line, lineIndex) => {
-                      const isLast = lineIndex === form.materialCostLines.length - 1
-                      return (
-                        <div
-                          key={`material-line-${lineIndex}`}
-                          className="flex min-w-0 items-center gap-1.5"
-                        >
-                          <input
-                            value={line.label}
-                            onChange={(event) =>
-                              updateMaterialCostLine(lineIndex, { label: event.target.value })
-                            }
-                            className={`${ERP_FIELD_INPUT_CLASS} !w-auto min-w-0 flex-[1.6]`}
-                            placeholder=""
-                            aria-label={`자재비 세부 ${lineIndex + 1} 명칭`}
-                          />
-                          <QuoteNumericInput
-                            min={0}
-                            value={String(line.unitPrice > 0 ? line.unitPrice : '')}
-                            onChange={(raw) =>
-                              updateMaterialCostLine(lineIndex, {
-                                unitPrice: Math.max(0, Math.round(Number(raw) || 0)),
-                              })
-                            }
-                            className={`${ERP_FIELD_INPUT_CLASS} !w-24 shrink-0`}
-                            placeholder="0"
-                            aria-label={`자재비 세부 ${lineIndex + 1} 단가`}
-                          />
-                          {form.materialCostLines.length > 1 ? (
+                    {form.alternateMpns.length ? (
+                      <div className="space-y-2">
+                        {form.alternateMpns.map((mpn, index) => (
+                          <div key={`alt-mpn-${index}`} className="flex items-center gap-2">
+                            <input
+                              value={mpn}
+                              onChange={(event) => {
+                                const next = [...form.alternateMpns]
+                                next[index] = event.target.value
+                                updateForm('alternateMpns', next)
+                              }}
+                              placeholder="같은 부품의 다른 메이커 품번"
+                              className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
+                            />
                             <button
                               type="button"
-                              className="inline-flex h-8 w-7 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-50 hover:text-rose-600"
-                              onClick={() => removeMaterialCostLine(lineIndex)}
-                              aria-label={`자재비 세부 ${lineIndex + 1} 삭제`}
+                              onClick={() =>
+                                updateForm(
+                                  'alternateMpns',
+                                  form.alternateMpns.filter((_, itemIndex) => itemIndex !== index),
+                                )
+                              }
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                              aria-label={`대체 MPN ${index + 1} 삭제`}
                             >
                               ×
                             </button>
-                          ) : null}
-                          {isLast ? (
-                            <button
-                              type="button"
-                              className={ERP_ROW_ADD_BUTTON_CLASS}
-                              onClick={addMaterialCostLine}
-                              title="자재비 세부 행 추가"
-                            >
-                              +
-                            </button>
-                          ) : null}
-                        </div>
-                      )
-                    })}
-                    <p className="text-xs text-slate-500">
-                      {form.materialCostLines.length >= 2
-                        ? `합계 ${formatItemUnitPrice(form.materialUnitPrice)}원 · 발주·명세에서 행이 나뉩니다.`
-                        : '이름과 금액을 입력하세요. + 로 행을 더하면 명세에서 나뉩니다.'}
-                    </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500">
+                        릴 바코드만 다른 같은 부품이면 추가하세요. 사급=고객 자재, 도급=당사 구매.
+                      </p>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              ) : null}
             </div>
-          </div>
-        ) : null}
-        {showRawMaterialTypeField ? (
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>
-              공정구분 <RequiredMark />
-            </span>
-            <select
-              value={form.materialType}
-              onChange={(event) =>
-                updateForm('materialType', event.target.value as ItemMaterialType)
-              }
-              className={ERP_FIELD_INPUT_CLASS}
-            >
-              <option value="">선택</option>
-              {ITEM_MATERIAL_TYPE_OPTIONS.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        {showMaterialDetailFields ? (
-          <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="block text-sm">
-                <span className={ERP_FIELD_LABEL_CLASS}>패키지</span>
-                <input
-                  value={form.package}
-                  onChange={(event) => updateForm('package', event.target.value)}
-                  placeholder="예: QFN, SOP, 0603"
-                  className={ERP_FIELD_INPUT_CLASS}
-                />
-              </label>
-              <label className="block text-sm">
-                <span className={ERP_FIELD_LABEL_CLASS}>사양</span>
-                <input
-                  value={form.specification}
-                  onChange={(event) => updateForm('specification', event.target.value)}
-                  className={ERP_FIELD_INPUT_CLASS}
-                />
-              </label>
-            </div>
-            <label className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>MPN</span>
-              <input
-                value={form.mpn}
-                onChange={(event) => updateForm('mpn', event.target.value)}
-                className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
-              />
-            </label>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className={ERP_FIELD_LABEL_CLASS}>대체 MPN</span>
-                <button
-                  type="button"
-                  className={ERP_ROW_ADD_BUTTON_CLASS}
-                  onClick={() => updateForm('alternateMpns', [...form.alternateMpns, ''])}
-                >
-                  + 추가
-                </button>
-              </div>
-              {form.alternateMpns.length ? (
-                <div className="space-y-2">
-                  {form.alternateMpns.map((mpn, index) => (
-                    <div key={`alt-mpn-${index}`} className="flex items-center gap-2">
-                      <input
-                        value={mpn}
-                        onChange={(event) => {
-                          const next = [...form.alternateMpns]
-                          next[index] = event.target.value
-                          updateForm('alternateMpns', next)
-                        }}
-                        placeholder="같은 부품의 다른 메이커 품번"
-                        className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateForm(
-                            'alternateMpns',
-                            form.alternateMpns.filter((_, itemIndex) => itemIndex !== index),
-                          )
-                        }
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg text-slate-400 hover:bg-slate-100 hover:text-red-600"
-                        aria-label={`대체 MPN ${index + 1} 삭제`}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500">릴 바코드만 다른 같은 부품이면 여기에 추가하세요.</p>
-              )}
-            </div>
-            <label className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>도급/사급</span>
-              <select
-                value={form.supplyType}
-                onChange={(event) =>
-                  updateForm('supplyType', event.target.value as ItemSupplyType)
-                }
-                className={ERP_FIELD_INPUT_CLASS}
-              >
-                <option value="">선택</option>
-                {ITEM_SUPPLY_TYPE_OPTIONS.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-slate-500">
-                사급은 고객이 자재를 넘기고, 도급은 우리가 구매발주·수급합니다.
-              </p>
-            </label>
-          </>
+          </section>
         ) : null}
       </div>
     </ErpModal>

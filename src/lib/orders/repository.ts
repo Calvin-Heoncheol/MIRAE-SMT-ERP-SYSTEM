@@ -112,11 +112,75 @@ function orderLinesJson(items: OrderRowPayload['items']) {
     smd_unit_price: item.smdUnitPrice ?? 0,
     dip_unit_price: item.dipUnitPrice ?? 0,
     material_cost: item.materialCost ?? 0,
+    process_type: item.processType || 'smt_post',
     unit_price: item.unitPrice,
     order_amount: item.orderAmount,
     delivery_date: item.deliveryDate?.trim() || null,
     work_number: String(item.workNumber || '').trim() || null,
   }))
+}
+
+function isMissingProcessTypeColumn(message: string) {
+  return /process_type/i.test(message) && /column|schema|does not exist/i.test(message)
+}
+
+/**
+ * RPC가 breakdown/공정 컬럼을 누락해도 라인에 반영한다.
+ * process_type 컬럼이 없으면 공정만 건너뛴다.
+ */
+async function applyOrderLineBreakdownAndProcess(
+  orderId: string,
+  items: OrderRowPayload['items'],
+): Promise<{ ok: true } | { ok: false; reason: 'query'; detail: string }> {
+  try {
+    const supabase = createSupabaseClient()
+    const { data: lines, error } = await supabase
+      .from('order_lines')
+      .select('id, product_id, derived_from_line_id, line_seq')
+      .eq('order_id', orderId)
+      .order('line_seq', { ascending: true })
+
+    if (error) return { ok: false, reason: 'query', detail: error.message }
+
+    const uiLines = (lines || []).filter((line) => !line.derived_from_line_id)
+
+    for (let index = 0; index < uiLines.length; index += 1) {
+      const line = uiLines[index]!
+      const item = items[index]
+      if (!item) continue
+      const isBillingOnly = !String(line.product_id || '').trim()
+      const patchWithProcess = {
+        setup_cost: isBillingOnly ? 0 : Math.max(0, Math.round(Number(item.setupCost) || 0)),
+        smd_unit_price: Math.max(0, Math.round(Number(item.smdUnitPrice) || 0)),
+        dip_unit_price: isBillingOnly ? 0 : Math.max(0, Math.round(Number(item.dipUnitPrice) || 0)),
+        material_cost: isBillingOnly ? 0 : Math.max(0, Math.round(Number(item.materialCost) || 0)),
+        process_type: isBillingOnly ? 'smt_post' : item.processType || 'smt_post',
+      }
+      const { error: updateError } = await supabase
+        .from('order_lines')
+        .update(patchWithProcess)
+        .eq('id', line.id)
+
+      if (!updateError) continue
+
+      if (isMissingProcessTypeColumn(updateError.message)) {
+        const { process_type: _omit, ...withoutProcess } = patchWithProcess
+        const retry = await supabase.from('order_lines').update(withoutProcess).eq('id', line.id)
+        if (retry.error) return { ok: false, reason: 'query', detail: retry.error.message }
+        continue
+      }
+
+      return { ok: false, reason: 'query', detail: updateError.message }
+    }
+
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'query',
+      detail: error instanceof Error ? error.message : String(error),
+    }
+  }
 }
 
 /**
@@ -359,6 +423,10 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       if (!workNumbers.ok) {
         return { ok: false, reason: workNumbers.reason, detail: workNumbers.detail }
       }
+      const breakdown = await applyOrderLineBreakdownAndProcess(orderId, payload.items)
+      if (!breakdown.ok) {
+        return { ok: false, reason: breakdown.reason, detail: breakdown.detail }
+      }
       return { ok: true, orderId, orderNumber: orderId }
     }
 
@@ -456,6 +524,10 @@ export async function updateOrder(
     const workNumbers = await applyManualOrderWorkNumbers(existing.id, payload.items)
     if (!workNumbers.ok) {
       return { ok: false, reason: workNumbers.reason, detail: workNumbers.detail }
+    }
+    const breakdown = await applyOrderLineBreakdownAndProcess(existing.id, payload.items)
+    if (!breakdown.ok) {
+      return { ok: false, reason: breakdown.reason, detail: breakdown.detail }
     }
 
     const afterTotalAmount = payload.items.reduce(

@@ -30,6 +30,16 @@ function clearMaterialFields(item: MaterialPurchaseOrderItemForm): MaterialPurch
   }
 }
 
+function clearMaterialFieldsKeepName(item: MaterialPurchaseOrderItemForm): MaterialPurchaseOrderItemForm {
+  return {
+    ...item,
+    materialId: '',
+    materialCode: '',
+    mpn: '',
+    specification: '',
+  }
+}
+
 function applyMaterialToItem(
   item: MaterialPurchaseOrderItemForm,
   material: Material,
@@ -107,6 +117,15 @@ export function MaterialPurchaseOrderItemsForm({
     )
   }
 
+  function handleMaterialNameChange(index: number, materialName: string) {
+    onChange((current) =>
+      current.map((item, itemIndex) => {
+        if (itemIndex !== index) return item
+        return { ...clearMaterialFieldsKeepName(item), materialName }
+      }),
+    )
+  }
+
   const inputClassName =
     'w-full min-w-0 rounded border border-slate-200 px-2 py-1.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100'
 
@@ -119,9 +138,9 @@ export function MaterialPurchaseOrderItemsForm({
         {!lockSeededFields ? <ErpRowAddButton onClick={addRow} title="행 추가" /> : null}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-300">
+      <div className="max-h-[min(28rem,50dvh)] overflow-auto rounded-lg border border-slate-300">
         <table className="erp-data-table erp-data-table--compact min-w-[1040px] w-full border-collapse text-sm">
-          <thead className="bg-slate-100">
+          <thead className="sticky top-0 z-[1] bg-slate-100">
             <tr>
               <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
                 품목코드
@@ -169,12 +188,17 @@ export function MaterialPurchaseOrderItemsForm({
                   />
                 </td>
                 <td className="px-2 py-1.5 align-middle">
-                  <input
+                  <MaterialCombobox
                     value={item.materialName}
-                    readOnly
-                    className={readOnlyClassName}
-                    placeholder="자동"
-                    aria-label={`${index + 1}행 품목명`}
+                    materials={materials}
+                    supplier={supplier}
+                    searchField="name"
+                    placeholder="품목명 검색"
+                    ariaLabel={`${index + 1}행 품목명`}
+                    disabled={lockSeededFields}
+                    inputClassName={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[140px]`}
+                    onValueChange={(materialName) => handleMaterialNameChange(index, materialName)}
+                    onMaterialSelect={(material) => selectMaterial(index, material)}
                   />
                 </td>
                 <td className="px-2 py-1.5 align-middle">
@@ -234,7 +258,7 @@ export function MaterialPurchaseOrderItemsForm({
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        품목코드를 선택하면 품목명·규격·단가가 자동으로 채워집니다.
+        품목코드 또는 품목명으로 검색해 선택하면 규격·단가가 자동으로 채워집니다.
       </p>
     </div>
   )

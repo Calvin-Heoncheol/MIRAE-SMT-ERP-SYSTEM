@@ -23,6 +23,7 @@ create table if not exists public.items (
   other_unit_price numeric not null default 0,
   setup_unit_price numeric not null default 0 check (setup_unit_price >= 0),
   smt_quote_parts jsonb not null default '{}'::jsonb,
+  production_std jsonb not null default '{}'::jsonb,
   baseline_quote_id text,
   pcb_side_mode text not null default '' check (pcb_side_mode in ('', 'single', 'duo', 'double')),
   process_type text not null default '' check (process_type in ('', 'smt', 'post', 'smt_post')),
@@ -67,6 +68,8 @@ alter table public.items
   add column if not exists setup_unit_price numeric not null default 0;
 alter table public.items
   add column if not exists smt_quote_parts jsonb not null default '{}'::jsonb;
+alter table public.items
+  add column if not exists production_std jsonb not null default '{}'::jsonb;
 alter table public.items
   add column if not exists baseline_quote_id text;
 alter table public.items

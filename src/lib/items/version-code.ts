@@ -1,4 +1,5 @@
 import type { Item } from '@/lib/items/types'
+import { normalizeItemProductionStd } from '@/lib/items/production-std'
 import { normalizeItemSmtQuoteParts } from '@/lib/items/smt-quote-parts'
 
 /**
@@ -273,6 +274,7 @@ export function itemToVersionUpPayload(
     materialUnitPrice: item.materialUnitPrice,
     otherUnitPrice: item.otherUnitPrice,
     materialCostLines: item.materialCostLines || [],
+    productionStd: normalizeItemProductionStd(item.productionStd),
     smtQuoteParts: normalizeItemSmtQuoteParts(item.smtQuoteParts),
     baselineQuoteId: '',
     itemCategory: item.itemCategory,

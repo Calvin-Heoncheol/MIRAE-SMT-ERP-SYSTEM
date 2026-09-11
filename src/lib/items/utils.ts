@@ -21,7 +21,13 @@ import { normalizeVersionLabel, parseItemVersionCode } from './version-code'
 import {
   materialCostLinesToJson,
   normalizeMaterialCostLines,
+  sumMaterialCostLines,
 } from './material-cost-lines'
+import {
+  EMPTY_ITEM_PRODUCTION_STD,
+  itemProductionStdToJson,
+  normalizeItemProductionStd,
+} from './production-std'
 import { EMPTY_SMT_QUOTE_PARTS, normalizeItemSmtQuoteParts, itemSmtQuotePartsToJson } from './smt-quote-parts'
 
 export const ITEM_INTERNAL_ID_PREFIX = 'MR-'
@@ -189,6 +195,7 @@ export function mapItemRecord(row: {
   material_unit_price?: number | null
   other_unit_price?: number | null
   material_cost_lines?: unknown
+  production_std?: unknown
   smt_quote_parts?: unknown
   baseline_quote_id?: string | null
   safety_stock?: number | null
@@ -213,7 +220,13 @@ export function mapItemRecord(row: {
   const resolvedMaterial = isProduct ? materialUnitPrice : 0
   const resolvedAdditional = isProduct ? otherUnitPrice : 0
   const materialCostLines = isProduct ? normalizeMaterialCostLines(row.material_cost_lines) : []
+  const productionStd =
+    itemCategory === 3
+      ? normalizeItemProductionStd(row.production_std)
+      : { ...EMPTY_ITEM_PRODUCTION_STD }
   const perUnitBreakdown = resolvedSmd + resolvedDip
+  const coalescedMaterial =
+    resolvedMaterial > 0 ? resolvedMaterial : sumMaterialCostLines(materialCostLines)
   const { baseCode, version } = resolveBaseCodeAndVersion(row)
   const mpns = parseItemMpnFields(row.mpn || '', row.alternate_mpns)
 
@@ -243,9 +256,10 @@ export function mapItemRecord(row: {
     setupUnitPrice: resolvedSetup,
     smdUnitPrice: resolvedSmd,
     dipUnitPrice: resolvedDip,
-    materialUnitPrice: resolvedMaterial,
+    materialUnitPrice: coalescedMaterial,
     otherUnitPrice: resolvedAdditional,
-    materialCostLines,
+    materialCostLines: [],
+    productionStd,
     smtQuoteParts: isProduct
       ? normalizeItemSmtQuoteParts(row.smt_quote_parts)
       : { ...EMPTY_SMT_QUOTE_PARTS },
@@ -283,6 +297,7 @@ export function toItemInsertRow(payload: ItemPayload) {
     material_unit_price: payload.materialUnitPrice,
     other_unit_price: payload.otherUnitPrice,
     material_cost_lines: materialCostLinesToJson(payload.materialCostLines),
+    production_std: itemProductionStdToJson(payload.productionStd),
     smt_quote_parts: itemSmtQuotePartsToJson(payload.smtQuoteParts),
     baseline_quote_id: payload.baselineQuoteId.trim() || null,
     item_category: payload.itemCategory,
@@ -315,6 +330,7 @@ export function toItemUpdateRow(payload: Omit<ItemPayload, 'id'>) {
     material_unit_price: payload.materialUnitPrice,
     other_unit_price: payload.otherUnitPrice,
     material_cost_lines: materialCostLinesToJson(payload.materialCostLines),
+    production_std: itemProductionStdToJson(payload.productionStd),
     smt_quote_parts: itemSmtQuotePartsToJson(payload.smtQuoteParts),
     baseline_quote_id: payload.baselineQuoteId.trim() || null,
     item_category: payload.itemCategory,
@@ -446,6 +462,7 @@ export function itemFromPayload(
     materialUnitPrice: payload.materialUnitPrice,
     otherUnitPrice: payload.otherUnitPrice,
     materialCostLines: normalizeMaterialCostLines(payload.materialCostLines),
+    productionStd: normalizeItemProductionStd(payload.productionStd),
     smtQuoteParts: normalizeItemSmtQuoteParts(payload.smtQuoteParts),
     baselineQuoteId: String(payload.baselineQuoteId || '').trim(),
     itemCategory: payload.itemCategory,

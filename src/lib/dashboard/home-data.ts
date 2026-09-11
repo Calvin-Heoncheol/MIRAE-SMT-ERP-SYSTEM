@@ -8,8 +8,12 @@ import { buildDeliveryAvailabilityMap } from '@/lib/delivery/utils'
 import { fetchOutboundPendingSummary } from '@/lib/materials/outbound/repository'
 import { fetchMaterialPurchaseOrders } from '@/lib/materials/purchase-orders/repository'
 import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
-import { fetchRecentChangeLogs } from '@/lib/change-logs/repository'
-import type { ChangeLogRecord } from '@/lib/change-logs/types'
+import { fetchRecentNotices } from '@/lib/notices/repository'
+import type { CompanyNotice } from '@/lib/notices/types'
+import {
+  fetchHomeVisualAnalytics,
+  type HomeVisualAnalytics,
+} from '@/lib/dashboard/home-analytics'
 import {
   buildDeliveryDueNotifications,
   buildNegativeStockNotification,
@@ -56,6 +60,13 @@ export type HomeAttentionItem = {
   tone: 'warn' | 'danger'
 }
 
+/** 공장 운영판 3열 — 영업 / 자재 / 생산 */
+export type HomeAttentionByLane = {
+  sales: HomeAttentionItem[]
+  material: HomeAttentionItem[]
+  production: HomeAttentionItem[]
+}
+
 export type HomeHeadlineMetric = {
   key: string
   label: string
@@ -70,11 +81,15 @@ export type HomeDashboardData = {
   todayYmd: string
   todayLabel: string
   headline: HomeHeadlineMetric[]
-  attention: HomeAttentionItem[]
-  changeLogs: ChangeLogRecord[]
-  /** 변경이력 피드 상태 — 테이블 미적용·조회 실패 배지용 */
-  changeLogsStatus: 'ok' | 'missing_table' | 'error' | 'env'
-  changeLogsMessage?: string
+  /** @deprecated 시각형 대시보드로 대체 — 하위 호환 */
+  attentionByLane: HomeAttentionByLane
+  visual: HomeVisualAnalytics
+  notices: CompanyNotice[]
+  /** 공지 피드 상태 — 테이블 미적용·조회 실패 배지용 */
+  noticesStatus: 'ok' | 'missing_table' | 'error' | 'env'
+  noticesMessage?: string
+  /** 팀장 이상 공지 작성·수정 */
+  canManageNotices: boolean
   productionTeams: HomeProductionTeam[]
 }
 
@@ -101,6 +116,18 @@ function sortAttention(items: HomeAttentionItem[]) {
     if (a.tone !== b.tone) return a.tone === 'danger' ? -1 : 1
     return DEPARTMENT_SORT[a.department] - DEPARTMENT_SORT[b.department]
   })
+}
+
+function splitAttentionByLane(items: HomeAttentionItem[]): HomeAttentionByLane {
+  const sales: HomeAttentionItem[] = []
+  const material: HomeAttentionItem[] = []
+  const production: HomeAttentionItem[] = []
+  for (const item of sortAttention(items)) {
+    if (item.department === 'sales') sales.push(item)
+    else if (item.department === 'material') material.push(item)
+    else production.push(item)
+  }
+  return { sales, material, production }
 }
 
 export function formatHomeDateLabel(ymd: string) {
@@ -222,7 +249,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     onHandResult,
     outboundPendingResult,
     deliveryTodayResult,
-    changeLogsResult,
+    noticesResult,
   ] = await Promise.all([
     fetchOrders(),
     fetchProducts(),
@@ -235,7 +262,7 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     fetchOnHandByMaterialId(),
     fetchOutboundPendingSummary(),
     fetchDeliveryTodayRecords(),
-    fetchRecentChangeLogs(40),
+    fetchRecentNotices(),
   ])
 
   const productById = productsResult.ok
@@ -319,11 +346,44 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
     : null
 
   let negativeStockMaterials: number | null = null
+  let positiveStockSkus = 0
   if (onHandResult.ok) {
     negativeStockMaterials = 0
     for (const onHand of onHandResult.onHandByMaterialId.values()) {
       if (onHand < 0) negativeStockMaterials += 1
+      if (onHand > 0) positiveStockSkus += 1
     }
+  }
+
+  const expectedInboundSkus = purchaseOrdersResult.ok
+    ? new Set(
+        purchaseOrdersResult.orders.flatMap((order) =>
+          order.items
+            .filter((item) => item.inboundQuantity < item.quantity)
+            .map((item) => String(item.materialId || item.materialCode || '').trim())
+            .filter(Boolean),
+        ),
+      ).size
+    : 0
+
+  let openDueDates: string[] = []
+  if (ordersResult.ok && assemblyResult.ok && deliveryCountsResult.ok) {
+    const assembliesByOrderId = groupAssembliesByOrderId(assemblyResult.groups)
+    const deliveryCounts = deliveryCountsResult.counts
+    const isFullyShipped = (orderId: string) => {
+      const groups = (assembliesByOrderId.get(orderId) ?? []).filter(
+        (group) => Math.floor(group.targetQuantity) > 0,
+      )
+      if (!groups.length) return false
+      return groups.every(
+        (group) =>
+          Math.max(0, Math.floor(Number(deliveryCounts[group.id]) || 0)) >=
+          Math.floor(group.targetQuantity),
+      )
+    }
+    openDueDates = ordersResult.orders
+      .filter((order) => order.items.length > 0 && !isFullyShipped(order.orderId) && order.deliveryDate)
+      .map((order) => order.deliveryDate)
   }
 
   const todayDefectQuantity =
@@ -434,22 +494,34 @@ export async function fetchHomeDashboardData(): Promise<HomeDashboardData> {
 
   const todayLabel = formatHomeDateLabel(today)
 
-  const changeLogsStatus = !changeLogsResult.ok
-    ? changeLogsResult.reason === 'missing_table'
+  const noticesStatus = !noticesResult.ok
+    ? noticesResult.reason === 'missing_table'
       ? ('missing_table' as const)
-      : changeLogsResult.reason === 'env'
+      : noticesResult.reason === 'env'
         ? ('env' as const)
         : ('error' as const)
     : ('ok' as const)
+
+  const visual = await fetchHomeVisualAnalytics({
+    dueSoonOrders: dueSoonOrders ?? 0,
+    unshippedOrders: unshippedOrders ?? 0,
+    todayShipped: todayShipped ?? 0,
+    negativeStockMaterials: negativeStockMaterials ?? 0,
+    positiveStockSkus,
+    expectedInboundSkus,
+    openDeliveryDates: openDueDates,
+  })
 
   return {
     todayYmd: today,
     todayLabel,
     headline,
-    attention: sortAttention(attention),
-    changeLogs: changeLogsResult.ok ? changeLogsResult.rows : [],
-    changeLogsStatus,
-    changeLogsMessage: changeLogsResult.ok ? undefined : changeLogsResult.detail,
+    attentionByLane: splitAttentionByLane(attention),
+    visual,
+    notices: noticesResult.ok ? noticesResult.rows : [],
+    noticesStatus,
+    noticesMessage: noticesResult.ok ? undefined : noticesResult.detail,
+    canManageNotices: false,
     productionTeams,
   }
 }

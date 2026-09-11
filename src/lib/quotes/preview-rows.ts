@@ -108,7 +108,7 @@ export const PDF_SECTION_COLORS: Record<PreviewSection, PdfSectionColor> = {
 export function formatPreviewRowUnit(
   row: PreviewRow,
   quoteType: QuoteType,
-  displayCurrency: QuoteDisplayCurrency = 'usd',
+  displayCurrency: QuoteDisplayCurrency = 'krw',
 ) {
   if (row.unitLabel) return row.unitLabel
   if (row.unit != null) return formatQuoteMoneyRateByDisplay(row.unit, quoteType, displayCurrency)

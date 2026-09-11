@@ -1079,6 +1079,7 @@ export function DeliveryHistoryModal({
       size="lg"
       onClose={onClose}
       closeOnEscape={!busy}
+      contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4"
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-2">
@@ -1115,14 +1116,14 @@ export function DeliveryHistoryModal({
       }
     >
       {group ? (
-        <div className="space-y-4">
+        <div className="flex min-h-0 flex-1 flex-col space-y-4">
           {error ? (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            <div className="shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {error}
             </div>
           ) : null}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-3">
             <label className="block text-sm">
               <span className={ERP_FIELD_LABEL_CLASS}>출하일</span>
               <input
@@ -1146,7 +1147,7 @@ export function DeliveryHistoryModal({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-bold text-slate-900">품목</h3>
             {!busy ? (
               <div className="relative" ref={addMenuRef}>
@@ -1179,9 +1180,9 @@ export function DeliveryHistoryModal({
             ) : null}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-slate-200">
             <table className="erp-data-table erp-data-table--compact min-w-[880px] w-full border-collapse text-sm">
-              <thead className="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500">
+              <thead className="sticky top-0 z-[1] bg-slate-50 text-xs font-semibold tracking-wide text-slate-500">
                 <tr>
                   <th className="w-10 px-2 py-2 text-center">No</th>
                   <th className="px-2 py-2 text-left">발주번호</th>

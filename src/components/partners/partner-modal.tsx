@@ -176,7 +176,18 @@ function PartnerModalContent({
         </div>
       }
     >
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>
+            거래처명
+            <RequiredMark />
+          </span>
+          <input
+            value={form.name}
+            onChange={(event) => updateForm('name', event.target.value)}
+            className={ERP_FIELD_INPUT_CLASS}
+          />
+        </label>
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>
             사업자번호 <span className="font-normal text-slate-400">(선택)</span>
@@ -190,21 +201,18 @@ function PartnerModalContent({
           />
         </label>
         <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>
-            거래처명
-            <RequiredMark />
-          </span>
-          <input
-            value={form.name}
-            onChange={(event) => updateForm('name', event.target.value)}
-            className={ERP_FIELD_INPUT_CLASS}
-          />
-        </label>
-        <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>대표자명</span>
           <input
             value={form.representativeName}
             onChange={(event) => updateForm('representativeName', event.target.value)}
+            className={ERP_FIELD_INPUT_CLASS}
+          />
+        </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>전화</span>
+          <input
+            value={form.phone}
+            onChange={(event) => updateForm('phone', event.target.value)}
             className={ERP_FIELD_INPUT_CLASS}
           />
         </label>
@@ -217,6 +225,74 @@ function PartnerModalContent({
           />
         </label>
         <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>결제조건</span>
+          <select
+            value={form.paymentTermType}
+            onChange={(event) => updatePaymentTermType(event.target.value as PartnerPaymentTermType)}
+            className={ERP_FIELD_INPUT_CLASS}
+          >
+            {PARTNER_PAYMENT_TERM_TYPES.map((type) => (
+              <option key={type || 'none'} value={type}>
+                {PARTNER_PAYMENT_TERM_TYPE_LABELS[type]}
+              </option>
+            ))}
+          </select>
+        </label>
+        {form.paymentTermType ? (
+          <p className="text-xs text-slate-500 sm:col-span-2">
+            {PARTNER_PAYMENT_TERM_TYPE_HINTS[form.paymentTermType]}
+          </p>
+        ) : null}
+        {form.paymentTermType === 'installment' ? (
+          <label className="block text-sm sm:col-span-2">
+            <span className={ERP_FIELD_LABEL_CLASS}>선금 비율 (%)</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={99}
+                value={form.paymentDepositPercent}
+                onChange={(event) => updateForm('paymentDepositPercent', event.target.value)}
+                className="w-28 rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
+              />
+              <span className="text-sm text-slate-500">
+                잔금 {Math.max(0, 100 - Math.floor(Number(form.paymentDepositPercent) || 0))}%
+              </span>
+            </div>
+          </label>
+        ) : null}
+        {form.paymentTermType === 'net' ? (
+          <label className="block text-sm sm:col-span-2">
+            <span className={ERP_FIELD_LABEL_CLASS}>후불 일수 (Net)</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                value={form.paymentNetDays}
+                onChange={(event) => updateForm('paymentNetDays', event.target.value)}
+                className="w-28 rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
+              />
+              <span className="text-sm text-slate-500">일</span>
+            </div>
+          </label>
+        ) : null}
+        {form.paymentTermType === 'monthly' ? (
+          <label className="block text-sm sm:col-span-2">
+            <span className={ERP_FIELD_LABEL_CLASS}>익월 입금일</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={31}
+                value={form.paymentMonthlyDay}
+                onChange={(event) => updateForm('paymentMonthlyDay', event.target.value)}
+                className="w-28 rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
+              />
+              <span className="text-sm text-slate-500">일 (월말 마감)</span>
+            </div>
+          </label>
+        ) : null}
+        <label className="block text-sm sm:col-span-2">
           <span className={ERP_FIELD_LABEL_CLASS}>
             주소 <span className="font-normal text-slate-400">(거래명세서)</span>
           </span>
@@ -228,82 +304,6 @@ function PartnerModalContent({
             className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2"
           />
         </label>
-        <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>전화</span>
-          <input
-            value={form.phone}
-            onChange={(event) => updateForm('phone', event.target.value)}
-            className={ERP_FIELD_INPUT_CLASS}
-          />
-        </label>
-        <div className="space-y-3">
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>결제조건</span>
-            <select
-              value={form.paymentTermType}
-              onChange={(event) => updatePaymentTermType(event.target.value as PartnerPaymentTermType)}
-              className={ERP_FIELD_INPUT_CLASS}
-            >
-              {PARTNER_PAYMENT_TERM_TYPES.map((type) => (
-                <option key={type || 'none'} value={type}>
-                  {PARTNER_PAYMENT_TERM_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
-            {form.paymentTermType ? (
-              <p className="mt-1 text-xs text-slate-500">{PARTNER_PAYMENT_TERM_TYPE_HINTS[form.paymentTermType]}</p>
-            ) : null}
-          </label>
-          {form.paymentTermType === 'installment' ? (
-            <label className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>선금 비율 (%)</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  max={99}
-                  value={form.paymentDepositPercent}
-                  onChange={(event) => updateForm('paymentDepositPercent', event.target.value)}
-                  className="w-28 rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
-                />
-                <span className="text-sm text-slate-500">
-                  잔금 {Math.max(0, 100 - Math.floor(Number(form.paymentDepositPercent) || 0))}%
-                </span>
-              </div>
-            </label>
-          ) : null}
-          {form.paymentTermType === 'net' ? (
-            <label className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>후불 일수 (Net)</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  value={form.paymentNetDays}
-                  onChange={(event) => updateForm('paymentNetDays', event.target.value)}
-                  className="w-28 rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
-                />
-                <span className="text-sm text-slate-500">일</span>
-              </div>
-            </label>
-          ) : null}
-          {form.paymentTermType === 'monthly' ? (
-            <label className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>익월 입금일</span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={form.paymentMonthlyDay}
-                  onChange={(event) => updateForm('paymentMonthlyDay', event.target.value)}
-                  className="w-28 rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
-                />
-                <span className="text-sm text-slate-500">일 (월말 마감)</span>
-              </div>
-            </label>
-          ) : null}
-        </div>
       </div>
     </ErpModal>
   )

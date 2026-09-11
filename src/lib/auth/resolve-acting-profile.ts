@@ -7,7 +7,7 @@ import {
 
 /**
  * AUTH 꺼진 개발 전용 프로필.
- * 모듈 접근은 admin과 동일하되, assertCanWrite 가 OPEN일 때 삭제·직접재고·기초등록을 막는다.
+ * 모듈·쓰기 권한은 admin과 동일하다.
  */
 export const OPEN_MODE_PROFILE: AuthProfile = {
   id: 'dev',

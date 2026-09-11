@@ -224,11 +224,15 @@ export function formatInternalCodeLabel(code: string) {
 
 export function formatMaterialOptionLabel(
   material: Material,
-  field: 'id' | 'mpn' | 'idOrMpn' = 'idOrMpn',
+  field: 'id' | 'mpn' | 'idOrMpn' | 'name' = 'idOrMpn',
 ) {
   const name = material.materialName.trim() || '-'
   const code = formatMaterialDisplayCode(material)
   const mpn = material.mpn.trim() || material.alternateMpns[0]?.trim() || ''
+
+  if (field === 'name') {
+    return name
+  }
 
   if (field === 'idOrMpn') {
     const partNo = [code, mpn].filter(Boolean).join(' / ')
@@ -247,7 +251,7 @@ export function materialMatchesMpn(material: Material, mpn: string) {
   return materialMatchesMpnValue(material, mpn)
 }
 
-export type MaterialSearchField = 'id' | 'mpn' | 'idOrMpn'
+export type MaterialSearchField = 'id' | 'mpn' | 'idOrMpn' | 'name'
 
 export function filterMaterialsForPurchaseOrder(
   materials: Material[],
@@ -268,6 +272,10 @@ export function filterMaterialsForPurchaseOrder(
       const id = material.id.trim().toLowerCase()
       const base = material.baseCode.trim().toLowerCase()
       return id.includes(q) || base.includes(q)
+    }
+
+    if (field === 'name') {
+      return material.materialName.trim().toLowerCase().includes(q)
     }
 
     if (field === 'mpn' || field === 'idOrMpn') {
@@ -297,11 +305,15 @@ export function filterMaterialsForPurchaseOrder(
 export function resolveMaterialFromFieldInput(
   materials: Material[],
   supplier: string | null | undefined,
-  field: 'id' | 'mpn',
+  field: 'id' | 'mpn' | 'name',
   value: string,
 ): Material | null {
   const trimmed = value.trim()
   if (!trimmed) return null
+
+  if (field === 'name') {
+    return resolveMaterialFromInput(materials, supplier, trimmed)
+  }
 
   const byCode = resolveMaterialByInventoryCode(materials, trimmed, { supplier })
   if (byCode) return byCode

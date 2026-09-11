@@ -39,7 +39,7 @@ function UnitPreview({
   krw,
   suffix = '',
   quoteType,
-  displayCurrency = 'usd',
+  displayCurrency = 'krw',
 }: {
   krw: number
   suffix?: string
@@ -75,7 +75,7 @@ function FormSection({
 export function SmtPcbBoardForm({
   board,
   quoteType,
-  displayCurrency = 'usd',
+  displayCurrency = 'krw',
   mode = 'all',
   boardIndex = 0,
   boardCount = 1,

@@ -797,7 +797,6 @@ export function applyProductToRegisterItem(
   autoFillQuantity = false,
 ): DeliveryRegisterItemForm {
   const customerName = customer.trim()
-  const unitPrice = String(Math.max(0, Math.round(product.defaultUnitPrice)))
   const matches = findShippableOptionsForProduct(options, customerName, product)
   const option = matches.length === 1 ? matches[0]! : null
   const base = option
@@ -816,6 +815,11 @@ export function applyProductToRegisterItem(
         allocations: [],
         lotManual: false,
       }
+
+  // 발주 매칭 시 발주 단가, 없으면 품목등록 단가
+  const unitPrice = option
+    ? String(Math.max(0, Math.round(Number(option.unitPrice) || 0)))
+    : String(Math.max(0, Math.round(Number(product.defaultUnitPrice) || 0)))
 
   return {
     ...base,

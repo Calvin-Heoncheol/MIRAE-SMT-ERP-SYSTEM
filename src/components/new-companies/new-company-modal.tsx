@@ -252,7 +252,7 @@ function NewCompanyModalContent({
           </label>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>
               담당자 <span className="text-rose-500">*</span>
@@ -271,7 +271,7 @@ function NewCompanyModalContent({
               className={ERP_FIELD_INPUT_CLASS}
             />
           </label>
-          <label className="block text-sm">
+          <label className="block text-sm sm:col-span-2">
             <span className={ERP_FIELD_LABEL_CLASS}>이메일</span>
             <input
               type="email"

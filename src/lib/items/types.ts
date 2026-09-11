@@ -1,4 +1,5 @@
 import type { MaterialCostLine } from './material-cost-lines'
+import type { ItemProductionStd } from './production-std'
 import type { ItemSmtQuoteParts } from './smt-quote-parts'
 
 export type ItemMaterialType = '' | 'SMD' | 'DIP'
@@ -167,8 +168,10 @@ export type Item = {
   materialUnitPrice: number
   /** @deprecated 품목등록 추가비용 제거 — DB other_unit_price 호환 */
   otherUnitPrice: number
-  /** 자재비 세부 행 — 품목 단가 합산에 사용 (청구 행 분할은 출하·거래명세서에서) */
+  /** 자재비 — 단일 금액. materialCostLines는 레거시 호환용으로 비움 */
   materialCostLines: MaterialCostLine[]
+  /** 반제품 생산 기준 — 종수·Tech Time(초) */
+  productionStd: ItemProductionStd
   /** @deprecated 미사용 */
   smtQuoteParts: ItemSmtQuoteParts
   /** @deprecated 미사용 */
@@ -202,6 +205,7 @@ export type ItemPayload = {
   materialUnitPrice: number
   otherUnitPrice: number
   materialCostLines: MaterialCostLine[]
+  productionStd: ItemProductionStd
   smtQuoteParts: ItemSmtQuoteParts
   baselineQuoteId: string
   itemCategory: ItemCategory

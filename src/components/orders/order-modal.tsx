@@ -291,8 +291,14 @@ function OrderModalContent({
       open
       size="lg"
       title={mode === 'edit' ? `발주서 수정 (${items.length}개 제품)` : '신규 발주서'}
+      description={
+        mode === 'create'
+          ? '제품 선택 시 고객사가 자동 입력됩니다. 발주번호는 비우면 저장 시 자동 발급됩니다.'
+          : undefined
+      }
       onClose={onClose}
       closeOnEscape={!busy}
+      contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4"
       footer={
         <div className="flex w-full flex-col gap-2">
           {saveError ? <p className={ERP_ERROR_TEXT_CLASS}>{saveError}</p> : null}
@@ -326,7 +332,8 @@ function OrderModalContent({
         </div>
       }
     >
-      <div lang="ko">
+      <div lang="ko" className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>고객사</span>
@@ -348,15 +355,13 @@ function OrderModalContent({
               onPartnerSelect={(partner) => updateForm('customer', partner.name)}
             />
           )}
-          <p className="mt-1 text-xs text-slate-500">
-            {mode === 'create'
-              ? '제품코드 또는 제품명을 선택하면 품목에 연결된 고객사가 자동으로 입력됩니다.'
-              : partnersLoading
+          {mode === 'edit' && (partnersLoading || salesPartners.length === 0) ? (
+            <p className="mt-1 text-xs text-slate-500">
+              {partnersLoading
                 ? '거래처 목록을 불러오는 중...'
-                : salesPartners.length === 0
-                  ? '등록된 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'
-                  : '거래처등록의 거래처를 검색해 선택하세요.'}
-          </p>
+                : '등록된 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'}
+            </p>
+          ) : null}
         </label>
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>발주번호</span>
@@ -365,20 +370,15 @@ function OrderModalContent({
             onChange={(event) => updateForm('customerPoNumber', event.target.value)}
             placeholder={
               mode === 'create'
-                ? '비우면 고객사-YYMMDD-NN 자동 발급'
-                : '고객사 PO/NO (나중에 입력·수정 가능)'
+                ? `비우면 ${formatAutoOrderCodeExample(form.orderDate, form.customer)} 자동`
+                : '고객사 PO/NO'
             }
             className={ERP_FIELD_INPUT_CLASS}
           />
-          <p className="mt-1 text-xs text-slate-500">
-            {mode === 'create'
-              ? `입력하지 않으면 저장 시 ${formatAutoOrderCodeExample(form.orderDate, form.customer)} 형식으로 자동 발급됩니다. 고객 PO를 받으면 나중에 수정할 수 있습니다.`
-              : '고객 발주서를 늦게 받아도 이 칸만 수정하면 됩니다.'}
-          </p>
         </label>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>구분</span>
           <select
@@ -428,8 +428,9 @@ function OrderModalContent({
           />
         </label>
       </div>
+      </div>
 
-      <div className="mt-6">
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <OrderItemsForm
           items={items}
           customer={resolvePartnerFromInput(salesPartners, form.customer)?.name ?? form.customer}
@@ -450,7 +451,7 @@ function OrderModalContent({
         />
       </div>
 
-      <label className="mt-6 block text-sm">
+      <label className="mt-4 block shrink-0 text-sm">
         <span className={ERP_FIELD_LABEL_CLASS}>비고</span>
         <textarea
           value={form.note}

@@ -28,7 +28,7 @@ export type ItemPriceBreakdownFromQuote = {
   materialUnitPrice: number
 }
 
-function processTypeFromQuote(quote: QuoteListItem): ItemProcessType {
+export function processTypeFromQuote(quote: QuoteListItem): ItemProcessType {
   const flags = getQuoteProductionFlags(quote)
   if (flags.hasSmd && flags.hasPost) return 'smt_post'
   if (flags.hasSmd) return 'smt'

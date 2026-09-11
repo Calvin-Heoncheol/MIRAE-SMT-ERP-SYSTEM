@@ -82,23 +82,23 @@ export const POST_RATE = POST_RATE_EXPORT
 
 /** CHIP 단가: 국내 ₩6/개 */
 export const SMT_UNIT_CHIP_DOMESTIC = 6
-/** CHIP 단가: 해외 ₩5.25/개 */
-export const SMT_UNIT_CHIP_EXPORT = 5.25
+/** CHIP 단가: 해외 ₩20/개 */
+export const SMT_UNIT_CHIP_EXPORT = 20
 /** 이형 단가: 국내 ₩20/개 */
 export const SMT_UNIT_ODD_DOMESTIC = 20
-/** 이형 단가: 해외 ₩20/개 */
-export const SMT_UNIT_ODD_EXPORT = 20
+/** 이형 단가: 해외 ₩60/개 */
+export const SMT_UNIT_ODD_EXPORT = 60
 /** @deprecated getSmtUnitRates 사용 */
 export const SMT_UNIT_ODD = SMT_UNIT_ODD_EXPORT
 export const SMT_UNIT_SPECIAL = 100
 /** IC PIN 단가: 국내 ₩2/PIN */
 export const SMT_UNIT_IC_PIN_DOMESTIC = 2
-/** IC PIN 단가: 해외 ₩1.58/PIN */
-export const SMT_UNIT_IC_PIN_EXPORT = 1.58
+/** IC PIN 단가: 해외 ₩9/PIN */
+export const SMT_UNIT_IC_PIN_EXPORT = 9
 /** BGA BALL 단가: 국내 ₩2.5/BALL */
 export const SMT_UNIT_BGA_BALL_DOMESTIC = 2.5
-/** BGA BALL 단가: 해외 ₩2/BALL */
-export const SMT_UNIT_BGA_BALL_EXPORT = 2.0
+/** BGA BALL 단가: 해외 ₩10/BALL */
+export const SMT_UNIT_BGA_BALL_EXPORT = 10
 /** @deprecated getSmtUnitRates 사용 */
 export const SMT_UNIT_CHIP = SMT_UNIT_CHIP_EXPORT
 /** @deprecated getSmtUnitRates 사용 */

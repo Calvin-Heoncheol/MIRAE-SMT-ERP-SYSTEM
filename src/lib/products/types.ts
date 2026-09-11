@@ -23,7 +23,7 @@ export type Product = {
   materialUnitPrice: number
   /** 추가비용 — 발주 추가작업 행 자동 반영 (items.other_unit_price) */
   additionalUnitPrice: number
-  /** 자재비 세부 — 2개 이상이면 발주 시 금액전용 행으로 분할 */
+  /** @deprecated 자재비는 materialUnitPrice 단일 금액만 사용 */
   materialCostLines: MaterialCostLine[]
   pcbSideMode: ProductPcbSideMode
   processType: ProductProcessType

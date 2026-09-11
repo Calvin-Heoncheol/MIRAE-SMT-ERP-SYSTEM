@@ -99,8 +99,9 @@ function buildPlanActualTrendRows(
       const last = bucket.dates[bucket.dates.length - 1]
       return {
         key: weekStart,
-        label: `${index + 1}주차`,
-        subLabel: `${formatMonthDay(first)} ~ ${formatMonthDay(last)}`,
+        // X축에 날짜 구간이 먼저 보이도록
+        label: `${formatMonthDay(first)}~${formatMonthDay(last)}`,
+        subLabel: `${index + 1}주차`,
         planned: bucket.planned,
         actual: bucket.actual,
       }
@@ -338,8 +339,8 @@ export function ProductionReportWorkspace({
             value={teamSummary.achievementRate != null ? `${teamSummary.achievementRate}%` : null}
             hint={
               teamSummary.plannedQuantity > 0
-                ? `계획배정 ${formatCount(teamSummary.plannedQuantity)} EA (지난 날짜 · 생산계획 배정분)`
-                : '기간 내 생산계획 배정 없음'
+                ? `계획배정 ${formatCount(teamSummary.plannedQuantity)} EA (지난 날짜 · 생산계획 보드 배정분)`
+                : '기간 내 생산계획 보드 배정 없음'
             }
             tone={
               teamSummary.achievementRate == null
@@ -383,15 +384,15 @@ export function ProductionReportWorkspace({
       {!result.ok ? (
         <FetchErrorBanner title="리포트 데이터를 불러오지 못했습니다" detail={result.detail} />
       ) : data ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-          <div className={`${ERP_TABLE_WRAP_CLASS} flex min-h-[280px] flex-[0.9] flex-col`}>
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden">
+          <div className={`${ERP_TABLE_WRAP_CLASS} flex min-h-[300px] flex-[0.9] flex-col !overflow-visible`}>
             <div className="shrink-0 border-b border-slate-100 px-4 py-3">
               <h2 className="text-sm font-bold text-slate-900">계획 대비 실적 (생산1팀)</h2>
               <p className="mt-0.5 text-xs text-slate-500">
                 {period === 'month' ? '주차별' : '일별'} 계획 · 실적 수량 (EA)
               </p>
             </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4">
+            <div className="flex min-h-0 flex-1 flex-col px-4 pb-6 pt-4">
               <ReportBarChart
                 rows={trendRows.map((row) => ({
                   label: row.label,
@@ -404,7 +405,7 @@ export function ProductionReportWorkspace({
                   { key: 'actual', label: '실적', color: '#2563eb' },
                 ]}
                 unit="EA"
-                height={260}
+                height={280}
               />
             </div>
           </div>

@@ -19,7 +19,7 @@ export const QUOTE_TYPE_BADGE_CLASS: Record<QuoteType, string> = {
   export: 'bg-teal-100 text-teal-800',
 }
 
-/** 해외용 견적서 미리보기·입력 화면 표시 통화 */
+/** 해외용 견적서 미리보기·입력 화면 표시 통화 (기본 KRW, USD 토글 가능) */
 export type QuoteDisplayCurrency = 'usd' | 'krw'
 
 /** SMT 면: 단면 / 듀얼 / 양면 */

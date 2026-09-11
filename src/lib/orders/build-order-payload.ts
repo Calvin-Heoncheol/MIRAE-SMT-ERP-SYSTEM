@@ -6,7 +6,7 @@ import {
   uniqueProductNames,
 } from '@/lib/products/utils'
 import type { Product } from '@/lib/products/types'
-import { computeLineAmount, computeOrderLineBreakdownAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, isBillingOnlyOrderItem, orderLinePerUnitPrice } from './utils'
+import { computeLineAmount, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, isBillingOnlyOrderItem, orderLinePerUnitPrice } from './utils'
 
 export function orderItemFormToModel(item: OrderItemForm) {
   const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
@@ -16,28 +16,23 @@ export function orderItemFormToModel(item: OrderItemForm) {
   const materialUnitPrice = Math.max(0, Math.round(Number(item.materialUnitPrice) || 0))
   const productId = String(item.productId || '').trim()
   const isAdhoc = Boolean(item.isAdhoc) || isBillingOnlyOrderItem({ productId })
-  const unitPrice = isAdhoc
-    ? Math.max(0, Math.round(Number(item.unitPrice) || 0))
-    : computeOrderLineAmortizedUnitPrice({
-        quantity,
-        setupCost,
-        smdUnitPrice,
-        dipUnitPrice,
-        materialUnitPrice,
-      }) || orderLinePerUnitPrice(smdUnitPrice, dipUnitPrice) + materialUnitPrice
+  const processType = item.processType || 'smt_post'
+  const computedUnit =
+    computeOrderLineAmortizedUnitPrice({
+      quantity,
+      setupCost,
+      smdUnitPrice,
+      dipUnitPrice,
+      materialUnitPrice,
+    }) || orderLinePerUnitPrice(smdUnitPrice, dipUnitPrice) + materialUnitPrice
+  /** 화면 단가 우선 (수동 수정 반영). 비어 있으면 breakdown 합산 */
+  const formUnit = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+  const unitPrice = isAdhoc ? formUnit : formUnit > 0 ? formUnit : computedUnit
   const materialCost = isAdhoc ? 0 : computeOrderLineMaterialCost(quantity, materialUnitPrice)
-  const orderAmount = isAdhoc
-    ? computeLineAmount(quantity, unitPrice)
-    : computeOrderLineBreakdownAmount({
-        quantity,
-        setupCost,
-        smdUnitPrice,
-        dipUnitPrice,
-        materialUnitPrice,
-      })
+  const orderAmount = computeLineAmount(quantity, unitPrice)
   return {
     lineId: String(item.lineId || '').trim() || undefined,
-    // 추가작업은 저장 시 product_id 를 비워 생산·출하가능에서 제외 (금액 전용)
+    // 추가작업은 저장 시 product_id 를 비워 생산·조립·출하가능에서 제외 (금액 전용)
     productId: isAdhoc ? null : productId || null,
     productCode: String(item.productCode || '').trim(),
     productName: String(item.productName || '').trim(),
@@ -47,6 +42,7 @@ export function orderItemFormToModel(item: OrderItemForm) {
     smdUnitPrice: isAdhoc ? unitPrice : smdUnitPrice,
     dipUnitPrice: isAdhoc ? 0 : dipUnitPrice,
     materialCost: isAdhoc ? 0 : materialCost,
+    processType: isAdhoc ? null : processType,
     orderAmount,
     deliveryDate: String(item.deliveryDate || '').trim(),
     workNumber: isAdhoc ? '' : String(item.workNumber || '').trim(),
@@ -156,6 +152,7 @@ export function validateOrderItems(
     smdUnitPrice: number
     dipUnitPrice: number
     materialCost: number
+    processType?: 'smt' | 'post' | 'smt_post' | null
     orderAmount: number
     deliveryDate: string
     workNumber: string
@@ -204,6 +201,7 @@ export function validateOrderItems(
         smdUnitPrice: item.unitPrice,
         dipUnitPrice: 0,
         materialCost: 0,
+        processType: null,
         orderAmount: item.orderAmount,
         deliveryDate: headerDeliveryDate || item.deliveryDate,
         workNumber: '',
@@ -223,6 +221,7 @@ export function validateOrderItems(
       smdUnitPrice: item.smdUnitPrice,
       dipUnitPrice: item.dipUnitPrice,
       materialCost: item.materialCost,
+      processType: item.processType || 'smt_post',
       orderAmount: item.orderAmount,
       deliveryDate: headerDeliveryDate || item.deliveryDate,
       workNumber: item.workNumber,

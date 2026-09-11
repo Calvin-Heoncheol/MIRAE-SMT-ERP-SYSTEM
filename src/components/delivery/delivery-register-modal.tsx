@@ -204,7 +204,7 @@ function DeliveryRegisterModalContent({
   return (
     <ErpModal
       open
-      size="wide"
+      size="lg"
       title="출하 등록"
       description="출하일을 입력한 뒤 품목을 선택하거나, 추가작업·자재만으로도 출하할 수 있습니다."
       onClose={onClose}
@@ -250,8 +250,8 @@ function DeliveryRegisterModalContent({
             )}
             <p className="mt-1 text-xs text-slate-500">
               {customerEditable
-                ? '추가작업·자재만 출하할 때 고객사를 선택하세요. 품목을 고르면 자동으로 바뀝니다.'
-                : '품목에 연결된 고객사가 적용됩니다.'}
+                ? '추가작업·자재만 출하할 때 선택. 품목을 고르면 자동 반영됩니다.'
+                : '품목 연결 고객사가 적용됩니다.'}
             </p>
           </label>
           <label className="block text-sm">

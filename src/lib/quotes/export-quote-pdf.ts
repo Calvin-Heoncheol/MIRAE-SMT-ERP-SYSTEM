@@ -27,7 +27,7 @@ import {
   getSmtUnitRates,
 } from './constants'
 import { formatQuoteProcessTypeCodes } from './production-flags'
-import { exportPage1SummaryAmounts, formatExportSummaryUsd, formatQuoteMoneyTotal, formatQuoteValidityText, domesticPage1SummaryAmounts, domesticVatBreakdown, formatQuoteKrw, formatQuoteKrwRate } from './format'
+import { formatQuoteMoneyTotal, formatQuoteValidityText, domesticPage1SummaryAmounts, domesticVatBreakdown, formatQuoteKrw, formatQuoteKrwRate } from './format'
 import {
   breakdownSmtSectionTitle,
   getPreviewLabels,
@@ -588,22 +588,10 @@ function buildQuoteSummaryTableHtml(
   language?: QuoteDocumentLanguage,
 ) {
   const qty = estimate.qty || 1
-  const page1Export =
-    quote.quoteType === 'export' ? exportPage1SummaryAmounts(estimate.values.grandTotal, qty) : null
-  const page1Domestic =
-    quote.quoteType === 'domestic'
-      ? domesticPage1SummaryAmounts(estimate.values.grandTotal, qty)
-      : null
-  const unitPriceText = page1Export
-    ? formatExportSummaryUsd(page1Export.unitUsd)
-    : page1Domestic
-      ? formatQuoteKrw(page1Domestic.unitKrw)
-      : formatQuoteMoneyTotal(estimate.values.grandTotal / qty, quote.quoteType)
-  const totalText = page1Export
-    ? formatExportSummaryUsd(page1Export.totalUsd)
-    : page1Domestic
-      ? formatQuoteKrw(page1Domestic.totalKrw)
-      : formatQuoteMoneyTotal(estimate.values.grandTotal, quote.quoteType)
+  const page1Amounts = domesticPage1SummaryAmounts(estimate.values.grandTotal, qty)
+  const page1Domestic = quote.quoteType === 'domestic' ? page1Amounts : null
+  const unitPriceText = formatQuoteKrw(page1Amounts.unitKrw)
+  const totalText = formatQuoteKrw(page1Amounts.totalKrw)
   const labelType = pdfLabelType(quote, language)
   const lang = pdfLang(quote, language)
   const labels = getPreviewLabels(labelType)

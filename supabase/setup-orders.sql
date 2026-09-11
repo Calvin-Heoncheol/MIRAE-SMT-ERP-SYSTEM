@@ -48,6 +48,8 @@ create table if not exists public.order_lines (
   material_cost numeric not null default 0 check (material_cost >= 0),
   unit_price numeric not null default 0 check (unit_price >= 0),
   order_amount numeric not null default 0 check (order_amount >= 0),
+  process_type text not null default 'smt_post'
+    check (process_type in ('smt', 'post', 'smt_post')),
   delivery_date date,
   derived_from_line_id uuid references public.order_lines(id) on delete cascade,
   work_number text,
@@ -61,7 +63,8 @@ comment on column public.order_lines.setup_cost is 'SET-UP 전체 비용 (수량
 comment on column public.order_lines.smd_unit_price is 'SMD 대당 단가';
 comment on column public.order_lines.dip_unit_price is '후공정 대당 단가';
 comment on column public.order_lines.material_cost is '자재비 (회차별 총액)';
-comment on column public.order_lines.unit_price is '대당 단가 참고 (SMD+후공정)';
+comment on column public.order_lines.unit_price is '대당 단가 참고 (선택한 공정 범위 합산)';
+comment on column public.order_lines.process_type is '발주 라인 이번 작업 공정 범위 — smt / post / smt_post';
 
 create index if not exists orders_order_date_idx on public.orders (order_date desc);
 create index if not exists orders_created_at_idx on public.orders (created_at desc);

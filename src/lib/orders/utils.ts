@@ -1,4 +1,8 @@
 import { paymentTermSnapshotFromDbRow } from '@/lib/partners/payment-term-snapshot'
+import {
+  inferOrderProcessTypeFromPrices,
+  normalizeOrderProcessType,
+} from './process-scope'
 import type { OrderCategory, OrderCurrency, OrderLineItem, OrderListGroup, OrderRecord } from './types'
 import { ORDER_CATEGORIES } from './types'
 
@@ -111,6 +115,7 @@ export function mapOrderLineRecord(
     smd_unit_price?: number | null
     dip_unit_price?: number | null
     material_cost?: number | null
+    process_type?: string | null
     delivery_date?: string | null
     derived_from_line_id?: string | null
     work_number?: string | null
@@ -134,6 +139,9 @@ export function mapOrderLineRecord(
           materialUnitPrice,
         })
       : Math.max(0, Math.round(Number(line.unit_price) || 0))
+  const processType =
+    normalizeOrderProcessType(line.process_type) ||
+    inferOrderProcessTypeFromPrices({ setupCost, smdUnitPrice: smd, dipUnitPrice: dip })
   return {
     lineId: line.id,
     productId: line.product_id || null,
@@ -146,6 +154,7 @@ export function mapOrderLineRecord(
     smdUnitPrice: resolveOrderLineSmdUnitPrice(smd, dip, Number(line.unit_price) || 0),
     dipUnitPrice: dip,
     materialCost,
+    processType,
     deliveryDate: formatOrderDate(line.delivery_date) || fallbackDeliveryDate,
     derivedFromLineId: line.derived_from_line_id || null,
     workNumber: String(line.work_number || '').trim() || null,

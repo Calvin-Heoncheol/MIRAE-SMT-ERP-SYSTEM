@@ -1,5 +1,10 @@
 import type { MaterialCostLine } from './material-cost-lines'
-import { normalizeMaterialCostLines, sumMaterialCostLines } from './material-cost-lines'
+import { sumMaterialCostLines } from './material-cost-lines'
+import {
+  EMPTY_ITEM_PRODUCTION_STD,
+  normalizeItemProductionStd,
+  type ItemProductionStd,
+} from './production-std'
 import type {
   Item,
   ItemPayload,
@@ -46,8 +51,10 @@ export type ItemFormState = {
   smdUnitPrice: number
   dipUnitPrice: number
   materialUnitPrice: number
-  /** 자재비 세부 (2개 이상이면 분할 모드) */
+  /** @deprecated 자재비는 materialUnitPrice 단일 금액만 사용. 저장 시 항상 [] */
   materialCostLines: MaterialCostLine[]
+  /** 반제품 생산 기준 — 종수·Tech Time */
+  productionStd: ItemProductionStd
   /** 연결된 기준 견적 ID */
   baselineQuoteId: string
   /** 표시용 (저장하지 않음) */
@@ -120,6 +127,7 @@ export function emptyItemForm(): ItemFormState {
     dipUnitPrice: 0,
     materialUnitPrice: 0,
     materialCostLines: [],
+    productionStd: { ...EMPTY_ITEM_PRODUCTION_STD },
     baselineQuoteId: '',
     baselineQuoteLabel: '',
   }
@@ -152,8 +160,12 @@ export function itemToForm(item: Item): ItemFormState {
           ? 0
           : item.unitPrice,
     dipUnitPrice: item.dipUnitPrice,
-    materialUnitPrice: item.materialUnitPrice,
-    materialCostLines: normalizeMaterialCostLines(item.materialCostLines),
+    materialUnitPrice:
+      item.materialUnitPrice > 0
+        ? item.materialUnitPrice
+        : sumMaterialCostLines(item.materialCostLines),
+    materialCostLines: [],
+    productionStd: normalizeItemProductionStd(item.productionStd),
     baselineQuoteId: item.baselineQuoteId || '',
     baselineQuoteLabel: '',
   }
@@ -201,11 +213,7 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
   const setup = money(form.setupUnitPrice)
   const smd = money(form.smdUnitPrice)
   const dip = money(form.dipUnitPrice)
-  const materialLines = isSemiFinishedItemCategory(itemCategory)
-    ? normalizeMaterialCostLines(form.materialCostLines)
-    : []
-  const material =
-    materialLines.length > 0 ? sumMaterialCostLines(materialLines) : money(form.materialUnitPrice)
+  const material = isSemiFinishedItemCategory(itemCategory) ? money(form.materialUnitPrice) : 0
   const baseCodeInput = form.id.trim()
   const { baseCode, version } = resolveItemCodeParts({
     codeOrId: baseCodeInput,
@@ -241,9 +249,12 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     setupUnitPrice: isSemiFinishedItemCategory(itemCategory) ? setup : 0,
     smdUnitPrice: isSemiFinishedItemCategory(itemCategory) ? smd : 0,
     dipUnitPrice: isSemiFinishedItemCategory(itemCategory) ? dip : 0,
-    materialUnitPrice: isSemiFinishedItemCategory(itemCategory) ? material : 0,
+    materialUnitPrice: material,
     otherUnitPrice: 0,
-    materialCostLines: materialLines,
+    materialCostLines: [],
+    productionStd: isSemiFinishedItemCategory(itemCategory)
+      ? normalizeItemProductionStd(form.productionStd)
+      : { ...EMPTY_ITEM_PRODUCTION_STD },
     smtQuoteParts: { ...EMPTY_SMT_QUOTE_PARTS },
     baselineQuoteId: form.baselineQuoteId.trim(),
     itemCategory,

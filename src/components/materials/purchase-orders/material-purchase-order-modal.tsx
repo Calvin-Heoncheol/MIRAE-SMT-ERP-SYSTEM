@@ -419,6 +419,7 @@ function MaterialPurchaseOrderModalContent({
         }
         onClose={onClose}
         closeOnEscape={!busy}
+        contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4"
         headerActions={
           mode === 'create' && !readOnly ? (
             <>
@@ -491,16 +492,18 @@ function MaterialPurchaseOrderModalContent({
           </div>
         }
       >
+        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="shrink-0 space-y-4">
         {readOnly ? (
-          <div className={`mb-4 ${ERP_WARNING_BOX_CLASS}`}>
+          <div className={ERP_WARNING_BOX_CLASS}>
             입고 이력이 있는 구매발주는 수정·삭제할 수 없습니다.
           </div>
         ) : null}
 
-        {assistError ? <div className={`mb-4 ${ERP_WARNING_BOX_CLASS}`}>{assistError}</div> : null}
+        {assistError ? <div className={ERP_WARNING_BOX_CLASS}>{assistError}</div> : null}
 
         {mode === 'create' && coverProductQuantity != null && coverProductQuantity > 0 ? (
-          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900">
             이 구매발주서가 커버하는 제품 수량:{' '}
             <span className="font-bold tabular-nums">
               {coverProductQuantity.toLocaleString('ko-KR')}
@@ -589,13 +592,14 @@ function MaterialPurchaseOrderModalContent({
             </span>
           </label>
         </div>
+        </div>
 
-        <div className="mt-6">
+        <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {readOnly ? <h3 className="mb-3 text-sm font-bold text-slate-900">구매발주 품목</h3> : null}
           {readOnly ? (
-            <div className="overflow-x-auto rounded-lg border border-slate-300">
+            <div className="max-h-[min(28rem,50dvh)] overflow-auto rounded-lg border border-slate-300">
               <table className="erp-data-table erp-data-table--compact min-w-[760px] w-full border-collapse text-sm">
-                <thead className={ERP_TABLE_HEAD_CLASS}>
+                <thead className={`sticky top-0 z-[1] ${ERP_TABLE_HEAD_CLASS}`}>
                   <tr>
                     <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
                       품목코드
@@ -654,6 +658,7 @@ function MaterialPurchaseOrderModalContent({
               onSupplierSuggest={suggestSupplier}
             />
           )}
+        </div>
         </div>
       </ErpModal>
 

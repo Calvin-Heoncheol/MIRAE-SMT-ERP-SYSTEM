@@ -38,7 +38,7 @@ anon 키만으로 전 테이블 CRUD 되던 정책을 막습니다.
 - **변경이력 INSERT**: 로그인만 (SELECT는 공개 유지)
 - **profiles**: `trg_enforce_profile_safe_update` — 비관리자 본인의 role/department 변경 차단
 
-`AUTH_ENABLED=false` 는 **production에서 무시**됩니다 (인증 강제). 개발 환경에서만 AUTH 끔이 가능하며, OPEN 모드에서는 삭제·직접재고·기초등록이 차단됩니다.
+`AUTH_ENABLED=false` 는 **production에서 무시**됩니다 (인증 강제). 개발 환경에서만 AUTH 끔이 가능하며, OPEN 모드는 admin과 동일하게 쓰기(삭제·기초등록 포함)가 허용됩니다.
 
 RLS 적용 환경에서는 로컬도 `AUTH_ENABLED=true` 권장.
 

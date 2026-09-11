@@ -8,12 +8,15 @@ import {
   filterMaterialsForPurchaseOrder,
   formatMaterialOptionLabel,
   resolveMaterialFromFieldInput,
+  type MaterialSearchField,
 } from '@/lib/materials/purchase-orders/utils'
 
 type MaterialComboboxProps = {
   value: string
   materials: Material[]
   supplier?: string
+  /** 검색 기준 — 기본 품목코드 */
+  searchField?: Extract<MaterialSearchField, 'id' | 'name'>
   placeholder?: string
   ariaLabel: string
   inputClassName?: string
@@ -32,7 +35,14 @@ type MenuPosition = {
 
 const MAX_OPTIONS = 10
 
-function formatMaterialOptionSubLabel(material: Material) {
+function formatMaterialOptionSubLabel(material: Material, searchField: 'id' | 'name') {
+  if (searchField === 'name') {
+    return (
+      [formatMaterialDisplayCode(material), material.mpn, material.specification, material.supplier]
+        .filter(Boolean)
+        .join(' · ') || '—'
+    )
+  }
   return (
     [material.mpn, material.specification, material.supplier].filter(Boolean).join(' · ') ||
     formatMaterialDisplayCode(material)
@@ -43,6 +53,7 @@ export function MaterialCombobox({
   value,
   materials,
   supplier = '',
+  searchField = 'id',
   placeholder,
   ariaLabel,
   inputClassName,
@@ -60,8 +71,9 @@ export function MaterialCombobox({
   const [mounted, setMounted] = useState(false)
 
   const options = useMemo(
-    () => filterMaterialsForPurchaseOrder(materials, supplier, value, 'id').slice(0, MAX_OPTIONS),
-    [materials, supplier, value],
+    () =>
+      filterMaterialsForPurchaseOrder(materials, supplier, value, searchField).slice(0, MAX_OPTIONS),
+    [materials, supplier, value, searchField],
   )
 
   useEffect(() => {
@@ -127,7 +139,7 @@ export function MaterialCombobox({
   }
 
   function tryResolveOnBlur() {
-    const resolved = resolveMaterialFromFieldInput(materials, supplier, 'id', value)
+    const resolved = resolveMaterialFromFieldInput(materials, supplier, searchField, value)
     if (resolved) {
       onMaterialSelect(resolved)
     }
@@ -189,8 +201,12 @@ export function MaterialCombobox({
                 index === activeIndex ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-50',
               ].join(' ')}
             >
-              <span className="block font-semibold">{formatMaterialOptionLabel(material, 'id')}</span>
-              <span className="mt-0.5 block text-xs text-slate-400">{formatMaterialOptionSubLabel(material)}</span>
+              <span className="block font-semibold">
+                {formatMaterialOptionLabel(material, searchField)}
+              </span>
+              <span className="mt-0.5 block text-xs text-slate-400">
+                {formatMaterialOptionSubLabel(material, searchField)}
+              </span>
             </button>
           </li>
         ))}

@@ -3,7 +3,7 @@
 import { OrderCategoryBadge } from '@/components/orders/order-category-badge'
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ErpTableHead, ErpTableShell, ErpTableTd, ErpTableTh } from '@/components/ui/erp-table'
-import { exportSummaryFromKrw, formatQuoteMoneyTotal, formatQuoteMoneyUnit } from '@/lib/quotes/format'
+import { formatQuoteMoneyTotal, formatQuoteMoneyUnit } from '@/lib/quotes/format'
 import { formatQuoteProcessLabel } from '@/lib/quotes/production-flags'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { QUOTE_STATUS_LABELS, type QuoteListItem, type QuoteStatus } from '@/lib/quotes/types'
@@ -25,9 +25,6 @@ function quoteProductionKind(quote: QuoteListItem): '샘플' | '양산' {
 
 function quoteUnitPriceDisplay(quote: QuoteListItem) {
   const qty = quote.boardQty || 1
-  if (quote.quoteType === 'export') {
-    return exportSummaryFromKrw(quote.totalAmount, qty).unitFormatted
-  }
   return formatQuoteMoneyUnit(quote.totalAmount / qty, quote.quoteType)
 }
 
