@@ -744,6 +744,7 @@ function ItemModalContent({
             key={`production-std-${form.pcbSideMode || 'none'}-${item?.id || 'new'}`}
             className="rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-3"
             openInitially={
+              form.productionStd.arrayCount > 0 ||
               form.productionStd.partCount > 0 ||
               form.productionStd.partCountTop > 0 ||
               form.productionStd.partCountBot > 0 ||
@@ -755,12 +756,32 @@ function ItemModalContent({
               <>
                 생산 기준
                 <span className="ml-2 text-xs font-normal text-slate-500">
-                  종수 · Tech Time(초/대) · 목록 미표시
+                  Array · 종수 · Tech Time(장비 패널 초) · 목록 미표시
                 </span>
               </>
             }
           >
-            <div className="mt-3">
+            <div className="mt-3 space-y-3">
+              <label className="block text-sm sm:max-w-[12rem]">
+                <span className={ERP_FIELD_LABEL_CLASS}>Array (패널당 PCB 수)</span>
+                <QuoteNumericInput
+                  min={0}
+                  value={String(
+                    form.productionStd.arrayCount > 0 ? form.productionStd.arrayCount : '',
+                  )}
+                  onChange={(raw) =>
+                    updateForm('productionStd', {
+                      ...form.productionStd,
+                      arrayCount: Math.max(0, Math.floor(Number(raw) || 0)),
+                    })
+                  }
+                  className={ERP_FIELD_INPUT_CLASS}
+                  placeholder="1"
+                />
+                <span className="mt-1 block text-[11px] text-slate-400">
+                  미입력·1 = 낱장. 장비 Tech Time ÷ Array = 1대당 초
+                </span>
+              </label>
               {isSplitItemPcbSideMode(form.pcbSideMode) ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <label className="block text-sm">
@@ -783,7 +804,7 @@ function ItemModalContent({
                     />
                   </label>
                   <label className="block text-sm">
-                    <span className={ERP_FIELD_LABEL_CLASS}>Tech Time TOP (초)</span>
+                    <span className={ERP_FIELD_LABEL_CLASS}>Tech Time TOP (초·패널)</span>
                     <QuoteNumericInput
                       min={0}
                       value={String(
@@ -821,7 +842,7 @@ function ItemModalContent({
                     />
                   </label>
                   <label className="block text-sm">
-                    <span className={ERP_FIELD_LABEL_CLASS}>Tech Time BOT (초)</span>
+                    <span className={ERP_FIELD_LABEL_CLASS}>Tech Time BOT (초·패널)</span>
                     <QuoteNumericInput
                       min={0}
                       value={String(
@@ -860,7 +881,7 @@ function ItemModalContent({
                     />
                   </label>
                   <label className="block text-sm">
-                    <span className={ERP_FIELD_LABEL_CLASS}>Tech Time (초/대)</span>
+                    <span className={ERP_FIELD_LABEL_CLASS}>Tech Time (초·패널)</span>
                     <QuoteNumericInput
                       min={0}
                       value={String(
@@ -878,6 +899,10 @@ function ItemModalContent({
                   </label>
                 </div>
               )}
+              <p className="text-[11px] leading-relaxed text-slate-400">
+                Tech Time은 SMT 장비에 표시되는 값(패널 1회)을 그대로 입력하세요. Array가 2이면 그
+                시간에 PCB 2대가 나옵니다.
+              </p>
             </div>
           </OpenableDetails>
         ) : null}

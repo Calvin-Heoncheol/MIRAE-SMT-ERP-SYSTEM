@@ -105,3 +105,16 @@ export function isYmdInWeek(ymd: string, weekStartYmd: string) {
   const date = ymd.slice(0, 10)
   return date >= start && date <= end
 }
+
+/** 계획 기간이 특정 일자에 걸쳐 있는지 */
+export function planCoversYmd(
+  plannedDate: string,
+  plannedEndDate: string | undefined,
+  ymd: string,
+) {
+  const start = plannedDate.slice(0, 10)
+  const end = (plannedEndDate || plannedDate).slice(0, 10)
+  const day = ymd.slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return false
+  return day >= start && day <= end
+}

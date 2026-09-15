@@ -45,6 +45,8 @@ export function MaterialPurchaseSuggestionTable({
       materialId: line.materialId,
       materialCode: line.materialId,
       materialName: line.materialName,
+      processType: '',
+      package: '',
       specification: line.specification,
       mpn: line.mpn,
       quantity: String(line.suggestedQuantity),

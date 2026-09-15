@@ -1,4 +1,6 @@
 import type { MaterialInboundStatus } from '@/lib/materials/material-inbound-status'
+import type { ItemProductionStd } from '@/lib/items/production-std'
+import type { ProductPcbSideMode } from '@/lib/products/types'
 
 export type ProductionPlanScope = 'material' | 'smt' | 'post'
 
@@ -23,6 +25,10 @@ export type ProductionPlanBoardRow = {
   productName: string
   productCode: string
   productKindLabel: string
+  /** 품목 면모드 — 부하(Tech Time) 해석용 */
+  pcbSideMode?: ProductPcbSideMode
+  /** 반제품 종수·Tech Time — 부하 계산용 */
+  productionStd?: ItemProductionStd
   /** SMT·자재: order_line_id / 후공정: assembly_group_id */
   targetId: string
   splitPcbSides: boolean
@@ -46,10 +52,16 @@ export type ProductionPlanBoardRow = {
   confirmedAt: string
   confirmedByName: string
   plannedDate: string
+  /** 계획 종료일 (없으면 plannedDate와 동일) */
+  plannedEndDate?: string
+  /** DB 호환용 — 통합 보드는 항상 confirmed로 저장 */
+  planStatus?: 'draft' | 'confirmed'
   lineNo: number | null
   team: string
   pcbSide: ProductionPlanPcbSide
   plannedQuantity: number | null
+  /** 이 계획 건에 매칭된 실적 수량 */
+  planProducedQty?: number
   /** 확정된 계획 수량 합계 (분할 배정) */
   plannedTotalQty?: number
   /** 아직 계획되지 않은 수량 */
@@ -72,6 +84,10 @@ export type ConfirmProductionPlanScheduleInput = {
   orderId: string
   targetId: string
   plannedDate: string
+  /** 미입력 시 plannedDate와 동일 */
+  plannedEndDate?: string
+  /** 미사용 — 저장 시 항상 confirmed */
+  planStatus?: 'draft' | 'confirmed'
   plannedQuantity: number
   /** SMT */
   lineNo?: number

@@ -7,6 +7,7 @@ create table if not exists public.material_purchase_orders (
   order_date date not null default (timezone('Asia/Seoul', now()))::date,
   delivery_date date,
   supplier text not null default '',
+  currency text not null default 'KRW',
   source_order_id text references public.orders(id) on delete set null,
   covered_order_line_id text,
   covered_product_quantity numeric check (covered_product_quantity is null or covered_product_quantity >= 0),
@@ -15,12 +16,14 @@ create table if not exists public.material_purchase_orders (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint material_purchase_orders_id_not_blank_check check (length(trim(id)) > 0),
-  constraint material_purchase_orders_id_format_check check ((length(id) = 13 and id like 'MRP-______-__') or (length(id) = 10 and id like 'MRP-______') or (length(id) = 12 and id like 'MRP-________'))
+  constraint material_purchase_orders_id_format_check check ((length(id) = 13 and id like 'MRP-______-__') or (length(id) = 10 and id like 'MRP-______') or (length(id) = 12 and id like 'MRP-________')),
+  constraint material_purchase_orders_currency_check check (currency in ('KRW', 'USD'))
 );
 
 comment on table public.material_purchase_orders is '자재 발주 마스터 — 발주번호=id(MRP-260722-01)';
 comment on column public.material_purchase_orders.id is '발주번호 MRP-YYMMDD-NN (INSERT 시 자동 발급, 수정 불가)';
 comment on column public.material_purchase_orders.supplier is '공급업체';
+comment on column public.material_purchase_orders.currency is '구매발주 통화 KRW(원) / USD(달러)';
 comment on column public.material_purchase_orders.source_order_id is
   '연결된 고객 주문서(orders.id) — 주문서 카드에서 발주 시 자동 연결';
 comment on column public.material_purchase_orders.covered_order_line_id is

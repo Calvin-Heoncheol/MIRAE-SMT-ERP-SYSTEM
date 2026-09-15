@@ -3,7 +3,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Material } from '@/lib/materials/types'
-import { formatMaterialDisplayCode } from '@/lib/materials/utils'
 import {
   filterMaterialsForPurchaseOrder,
   formatMaterialOptionLabel,
@@ -38,21 +37,19 @@ const MAX_OPTIONS = 10
 function formatMaterialOptionSubLabel(material: Material, searchField: 'id' | 'name') {
   if (searchField === 'name') {
     return (
-      [formatMaterialDisplayCode(material), material.mpn, material.specification, material.supplier]
+      [material.id, material.mpn, material.specification, material.supplier]
         .filter(Boolean)
         .join(' · ') || '—'
     )
   }
   return (
-    [material.mpn, material.specification, material.supplier].filter(Boolean).join(' · ') ||
-    formatMaterialDisplayCode(material)
+    [material.mpn, material.specification, material.supplier].filter(Boolean).join(' · ') || '—'
   )
 }
 
 export function MaterialCombobox({
   value,
   materials,
-  supplier = '',
   searchField = 'id',
   placeholder,
   ariaLabel,
@@ -72,8 +69,9 @@ export function MaterialCombobox({
 
   const options = useMemo(
     () =>
-      filterMaterialsForPurchaseOrder(materials, supplier, value, searchField).slice(0, MAX_OPTIONS),
-    [materials, supplier, value, searchField],
+      // 검색은 공급사와 무관하게 — 헤더 공급사가 다르면 등록 자재가 통째로 안 보이던 문제 방지
+      filterMaterialsForPurchaseOrder(materials, null, value, searchField).slice(0, MAX_OPTIONS),
+    [materials, value, searchField],
   )
 
   useEffect(() => {
@@ -139,7 +137,7 @@ export function MaterialCombobox({
   }
 
   function tryResolveOnBlur() {
-    const resolved = resolveMaterialFromFieldInput(materials, supplier, searchField, value)
+    const resolved = resolveMaterialFromFieldInput(materials, null, searchField, value)
     if (resolved) {
       onMaterialSelect(resolved)
     }

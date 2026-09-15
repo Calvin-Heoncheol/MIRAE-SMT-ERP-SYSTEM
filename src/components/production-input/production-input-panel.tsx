@@ -602,10 +602,18 @@ export function ProductionInputPanel({
                     </h2>
                   ) : null}
                   {lockToPlan && sideLabel ? (
-                    <span className="inline-flex shrink-0 items-center rounded-lg bg-slate-900 px-2.5 py-0.5 text-lg font-bold leading-none tracking-wide text-white sm:text-xl">
+                    <span
+                      className={[
+                        'inline-flex shrink-0 items-center rounded-lg px-2.5 py-0.5 text-lg font-bold leading-none tracking-wide sm:text-xl',
+                        sideLabel === 'BOT'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-sky-600 text-white',
+                      ].join(' ')}
+                    >
                       {sideLabel}
                     </span>
-                  ) : !isPostProcess && !embedded ? (
+                  ) : null}
+                  {!isPostProcess && (order.splitPcbSides || !embedded) ? (
                     <span
                       className={[
                         'inline-flex shrink-0 items-center rounded-lg px-2.5 py-0.5 text-lg font-bold leading-none sm:text-xl',
@@ -614,6 +622,7 @@ export function ProductionInputPanel({
                           : order.pcbSideMode === 'duo'
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-slate-100 text-slate-600',
+                        embedded ? 'text-sm sm:text-base' : '',
                       ].join(' ')}
                     >
                       {formatProductPcbSideModeLabel(order.pcbSideMode)}
@@ -653,13 +662,19 @@ export function ProductionInputPanel({
                         className={[
                           `${cardPad} rounded-xl border text-left transition`,
                           selected
-                            ? 'border-sky-500 bg-sky-50/50 ring-2 ring-sky-100'
+                            ? side === 'BOT'
+                              ? 'border-indigo-500 bg-indigo-50/50 ring-2 ring-indigo-100'
+                              : 'border-sky-500 bg-sky-50/50 ring-2 ring-sky-100'
                             : 'border-slate-200 bg-slate-50/50 hover:border-slate-300',
                         ].join(' ')}
                       >
                         <div className="flex flex-wrap items-end justify-between gap-2">
                           <div>
-                            <p className="text-xs font-bold tracking-[0.12em] text-slate-400 uppercase">
+                            <p
+                              className={`text-xs font-bold tracking-[0.12em] uppercase ${
+                                side === 'BOT' ? 'text-indigo-500' : 'text-sky-500'
+                              }`}
+                            >
                               {side}
                             </p>
                             <p className={`mt-1 font-bold tabular-nums text-slate-900 ${countTextLg}`}>
@@ -672,7 +687,11 @@ export function ProductionInputPanel({
                           </div>
                           <div className="text-right">
                             <p className="text-xs font-semibold text-slate-400">남은 수량</p>
-                            <p className="text-lg font-bold tabular-nums text-sky-700 sm:text-xl">
+                            <p
+                              className={`text-lg font-bold tabular-nums sm:text-xl ${
+                                side === 'BOT' ? 'text-indigo-700' : 'text-sky-700'
+                              }`}
+                            >
                               {sideRemaining.toLocaleString('ko-KR')}
                             </p>
                           </div>
@@ -682,7 +701,11 @@ export function ProductionInputPanel({
                             {sideStacked.goodPercent > 0 ? (
                               <div
                                 className={`h-full transition-all ${
-                                  sideComplete ? 'bg-emerald-500' : 'bg-amber-500'
+                                  sideComplete
+                                    ? 'bg-emerald-500'
+                                    : side === 'BOT'
+                                      ? 'bg-indigo-500'
+                                      : 'bg-sky-500'
                                 }`}
                                 style={{ width: `${sideStacked.goodPercent}%` }}
                               />

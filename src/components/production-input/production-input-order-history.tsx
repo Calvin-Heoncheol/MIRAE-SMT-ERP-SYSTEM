@@ -17,6 +17,7 @@ import {
 } from '@/lib/smt/repository'
 import type { SmtProductionHistoryRow } from '@/lib/smt/types'
 import type { SmtPcbSide } from '@/lib/smt/types'
+import { pcbSideChipClass } from '@/lib/products/utils'
 import {
   ERP_TABLE_CLASS,
   ERP_TABLE_COMPACT_CLASS,
@@ -112,9 +113,15 @@ function SmtHistoryTable({
               <td className={`${ERP_TABLE_TD_CLASS} text-xs font-semibold tabular-nums text-slate-800`}>
                 {formatQty(row.quantity, row.defectQuantity)}
               </td>
-              <td className={`${ERP_TABLE_TD_CLASS} text-xs text-slate-600`}>
-                {side}
-                {row.lineNo ? ` · L${row.lineNo}` : ''}
+              <td className={`${ERP_TABLE_TD_CLASS}`}>
+                <span
+                  className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-bold ${pcbSideChipClass(side)}`}
+                >
+                  {side}
+                </span>
+                {row.lineNo ? (
+                  <span className="ml-1 text-[11px] text-slate-500">L{row.lineNo}</span>
+                ) : null}
               </td>
               <td className={`${ERP_TABLE_TD_CLASS} text-[11px] text-slate-500`}>
                 <p>{row.createdByName || '—'}</p>

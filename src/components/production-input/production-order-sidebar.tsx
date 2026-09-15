@@ -626,9 +626,19 @@ export function ProductionOrderSidebar({
                         <span className="tabular-nums">
                           {order.splitPcbSides ? (
                             <>
-                              TOP {topCount.toLocaleString('ko-KR')} · BOT{' '}
-                              {botCount.toLocaleString('ko-KR')}
-                              {target > 0 ? ` / ${target.toLocaleString('ko-KR')}` : ''}
+                              <span className="font-semibold text-sky-700">
+                                TOP {topCount.toLocaleString('ko-KR')}
+                              </span>
+                              <span className="mx-1 text-slate-300">·</span>
+                              <span className="font-semibold text-indigo-700">
+                                BOT {botCount.toLocaleString('ko-KR')}
+                              </span>
+                              {target > 0 ? (
+                                <span className="text-slate-500">
+                                  {' '}
+                                  / {target.toLocaleString('ko-KR')}
+                                </span>
+                              ) : null}
                             </>
                           ) : (
                             <>
@@ -638,23 +648,71 @@ export function ProductionOrderSidebar({
                           )}
                         </span>
                         <span>
-                          남음{' '}
-                          <span className="font-bold text-slate-700 tabular-nums">
-                            {remaining.toLocaleString('ko-KR')}
-                          </span>
+                          {order.splitPcbSides ? (
+                            <>
+                              남음{' '}
+                              <span className="font-bold text-sky-700 tabular-nums">
+                                T{Math.max(0, target - topCount).toLocaleString('ko-KR')}
+                              </span>
+                              <span className="mx-1 text-slate-300">·</span>
+                              <span className="font-bold text-indigo-700 tabular-nums">
+                                B{Math.max(0, target - botCount).toLocaleString('ko-KR')}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              남음{' '}
+                              <span className="font-bold text-slate-700 tabular-nums">
+                                {remaining.toLocaleString('ko-KR')}
+                              </span>
+                            </>
+                          )}
                         </span>
                       </div>
-                      <div
-                        className={[
-                          'overflow-hidden rounded-full bg-slate-100',
-                          isBoard ? 'h-2' : 'h-1.5',
-                        ].join(' ')}
-                      >
+                      {order.splitPcbSides ? (
+                        <div className="space-y-1">
+                          <div
+                            className={[
+                              'overflow-hidden rounded-full bg-slate-100',
+                              isBoard ? 'h-1.5' : 'h-1',
+                            ].join(' ')}
+                            title="TOP"
+                          >
+                            <div
+                              className="h-full rounded-full bg-sky-500 transition-all"
+                              style={{
+                                width: `${getProgressPercent(topCount, target)}%`,
+                              }}
+                            />
+                          </div>
+                          <div
+                            className={[
+                              'overflow-hidden rounded-full bg-slate-100',
+                              isBoard ? 'h-1.5' : 'h-1',
+                            ].join(' ')}
+                            title="BOT"
+                          >
+                            <div
+                              className="h-full rounded-full bg-indigo-500 transition-all"
+                              style={{
+                                width: `${getProgressPercent(botCount, target)}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
                         <div
-                          className={`h-full rounded-full transition-all ${progressBarClass(productionState, complete)}`}
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
+                          className={[
+                            'overflow-hidden rounded-full bg-slate-100',
+                            isBoard ? 'h-2' : 'h-1.5',
+                          ].join(' ')}
+                        >
+                          <div
+                            className={`h-full rounded-full transition-all ${progressBarClass(productionState, complete)}`}
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

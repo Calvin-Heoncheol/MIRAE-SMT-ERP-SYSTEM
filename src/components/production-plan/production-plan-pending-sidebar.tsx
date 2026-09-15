@@ -3,6 +3,7 @@
 import type { DragEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
+import { formatPlanPcbSideBadge } from '@/lib/products/utils'
 import {
   SHARED_PRODUCTION_PLAN_DRAG_MIME,
   type ProductionPlanDragPayload,
@@ -43,6 +44,7 @@ function PendingCardBody({
   customer,
   orderLabel,
   productName,
+  pcbSideMode,
   splitPcbSides = false,
   deliveryDate,
   remainingQty,
@@ -52,6 +54,7 @@ function PendingCardBody({
   customer: string
   orderLabel: string
   productName: string
+  pcbSideMode?: string
   splitPcbSides?: boolean
   deliveryDate: string
   remainingQty: number
@@ -61,6 +64,12 @@ function PendingCardBody({
   const labelClass = muted ? 'text-slate-400' : 'text-slate-500'
   const valueClass = muted ? 'text-slate-600' : 'text-slate-900'
   const showSideRemaining = Boolean(splitPcbSides && sideUnplanned)
+  const nonSplitLabel =
+    formatPlanPcbSideBadge({
+      pcbSideMode,
+      pcbSide: 'SINGLE',
+      splitPcbSides,
+    }) || 'SINGLE'
 
   return (
     <>
@@ -84,31 +93,18 @@ function PendingCardBody({
             BOT {formatQty(sideUnplanned.bot)}
           </span>
         </div>
-      ) : splitPcbSides ? (
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          <span
-            className={`rounded-md px-2 py-1 text-xs font-bold ${
-              muted ? 'bg-slate-200 text-slate-600' : 'bg-sky-100 text-sky-800'
-            }`}
-          >
-            TOP
-          </span>
-          <span
-            className={`rounded-md px-2 py-1 text-xs font-bold ${
-              muted ? 'bg-slate-200 text-slate-600' : 'bg-indigo-100 text-indigo-800'
-            }`}
-          >
-            BOT
-          </span>
-        </div>
       ) : (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           <span
             className={`rounded-md px-2 py-1 text-xs font-bold tabular-nums ${
-              muted ? 'bg-slate-200 text-slate-600' : 'bg-slate-100 text-slate-700'
+              muted
+                ? 'bg-slate-200 text-slate-600'
+                : nonSplitLabel === 'DOUBLE'
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-slate-100 text-slate-700'
             }`}
           >
-            SINGLE {formatQty(remainingQty)}
+            {nonSplitLabel} {formatQty(remainingQty)}
           </span>
         </div>
       )}
@@ -208,6 +204,7 @@ export function ProductionPlanPendingSidebar({
                     customer={line.rep.customer}
                     orderLabel={orderLabel}
                     productName={line.rep.productName}
+                    pcbSideMode={line.rep.pcbSideMode}
                     splitPcbSides={line.rep.splitPcbSides}
                     deliveryDate={line.rep.deliveryDate}
                     remainingQty={unplanned}
@@ -229,6 +226,7 @@ export function ProductionPlanPendingSidebar({
                     customer={line.rep.customer}
                     orderLabel={orderLabel}
                     productName={line.rep.productName}
+                    pcbSideMode={line.rep.pcbSideMode}
                     splitPcbSides={line.rep.splitPcbSides}
                     deliveryDate={line.rep.deliveryDate}
                     remainingQty={unplanned}

@@ -137,7 +137,7 @@ export function ErpModal({
             {children}
           </div>
           {footer ? (
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+            <div className="relative z-[60] flex shrink-0 flex-wrap items-center justify-end gap-2 overflow-visible border-t border-slate-200 bg-slate-50 px-5 py-3">
               {footer}
             </div>
           ) : null}

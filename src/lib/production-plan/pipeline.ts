@@ -9,18 +9,34 @@ export type ProductionPlanPipelineBuckets = {
   postWaitingBlocked: ProductionPlanBoardRow[]
 }
 
-/** SMD 계획 가능 — 자재팀 수동 입고 수량 입력 후 */
+/** SMD 계획 가능 — 자재 입고(수동 또는 BOM 현재고) 가능 수량 > 0 */
 export function canPlanSmt(row: ProductionPlanBoardRow): boolean {
   if (row.scope !== 'smt' || row.status !== 'waiting') return false
   return row.materialReadyQty > 0
 }
 
-/** 후공정 계획 가능 — 해당 발주 SMD 계획 확정 후 (SMD 없는 발주는 바로 가능) */
+/**
+ * 후공정 계획 가능 —
+ * SMT 대상이 없으면 바로 가능.
+ * 있으면 SMT 미계획 잔량이 없고, 배정된 일정이 1건 이상일 때.
+ */
 export function canPlanPost(row: ProductionPlanBoardRow, rows: ProductionPlanBoardRow[]): boolean {
   if (row.scope !== 'post' || row.status !== 'waiting') return false
   const smtRows = rows.filter((entry) => entry.orderId === row.orderId && entry.scope === 'smt')
   if (smtRows.length === 0) return true
-  return smtRows.some((entry) => entry.status === 'confirmed' && entry.plannedDate.trim())
+
+  const hasUnplanned = smtRows.some((entry) => {
+    if (entry.status === 'waiting' && entry.rowKind === 'remainder') {
+      if (entry.splitPcbSides) {
+        return (entry.unplannedQtyTop ?? 0) > 0 || (entry.unplannedQtyBot ?? 0) > 0
+      }
+      return (entry.unplannedQty ?? entry.remainingQty) > 0
+    }
+    return false
+  })
+  if (hasUnplanned) return false
+
+  return smtRows.some((entry) => entry.status === 'confirmed' && Boolean(entry.plannedDate.trim()))
 }
 
 export function getSmtPlannedEndDate(orderId: string, rows: ProductionPlanBoardRow[]): string {
@@ -32,7 +48,7 @@ export function getSmtPlannedEndDate(orderId: string, rows: ProductionPlanBoardR
         entry.status === 'confirmed' &&
         /^\d{4}-\d{2}-\d{2}$/.test(entry.plannedDate.slice(0, 10)),
     )
-    .map((entry) => entry.plannedDate.slice(0, 10))
+    .map((entry) => (entry.plannedEndDate || entry.plannedDate).slice(0, 10))
   if (!dates.length) return ''
   return dates.reduce((latest, date) => (date >= latest ? date : latest))
 }
@@ -112,10 +128,19 @@ export function productionPlanRowBlockReason(
   allRows: ProductionPlanBoardRow[],
 ): string {
   if (row.scope === 'smt' && row.status === 'waiting' && !canPlanSmt(row)) {
-    return '자재 입고 수량 입력 후 SMT 배정'
+    if (row.materialInboundStatus === 'scheduled') {
+      return '자재 입고예정 — 현재고 확보 후 SMT 배정'
+    }
+    if (row.materialInboundStatus === 'missing') {
+      return '자재 부족(구매발주 필요) — 입고 후 SMT 배정'
+    }
+    if (row.materialInboundStatus === 'no_bom') {
+      return 'BOM 없음 — 자재 수동 입고 수량 입력 후 SMT 배정'
+    }
+    return '자재 입고(현재고 또는 수동 입고) 후 SMT 배정'
   }
   if (row.scope === 'post' && row.status === 'waiting' && !canPlanPost(row, allRows)) {
-    return 'SMT 확정 후 후공정 배정'
+    return 'SMT 수량·면 계획 완료 후 후공정 배정'
   }
   return ''
 }

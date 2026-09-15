@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
+import { useCanDeleteRecords, useAuthProfile } from '@/components/auth/auth-profile-provider'
 import {
   MaterialPurchaseAssistPanel,
   type PurchaseAssistFillPayload,
@@ -10,6 +10,7 @@ import { MaterialPurchaseOrderItemsForm } from '@/components/materials/purchase-
 import { ErpButton } from '@/components/ui/erp-button'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal } from '@/components/ui/erp-modal'
+import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { validateMaterialPurchaseOrderItems } from '@/lib/materials/purchase-orders/build-payload'
 import {
   defaultMaterialPurchaseOrderItemForm,
@@ -26,15 +27,21 @@ import {
 import {
   buildMaterialPurchaseOrderPrintData,
   printMaterialPurchaseOrder,
+  type MaterialPurchaseOrderPrintLanguage,
 } from '@/lib/materials/purchase-orders/print-material-purchase-order'
-import type {
-  MaterialPurchaseOrderListGroup,
-  MaterialPurchaseSuggestionLine,
-  OrderPurchaseCard,
+import {
+  MATERIAL_PURCHASE_ORDER_CURRENCIES,
+  MATERIAL_PURCHASE_ORDER_CURRENCY_LABELS,
+  type MaterialPurchaseOrderCurrency,
+  type MaterialPurchaseOrderListGroup,
+  type MaterialPurchaseSuggestionLine,
+  type OrderPurchaseCard,
 } from '@/lib/materials/purchase-orders/types'
 import {
   addDaysYmd,
+  formatMaterialPurchaseOrderAmountNumber,
   latestMaterialPurchaseOrderDeliveryDate,
+  materialPurchaseOrderCurrencySymbol,
   todayYmdSeoul,
 } from '@/lib/materials/purchase-orders/utils'
 import type { BomEdge } from '@/lib/materials/outbound/types'
@@ -88,12 +95,14 @@ function createInitialForm(
       orderDate: order.orderDate || today,
       deliveryDate: order.deliveryDate || '',
       supplier: order.supplier || '',
+      currency: order.currency || 'KRW',
     }
   }
   return {
     orderDate: today,
     deliveryDate: addDaysYmd(today, 42),
     supplier: initialSupplier || '',
+    currency: 'KRW',
   }
 }
 
@@ -111,6 +120,7 @@ function MaterialPurchaseOrderModalContent({
   onDeleted,
 }: Omit<MaterialPurchaseOrderModalProps, 'open'>) {
   const canDelete = useCanDeleteRecords()
+  const { profile } = useAuthProfile()
   const confirm = useErpConfirm()
   const [form, setForm] = useState<MaterialPurchaseOrderFormState>(() =>
     createInitialForm(order, initialSupplier),
@@ -232,9 +242,9 @@ function MaterialPurchaseOrderModalContent({
     setMaterials((current) => mergeMaterialLists(current, initialMaterials))
   }, [initialMaterials])
 
-  // 부분구매발주·구매발주제안에서 넘어온 행: 품목 마스터로 MPN·규격·자재명 보강
+  // 품목 마스터로 공정·패키지·MPN·규격·자재명 보강
   useEffect(() => {
-    if (!lockSeededFields || !materials.length) return
+    if (!materials.length) return
     setItems((current) => {
       let changed = false
       const next = current.map((item) => {
@@ -242,29 +252,34 @@ function MaterialPurchaseOrderModalContent({
         if (!code) return item
         const matched = resolveMaterialByInventoryCode(materials, code)
         if (!matched) return item
+        const nextProcess = matched.type || ''
+        const nextPackage = matched.package || ''
         const needsEnrich =
           !item.mpn.trim() ||
           !item.specification.trim() ||
           !item.materialName.trim() ||
-          item.materialName.trim() === code
-        if (!needsEnrich && item.materialId === matched.id) return item
+          item.materialName.trim() === code ||
+          item.processType !== nextProcess ||
+          item.package !== nextPackage ||
+          item.materialId !== matched.id
+        if (!needsEnrich) return item
         changed = true
         return {
           ...item,
           materialId: matched.id,
           materialCode: matched.id,
           materialName: matched.materialName || item.materialName,
+          processType: nextProcess,
+          package: nextPackage,
           specification: matched.specification || item.specification,
           mpn: matched.mpn || item.mpn,
           unitPrice:
-            Math.round(Number(item.unitPrice) || 0) > 0
-              ? item.unitPrice
-              : String(matched.unitPrice || 0),
+            Number(item.unitPrice) > 0 ? item.unitPrice : String(matched.unitPrice || 0),
         }
       })
       return changed ? next : current
     })
-  }, [materials, lockSeededFields])
+  }, [materials])
 
   function updateForm<K extends keyof MaterialPurchaseOrderFormState>(
     key: K,
@@ -272,15 +287,8 @@ function MaterialPurchaseOrderModalContent({
   ) {
     setForm((current) => {
       if (key === 'deliveryDate') {
-        const previous = current.deliveryDate
         const nextDate = String(value || '')
-        setItems((rows) =>
-          rows.map((item) =>
-            !item.deliveryDate || item.deliveryDate === previous
-              ? { ...item, deliveryDate: nextDate }
-              : item,
-          ),
-        )
+        setItems((rows) => rows.map((item) => ({ ...item, deliveryDate: nextDate })))
       }
       return { ...current, [key]: value }
     })
@@ -293,7 +301,7 @@ function MaterialPurchaseOrderModalContent({
     }
   }
 
-  async function handleSave(printAfter = false) {
+  async function handleSave() {
     if (readOnly) return
 
     if (!form.supplier.trim()) {
@@ -321,6 +329,7 @@ function MaterialPurchaseOrderModalContent({
       order_date: form.orderDate || todayYmdSeoul(),
       delivery_date: headerDelivery,
       supplier: form.supplier.trim(),
+      currency: form.currency,
       source_order_id: mode === 'create' ? coverSourceOrderId || null : undefined,
       covered_order_line_id: mode === 'create' ? coverOrderLineId || null : undefined,
       covered_product_quantity:
@@ -345,27 +354,10 @@ function MaterialPurchaseOrderModalContent({
       return
     }
 
-    if (printAfter) {
-      const printed = printMaterialPurchaseOrder(
-        buildMaterialPurchaseOrderPrintData({
-          orderNumber: result.orderNumber,
-          sourceOrderNumber:
-            mode === 'create' ? coverSourceOrderId : order?.sourceOrderId || coverSourceOrderId,
-          orderDate: payload.order_date,
-          deliveryDate: payload.delivery_date,
-          supplier: payload.supplier,
-          items: validation.items,
-        }),
-      )
-      if (!printed) {
-        window.alert('구매발주는 저장됐지만 구매발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
-      }
-    }
-
     onSaved?.()
   }
 
-  function handlePrintOnly() {
+  function handlePrint(language: MaterialPurchaseOrderPrintLanguage) {
     if (!order) return
     const printed = printMaterialPurchaseOrder(
       buildMaterialPurchaseOrderPrintData({
@@ -374,11 +366,14 @@ function MaterialPurchaseOrderModalContent({
         orderDate: order.orderDate || form.orderDate || todayYmdSeoul(),
         deliveryDate: order.deliveryDate || form.deliveryDate || '',
         supplier: order.supplier || form.supplier,
+        currency: order.currency || form.currency,
+        contactEmail: profile?.email || '',
         items: order.items,
       }),
+      { language },
     )
     if (!printed) {
-      setSaveError('구매발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
+      setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
     }
   }
 
@@ -456,36 +451,27 @@ function MaterialPurchaseOrderModalContent({
               ) : (
                 <span />
               )}
-              <div className="flex flex-wrap gap-2">
-                <ErpButton variant="secondary" onClick={onClose} disabled={busy}>
-                  {readOnly ? '닫기' : '취소'}
-                </ErpButton>
+              <div className="flex flex-wrap items-center gap-2">
                 {mode === 'edit' && order ? (
-                  <ErpButton
-                    variant="secondary"
-                    onClick={handlePrintOnly}
+                  <PdfDownloadButton
+                    label="발주서 출력"
+                    onDownload={() => handlePrint('ko')}
                     disabled={busy}
-                  >
-                    구매발주서 출력
-                  </ErpButton>
+                    menuPlacement="above"
+                    menuItems={[
+                      { label: '한글', onDownload: () => handlePrint('ko') },
+                      { label: '영문', onDownload: () => handlePrint('en') },
+                    ]}
+                  />
                 ) : null}
                 {!readOnly ? (
-                  <>
-                    <ErpButton
-                      onClick={() => void handleSave(false)}
-                      disabled={busy}
-                      loading={saving}
-                    >
-                      저장
-                    </ErpButton>
-                    <ErpButton
-                      variant="secondary"
-                      onClick={() => void handleSave(true)}
-                      disabled={busy}
-                    >
-                      {saving ? '저장 중...' : '저장 후 구매발주서'}
-                    </ErpButton>
-                  </>
+                  <ErpButton
+                    onClick={() => void handleSave()}
+                    disabled={busy}
+                    loading={saving}
+                  >
+                    저장
+                  </ErpButton>
                 ) : null}
               </div>
             </div>
@@ -578,7 +564,24 @@ function MaterialPurchaseOrderModalContent({
               className={`${ERP_FIELD_INPUT_CLASS} read-only:bg-slate-50`}
             />
           </label>
-          <label className="block text-sm sm:col-span-2">
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>통화</span>
+            <select
+              value={form.currency}
+              onChange={(event) =>
+                updateForm('currency', event.target.value as MaterialPurchaseOrderCurrency)
+              }
+              disabled={readOnly}
+              className={ERP_FIELD_INPUT_CLASS}
+            >
+              {MATERIAL_PURCHASE_ORDER_CURRENCIES.map((currency) => (
+                <option key={currency} value={currency}>
+                  {MATERIAL_PURCHASE_ORDER_CURRENCY_LABELS[currency]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>기본 납기일</span>
             <input
               type="date"
@@ -588,7 +591,25 @@ function MaterialPurchaseOrderModalContent({
               className={ERP_FIELD_INPUT_CLASS}
             />
             <span className="mt-1 block text-xs text-slate-500">
-              행에 비어 있는 납기일자를 채우고, 목록 요약에도 사용됩니다.
+              새 행 기본값 · 품목 납기에도 반영됩니다.
+            </span>
+          </label>
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>납기일자</span>
+            <input
+              type="date"
+              value={
+                items.find((item) => item.deliveryDate)?.deliveryDate || form.deliveryDate || ''
+              }
+              onChange={(event) => {
+                const nextDate = event.target.value
+                setItems((rows) => rows.map((item) => ({ ...item, deliveryDate: nextDate })))
+              }}
+              readOnly={readOnly}
+              className={ERP_FIELD_INPUT_CLASS}
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              이번 구매발주 품목 공통 납기입니다.
             </span>
           </label>
         </div>
@@ -598,7 +619,7 @@ function MaterialPurchaseOrderModalContent({
           {readOnly ? <h3 className="mb-3 text-sm font-bold text-slate-900">구매발주 품목</h3> : null}
           {readOnly ? (
             <div className="max-h-[min(28rem,50dvh)] overflow-auto rounded-lg border border-slate-300">
-              <table className="erp-data-table erp-data-table--compact min-w-[760px] w-full border-collapse text-sm">
+              <table className="erp-data-table erp-data-table--compact min-w-[980px] w-full border-collapse text-sm">
                 <thead className={`sticky top-0 z-[1] ${ERP_TABLE_HEAD_CLASS}`}>
                   <tr>
                     <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
@@ -608,7 +629,16 @@ function MaterialPurchaseOrderModalContent({
                       품목명
                     </th>
                     <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                      공정
+                    </th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                      패키지
+                    </th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
                       규격
+                    </th>
+                    <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                      MPN
                     </th>
                     <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
                       수량
@@ -619,31 +649,43 @@ function MaterialPurchaseOrderModalContent({
                     <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
                       공급가액
                     </th>
-                    <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
-                      납기일자
-                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {order?.items.map((item, index) => (
-                    <tr key={item.lineId || index} className="border-t border-slate-200">
-                      <td className="px-2.5 py-2 text-center">{item.materialCode || '-'}</td>
-                      <td className="px-2.5 py-2">{item.materialName}</td>
-                      <td className="px-2.5 py-2">{item.specification || '-'}</td>
-                      <td className="px-2.5 py-2 text-right tabular-nums">
-                        {item.quantity.toLocaleString('ko-KR')}
-                      </td>
-                      <td className="px-2.5 py-2 text-right tabular-nums">
-                        {item.unitPrice.toLocaleString('ko-KR')}
-                      </td>
-                      <td className="px-2.5 py-2 text-right tabular-nums">
-                        {item.orderAmount.toLocaleString('ko-KR')}
-                      </td>
-                      <td className="px-2.5 py-2 text-center tabular-nums">
-                        {item.deliveryDate || order?.deliveryDate || '-'}
-                      </td>
-                    </tr>
-                  ))}
+                  {order?.items.map((item, index) => {
+                    const matched =
+                      resolveMaterialByInventoryCode(
+                        materials,
+                        item.materialId || item.materialCode || '',
+                      ) || null
+                    const moneySymbol = materialPurchaseOrderCurrencySymbol(
+                      order.currency || form.currency,
+                    )
+                    return (
+                      <tr key={item.lineId || index} className="border-t border-slate-200">
+                        <td className="px-2.5 py-2 text-center">{item.materialCode || '-'}</td>
+                        <td className="px-2.5 py-2">{item.materialName}</td>
+                        <td className="px-2.5 py-2 text-center">{matched?.type || '-'}</td>
+                        <td className="px-2.5 py-2">{matched?.package || '-'}</td>
+                        <td className="px-2.5 py-2">{item.specification || '-'}</td>
+                        <td className="px-2.5 py-2 font-mono text-xs">{item.mpn || '-'}</td>
+                        <td className="px-2.5 py-2 text-right tabular-nums">
+                          {item.quantity.toLocaleString('ko-KR')}
+                        </td>
+                        <td className="px-2.5 py-2 text-right tabular-nums">
+                          {moneySymbol}
+                          {item.unitPrice.toLocaleString('ko-KR', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 4,
+                          })}
+                        </td>
+                        <td className="px-2.5 py-2 text-right tabular-nums">
+                          {moneySymbol}
+                          {formatMaterialPurchaseOrderAmountNumber(item.orderAmount)}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -651,6 +693,7 @@ function MaterialPurchaseOrderModalContent({
             <MaterialPurchaseOrderItemsForm
               items={items}
               supplier={form.supplier}
+              currency={form.currency}
               materials={materials}
               defaultDeliveryDate={form.deliveryDate}
               lockSeededFields={lockSeededFields}

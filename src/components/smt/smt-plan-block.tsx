@@ -111,7 +111,13 @@ export function SmtPlanBlockCard({
       <div className="mt-0.5 flex min-w-0 items-center gap-1">
         <p className="min-w-0 truncate text-[11px] font-bold text-slate-900">{plan.productSummary}</p>
         {plan.pcbSide === 'TOP' || plan.pcbSide === 'BOT' ? (
-          <span className="shrink-0 rounded bg-white/80 px-1 py-0.5 text-[11px] font-bold text-slate-700">
+          <span
+            className={`shrink-0 rounded px-1 py-0.5 text-[11px] font-bold ${
+              plan.pcbSide === 'TOP'
+                ? 'bg-sky-100 text-sky-800'
+                : 'bg-indigo-100 text-indigo-800'
+            }`}
+          >
             {plan.pcbSide}
           </span>
         ) : null}

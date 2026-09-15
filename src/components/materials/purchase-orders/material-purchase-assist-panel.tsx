@@ -16,6 +16,8 @@ export type PurchaseAssistFillPayload = {
     materialId: string
     materialCode: string
     materialName: string
+    processType?: string
+    package?: string
     specification: string
     mpn: string
     quantity: string
@@ -153,6 +155,8 @@ export function MaterialPurchaseAssistPanel({
         materialId: line.materialId,
         materialCode: line.materialCode,
         materialName: line.materialName,
+        processType: '',
+        package: '',
         specification: line.specification,
         mpn: line.mpn,
         quantity: String(line.suggestedQuantity),
@@ -178,6 +182,8 @@ export function MaterialPurchaseAssistPanel({
         materialId: line.materialId,
         materialCode: line.materialId,
         materialName: line.materialName,
+        processType: '',
+        package: '',
         specification: line.specification,
         mpn: line.mpn,
         quantity: String(line.suggestedQuantity),

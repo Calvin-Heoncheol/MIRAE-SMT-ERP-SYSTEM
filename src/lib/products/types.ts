@@ -1,4 +1,5 @@
 import type { MaterialCostLine } from '@/lib/items/material-cost-lines'
+import type { ItemProductionStd } from '@/lib/items/production-std'
 import type { ItemSmtQuoteParts } from '@/lib/items/smt-quote-parts'
 
 export type ProductPcbSideMode = 'single' | 'duo' | 'double'
@@ -28,6 +29,8 @@ export type Product = {
   pcbSideMode: ProductPcbSideMode
   processType: ProductProcessType
   productKind: ProductKind
+  /** 반제품 종수·Tech Time */
+  productionStd: ItemProductionStd
   /** @deprecated */
   smtQuoteParts: ItemSmtQuoteParts
   /** @deprecated */

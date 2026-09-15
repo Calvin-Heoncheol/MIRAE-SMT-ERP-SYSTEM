@@ -94,7 +94,7 @@ export function MaterialPurchaseOrderListTable({
                 align="right"
                 className="hidden font-semibold tabular-nums text-slate-900 sm:table-cell"
               >
-                {formatMaterialPurchaseOrderMoney(order.totalAmount)}
+                {formatMaterialPurchaseOrderMoney(order.totalAmount, order.currency)}
               </ErpTableTd>
               <ErpTableTd align="center">
                 <StatusBadge

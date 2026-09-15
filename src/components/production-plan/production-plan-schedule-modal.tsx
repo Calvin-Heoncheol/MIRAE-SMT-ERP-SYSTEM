@@ -6,6 +6,13 @@ import { ErpModal } from '@/components/ui/erp-modal'
 import { ErpNumericInput } from '@/components/ui/erp-numeric-input'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { POST_PROCESS_TEAMS } from '@/lib/post-process/teams'
+import {
+  PRODUCTION_PLAN_DAY_CAPACITY_HOURS,
+  estimateBoardRowLoad,
+  formatCellLoadLabel,
+  formatPlanLoadDetail,
+  summarizeLoadEstimates,
+} from '@/lib/production-plan/capacity'
 import { validatePostPlanDate } from '@/lib/production-plan/pipeline'
 import {
   isProductionPlanScheduleRow,
@@ -21,6 +28,7 @@ import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
 
 export type ProductionPlanScheduleFormValues = {
   plannedDate: string
+  plannedEndDate: string
   plannedQuantity: number
   lineNo: number
   team: string
@@ -46,7 +54,6 @@ function resolveDefaultPcbSide(
 ): ProductionPlanPcbSide {
   if (!row.splitPcbSides) return 'SINGLE'
   if (row.status === 'confirmed' && row.pcbSide && row.pcbSide !== 'SINGLE') {
-    // BOTH는 더 이상 선택하지 않음 — 수정 시 TOP으로 표시
     if (row.pcbSide === 'BOTH') return 'TOP'
     return row.pcbSide
   }
@@ -85,6 +92,32 @@ export function ProductionPlanScheduleModal({
   const maxQuantity = row
     ? resolveScheduleMaxQuantity(row, values.pcbSide, allRows)
     : 1
+
+  const rowLoad = useMemo(() => {
+    if (!row || row.scope === 'material') return null
+    return estimateBoardRowLoad(row, values.plannedQuantity, values.pcbSide)
+  }, [row, values.plannedQuantity, values.pcbSide])
+
+  const cellLoadPreview = useMemo(() => {
+    if (!row || row.scope === 'material') return null
+    const peers = allRows.filter((entry) => {
+      if (entry.scope !== row.scope) return false
+      if (!isProductionPlanScheduleRow(entry)) return false
+      if (entry.key === row.key) return false
+      const start = entry.plannedDate.slice(0, 10)
+      const end = (entry.plannedEndDate || entry.plannedDate).slice(0, 10)
+      if (values.plannedDate < start || values.plannedDate > end) return false
+      if (row.scope === 'smt') {
+        return entry.lineNo === values.lineNo
+      }
+      return String(entry.team || '').trim() === String(values.team || '').trim()
+    })
+    const estimates = [
+      ...peers.map((entry) => estimateBoardRowLoad(entry)),
+      estimateBoardRowLoad(row, values.plannedQuantity, values.pcbSide),
+    ]
+    return summarizeLoadEstimates(estimates)
+  }, [row, allRows, values.plannedDate, values.lineNo, values.team, values.plannedQuantity, values.pcbSide])
 
   const sideOptions = useMemo(() => {
     if (!sideUnplanned) return []
@@ -126,9 +159,42 @@ export function ProductionPlanScheduleModal({
       ? validatePostPlanDate(row, values.plannedDate, allRows)
       : { ok: true as const }
 
+  const endBeforeStart =
+    Boolean(values.plannedEndDate) &&
+    Boolean(values.plannedDate) &&
+    values.plannedEndDate < values.plannedDate
+
   const selectedSideDone =
     sideOptions.find((option) => option.value === values.pcbSide)?.done === true &&
     row.status !== 'confirmed'
+
+  const showScheduleExtras = row.scope === 'smt' || row.scope === 'post'
+
+  function trySubmit() {
+    const plannedQuantity = Math.min(
+      maxQuantity,
+      Math.max(1, Math.floor(values.plannedQuantity) || 1),
+    )
+    const plannedEndDate = (values.plannedEndDate || values.plannedDate).slice(0, 10)
+
+    if (rowLoad?.missingStd) {
+      const ok = window.confirm(
+        '품목에 Tech Time(장비 패널 초)이 없어 시간 부하를 계산할 수 없습니다.\n그래도 저장할까요?',
+      )
+      if (!ok) return
+    } else if (cellLoadPreview?.overCapacity) {
+      const ok = window.confirm(
+        `해당 칸 부하가 일 ${PRODUCTION_PLAN_DAY_CAPACITY_HOURS}시간을 초과합니다 (${formatCellLoadLabel(cellLoadPreview)}).\n그래도 저장할까요?`,
+      )
+      if (!ok) return
+    }
+
+    onSubmit({
+      ...values,
+      plannedQuantity,
+      plannedEndDate,
+    })
+  }
 
   return (
     <ErpModal open={open} title={title} onClose={onClose} size="md">
@@ -138,35 +204,86 @@ export function ProductionPlanScheduleModal({
           <p className="mt-1 font-bold text-slate-900">{row.productName}</p>
           <p className="text-slate-600">{row.customer}</p>
           <p className="mt-2 text-xs text-slate-500">
-            잔량 {row.remainingQty.toLocaleString('ko-KR')}
+            {sideUnplanned ? (
+              <>
+                TOP 잔량 {sideUnplanned.top.toLocaleString('ko-KR')}
+                <span className="mx-1.5 text-slate-300">·</span>
+                BOT 잔량 {sideUnplanned.bot.toLocaleString('ko-KR')}
+              </>
+            ) : (
+              <>잔량 {row.remainingQty.toLocaleString('ko-KR')}</>
+            )}
             {(row.plannedTotalQty ?? 0) > 0
               ? ` · 계획됨 ${row.plannedTotalQty!.toLocaleString('ko-KR')}`
               : ''}
-            {(row.unplannedQty ?? 0) > 0
+            {!sideUnplanned && (row.unplannedQty ?? 0) > 0
               ? ` · 미계획 ${row.unplannedQty!.toLocaleString('ko-KR')}`
               : ''}
             {row.deliveryDate ? ` · 납기 ${row.deliveryDate}` : ''}
           </p>
-          {sideUnplanned ? (
-            <p className="mt-1.5 text-xs font-semibold text-slate-700">
-              TOP 잔량 {sideUnplanned.top.toLocaleString('ko-KR')}
-              <span className="mx-1.5 text-slate-300">·</span>
-              BOT 잔량 {sideUnplanned.bot.toLocaleString('ko-KR')}
+          {rowLoad ? (
+            <p
+              className={`mt-2 text-xs font-semibold ${
+                rowLoad.missingStd
+                  ? 'text-amber-700'
+                  : cellLoadPreview?.overCapacity
+                    ? 'text-rose-700'
+                    : 'text-slate-700'
+              }`}
+            >
+              {formatPlanLoadDetail(rowLoad)}
+              {cellLoadPreview && !cellLoadPreview.quantityOnly ? (
+                <span className="mt-1 block font-medium text-slate-500">
+                  해당 칸 합계 {formatCellLoadLabel(cellLoadPreview)}
+                  {cellLoadPreview.overCapacity
+                    ? ` · 일 ${PRODUCTION_PLAN_DAY_CAPACITY_HOURS}시간 초과`
+                    : ''}
+                </span>
+              ) : null}
             </p>
           ) : null}
         </div>
 
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium text-slate-600">
-            {row.scope === 'material' ? '입고일' : '계획일'}
-          </span>
-          <input
-            type="date"
-            value={values.plannedDate}
-            onChange={(event) => setValues((current) => ({ ...current, plannedDate: event.target.value }))}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2"
-          />
-        </label>
+        <div className={`grid gap-3 ${showScheduleExtras ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium text-slate-600">
+              {row.scope === 'material' ? '입고일' : '시작일'}
+            </span>
+            <input
+              type="date"
+              value={values.plannedDate}
+              onChange={(event) => {
+                const plannedDate = event.target.value
+                setValues((current) => ({
+                  ...current,
+                  plannedDate,
+                  plannedEndDate:
+                    !current.plannedEndDate || current.plannedEndDate < plannedDate
+                      ? plannedDate
+                      : current.plannedEndDate,
+                }))
+              }}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2"
+            />
+          </label>
+          {showScheduleExtras ? (
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-600">종료일</span>
+              <input
+                type="date"
+                value={values.plannedEndDate || values.plannedDate}
+                min={values.plannedDate || undefined}
+                onChange={(event) =>
+                  setValues((current) => ({ ...current, plannedEndDate: event.target.value }))
+                }
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+              />
+            </label>
+          ) : null}
+        </div>
+        {endBeforeStart ? (
+          <p className="text-xs font-semibold text-rose-600">종료일은 시작일 이후여야 합니다.</p>
+        ) : null}
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium text-slate-600">
@@ -304,17 +421,12 @@ export function ProductionPlanScheduleModal({
           </ErpButton>
           <ErpButton
             type="button"
-            onClick={() => {
-              const plannedQuantity = Math.min(
-                maxQuantity,
-                Math.max(1, Math.floor(values.plannedQuantity) || 1),
-              )
-              onSubmit({ ...values, plannedQuantity })
-            }}
+            onClick={trySubmit}
             disabled={
               saving ||
               deleting ||
               !values.plannedDate ||
+              endBeforeStart ||
               !postDateHint.ok ||
               selectedSideDone ||
               maxQuantity <= 0
@@ -337,9 +449,14 @@ export function buildScheduleFormValues(
   const maxQuantity = resolveScheduleMaxQuantity(row, pcbSide, allRows)
   const isEditing =
     Boolean(row.plannedQuantity && row.plannedQuantity > 0 && row.status === 'confirmed')
+  const start = (isEditing ? row.plannedDate : plannedDate).slice(0, 10)
+  const end = isEditing
+    ? (row.plannedEndDate || row.plannedDate || plannedDate).slice(0, 10)
+    : start
 
   return {
-    plannedDate,
+    plannedDate: start,
+    plannedEndDate: end,
     plannedQuantity: isEditing
       ? Math.max(1, Math.min(Math.max(1, maxQuantity), row.plannedQuantity || 1))
       : Math.max(1, maxQuantity),

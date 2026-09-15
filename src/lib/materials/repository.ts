@@ -41,6 +41,8 @@ function missingEnvResult(): { ok: false; reason: 'env'; detail: string } {
   }
 }
 
+const MATERIALS_PAGE_SIZE = 1000
+
 export async function fetchMaterials(): Promise<FetchMaterialsResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnvResult()
@@ -48,17 +50,32 @@ export async function fetchMaterials(): Promise<FetchMaterialsResult> {
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
-      .from('items')
-      .select('*')
-      .in('item_category', [1, 2])
-      .order('name', { ascending: true })
+    const materials: Material[] = []
+    let from = 0
 
-    if (error) {
-      return { ok: false, reason: 'query', detail: error.message }
+    for (;;) {
+      const to = from + MATERIALS_PAGE_SIZE - 1
+      const { data, error } = await supabase
+        .from('items')
+        .select('*')
+        .in('item_category', [1, 2])
+        .order('name', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to)
+
+      if (error) {
+        return { ok: false, reason: 'query', detail: error.message }
+      }
+
+      const rows = data || []
+      for (const row of rows) {
+        materials.push(mapItemRowToMaterial(row))
+      }
+
+      if (rows.length < MATERIALS_PAGE_SIZE) break
+      from += MATERIALS_PAGE_SIZE
     }
 
-    const materials = (data || []).map((row) => mapItemRowToMaterial(row))
     return { ok: true, materials }
   } catch (error) {
     return {

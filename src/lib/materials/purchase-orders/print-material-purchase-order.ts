@@ -1,9 +1,21 @@
-import { APP_SHORT_NAME, COMPANY_ADDRESS_DOMESTIC, COMPANY_QUOTE_EMAIL_DOMESTIC } from '@/lib/app-config'
+import {
+  APP_SHORT_NAME,
+  COMPANY_ADDRESS_DOMESTIC,
+  COMPANY_ADDRESS_DOMESTIC_EN,
+  COMPANY_QUOTE_EMAIL_DOMESTIC,
+} from '@/lib/app-config'
 import { todayYmdSeoul } from '@/lib/orders/utils'
+import type { MaterialPurchaseOrderCurrency } from '@/lib/materials/purchase-orders/types'
 import {
   formatMaterialPurchaseOrderMoney,
   formatMaterialPurchaseOrderDate,
+  formatMaterialPurchaseOrderAmountNumber,
+  materialPurchaseOrderCurrencySymbol,
+  normalizeMaterialPurchaseOrderAmount,
+  normalizeMaterialPurchaseOrderUnitPrice,
 } from '@/lib/materials/purchase-orders/utils'
+
+export type MaterialPurchaseOrderPrintLanguage = 'ko' | 'en'
 
 export type MaterialPurchaseOrderPrintLine = {
   materialCode: string
@@ -22,6 +34,9 @@ export type MaterialPurchaseOrderPrintData = {
   orderDate: string
   deliveryDate: string
   supplier: string
+  currency: MaterialPurchaseOrderCurrency
+  /** 출력 담당자 이메일 (로그인 사용자) */
+  contactEmail?: string | null
   items: MaterialPurchaseOrderPrintLine[]
   note?: string
 }
@@ -34,24 +49,49 @@ function escapeHtml(value: string) {
     .replaceAll('"', '&quot;')
 }
 
-function formatNumber(value: number) {
-  return Math.max(0, Math.round(Number(value) || 0)).toLocaleString('ko-KR')
+function formatNumber(value: number, maxFractionDigits = 0) {
+  const n = Number(value) || 0
+  if (maxFractionDigits <= 0) {
+    return Math.max(0, Math.round(n)).toLocaleString('ko-KR')
+  }
+  const factor = 10 ** maxFractionDigits
+  const rounded = Math.round(Math.max(0, n) * factor) / factor
+  return rounded.toLocaleString('ko-KR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxFractionDigits,
+  })
 }
 
-export function buildMaterialPurchaseOrderHtml(data: MaterialPurchaseOrderPrintData) {
+function printText(language: MaterialPurchaseOrderPrintLanguage, ko: string, en: string) {
+  return language === 'en' ? en : ko
+}
+
+export function buildMaterialPurchaseOrderHtml(
+  data: MaterialPurchaseOrderPrintData,
+  language: MaterialPurchaseOrderPrintLanguage = 'ko',
+) {
+  const t = (ko: string, en: string) => printText(language, ko, en)
   const orderNumber = escapeHtml(data.orderNumber)
   const sourceOrderNumber = String(data.sourceOrderNumber || '').trim()
   const sourceOrderHtml = sourceOrderNumber
-    ? `<div class="source-no">발주번호 ${escapeHtml(sourceOrderNumber)}</div>`
+    ? `<div class="source-no">${escapeHtml(t('발주번호', 'Sales Order'))} ${escapeHtml(sourceOrderNumber)}</div>`
     : ''
   const orderDate = escapeHtml(formatMaterialPurchaseOrderDate(data.orderDate) || data.orderDate)
   const deliveryDate = escapeHtml(
     formatMaterialPurchaseOrderDate(data.deliveryDate) || data.deliveryDate || '—',
   )
   const supplier = escapeHtml(data.supplier.trim() || '—')
+  const currency = data.currency === 'USD' ? 'USD' : 'KRW'
+  const moneySymbol = materialPurchaseOrderCurrencySymbol(currency)
   const issuedAt = todayYmdSeoul()
   const noteRaw = String(data.note || '').trim()
   const note = escapeHtml(noteRaw)
+  const htmlLang = language === 'en' ? 'en' : 'ko'
+  const docTitle = t('구매발주서', 'Purchase Order')
+  const companyName = language === 'en' ? 'MiraeSMT' : APP_SHORT_NAME
+  const companyAddress = language === 'en' ? COMPANY_ADDRESS_DOMESTIC_EN : COMPANY_ADDRESS_DOMESTIC
+  const contactEmail =
+    String(data.contactEmail || '').trim() || COMPANY_QUOTE_EMAIL_DOMESTIC
 
   const totalQuantity = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0)
   const totalAmount = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.orderAmount) || 0), 0)
@@ -62,26 +102,26 @@ export function buildMaterialPurchaseOrderHtml(data: MaterialPurchaseOrderPrintD
       const code = escapeHtml(item.materialCode || '—')
       const mpn = escapeHtml(item.mpn || '—')
       const qty = formatNumber(item.quantity)
-      const unitPrice = formatNumber(item.unitPrice)
-      const amount = formatNumber(item.orderAmount)
+      const unitPrice = formatNumber(item.unitPrice, 4)
+      const amount = formatMaterialPurchaseOrderAmountNumber(item.orderAmount)
       return `<tr>
         <td class="c-no">${index + 1}</td>
         <td class="mono">${code}</td>
         <td>${name}</td>
         <td class="mono">${mpn}</td>
         <td class="num">${qty}</td>
-        <td class="num">₩${unitPrice}</td>
-        <td class="num amt">₩${amount}</td>
+        <td class="num">${moneySymbol}${unitPrice}</td>
+        <td class="num amt">${moneySymbol}${amount}</td>
       </tr>`
     })
     .join('')
 
   const notesHtml = noteRaw
-    ? `<div class="notes"><strong>비고</strong> ${note}</div>`
-    : `<div class="notes"><strong>안내</strong> 납기일 ${deliveryDate} · 품목 ${formatNumber(data.items.length)}종 · 수량합계 ${formatNumber(totalQuantity)}</div>`
+    ? `<div class="notes"><strong>${escapeHtml(t('비고', 'Note'))}</strong> ${note}</div>`
+    : `<div class="notes"><strong>${escapeHtml(t('안내', 'Info'))}</strong> ${escapeHtml(t('납기일', 'Delivery'))} ${deliveryDate} · ${escapeHtml(t('품목', 'Items'))} ${formatNumber(data.items.length)}${escapeHtml(t('종', ''))} · ${escapeHtml(t('수량합계', 'Total Qty'))} ${formatNumber(totalQuantity)}</div>`
 
-  return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
-<title>구매발주서 ${orderNumber}</title><style>
+  return `<!DOCTYPE html><html lang="${htmlLang}"><head><meta charset="UTF-8">
+<title>${escapeHtml(docTitle)} ${orderNumber}</title><style>
 @page { size: A4 portrait; margin: 10mm; }
 html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body {
@@ -110,7 +150,7 @@ body {
 .issuer .sub { margin-top: 2px; font-size: 9px; color: #64748b; }
 .doc-title { text-align: right; }
 .doc-title .en { font-size: 8px; font-weight: 700; color: #64748b; letter-spacing: 0.1em; }
-.doc-title h1 { margin: 2px 0 0; font-size: 18px; font-weight: 800; color: #334155; letter-spacing: 0.28em; }
+.doc-title h1 { margin: 2px 0 0; font-size: 18px; font-weight: 800; color: #334155; letter-spacing: ${language === 'en' ? '0.04em' : '0.28em'}; }
 .doc-title .source-no { margin-top: 6px; font-size: 10px; font-weight: 700; color: #0f172a; }
 .doc-title .no { margin-top: 2px; font-size: 10px; font-weight: 700; color: #475569; }
 .party-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
@@ -139,45 +179,45 @@ body {
 <div class="sheet">
   <div class="letterhead">
     <div class="issuer">
-      <div class="brand">${escapeHtml(APP_SHORT_NAME)}</div>
-      <div class="sub">${escapeHtml(COMPANY_ADDRESS_DOMESTIC)}</div>
-      <div class="sub">${escapeHtml(COMPANY_QUOTE_EMAIL_DOMESTIC)}</div>
+      <div class="brand">${escapeHtml(companyName)}</div>
+      <div class="sub">${escapeHtml(companyAddress)}</div>
+      <div class="sub">${escapeHtml(contactEmail)}</div>
     </div>
     <div class="doc-title">
       <div class="en">PURCHASE ORDER</div>
-      <h1>구매발주서</h1>
+      <h1>${escapeHtml(docTitle)}</h1>
       ${sourceOrderHtml}
-      <div class="no">구매발주번호 ${orderNumber}</div>
+      <div class="no">${escapeHtml(t('구매발주번호', 'PO No.'))} ${orderNumber}</div>
     </div>
   </div>
   <div class="party-grid">
     <div class="party-box">
-      <div class="label">발주처</div>
-      <div class="name">${escapeHtml(APP_SHORT_NAME)}</div>
-      <div class="meta">작성일 ${issuedAt}</div>
+      <div class="label">${escapeHtml(t('발주처', 'Buyer'))}</div>
+      <div class="name">${escapeHtml(companyName)}</div>
+      <div class="meta">${escapeHtml(t('작성일', 'Issued'))} ${issuedAt}</div>
     </div>
     <div class="party-box party-box-buyer">
-      <div class="label">공급사</div>
+      <div class="label">${escapeHtml(t('공급사', 'Supplier'))}</div>
       <div class="name">${supplier}</div>
-      <div class="meta">납기일 ${deliveryDate}</div>
+      <div class="meta">${escapeHtml(t('납기일', 'Delivery'))} ${deliveryDate}</div>
     </div>
   </div>
   <div class="meta-bar">
-    <div class="cell"><strong>구매발주일</strong>${orderDate}</div>
-    <div class="cell"><strong>납기일</strong>${deliveryDate}</div>
-    <div class="cell"><strong>품목수</strong>${formatNumber(data.items.length)} 종</div>
-    <div class="cell"><strong>수량합계</strong>${formatNumber(totalQuantity)}</div>
+    <div class="cell"><strong>${escapeHtml(t('구매발주일', 'Order Date'))}</strong>${orderDate}</div>
+    <div class="cell"><strong>${escapeHtml(t('납기일', 'Delivery'))}</strong>${deliveryDate}</div>
+    <div class="cell"><strong>${escapeHtml(t('통화', 'Currency'))}</strong>${currency}</div>
+    <div class="cell"><strong>${escapeHtml(t('수량합계', 'Total Qty'))}</strong>${formatNumber(totalQuantity)}</div>
   </div>
   <table class="items">
     <thead>
       <tr>
         <th class="c-no">No</th>
-        <th>자재코드</th>
-        <th>자재명</th>
+        <th>${escapeHtml(t('자재코드', 'Item Code'))}</th>
+        <th>${escapeHtml(t('자재명', 'Item Name'))}</th>
         <th>MPN</th>
-        <th class="num">수량</th>
-        <th class="num">단가</th>
-        <th class="num">금액</th>
+        <th class="num">${escapeHtml(t('수량', 'Qty'))}</th>
+        <th class="num">${escapeHtml(t('단가', 'Unit Price'))}</th>
+        <th class="num">${escapeHtml(t('금액', 'Amount'))}</th>
       </tr>
     </thead>
     <tbody>
@@ -186,7 +226,7 @@ body {
   </table>
   <div class="totals-wrap">
     <div class="totals">
-      <div class="row"><span>구매발주금액 합계</span><span class="val">${escapeHtml(formatMaterialPurchaseOrderMoney(totalAmount))}</span></div>
+      <div class="row"><span>${escapeHtml(t('구매발주금액 합계', 'Total Amount'))}</span><span class="val">${escapeHtml(formatMaterialPurchaseOrderMoney(totalAmount, currency))}</span></div>
     </div>
   </div>
   ${notesHtml}
@@ -194,12 +234,16 @@ body {
 </body></html>`
 }
 
-export function printMaterialPurchaseOrder(data: MaterialPurchaseOrderPrintData) {
+export function printMaterialPurchaseOrder(
+  data: MaterialPurchaseOrderPrintData,
+  options: { language?: MaterialPurchaseOrderPrintLanguage } = {},
+) {
   if (!data.items.length) return false
 
-  const html = buildMaterialPurchaseOrderHtml(data)
+  const language = options.language === 'en' ? 'en' : 'ko'
+  const html = buildMaterialPurchaseOrderHtml(data, language)
   const iframe = document.createElement('iframe')
-  iframe.setAttribute('title', '구매발주서 인쇄')
+  iframe.setAttribute('title', language === 'en' ? 'Purchase Order Print' : '발주서 인쇄')
   iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
   document.body.appendChild(iframe)
 
@@ -237,6 +281,8 @@ export function buildMaterialPurchaseOrderPrintData(input: {
   orderDate: string
   deliveryDate: string
   supplier: string
+  currency?: MaterialPurchaseOrderCurrency
+  contactEmail?: string | null
   items: Array<{
     materialCode?: string
     materialName?: string
@@ -254,14 +300,16 @@ export function buildMaterialPurchaseOrderPrintData(input: {
     orderDate: input.orderDate,
     deliveryDate: input.deliveryDate,
     supplier: input.supplier,
+    currency: input.currency === 'USD' ? 'USD' : 'KRW',
+    contactEmail: String(input.contactEmail || '').trim() || null,
     note: input.note,
     items: input.items.map((item) => {
       const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
-      const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+      const unitPrice = normalizeMaterialPurchaseOrderUnitPrice(item.unitPrice)
       const orderAmount =
         item.orderAmount != null
-          ? Math.max(0, Math.round(Number(item.orderAmount) || 0))
-          : quantity * unitPrice
+          ? normalizeMaterialPurchaseOrderAmount(item.orderAmount)
+          : normalizeMaterialPurchaseOrderAmount(quantity * unitPrice)
       return {
         materialCode: String(item.materialCode || '').trim(),
         materialName: String(item.materialName || '').trim(),

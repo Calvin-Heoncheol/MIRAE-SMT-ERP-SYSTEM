@@ -18,6 +18,7 @@ import {
   formatWeekLabel,
   getWeekStartYmd,
   isYmdInWeek,
+  planCoversYmd,
 } from '@/lib/production-plan/calendar'
 import type { ProductionPlanDragPayload } from '@/lib/production-plan/config'
 import { canPlanPost, canPlanSmt, validatePostPlanDate } from '@/lib/production-plan/pipeline'
@@ -126,9 +127,9 @@ export function ProductionPlanUnifiedWorkspace({
     return rows.filter((row) => {
       if (!isProductionPlanScheduleRow(row)) return false
       if (row.scope !== scopeFilter) return false
-      return isYmdInWeek(row.plannedDate, weekStart)
+      return weekDates.some((ymd) => planCoversYmd(row.plannedDate, row.plannedEndDate, ymd))
     })
-  }, [rows, weekStart, scopeFilter])
+  }, [rows, weekDates, scopeFilter])
 
   const reload = useCallback(async (options?: { background?: boolean }) => {
     const background = options?.background ?? false
@@ -256,6 +257,8 @@ export function ProductionPlanUnifiedWorkspace({
       orderId: row.orderId,
       targetId: row.targetId,
       plannedDate: values.plannedDate,
+      plannedEndDate: values.plannedEndDate || values.plannedDate,
+      planStatus: 'confirmed',
       plannedQuantity: values.plannedQuantity,
       lineNo: row.scope === 'smt' ? values.lineNo : undefined,
       pcbSide: row.scope === 'smt' ? values.pcbSide : undefined,
@@ -455,6 +458,7 @@ export function ProductionPlanUnifiedWorkspace({
                   confirmedAt: '',
                   confirmedByName: '',
                   plannedDate: '',
+                  plannedEndDate: '',
                   lineNo: null,
                   team: '',
                   pcbSide: 'SINGLE',

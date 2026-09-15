@@ -324,6 +324,7 @@ export async function createMaterialPurchaseOrder(
       order_date: payload.order_date,
       delivery_date: payload.delivery_date || null,
       supplier: payload.supplier,
+      currency: payload.currency || 'KRW',
     })
     if (payload.source_order_id) {
       insertRow.source_order_id = payload.source_order_id
@@ -381,6 +382,15 @@ export async function createMaterialPurchaseOrder(
         .insert(insertRow)
         .select('id')
         .single())
+    }
+
+    if (error && error.message.includes('currency')) {
+      return {
+        ok: false,
+        reason: 'query',
+        detail:
+          '구매발주 통화 컬럼이 없습니다. Supabase에서 supabase/migrate-material-purchase-orders-currency.sql 을 실행한 뒤 다시 저장해 주세요.',
+      }
     }
 
     if (error && isMissingCreatedByColumn(error.message)) {
@@ -445,11 +455,22 @@ export async function updateMaterialPurchaseOrder(
         order_date: payload.order_date,
         delivery_date: payload.delivery_date || null,
         supplier: payload.supplier,
+        currency: payload.currency || 'KRW',
         updated_at: new Date().toISOString(),
       })
       .eq('id', existing.id)
 
-    if (updateError) return { ok: false, reason: 'query', detail: updateError.message }
+    if (updateError) {
+      if (updateError.message.includes('currency')) {
+        return {
+          ok: false,
+          reason: 'query',
+          detail:
+            '구매발주 통화 컬럼이 없습니다. Supabase에서 supabase/migrate-material-purchase-orders-currency.sql 을 실행한 뒤 다시 저장해 주세요.',
+        }
+      }
+      return { ok: false, reason: 'query', detail: updateError.message }
+    }
 
     const { error: deleteError } = await supabase
       .from('material_purchase_order_lines')

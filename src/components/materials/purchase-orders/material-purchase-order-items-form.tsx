@@ -5,12 +5,18 @@ import { MaterialCombobox } from '@/components/materials/purchase-orders/materia
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
-import { computeMaterialPurchaseOrderLineAmount } from '@/lib/materials/purchase-orders/utils'
+import type { MaterialPurchaseOrderCurrency } from '@/lib/materials/purchase-orders/types'
+import {
+  computeMaterialPurchaseOrderLineAmount,
+  formatMaterialPurchaseOrderAmountNumber,
+  materialPurchaseOrderCurrencySymbol,
+} from '@/lib/materials/purchase-orders/utils'
 import type { Material } from '@/lib/materials/types'
 
 type MaterialPurchaseOrderItemsFormProps = {
   items: MaterialPurchaseOrderItemForm[]
   supplier: string
+  currency?: MaterialPurchaseOrderCurrency
   materials: Material[]
   /** 신규 행·빈 납기에 채울 기본 납기 (YYYY-MM-DD) */
   defaultDeliveryDate?: string
@@ -26,6 +32,8 @@ function clearMaterialFields(item: MaterialPurchaseOrderItemForm): MaterialPurch
     materialId: '',
     mpn: '',
     materialName: '',
+    processType: '',
+    package: '',
     specification: '',
   }
 }
@@ -36,6 +44,8 @@ function clearMaterialFieldsKeepName(item: MaterialPurchaseOrderItemForm): Mater
     materialId: '',
     materialCode: '',
     mpn: '',
+    processType: '',
+    package: '',
     specification: '',
   }
 }
@@ -49,11 +59,13 @@ function applyMaterialToItem(
     materialId: material.id,
     materialCode: material.id,
     materialName: material.materialName,
+    processType: material.type || '',
+    package: material.package || '',
     specification: material.specification,
     mpn: material.mpn,
   }
 
-  const currentPrice = Math.round(Number(item.unitPrice) || 0)
+  const currentPrice = Number(item.unitPrice) || 0
   if (material.unitPrice > 0 && currentPrice <= 0) {
     next.unitPrice = String(material.unitPrice)
   }
@@ -64,12 +76,14 @@ function applyMaterialToItem(
 export function MaterialPurchaseOrderItemsForm({
   items,
   supplier,
+  currency = 'KRW',
   materials,
   defaultDeliveryDate = '',
   lockSeededFields = false,
   onChange,
   onSupplierSuggest,
 }: MaterialPurchaseOrderItemsFormProps) {
+  const moneySymbol = materialPurchaseOrderCurrencySymbol(currency)
   function patchItem(index: number, patch: Partial<MaterialPurchaseOrderItemForm>) {
     onChange((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)),
@@ -83,6 +97,8 @@ export function MaterialPurchaseOrderItemsForm({
         materialId: '',
         materialCode: '',
         materialName: '',
+        processType: '',
+        package: '',
         specification: '',
         mpn: '',
         quantity: '0',
@@ -139,7 +155,7 @@ export function MaterialPurchaseOrderItemsForm({
       </div>
 
       <div className="max-h-[min(28rem,50dvh)] overflow-auto rounded-lg border border-slate-300">
-        <table className="erp-data-table erp-data-table--compact min-w-[1040px] w-full border-collapse text-sm">
+        <table className="erp-data-table erp-data-table--compact min-w-[1180px] w-full border-collapse text-sm">
           <thead className="sticky top-0 z-[1] bg-slate-100">
             <tr>
               <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
@@ -149,19 +165,25 @@ export function MaterialPurchaseOrderItemsForm({
                 품목명
               </th>
               <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                공정
+              </th>
+              <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                패키지
+              </th>
+              <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
                 규격
+              </th>
+              <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
+                MPN
               </th>
               <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
                 수량
               </th>
               <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
-                단가
+                단가 ({moneySymbol})
               </th>
               <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
-                공급가액
-              </th>
-              <th className="border-b border-slate-300 px-2.5 py-2 text-center text-xs font-semibold text-slate-700">
-                납기일자
+                공급가액 ({moneySymbol})
               </th>
               <th className="w-10 border-b border-slate-300 px-1 py-2" />
             </tr>
@@ -173,92 +195,111 @@ export function MaterialPurchaseOrderItemsForm({
                 Number(item.unitPrice),
               )
               return (
-              <tr key={index} className="border-t border-slate-200 bg-white">
-                <td className="px-2 py-1.5 align-middle">
-                  <MaterialCombobox
-                    value={item.materialCode}
-                    materials={materials}
-                    supplier={supplier}
-                    placeholder="코드 검색"
-                    ariaLabel={`${index + 1}행 품목코드`}
-                    disabled={lockSeededFields}
-                    inputClassName={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[100px]`}
-                    onValueChange={(materialCode) => handleMaterialCodeChange(index, materialCode)}
-                    onMaterialSelect={(material) => selectMaterial(index, material)}
-                  />
-                </td>
-                <td className="px-2 py-1.5 align-middle">
-                  <MaterialCombobox
-                    value={item.materialName}
-                    materials={materials}
-                    supplier={supplier}
-                    searchField="name"
-                    placeholder="품목명 검색"
-                    ariaLabel={`${index + 1}행 품목명`}
-                    disabled={lockSeededFields}
-                    inputClassName={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[140px]`}
-                    onValueChange={(materialName) => handleMaterialNameChange(index, materialName)}
-                    onMaterialSelect={(material) => selectMaterial(index, material)}
-                  />
-                </td>
-                <td className="px-2 py-1.5 align-middle">
-                  <input
-                    value={item.specification}
-                    readOnly
-                    className={readOnlyClassName}
-                    placeholder="자동"
-                    aria-label={`${index + 1}행 규격`}
-                  />
-                </td>
-                <td className="px-2 py-1.5 align-middle">
-                  <QuoteNumericInput
-                    min={0}
-                    value={String(item.quantity)}
-                    onChange={(quantity) => patchItem(index, { quantity })}
-                    readOnly={lockSeededFields}
-                    className={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[72px] text-right tabular-nums`}
-                  />
-                </td>
-                <td className="px-2 py-1.5 align-middle">
-                  <QuoteNumericInput
-                    min={0}
-                    value={String(item.unitPrice)}
-                    onChange={(unitPrice) => patchItem(index, { unitPrice })}
-                    readOnly={lockSeededFields}
-                    className={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[88px] text-right tabular-nums`}
-                  />
-                </td>
-                <td className="px-2 py-1.5 text-right align-middle tabular-nums font-medium text-slate-800">
-                  {amount.toLocaleString('ko-KR')}
-                </td>
-                <td className="px-2 py-1.5 align-middle">
-                  <input
-                    type="date"
-                    value={item.deliveryDate || ''}
-                    onChange={(event) => patchItem(index, { deliveryDate: event.target.value })}
-                    aria-label={`${index + 1}행 납기일자`}
-                    className={`${inputClassName} min-w-[130px]`}
-                  />
-                </td>
-                <td className="px-1 py-1.5 text-center align-middle">
-                  <button
-                    type="button"
-                    onClick={() => removeRow(index)}
-                    disabled={items.length <= 1 || lockSeededFields}
-                    className="mx-auto flex h-7 w-7 items-center justify-center rounded text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-                    aria-label={`${index + 1}행 삭제`}
-                  >
-                    ×
-                  </button>
-                </td>
-              </tr>
+                <tr key={index} className="border-t border-slate-200 bg-white">
+                  <td className="px-2 py-1.5 align-middle">
+                    <MaterialCombobox
+                      value={item.materialCode}
+                      materials={materials}
+                      supplier={supplier}
+                      placeholder="코드 검색"
+                      ariaLabel={`${index + 1}행 품목코드`}
+                      disabled={lockSeededFields}
+                      inputClassName={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[100px]`}
+                      onValueChange={(materialCode) => handleMaterialCodeChange(index, materialCode)}
+                      onMaterialSelect={(material) => selectMaterial(index, material)}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 align-middle">
+                    <MaterialCombobox
+                      value={item.materialName}
+                      materials={materials}
+                      supplier={supplier}
+                      searchField="name"
+                      placeholder="품목명 검색"
+                      ariaLabel={`${index + 1}행 품목명`}
+                      disabled={lockSeededFields}
+                      inputClassName={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[120px]`}
+                      onValueChange={(materialName) => handleMaterialNameChange(index, materialName)}
+                      onMaterialSelect={(material) => selectMaterial(index, material)}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 align-middle">
+                    <input
+                      value={item.processType}
+                      readOnly
+                      className={`${readOnlyClassName} min-w-[56px] text-center`}
+                      placeholder="—"
+                      aria-label={`${index + 1}행 공정`}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 align-middle">
+                    <input
+                      value={item.package}
+                      readOnly
+                      className={`${readOnlyClassName} min-w-[72px]`}
+                      placeholder="—"
+                      aria-label={`${index + 1}행 패키지`}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 align-middle">
+                    <input
+                      value={item.specification}
+                      readOnly
+                      className={readOnlyClassName}
+                      placeholder="자동"
+                      aria-label={`${index + 1}행 규격`}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 align-middle">
+                    <input
+                      value={item.mpn}
+                      readOnly
+                      className={`${readOnlyClassName} min-w-[100px] font-mono text-xs`}
+                      placeholder="—"
+                      aria-label={`${index + 1}행 MPN`}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 align-middle">
+                    <QuoteNumericInput
+                      min={0}
+                      value={String(item.quantity)}
+                      onChange={(quantity) => patchItem(index, { quantity })}
+                      readOnly={lockSeededFields}
+                      className={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[72px] text-right tabular-nums`}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 align-middle">
+                    <QuoteNumericInput
+                      min={0}
+                      value={String(item.unitPrice)}
+                      onChange={(unitPrice) => patchItem(index, { unitPrice })}
+                      readOnly={lockSeededFields}
+                      className={`${lockSeededFields ? readOnlyClassName : inputClassName} min-w-[88px] text-right tabular-nums`}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 text-right align-middle tabular-nums font-medium text-slate-800">
+                    {moneySymbol}
+                    {formatMaterialPurchaseOrderAmountNumber(amount)}
+                  </td>
+                  <td className="px-1 py-1.5 text-center align-middle">
+                    <button
+                      type="button"
+                      onClick={() => removeRow(index)}
+                      disabled={items.length <= 1 || lockSeededFields}
+                      className="mx-auto flex h-7 w-7 items-center justify-center rounded text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label={`${index + 1}행 삭제`}
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
               )
             })}
           </tbody>
         </table>
       </div>
       <p className="text-xs text-slate-500">
-        품목코드 또는 품목명으로 검색해 선택하면 규격·단가가 자동으로 채워집니다.
+        품목코드 또는 품목명으로 검색해 선택하면 공정·패키지·규격·MPN·단가가 자동으로 채워집니다.
       </p>
     </div>
   )

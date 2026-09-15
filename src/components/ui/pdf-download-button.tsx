@@ -18,6 +18,8 @@ type PdfDownloadButtonProps = {
    * 없으면 바로 onDownload 실행.
    */
   menuItems?: PdfDownloadMenuItem[]
+  /** 모달 푸터 등에서는 above — overflow에 메뉴가 잘리는 것 방지 */
+  menuPlacement?: 'below' | 'above'
 }
 
 /** 전 페이지 공통 PDF 내보내기 */
@@ -26,6 +28,7 @@ export function PdfDownloadButton({
   disabled = false,
   label = 'PDF',
   menuItems,
+  menuPlacement = 'below',
 }: PdfDownloadButtonProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -90,7 +93,10 @@ export function PdfDownloadButton({
         <div
           id={menuId}
           role="menu"
-          className="absolute right-0 z-50 mt-1 min-w-[7.5rem] overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          className={[
+            'absolute right-0 z-[80] min-w-[7.5rem] overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg',
+            menuPlacement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1',
+          ].join(' ')}
         >
           {menuItems!.map((item) => (
             <button

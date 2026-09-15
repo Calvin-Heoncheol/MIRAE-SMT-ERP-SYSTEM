@@ -96,6 +96,16 @@ export type MaterialPurchaseNeedCard = {
 export const MATERIAL_PURCHASE_ORDER_STATUSES = ['발주'] as const
 export type MaterialPurchaseOrderStatus = (typeof MATERIAL_PURCHASE_ORDER_STATUSES)[number]
 
+/** 구매발주 통화 */
+export type MaterialPurchaseOrderCurrency = 'KRW' | 'USD'
+
+export const MATERIAL_PURCHASE_ORDER_CURRENCIES: MaterialPurchaseOrderCurrency[] = ['KRW', 'USD']
+
+export const MATERIAL_PURCHASE_ORDER_CURRENCY_LABELS: Record<MaterialPurchaseOrderCurrency, string> = {
+  KRW: '원 (KRW)',
+  USD: '달러 (USD)',
+}
+
 export type MaterialPurchaseOrderLineItem = {
   lineId?: string
   materialId?: string | null
@@ -118,6 +128,7 @@ export type MaterialPurchaseOrderListGroup = {
   orderDate: string
   deliveryDate: string
   supplier: string
+  currency: MaterialPurchaseOrderCurrency
   /** 연결된 고객 발주서(orders.id) — 발주서 카드에서 구매발주 시 자동 연결 */
   sourceOrderId: string | null
   /** 부분 구매발주 시 커버한 주문 라인 */
@@ -154,6 +165,7 @@ export type MaterialPurchaseOrderRecord = {
   order_date: string
   delivery_date: string | null
   supplier: string
+  currency?: string | null
   source_order_id?: string | null
   covered_order_line_id?: string | null
   covered_product_quantity?: number | null
@@ -168,6 +180,7 @@ export type MaterialPurchaseOrderRowPayload = {
   order_date: string
   delivery_date: string
   supplier: string
+  currency: MaterialPurchaseOrderCurrency
   /** 연결된 고객 발주서 — 신규 구매발주 시에만 설정 */
   source_order_id?: string | null
   /** 부분 구매발주 — 커버한 주문 라인 / 제품 수량 */

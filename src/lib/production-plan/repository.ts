@@ -3,13 +3,22 @@ import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
+import { fetchPendingInboundByMaterialId } from '@/lib/materials/inventory/pending-inbound'
+import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
+import {
+  buildBomEdgesByParent,
+  resolveMaterialInboundStatus,
+  type MaterialInboundStatusInfo,
+} from '@/lib/materials/material-inbound-status'
+import { fetchBomEdges } from '@/lib/materials/outbound/repository'
 import { fetchOrders } from '@/lib/orders/repository'
 import { fetchProducts } from '@/lib/products/repository'
 import type { PostProcessProductionPlan } from '@/lib/post-process/plan/types'
 import { upsertPostProcessProductionPlan, deletePostProcessProductionPlan, fetchAllPostProcessProductionPlans } from '@/lib/post-process/plan/repository'
 import { buildPostProcessPlanOrderCandidates } from '@/lib/post-process/plan/utils'
 import { normalizePostProcessTeam } from '@/lib/post-process/teams'
-import { fetchPostProcessCumulativeCounts } from '@/lib/post-process/repository'
+import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
+import { fetchPostProcessCumulativeCounts, fetchPostProcessPlanProgressRange } from '@/lib/post-process/repository'
 import {
   buildPostProcessAssemblyLines,
   buildProductionOrderLines,
@@ -20,7 +29,8 @@ import { fetchQuotes } from '@/lib/quotes/repository'
 import type { SmtProductionPlan } from '@/lib/smt/plan/types'
 import { upsertSmtProductionPlan, deleteSmtProductionPlan, fetchAllSmtProductionPlans } from '@/lib/smt/plan/repository'
 import { buildSmtPlanOrderCandidates } from '@/lib/smt/plan/utils'
-import { fetchSmtCumulativeCounts } from '@/lib/smt/repository'
+import { buildSmtPlanProgressKey } from '@/lib/smt/count-keys'
+import { fetchSmtCumulativeCounts, fetchSmtPlanProgressRange } from '@/lib/smt/repository'
 import { createSupabaseClient } from '@/lib/supabase'
 import type {
   ConfirmProductionPlanScheduleInput,
@@ -36,6 +46,7 @@ import {
   sortProductionPlanRows,
 } from './utils'
 import { getSmtPlannedEndDate } from './pipeline'
+import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
 
 export type ConfirmProductionPlanResult =
   | { ok: true }
@@ -57,15 +68,31 @@ export function isMissingProductionPlanBoardTable(detail: string) {
   )
 }
 
-/** 자재팀 수동 입고 확정 합계 기준 (BOM·재고 연동 없음) */
-function manualMaterialHint(materialPlannedTotal: number, remainingQty: number) {
-  const ready = Math.max(0, materialPlannedTotal)
+/** 수동 입고 + BOM 현재고/입고예정을 합쳐 자재 가용 힌트 */
+function mergeMaterialHint(
+  materialPlannedTotal: number,
+  remainingQty: number,
+  bomInfo: MaterialInboundStatusInfo | null,
+) {
+  const manualReady = Math.max(0, materialPlannedTotal)
+  const bomReady = Math.max(0, bomInfo?.readyUnits ?? 0)
+  const bomScheduled = Math.max(0, bomInfo?.scheduledUnits ?? 0)
+  const ready = Math.max(manualReady, bomReady)
+  const scheduledExtra = Math.max(0, bomScheduled - ready)
+
+  let status = bomInfo?.status
+  if (manualReady > 0 && (status === 'missing' || status === 'no_bom' || !status)) {
+    status = ready >= remainingQty ? 'ready' : 'scheduled'
+  }
+  if (!status) status = ready > 0 ? 'ready' : 'missing'
+
   return {
     materialReadyQty: ready,
-    materialScheduledQty: 0,
-    materialExpectedReadyDate: '',
+    materialScheduledQty: scheduledExtra,
+    materialExpectedReadyDate: bomInfo?.expectedReadyDate || '',
     materialShort: ready > 0 && ready < remainingQty,
-    materialUnknown: false,
+    materialUnknown: status === 'no_bom' && manualReady <= 0,
+    materialInboundStatus: status,
   }
 }
 
@@ -235,6 +262,15 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
 
   const productById = Object.fromEntries(productsResult.products.map((p) => [p.id, p]))
 
+  function planProductFields(productId: string) {
+    const product = productById[String(productId || '').trim()]
+    if (!product) return {}
+    return {
+      pcbSideMode: product.pcbSideMode,
+      productionStd: product.productionStd,
+    }
+  }
+
   const confirmedMaterialByLine = new Map<string, BoardConfirmRow[]>()
   const confirmedSmtBoardByLine = new Map<string, BoardConfirmRow>()
   const confirmedPostBoardByGroup = new Map<string, BoardConfirmRow>()
@@ -266,18 +302,97 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     postPlansByGroup.set(plan.assemblyGroupId, list)
   }
 
-  const [smtCountsResult, assemblyFetch, deliveryCountsResult, postCountsResult] =
+  const [smtCountsResult, assemblyFetch, deliveryCountsResult, postCountsResult, onHandResult, pendingResult, bomEdges] =
     await Promise.all([
       fetchSmtCumulativeCounts(),
       fetchAssemblyGroups(productById),
       fetchDeliveryCumulativeCounts(),
       fetchPostProcessCumulativeCounts(),
+      fetchOnHandByMaterialId(),
+      fetchPendingInboundByMaterialId(),
+      fetchBomEdges().catch(() => [] as Awaited<ReturnType<typeof fetchBomEdges>>),
     ])
 
   if (!smtCountsResult.ok) return smtCountsResult
   if (!assemblyFetch.ok) return assemblyFetch
   if (!deliveryCountsResult.ok) return deliveryCountsResult
   if (!postCountsResult.ok) return postCountsResult
+
+  const onHandByMaterialId = onHandResult.ok ? onHandResult.onHandByMaterialId : new Map<string, number>()
+  const pendingByMaterialId = pendingResult.ok
+    ? pendingResult.pendingByMaterialId
+    : new Map<string, number>()
+  const latestDeliveryDateByMaterialId = pendingResult.ok
+    ? pendingResult.latestDeliveryDateByMaterialId
+    : new Map<string, string>()
+  const edgesByParent = buildBomEdgesByParent(bomEdges)
+
+  const bomStatusCache = new Map<string, MaterialInboundStatusInfo>()
+  function bomStatusFor(productId: string, remainingQty: number) {
+    const id = String(productId || '').trim()
+    const key = `${id}:${Math.max(0, Math.floor(remainingQty))}`
+    const cached = bomStatusCache.get(key)
+    if (cached) return cached
+    const info = resolveMaterialInboundStatus(
+      id,
+      remainingQty,
+      edgesByParent,
+      onHandByMaterialId,
+      pendingByMaterialId,
+      latestDeliveryDateByMaterialId,
+    )
+    bomStatusCache.set(key, info)
+    return info
+  }
+
+  const todayYmd = todayYmdSeoul()
+  const smtPlanBoundDates = smtPlansResult.plans.flatMap((plan) => [
+    plan.plannedDate.slice(0, 10),
+    (plan.plannedEndDate || plan.plannedDate).slice(0, 10),
+  ])
+  const postPlanBoundDates = postPlansResult.plans.flatMap((plan) => [
+    plan.plannedDate.slice(0, 10),
+    (plan.plannedEndDate || plan.plannedDate).slice(0, 10),
+  ])
+  const smtProgressDates = [...smtPlanBoundDates, todayYmd]
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    .sort()
+  const postProgressDates = [...postPlanBoundDates, todayYmd]
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    .sort()
+  const smtProgressResult =
+    smtProgressDates.length > 0
+      ? await fetchSmtPlanProgressRange(smtProgressDates[0]!, smtProgressDates[smtProgressDates.length - 1]!)
+      : { ok: true as const, progress: {} as Record<string, number> }
+  const postProgressResult =
+    postProgressDates.length > 0
+      ? await fetchPostProcessPlanProgressRange(
+          postProgressDates[0]!,
+          postProgressDates[postProgressDates.length - 1]!,
+        )
+      : { ok: true as const, progress: {} as Record<string, number> }
+  const smtProgressByKey = smtProgressResult.ok ? smtProgressResult.progress : {}
+  const postProgressByKey = postProgressResult.ok ? postProgressResult.progress : {}
+
+  function sumProgressInRange(
+    progress: Record<string, number>,
+    startDate: string,
+    endDate: string,
+    buildKey: (ymd: string) => string,
+  ) {
+    const start = startDate.slice(0, 10)
+    const end = (endDate || startDate).slice(0, 10)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) return 0
+    let total = 0
+    let cursor = start
+    let guard = 0
+    while (cursor <= end && guard < 370) {
+      total += Math.max(0, Math.floor(Number(progress[buildKey(cursor)]) || 0))
+      cursor = addDaysYmd(cursor, 1)
+      guard += 1
+    }
+    return total
+  }
 
   let assemblyResult = assemblyFetch
 
@@ -364,7 +479,11 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     }))
     const materialPlannedTotal = sumPlannedQuantities(materialSchedules)
     const materialUnplanned = Math.max(0, remainingQty - materialPlannedTotal)
-    const hint = manualMaterialHint(materialPlannedTotal, remainingQty)
+    const hint = mergeMaterialHint(
+      materialPlannedTotal,
+      remainingQty,
+      bomStatusFor(productId, remainingQty),
+    )
 
     const smtMetrics = smtPlanMetricsByLine.get(line.orderLineId)
     const shared = {
@@ -378,6 +497,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       productName: line.productName,
       productCode: line.productCode,
       productKindLabel: line.productKindLabel,
+      ...planProductFields(productId),
       targetId: line.orderLineId,
       splitPcbSides: line.splitPcbSides,
       orderQty: Math.floor(line.quantity),
@@ -484,6 +604,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       })
     } else {
       for (const plan of smtPlans) {
+        const planEnd = plan.plannedEndDate || plan.plannedDate
         rows.push({
           key: `${productionPlanRowKey('smt', line.orderLineId)}:${plan.id}`,
           scope: 'smt',
@@ -493,10 +614,18 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
           confirmedAt: plan.createdAt,
           confirmedByName: plan.createdByName,
           plannedDate: plan.plannedDate,
+          plannedEndDate: planEnd,
+          planStatus: plan.planStatus,
           lineNo: plan.lineNo,
           team: '',
           pcbSide: plan.pcbSide,
           plannedQuantity: plan.plannedQuantity,
+          planProducedQty: sumProgressInRange(
+            smtProgressByKey,
+            plan.plannedDate,
+            planEnd > todayYmd ? planEnd : todayYmd,
+            (ymd) => buildSmtPlanProgressKey(plan.orderLineId, plan.pcbSide, plan.lineNo, ymd),
+          ),
           plannedTotalQty: smtPlannedTotal,
           unplannedQty: smtUnplanned,
           planId: plan.id,
@@ -519,7 +648,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     if (remainingQty <= 0) continue
 
     const confirm = confirmedPostBoardByGroup.get(groupId)
-    const hint = manualMaterialHint(0, remainingQty)
+    const hint = mergeMaterialHint(0, remainingQty, bomStatusFor(productId, remainingQty))
     const daysUntilDelivery = computeDaysUntilDelivery(line.deliveryDate)
 
     const shared = {
@@ -533,6 +662,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       productName: line.productName,
       productCode: line.productCode,
       productKindLabel: line.productKindLabel,
+      ...planProductFields(productId),
       targetId: groupId,
       splitPcbSides: false,
       orderQty: Math.floor(line.quantity),
@@ -586,6 +716,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       })
     } else {
       for (const plan of postPlans) {
+        const planEnd = plan.plannedEndDate || plan.plannedDate
         rows.push({
           key: `${productionPlanRowKey('post', groupId)}:${plan.id}`,
           scope: 'post',
@@ -595,10 +726,18 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
           confirmedAt: plan.createdAt,
           confirmedByName: plan.createdByName,
           plannedDate: plan.plannedDate,
+          plannedEndDate: planEnd,
+          planStatus: plan.planStatus,
           lineNo: null,
           team: plan.team,
           pcbSide: 'SINGLE',
           plannedQuantity: plan.plannedQuantity,
+          planProducedQty: sumProgressInRange(
+            postProgressByKey,
+            plan.plannedDate,
+            planEnd > todayYmd ? planEnd : todayYmd,
+            (ymd) => buildPostProcessPlanProgressKey(groupId, ymd, plan.team),
+          ),
           plannedTotalQty: postPlannedTotal,
           unplannedQty: postUnplanned,
           planId: plan.id,
@@ -631,6 +770,8 @@ export async function confirmProductionPlanItem(
   const orderId = input.orderId.trim()
   const targetId = input.targetId.trim()
   const plannedDate = String(input.plannedDate || '').trim().slice(0, 10)
+  const plannedEndDate = String(input.plannedEndDate || plannedDate).trim().slice(0, 10)
+  const planStatus = 'confirmed' as const
   const plannedQuantity = Math.floor(Number(input.plannedQuantity) || 0)
   const note = input.note?.trim() || ''
 
@@ -639,6 +780,12 @@ export async function confirmProductionPlanItem(
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(plannedDate)) {
     return { ok: false, reason: 'validation', detail: '계획일을 선택하세요.' }
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(plannedEndDate)) {
+    return { ok: false, reason: 'validation', detail: '종료일을 선택하세요.' }
+  }
+  if (plannedEndDate < plannedDate) {
+    return { ok: false, reason: 'validation', detail: '종료일은 시작일 이후여야 합니다.' }
   }
   if (plannedQuantity < 1) {
     return { ok: false, reason: 'validation', detail: '계획 수량은 1 이상이어야 합니다.' }
@@ -660,6 +807,8 @@ export async function confirmProductionPlanItem(
         orderId,
         orderLineId: targetId,
         plannedDate,
+        plannedEndDate,
+        planStatus,
         lineNo,
         pcbSide: side,
         plannedQuantity,
@@ -674,19 +823,8 @@ export async function confirmProductionPlanItem(
       }
     }
 
-    return saveBoardConfirmation({
-      scope: 'smt',
-      orderId,
-      targetId,
-      plannedDate,
-      plannedQuantity,
-      lineNo,
-      team: '',
-      pcbSide: pcbSide === 'BOTH' || sides.length > 1 ? 'BOTH' : sides[0]!,
-      note,
-      boardItemId: input.boardItemId,
-      createBoardIfMissing: !input.planId && !input.boardItemId,
-    })
+    // SMT는 smt_production_plans가 SSoT — board_items 이중 저장 안 함
+    return { ok: true }
   }
 
   if (scope === 'material') {
@@ -711,6 +849,8 @@ export async function confirmProductionPlanItem(
     orderId,
     assemblyGroupId: targetId,
     plannedDate,
+    plannedEndDate,
+    planStatus,
     team,
     plannedQuantity,
     note,
@@ -723,19 +863,8 @@ export async function confirmProductionPlanItem(
     }
   }
 
-  return saveBoardConfirmation({
-    scope: 'post',
-    orderId,
-    targetId,
-    plannedDate,
-    plannedQuantity,
-    lineNo: null,
-    team,
-    pcbSide: 'SINGLE',
-    note,
-    boardItemId: input.boardItemId,
-    createBoardIfMissing: !input.planId && !input.boardItemId,
-  })
+  // 후공정도 post_process_production_plans가 SSoT
+  return { ok: true }
 }
 
 async function saveBoardConfirmation(input: {

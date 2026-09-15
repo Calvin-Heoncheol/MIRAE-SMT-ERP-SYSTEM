@@ -1,7 +1,13 @@
+import type { MaterialPurchaseOrderCurrency } from './types'
+
 export type MaterialPurchaseOrderItemForm = {
   materialId: string
   materialCode: string
   materialName: string
+  /** 공정구분 (SMD/DIP) — 표시용 */
+  processType: string
+  /** 패키지 — 표시용 */
+  package: string
   specification: string
   mpn: string
   quantity: string | number
@@ -15,6 +21,7 @@ export type MaterialPurchaseOrderFormState = {
   /** 헤더 기본 납기 — 라인 납기 비어 있을 때 기본값 */
   deliveryDate: string
   supplier: string
+  currency: MaterialPurchaseOrderCurrency
 }
 
 export function defaultMaterialPurchaseOrderItemForm(
@@ -24,6 +31,8 @@ export function defaultMaterialPurchaseOrderItemForm(
     materialId: '',
     materialCode: '',
     materialName: '',
+    processType: '',
+    package: '',
     specification: '',
     mpn: '',
     quantity: '0',
@@ -37,6 +46,8 @@ export function materialPurchaseOrderItemsFromDetail(
     materialId?: string | null
     materialCode: string
     materialName: string
+    processType?: string
+    package?: string
     specification: string
     mpn: string
     quantity: number
@@ -49,6 +60,8 @@ export function materialPurchaseOrderItemsFromDetail(
     materialId: item.materialId || '',
     materialCode: item.materialCode || '',
     materialName: item.materialName || '',
+    processType: item.processType || '',
+    package: item.package || '',
     specification: item.specification || '',
     mpn: item.mpn || '',
     quantity: String(item.quantity || 0),

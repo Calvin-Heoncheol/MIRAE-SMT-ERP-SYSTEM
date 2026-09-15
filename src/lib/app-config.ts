@@ -13,7 +13,7 @@ export const COMPANY_QUOTE_EMAIL_EXPORT = 'calvin.ha@miraesmt.com'
 export const COMPANY_ADDRESS_DOMESTIC = '경기도 부천시 오정구 삼작로22'
 /** 국내용 견적 — 영문 PDF용 주소 */
 export const COMPANY_ADDRESS_DOMESTIC_EN =
-  'Bucheon Techno Park, 22, Samjak-ro, Ojeong-gu, Bucheon-city'
+  '#102-405, Bucheon Techno Park, 22 Samjak-ro, Ojeong-gu, Bucheon-si, Gyeonggi-do 14501, Republic of Korea'
 export const COMPANY_QUOTE_EMAIL_DOMESTIC = 'yeonggeun.jung@miraesmt.com'
 
 /** 거래명세서 공급자 */

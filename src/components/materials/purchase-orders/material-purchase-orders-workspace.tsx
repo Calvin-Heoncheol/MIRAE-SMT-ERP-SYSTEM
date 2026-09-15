@@ -181,6 +181,8 @@ export function MaterialPurchaseOrdersWorkspace({
       materialId: line.materialId,
       materialCode: line.materialCode,
       materialName: line.materialName,
+      processType: '',
+      package: '',
       specification: line.specification,
       mpn: line.mpn,
       quantity: String(line.requiredQuantity),

@@ -147,6 +147,12 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
                   width: 10,
                 },
                 {
+                  header: 'Array',
+                  value: (row: Item) =>
+                    row.productionStd.arrayCount > 0 ? String(row.productionStd.arrayCount) : '',
+                  width: 8,
+                },
+                {
                   header: '종수 TOP',
                   value: (row: Item) =>
                     excelProductionStdTopBot(row.pcbSideMode, row.productionStd).partCountTop,
@@ -165,16 +171,16 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
                       : undefined,
                 },
                 {
-                  header: 'Tech Time TOP(초)',
+                  header: 'Tech Time TOP(초·패널)',
                   value: (row: Item) =>
                     excelProductionStdTopBot(row.pcbSideMode, row.productionStd).tactTimeTopSec,
-                  width: 14,
+                  width: 16,
                 },
                 {
-                  header: 'Tech Time BOT(초)',
+                  header: 'Tech Time BOT(초·패널)',
                   value: (row: Item) =>
                     excelProductionStdTopBot(row.pcbSideMode, row.productionStd).tactTimeBotSec,
-                  width: 14,
+                  width: 16,
                   cellStyle: (row: Item) =>
                     row.pcbSideMode !== 'double'
                       ? {

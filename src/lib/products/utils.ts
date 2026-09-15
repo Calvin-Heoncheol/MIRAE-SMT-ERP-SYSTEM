@@ -1,6 +1,10 @@
 import type { Product, ProductKind, ProductPcbSideMode, ProductProcessType } from './types'
 import { deriveItemProcessType } from '@/lib/items/types'
 import { normalizeMaterialCostLines, sumMaterialCostLines } from '@/lib/items/material-cost-lines'
+import {
+  EMPTY_ITEM_PRODUCTION_STD,
+  normalizeItemProductionStd,
+} from '@/lib/items/production-std'
 import { EMPTY_SMT_QUOTE_PARTS, normalizeItemSmtQuoteParts } from '@/lib/items/smt-quote-parts'
 import { normalizeVersionLabel, parseItemVersionCode } from '@/lib/items/version-code'
 
@@ -39,8 +43,46 @@ export function formatProductPcbSideModeLabel(mode: ProductPcbSideMode) {
   return '단면'
 }
 
+/**
+ * 면 종류 3종: 단면(single) / 더블(duo) / 양면(double).
+ * TOP·BOT 실적·계획 분리는 양면(double)만.
+ */
+export function pcbSideChipClass(side: string | null | undefined) {
+  const normalized = String(side || '').toUpperCase()
+  if (normalized === 'TOP') return 'bg-sky-100 text-sky-800 ring-sky-200'
+  if (normalized === 'BOT') return 'bg-indigo-100 text-indigo-800 ring-indigo-200'
+  if (normalized === 'BOTH' || normalized === 'TOP·BOT') return 'bg-violet-100 text-violet-800 ring-violet-200'
+  return 'bg-slate-100 text-slate-600 ring-slate-200'
+}
+
+export function pcbSideModeChipClass(mode: ProductPcbSideMode | string | null | undefined) {
+  if (mode === 'double') return 'bg-sky-100 text-sky-800'
+  if (mode === 'duo') return 'bg-amber-100 text-amber-800'
+  return 'bg-slate-100 text-slate-500'
+}
+
+/** 양면만 true — 더블(duo)은 단면처럼 SINGLE로 취급 */
 export function isSplitProductPcbSideMode(mode: ProductPcbSideMode | string | null | undefined) {
   return mode === 'double'
+}
+
+/**
+ * 생산계획 표시용 면 라벨
+ * - 양면: TOP / BOT
+ * - 더블: DOUBLE
+ * - 단면: SINGLE
+ */
+export function formatPlanPcbSideBadge(input: {
+  pcbSideMode?: ProductPcbSideMode | string | null
+  pcbSide?: string | null
+  splitPcbSides?: boolean
+}): string | null {
+  const side = String(input.pcbSide || '').toUpperCase()
+  if (side === 'TOP' || side === 'BOT') return side
+  if (side === 'BOTH') return 'TOP·BOT'
+  if (input.splitPcbSides || input.pcbSideMode === 'double') return null
+  if (input.pcbSideMode === 'duo') return 'DOUBLE'
+  return 'SINGLE'
 }
 
 export function mapProductRecord(row: {
@@ -70,6 +112,7 @@ export function mapProductRecord(row: {
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
     processType: normalizeProductProcessType(row.process_type),
     productKind: normalizeProductKind(row.product_kind),
+    productionStd: { ...EMPTY_ITEM_PRODUCTION_STD },
     smtQuoteParts: { ...EMPTY_SMT_QUOTE_PARTS },
     baselineQuoteId: '',
     isActive: row.is_active !== false,
@@ -92,6 +135,7 @@ export function mapItemRowToProduct(row: {
   other_unit_price?: number | null
   material_cost_lines?: unknown
   setup_unit_price?: number | null
+  production_std?: unknown
   smt_quote_parts?: unknown
   baseline_quote_id?: string | null
   customer_id?: string | null
@@ -143,6 +187,10 @@ export function mapItemRowToProduct(row: {
     pcbSideMode: normalizeProductPcbSideMode(row.pcb_side_mode),
     processType,
     productKind: itemCategory === 4 ? 'assembly' : 'pcb',
+    productionStd:
+      itemCategory === 3 || itemCategory === 4
+        ? normalizeItemProductionStd(row.production_std)
+        : { ...EMPTY_ITEM_PRODUCTION_STD },
     smtQuoteParts:
       itemCategory === 3 || itemCategory === 4
         ? normalizeItemSmtQuoteParts(row.smt_quote_parts)

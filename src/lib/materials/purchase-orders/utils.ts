@@ -6,14 +6,56 @@ import {
   resolveMaterialByInventoryCode,
 } from '@/lib/materials/utils'
 import type {
+  MaterialPurchaseOrderCurrency,
   MaterialPurchaseOrderLineItem,
   MaterialPurchaseOrderListGroup,
   MaterialPurchaseOrderRecord,
   MaterialPurchaseOrderStatus,
 } from './types'
 
-export function formatMaterialPurchaseOrderMoney(amount: number) {
-  return `₩${Math.round(Number(amount) || 0).toLocaleString('ko-KR')}`
+export function normalizeMaterialPurchaseOrderCurrency(
+  value: string | null | undefined,
+): MaterialPurchaseOrderCurrency {
+  return String(value || '').trim().toUpperCase() === 'USD' ? 'USD' : 'KRW'
+}
+
+export function materialPurchaseOrderCurrencySymbol(
+  currency: MaterialPurchaseOrderCurrency = 'KRW',
+) {
+  return currency === 'USD' ? '$' : '₩'
+}
+
+/** 구매발주 단가 — 소수점 최대 4자리 (예: 2.6043) */
+export const MATERIAL_PURCHASE_ORDER_UNIT_PRICE_DECIMALS = 4
+/** 구매발주 공급가액 — 항상 소수점 2자리 (예: 7230.30) */
+export const MATERIAL_PURCHASE_ORDER_AMOUNT_DECIMALS = 2
+
+export function normalizeMaterialPurchaseOrderUnitPrice(value: number | string | null | undefined) {
+  const n = Math.max(0, Number(value) || 0)
+  if (!Number.isFinite(n)) return 0
+  const factor = 10 ** MATERIAL_PURCHASE_ORDER_UNIT_PRICE_DECIMALS
+  return Math.round(n * factor) / factor
+}
+
+export function normalizeMaterialPurchaseOrderAmount(value: number | string | null | undefined) {
+  const n = Math.max(0, Number(value) || 0)
+  if (!Number.isFinite(n)) return 0
+  const factor = 10 ** MATERIAL_PURCHASE_ORDER_AMOUNT_DECIMALS
+  return Math.round(n * factor) / factor
+}
+
+export function formatMaterialPurchaseOrderAmountNumber(amount: number) {
+  return normalizeMaterialPurchaseOrderAmount(amount).toLocaleString('ko-KR', {
+    minimumFractionDigits: MATERIAL_PURCHASE_ORDER_AMOUNT_DECIMALS,
+    maximumFractionDigits: MATERIAL_PURCHASE_ORDER_AMOUNT_DECIMALS,
+  })
+}
+
+export function formatMaterialPurchaseOrderMoney(
+  amount: number,
+  currency: MaterialPurchaseOrderCurrency = 'KRW',
+) {
+  return `${materialPurchaseOrderCurrencySymbol(currency)}${formatMaterialPurchaseOrderAmountNumber(amount)}`
 }
 
 export function formatMaterialPurchaseOrderDate(value: string | null | undefined) {
@@ -101,7 +143,7 @@ export function mapMaterialPurchaseOrderLineRecord(
     mpn: line.mpn || '',
     quantity: Number(line.quantity) || 0,
     unitPrice: Number(line.unit_price) || 0,
-    orderAmount: Number(line.order_amount) || 0,
+    orderAmount: normalizeMaterialPurchaseOrderAmount(line.order_amount),
     status: normalizeMaterialPurchaseOrderStatus(line.status),
     inboundQuantity: Number(line.inbound_quantity) || 0,
     deliveryDate:
@@ -125,6 +167,7 @@ export function mapMaterialPurchaseOrderRecord(record: MaterialPurchaseOrderReco
     orderDate: formatMaterialPurchaseOrderDate(record.order_date),
     deliveryDate: lineDeliverySummary,
     supplier: record.supplier || '',
+    currency: normalizeMaterialPurchaseOrderCurrency(record.currency),
     sourceOrderId: record.source_order_id || null,
     coveredOrderLineId: record.covered_order_line_id || null,
     coveredProductQuantity: Math.max(0, Math.floor(Number(record.covered_product_quantity) || 0)),
@@ -204,8 +247,8 @@ export function getMaterialPurchaseSourceLabel(kind: MaterialPurchaseSourceKind)
 
 export function computeMaterialPurchaseOrderLineAmount(quantity: number, unitPrice: number) {
   const qty = Math.max(0, Math.floor(Number(quantity) || 0))
-  const price = Math.max(0, Math.round(Number(unitPrice) || 0))
-  return qty * price
+  const price = normalizeMaterialPurchaseOrderUnitPrice(unitPrice)
+  return normalizeMaterialPurchaseOrderAmount(qty * price)
 }
 
 /** 구매발주수량 − 누적입고 (입고예정·구매발주연동 입고 공통) */
@@ -227,6 +270,8 @@ export function formatMaterialOptionLabel(
   field: 'id' | 'mpn' | 'idOrMpn' | 'name' = 'idOrMpn',
 ) {
   const name = material.materialName.trim() || '-'
+  const internalId = material.id.trim() || '-'
+  const baseCode = material.baseCode.trim()
   const code = formatMaterialDisplayCode(material)
   const mpn = material.mpn.trim() || material.alternateMpns[0]?.trim() || ''
 
@@ -244,7 +289,12 @@ export function formatMaterialOptionLabel(
     return `${mpn || '-'} · ${name}`
   }
 
-  return `${code} · ${name}`
+  // 구매발주 품목코드: 표시코드(MA-) + 내부 ID(MR-)
+  const codeLabel =
+    baseCode && baseCode.toLowerCase() !== internalId.toLowerCase()
+      ? `${baseCode} / ${internalId}`
+      : internalId
+  return `${codeLabel} · ${name}`
 }
 
 export function materialMatchesMpn(material: Material, mpn: string) {
@@ -271,7 +321,7 @@ export function filterMaterialsForPurchaseOrder(
     if (field === 'id') {
       const id = material.id.trim().toLowerCase()
       const base = material.baseCode.trim().toLowerCase()
-      return id.includes(q) || base.includes(q)
+      return id.includes(q) || Boolean(base && base.includes(q))
     }
 
     if (field === 'name') {
@@ -315,13 +365,31 @@ export function resolveMaterialFromFieldInput(
     return resolveMaterialFromInput(materials, supplier, trimmed)
   }
 
+  if (field === 'id') {
+    const supplierTrim = String(supplier ?? '').trim()
+    const scoped = supplierTrim
+      ? materials.filter(
+          (material) => !material.supplier.trim() || material.supplier.trim() === supplierTrim,
+        )
+      : materials
+    const byId = resolveMaterialById(scoped, trimmed)
+    if (byId) return byId
+
+    const lower = trimmed.toLowerCase()
+    const byBase = scoped.filter((material) => {
+      const base = material.baseCode.trim()
+      return Boolean(base) && base.toLowerCase() === lower
+    })
+    if (byBase.length === 1) return byBase[0]
+    return null
+  }
+
   const byCode = resolveMaterialByInventoryCode(materials, trimmed, { supplier })
   if (byCode) return byCode
 
-  const candidates = filterMaterialsForPurchaseOrder(materials, supplier, trimmed, field).filter((material) => {
-    if (field === 'id') return material.id.trim() === trimmed
-    return materialMatchesMpn(material, trimmed)
-  })
+  const candidates = filterMaterialsForPurchaseOrder(materials, supplier, trimmed, field).filter(
+    (material) => materialMatchesMpn(material, trimmed),
+  )
 
   if (candidates.length === 1) return candidates[0]
   return null

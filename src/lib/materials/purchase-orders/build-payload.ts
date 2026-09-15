@@ -2,12 +2,13 @@ import type { Material } from '@/lib/materials/types'
 import type { MaterialPurchaseOrderItemForm } from './form-state'
 import {
   computeMaterialPurchaseOrderLineAmount,
+  normalizeMaterialPurchaseOrderUnitPrice,
   resolveMaterialPurchaseOrderLineMaterial,
 } from './utils'
 
 export function materialPurchaseOrderItemFormToModel(item: MaterialPurchaseOrderItemForm) {
   const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
-  const unitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0))
+  const unitPrice = normalizeMaterialPurchaseOrderUnitPrice(item.unitPrice)
   const materialId = String(item.materialId || '').trim()
 
   return {

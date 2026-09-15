@@ -6,6 +6,12 @@ import {
   readProductionPlanDragPayloadFromDataTransfer,
   type ProductionPlanDragPayload,
 } from '@/lib/production-plan/config'
+import {
+  PRODUCTION_PLAN_DAY_CAPACITY_HOURS,
+  formatCellLoadLabel,
+  summarizeCellLoad,
+} from '@/lib/production-plan/capacity'
+import { planCoversYmd } from '@/lib/production-plan/calendar'
 import type { ProductionPlanBoardRow } from '@/lib/production-plan/types'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import {
@@ -30,10 +36,6 @@ function cellKey(plannedDate: string, team: string) {
   return `${plannedDate}:${team}`
 }
 
-function cellPlannedTotal(rows: ProductionPlanBoardRow[]) {
-  return rows.reduce((sum, row) => sum + Math.max(0, Math.round(Number(row.plannedQuantity) || 0)), 0)
-}
-
 export function ProductionPlanPostWeekCalendar({
   weekDates,
   scheduledRows,
@@ -48,16 +50,18 @@ export function ProductionPlanPostWeekCalendar({
     const map = new Map<string, ProductionPlanBoardRow[]>()
     for (const row of scheduledRows) {
       if (row.scope !== 'post') continue
-      const date = row.plannedDate.trim().slice(0, 10)
       const team = String(row.team || '').trim()
-      if (!date || !team) continue
-      const key = cellKey(date, team)
-      const list = map.get(key) ?? []
-      list.push(row)
-      map.set(key, list)
+      if (!team) continue
+      for (const date of weekDates) {
+        if (!planCoversYmd(row.plannedDate, row.plannedEndDate, date)) continue
+        const key = cellKey(date, team)
+        const list = map.get(key) ?? []
+        list.push(row)
+        map.set(key, list)
+      }
     }
     return map
-  }, [scheduledRows])
+  }, [scheduledRows, weekDates])
 
   function handleDragOver(event: DragEvent, key: string) {
     if (!onDropOrder) return
@@ -119,7 +123,10 @@ export function ProductionPlanPostWeekCalendar({
               {weekDates.map((plannedDate) => {
                 const key = cellKey(plannedDate, team)
                 const cellRows = rowsByCell.get(key) ?? []
-                const loadQty = cellPlannedTotal(cellRows)
+                const loadRows = cellRows.filter(
+                  (entry) => entry.plannedDate.slice(0, 10) === plannedDate,
+                )
+                const load = summarizeCellLoad(loadRows)
                 const isToday = plannedDate === today
                 const isDropTarget = dragOverKey === key
 
@@ -129,18 +136,30 @@ export function ProductionPlanPostWeekCalendar({
                     className={`min-h-[110px] border-r align-top p-1.5 last:border-r-0 ${
                       isDropTarget
                         ? 'border-violet-300 bg-violet-100 ring-2 ring-inset ring-violet-400'
-                        : isToday
-                          ? 'border-violet-200 bg-violet-50/70'
-                          : 'border-slate-100'
+                        : load.overCapacity
+                          ? 'border-rose-200 bg-rose-50/60'
+                          : isToday
+                            ? 'border-violet-200 bg-violet-50/70'
+                            : 'border-slate-100'
                     }`}
                     onDragOver={(event) => handleDragOver(event, key)}
                     onDragLeave={() => setDragOverKey((current) => (current === key ? null : current))}
                     onDrop={(event) => handleDrop(event, plannedDate, team)}
                   >
                     <div className="flex min-h-[96px] flex-col gap-1">
-                      {loadQty > 0 ? (
-                        <p className="px-0.5 text-[11px] font-semibold tabular-nums text-slate-500">
-                          부하 {loadQty.toLocaleString('ko-KR')}
+                      {load.quantity > 0 ? (
+                        <p
+                          className={`px-0.5 text-[11px] font-semibold tabular-nums ${
+                            load.overCapacity ? 'text-rose-700' : 'text-slate-500'
+                          }`}
+                          title={
+                            load.quantityOnly
+                              ? 'Tech Time 미입력 — 수량만 표시'
+                              : `일 가동 ${PRODUCTION_PLAN_DAY_CAPACITY_HOURS}시간 기준`
+                          }
+                        >
+                          {formatCellLoadLabel(load)}
+                          {load.overCapacity ? ' · 초과' : ''}
                         </p>
                       ) : null}
                       {cellRows.map((row) => (
@@ -150,6 +169,7 @@ export function ProductionPlanPostWeekCalendar({
                           tone="post"
                           onSelect={onSelectRow}
                           draggable={Boolean(onDropOrder)}
+                          spanDay={row.plannedDate.slice(0, 10) !== plannedDate}
                         />
                       ))}
                       {cellRows.length === 0 ? (

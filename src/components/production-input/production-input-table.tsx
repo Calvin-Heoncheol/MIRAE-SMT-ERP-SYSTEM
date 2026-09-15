@@ -71,7 +71,7 @@ function SideProgressCell({
   counts: Record<string, number>
   defectCounts: Record<string, number>
   pcbSide: SmtPcbSide
-  tone: 'sky' | 'emerald'
+  tone: 'sky' | 'indigo' | 'emerald' | 'amber'
   sideLabel: string
   onClick?: () => void
 }) {
@@ -79,7 +79,14 @@ function SideProgressCell({
   const produced = resolveProductionSideCount(order, counts, pcbSide)
   const defected = resolveProductionSideCount(order, defectCounts, pcbSide)
   const stacked = getStackedProgressWidths(produced, defected, target)
-  const barClass = tone === 'sky' ? 'bg-sky-500' : 'bg-emerald-500'
+  const barClass =
+    tone === 'indigo'
+      ? 'bg-indigo-500'
+      : tone === 'emerald'
+        ? 'bg-emerald-500'
+        : tone === 'amber'
+          ? 'bg-amber-500'
+          : 'bg-sky-500'
   const detail = sideProgressDetail(produced, defected, target)
 
   const content = (
@@ -109,7 +116,13 @@ function SideProgressCell({
         type="button"
         onClick={onClick}
         title={`${sideLabel} 클릭하여 생산 등록`}
-        className="w-full rounded-lg px-1 py-0.5 text-left transition hover:bg-sky-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+        className={`w-full rounded-lg px-1 py-0.5 text-left transition focus:outline-none focus-visible:ring-2 ${
+          tone === 'indigo'
+            ? 'hover:bg-indigo-50 focus-visible:ring-indigo-300'
+            : tone === 'amber'
+              ? 'hover:bg-amber-50 focus-visible:ring-amber-300'
+              : 'hover:bg-sky-50 focus-visible:ring-sky-300'
+        }`}
       >
         {content}
       </button>
@@ -193,12 +206,12 @@ export function ProductionInputTable({
                 </tr>
                 <tr>
                   <th className={`${ERP_TABLE_TH_CLASS} text-center text-xs font-semibold text-slate-600`}>
-                    SINGLE
+                    SINGLE/DOUBLE
                   </th>
-                  <th className={`${ERP_TABLE_TH_CLASS} text-center text-xs font-semibold text-slate-600`}>
+                  <th className={`${ERP_TABLE_TH_CLASS} text-center text-xs font-bold text-sky-700`}>
                     TOP
                   </th>
-                  <th className={`${ERP_TABLE_TH_CLASS} text-center text-xs font-semibold text-slate-600`}>
+                  <th className={`${ERP_TABLE_TH_CLASS} text-center text-xs font-bold text-indigo-700`}>
                     BOT
                   </th>
                 </tr>
@@ -267,7 +280,7 @@ export function ProductionInputTable({
                           counts={counts}
                           defectCounts={defectCounts}
                           pcbSide="TOP"
-                          tone={progressTone}
+                          tone="sky"
                           sideLabel="TOP"
                           onClick={
                             onOrderClick ? () => onOrderClick(order, 'TOP') : undefined
@@ -278,7 +291,7 @@ export function ProductionInputTable({
                           counts={counts}
                           defectCounts={defectCounts}
                           pcbSide="BOT"
-                          tone={progressTone}
+                          tone="indigo"
                           sideLabel="BOT"
                           onClick={
                             onOrderClick ? () => onOrderClick(order, 'BOT') : undefined
@@ -292,8 +305,8 @@ export function ProductionInputTable({
                           counts={counts}
                           defectCounts={defectCounts}
                           pcbSide="SINGLE"
-                          tone={progressTone}
-                          sideLabel="SINGLE"
+                          tone={order.pcbSideMode === 'duo' ? 'amber' : progressTone}
+                          sideLabel={order.pcbSideMode === 'duo' ? 'DOUBLE' : 'SINGLE'}
                           onClick={onOrderClick ? () => onOrderClick(order) : undefined}
                         />
                         <EmptySideCell />
