@@ -34,8 +34,6 @@ import {
   ERP_WARNING_BOX_CLASS,
 } from '@/lib/ui/tokens'
 import {
-  ITEM_CATEGORIES,
-  ITEM_CATEGORY_LABELS,
   ITEM_MATERIAL_TYPE_OPTIONS,
   ITEM_PCB_SIDE_MODE_LABELS,
   ITEM_PCB_SIDE_MODES,
@@ -73,27 +71,18 @@ type ItemBulkModalProps = {
 
 export function ItemBulkModal({
   open,
-  initialCategory = null,
   onClose,
   onSaved,
 }: ItemBulkModalProps) {
   if (!open) return null
 
-  return (
-    <ItemBulkModalContent
-      initialCategory={initialCategory}
-      onClose={onClose}
-      onSaved={onSaved}
-    />
-  )
+  return <ItemBulkModalContent onClose={onClose} onSaved={onSaved} />
 }
 
 function ItemBulkModalContent({
-  initialCategory,
   onClose,
   onSaved,
 }: {
-  initialCategory: ItemCategory | null
   onClose: () => void
   onSaved?: (message?: string) => void
 }) {
@@ -102,10 +91,8 @@ function ItemBulkModalContent({
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const errorRowRef = useRef<HTMLTableRowElement>(null)
   const toast = useToast()
-  const [category, setCategory] = useState<ItemCategory>(initialCategory ?? 1)
-  const [rows, setRows] = useState<ItemFormState[]>(() => [
-    defaultItemBulkRow(initialCategory ?? 1),
-  ])
+  const category = 1 as ItemCategory
+  const [rows, setRows] = useState<ItemFormState[]>(() => [defaultItemBulkRow(1)])
   const [saving, setSaving] = useState(false)
   const [bomLoading, setBomLoading] = useState(false)
   const [aiSplitLoading, setAiSplitLoading] = useState(false)
@@ -278,7 +265,6 @@ function ItemBulkModalContent({
 
       const nextRows = applySharedDefaultsToRows(parsed.drafts.map((draft) => draft.form))
       setRows(nextRows.length ? nextRows : [defaultItemBulkRow(1)])
-      setCategory(1)
       setAiSplitByCode({})
 
       const existingCount = nextRows.filter((row) =>
@@ -361,17 +347,6 @@ function ItemBulkModalContent({
     if (errorRowIndex == null) return
     errorRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [errorRowIndex])
-
-  function changeCategory(next: ItemCategory) {
-    setCategory(next)
-    setRows([defaultItemBulkRow(next)])
-    setSaveError(null)
-    setBomHint(null)
-    setAiSplitByCode({})
-    clearValidationHighlight()
-    clearDuplicateState()
-    if (pasteRef.current) pasteRef.current.value = ''
-  }
 
   function patchRow(index: number, patch: Partial<ItemFormState>) {
     setRows((current) =>
@@ -576,12 +551,8 @@ function ItemBulkModalContent({
     <ErpModal
       open
       size="lg"
-      title="품목 일괄 등록"
-      description={
-        isRawMaterial
-          ? '고객사·도급/사급을 선택한 뒤 BOM 파일을 업로드하세요.'
-          : 'Excel에서 복사한 내용을 붙여넣어 등록합니다.'
-      }
+      title="원자재 일괄등록"
+      description="고객사·도급/사급을 선택한 뒤 BOM 파일을 업로드하세요."
       onClose={onClose}
       closeOnEscape={!saving}
       footer={
@@ -606,25 +577,6 @@ function ItemBulkModalContent({
       }
     >
       <div className="space-y-4">
-        <label className="block max-w-xs text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>
-            품목구분
-            <RequiredMark />
-          </span>
-          <select
-            value={category}
-            onChange={(event) => changeCategory(Number(event.target.value) as ItemCategory)}
-            disabled={saving || bomLoading || aiSplitLoading}
-            className={ERP_FIELD_INPUT_CLASS}
-          >
-            {ITEM_CATEGORIES.map((value) => (
-              <option key={value} value={value}>
-                {ITEM_CATEGORY_LABELS[value]}
-              </option>
-            ))}
-          </select>
-        </label>
-
         {isRawMaterial ? (
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
             <p className="text-sm font-bold text-slate-900">기본정보 (BOM 공통)</p>

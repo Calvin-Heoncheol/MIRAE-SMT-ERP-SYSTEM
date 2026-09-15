@@ -51,7 +51,7 @@ export function ItemNewMenu({ onOpenCreate, onOpenBulk }: ItemNewMenuProps) {
             onClick={() => select(onOpenBulk)}
             className="block w-full border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-800 hover:bg-slate-50"
           >
-            일괄 등록
+            원자재 일괄등록
             <span className="mt-0.5 block text-xs font-normal text-slate-500">
               BOM 업로드 · 일괄 입력
             </span>

@@ -48,7 +48,7 @@ import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { hasItemUnitPriceChange } from '@/lib/change-logs/utils'
-import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS, ERP_ROW_ADD_BUTTON_CLASS } from '@/lib/ui/tokens'
+import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type ItemModalProps = {
   open: boolean
@@ -483,8 +483,16 @@ function ItemModalContent({
     <>
     <ErpModal
       open
-      size="xl"
-      title={isCreate ? '품목 등록' : '품목 수정'}
+      size={showRawMaterialTypeField ? 'lg' : 'xl'}
+      title={
+        isCreate
+          ? showRawMaterialTypeField
+            ? '원자재 등록'
+            : '품목 등록'
+          : showRawMaterialTypeField
+            ? '원자재 수정'
+            : '품목 수정'
+      }
       description={
         !isCreate && item
           ? item.version
@@ -550,6 +558,202 @@ function ItemModalContent({
       }
     >
       <div className="space-y-5">
+        {showRawMaterialTypeField ? (
+          <section className="space-y-3">
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="erp-data-table erp-data-table--compact min-w-[1080px] w-full border-collapse text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                      고객사
+                      <RequiredMark />
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                      품목코드
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                      품목명
+                      <RequiredMark />
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                      공정구분
+                      <RequiredMark />
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                      패키지
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                      사양
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                      MPN
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
+                      도급/사급
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-slate-100 align-top">
+                    <td className="min-w-[9rem] px-2 py-2">
+                      <CustomerCombobox
+                        value={form.customerName}
+                        partners={salesPartners}
+                        placeholder="거래처명 검색"
+                        ariaLabel="고객사"
+                        inputClassName={ERP_FIELD_INPUT_CLASS}
+                        onValueChange={(value) => {
+                          setForm((current) => ({
+                            ...current,
+                            customerName: value,
+                            customerId: '',
+                          }))
+                        }}
+                        onPartnerSelect={(partner) => {
+                          setForm((current) => ({
+                            ...current,
+                            customerName: partner.name,
+                            customerId: partner.id,
+                          }))
+                        }}
+                      />
+                    </td>
+                    <td className="min-w-[8rem] px-2 py-2">
+                      <input
+                        value={canEditCode ? form.id : displayItemCode}
+                        onChange={(event) => updateForm('id', event.target.value)}
+                        placeholder={isCreate ? 'MA-0001 또는 CPN' : '품목코드'}
+                        readOnly={!canEditCode}
+                        className={`${ERP_FIELD_INPUT_CLASS} font-mono ${
+                          !canEditCode ? 'bg-slate-50 text-slate-600' : ''
+                        }`}
+                      />
+                    </td>
+                    <td className="min-w-[9rem] px-2 py-2">
+                      <input
+                        value={form.name}
+                        onChange={(event) => updateForm('name', event.target.value)}
+                        className={ERP_FIELD_INPUT_CLASS}
+                      />
+                    </td>
+                    <td className="min-w-[6.5rem] px-2 py-2">
+                      <select
+                        value={form.materialType}
+                        onChange={(event) =>
+                          updateForm('materialType', event.target.value as ItemMaterialType)
+                        }
+                        className={ERP_FIELD_INPUT_CLASS}
+                      >
+                        <option value="">선택</option>
+                        {ITEM_MATERIAL_TYPE_OPTIONS.map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="min-w-[6rem] px-2 py-2">
+                      <input
+                        value={form.package}
+                        onChange={(event) => updateForm('package', event.target.value)}
+                        placeholder="0402"
+                        className={ERP_FIELD_INPUT_CLASS}
+                      />
+                    </td>
+                    <td className="min-w-[10rem] px-2 py-2">
+                      <input
+                        value={form.specification}
+                        onChange={(event) => updateForm('specification', event.target.value)}
+                        className={ERP_FIELD_INPUT_CLASS}
+                      />
+                    </td>
+                    <td className="min-w-[11rem] px-2 py-2">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1">
+                          <input
+                            value={form.mpn}
+                            onChange={(event) => updateForm('mpn', event.target.value)}
+                            className={`${ERP_FIELD_INPUT_CLASS} min-w-0 flex-1 font-mono`}
+                            aria-label="MPN"
+                          />
+                          <button
+                            type="button"
+                            title="대체 MPN 추가"
+                            aria-label="대체 MPN 추가"
+                            onClick={() =>
+                              updateForm('alternateMpns', [...form.alternateMpns, ''])
+                            }
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-lg leading-none text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                          >
+                            +
+                          </button>
+                        </div>
+                        {form.alternateMpns.map((mpn, index) => (
+                          <div key={`alt-mpn-${index}`} className="flex items-center gap-1">
+                            <input
+                              value={mpn}
+                              onChange={(event) => {
+                                const next = [...form.alternateMpns]
+                                next[index] = event.target.value
+                                updateForm('alternateMpns', next)
+                              }}
+                              placeholder="대체 MPN"
+                              className={`${ERP_FIELD_INPUT_CLASS} min-w-0 flex-1 font-mono`}
+                              aria-label={`대체 MPN ${index + 1}`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateForm(
+                                  'alternateMpns',
+                                  form.alternateMpns.filter((_, itemIndex) => itemIndex !== index),
+                                )
+                              }
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                              aria-label={`대체 MPN ${index + 1} 삭제`}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="min-w-[6.5rem] px-2 py-2">
+                      <select
+                        value={form.supplyType}
+                        onChange={(event) =>
+                          updateForm('supplyType', event.target.value as ItemSupplyType)
+                        }
+                        className={ERP_FIELD_INPUT_CLASS}
+                      >
+                        <option value="">선택</option>
+                        {ITEM_SUPPLY_TYPE_OPTIONS.map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            {partnersLoading || salesPartners.length === 0 ? (
+              <p className="text-xs text-slate-500">
+                {partnersLoading
+                  ? '고객사 목록을 불러오는 중...'
+                  : '등록된 거래처가 없습니다. 기초등록 → 거래처등록에서 먼저 등록해 주세요.'}
+              </p>
+            ) : null}
+            {isCreate ? (
+              <p className="text-xs text-slate-500">
+                품목코드는 CPN을 그대로 쓰거나 비우면 MA- 자동채번됩니다. MPN 옆 + 로 대체 MPN을
+                추가할 수 있습니다.
+              </p>
+            ) : null}
+          </section>
+        ) : (
+          <>
         {/* A. 식별 */}
         <section className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">식별</p>
@@ -679,6 +883,8 @@ function ItemModalContent({
             </p>
           ) : null}
         </section>
+          </>
+        )}
 
         {/* B. 단가 */}
         {showFinishedProductUnitPriceInfo ? (
@@ -907,32 +1113,11 @@ function ItemModalContent({
           </OpenableDetails>
         ) : null}
 
-        {/* D. 자재 속성 */}
-        {showRawMaterialTypeField || showMaterialDetailFields ? (
+        {/* D. 자재 속성 — 원자재는 표 레이아웃에 포함, 부자재 등만 여기 */}
+        {!showRawMaterialTypeField && showMaterialDetailFields ? (
           <section className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">자재 속성</p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {showRawMaterialTypeField ? (
-                <label className="block text-sm">
-                  <span className={ERP_FIELD_LABEL_CLASS}>
-                    공정구분 <RequiredMark />
-                  </span>
-                  <select
-                    value={form.materialType}
-                    onChange={(event) =>
-                      updateForm('materialType', event.target.value as ItemMaterialType)
-                    }
-                    className={ERP_FIELD_INPUT_CLASS}
-                  >
-                    <option value="">선택</option>
-                    {ITEM_MATERIAL_TYPE_OPTIONS.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
               {showMaterialDetailFields ? (
                 <>
                   <label className="block text-sm">
@@ -954,11 +1139,55 @@ function ItemModalContent({
                   </label>
                   <label className="block text-sm">
                     <span className={ERP_FIELD_LABEL_CLASS}>MPN</span>
-                    <input
-                      value={form.mpn}
-                      onChange={(event) => updateForm('mpn', event.target.value)}
-                      className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
-                    />
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1">
+                        <input
+                          value={form.mpn}
+                          onChange={(event) => updateForm('mpn', event.target.value)}
+                          className={`${ERP_FIELD_INPUT_CLASS} min-w-0 flex-1 font-mono`}
+                          aria-label="MPN"
+                        />
+                        <button
+                          type="button"
+                          title="대체 MPN 추가"
+                          aria-label="대체 MPN 추가"
+                          onClick={() =>
+                            updateForm('alternateMpns', [...form.alternateMpns, ''])
+                          }
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-lg leading-none text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                        >
+                          +
+                        </button>
+                      </div>
+                      {form.alternateMpns.map((mpn, index) => (
+                        <div key={`alt-mpn-${index}`} className="flex items-center gap-1">
+                          <input
+                            value={mpn}
+                            onChange={(event) => {
+                              const next = [...form.alternateMpns]
+                              next[index] = event.target.value
+                              updateForm('alternateMpns', next)
+                            }}
+                            placeholder="대체 MPN"
+                            className={`${ERP_FIELD_INPUT_CLASS} min-w-0 flex-1 font-mono`}
+                            aria-label={`대체 MPN ${index + 1}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateForm(
+                                'alternateMpns',
+                                form.alternateMpns.filter((_, itemIndex) => itemIndex !== index),
+                              )
+                            }
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                            aria-label={`대체 MPN ${index + 1} 삭제`}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </label>
                   <label className="block text-sm">
                     <span className={ERP_FIELD_LABEL_CLASS}>도급/사급</span>
@@ -977,53 +1206,6 @@ function ItemModalContent({
                       ))}
                     </select>
                   </label>
-                  <div className="space-y-2 sm:col-span-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className={ERP_FIELD_LABEL_CLASS}>대체 MPN</span>
-                      <button
-                        type="button"
-                        className={ERP_ROW_ADD_BUTTON_CLASS}
-                        onClick={() => updateForm('alternateMpns', [...form.alternateMpns, ''])}
-                      >
-                        + 추가
-                      </button>
-                    </div>
-                    {form.alternateMpns.length ? (
-                      <div className="space-y-2">
-                        {form.alternateMpns.map((mpn, index) => (
-                          <div key={`alt-mpn-${index}`} className="flex items-center gap-2">
-                            <input
-                              value={mpn}
-                              onChange={(event) => {
-                                const next = [...form.alternateMpns]
-                                next[index] = event.target.value
-                                updateForm('alternateMpns', next)
-                              }}
-                              placeholder="같은 부품의 다른 메이커 품번"
-                              className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
-                            />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateForm(
-                                  'alternateMpns',
-                                  form.alternateMpns.filter((_, itemIndex) => itemIndex !== index),
-                                )
-                              }
-                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg text-slate-400 hover:bg-slate-100 hover:text-red-600"
-                              aria-label={`대체 MPN ${index + 1} 삭제`}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-500">
-                        릴 바코드만 다른 같은 부품이면 추가하세요. 사급=고객 자재, 도급=당사 구매.
-                      </p>
-                    )}
-                  </div>
                 </>
               ) : null}
             </div>
