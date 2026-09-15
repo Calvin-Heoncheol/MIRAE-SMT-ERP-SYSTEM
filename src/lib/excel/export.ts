@@ -1,6 +1,6 @@
 import { todayYmdSeoul } from '@/lib/orders/utils'
 
-/** xlsx-js-style 셀 스타일 (배경·글꼴 등) */
+/** 엑셀 셀 스타일 (xlsx 커뮤니티 빌드에서는 일부만 반영될 수 있음) */
 export type ExcelCellStyle = {
   fill?: {
     patternType?: 'solid' | 'none'
@@ -66,7 +66,8 @@ function toExcelCell(value: string | number, style?: ExcelCellStyle | null): Exc
 
 /** 여러 시트를 가진 엑셀(.xlsx) 다운로드. 브라우저 전용 */
 export async function downloadExcelSheets({ fileName, sheets }: DownloadExcelSheetsOptions) {
-  const XLSX = await import('xlsx-js-style')
+  // xlsx-js-style은 Turbopack에서 resolve 실패하는 경우가 있어, 읽기 경로와 동일한 xlsx 사용
+  const XLSX = await import('xlsx')
   const workbook = XLSX.utils.book_new()
 
   for (const sheet of sheets as { sheetName: string; columns: ExcelColumn<unknown>[]; rows: unknown[] }[]) {

@@ -7,15 +7,17 @@ export function looksLikeDesignatorToken(value: string) {
   if (!trimmed) return false
   const upper = trimmed.toUpperCase()
   if (/^(REFDES|DESIGNATOR|REFERENCE|COMP|SYM|TOP|BOT|LAYER|X|Y)$/i.test(upper)) return false
-  return /^[@#]?[A-Z]{1,6}\d+[A-Z0-9-]*$/i.test(trimmed)
+  // R1 / C10 / U3A — 또는 멀티보드 1C1 / 2R10
+  return /^[@#]?(\d{1,3})?[A-Z]{1,6}\d+[A-Z0-9-]*$/i.test(trimmed)
 }
 
 function splitDesignatorParts(raw: string) {
   const text = raw.trim()
   if (!text) return []
-  if (text.includes(',')) {
+  // 일반/전각 쉼표·세미콜론·공백
+  if (/[,，、;；]/.test(text)) {
     return text
-      .split(',')
+      .split(/[,，、;；]+/)
       .map((part) => part.trim())
       .filter(Boolean)
   }

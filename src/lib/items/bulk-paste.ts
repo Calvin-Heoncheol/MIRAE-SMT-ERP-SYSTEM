@@ -21,7 +21,7 @@ export type ItemBulkColumn = {
 const RAW_MATERIAL_BULK_COLUMNS: ItemBulkColumn[] = [
   { key: 'customerName', label: '고객사', required: true },
   { key: 'id', label: '품목코드' },
-  { key: 'materialType', label: '공정', required: true },
+  { key: 'materialType', label: '공정', required: true, widthClass: 'min-w-[7rem] w-[7rem]' },
   { key: 'name', label: '품목명', required: true },
   { key: 'specification', label: '사양 규격' },
   { key: 'package', label: '패키지' },

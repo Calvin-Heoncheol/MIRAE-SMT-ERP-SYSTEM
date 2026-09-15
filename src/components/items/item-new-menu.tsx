@@ -53,7 +53,7 @@ export function ItemNewMenu({ onOpenCreate, onOpenBulk }: ItemNewMenuProps) {
           >
             일괄 등록
             <span className="mt-0.5 block text-xs font-normal text-slate-500">
-              Excel에서 복사해 붙여넣기
+              BOM 업로드 · 일괄 입력
             </span>
           </button>
         </div>
