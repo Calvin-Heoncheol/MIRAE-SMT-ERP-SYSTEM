@@ -22,11 +22,19 @@ import {
   computeApprovalVatAmount,
   computeLineAmount,
   defaultApprovalDetailItem,
+  approvalAppliesVat,
 } from '@/lib/approvals/form-state'
 import { APPROVAL_DEPARTMENTS } from '@/lib/approvals/departments'
 import { formatApprovalMoney } from '@/lib/approvals/utils'
 import type { ApprovalSignoffRole } from '@/lib/approvals/signoffs'
-import type { ApprovalAmountBasis } from '@/lib/approvals/types'
+import type {
+  ApprovalAmountBasis,
+  ApprovalCurrency,
+} from '@/lib/approvals/types'
+import {
+  APPROVAL_CURRENCIES,
+  APPROVAL_CURRENCY_LABELS,
+} from '@/lib/approvals/types'
 import {
   PRINT_BODY,
   PRINT_DIVIDER,
@@ -246,7 +254,9 @@ export function ApprovalFormDocument({
   const introBodyPlaceholder = getApprovalIntroBodyPlaceholder(category)
   const subjectPlaceholder = getApprovalSubjectPlaceholder(category)
   const amountBasis = form.amountBasis || 'supply'
-  const showAmountBasisSelector = usesAmountBasisSelector(category)
+  const currency = form.currency || 'KRW'
+  const showVat = approvalAppliesVat(form, category)
+  const showAmountBasisSelector = usesAmountBasisSelector(category) && currency !== 'USD'
 
   function patch(patch: Partial<ApprovalFormState>) {
     onChange({ ...form, ...patch })
@@ -278,7 +288,7 @@ export function ApprovalFormDocument({
     if (!raw) return '-'
     if (column.computed || column.key === 'amount') {
       const numeric = Number(String(raw).replace(/,/g, ''))
-      if (!Number.isNaN(numeric) && numeric > 0) return formatApprovalMoney(numeric)
+      if (!Number.isNaN(numeric) && numeric > 0) return formatApprovalMoney(numeric, currency)
     }
     return raw
   }
@@ -410,6 +420,32 @@ export function ApprovalFormDocument({
           className="approval-meta-field"
           onChange={(author) => patch({ author })}
         />
+        <label className="approval-meta-field block text-sm">
+          <span className={`${PRINT_LABEL} mb-1 block text-xs font-semibold tracking-wide text-slate-500`}>
+            통화
+          </span>
+          {readOnly ? (
+            <div
+              className={`${PRINT_VALUE} min-h-[38px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800`}
+            >
+              {APPROVAL_CURRENCY_LABELS[currency]}
+            </div>
+          ) : (
+            <select
+              value={currency}
+              onChange={(event) =>
+                patch({ currency: event.target.value as ApprovalCurrency })
+              }
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
+            >
+              {APPROVAL_CURRENCIES.map((item) => (
+                <option key={item} value={item}>
+                  {APPROVAL_CURRENCY_LABELS[item]}
+                </option>
+              ))}
+            </select>
+          )}
+        </label>
       </div>
 
       <div className={`${approvalSectionClass} mt-4`}>
@@ -451,11 +487,15 @@ export function ApprovalFormDocument({
                     ? '단가·금액은 면세 금액 기준으로 입력합니다. 부가세는 0원으로 처리됩니다.'
                     : '단가·금액은 공급가액(VAT 별도) 기준으로 입력합니다.'}
               </p>
-            ) : (
+            ) : category === 'duty-tax' ? (
               <p className="no-print mt-0.5 text-xs font-medium text-red-600">
                 관세/부가세는 각각 별도 입력하며, 최종 금액은 두 금액의 합산으로 계산됩니다.
               </p>
-            )}
+            ) : currency === 'USD' ? (
+              <p className="no-print mt-0.5 text-xs font-medium text-red-600">
+                달러(USD) 품의는 부가세 없이 입력 금액을 합계로 사용합니다.
+              </p>
+            ) : null}
           </div>
           {!readOnly ? (
             <ErpRowAddButton onClick={addDetailRow} title="내역 행 추가" className="no-print" />
@@ -527,24 +567,28 @@ export function ApprovalFormDocument({
         <div className="approval-totals-wrap mt-4 space-y-3">
           <div className="approval-totals-row document-print-totals flex flex-wrap items-baseline justify-end gap-x-6 gap-y-1 text-sm text-slate-600">
             <p>
-              {category === 'duty-tax' ? '관세 합계' : '공급가액 합계'}:{' '}
-              <span className="font-semibold tabular-nums text-slate-800">{formatApprovalMoney(supplyAmount)}</span>
+              {category === 'duty-tax' ? '관세 합계' : currency === 'USD' ? '금액 합계' : '공급가액 합계'}:{' '}
+              <span className="font-semibold tabular-nums text-slate-800">{formatApprovalMoney(supplyAmount, currency)}</span>
             </p>
-            <p>
-              {category === 'duty-tax' ? '부가세 합계' : `부가세 (${amountBasis === 'exempt' ? '0%' : '10%'})`}:{' '}
-              <span className="font-semibold tabular-nums text-slate-800">{formatApprovalMoney(vatAmount)}</span>
-            </p>
+            {showVat ? (
+              <p>
+                {category === 'duty-tax' ? '부가세 합계' : `부가세 (${amountBasis === 'exempt' ? '0%' : '10%'})`}:{' '}
+                <span className="font-semibold tabular-nums text-slate-800">{formatApprovalMoney(vatAmount, currency)}</span>
+              </p>
+            ) : null}
           </div>
           <div className="approval-grand-total flex flex-wrap items-center justify-between gap-3 rounded-md border-2 border-slate-700 bg-slate-50 px-5 py-3.5">
             <span className="text-sm font-bold text-slate-800">
               {category === 'duty-tax'
                 ? '합계금액 (관세+부가세)'
-                : amountBasis === 'exempt'
-                  ? '공급대가 (면세)'
-                  : '공급대가 (VAT 포함)'}
+                : currency === 'USD'
+                  ? '합계 (부가세 없음)'
+                  : amountBasis === 'exempt'
+                    ? '공급대가 (면세)'
+                    : '공급대가 (VAT 포함)'}
             </span>
             <span className="text-xl font-extrabold tracking-tight text-slate-800 tabular-nums">
-              {formatApprovalMoney(grandTotal)}
+              {formatApprovalMoney(grandTotal, currency)}
             </span>
           </div>
         </div>

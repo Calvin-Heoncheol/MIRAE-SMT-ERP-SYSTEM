@@ -27,7 +27,7 @@ import type {
   MaterialPurchaseSuggestionLine,
   OrderPurchaseCard,
 } from './types'
-import { groupMaterialPurchaseOrdersFromRecords } from './utils'
+import { groupMaterialPurchaseOrdersFromRecords, normalizeMaterialPurchaseOrderAmount } from './utils'
 
 /** BOM 구성품이 fetchMaterials(원자재·부자재)에 빠져 있으면 items에서 보강 */
 async function mergeMaterialsFromBomLeaves(
@@ -325,6 +325,7 @@ export async function createMaterialPurchaseOrder(
       delivery_date: payload.delivery_date || null,
       supplier: payload.supplier,
       currency: payload.currency || 'KRW',
+      freight_amount: normalizeMaterialPurchaseOrderAmount(payload.freight_amount),
     })
     if (payload.source_order_id) {
       insertRow.source_order_id = payload.source_order_id
@@ -393,6 +394,15 @@ export async function createMaterialPurchaseOrder(
       }
     }
 
+    if (error && error.message.includes('freight_amount')) {
+      return {
+        ok: false,
+        reason: 'query',
+        detail:
+          '구매발주 운송비 컬럼이 없습니다. Supabase에서 supabase/migrate-material-purchase-orders-freight.sql 을 실행한 뒤 다시 저장해 주세요.',
+      }
+    }
+
     if (error && isMissingCreatedByColumn(error.message)) {
       insertRow = stripCreatedByFields(insertRow)
       ;({ data: inserted, error } = await supabase
@@ -456,6 +466,7 @@ export async function updateMaterialPurchaseOrder(
         delivery_date: payload.delivery_date || null,
         supplier: payload.supplier,
         currency: payload.currency || 'KRW',
+        freight_amount: normalizeMaterialPurchaseOrderAmount(payload.freight_amount),
         updated_at: new Date().toISOString(),
       })
       .eq('id', existing.id)
@@ -467,6 +478,14 @@ export async function updateMaterialPurchaseOrder(
           reason: 'query',
           detail:
             '구매발주 통화 컬럼이 없습니다. Supabase에서 supabase/migrate-material-purchase-orders-currency.sql 을 실행한 뒤 다시 저장해 주세요.',
+        }
+      }
+      if (updateError.message.includes('freight_amount')) {
+        return {
+          ok: false,
+          reason: 'query',
+          detail:
+            '구매발주 운송비 컬럼이 없습니다. Supabase에서 supabase/migrate-material-purchase-orders-freight.sql 을 실행한 뒤 다시 저장해 주세요.',
         }
       }
       return { ok: false, reason: 'query', detail: updateError.message }

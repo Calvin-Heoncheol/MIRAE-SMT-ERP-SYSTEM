@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
-import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { ErpModal } from '@/components/ui/erp-modal'
 import type { SmtBoardForm, DipBoardForm } from '@/lib/quotes/form-state'
 import { toNumericField } from '@/lib/quotes/form-state'
 import { formatPickPlaceSideLabel } from '@/lib/quotes/canonical-pick-place'
@@ -701,12 +701,10 @@ function PickPlaceReviewContent({
   onConfirmOverride,
   onCancelEdit,
   onBulkAiReview,
-  bulkAiLoading,
-  bulkAiError,
-  onBulkDigiKeyReview,
-  bulkDigiKeyLoading,
-  bulkDigiKeyError,
-  bulkDigiKeySuccess,
+  bulkReviewLoading,
+  bulkReviewPhase,
+  bulkReviewError,
+  bulkReviewSuccess,
   digiKeyEligibleCount,
 }: {
   analysis: AltiumPickPlaceAnalysis
@@ -719,12 +717,10 @@ function PickPlaceReviewContent({
   onConfirmOverride: (rowKey: string, override: PickPlaceManualOverride) => void
   onCancelEdit: () => void
   onBulkAiReview: () => void
-  bulkAiLoading: boolean
-  bulkAiError: string | null
-  onBulkDigiKeyReview: () => void
-  bulkDigiKeyLoading: boolean
-  bulkDigiKeyError: string | null
-  bulkDigiKeySuccess: string[] | null
+  bulkReviewLoading: boolean
+  bulkReviewPhase: 'digikey' | 'ai' | null
+  bulkReviewError: string | null
+  bulkReviewSuccess: string | null
   digiKeyEligibleCount: number
   bomAnalysis?: AltiumBomAnalysis | null
 }) {
@@ -882,22 +878,14 @@ function PickPlaceReviewContent({
               <button
                 type="button"
                 onClick={onBulkAiReview}
-                disabled={bulkAiLoading || bulkDigiKeyLoading}
+                disabled={bulkReviewLoading}
                 className="rounded-md border border-violet-300 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {bulkAiLoading ? 'AI 일괄 검토 중…' : `AI 일괄 검토 (${analysis.ambiguousCount}건)`}
-              </button>
-            ) : null}
-            {digiKeyEligibleCount > 0 ? (
-              <button
-                type="button"
-                onClick={onBulkDigiKeyReview}
-                disabled={bulkDigiKeyLoading || bulkAiLoading}
-                className="rounded-md border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {bulkDigiKeyLoading
-                  ? 'DigiKey 조회 중…'
-                  : `DigiKey 조회 (${digiKeyEligibleCount}건)`}
+                {bulkReviewLoading
+                  ? bulkReviewPhase === 'digikey'
+                    ? 'DigiKey 조회 중…'
+                    : 'AI 검토 중…'
+                  : `AI 일괄 검토 (${analysis.ambiguousCount}건)`}
               </button>
             ) : null}
             <button
@@ -909,14 +897,10 @@ function PickPlaceReviewContent({
             </button>
           </div>
         </div>
-        {bulkAiError ? <p className="mb-2 text-[11px] text-red-600">{bulkAiError}</p> : null}
-        {bulkDigiKeyError ? <p className="mb-2 text-[11px] text-red-600">{bulkDigiKeyError}</p> : null}
-        {bulkDigiKeySuccess?.length ? (
-          <div className="mb-2 rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-[11px] text-red-900">
-            <p className="font-semibold">DigiKey로 {bulkDigiKeySuccess.length}건 확인됨</p>
-            <p className="mt-1 font-mono text-[11px] leading-relaxed text-red-800">
-              {bulkDigiKeySuccess.join(', ')}
-            </p>
+        {bulkReviewError ? <p className="mb-2 text-[11px] text-red-600">{bulkReviewError}</p> : null}
+        {bulkReviewSuccess ? (
+          <div className="mb-2 rounded-lg border border-violet-200 bg-violet-50/80 px-3 py-2 text-[11px] text-violet-900">
+            {bulkReviewSuccess}
           </div>
         ) : null}
         <div className="max-h-[min(68vh,640px)] min-h-[240px] overflow-auto rounded-lg border border-slate-200">
@@ -999,17 +983,15 @@ export function PickPlaceReviewModal({
   onClose,
   onApply,
 }: PickPlaceReviewModalProps) {
-  const requestClose = useErpModalRequestClose()
   const [showAllRows, setShowAllRows] = useState(false)
   const [baseAnalysis, setBaseAnalysis] = useState<AltiumPickPlaceAnalysis | null>(null)
   const [localAnalysis, setLocalAnalysis] = useState<AltiumPickPlaceAnalysis | null>(null)
   const [manualOverrides, setManualOverrides] = useState<Record<string, PickPlaceManualOverride>>({})
   const [editingRowKey, setEditingRowKey] = useState<string | null>(null)
-  const [bulkAiLoading, setBulkAiLoading] = useState(false)
-  const [bulkAiError, setBulkAiError] = useState<string | null>(null)
-  const [bulkDigiKeyLoading, setBulkDigiKeyLoading] = useState(false)
-  const [bulkDigiKeyError, setBulkDigiKeyError] = useState<string | null>(null)
-  const [bulkDigiKeySuccess, setBulkDigiKeySuccess] = useState<string[] | null>(null)
+  const [bulkReviewLoading, setBulkReviewLoading] = useState(false)
+  const [bulkReviewPhase, setBulkReviewPhase] = useState<'digikey' | 'ai' | null>(null)
+  const [bulkReviewError, setBulkReviewError] = useState<string | null>(null)
+  const [bulkReviewSuccess, setBulkReviewSuccess] = useState<string | null>(null)
   const [reasonFilter, setReasonFilter] = useState<PickPlaceReviewReasonTag | 'digikey_eligible' | null>(null)
   const [duplicateAcknowledged, setDuplicateAcknowledged] = useState(false)
 
@@ -1025,11 +1007,10 @@ export function PickPlaceReviewModal({
     setLocalAnalysis(mergedAnalysis)
     setManualOverrides({})
     setEditingRowKey(null)
-    setBulkAiLoading(false)
-    setBulkAiError(null)
-    setBulkDigiKeyLoading(false)
-    setBulkDigiKeyError(null)
-    setBulkDigiKeySuccess(null)
+    setBulkReviewLoading(false)
+    setBulkReviewPhase(null)
+    setBulkReviewError(null)
+    setBulkReviewSuccess(null)
     setReasonFilter(null)
     setDuplicateAcknowledged(false)
   }, [open, mergedAnalysis])
@@ -1039,95 +1020,107 @@ export function PickPlaceReviewModal({
   const resolvedBaseAnalysis = baseAnalysis
   const resolvedLocalAnalysis = localAnalysis
 
-  const digiKeyEligibleCount = resolvedBaseAnalysis.classifiedRows.filter(isPickPlaceDigiKeyEligible).length
+  const digiKeyEligibleCount = resolvedLocalAnalysis.classifiedRows.filter(isPickPlaceDigiKeyEligible).length
 
   const blockingCount = countBlockingPickPlaceReviews(resolvedLocalAnalysis.classifiedRows)
   const duplicateOnlyCount = countDuplicateOnlyPickPlaceReviews(resolvedLocalAnalysis.classifiedRows)
   const canApply =
     blockingCount === 0 && (duplicateOnlyCount === 0 || duplicateAcknowledged)
 
-  async function handleBulkDigiKeyReview() {
-    const ambiguousRows = resolvedBaseAnalysis.classifiedRows.filter(isPickPlaceDigiKeyEligible)
-    if (!ambiguousRows.length) return
-
-    setBulkDigiKeyLoading(true)
-    setBulkDigiKeyError(null)
-    setBulkDigiKeySuccess(null)
-    try {
-      const result = await classifyPickPlaceRowsWithDigiKeyAction({
-        rows: ambiguousRows.map(toDigiKeyRowInput),
-      })
-      if (!result.ok) throw new Error(result.detail)
-
-      const nextOverrides = { ...manualOverrides }
-      const confirmedDesignators: string[] = []
-      const classificationByDesignator = new Map(
-        result.classifications.map((classification) => [
-          classification.designator.toUpperCase(),
-          classification,
-        ]),
-      )
-
-      for (const [index, row] of resolvedBaseAnalysis.classifiedRows.entries()) {
-        if (row.confidence !== 'ambiguous' || row.category === 'skip' || !row.mpn.trim()) continue
-        const classification = classificationByDesignator.get(row.designator.toUpperCase())
-        if (!classification) continue
-        nextOverrides[buildPickPlaceRowKey(row, index)] = toManualOverrideFromDigiKey(classification)
-        confirmedDesignators.push(classification.designator)
-      }
-
-      setManualOverrides(nextOverrides)
-      setLocalAnalysis(applyPickPlaceManualOverrides(resolvedBaseAnalysis, nextOverrides))
-      setEditingRowKey(null)
-      if (confirmedDesignators.length) {
-        setBulkDigiKeySuccess(confirmedDesignators)
-      }
-      if (result.skipped.length) {
-        setBulkDigiKeyError(`조회 실패 ${result.skipped.length}건: ${result.skipped.slice(0, 3).join(', ')}${result.skipped.length > 3 ? '…' : ''}`)
-      }
-    } catch (caught) {
-      setBulkDigiKeyError(caught instanceof Error ? caught.message : 'DigiKey 조회 중 오류가 발생했습니다.')
-    } finally {
-      setBulkDigiKeyLoading(false)
-    }
-  }
-
   async function handleBulkAiReview() {
-    const ambiguousRows = resolvedBaseAnalysis.classifiedRows.filter(
-      (row) => row.confidence === 'ambiguous' && row.category !== 'skip',
-    )
+    const ambiguousRows = resolvedBaseAnalysis.classifiedRows
+      .map((row, index) => ({ row, index, rowKey: buildPickPlaceRowKey(row, index) }))
+      .filter(({ row, rowKey }) => {
+        if (row.category === 'skip') return false
+        if (manualOverrides[rowKey]) return false
+        return row.confidence === 'ambiguous'
+      })
     if (!ambiguousRows.length) return
 
-    setBulkAiLoading(true)
-    setBulkAiError(null)
+    setBulkReviewLoading(true)
+    setBulkReviewPhase(null)
+    setBulkReviewError(null)
+    setBulkReviewSuccess(null)
+
+    const nextOverrides = { ...manualOverrides }
+    let digiKeyCount = 0
+    let aiCount = 0
+    const notes: string[] = []
+
     try {
-      const result = await classifyPickPlaceRowsAction({
-        rows: ambiguousRows.map(toAiRowInput),
-      })
-      if (!result.ok) throw new Error(result.detail)
+      const digiKeyTargets = ambiguousRows.filter(({ row }) => isPickPlaceDigiKeyEligible(row))
+      if (digiKeyTargets.length) {
+        setBulkReviewPhase('digikey')
+        const digiKeyResult = await classifyPickPlaceRowsWithDigiKeyAction({
+          rows: digiKeyTargets.map(({ row }) => toDigiKeyRowInput(row)),
+        })
+        if (digiKeyResult.ok) {
+          const byDesignator = new Map(
+            digiKeyResult.classifications.map((classification) => [
+              classification.designator.toUpperCase(),
+              classification,
+            ]),
+          )
+          for (const { row, rowKey } of digiKeyTargets) {
+            const classification = byDesignator.get(row.designator.toUpperCase())
+            if (!classification) continue
+            nextOverrides[rowKey] = toManualOverrideFromDigiKey(classification)
+            digiKeyCount += 1
+          }
+          if (digiKeyResult.skipped.length) {
+            notes.push(
+              `DigiKey 미확인 ${digiKeyResult.skipped.length}건 → AI로 이관`,
+            )
+          }
+        } else {
+          notes.push(`DigiKey 생략: ${digiKeyResult.detail}`)
+        }
+      }
 
-      const nextOverrides = { ...manualOverrides }
-      const classificationByDesignator = new Map(
-        result.classifications.map((classification) => [
-          classification.designator.toUpperCase(),
-          classification,
-        ]),
-      )
+      const remainingForAi = ambiguousRows.filter(({ rowKey }) => !nextOverrides[rowKey])
+      if (remainingForAi.length) {
+        setBulkReviewPhase('ai')
+        const aiResult = await classifyPickPlaceRowsAction({
+          rows: remainingForAi.map(({ row }) => toAiRowInput(row)),
+        })
+        if (!aiResult.ok) throw new Error(aiResult.detail)
 
-      for (const [index, row] of resolvedBaseAnalysis.classifiedRows.entries()) {
-        if (row.confidence !== 'ambiguous' || row.category === 'skip') continue
-        const classification = classificationByDesignator.get(row.designator.toUpperCase())
-        if (!classification) continue
-        nextOverrides[buildPickPlaceRowKey(row, index)] = toManualOverrideFromAi(classification)
+        const byDesignator = new Map(
+          aiResult.classifications.map((classification) => [
+            classification.designator.toUpperCase(),
+            classification,
+          ]),
+        )
+        for (const { row, rowKey } of remainingForAi) {
+          const classification = byDesignator.get(row.designator.toUpperCase())
+          if (!classification) continue
+          nextOverrides[rowKey] = toManualOverrideFromAi(classification)
+          aiCount += 1
+        }
       }
 
       setManualOverrides(nextOverrides)
       setLocalAnalysis(applyPickPlaceManualOverrides(resolvedBaseAnalysis, nextOverrides))
       setEditingRowKey(null)
+
+      const summaryParts = [
+        digiKeyCount > 0 ? `DigiKey ${digiKeyCount}건` : null,
+        aiCount > 0 ? `AI ${aiCount}건` : null,
+      ].filter(Boolean)
+      const summary =
+        summaryParts.length > 0
+          ? `일괄 검토 완료 — ${summaryParts.join(' · ')}${notes.length ? ` (${notes.join(', ')})` : ''}`
+          : notes.length
+            ? notes.join(' · ')
+            : '일괄 검토 결과가 없습니다.'
+      setBulkReviewSuccess(summary)
     } catch (caught) {
-      setBulkAiError(caught instanceof Error ? caught.message : 'AI 일괄 검토 중 오류가 발생했습니다.')
+      setBulkReviewError(
+        caught instanceof Error ? caught.message : 'AI 일괄 검토 중 오류가 발생했습니다.',
+      )
     } finally {
-      setBulkAiLoading(false)
+      setBulkReviewLoading(false)
+      setBulkReviewPhase(null)
     }
   }
 
@@ -1188,7 +1181,7 @@ export function PickPlaceReviewModal({
           <div className="space-y-1">
             {blockingCount > 0 ? (
               <p className="text-xs text-amber-700">
-                검토 필요 {blockingCount}건 — 뱃지를 눌러 분류하거나 DigiKey/AI 검토를 사용하세요.
+                검토 필요 {blockingCount}건 — 뱃지를 눌러 분류하거나 AI 일괄 검토를 사용하세요.
               </p>
             ) : duplicateOnlyCount > 0 && !duplicateAcknowledged ? (
               <label className="flex cursor-pointer items-start gap-2 text-xs text-amber-800">
@@ -1207,7 +1200,7 @@ export function PickPlaceReviewModal({
             )}
           </div>
           <div className="flex gap-2">
-            <ErpButton variant="secondary" onClick={() => requestClose?.() ?? onClose()}>
+            <ErpButton variant="secondary" onClick={onClose}>
               취소
             </ErpButton>
             <ErpButton onClick={handleApply} disabled={!canApply}>
@@ -1229,12 +1222,10 @@ export function PickPlaceReviewModal({
         onConfirmOverride={handleConfirmOverride}
         onCancelEdit={() => setEditingRowKey(null)}
         onBulkAiReview={() => void handleBulkAiReview()}
-        bulkAiLoading={bulkAiLoading}
-        bulkAiError={bulkAiError}
-        onBulkDigiKeyReview={() => void handleBulkDigiKeyReview()}
-        bulkDigiKeyLoading={bulkDigiKeyLoading}
-        bulkDigiKeyError={bulkDigiKeyError}
-        bulkDigiKeySuccess={bulkDigiKeySuccess}
+        bulkReviewLoading={bulkReviewLoading}
+        bulkReviewPhase={bulkReviewPhase}
+        bulkReviewError={bulkReviewError}
+        bulkReviewSuccess={bulkReviewSuccess}
         digiKeyEligibleCount={digiKeyEligibleCount}
       />
     </ErpModal>

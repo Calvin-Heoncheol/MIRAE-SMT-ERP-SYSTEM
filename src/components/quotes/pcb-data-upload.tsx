@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BomReviewModal } from '@/components/quotes/bom-review-modal'
 import { PickPlaceReviewModal } from '@/components/quotes/pick-place-review-modal'
 import { readBomSpreadsheetFile, readSpreadsheetFileAsRows } from '@/lib/excel/read-spreadsheet'
@@ -22,6 +22,8 @@ type PcbDataUploadProps = {
   applyBomWithPickPlace?: boolean
   appliedPickPlace?: AltiumPickPlaceAnalysis | null
   appliedBom?: AltiumBomAnalysis | null
+  /** 분석 결과 모달이 열리면 부모 푸터(취소/계속)를 가리기 위해 알림 */
+  onReviewOpenChange?: (open: boolean) => void
   onApplyPickPlace: (input: {
     smtForms: SmtBoardForm[]
     dipForms?: DipBoardForm[]
@@ -68,6 +70,7 @@ export function PcbDataUpload({
   applyBomWithPickPlace = false,
   appliedPickPlace = null,
   appliedBom = null,
+  onReviewOpenChange,
   onApplyPickPlace,
   onApplyBom,
 }: PcbDataUploadProps) {
@@ -86,6 +89,10 @@ export function PcbDataUpload({
   const hasBothPending = Boolean(pickPlacePending && bomPending)
   const hasPending = requireBoth ? hasBothPending : Boolean(pickPlacePending || bomPending)
   const hasParsed = Boolean(parsedPickPlace && (!requireBoth || parsedBom))
+
+  useEffect(() => {
+    onReviewOpenChange?.(pickPlaceReviewOpen || bomReviewOpen)
+  }, [pickPlaceReviewOpen, bomReviewOpen, onReviewOpenChange])
 
   function resetParsed() {
     setParsedPickPlace(null)
@@ -183,7 +190,7 @@ export function PcbDataUpload({
             <input
               ref={pickPlaceInputRef}
               type="file"
-              accept=".csv,.xls,.xlsx,.xlsm,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".csv,.txt,.xls,.xlsx,.xlsm,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="hidden"
               disabled={disabled || loading}
               onChange={(event) => {

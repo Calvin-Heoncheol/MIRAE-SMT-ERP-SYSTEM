@@ -354,12 +354,17 @@ function buildQuoteBreakdownTableHtml(
   } = options
   const labels = getPreviewLabels(labelType)
   const isSetupSection = sectionKey === 'setup'
+  const isSmdSection = sectionKey === 'smt'
   const isPostSection = sectionKey === 'post'
   const showProductionQty = false
-  const unitHeader = labels.colUnit
+  const unitHeader = isSetupSection
+    ? labels.colSetupBasis
+    : isSmdSection
+      ? labels.colSmdBaseRate
+      : labels.colUnit
   const qtyHeader = isSetupSection
     ? labels.colSetupMinutes
-    : sectionKey === 'smt'
+    : isSmdSection
       ? labels.colSmdWorkQty
       : isPostSection
         ? labels.colPostWorkQty
@@ -372,7 +377,9 @@ function buildQuoteBreakdownTableHtml(
       ? 'quote-table line-items-table board-summary-table'
       : 'quote-table line-items-table'
   const boardHeader = showBoardColumn ? `<th class="breakdown-col-board">${breakdownBoardColLabel(labelType)}</th>` : ''
-  const unitTotalHeader = `<th style="text-align:right;">${labels.colUnitTotal}</th>`
+  const unitTotalHeader = `<th style="text-align:right;">${
+    isSmdSection ? labels.colSmdUnitPrice : labels.colUnitTotal
+  }</th>`
   const productionQtyHeader = showProductionQty
     ? `<th style="text-align:center;">${labels.colProductionQty}</th>`
     : ''
@@ -599,13 +606,10 @@ function buildQuoteSummaryTableHtml(
   const productName = quote.productName?.trim() || '-'
   const includeVat = quote.detailInfo.settings?.includeVat === true
   const sectionTitle = pdfText(lang, '견적 금액', 'Quote Amount', '报价金额')
-  const unitPriceLabel = includeVat
-    ? pdfText(lang, '단가 (VAT 포함)', 'Unit Price (incl. VAT)', '单价 (含增值税)')
-    : pdfText(lang, '단가', 'Unit Price', '单价')
+  /** 단가·표 합계는 공급가액(VAT 별도). VAT 포함은 최종 합계에만 표기 */
+  const unitPriceLabel = pdfText(lang, '단가', 'Unit Price', '单价')
   const qtyColLabel = pdfText(lang, '개수', 'Qty', '数量')
-  const totalLabel = includeVat
-    ? pdfText(lang, '총 합계 (VAT 포함)', 'Total (incl. VAT)', '合计 (含增值税)')
-    : pdfText(lang, '총 합계', 'Total', '合计')
+  const totalLabel = pdfText(lang, '총 합계', 'Total', '合计')
   const productColLabel = pdfText(lang, '제품명', 'Product', '产品名')
   const supplyLabel = pdfText(lang, '공급가액', 'Supply Amount', '供应金额')
   const vatLabel = pdfText(lang, '부가세 (10%)', 'VAT (10%)', '增值税 (10%)')
@@ -615,9 +619,9 @@ function buildQuoteSummaryTableHtml(
   const note = includeVat
     ? pdfText(
         lang,
-        '※ 기본 단가 안내와 공정별 세부 산정내역은 다음 페이지를 참고해 주세요. 표기 단가·합계는 VAT 포함이며, 부가세는 공급가액의 10%입니다.',
-        '※ See the following pages for the base unit price guide and detailed process breakdown. Listed unit prices and totals include VAT (10% of supply amount).',
-        '※ 基本单价说明与各工序明细请参见后续页面。所示单价与合计含增值税，增值税为供应金额的10%。',
+        '※ 기본 단가 안내와 공정별 세부 산정내역은 다음 페이지를 참고해 주세요. 표의 단가·합계는 공급가액(VAT 별도)이며, 최종 합계만 VAT 포함입니다.',
+        '※ See the following pages for the base unit price guide and detailed process breakdown. Unit prices and line totals are excl. VAT; only the grand total includes VAT.',
+        '※ 基本单价说明与各工序明细请参见后续页面。表内单价·合计为供应金额(不含税)，仅最终合计含增值税。',
       )
     : pdfText(
         lang,
@@ -626,22 +630,18 @@ function buildQuoteSummaryTableHtml(
         '※ 基本单价说明与各工序明细请参见后续页面。',
       )
 
-  let displayUnitText = unitPriceText
-  let displayTotalText = totalText
+  const displayUnitText = unitPriceText
+  const displayTotalText = totalText
   let supplyText = totalText
   let vatText = ''
   let grandText = totalText
   let vatBreakdownHtml = ''
 
   if (includeVat && page1Domestic != null) {
-    const unitIncl = domesticVatBreakdown(page1Domestic.unitKrw).totalIncl
-    const totalIncl = unitIncl * qty
-    const vatAmount = Math.max(0, totalIncl - page1Domestic.totalKrw)
-    displayUnitText = formatQuoteKrw(unitIncl)
-    displayTotalText = formatQuoteKrw(totalIncl)
+    const { vat, totalIncl } = domesticVatBreakdown(page1Domestic.totalKrw)
     supplyText = formatQuoteKrw(page1Domestic.totalKrw)
-    vatText = formatQuoteKrw(vatAmount)
-    grandText = displayTotalText
+    vatText = formatQuoteKrw(vat)
+    grandText = formatQuoteKrw(totalIncl)
     vatBreakdownHtml = `<div class="summary-vat-breakdown">
       <div class="summary-vat-row">
         <span>${supplyLabel}</span>
@@ -1061,9 +1061,9 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
   const pageTitle = pdfText(lang, '공정별 세부 산정내역', 'Detailed Breakdown by Process', '各工序明细')
   const pageNote = pdfText(
     lang,
-    'SMD(SET-UP·실장·검사)·납땜·후공정·자재 항목별 단가·수량 기준 산정식입니다.',
-    'Itemized calculation for SMD (SET-UP, placement, inspection), soldering, post-process, and materials.',
-    'SMD(SET-UP·贴装·检查)·焊接·后工序·材料各项单价·数量计算式。',
+    'SET-UP·SMD(실장·검사)·납땜·후공정·자재 항목별 단가·수량 기준 산정식입니다.',
+    'Itemized calculation for SET-UP, SMD (placement, inspection), soldering, post-process, and materials.',
+    'SET-UP·SMD(贴装·检查)·焊接·后工序·材料各项单价·数量计算式。',
   )
   const solderingTitle = labels.soldering
   const postTitle = pdfSummarySectionLabel(labels.postProcess, labelType)

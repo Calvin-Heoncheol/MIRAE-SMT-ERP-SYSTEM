@@ -47,10 +47,14 @@ export type PreviewLabels = {
   colUnitTotal: string
   colQty: string
   colPerUnitTotal: string
-  /** SET-UP 섹션 전용 — 단가 자리 */
+  /** SET-UP 섹션 전용 — 분당임률 */
   colSetupBasis: string
-  /** SET-UP 섹션 전용 — 수량 자리 */
+  /** SET-UP 섹션 전용 — 시간(분) */
   colSetupMinutes: string
+  /** SMD 섹션 — CHIP 등 기본 단가 */
+  colSmdBaseRate: string
+  /** SMD 섹션 — 대당 단가(행 합) */
+  colSmdUnitPrice: string
   /** SMD 섹션 — 부품·핀 등 작업 단위 */
   colSmdWorkQty: string
   /** 후공정 섹션 — 핀수·작업분 등 */
@@ -132,11 +136,13 @@ const DOMESTIC_LABELS: PreviewLabels = {
   colUnitTotal: '대당합계',
   colQty: '수량',
   colPerUnitTotal: '합계',
-  colSetupBasis: '산출 근거',
+  colSetupBasis: '분당임률',
   colSetupMinutes: '시간(분)',
+  colSmdBaseRate: '기본 단가',
+  colSmdUnitPrice: '대당 단가',
   colSmdWorkQty: '부품수',
-  colPostWorkQty: '작업량',
-  colPostRate: '분당 임률',
+  colPostWorkQty: '소요시간',
+  colPostRate: '분당임률',
   colProductionQty: '생산수량',
   issueDate: '발행일자',
   customer: '고객사',
@@ -211,10 +217,12 @@ const EXPORT_LABELS: PreviewLabels = {
   colUnitTotal: 'Unit Total',
   colQty: 'Qty',
   colPerUnitTotal: 'Total',
-  colSetupBasis: 'Basis',
+  colSetupBasis: 'Rate /min',
   colSetupMinutes: 'Time (min)',
+  colSmdBaseRate: 'Base Rate',
+  colSmdUnitPrice: 'Unit Price',
   colSmdWorkQty: 'Parts',
-  colPostWorkQty: 'Work Time',
+  colPostWorkQty: 'Required Time',
   colPostRate: 'Rate /min',
   colProductionQty: 'Prod. Qty',
   issueDate: 'Issue Date',
@@ -290,10 +298,12 @@ const CHINESE_LABELS: PreviewLabels = {
   colUnitTotal: '单价合计',
   colQty: '数量',
   colPerUnitTotal: '合计',
-  colSetupBasis: '计算依据',
+  colSetupBasis: '每分钟费率',
   colSetupMinutes: '时间(分)',
+  colSmdBaseRate: '基本单价',
+  colSmdUnitPrice: '单价',
   colSmdWorkQty: '部品数',
-  colPostWorkQty: '作业量',
+  colPostWorkQty: '所需时间',
   colPostRate: '每分钟费率',
   colProductionQty: '生产数量',
   issueDate: '发行日期',

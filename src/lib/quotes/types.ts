@@ -113,7 +113,7 @@ export type QuoteDetailInfo = {
     specialDiscount?: number
     /** 샘플 / 양산 */
     productionKind?: '샘플' | '양산'
-    /** true = PDF·미리보기에 부가세(10%) 포함 표시. 미설정/false = VAT 별도 */
+    /** true = PDF·미리보기 최종 합계에 부가세(10%) 포함 표시. 단가·표 합계는 공급가액(VAT 별도) */
     includeVat?: boolean
     quoteType?: QuoteType | 'legacy'
     smtIncludesSetup?: boolean
@@ -129,6 +129,8 @@ export type QuoteDetailInfo = {
     /** 메탈마스크 포함 여부 */
     includeMetalMask?: boolean
     productId?: string
+    /** 미등록 포함 — 견적에 적힌 제품코드 */
+    productCode?: string
     /** 미확정 / 확정 */
     quoteStatus?: QuoteStatus
     /** 과거 견적 — 대당 비용 (원) */

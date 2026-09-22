@@ -14,6 +14,7 @@ function normalizeHeaderKey(value: string) {
   return value
     .toLowerCase()
     .replace(/\([^)]*\)/g, '')
+    .replace(/_/g, '')
     .replace(/[^\w가-힣]+/g, '')
     .trim()
 }
@@ -51,8 +52,9 @@ function looksLikeDesignatorValue(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return false
   const upper = trimmed.toUpperCase()
-  if (/^(REFDES|DESIGNATOR|REFERENCE|COMP|SYM|TOP|BOT|LAYER|X|Y)$/i.test(upper)) return false
-  return /^[#@]?[A-Z]{1,6}\d+[A-Z0-9-]*$/i.test(trimmed)
+  if (/^(REFDES|DESIGNATOR|REFERENCE|COMP|SYM|TOP|BOT|LAYER|X|Y|MIRROR)$/i.test(upper)) return false
+  // R1 / C10 / U3A — 또는 Allegro 멀티보드 1C29 / 2R10
+  return /^[#@]?(?:\d{1,3})?[A-Z]{1,6}\d+[A-Z0-9-]*$/i.test(trimmed)
 }
 
 function scoreDesignatorColumn(rows: string[][], headerIndex: number, colIndex: number) {
@@ -137,6 +139,8 @@ const PACKAGE_ALIASES = [
   'compdevicet',
   'devicetype',
   'compdevice',
+  'symbolname',
+  'symbol',
   '패키지',
   '형태',
 ]
@@ -146,6 +150,7 @@ const VALUE_ALIASES = ['comment', 'value', 'partvalue', 'compvalue', 'val', '품
 const X_ALIASES = [
   'centerx',
   'xmm',
+  'symbolx',
   'symx',
   'posx',
   'positionx',
@@ -159,6 +164,7 @@ const X_ALIASES = [
 const Y_ALIASES = [
   'centery',
   'ymm',
+  'symboly',
   'symy',
   'posy',
   'positiony',
@@ -170,8 +176,8 @@ const Y_ALIASES = [
   'y',
 ]
 
-const ROTATION_ALIASES = ['rotation', 'rot', 'angle', 'orient', 'dir', 'symrotate', '회전', '각도']
-const DESCRIPTION_ALIASES = ['description', 'desc', 'partname', 'componentname', 'symname', 'name', '부품설명', '설명']
+const ROTATION_ALIASES = ['rotation', 'rot', 'angle', 'orient', 'dir', 'symrotate', 'symrotation', '회전', '각도']
+const DESCRIPTION_ALIASES = ['description', 'desc', 'partname', 'componentname', 'name', '부품설명', '설명']
 
 const MPN_ALIASES = [
   'mpn',
@@ -296,6 +302,9 @@ export function normalizePickPlaceLayer(value: string, hasLayerColumn: boolean) 
     raw === '2' ||
     raw === 'bot' ||
     raw === 'bottom' ||
+    raw === 'm' ||
+    raw === 'mirrored' ||
+    raw === 'mirror' ||
     raw.includes('bottom') ||
     raw.includes('bot') ||
     raw === 'secondary' ||

@@ -207,11 +207,24 @@ function parseCsvLine(line: string): string[] {
 }
 
 function rowsFromText(text: string): string[][] {
-  const normalized = text.replace(/^\uFEFF/, '')
-  return normalized
+  const bangCountIn = (line: string) => (line.match(/!/g) || []).length
+  return text
+    .replace(/^\uFEFF/, '')
     .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0)
-    .map((line) => parseCsvLine(line))
+    .filter((line) => {
+      const trimmed = line.trim()
+      if (!trimmed) return false
+      const compact = trimmed.replace(/[\s#!|-]/g, '')
+      if (compact.length === 0 && /[-_|]{5,}/.test(trimmed.replace(/\s/g, ''))) return false
+      return true
+    })
+    .map((line) => {
+      if (bangCountIn(line) >= 2) {
+        return line.split('!').map((cell) => cell.replace(/^#+\s*/, '').trim())
+      }
+      return parseCsvLine(line)
+    })
+    .filter((row) => row.some((cell) => cell.length > 0))
 }
 
 function extractPcbName(text: string, fileName?: string) {
@@ -232,10 +245,27 @@ function extractPcbName(text: string, fileName?: string) {
   return { name: 'PCB', confidence: 'ambiguous' as const }
 }
 
-function extractUnits(text: string, headerRow?: string[]): 'mm' | 'unknown' {
-  if (/Units used:\s*mm/i.test(text)) return 'mm'
+function extractUnits(text: string, headerRow?: string[]): 'mm' | 'mil' | 'unknown' {
+  if (/Units used:\s*mm/i.test(text) || /\bUUNITS\s*=\s*MM\b/i.test(text)) return 'mm'
+  if (
+    /Units used:\s*mils?/i.test(text) ||
+    /\bUUNITS\s*=\s*MILS?\b/i.test(text) ||
+    /\bin\s+mils?\b/i.test(text)
+  ) {
+    return 'mil'
+  }
   if (headerRow?.some((cell) => /\(mm\)/i.test(cell) || /mm$/i.test(cell.trim()))) return 'mm'
+  if (headerRow?.some((cell) => /\(mil/i.test(cell) || /mils?$/i.test(cell.trim()))) return 'mil'
   return 'unknown'
+}
+
+/** Allegro 등 멀티보드 접두(1C29 → C29)를 제거한 designator */
+function designatorClassKey(designator: string) {
+  return designator.trim().toUpperCase().replace(/^\d{1,3}(?=[A-Z])/, '')
+}
+
+function milToMm(value: number) {
+  return value * 0.0254
 }
 
 function cellAt(cells: string[], index: number) {
@@ -256,7 +286,7 @@ function bgaBallCountFromFootprint(footprint: string, description: string) {
 }
 
 function classifyComponent(row: CanonicalPickPlaceRow): Classification {
-  const des = row.designator.trim().toUpperCase()
+  const des = designatorClassKey(row.designator)
   const fp = row.package.trim()
   const val = row.value.trim()
   const desc = row.description.trim()
@@ -543,7 +573,18 @@ export function rebuildPickPlaceAnalysis(
   finalizeLayerPartCounts(top, partTypeSets.top)
   finalizeLayerPartCounts(bottom, partTypeSets.bottom)
 
-  const sideInfo = inferSmtSide(top, bottom)
+  let sideInfo = inferSmtSide(top, bottom)
+  // Allegro 등 MPN/부품값 없는 좌표만 있는 파일: 종수 집계는 0이어도 면 분포로 단면/양면 판별
+  if (top.partCount === 0 && bottom.partCount === 0) {
+    const hasTopSide = gatedRows.some((row) => row.side === 'top' && row.category !== 'skip')
+    const hasBottomSide = gatedRows.some((row) => row.side === 'bottom' && row.category !== 'skip')
+    if (hasTopSide && hasBottomSide) {
+      sideInfo = { side: 'double', confidence: 'certain' }
+    } else if (hasTopSide || hasBottomSide) {
+      sideInfo = { side: 'single', confidence: 'certain' }
+    }
+  }
+
   const totals = sumLayerStats(top, bottom)
   const pcbWidthMm = xs.length ? Math.max(...xs) - Math.min(...xs) : analysis.summary.pcbWidthMm
   const pcbHeightMm = ys.length ? Math.max(...ys) - Math.min(...ys) : analysis.summary.pcbHeightMm
@@ -655,9 +696,13 @@ function applyAutoClassificationReviewGates(
     detail = appendPickPlaceReviewDetail(detail, 'Designator 없음')
   }
 
+  const identity = pickPlacePartTypeIdentity(row)
+  // MPN 없음은 DigiKey 힌트. 종수(MPN 또는 값+패키지)가 확정되면 적용을 막지 않는다.
   if (!row.mpn.trim()) {
-    confidence = 'ambiguous'
     detail = appendPickPlaceReviewDetail(detail, 'MPN 없음')
+    if (!identity.certain) {
+      confidence = 'ambiguous'
+    }
   }
 
   if (hasLayerColumn && row.side === 'unknown') {
@@ -667,7 +712,6 @@ function applyAutoClassificationReviewGates(
 
   // SMD 종수: MPN이 있어도 부품값·패키지가 부족하면 자동 확정 금지
   if (isPickPlaceSmdCategory(row.category)) {
-    const identity = pickPlacePartTypeIdentity(row)
     if (!identity.certain) {
       confidence = 'ambiguous'
       const reason = identity.reason ?? '종수 확인 필요'
@@ -982,8 +1026,11 @@ export function parsePickPlaceRows(
     .map((row) => row.join('\t'))
     .join('\n')
   const pcbNameInfo = extractPcbName(preamble, fileName)
-  const units = extractUnits(preamble, header)
+  const detectedUnits = extractUnits(preamble, header)
   const warnings: string[] = options?.forcedDetection?.note ? [options.forcedDetection.note] : []
+  if (detectedUnits === 'mil') {
+    warnings.push('좌표 단위 MILS → mm 변환 적용')
+  }
 
   const classifiedRows: PickPlaceClassifiedRow[] = []
   const xs: number[] = []
@@ -995,8 +1042,12 @@ export function parsePickPlaceRows(
 
     const rawLayer = hasLayerColumn ? cellAt(cells, columns.layer) : ''
     const side = parsePickPlaceSide(rawLayer, hasLayerColumn)
-    const x = Number(cellAt(cells, columns.x))
-    const y = Number(cellAt(cells, columns.y))
+    let x = Number(cellAt(cells, columns.x))
+    let y = Number(cellAt(cells, columns.y))
+    if (detectedUnits === 'mil') {
+      if (Number.isFinite(x)) x = milToMm(x)
+      if (Number.isFinite(y)) y = milToMm(y)
+    }
     if (Number.isFinite(x)) xs.push(x)
     if (Number.isFinite(y)) ys.push(y)
 
@@ -1053,7 +1104,7 @@ export function parsePickPlaceRows(
     fileName: fileName || 'pick-place',
     summary: {
       pcbName: pcbNameInfo.name,
-      units,
+      units: detectedUnits === 'unknown' ? 'unknown' : 'mm',
       smtSide: 'single',
       top: emptyLayerStats(),
       bottom: emptyLayerStats(),

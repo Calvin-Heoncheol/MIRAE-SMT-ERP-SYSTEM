@@ -10,6 +10,8 @@ export type BomColumnMap = {
   manufacturer: number
   supplier: number
   supplierPart: number
+  /** 고객사 자재코드 (Item Code) */
+  customerPartNo: number
 }
 
 function normalizeHeaderKey(value: string) {
@@ -68,6 +70,8 @@ const DESIGNATOR_BLOCKED_KEYS = new Set([
   'linenumber',
   'itemno',
   'itemnumber',
+  'itemcode',
+  'materialcode',
   'line',
   'no',
   'number',
@@ -159,7 +163,16 @@ export function fillMissingBomColumns(
 
   const used = new Set(Object.values(next).filter((index) => index >= 0))
   const fillOptional = (
-    key: 'comment' | 'footprint' | 'description' | 'quantity' | 'mpn' | 'manufacturer' | 'supplier' | 'supplierPart',
+    key:
+      | 'comment'
+      | 'footprint'
+      | 'description'
+      | 'quantity'
+      | 'mpn'
+      | 'manufacturer'
+      | 'supplier'
+      | 'supplierPart'
+      | 'customerPartNo',
     aliases: string[],
   ) => {
     if (next[key] >= 0) return
@@ -178,29 +191,30 @@ export function fillMissingBomColumns(
   fillOptional('manufacturer', MANUFACTURER_ALIASES)
   fillOptional('supplier', SUPPLIER_ALIASES)
   fillOptional('supplierPart', SUPPLIER_PART_ALIASES)
+  fillOptional('customerPartNo', CUSTOMER_PART_ALIASES)
 
   return next
 }
 
 const COMMENT_ALIASES = [
+  'specificationvalue',
+  'specification',
+  'spec',
   'comment',
   'value',
   'partvalue',
   'compvalue',
   'val',
-  'specification',
-  'spec',
   'nominal',
   'rating',
   'libref',
   'libraryreference',
   'libreference',
   'libraryref',
-  'component',
-  'componentname',
-  'part',
   '품값',
   '부품값',
+  '사양',
+  '규격',
 ]
 const FOOTPRINT_ALIASES = [
   'footprint',
@@ -224,8 +238,8 @@ const DESCRIPTION_ALIASES = [
   'desc',
   'partname',
   'componentname',
-  'name',
   'componentdescription',
+  'name',
   'parttype',
   'category',
   'device',
@@ -245,6 +259,22 @@ const MPN_ALIASES = [
 const MANUFACTURER_ALIASES = ['manufacturer', 'mfr', 'maker', 'vendor', '제조사', '메이커']
 const SUPPLIER_ALIASES = ['supplier', 'distributor', '공급사', '업체']
 const SUPPLIER_PART_ALIASES = ['supplierpartnumber', 'supplierpart', 'distributorp', '공급사품번']
+const CUSTOMER_PART_ALIASES = [
+  'itemcode',
+  'materialcode',
+  'materialno',
+  'materialnumber',
+  'cpn',
+  'ipn',
+  'internalpartnumber',
+  'customerpartnumber',
+  'customerpart',
+  'customerpn',
+  '자재코드',
+  '자재번호',
+  '고객품번',
+  '고객자재코드',
+]
 
 export function scoreBomHeader(rows: string[][]) {
   const detected = detectBomHeader(rows)
@@ -284,6 +314,8 @@ export function detectBomHeader(rows: string[][]): { headerIndex: number; column
     const supplier = findColumnExcluding(header, SUPPLIER_ALIASES, used)
     if (supplier >= 0) used.add(supplier)
     const supplierPart = findColumnExcluding(header, SUPPLIER_PART_ALIASES, used)
+    if (supplierPart >= 0) used.add(supplierPart)
+    const customerPartNo = findColumnExcluding(header, CUSTOMER_PART_ALIASES, used)
 
     if (comment < 0 && footprint < 0 && description < 0 && mpn < 0) continue
 
@@ -296,6 +328,7 @@ export function detectBomHeader(rows: string[][]): { headerIndex: number; column
     if (description >= 0) score += 1
     if (quantity >= 0) score += 1
     if (mpn >= 0) score += 1
+    if (customerPartNo >= 0) score += 1
 
     const candidate = {
       headerIndex: i,
@@ -309,6 +342,7 @@ export function detectBomHeader(rows: string[][]): { headerIndex: number; column
         manufacturer,
         supplier,
         supplierPart,
+        customerPartNo,
       },
       score,
     }
@@ -326,6 +360,7 @@ export function formatBomColumnMappingNote(header: string[], columns: BomColumnM
   const labels: string[] = []
   for (const index of [
     columns.designator,
+    columns.customerPartNo,
     columns.footprint,
     columns.comment,
     columns.description,

@@ -68,6 +68,7 @@ export function parseOrderRecord(value: unknown): OrderRecord | null {
     customer: readString(row, 'customer'),
     category: readString(row, 'category'),
     currency: readNullableString(row, 'currency'),
+    include_vat: row.include_vat === true,
     source: readString(row, 'source', 'manual'),
     source_quote_id: readNullableString(row, 'source_quote_id'),
     note: readString(row, 'note'),

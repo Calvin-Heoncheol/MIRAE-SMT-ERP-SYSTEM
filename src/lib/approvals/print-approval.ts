@@ -7,6 +7,7 @@ import {
   type ApprovalDetailColumn,
 } from '@/lib/approvals/categories'
 import {
+  approvalAppliesVat,
   computeApprovalGrandTotal,
   computeApprovalSupplyAmount,
   computeApprovalVatAmount,
@@ -33,13 +34,17 @@ function dash(value: string) {
   return trimmed ? escapeHtml(trimmed) : '—'
 }
 
-function formatDetailCell(item: ApprovalDetailItem, column: ApprovalDetailColumn) {
+function formatDetailCell(
+  item: ApprovalDetailItem,
+  column: ApprovalDetailColumn,
+  currency: ApprovalFormState['currency'],
+) {
   const raw = String(item[column.key] ?? '').trim()
   if (!raw) return '—'
   if (column.computed || column.key === 'amount' || column.key === 'unitPrice') {
     const numeric = Number(raw.replace(/,/g, ''))
     if (!Number.isNaN(numeric) && numeric !== 0) {
-      return escapeHtml(formatApprovalMoney(numeric))
+      return escapeHtml(formatApprovalMoney(numeric, currency))
     }
   }
   return escapeHtml(raw)
@@ -87,10 +92,12 @@ export function buildApprovalHtml(input: ApprovalPrintInput) {
   const categoryLabel = getApprovalCategoryLabel(category)
   const columns = getApprovalDetailColumns(category)
   const amountBasis = form.amountBasis || 'supply'
+  const currency = form.currency === 'USD' ? 'USD' : 'KRW'
   const supplyAmount = computeApprovalSupplyAmount(form, category)
   const vatAmount = computeApprovalVatAmount(supplyAmount, category, form)
   const grandTotal = computeApprovalGrandTotal(form, category)
-  const showAmountBasis = usesAmountBasisSelector(category)
+  const showAmountBasis = usesAmountBasisSelector(category) && currency !== 'USD'
+  const showVat = approvalAppliesVat(form, category)
 
   const rows = form.detailItems
     .map((item, index) => {
@@ -102,7 +109,7 @@ export function buildApprovalHtml(input: ApprovalPrintInput) {
             column.key === 'qty'
               ? 'num'
               : ''
-          return `<td class="${align}">${formatDetailCell(item, column)}</td>`
+          return `<td class="${align}">${formatDetailCell(item, column, currency)}</td>`
         })
         .join('')
       return `<tr>
@@ -122,7 +129,8 @@ export function buildApprovalHtml(input: ApprovalPrintInput) {
     })
     .join('')
 
-  const supplyLabel = category === 'duty-tax' ? '관세 합계' : '공급가액 합계'
+  const supplyLabel =
+    category === 'duty-tax' ? '관세 합계' : currency === 'USD' ? '금액 합계' : '공급가액 합계'
   const vatLabel =
     category === 'duty-tax'
       ? '부가세 합계'
@@ -130,9 +138,11 @@ export function buildApprovalHtml(input: ApprovalPrintInput) {
   const grandLabel =
     category === 'duty-tax'
       ? '합계금액 (관세+부가세)'
-      : amountBasis === 'exempt'
-        ? '공급대가 (면세)'
-        : '공급대가 (VAT 포함)'
+      : currency === 'USD'
+        ? '합계 (부가세 없음)'
+        : amountBasis === 'exempt'
+          ? '공급대가 (면세)'
+          : '공급대가 (VAT 포함)'
 
   const subject = form.subject.trim() || '—'
   const intro = form.introBody.trim()
@@ -405,6 +415,7 @@ table.items td.num, table.items th.num {
     <div class="cell"><strong>작성일자</strong><span>${dash(form.writtenDate)}</span></div>
     <div class="cell"><strong>작성부서</strong><span>${dash(form.department)}</span></div>
     <div class="cell"><strong>작성자</strong><span>${dash(form.author)}</span></div>
+    <div class="cell"><strong>통화</strong><span>${currency}</span></div>
   </div>
 
   <div class="subject-box">
@@ -434,12 +445,16 @@ table.items td.num, table.items th.num {
   </table>
 
   <div class="totals">
-    <div>${escapeHtml(supplyLabel)} <strong>${escapeHtml(formatApprovalMoney(supplyAmount))}</strong></div>
-    <div>${escapeHtml(vatLabel)} <strong>${escapeHtml(formatApprovalMoney(vatAmount))}</strong></div>
+    <div>${escapeHtml(supplyLabel)} <strong>${escapeHtml(formatApprovalMoney(supplyAmount, currency))}</strong></div>
+    ${
+      showVat
+        ? `<div>${escapeHtml(vatLabel)} <strong>${escapeHtml(formatApprovalMoney(vatAmount, currency))}</strong></div>`
+        : ''
+    }
   </div>
   <div class="grand">
     <span class="label">${escapeHtml(grandLabel)}</span>
-    <span class="value">${escapeHtml(formatApprovalMoney(grandTotal))}</span>
+    <span class="value">${escapeHtml(formatApprovalMoney(grandTotal, currency))}</span>
   </div>
 
   <div class="section-title">2. 결제 방법</div>

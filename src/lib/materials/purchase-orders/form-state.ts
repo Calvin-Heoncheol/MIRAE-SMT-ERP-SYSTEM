@@ -22,6 +22,8 @@ export type MaterialPurchaseOrderFormState = {
   deliveryDate: string
   supplier: string
   currency: MaterialPurchaseOrderCurrency
+  /** 운송비(배송비) */
+  freightAmount: string
 }
 
 export function defaultMaterialPurchaseOrderItemForm(

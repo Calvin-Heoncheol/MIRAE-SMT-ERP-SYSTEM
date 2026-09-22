@@ -62,6 +62,7 @@ function buildMonthlyClosingPdfHtml(input: ExportMonthlyClosingPdfInput) {
     .map((row) => {
       return `<tr>
         <td class="col-date">${escapeHtml(row.recordDate || '—')}</td>
+        <td class="col-code">${escapeHtml(row.productCode || '—')}</td>
         <td class="col-name">${escapeHtml(row.productName || '—')}</td>
         <td class="col-qty">${formatCount(row.quantity)}</td>
         <td class="col-price">${formatCount(row.unitPrice)}</td>
@@ -71,7 +72,7 @@ function buildMonthlyClosingPdfHtml(input: ExportMonthlyClosingPdfInput) {
     .join('')
 
   const totalRow = `<tr class="total-row">
-    <td colspan="2">합계</td>
+    <td colspan="3">합계</td>
     <td class="col-qty">${formatCount(totals.quantity)}</td>
     <td class="col-price"></td>
     <td class="col-amount">${formatCount(totals.amount)}</td>
@@ -155,9 +156,10 @@ function buildMonthlyClosingPdfHtml(input: ExportMonthlyClosingPdfInput) {
       break-inside: avoid;
       page-break-inside: avoid;
     }
-    .col-date { width: 14%; }
-    .col-name { width: 36%; }
-    .col-qty, .col-price, .col-amount { width: 16%; text-align: right; }
+    .col-date { width: 12%; }
+    .col-code { width: 16%; }
+    .col-name { width: 28%; }
+    .col-qty, .col-price, .col-amount { width: 14.5%; text-align: right; }
     thead .col-qty, thead .col-price, thead .col-amount { text-align: right; }
     @media print {
       .no-print { display: none !important; }
@@ -175,6 +177,7 @@ function buildMonthlyClosingPdfHtml(input: ExportMonthlyClosingPdfInput) {
     <thead>
       <tr>
         <th class="col-date">일자</th>
+        <th class="col-code">품목코드</th>
         <th class="col-name">품목명</th>
         <th class="col-qty">수량</th>
         <th class="col-price">단가</th>

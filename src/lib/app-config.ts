@@ -21,3 +21,11 @@ export const COMPANY_BIZ_NO = '117-08-65495'
 export const COMPANY_TEL = '0323264850'
 export const COMPANY_CEO_NAME = '하영수'
 export const COMPANY_ADDRESS_STATEMENT = '경기도 부천시 오정구 삼작로 22, 102동 405호'
+
+/** 발주서 Confirmation — 입금계좌 */
+export const COMPANY_BANK_ACCOUNT = '114-085886-04-011'
+/** 발주서 Confirmation — Swift Code (기업은행) */
+export const COMPANY_BANK_SWIFT = 'IBKOKRSE'
+/** 발주서 Confirmation — 결제조건 */
+export const COMPANY_PAYMENT_TERMS_KO = '매달 20일까지 결제'
+export const COMPANY_PAYMENT_TERMS_EN = 'Payment by the 20th of each month'

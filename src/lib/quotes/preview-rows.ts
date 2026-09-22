@@ -11,7 +11,7 @@ import {
   computeSmtPlacementScore,
   computeSmtSetupBillingBreakdown,
 } from './calculate-estimate'
-import { formatQuoteMoneyRateByDisplay } from './format'
+import { formatQuoteMoneyRateByDisplay, roundDomesticKrw } from './format'
 import { breakdownSmtSectionTitle, getPreviewLabels, localizePostProcessItemName, resolveLabelQuoteType, type QuoteDocumentLanguage, type QuoteLabelType } from './preview-i18n'
 import {
   hasPostProcessLineInput,
@@ -203,6 +203,7 @@ export function prepareBreakdownSectionTableRows(
   const tableRows = [...detailRows]
 
   if (sectionTotalRow) {
+    const safeQty = qty || 1
     const footerMetrics =
       sectionKey === 'post'
         ? computePostSectionFooterMetrics(
@@ -220,9 +221,20 @@ export function prepareBreakdownSectionTableRows(
                 : undefined),
           }
 
+    /** 대당(원) 반올림 후 합계 = 대당 × 수량 — 표시 검산 일치 (발주 1회 고정은 합계 유지) */
+    const rawUnit = footerMetrics.unitPrice
+    const roundedUnit = rawUnit != null ? roundDomesticKrw(rawUnit) : undefined
+    const footerAmount = sectionTotalRow.orderLevel
+      ? sectionTotalRow.amount
+      : roundedUnit != null
+        ? roundedUnit * safeQty
+        : sectionTotalRow.amount
+
     tableRows.push({
       ...sectionTotalRow,
       ...footerMetrics,
+      unitPrice: roundedUnit,
+      amount: footerAmount,
       label: totalLabel,
       indent: 0,
       emphasize: true,
@@ -319,12 +331,6 @@ function quotePerUnitTotal(total: number, qty: number) {
   return total / (qty || 1)
 }
 
-/** 대당 금액을 생산수량 합계로 환산 */
-function scaleAmountByQty(amount: number | null | undefined, qty: number) {
-  if (amount == null) return amount ?? null
-  return amount * (qty || 1)
-}
-
 function scalePreviewRowAmountsByQty(
   rows: PreviewRow[],
   qty: number,
@@ -334,21 +340,26 @@ function scalePreviewRowAmountsByQty(
   const safeQty = qty || 1
   return rows.map((row) => {
     if (row.orderLevel) {
+      const orderAmount = row.amount
       return {
         ...row,
         productionQty: labels.oneTime,
         count: row.count ?? labels.oneTime,
-        // 발주 1회 금액 → 대당합계는 수량으로 나눈 값
+        // 발주 1회 금액 → 대당은 수량으로 나눈 값(원 반올림)
         unitPrice:
-          row.unitPrice ?? (row.amount != null ? quotePerUnitTotal(row.amount, safeQty) : undefined),
+          orderAmount != null
+            ? roundDomesticKrw(quotePerUnitTotal(orderAmount, safeQty))
+            : row.unitPrice,
       }
     }
     if (row.amount == null) return row
+    // 대당(원) 반올림 × 수량 = 합계 — 대당·합계 표시가 어긋나지 않게
+    const perUnit = row.unitPrice ?? row.amount
+    const unitRounded = roundDomesticKrw(perUnit)
     return {
       ...row,
-      // 합계로 환산하기 전 대당 금액을 unitPrice에 보존
-      unitPrice: row.unitPrice ?? row.amount,
-      amount: scaleAmountByQty(row.amount, safeQty),
+      unitPrice: unitRounded,
+      amount: unitRounded * safeQty,
     }
   })
 }
@@ -603,7 +614,7 @@ function smtSetupDetailRowsForBoard(
     return {
       label,
       description: `${description} · ${basis}`,
-      unit: perUnit,
+      unit: board.setupRate,
       count: setupMinutesValue(minutes),
       amount: perUnit,
       indent: 2,
@@ -1209,6 +1220,26 @@ function buildBoardCentricPreviewRows(
       rows.push(...setupDetails)
     }
 
+    // 메탈마스크·샘플은 SET-UP(발주 1회) 전용 — 첫 보드 SET-UP 바로 아래에 붙임 (SMD·자재 뒤로 밀리지 않음)
+    if (index === 0) {
+      const orderLevelRows = previewOrderLevelRows(result, form, quoteType, labelType)
+      if (orderLevelRows.length > 0) {
+        if (!(setupPerUnit > 0 || setupDetails.length > 0)) {
+          const orderLevelAmount = orderLevelRows.reduce((sum, row) => sum + (row.amount || 0), 0)
+          rows.push({
+            label: 'SET-UP',
+            amount: orderLevelAmount,
+            indent: 1,
+            boardSubtotal: true,
+            orderLevel: true,
+            emphasize: true,
+            amountEmphasize: true,
+          })
+        }
+        rows.push(...orderLevelRows)
+      }
+    }
+
     if (smtBase > 0 || smtDetails.length > 0 || inspectionDetails.length > 0) {
       rows.push({
         label: 'SMD',
@@ -1297,8 +1328,23 @@ function buildBoardCentricPreviewRows(
     if (profitRow) rows.push(profitRow)
   }
 
+  if (pcbCount === 0) {
+    const orderLevelRows = previewOrderLevelRows(result, form, quoteType, labelType)
+    if (orderLevelRows.length > 0) {
+      const orderLevelAmount = orderLevelRows.reduce((sum, row) => sum + (row.amount || 0), 0)
+      rows.push({
+        label: 'SET-UP',
+        amount: orderLevelAmount,
+        orderLevel: true,
+        emphasize: true,
+        amountEmphasize: true,
+      })
+      rows.push(...orderLevelRows)
+    }
+  }
+
   rows.push(...previewMaterialRows(result, form, quoteType, labelType))
-  rows.push(...previewOtherRows(result, form, quoteType, labelType))
+  // 메탈마스크·샘플은 위에서 SET-UP 아래에만 포함. 여기 다시 붙이면 SMD/자재 섹션으로 잘못 분류됨.
   return scalePreviewRowAmountsByQty(rows, qty, labelType)
 }
 
@@ -1475,11 +1521,7 @@ export function buildProcessCentricPdfBreakdownRows(
     rows.push(...materialDetails)
   }
 
-  const otherRows = previewOtherRows(result, form, quoteType, labelType)
-  if (otherRows.length > 0) {
-    rows.push(...otherRows)
-  }
-
+  // 메탈마스크·샘플은 SET-UP(발주 1회)에만 포함. 여기 다시 붙이면 납땜 등 마지막 섹션으로 잘못 분류됨.
   return scalePreviewRowAmountsByQty(rows, qty)
 }
 
@@ -1569,6 +1611,7 @@ export function buildPdfSummaryBreakdownLines(
       unitTotal: quotePerUnitTotal(metalMask, qty),
       total: metalMask,
       section: 'setup',
+      fixedCost: true,
     })
   }
 
@@ -1579,6 +1622,7 @@ export function buildPdfSummaryBreakdownLines(
       unitTotal: quotePerUnitTotal(sample, qty),
       total: sample,
       section: 'setup',
+      fixedCost: true,
     })
   }
 

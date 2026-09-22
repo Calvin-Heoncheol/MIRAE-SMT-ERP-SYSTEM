@@ -7,6 +7,7 @@ import type { ApprovalSignoff } from './signoffs'
 import type {
   ApprovalAmountBasis,
   ApprovalAttachmentFile,
+  ApprovalCurrency,
   ApprovalDetailInfo,
   ApprovalDetailItem,
   ApprovalListItem,
@@ -24,6 +25,7 @@ export type ApprovalFormState = {
   introBody: string
   detailItems: ApprovalDetailItem[]
   amountBasis: ApprovalAmountBasis
+  currency: ApprovalCurrency
   paymentType: ApprovalPaymentType
   paymentMethod: string
   attachments: string
@@ -59,6 +61,7 @@ export function createDefaultApprovalForm(category: ApprovalCategory = 'consumab
     introBody: '',
     detailItems: [defaultApprovalDetailItem(category)],
     amountBasis: 'supply',
+    currency: 'KRW',
     paymentType: '',
     paymentMethod: '',
     attachments: '',
@@ -99,6 +102,7 @@ export function approvalToForm(approval: ApprovalListItem): ApprovalFormState {
       ? approval.detailInfo.detailItems.map((item) => normalizeDetailItem(item))
       : [defaultApprovalDetailItem(approval.category)],
     amountBasis: normalizeAmountBasis(approval.detailInfo.amountBasis),
+    currency: normalizeApprovalCurrency(approval.detailInfo.currency),
     paymentType: normalizePaymentType(approval.detailInfo.paymentType),
     paymentMethod: approval.detailInfo.paymentMethod,
     attachments: approval.detailInfo.attachments,
@@ -112,6 +116,7 @@ export function formToDetailInfo(form: ApprovalFormState): ApprovalDetailInfo {
   return {
     detailItems: form.detailItems,
     amountBasis: form.amountBasis,
+    currency: form.currency,
     paymentType: form.paymentType,
     paymentMethod: form.paymentType === 'immediate' ? form.paymentMethod : '',
     attachments: form.attachments,
@@ -124,6 +129,10 @@ export function formToDetailInfo(form: ApprovalFormState): ApprovalDetailInfo {
 function normalizeAmountBasis(value: unknown): ApprovalAmountBasis {
   if (value === 'supply' || value === 'total' || value === 'exempt') return value
   return 'supply'
+}
+
+export function normalizeApprovalCurrency(value: unknown): ApprovalCurrency {
+  return String(value || '').trim().toUpperCase() === 'USD' ? 'USD' : 'KRW'
 }
 
 function normalizePaymentType(value: unknown): ApprovalPaymentType {
@@ -146,37 +155,61 @@ export function computeLineAmount(qty: string, unitPrice: string) {
   return String(quantity * price)
 }
 
-function computeSupplyFromEnteredAmount(amount: number, amountBasis: ApprovalAmountBasis) {
+function computeSupplyFromEnteredAmount(
+  amount: number,
+  amountBasis: ApprovalAmountBasis,
+  currency: ApprovalCurrency = 'KRW',
+) {
   if (amount <= 0) return 0
+  if (currency === 'USD') return amount
   if (amountBasis === 'total') return Math.round((amount / (1 + APPROVAL_VAT_RATE)) * 100) / 100
   return amount
 }
 
 export const APPROVAL_VAT_RATE = 0.1
 
+/** 달러(USD) 품의는 국내 부가세 없음 */
+export function approvalAppliesVat(
+  form?: Pick<ApprovalFormState, 'currency' | 'amountBasis'>,
+  category?: ApprovalCategory,
+) {
+  if (category === 'duty-tax') return true
+  if (!form) return true
+  if (form.currency === 'USD') return false
+  return form.amountBasis !== 'exempt'
+}
+
 export function computeApprovalSupplyAmount(
-  form: Pick<ApprovalFormState, 'detailItems' | 'amountBasis'>,
+  form: Pick<ApprovalFormState, 'detailItems' | 'amountBasis' | 'currency'>,
   category?: ApprovalCategory,
 ) {
   if (category === 'duty-tax') {
     return form.detailItems.reduce((sum, item) => sum + parseNumericField(item.unitPrice), 0)
   }
+  const currency = form.currency === 'USD' ? 'USD' : 'KRW'
   return form.detailItems.reduce((sum, item) => {
     const amount = parseNumericField(item.amount)
-    if (amount > 0) return sum + computeSupplyFromEnteredAmount(amount, form.amountBasis)
-    return sum + computeSupplyFromEnteredAmount(parseNumericField(item.qty) * parseNumericField(item.unitPrice), form.amountBasis)
+    if (amount > 0) return sum + computeSupplyFromEnteredAmount(amount, form.amountBasis, currency)
+    return (
+      sum +
+      computeSupplyFromEnteredAmount(
+        parseNumericField(item.qty) * parseNumericField(item.unitPrice),
+        form.amountBasis,
+        currency,
+      )
+    )
   }, 0)
 }
 
 export function computeApprovalVatAmount(
   supplyAmount: number,
   category?: ApprovalCategory,
-  form?: Pick<ApprovalFormState, 'detailItems' | 'amountBasis'>,
+  form?: Pick<ApprovalFormState, 'detailItems' | 'amountBasis' | 'currency'>,
 ) {
   if (category === 'duty-tax' && form) {
     return form.detailItems.reduce((sum, item) => sum + parseNumericField(item.amount), 0)
   }
-  if (form?.amountBasis === 'exempt') return 0
+  if (!approvalAppliesVat(form, category)) return 0
   if (form?.amountBasis === 'total' && form) {
     const grandTotal = form.detailItems.reduce((sum, item) => {
       const amount = parseNumericField(item.amount)
@@ -190,14 +223,14 @@ export function computeApprovalVatAmount(
 }
 
 export function computeApprovalGrandTotal(
-  form: Pick<ApprovalFormState, 'detailItems' | 'amountBasis'>,
+  form: Pick<ApprovalFormState, 'detailItems' | 'amountBasis' | 'currency'>,
   category?: ApprovalCategory,
 ) {
   const supplyAmount = computeApprovalSupplyAmount(form, category)
   if (category === 'duty-tax') {
     return supplyAmount + computeApprovalVatAmount(supplyAmount, category, form)
   }
-  if (form.amountBasis === 'exempt') {
+  if (!approvalAppliesVat(form, category)) {
     return supplyAmount
   }
   if (form.amountBasis === 'total') {
@@ -210,9 +243,9 @@ export function computeApprovalGrandTotal(
   return supplyAmount + computeApprovalVatAmount(supplyAmount, category, form)
 }
 
-/** DB total_amount — 공급가액 + 부가세(10%) */
+/** DB total_amount — 공급가액 + 부가세(적용 시) */
 export function computeApprovalTotalAmount(
-  form: Pick<ApprovalFormState, 'detailItems' | 'amountBasis'>,
+  form: Pick<ApprovalFormState, 'detailItems' | 'amountBasis' | 'currency'>,
   category?: ApprovalCategory,
 ) {
   return computeApprovalGrandTotal(form, category)

@@ -32,6 +32,7 @@ export type SpreadsheetAiBomPayload = {
     manufacturer?: string | null
     supplier?: string | null
     supplierPart?: string | null
+    customerPartNo?: string | null
   }
 }
 

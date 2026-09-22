@@ -83,7 +83,7 @@ export function PickPlaceUpload({
             <input
               ref={inputRef}
               type="file"
-              accept=".csv,.xls,.xlsx,.xlsm,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".csv,.txt,.xls,.xlsx,.xlsm,text/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="hidden"
               disabled={disabled || loading}
               onChange={(event) => {

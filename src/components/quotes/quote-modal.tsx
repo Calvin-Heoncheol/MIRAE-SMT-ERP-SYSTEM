@@ -26,6 +26,7 @@ import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
 import type { QuoteRowPayload } from '@/lib/quotes/build-quote-payload'
 import { formatQuoteMoneyByDisplay, formatQuotePreviewSummary } from '@/lib/quotes/format'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 import {
   defaultDipBoardForm,
   defaultSmtBoardForm,
@@ -65,7 +66,6 @@ import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
 import { formatProductOptionLabel, findProductById, resolveOrderLineProduct } from '@/lib/products/utils'
-import { buildOrderPrintDataFromQuote, printOrder } from '@/lib/orders/print-order'
 import { buildOrderPayloadFromQuote } from '@/lib/orders/from-quote'
 import { createOrder } from '@/lib/orders/repository'
 import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
@@ -91,6 +91,8 @@ type FormState = {
   productCode: string
   productName: string
   productId: string
+  /** 견적일 (YYYY-MM-DD) */
+  quoteDate: string
   boardQty: string
   pcbBoardCount: string
   productionKind: '샘플' | '양산'
@@ -108,7 +110,7 @@ type FormState = {
   includeDip: boolean
   /** 원자재·관리비 포함 (견적 자재 섹션) */
   includeMaterialCosts: boolean
-  /** 메탈마스크 포함 (SMD 건당) */
+  /** 메탈마스크 포함 (발주 1회, SET-UP) */
   includeMetalMask: boolean
 }
 
@@ -117,6 +119,7 @@ const INITIAL_FORM: FormState = {
   productCode: '',
   productName: '',
   productId: '',
+  quoteDate: todayYmdSeoul(),
   boardQty: '1000',
   pcbBoardCount: '1',
   productionKind: '양산',
@@ -215,9 +218,10 @@ function buildStateFromQuote(quote: QuoteListItem) {
   return {
     form: {
       customer: quote.customer,
-      productCode: '',
+      productCode: String(quote.detailInfo.settings?.productCode || '').trim(),
       productName: quote.productName,
       productId: quote.detailInfo.settings?.productId || '',
+      quoteDate: quote.quoteDate || todayYmdSeoul(),
       boardQty,
       pcbBoardCount,
       productionKind:
@@ -580,12 +584,17 @@ function QuoteModalContent({
   }
 
   async function handleSave() {
-    if (!form.customer.trim() || !form.productName.trim()) {
-      setSaveError('고객사와 제품명을 입력해 주세요.')
+    const productLabel = form.productName.trim() || form.productCode.trim()
+    if (!form.customer.trim() || !productLabel) {
+      setSaveError('고객사와 제품코드 또는 제품명을 입력해 주세요.')
       return
     }
+    const payload = buildSavePayload(currentStatus)
+    if (!payload.product_name.trim()) {
+      payload.product_name = productLabel
+    }
     await commitQuoteSave(
-      buildSavePayload(currentStatus),
+      payload,
       mode === 'edit' ? '견적서가 수정되었습니다.' : '견적서가 저장되었습니다.',
     )
   }
@@ -631,7 +640,7 @@ function QuoteModalContent({
     const snapshot = buildExportQuoteSnapshot()
     if (!snapshot) return
     if (!snapshot.customer.trim() || !snapshot.productName.trim()) {
-      setSaveError('PDF 전에 고객사와 제품명을 입력해 주세요.')
+      setSaveError('PDF 전에 고객사와 제품코드 또는 제품명을 입력해 주세요.')
       return
     }
     exportQuotesToPdf([snapshot], {
@@ -640,68 +649,11 @@ function QuoteModalContent({
     })
   }
 
-  function handlePrintOrder(language: 'ko' | 'en' = 'ko') {
-    const snapshot = buildExportQuoteSnapshot()
-    if (!snapshot) return
-    if (!snapshot.customer.trim() || !snapshot.productName.trim()) {
-      setSaveError('발주서 인쇄 전에 고객사와 제품명을 입력해 주세요.')
-      return
-    }
-    if (!(snapshot.boardQty > 0) || !(snapshot.totalAmount > 0)) {
-      setSaveError('발주서 인쇄 전에 수량·금액이 있어야 합니다.')
-      return
-    }
-
-    const codeFromForm = form.productCode.trim()
-    const settingsProductId =
-      form.productId.trim() || String(snapshot.detailInfo?.settings?.productId || '').trim()
-    const matchedById = settingsProductId ? findProductById(products, settingsProductId) : null
-    const matchedByCode = codeFromForm
-      ? products.find(
-          (product) =>
-            product.isActive &&
-            product.productCode.trim().toUpperCase() === codeFromForm.toUpperCase(),
-        ) || null
-      : null
-    const matchedByName = resolveOrderLineProduct(products, snapshot.customer, {
-      productId: settingsProductId || null,
-      productName: snapshot.productName,
-    })
-    const matchedByLabel =
-      !matchedById && !matchedByCode && !matchedByName
-        ? products.find(
-            (product) =>
-              product.isActive &&
-              formatProductOptionLabel(product) === snapshot.productName.trim(),
-          ) || null
-        : null
-    const matched = matchedById || matchedByCode || matchedByName || matchedByLabel
-    const productCode =
-      codeFromForm ||
-      matchedById?.productCode ||
-      matchedByCode?.productCode ||
-      matchedByName?.productCode ||
-      matchedByLabel?.productCode ||
-      ''
-
-    const printData = buildOrderPrintDataFromQuote(snapshot, {
-      productCode: productCode || undefined,
-      productId: matched?.id ?? (settingsProductId || null),
-      ...(contactEmail ? { contactEmail } : {}),
-    })
-    if (language === 'en') {
-      printData.note = `Purchase order based on quote ${snapshot.quoteNumber}`
-    }
-
-    const ok = printOrder(printData, { language })
-    if (!ok) setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
-  }
-
   async function handleCreateOrderFromQuote() {
     const snapshot = buildExportQuoteSnapshot()
     if (!snapshot) return
     if (!snapshot.customer.trim() || !snapshot.productName.trim()) {
-      setSaveError('발주 등록 전에 고객사와 제품명을 입력해 주세요.')
+      setSaveError('발주 등록 전에 고객사와 제품코드 또는 제품명을 입력해 주세요.')
       return
     }
     if (!(snapshot.boardQty > 0)) {
@@ -764,8 +716,7 @@ function QuoteModalContent({
   }
 
   const previewCustomer = form.customer.trim() || '-'
-  const previewIssueDate =
-    mode === 'edit' && quote?.quoteDate ? quote.quoteDate : result?.date || ''
+  const previewIssueDate = form.quoteDate.trim() || result?.date || ''
   const previewProduct = form.productName.trim() || '-'
   const previewForm = {
     postAssembly: String(
@@ -867,15 +818,6 @@ function QuoteModalContent({
                 발주 등록
               </ErpButton>
               <PdfDownloadButton
-                label="발주서"
-                onDownload={() => handlePrintOrder('ko')}
-                disabled={busy}
-                menuItems={[
-                  { label: '한글', onDownload: () => handlePrintOrder('ko') },
-                  { label: '영문', onDownload: () => handlePrintOrder('en') },
-                ]}
-              />
-              <PdfDownloadButton
                 onDownload={() => handleDownloadPdf()}
                 disabled={busy}
                 menuItems={[
@@ -895,6 +837,15 @@ function QuoteModalContent({
               <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
                 <h3 className="mb-3 text-sm font-bold text-slate-900">기본 정보</h3>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-slate-600">견적일</span>
+                    <input
+                      type="date"
+                      value={form.quoteDate}
+                      onChange={(event) => updateForm('quoteDate', event.target.value)}
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                    />
+                  </label>
                   <label className="block text-sm sm:col-span-2">
                     <span className="mb-1 block font-medium text-slate-600">고객사</span>
                     <CustomerCombobox
@@ -922,7 +873,7 @@ function QuoteModalContent({
                       products={products}
                       customer={form.customer}
                       field="code"
-                      placeholder="코드 검색"
+                      placeholder="코드 검색 또는 직접 입력"
                       ariaLabel="제품코드"
                       inputClassName={ERP_FIELD_INPUT_CLASS}
                       onValueChange={(value) => {
@@ -930,7 +881,6 @@ function QuoteModalContent({
                           ...current,
                           productCode: value,
                           productId: '',
-                          productName: '',
                         }))
                       }}
                       onProductSelect={(product) =>
@@ -950,7 +900,7 @@ function QuoteModalContent({
                       products={products}
                       customer={form.customer}
                       field="name"
-                      placeholder="제품명 검색 (버전 포함 가능)"
+                      placeholder="제품명 검색 또는 직접 입력"
                       ariaLabel="제품명"
                       inputClassName={ERP_FIELD_INPUT_CLASS}
                       onValueChange={(value) => {
@@ -958,7 +908,6 @@ function QuoteModalContent({
                           ...current,
                           productName: value,
                           productId: '',
-                          productCode: '',
                         }))
                       }}
                       onProductSelect={(product) =>
@@ -973,7 +922,7 @@ function QuoteModalContent({
                   </label>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  품목등록의 반제품·조립제품을 코드 또는 이름으로 검색해 선택하거나, 직접 입력할 수 있습니다.
+                  품목등록에서 검색해 선택하거나, 미등록 제품도 코드·이름을 직접 입력해 견적할 수 있습니다.
                 </p>
 
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -1276,13 +1225,9 @@ function QuoteModalContent({
             <div className="shrink-0 border-t border-slate-200 bg-slate-50/80 px-4 py-3">
               <div className="mb-2 flex items-end justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-medium text-slate-500">
-                    {form.includeVat ? '대당 단가 (VAT 포함)' : '대당 단가'}
-                  </p>
+                  <p className="text-[11px] font-medium text-slate-500">대당 단가</p>
                   <p className="truncate text-sm font-semibold text-slate-900">
-                    {form.includeVat && liveSummary && 'unitInclFormatted' in liveSummary
-                      ? (liveSummary.unitInclFormatted ?? liveSummary.unitFormatted)
-                      : (liveSummary?.unitFormatted ?? '-')}
+                    {liveSummary?.unitFormatted ?? '-'}
                   </p>
                 </div>
                 <div className="min-w-0 text-right">

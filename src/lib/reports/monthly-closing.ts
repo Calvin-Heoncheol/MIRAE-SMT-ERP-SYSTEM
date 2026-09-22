@@ -6,6 +6,7 @@ import {
 
 export type MonthlyClosingRow = {
   recordDate: string
+  productCode: string
   productName: string
   quantity: number
   unitPrice: number
@@ -40,6 +41,7 @@ export function buildMonthlyClosingRows(
         if (quantity <= 0 && amount <= 0) continue
         rows.push({
           recordDate: line.recordDate || group.recordDate,
+          productCode: String(line.productCode || '').trim(),
           productName: line.productName || '—',
           quantity,
           unitPrice,
@@ -73,6 +75,7 @@ export function buildMonthlyClosingRows(
       if (quantity <= 0 && amount <= 0) continue
       rows.push({
         recordDate: group.recordDate,
+        productCode: String(line.productCode || '').trim(),
         productName: line.productName || '—',
         quantity,
         unitPrice,
@@ -84,6 +87,8 @@ export function buildMonthlyClosingRows(
   return rows.sort((a, b) => {
     const byDate = a.recordDate.localeCompare(b.recordDate)
     if (byDate !== 0) return byDate
+    const byCode = a.productCode.localeCompare(b.productCode, 'ko')
+    if (byCode !== 0) return byCode
     return a.productName.localeCompare(b.productName, 'ko')
   })
 }

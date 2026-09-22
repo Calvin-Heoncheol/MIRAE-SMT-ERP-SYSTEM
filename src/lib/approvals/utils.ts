@@ -1,6 +1,7 @@
 import type { ApprovalCategory } from './categories'
 import type {
   ApprovalAmountBasis,
+  ApprovalCurrency,
   ApprovalDetailInfo,
   ApprovalListItem,
   ApprovalPaymentType,
@@ -9,6 +10,10 @@ import type {
 
 import { normalizeApprovalDepartment } from './departments'
 import { normalizeSignoffs } from './signoffs'
+
+function normalizeApprovalCurrency(value: unknown): ApprovalCurrency {
+  return String(value || '').trim().toUpperCase() === 'USD' ? 'USD' : 'KRW'
+}
 
 function normalizeDetailInfo(raw: ApprovalRecord['detail_info']): ApprovalDetailInfo {
   const amountBasis: ApprovalAmountBasis =
@@ -20,6 +25,7 @@ function normalizeDetailInfo(raw: ApprovalRecord['detail_info']): ApprovalDetail
   return {
     detailItems: Array.isArray(raw?.detailItems) ? raw.detailItems : [],
     amountBasis,
+    currency: normalizeApprovalCurrency(raw?.currency),
     paymentType,
     paymentMethod: String(raw?.paymentMethod ?? ''),
     attachments: String(raw?.attachments ?? ''),
@@ -71,8 +77,15 @@ export function filterApprovalsByCategory(items: ApprovalListItem[], category: A
   return items.filter((item) => item.category === category)
 }
 
-export function formatApprovalMoney(amount: number) {
-  return `₩${Math.round(amount).toLocaleString('ko-KR')}`
+export function formatApprovalMoney(amount: number, currency: ApprovalCurrency = 'KRW') {
+  const n = Number(amount) || 0
+  if (currency === 'USD') {
+    return `$${n.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`
+  }
+  return `₩${Math.round(n).toLocaleString('ko-KR')}`
 }
 
 export { getSignoffStatusLabel } from './signoffs'

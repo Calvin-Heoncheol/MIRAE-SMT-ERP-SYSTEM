@@ -32,6 +32,9 @@ export function parsePickPlaceSide(rawLayer: string, hasLayerColumn: boolean): P
     raw === '2' ||
     raw === 'bot' ||
     raw === 'bottom' ||
+    raw === 'm' ||
+    raw === 'mirrored' ||
+    raw === 'mirror' ||
     raw.includes('bottom') ||
     raw.includes('bot') ||
     raw === 'secondary' ||

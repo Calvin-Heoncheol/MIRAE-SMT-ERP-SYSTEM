@@ -169,11 +169,9 @@ const EXHIBITION_PROGRAM_DETAIL_COLUMNS: ApprovalDetailColumn[] = [
 ]
 
 const GENERAL_DETAIL_COLUMNS: ApprovalDetailColumn[] = [
-  { key: 'dueDate', label: '사용 일자', inputType: 'date' },
   { key: 'name', label: '지출 세부내역' },
   { key: 'supplier', label: '가맹점명(사용처)' },
   { key: 'amount', label: '금액' },
-  { key: 'model', label: '증빙 유형' },
   { key: 'note', label: '비고' },
 ]
 

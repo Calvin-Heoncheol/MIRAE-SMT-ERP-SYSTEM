@@ -312,11 +312,10 @@ export function SalesStatementEditModal({
     <>
     <ErpModal
       open={open && Boolean(group)}
-      title="거래명세서"
-      description={
+      title={
         isLegacy
-          ? '과거 명세서입니다. 출하일·고객사·품목·단가를 수정하고 행을 추가할 수 있습니다.'
-          : '출하일·수량·단가를 품목별로 수정합니다. 단가는 발주서에 반영됩니다.'
+          ? '거래명세서 — 과거 명세서입니다. 출하일·고객사·품목·단가를 수정하고 행을 추가할 수 있습니다.'
+          : '거래명세서 — 출하일·수량·단가를 품목별로 수정합니다. 단가는 발주서에 반영됩니다.'
       }
       size="xl"
       onClose={onClose}
@@ -357,25 +356,10 @@ export function SalesStatementEditModal({
           ) : null}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <label className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>거래일자</span>
-              <input
-                type="date"
-                value={recordDate}
-                onChange={(event) => setRecordDate(event.target.value)}
-                className={ERP_FIELD_INPUT_CLASS}
-              />
-            </label>
-            <div className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>출하번호</span>
-              <div className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-mono text-xs`}>
-                {group.shipmentId || '—'}
-              </div>
-            </div>
             {isLegacy ? (
               <label className="block text-sm">
                 <span className={ERP_FIELD_LABEL_CLASS}>
-                  공급받는자 <span className="text-rose-600">*</span>
+                  고객사 <span className="text-rose-600">*</span>
                 </span>
                 <CustomerCombobox
                   value={customer}
@@ -391,12 +375,27 @@ export function SalesStatementEditModal({
               </label>
             ) : (
               <div className="block text-sm">
-                <span className={ERP_FIELD_LABEL_CLASS}>공급받는자</span>
+                <span className={ERP_FIELD_LABEL_CLASS}>고객사</span>
                 <div className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-semibold text-slate-900`}>
                   {group.customer || '—'}
                 </div>
               </div>
             )}
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>출하일</span>
+              <input
+                type="date"
+                value={recordDate}
+                onChange={(event) => setRecordDate(event.target.value)}
+                className={ERP_FIELD_INPUT_CLASS}
+              />
+            </label>
+            <div className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>출하</span>
+              <div className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-mono text-xs`}>
+                {group.shipmentId || '—'}
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center justify-between gap-2">

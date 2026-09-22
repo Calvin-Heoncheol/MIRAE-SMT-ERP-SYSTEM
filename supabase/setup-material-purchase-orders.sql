@@ -8,6 +8,7 @@ create table if not exists public.material_purchase_orders (
   delivery_date date,
   supplier text not null default '',
   currency text not null default 'KRW',
+  freight_amount numeric not null default 0 check (freight_amount >= 0),
   source_order_id text references public.orders(id) on delete set null,
   covered_order_line_id text,
   covered_product_quantity numeric check (covered_product_quantity is null or covered_product_quantity >= 0),
@@ -24,6 +25,8 @@ comment on table public.material_purchase_orders is '자재 발주 마스터 —
 comment on column public.material_purchase_orders.id is '발주번호 MRP-YYMMDD-NN (INSERT 시 자동 발급, 수정 불가)';
 comment on column public.material_purchase_orders.supplier is '공급업체';
 comment on column public.material_purchase_orders.currency is '구매발주 통화 KRW(원) / USD(달러)';
+comment on column public.material_purchase_orders.freight_amount is
+  '운송비(배송비) — 품목 공급가액과 별도, 발주 합계에 가산';
 comment on column public.material_purchase_orders.source_order_id is
   '연결된 고객 주문서(orders.id) — 주문서 카드에서 발주 시 자동 연결';
 comment on column public.material_purchase_orders.covered_order_line_id is

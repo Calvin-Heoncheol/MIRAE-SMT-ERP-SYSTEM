@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
-import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { ErpModal } from '@/components/ui/erp-modal'
 import type { DipBoardForm } from '@/lib/quotes/form-state'
 import { toNumericField } from '@/lib/quotes/form-state'
 import {
@@ -77,6 +77,13 @@ function CrossRefRow({ row }: { row: BomPickPlaceCrossRefRow }) {
 }
 
 function BomLineRow({ line }: { line: AltiumBomAnalysis['lines'][number] }) {
+  const normalizeBadge =
+    line.normalizeSource === 'ai'
+      ? 'AI 정규화'
+      : line.normalizeSource === 'rules'
+        ? '규칙 정규화'
+        : null
+
   return (
     <tr className={line.excluded ? 'bg-slate-100/90 text-slate-400' : 'hover:bg-slate-50/80'}>
       <td className="whitespace-nowrap px-2 py-2 font-mono text-xs">
@@ -95,14 +102,30 @@ function BomLineRow({ line }: { line: AltiumBomAnalysis['lines'][number] }) {
             </span>
           </span>
         ) : (
-          <span className="text-emerald-700">실장</span>
+          <span className="inline-flex flex-col gap-0.5">
+            <span className="text-emerald-700">실장</span>
+            {normalizeBadge ? (
+              <span
+                className="inline-flex w-fit rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800 ring-1 ring-inset ring-violet-200"
+                title={line.normalizeNote}
+              >
+                {normalizeBadge}
+              </span>
+            ) : null}
+          </span>
         )}
+      </td>
+      <td
+        className={`max-w-[100px] truncate px-2 py-2 font-mono text-[11px] ${line.excluded ? 'line-through' : 'text-slate-600'}`}
+        title={line.customerPartNo}
+      >
+        {line.customerPartNo || '—'}
       </td>
       <td className={`px-2 py-2 text-xs ${line.excluded ? 'line-through' : 'text-slate-700'}`}>
         {line.comment || '—'}
       </td>
       <td
-        className={`max-w-[120px] truncate px-2 py-2 text-xs ${line.excluded ? 'line-through' : 'text-slate-600'}`}
+        className={`max-w-[100px] truncate px-2 py-2 text-xs ${line.excluded ? 'line-through' : 'text-slate-600'}`}
         title={line.footprint}
       >
         {line.footprint || '—'}
@@ -112,9 +135,12 @@ function BomLineRow({ line }: { line: AltiumBomAnalysis['lines'][number] }) {
       </td>
       <td
         className={`max-w-[140px] truncate px-2 py-2 text-xs ${line.excluded ? 'line-through' : 'text-slate-600'}`}
-        title={line.mpn}
+        title={[line.mpn, line.manufacturer].filter(Boolean).join(' · ')}
       >
         {line.mpn || '—'}
+        {line.manufacturer ? (
+          <span className="mt-0.5 block truncate text-[10px] text-slate-400">{line.manufacturer}</span>
+        ) : null}
       </td>
     </tr>
   )
@@ -129,7 +155,6 @@ export function BomReviewModal({
   onClose,
   onApply,
 }: BomReviewModalProps) {
-  const requestClose = useErpModalRequestClose()
   const [view, setView] = useState<'lines' | 'crossref'>('lines')
   const [showAllCrossRef, setShowAllCrossRef] = useState(false)
   const [applyDipSuggestion, setApplyDipSuggestion] = useState(true)
@@ -212,7 +237,7 @@ export function BomReviewModal({
             <span />
           )}
           <div className="flex gap-2">
-            <ErpButton variant="secondary" onClick={() => requestClose?.() ?? onClose()}>
+            <ErpButton variant="secondary" onClick={onClose}>
               취소
             </ErpButton>
             <ErpButton onClick={handleApply}>견적서에 적용</ErpButton>
@@ -279,8 +304,9 @@ export function BomReviewModal({
                 <tr>
                   <th className="px-2 py-2">Designator</th>
                   <th className="px-2 py-2">상태</th>
-                  <th className="px-2 py-2">Comment/Value</th>
-                  <th className="px-2 py-2">Footprint</th>
+                  <th className="px-2 py-2">고객코드</th>
+                  <th className="px-2 py-2">Value</th>
+                  <th className="px-2 py-2">Package</th>
                   <th className="px-2 py-2 text-center">Qty</th>
                   <th className="px-2 py-2">MPN</th>
                 </tr>

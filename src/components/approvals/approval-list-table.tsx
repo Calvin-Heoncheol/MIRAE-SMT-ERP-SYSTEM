@@ -43,7 +43,7 @@ export function ApprovalListTable({
           {!hideCategory ? <ErpTableTh align="center">카테고리</ErpTableTh> : null}
           <ErpTableTh>제목</ErpTableTh>
           <ErpTableTh>작성자</ErpTableTh>
-          <ErpTableTh align="right">합계(VAT포함)</ErpTableTh>
+          <ErpTableTh align="right">합계</ErpTableTh>
           <ErpTableTh align="center">결재상태</ErpTableTh>
         </tr>
       </ErpTableHead>
@@ -71,7 +71,7 @@ export function ApprovalListTable({
             </ErpTableTd>
             <ErpTableTd className="text-slate-700">{approval.author || '-'}</ErpTableTd>
             <ErpTableTd align="right" className="font-semibold tabular-nums text-slate-900">
-              {formatApprovalMoney(approval.totalAmount)}
+              {formatApprovalMoney(approval.totalAmount, approval.detailInfo.currency)}
             </ErpTableTd>
             <ErpTableTd align="center">
               <SignoffStatusBadge label={getSignoffStatusLabel(approval.detailInfo.signoffs)} />

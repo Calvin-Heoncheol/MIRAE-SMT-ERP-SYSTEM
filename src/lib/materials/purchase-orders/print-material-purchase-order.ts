@@ -35,6 +35,8 @@ export type MaterialPurchaseOrderPrintData = {
   deliveryDate: string
   supplier: string
   currency: MaterialPurchaseOrderCurrency
+  /** 운송비(배송비) */
+  freightAmount?: number
   /** 출력 담당자 이메일 (로그인 사용자) */
   contactEmail?: string | null
   items: MaterialPurchaseOrderPrintLine[]
@@ -94,7 +96,11 @@ export function buildMaterialPurchaseOrderHtml(
     String(data.contactEmail || '').trim() || COMPANY_QUOTE_EMAIL_DOMESTIC
 
   const totalQuantity = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0)
-  const totalAmount = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.orderAmount) || 0), 0)
+  const itemsAmount = normalizeMaterialPurchaseOrderAmount(
+    data.items.reduce((sum, item) => sum + Math.max(0, Number(item.orderAmount) || 0), 0),
+  )
+  const freightAmount = normalizeMaterialPurchaseOrderAmount(data.freightAmount)
+  const totalAmount = normalizeMaterialPurchaseOrderAmount(itemsAmount + freightAmount)
 
   const rows = data.items
     .map((item, index) => {
@@ -226,6 +232,12 @@ body {
   </table>
   <div class="totals-wrap">
     <div class="totals">
+      <div class="row"><span>${escapeHtml(t('품목 합계', 'Items Subtotal'))}</span><span class="val">${escapeHtml(formatMaterialPurchaseOrderMoney(itemsAmount, currency))}</span></div>
+      ${
+        freightAmount > 0
+          ? `<div class="row"><span>${escapeHtml(t('운송비', 'Freight'))}</span><span class="val">${escapeHtml(formatMaterialPurchaseOrderMoney(freightAmount, currency))}</span></div>`
+          : ''
+      }
       <div class="row"><span>${escapeHtml(t('구매발주금액 합계', 'Total Amount'))}</span><span class="val">${escapeHtml(formatMaterialPurchaseOrderMoney(totalAmount, currency))}</span></div>
     </div>
   </div>
@@ -282,6 +294,7 @@ export function buildMaterialPurchaseOrderPrintData(input: {
   deliveryDate: string
   supplier: string
   currency?: MaterialPurchaseOrderCurrency
+  freightAmount?: number
   contactEmail?: string | null
   items: Array<{
     materialCode?: string
@@ -301,6 +314,7 @@ export function buildMaterialPurchaseOrderPrintData(input: {
     deliveryDate: input.deliveryDate,
     supplier: input.supplier,
     currency: input.currency === 'USD' ? 'USD' : 'KRW',
+    freightAmount: normalizeMaterialPurchaseOrderAmount(input.freightAmount),
     contactEmail: String(input.contactEmail || '').trim() || null,
     note: input.note,
     items: input.items.map((item) => {

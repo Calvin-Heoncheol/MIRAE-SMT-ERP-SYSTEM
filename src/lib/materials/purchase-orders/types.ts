@@ -129,6 +129,8 @@ export type MaterialPurchaseOrderListGroup = {
   deliveryDate: string
   supplier: string
   currency: MaterialPurchaseOrderCurrency
+  /** 운송비(배송비) — 헤더 1회 */
+  freightAmount: number
   /** 연결된 고객 발주서(orders.id) — 발주서 카드에서 구매발주 시 자동 연결 */
   sourceOrderId: string | null
   /** 부분 구매발주 시 커버한 주문 라인 */
@@ -137,6 +139,9 @@ export type MaterialPurchaseOrderListGroup = {
   coveredProductQuantity: number
   items: MaterialPurchaseOrderLineItem[]
   totalQuantity: number
+  /** 품목 공급가액 합계 (운송비 제외) */
+  itemsAmount: number
+  /** 품목 합계 + 운송비 */
   totalAmount: number
   createdByName: string
   createdAt: string
@@ -166,6 +171,7 @@ export type MaterialPurchaseOrderRecord = {
   delivery_date: string | null
   supplier: string
   currency?: string | null
+  freight_amount?: number | null
   source_order_id?: string | null
   covered_order_line_id?: string | null
   covered_product_quantity?: number | null
@@ -181,6 +187,7 @@ export type MaterialPurchaseOrderRowPayload = {
   delivery_date: string
   supplier: string
   currency: MaterialPurchaseOrderCurrency
+  freight_amount: number
   /** 연결된 고객 발주서 — 신규 구매발주 시에만 설정 */
   source_order_id?: string | null
   /** 부분 구매발주 — 커버한 주문 라인 / 제품 수량 */

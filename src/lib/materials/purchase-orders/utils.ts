@@ -160,6 +160,10 @@ export function mapMaterialPurchaseOrderRecord(record: MaterialPurchaseOrderReco
   const lineDeliverySummary =
     latestMaterialPurchaseOrderDeliveryDate(items.map((item) => item.deliveryDate)) ||
     headerDeliveryDate
+  const itemsAmount = normalizeMaterialPurchaseOrderAmount(
+    items.reduce((sum, item) => sum + item.orderAmount, 0),
+  )
+  const freightAmount = normalizeMaterialPurchaseOrderAmount(record.freight_amount)
 
   return {
     orderId: record.id,
@@ -168,6 +172,7 @@ export function mapMaterialPurchaseOrderRecord(record: MaterialPurchaseOrderReco
     deliveryDate: lineDeliverySummary,
     supplier: record.supplier || '',
     currency: normalizeMaterialPurchaseOrderCurrency(record.currency),
+    freightAmount,
     sourceOrderId: record.source_order_id || null,
     coveredOrderLineId: record.covered_order_line_id || null,
     coveredProductQuantity: Math.max(0, Math.floor(Number(record.covered_product_quantity) || 0)),
@@ -175,7 +180,8 @@ export function mapMaterialPurchaseOrderRecord(record: MaterialPurchaseOrderReco
     createdAt: record.created_at,
     items,
     totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
-    totalAmount: items.reduce((sum, item) => sum + item.orderAmount, 0),
+    itemsAmount,
+    totalAmount: normalizeMaterialPurchaseOrderAmount(itemsAmount + freightAmount),
     hasInbound,
   }
 }

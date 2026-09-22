@@ -87,7 +87,7 @@ export function QuoteSetupInputPanel({
                 <tr>
                   <th className="px-2 py-2 text-left">{isDomestic ? '항목' : 'Item'}</th>
                   <th className="w-[100px] px-2 py-2 text-right">
-                    {isDomestic ? '대당 단가' : 'Per-Unit'}
+                    {isDomestic ? '분당임률' : 'Rate /min'}
                   </th>
                   <th className="w-[72px] px-2 py-2 text-center">
                     {isDomestic ? '시간(분)' : 'Min'}

@@ -43,6 +43,7 @@ function hasDipBoardInput(detailInfo: QuoteDetailInfo | undefined) {
 
 function hasSmdBoardInput(detailInfo: QuoteDetailInfo | undefined) {
   const boards = detailInfo?.inputs?.smt?.pcbBoards || []
+  // AOI·세척 기본값만으로 SMD로 잡지 않음 (조립만 견적인데 SMD가 붙던 원인)
   return boards.some(
     (board) =>
       money(board.chip) > 0 ||
@@ -50,8 +51,8 @@ function hasSmdBoardInput(detailInfo: QuoteDetailInfo | undefined) {
       money(board.bga) > 0 ||
       money(board.smtOdd) > 0 ||
       money(board.smtSpecial) > 0 ||
-      board.aoiEnabled ||
-      board.pcbWashEnabled,
+      money(board.smtTopCount) > 0 ||
+      money(board.smtBotCount) > 0,
   )
 }
 

@@ -1,16 +1,9 @@
 import {
   APP_SHORT_NAME,
-  COMPANY_ADDRESS_DOMESTIC,
-  COMPANY_ADDRESS_EXPORT,
   COMPANY_NAME_EN,
-  COMPANY_QUOTE_CONTACT_EXPORT,
-  COMPANY_QUOTE_EMAIL_DOMESTIC,
-  COMPANY_QUOTE_EMAIL_EXPORT,
 } from '@/lib/app-config'
 import { formatQuoteMoneyByDisplay, formatQuotePreviewSummary, formatQuoteValidityText } from '@/lib/quotes/format'
 import { getPreviewLabels } from '@/lib/quotes/preview-i18n'
-import { hasPostProcessLineInput } from '@/lib/quotes/post-process-lines'
-import { formatQuoteProcessTypeCodesFromParts } from '@/lib/quotes/production-flags'
 import {
   BOARD_SUBTOTAL_ROW_BG,
   breakdownBoardColLabel,
@@ -26,7 +19,6 @@ import {
   type PreviewRow,
 } from '@/lib/quotes/preview-rows'
 import type { EstimateResult, QuoteDisplayCurrency, QuoteType } from '@/lib/quotes/types'
-import { ERP_TEXT_WRAP_CLASS } from '@/lib/ui/tokens'
 
 type QuoteBreakdownPreviewProps = {
   quoteType: QuoteType
@@ -51,8 +43,8 @@ function breakdownPageTitle(quoteType: QuoteType) {
 
 function breakdownPageNote(quoteType: QuoteType) {
   return quoteType === 'domestic'
-    ? 'SMD(SET-UP·실장·검사)·납땜·후공정·자재 항목별 단가·부품수(작업량)·생산수량 기준 합계입니다.'
-    : 'Itemized totals for SMD (SET-UP, placement, inspection), soldering, post-process, and materials.'
+    ? 'SET-UP·SMD(실장·검사)·납땜·후공정·자재 항목별 단가·부품수·소요시간·생산수량 기준 합계입니다.'
+    : 'Itemized totals for SET-UP, SMD (placement, inspection), soldering, post-process, and materials.'
 }
 
 function formatAmount(
@@ -198,12 +190,18 @@ function BreakdownSectionTable({
   const showBoardColumn = section.rows.some((row) => row.boardName)
   const boardSpans = showBoardColumn ? computeBreakdownBoardRowSpans(section.rows) : []
   const isSetupSection = section.key === 'setup'
+  const isSmdSection = section.key === 'smt'
   const isPostSection = section.key === 'post'
   const showProductionQty = false
-  const unitHeader = labels.colUnit
+  const unitHeader = isSetupSection
+    ? labels.colSetupBasis
+    : isSmdSection
+      ? labels.colSmdBaseRate
+      : labels.colUnit
+  const unitTotalHeader = isSmdSection ? labels.colSmdUnitPrice : labels.colUnitTotal
   const qtyHeader = isSetupSection
     ? labels.colSetupMinutes
-    : section.key === 'smt'
+    : isSmdSection
       ? labels.colSmdWorkQty
       : isPostSection
         ? labels.colPostWorkQty
@@ -238,7 +236,7 @@ function BreakdownSectionTable({
                 {secondMetricHeader}
               </th>
               <th className="border border-slate-400 px-2 py-1.5 text-right text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
-                {labels.colUnitTotal}
+                {unitTotalHeader}
               </th>
               {showProductionQty ? (
                 <th className="border border-slate-400 px-2 py-1.5 text-center text-xs font-bold text-slate-600 lg:px-3 lg:py-2">
@@ -277,12 +275,8 @@ export function QuoteBreakdownPreview({
   result,
   form,
   displayCurrency,
-  customer,
-  productName,
   issueDate,
-  productionKind = '양산',
   includeVat = false,
-  contactEmail,
   loading = false,
   emptyMessage,
 }: QuoteBreakdownPreviewProps) {
@@ -290,33 +284,6 @@ export function QuoteBreakdownPreview({
   const showVat = includeVat || form.includeVat === true
   const previewLabels = getPreviewLabels(quoteType)
   const companyName = isDomestic ? APP_SHORT_NAME : COMPANY_NAME_EN
-  const supplierEmail =
-    String(contactEmail || '').trim() ||
-    (isDomestic ? COMPANY_QUOTE_EMAIL_DOMESTIC : COMPANY_QUOTE_EMAIL_EXPORT)
-  const recipientLabel = isDomestic ? '수신' : 'Bill To'
-  const supplierLabel = isDomestic ? '공급' : 'From'
-  const productionKindText =
-    productionKind === '샘플'
-      ? previewLabels.productionKindSample
-      : previewLabels.productionKindMass
-  const processTypeText = formatQuoteProcessTypeCodesFromParts({
-    hasSmd: Boolean(result && ((result.values.smt || 0) > 0 || (result.common.smtSetup || 0) > 0)),
-    hasSoldering: Boolean(result && (result.values.dip || 0) > 0),
-    hasAssembly:
-      Number(form.postAssembly || 0) > 0 ||
-      Boolean(form.assemblyLines?.some((line) => hasPostProcessLineInput(line))),
-    hasDownload:
-      Number(form.postDownload || 0) > 0 ||
-      Boolean(form.downloadLines?.some((line) => hasPostProcessLineInput(line))),
-    hasTest:
-      Number(form.postTest || 0) > 0 ||
-      Boolean(form.testLines?.some((line) => hasPostProcessLineInput(line))),
-    hasPacking:
-      Number(form.postPacking || 0) > 0 ||
-      Boolean(form.packingLines?.some((line) => hasPostProcessLineInput(line))),
-  })
-  const processLabel = isDomestic ? '공정' : 'Type'
-  const kindLabel = isDomestic ? '구분' : 'Category'
   const breakdownRows = result ? buildProcessCentricPdfBreakdownRows(result, form, quoteType) : []
   const sections = result ? buildProcessBreakdownSections(breakdownRows, quoteType, result.qty || 1) : []
   const previewSummary = result
@@ -335,63 +302,6 @@ export function QuoteBreakdownPreview({
         <div className="text-right">
           <h3 className="text-xl font-light tracking-[0.2em] lg:text-2xl lg:tracking-[0.28em]">{previewLabels.title}</h3>
           <p className="mt-1 text-xs font-semibold tracking-wide text-slate-300 lg:text-sm">{result?.estNo || '-'}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 border-b border-slate-200 sm:grid-cols-2">
-        <div className="border-b border-slate-200 p-4 sm:border-b-0 sm:border-r lg:p-5">
-          <p className="mb-3 text-[11px] font-bold tracking-[0.2em] text-slate-500">{recipientLabel}</p>
-          <dl className="space-y-2 text-sm">
-            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
-              <dt className="text-slate-500">{previewLabels.customer}</dt>
-              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold text-slate-900`}>{customer}</dd>
-            </div>
-            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
-              <dt className="text-slate-500">{previewLabels.product}</dt>
-              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold text-slate-900`}>{productName}</dd>
-            </div>
-            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
-              <dt className="text-slate-500">{processLabel}</dt>
-              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold text-slate-900`}>{processTypeText}</dd>
-            </div>
-            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
-              <dt className="text-slate-500">{kindLabel}</dt>
-              <dd className="font-semibold text-slate-900">{productionKindText}</dd>
-            </div>
-            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
-              <dt className="text-slate-500">{previewLabels.quantity}</dt>
-              <dd className="font-semibold text-slate-900">
-                {result ? previewLabels.formatQty(result.qty) : '-'}
-              </dd>
-            </div>
-          </dl>
-        </div>
-        <div className="bg-slate-50 p-4 lg:p-5">
-          <p className="mb-3 text-[11px] font-bold tracking-[0.2em] text-slate-500">{supplierLabel}</p>
-          <dl className="space-y-2 text-sm">
-            <div className="grid grid-cols-[72px_1fr] gap-2">
-              <dt className="text-slate-500">{isDomestic ? '업체명' : 'Company'}</dt>
-              <dd className="font-semibold text-slate-900">{companyName}</dd>
-            </div>
-            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
-              <dt className="text-slate-500">{isDomestic ? '주소' : 'Address'}</dt>
-              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold leading-snug text-slate-900`}>
-                {isDomestic ? COMPANY_ADDRESS_DOMESTIC : COMPANY_ADDRESS_EXPORT}
-              </dd>
-            </div>
-            <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-2">
-              <dt className="text-slate-500">E-mail</dt>
-              <dd className={`${ERP_TEXT_WRAP_CLASS} font-semibold text-slate-800`}>
-                {supplierEmail}
-              </dd>
-            </div>
-            <div className="grid grid-cols-[72px_1fr] gap-2">
-              <dt className="text-slate-500">{previewLabels.contact}</dt>
-              <dd className="font-semibold text-slate-900">
-                {isDomestic ? '영업관리팀' : COMPANY_QUOTE_CONTACT_EXPORT}
-              </dd>
-            </div>
-          </dl>
         </div>
       </div>
 
@@ -433,21 +343,11 @@ export function QuoteBreakdownPreview({
       <div className="space-y-1.5 border-t border-slate-200 bg-white px-4 py-3 text-sm lg:px-6">
         <div className="flex items-center justify-between">
           <span className="font-semibold text-slate-700">
-            {showVat
-              ? isDomestic
-                ? '대당 단가 (VAT 포함)'
-                : 'Unit Price (incl. VAT)'
-              : isDomestic
-                ? '대당 단가'
-                : 'Unit Price'}
+            {isDomestic ? '대당 단가' : 'Unit Price'}
           </span>
           <span className="font-semibold text-slate-900">
             {previewSummary
-              ? showVat &&
-                'unitInclFormatted' in previewSummary &&
-                previewSummary.unitInclFormatted
-                ? previewSummary.unitInclFormatted
-                : previewSummary.unitFormatted
+              ? previewSummary.unitFormatted
               : formatAmount(0, quoteType, displayCurrency)}
           </span>
         </div>

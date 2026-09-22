@@ -13,6 +13,7 @@ import {
   detectThroughHoleMount,
   pickPlaceCategoryLabel,
 } from '@/lib/quotes/pick-place-mount-categories'
+import { designatorLookupKeys, normalizeDesignatorKey } from '@/lib/quotes/designator-utils'
 
 export type CrossRefStatus = 'matched' | 'bom_only' | 'pnp_only'
 
@@ -33,7 +34,16 @@ export type BomPickPlaceCrossRef = {
   warnings: string[]
 }
 
-import { normalizeDesignatorKey } from '@/lib/quotes/designator-utils'
+function findBomLineForDesignator(
+  bom: AltiumBomAnalysis,
+  designator: string,
+): BomLine | undefined {
+  for (const key of designatorLookupKeys(designator)) {
+    const line = bom.designatorIndex[key]
+    if (line) return line
+  }
+  return undefined
+}
 
 function isThroughHoleCandidate(line: BomLine, designator = '') {
   return detectThroughHoleMount({
@@ -105,9 +115,13 @@ export function crossReferenceBomPickPlace(
   bom: AltiumBomAnalysis,
   pickPlace: AltiumPickPlaceAnalysis,
 ): BomPickPlaceCrossRef {
-  const pnpMap = new Map<string, PickPlaceClassifiedRow>()
+  const pnpByKey = new Map<string, PickPlaceClassifiedRow[]>()
   for (const row of pickPlace.classifiedRows) {
-    pnpMap.set(normalizeDesignatorKey(row.designator), row)
+    for (const key of designatorLookupKeys(row.designator)) {
+      const list = pnpByKey.get(key) ?? []
+      list.push(row)
+      pnpByKey.set(key, list)
+    }
   }
 
   const bomDesignators = new Set<string>()
@@ -117,7 +131,7 @@ export function crossReferenceBomPickPlace(
     }
   }
 
-  const allDesignators = new Set<string>([...bomDesignators, ...pnpMap.keys()])
+  const matchedPnP = new Set<PickPlaceClassifiedRow>()
   const rows: BomPickPlaceCrossRefRow[] = []
   const warnings: string[] = []
 
@@ -127,56 +141,66 @@ export function crossReferenceBomPickPlace(
   let dipCandidateCount = 0
   let excludedWithPickPlaceCount = 0
 
-  for (const key of [...allDesignators].sort()) {
+  for (const key of [...bomDesignators].sort()) {
     const bomLine = bom.designatorIndex[key]
-    const pickPlaceRow = pnpMap.get(key)
+    const pickPlaceRows = pnpByKey.get(key) ?? []
+    if (!bomLine) continue
 
-    if (bomLine && pickPlaceRow) {
-      if (bomLine.excluded) {
-        excludedWithPickPlaceCount += 1
+    if (pickPlaceRows.length) {
+      for (const pickPlaceRow of pickPlaceRows) {
+        if (matchedPnP.has(pickPlaceRow)) continue
+        matchedPnP.add(pickPlaceRow)
+
+        if (bomLine.excluded) {
+          excludedWithPickPlaceCount += 1
+          rows.push({
+            designator: normalizeDesignatorKey(pickPlaceRow.designator),
+            status: 'matched',
+            bomLine,
+            pickPlaceRow,
+            note: bomExcludeReasonLabel(bomLine.excludeReason ?? 'strikethrough', bomLine),
+          })
+          continue
+        }
+
+        matchedCount += 1
+        let note: string | undefined
+        if (!pickPlaceRow.package && bomLine.footprint) {
+          note = `BOM Package: ${bomLine.footprint}`
+        } else if (bomLine.comment && bomLine.comment !== pickPlaceRow.value) {
+          note = `BOM Value: ${bomLine.comment}`
+        }
         rows.push({
-          designator: key,
+          designator: normalizeDesignatorKey(pickPlaceRow.designator),
           status: 'matched',
           bomLine,
           pickPlaceRow,
-          note: bomExcludeReasonLabel(bomLine.excludeReason ?? 'strikethrough', bomLine),
+          note,
         })
-        continue
       }
-
-      matchedCount += 1
-      let note: string | undefined
-      if (!pickPlaceRow.package && bomLine.footprint) {
-        note = `BOM Package: ${bomLine.footprint}`
-      } else if (bomLine.comment && bomLine.comment !== pickPlaceRow.value) {
-        note = `BOM Value: ${bomLine.comment}`
-      }
-      rows.push({ designator: key, status: 'matched', bomLine, pickPlaceRow, note })
       continue
     }
 
-    if (bomLine) {
-      bomOnlyCount += 1
-      const dipHint = !bomLine.excluded && isThroughHoleCandidate(bomLine, key)
-      if (dipHint) dipCandidateCount += 1
-      rows.push({
-        designator: key,
-        status: 'bom_only',
-        bomLine,
-        note: dipHint ? '수삽(DIP/TH) 후보 — 좌표 파일에 없음' : '좌표 파일에 없음 (미실장·수삽·기구물)',
-      })
-      continue
-    }
+    bomOnlyCount += 1
+    const dipHint = !bomLine.excluded && isThroughHoleCandidate(bomLine, key)
+    if (dipHint) dipCandidateCount += 1
+    rows.push({
+      designator: key,
+      status: 'bom_only',
+      bomLine,
+      note: dipHint ? '수삽(DIP/TH) 후보 — 좌표 파일에 없음' : '좌표 파일에 없음 (미실장·수삽·기구물)',
+    })
+  }
 
-    if (pickPlaceRow) {
-      pnpOnlyCount += 1
-      rows.push({
-        designator: key,
-        status: 'pnp_only',
-        pickPlaceRow,
-        note: 'BOM에 없음 (테스트포인트·마킹·기구물 가능)',
-      })
-    }
+  for (const pickPlaceRow of pickPlace.classifiedRows) {
+    if (matchedPnP.has(pickPlaceRow)) continue
+    pnpOnlyCount += 1
+    rows.push({
+      designator: normalizeDesignatorKey(pickPlaceRow.designator),
+      status: 'pnp_only',
+      pickPlaceRow,
+      note: 'BOM에 없음 (테스트포인트·마킹·기구물 가능)',
+    })
   }
 
   if (excludedWithPickPlaceCount > 0) {
@@ -233,7 +257,7 @@ export function enrichPickPlaceWithBom(
   const hasLayerColumn = pickPlace.classifiedRows.some((row) => row.rawLayer.trim().length > 0)
 
   const classifiedRows = pickPlace.classifiedRows.map((row) => {
-    const bomLine = bom.designatorIndex[normalizeDesignatorKey(row.designator)]
+    const bomLine = findBomLineForDesignator(bom, row.designator)
     if (!bomLine) return row
     if (bomLine.excluded) return pickPlaceRowExcludedByBom(row, bomLine)
     return mergePickPlaceRowWithBom(row, bomLine, hasLayerColumn)

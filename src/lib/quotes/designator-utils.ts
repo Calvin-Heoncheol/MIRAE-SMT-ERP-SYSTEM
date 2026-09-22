@@ -2,6 +2,19 @@ export function normalizeDesignatorKey(value: string) {
   return value.trim().replace(/^[@#]+/, '').toUpperCase()
 }
 
+/** Allegro 멀티보드 접두 제거 (1C29 → C29). BOM 매칭용 */
+export function stripBoardPrefixDesignatorKey(value: string) {
+  return normalizeDesignatorKey(value).replace(/^\d{1,3}(?=[A-Z])/, '')
+}
+
+/** BOM·좌표 조회 시 시도할 키 (원문 + 접두 제거) */
+export function designatorLookupKeys(value: string): string[] {
+  const full = normalizeDesignatorKey(value)
+  if (!full) return []
+  const stripped = stripBoardPrefixDesignatorKey(full)
+  return stripped && stripped !== full ? [full, stripped] : [full]
+}
+
 export function looksLikeDesignatorToken(value: string) {
   const trimmed = value.trim()
   if (!trimmed) return false

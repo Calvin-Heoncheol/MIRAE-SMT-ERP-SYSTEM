@@ -199,6 +199,7 @@ export function mapOrderRecord(
     customer: record.customer || '',
     category: normalizeOrderCategory(record.category),
     currency: normalizeOrderCurrency(record.currency),
+    includeVat: record.include_vat === true,
     note: record.note || '',
     customerPoNumber: record.customer_po_number || '',
     source: record.source || 'manual',

@@ -25,10 +25,19 @@ export type ApprovalAttachmentFile = {
 
 export type ApprovalPaymentType = 'immediate' | 'recurring' | ''
 export type ApprovalAmountBasis = 'supply' | 'total' | 'exempt' | ''
+export type ApprovalCurrency = 'KRW' | 'USD'
+
+export const APPROVAL_CURRENCIES: ApprovalCurrency[] = ['KRW', 'USD']
+
+export const APPROVAL_CURRENCY_LABELS: Record<ApprovalCurrency, string> = {
+  KRW: '원 (KRW)',
+  USD: '달러 (USD)',
+}
 
 export type ApprovalDetailInfo = {
   detailItems: ApprovalDetailItem[]
   amountBasis: ApprovalAmountBasis
+  currency: ApprovalCurrency
   paymentType: ApprovalPaymentType
   paymentMethod: string
   attachments: string

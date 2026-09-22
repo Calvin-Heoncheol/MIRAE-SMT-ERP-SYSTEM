@@ -1,6 +1,7 @@
 import { inferSpreadsheetColumnsAction } from '@/lib/quotes/spreadsheet-ai-actions'
 import type { AltiumBomAnalysis, AltiumBomParseResult } from '@/lib/quotes/parse-altium-bom'
 import { parseBomRows } from '@/lib/quotes/parse-altium-bom'
+import { normalizeBomAnalysisWithAi } from '@/lib/quotes/normalize-bom-analysis'
 import type { AltiumPickPlaceAnalysis, AltiumPickPlaceParseResult } from '@/lib/quotes/parse-altium-pick-place'
 import { parsePickPlaceRows } from '@/lib/quotes/parse-altium-pick-place'
 import type { SpreadsheetAiDetection } from '@/lib/quotes/spreadsheet-ai-types'
@@ -33,6 +34,12 @@ function pickPlaceParseMetaRatio(analysis: AltiumPickPlaceAnalysis) {
     (row) => row.package.trim() || row.description.trim() || row.value.trim(),
   ).length
   return withMeta / rows.length
+}
+
+async function withBomNormalization(result: AltiumBomParseResult): Promise<AltiumBomParseResult> {
+  if (!result.ok) return result
+  const analysis = await normalizeBomAnalysisWithAi(result.analysis)
+  return { ok: true, analysis }
 }
 
 export async function parsePickPlaceRowsWithAiFallback(
@@ -80,7 +87,7 @@ export async function parseBomRowsWithAiFallback(
 
   const detection = await tryAiDetection('bom', fileName, rows)
   if (!detection || detection.fileKind !== 'bom') {
-    return rulesResult
+    return withBomNormalization(rulesResult)
   }
 
   const aiResult = parseBomRows(rows, fileName, {
@@ -95,13 +102,13 @@ export async function parseBomRowsWithAiFallback(
   if (aiResult.ok && rulesResult.ok) {
     const aiMeta = bomParseMetaRatio(aiResult.analysis)
     const rulesMeta = bomParseMetaRatio(rulesResult.analysis)
-    if (rulesMeta > aiMeta + 0.15) return rulesResult
-    return aiResult
+    if (rulesMeta > aiMeta + 0.15) return withBomNormalization(rulesResult)
+    return withBomNormalization(aiResult)
   }
 
-  if (aiResult.ok) return aiResult
+  if (aiResult.ok) return withBomNormalization(aiResult)
 
-  if (rulesResult.ok) return rulesResult
+  if (rulesResult.ok) return withBomNormalization(rulesResult)
 
   return {
     ok: false,

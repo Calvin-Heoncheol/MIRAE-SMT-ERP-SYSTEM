@@ -151,16 +151,12 @@ export function formatQuotePreviewSummary(
 
   if (quoteType === 'domestic') {
     const { unitKrw, totalKrw } = domesticPage1SummaryAmounts(grandTotalKrw, qty)
-    const unitVat = domesticVatBreakdown(unitKrw)
-    /** VAT 포함 표시 시 대당×수량 = 합계가 되도록 대당 포함가 × 수량 */
-    const totalInclFromUnit = unitVat.totalIncl * (qty || 1)
-    const vatFromUnitPricing = Math.max(0, totalInclFromUnit - totalKrw)
+    const { vat, totalIncl } = domesticVatBreakdown(totalKrw)
     return {
       unitFormatted: formatQuoteKrw(unitKrw),
       totalFormatted: formatQuoteKrw(totalKrw),
-      vatFormatted: formatQuoteKrw(vatFromUnitPricing),
-      totalInclFormatted: formatQuoteKrw(totalInclFromUnit),
-      unitInclFormatted: formatQuoteKrw(unitVat.totalIncl),
+      vatFormatted: formatQuoteKrw(vat),
+      totalInclFormatted: formatQuoteKrw(totalIncl),
     }
   }
 

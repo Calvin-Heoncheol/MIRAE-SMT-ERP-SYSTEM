@@ -14,8 +14,12 @@ import { getPostRate } from './constants'
 export type QuoteFormSnapshot = {
   customer: string
   productName: string
+  /** 화면 입력·미등록 제품코드 (settings에 저장) */
+  productCode?: string
   /** 품목마스터에서 고른 경우 품목 id */
   productId?: string
+  /** 견적일 (YYYY-MM-DD) */
+  quoteDate?: string
   quoteStatus?: QuoteStatus
   boardQty: string
   pcbBoardCount: string
@@ -190,6 +194,7 @@ export function buildQuoteDetailInfo(
       includeMaterialCosts,
       includeMetalMask: form.includeMetalMask !== false,
       ...(form.productId?.trim() ? { productId: form.productId.trim() } : {}),
+      ...(form.productCode?.trim() ? { productCode: form.productCode.trim() } : {}),
     },
   }
 }
@@ -203,13 +208,22 @@ export function buildQuoteRowPayload(
   quoteStatus: QuoteStatus = 'draft',
 ): QuoteRowPayload {
   const status = quoteStatus === 'confirmed' ? 'confirmed' : 'draft'
+  const productName = form.productName.trim() || form.productCode?.trim() || ''
+  const quoteDate = String(form.quoteDate || '').trim() || result.date
   return {
-    quote_date: result.date,
+    quote_date: quoteDate,
     customer: form.customer.trim(),
-    product_name: form.productName.trim(),
+    product_name: productName,
     board_qty: result.qty || 0,
     total_amount: result.values.grandTotal,
-    detail_info: buildQuoteDetailInfo(form, pcbBoards, dipBoards, result, quoteType, status),
+    detail_info: buildQuoteDetailInfo(
+      { ...form, productName },
+      pcbBoards,
+      dipBoards,
+      result,
+      quoteType,
+      status,
+    ),
     status,
   }
 }

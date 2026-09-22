@@ -26,6 +26,7 @@ export const PICK_PLACE_REVIEW_REASON_LABELS: Record<PickPlaceReviewReasonTag, s
 /** 적용 차단 없이 확인만 하면 되는 사유 */
 export const NON_BLOCKING_PICK_PLACE_REVIEW_TAGS = new Set<PickPlaceReviewReasonTag>([
   'designator_duplicate',
+  'mpn_missing',
 ])
 
 export function getPickPlaceReviewReasonTags(row: PickPlaceClassifiedRow): PickPlaceReviewReasonTag[] {

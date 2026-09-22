@@ -23,6 +23,11 @@ function cellToString(value: unknown) {
 }
 
 function parseDelimitedLine(line: string): string[] {
+  const bangCount = (line.match(/!/g) || []).length
+  if (bangCount >= 2) {
+    // Cadence Allegro place.txt — `refdes ! x ! y ! ...`
+    return line.split('!').map((cell) => cell.replace(/^#+\s*/, '').trim())
+  }
   const delimiter = line.includes('\t') && !line.includes(',') ? '\t' : ','
   if (delimiter === '\t') {
     return line.split('\t').map((cell) => cell.trim())
@@ -36,12 +41,23 @@ function scoreRows(rows: string[][], kind: SpreadsheetReadKind) {
   return scoreSpreadsheetHeader(rows)
 }
 
+function isSeparatorOnlyLine(line: string) {
+  const compact = line.replace(/[\s#!|-]/g, '')
+  return compact.length === 0 && /[-_|]{5,}/.test(line.replace(/\s/g, ''))
+}
+
 function rowsFromText(text: string): string[][] {
   return text
     .replace(/^\uFEFF/, '')
     .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0)
+    .filter((line) => {
+      const trimmed = line.trim()
+      if (!trimmed) return false
+      if (isSeparatorOnlyLine(trimmed)) return false
+      return true
+    })
     .map((line) => parseDelimitedLine(line))
+    .filter((row) => row.some((cell) => cell.length > 0))
 }
 
 function decodeBufferAsText(buffer: ArrayBuffer) {

@@ -10,6 +10,7 @@ import { useBusy } from '@/components/ui/busy-provider'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
+import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { validateOrderItems, resolveOrderCustomerFromItems } from '@/lib/orders/build-order-payload'
 import {
@@ -19,6 +20,7 @@ import {
   type OrderFormState,
   type OrderItemForm,
 } from '@/lib/orders/form-state'
+import { buildOrderPrintData, printOrder } from '@/lib/orders/print-order'
 import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
 import { formatAutoOrderCodeExample } from '@/lib/orders/order-code-prefix'
 import { ORDER_CATEGORIES, ORDER_CURRENCIES, ORDER_CURRENCY_LABELS } from '@/lib/orders/types'
@@ -60,6 +62,7 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
       customer: order.customer || '',
       category: order.category,
       currency: normalizeOrderCurrency(order.currency),
+      includeVat: order.includeVat === true,
       note: order.note || '',
       customerPoNumber: order.customerPoNumber || '',
     }
@@ -71,6 +74,7 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
     customer: '',
     category: '양산',
     currency: 'KRW',
+    includeVat: false,
     note: '',
     customerPoNumber: '',
   }
@@ -209,6 +213,7 @@ function OrderModalContent({
       customer: customerName,
       category: form.category,
       currency: normalizeOrderCurrency(form.currency),
+      includeVat: form.includeVat === true,
       note: form.note,
       customer_po_number: form.customerPoNumber,
       source: order?.source || 'manual',
@@ -257,6 +262,36 @@ function OrderModalContent({
     await commitSave(payload)
   }
 
+  async function handlePrintOrder(language: 'ko' | 'en' = 'ko') {
+    if (!order) {
+      setSaveError('발주서를 저장한 뒤 인쇄할 수 있습니다.')
+      return
+    }
+    if (!form.customer.trim()) {
+      setSaveError('발주서 인쇄 전에 고객사를 입력해 주세요.')
+      return
+    }
+    if (!items.some((item) => Number(item.quantity) > 0)) {
+      setSaveError('발주서 인쇄 전에 품목 수량이 있어야 합니다.')
+      return
+    }
+
+    const printSource: OrderListGroup = {
+      ...order,
+      orderDate: form.orderDate || order.orderDate,
+      deliveryDate: form.deliveryDate || order.deliveryDate,
+      customer: form.customer.trim() || order.customer,
+      category: form.category,
+      currency: normalizeOrderCurrency(form.currency),
+      includeVat: form.includeVat === true,
+      note: form.note,
+      customerPoNumber: form.customerPoNumber,
+      items: order.items,
+    }
+    const ok = printOrder(buildOrderPrintData(printSource), { language })
+    if (!ok) setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
+  }
+
   async function handleDelete() {
     if (!order) return
     if (
@@ -299,6 +334,19 @@ function OrderModalContent({
       onClose={onClose}
       closeOnEscape={!busy}
       contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4"
+      headerActions={
+        mode === 'edit' && order ? (
+          <PdfDownloadButton
+            label="발주서"
+            onDownload={() => handlePrintOrder('ko')}
+            disabled={busy}
+            menuItems={[
+              { label: '한글', onDownload: () => handlePrintOrder('ko') },
+              { label: '영문', onDownload: () => handlePrintOrder('en') },
+            ]}
+          />
+        ) : null
+      }
       footer={
         <div className="flex w-full flex-col gap-2">
           {saveError ? <p className={ERP_ERROR_TEXT_CLASS}>{saveError}</p> : null}
@@ -378,7 +426,7 @@ function OrderModalContent({
         </label>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>구분</span>
           <select
@@ -409,6 +457,20 @@ function OrderModalContent({
             ))}
           </select>
         </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>부가세</span>
+          <select
+            value={form.includeVat ? 'incl' : 'excl'}
+            onChange={(event) => updateForm('includeVat', event.target.value === 'incl')}
+            disabled={form.currency === 'USD'}
+            className={ERP_FIELD_INPUT_CLASS}
+          >
+            <option value="excl">VAT 별도</option>
+            <option value="incl">VAT 포함</option>
+          </select>
+        </label>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>발주일</span>
           <input

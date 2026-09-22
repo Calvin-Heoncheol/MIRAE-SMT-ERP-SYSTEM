@@ -87,6 +87,7 @@ export function resolveBomColumnsFromAi(
     manufacturer: findHeaderColumnByName(header, payload.columns.manufacturer),
     supplier: findHeaderColumnByName(header, payload.columns.supplier),
     supplierPart: findHeaderColumnByName(header, payload.columns.supplierPart),
+    customerPartNo: findHeaderColumnByName(header, payload.columns.customerPartNo),
   }
   const columns = fillMissingBomColumns(header, rows, headerIndex, aiColumns)
 

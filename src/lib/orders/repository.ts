@@ -76,6 +76,31 @@ async function persistOrderCurrency(orderId: string, currency: OrderCurrency) {
   }
 }
 
+function isMissingOrdersIncludeVatColumn(detail: string) {
+  return (
+    detail.includes('include_vat') &&
+    (detail.includes('schema cache') ||
+      detail.includes('does not exist') ||
+      detail.includes('Could not find'))
+  )
+}
+
+async function persistOrderIncludeVat(orderId: string, includeVat: boolean) {
+  const supabase = createSupabaseClient()
+  const { error } = await supabase
+    .from('orders')
+    .update({ include_vat: includeVat === true })
+    .eq('id', orderId)
+  if (error) {
+    if (isMissingOrdersIncludeVatColumn(error.message)) {
+      throw new Error(
+        '발주서 부가세(include_vat) 컬럼이 없습니다. Supabase에서 supabase/migrate-orders-include-vat.sql 을 실행해 주세요.',
+      )
+    }
+    throw new Error(error.message)
+  }
+}
+
 function mapOrderSaveError(detail: string) {
   if (detail.includes('order_lines_product_id_fkey')) {
     return '발주 품목 FK가 품목등록(items)과 맞지 않습니다. Supabase SQL Editor에서 supabase/setup-items.sql 하단 FK 교체 구문을 실행한 뒤, Supabase Dashboard → Settings → API에서 schema cache를 새로고침해 주세요.'
@@ -421,6 +446,7 @@ export async function createOrder(payload: OrderRowPayload): Promise<SaveOrderRe
       }
       await persistPaymentTermSnapshot('orders', orderId, paymentSnapshot)
       await persistOrderCurrency(orderId, currency)
+      await persistOrderIncludeVat(orderId, payload.includeVat === true)
       const assemblySync = await syncAssemblyGroupsForOrder(orderId)
       if (!assemblySync.ok) {
         return { ok: false, reason: assemblySync.reason, detail: assemblySync.detail }
@@ -523,6 +549,7 @@ export async function updateOrder(
 
     await persistPaymentTermSnapshot('orders', existing.id, paymentSnapshot)
     await persistOrderCurrency(existing.id, currency)
+    await persistOrderIncludeVat(existing.id, payload.includeVat === true)
     const assemblySync = await syncAssemblyGroupsForOrder(existing.id)
     if (!assemblySync.ok) {
       return { ok: false, reason: assemblySync.reason, detail: assemblySync.detail }

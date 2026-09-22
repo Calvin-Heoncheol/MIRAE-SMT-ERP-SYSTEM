@@ -60,7 +60,7 @@ export function ErpModal({
   footer,
   closeOnEscape = true,
   showCloseButton = true,
-  contentClassName = 'min-h-0 flex-1 overflow-y-auto px-5 py-4',
+  contentClassName = 'px-5 py-4',
   fitContent = false,
   dialogClassName = '',
   headerAddon,
@@ -85,6 +85,14 @@ export function ErpModal({
   }, [open, closeOnEscape, requestClose])
 
   if (!open) return null
+
+  const resolvedContentClassName = fitContent
+    ? contentClassName.includes('overflow')
+      ? contentClassName
+      : `${contentClassName} overflow-visible`
+    : contentClassName.includes('flex-1') || contentClassName.includes('overflow')
+      ? contentClassName
+      : `min-h-0 flex-1 overflow-y-auto ${contentClassName}`.trim()
 
   return (
     <ErpModalCloseContext.Provider value={requestClose}>
@@ -125,19 +133,9 @@ export function ErpModal({
               ) : null}
             </div>
           </div>
-          <div
-            className={
-              fitContent
-                ? contentClassName.includes('overflow')
-                  ? contentClassName
-                  : `${contentClassName} overflow-visible`
-                : contentClassName
-            }
-          >
-            {children}
-          </div>
+          <div className={resolvedContentClassName}>{children}</div>
           {footer ? (
-            <div className="relative z-[60] flex shrink-0 flex-wrap items-center justify-end gap-2 overflow-visible border-t border-slate-200 bg-slate-50 px-5 py-3">
+            <div className="relative z-10 flex shrink-0 flex-wrap items-center justify-end gap-2 overflow-visible border-t border-slate-200 bg-slate-50 px-5 py-3">
               {footer}
             </div>
           ) : null}

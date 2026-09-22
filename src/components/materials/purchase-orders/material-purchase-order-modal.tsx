@@ -7,6 +7,7 @@ import {
   type PurchaseAssistFillPayload,
 } from '@/components/materials/purchase-orders/material-purchase-assist-panel'
 import { MaterialPurchaseOrderItemsForm } from '@/components/materials/purchase-orders/material-purchase-order-items-form'
+import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { ErpButton } from '@/components/ui/erp-button'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal } from '@/components/ui/erp-modal'
@@ -39,9 +40,12 @@ import {
 } from '@/lib/materials/purchase-orders/types'
 import {
   addDaysYmd,
+  computeMaterialPurchaseOrderLineAmount,
   formatMaterialPurchaseOrderAmountNumber,
+  formatMaterialPurchaseOrderMoney,
   latestMaterialPurchaseOrderDeliveryDate,
   materialPurchaseOrderCurrencySymbol,
+  normalizeMaterialPurchaseOrderAmount,
   todayYmdSeoul,
 } from '@/lib/materials/purchase-orders/utils'
 import type { BomEdge } from '@/lib/materials/outbound/types'
@@ -96,6 +100,7 @@ function createInitialForm(
       deliveryDate: order.deliveryDate || '',
       supplier: order.supplier || '',
       currency: order.currency || 'KRW',
+      freightAmount: String(order.freightAmount || 0),
     }
   }
   return {
@@ -103,6 +108,7 @@ function createInitialForm(
     deliveryDate: addDaysYmd(today, 42),
     supplier: initialSupplier || '',
     currency: 'KRW',
+    freightAmount: '0',
   }
 }
 
@@ -330,6 +336,7 @@ function MaterialPurchaseOrderModalContent({
       delivery_date: headerDelivery,
       supplier: form.supplier.trim(),
       currency: form.currency,
+      freight_amount: normalizeMaterialPurchaseOrderAmount(form.freightAmount),
       source_order_id: mode === 'create' ? coverSourceOrderId || null : undefined,
       covered_order_line_id: mode === 'create' ? coverOrderLineId || null : undefined,
       covered_product_quantity:
@@ -367,6 +374,9 @@ function MaterialPurchaseOrderModalContent({
         deliveryDate: order.deliveryDate || form.deliveryDate || '',
         supplier: order.supplier || form.supplier,
         currency: order.currency || form.currency,
+        freightAmount: normalizeMaterialPurchaseOrderAmount(
+          form.freightAmount || order.freightAmount,
+        ),
         contactEmail: profile?.email || '',
         items: order.items,
       }),
@@ -404,13 +414,31 @@ function MaterialPurchaseOrderModalContent({
     onDeleted?.()
   }
 
+  const liveItemsAmount = normalizeMaterialPurchaseOrderAmount(
+    items.reduce(
+      (sum, item) =>
+        sum +
+        computeMaterialPurchaseOrderLineAmount(
+          Number(item.quantity) || 0,
+          Number(item.unitPrice) || 0,
+        ),
+      0,
+    ),
+  )
+  const liveFreightAmount = normalizeMaterialPurchaseOrderAmount(form.freightAmount)
+  const liveTotalAmount = normalizeMaterialPurchaseOrderAmount(liveItemsAmount + liveFreightAmount)
+
   return (
     <>
       <ErpModal
         open
         size="lg"
         title={
-          mode === 'edit' ? `구매발주 수정 (${items.length}개 품목)` : '신규 구매발주'
+          mode === 'edit' && order?.orderNumber
+            ? `구매발주 수정 ${order.orderNumber}`
+            : mode === 'edit'
+              ? '구매발주 수정'
+              : '신규 구매발주'
         }
         onClose={onClose}
         closeOnEscape={!busy}
@@ -515,35 +543,6 @@ function MaterialPurchaseOrderModalContent({
         ) : null}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {mode === 'edit' && order ? (
-            <label className="block text-sm sm:col-span-2">
-              <span className={ERP_FIELD_LABEL_CLASS}>구매발주번호</span>
-              <input
-                value={order.orderNumber}
-                readOnly
-                className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-mono text-xs text-slate-600`}
-              />
-            </label>
-          ) : null}
-          {(mode === 'edit' ? order?.sourceOrderId : coverSourceOrderId) ? (
-            <label className="block text-sm sm:col-span-2">
-              <span className={ERP_FIELD_LABEL_CLASS}>구분 · 연결 발주서</span>
-              <input
-                value={`부분 구매발주 · ${(mode === 'edit' ? order?.sourceOrderId : coverSourceOrderId) || ''}`}
-                readOnly
-                className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-mono text-xs text-slate-600`}
-              />
-            </label>
-          ) : mode === 'edit' ? (
-            <label className="block text-sm sm:col-span-2">
-              <span className={ERP_FIELD_LABEL_CLASS}>구분</span>
-              <input
-                value="자재별 구매발주"
-                readOnly
-                className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 text-slate-600`}
-              />
-            </label>
-          ) : null}
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>구매발주일</span>
             <input
@@ -580,6 +579,19 @@ function MaterialPurchaseOrderModalContent({
                 </option>
               ))}
             </select>
+          </label>
+          <label className="block text-sm">
+            <span className={ERP_FIELD_LABEL_CLASS}>운송비</span>
+            <QuoteNumericInput
+              min={0}
+              value={form.freightAmount}
+              onChange={(freightAmount) => updateForm('freightAmount', freightAmount)}
+              readOnly={readOnly}
+              className={`${ERP_FIELD_INPUT_CLASS} text-right tabular-nums read-only:bg-slate-50`}
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              공급사 송장에 포함된 배송비·운임 (없으면 0)
+            </span>
           </label>
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>기본 납기일</span>
@@ -701,6 +713,27 @@ function MaterialPurchaseOrderModalContent({
               onSupplierSuggest={suggestSupplier}
             />
           )}
+
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-x-5 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <span className="text-slate-600">
+              품목 합계{' '}
+              <span className="font-semibold tabular-nums text-slate-900">
+                {formatMaterialPurchaseOrderMoney(liveItemsAmount, form.currency)}
+              </span>
+            </span>
+            <span className="text-slate-600">
+              운송비{' '}
+              <span className="font-semibold tabular-nums text-slate-900">
+                {formatMaterialPurchaseOrderMoney(liveFreightAmount, form.currency)}
+              </span>
+            </span>
+            <span className="text-slate-900">
+              합계{' '}
+              <span className="font-bold tabular-nums">
+                {formatMaterialPurchaseOrderMoney(liveTotalAmount, form.currency)}
+              </span>
+            </span>
+          </div>
         </div>
         </div>
       </ErpModal>

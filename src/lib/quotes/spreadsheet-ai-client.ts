@@ -39,14 +39,15 @@ function buildPrompt(fileKind: SpreadsheetAiFileKind, fileName: string, previewR
   "headerRowIndex": 0,
   "columns": {
     "designator": "exact header cell text",
-    "comment": "header text or null",
+    "comment": "header text or null (Value / Specification)",
     "footprint": "header text or null",
     "description": "header text or null",
     "quantity": "header text or null",
     "mpn": "header text or null",
     "manufacturer": "header text or null",
     "supplier": "header text or null",
-    "supplierPart": "header text or null"
+    "supplierPart": "header text or null",
+    "customerPartNo": "header text or null (Item Code / customer material code — not MPN)"
   }
 }`
 
@@ -57,7 +58,7 @@ function buildPrompt(fileKind: SpreadsheetAiFileKind, fileName: string, previewR
     `Return ONLY valid JSON, no markdown commentary.`,
     fileKind === 'pickplace'
       ? `Required columns: designator (Ref/REFDES), x coordinate, y coordinate. Also map layer/side (TOP/BOT, e.g. SYM_MIRROR, Layer, Side), package/footprint, and value when present. layer is important — do not omit it when a side/mirror column exists.`
-      : `Required: designator column with reference designators (e.g. C63, C64 or R1-R5), often comma-separated in one cell, one BOM row per part line. Also map footprint/package (e.g. C_2012, TH), value/spec, description, mpn, quantity.`,
+      : `Required: designator column with reference designators (e.g. C63, C64 or R1-R5), often comma-separated in one cell, one BOM row per part line. Map specification/value to comment even if MPN is embedded inside that cell. Map Item Code / material code to customerPartNo (never as mpn). Also map footprint/package, description, mpn (only if a dedicated MPN column exists), quantity.`,
     `Use the exact header cell text from the preview row.`,
     `headerRowIndex is 0-based row index of the header line in the preview.`,
     `Schema:`,

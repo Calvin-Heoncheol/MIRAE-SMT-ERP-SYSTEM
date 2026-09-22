@@ -1074,8 +1074,7 @@ export function DeliveryHistoryModal({
     <>
     <ErpModal
       open={open && Boolean(group)}
-      title="출하"
-      description="출하일·수량·단가를 품목별로 수정하고, 추가에서 품목·작업·자재 행을 넣을 수 있습니다. 제품 단가는 발주서에 반영됩니다."
+      title="출하 — 출하일·수량·단가를 품목별로 수정하고, 추가에서 품목·작업·자재 행을 넣을 수 있습니다. 제품 단가는 발주서에 반영됩니다."
       size="lg"
       onClose={onClose}
       closeOnEscape={!busy}
@@ -1124,6 +1123,12 @@ export function DeliveryHistoryModal({
           ) : null}
 
           <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>고객사</span>
+              <div className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-semibold text-slate-900`}>
+                {customer || '—'}
+              </div>
+            </div>
             <label className="block text-sm">
               <span className={ERP_FIELD_LABEL_CLASS}>출하일</span>
               <input
@@ -1134,15 +1139,9 @@ export function DeliveryHistoryModal({
               />
             </label>
             <div className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>출하번호</span>
+              <span className={ERP_FIELD_LABEL_CLASS}>출하</span>
               <div className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-mono text-xs`}>
                 {shipmentId || '—'}
-              </div>
-            </div>
-            <div className="block text-sm">
-              <span className={ERP_FIELD_LABEL_CLASS}>고객사</span>
-              <div className={`${ERP_FIELD_INPUT_CLASS} bg-slate-50 font-semibold text-slate-900`}>
-                {customer || '—'}
               </div>
             </div>
           </div>

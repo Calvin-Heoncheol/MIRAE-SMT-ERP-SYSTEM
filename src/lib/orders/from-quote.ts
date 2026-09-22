@@ -244,6 +244,8 @@ export function buildOrderPayloadFromQuote(
 
             : '양산',
 
+      includeVat: quote.detailInfo?.settings?.includeVat === true,
+
       note: `견적 ${quote.quoteNumber} 전환`,
 
       source: 'quote',

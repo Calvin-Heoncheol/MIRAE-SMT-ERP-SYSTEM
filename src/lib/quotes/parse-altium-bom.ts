@@ -1,6 +1,7 @@
 import { detectBomHeader, fillMissingBomColumns, formatBomColumnMappingNote, type BomColumnMap } from '@/lib/quotes/bom-columns'
 import { detectBomExcludeReason, type BomExcludeReason } from '@/lib/quotes/bom-dnp'
 import {
+  designatorLookupKeys,
   explodeDesignators,
   looksLikeDesignatorField,
   looksLikeDesignatorToken,
@@ -21,6 +22,11 @@ export type BomLine = {
   manufacturer: string
   supplier: string
   supplierPart: string
+  /** 고객사 자재코드(Item Code) — MPN 아님 */
+  customerPartNo?: string
+  /** 사양 정규화 메모 */
+  normalizeNote?: string
+  normalizeSource?: 'rules' | 'ai' | 'column'
   excluded?: boolean
   excludeReason?: BomExcludeReason
 }
@@ -201,6 +207,7 @@ export function parseBomRows(
       manufacturer: cellAt(cells, columns.manufacturer),
       supplier: cellAt(cells, columns.supplier),
       supplierPart: cellAt(cells, columns.supplierPart),
+      customerPartNo: cellAt(cells, columns.customerPartNo) || undefined,
     }
 
     const excludeReason = detectBomExcludeReason(line, {
@@ -218,10 +225,10 @@ export function parseBomRows(
     lines.push(line)
 
     for (const designator of designators) {
-      const key = normalizeDesignatorKey(designator)
-      if (!key) continue
-      if (!designatorIndex[key]) {
-        designatorIndex[key] = line
+      for (const key of designatorLookupKeys(designator)) {
+        if (!designatorIndex[key]) {
+          designatorIndex[key] = line
+        }
       }
     }
   }

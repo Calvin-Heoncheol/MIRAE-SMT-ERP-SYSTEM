@@ -56,6 +56,8 @@ export type OrderFormState = {
   category: '양산' | '샘플' | '자재'
   /** 표시 통화 — 기본 KRW */
   currency: OrderCurrency
+  /** true = 발주서 PDF에 부가세 포함 표시 */
+  includeVat: boolean
   note: string
   /** 발주번호(고객 PO/NO) */
   customerPoNumber: string

@@ -15,7 +15,7 @@ import {
 } from '@/lib/quotes/form-state'
 import type { AltiumBomAnalysis } from '@/lib/quotes/parse-altium-bom'
 import type { AltiumPickPlaceAnalysis } from '@/lib/quotes/parse-altium-pick-place'
-import { isPickPlaceAnalysisReadyForQuote } from '@/lib/quotes/pick-place-review-reasons'
+import { isPickPlaceAnalysisReadyForQuote, countBlockingPickPlaceReviews } from '@/lib/quotes/pick-place-review-reasons'
 import type { QuoteType } from '@/lib/quotes/types'
 
 type AiQuoteModalProps = {
@@ -46,6 +46,7 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
   const [productName, setProductName] = useState('')
   const [pickPlaceAnalysis, setPickPlaceAnalysis] = useState<AltiumPickPlaceAnalysis | null>(null)
   const [bomAnalysis, setBomAnalysis] = useState<AltiumBomAnalysis | null>(null)
+  const [childReviewOpen, setChildReviewOpen] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -56,6 +57,7 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
     setProductName('')
     setPickPlaceAnalysis(null)
     setBomAnalysis(null)
+    setChildReviewOpen(false)
   }, [open])
 
   const summary = useMemo(() => {
@@ -74,7 +76,7 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
         dipTotals.waveWire
       : 0
     const reviewPending = pickPlaceAnalysis
-      ? pickPlaceAnalysis.classifiedRows.filter((row) => row.confidence === 'ambiguous' && row.category !== 'skip').length
+      ? countBlockingPickPlaceReviews(pickPlaceAnalysis.classifiedRows)
       : 0
     return { activePickPlace, bomLines, unpopulated, dipCount, reviewPending }
   }, [pickPlaceAnalysis, bomAnalysis])
@@ -112,6 +114,7 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
       zIndexClassName="z-[55]"
       contentClassName="px-5 py-4"
       footer={
+        childReviewOpen ? undefined : (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-slate-500">
             {!pickPlaceAnalysis || !bomAnalysis
@@ -129,6 +132,7 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
             </ErpButton>
           </div>
         </div>
+        )
       }
     >
       <div className="space-y-4">
@@ -171,6 +175,7 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
           productName={productName}
           appliedPickPlace={pickPlaceAnalysis}
           appliedBom={bomAnalysis}
+          onReviewOpenChange={setChildReviewOpen}
           onApplyPickPlace={(input) => {
             const resolvedAnalysis =
               bomAnalysis && input.analysis
