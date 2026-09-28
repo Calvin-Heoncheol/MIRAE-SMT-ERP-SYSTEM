@@ -184,6 +184,8 @@ export function buildOutboundNeedRows(input: {
   bucketByMaterialId: Map<string, OutboundMaterialBucket>
   itemCodeById?: Map<string, string>
   onHandByMaterialId?: Map<string, number>
+  /** MTO: 주문×자재 가용 key = orderId::materialId */
+  orderAvailableByOrderMaterial?: Map<string, number>
 }): MaterialOutboundNeedRow[] {
   const rows: MaterialOutboundNeedRow[] = []
 
@@ -264,7 +266,12 @@ export function buildOutboundNeedRows(input: {
         requiredQuantity: need.required,
         issuedQuantity: issued,
         remainingQuantity: remaining,
-        onHandQuantity: Math.max(0, input.onHandByMaterialId?.get(need.materialId) ?? 0),
+        onHandQuantity: Math.max(
+          0,
+          input.orderAvailableByOrderMaterial?.get(`${order.orderId}::${need.materialId}`) ??
+            input.onHandByMaterialId?.get(need.materialId) ??
+            0,
+        ),
       })
     }
   }
@@ -386,6 +393,8 @@ export function buildOutboundNeedCards(input: {
   edgesByParent: Map<string, BomEdge[]>
   onHandByMaterialId: Map<string, number>
   bucketByMaterialId: Map<string, OutboundMaterialBucket>
+  /** MTO: 주문별 가용 재고 맵 */
+  stockByOrderId?: Map<string, Map<string, number>>
 }): MaterialOutboundNeedCard[] {
   // 주문×제품×자재구분(SMD/DIP/기타) 단위로 카드 분리
   const map = new Map<string, MaterialOutboundNeedRow[]>()
@@ -417,11 +426,14 @@ export function buildOutboundNeedCards(input: {
     )
     if (remainingProductQuantity <= 0) continue
 
+    const stockForOrder =
+      input.stockByOrderId?.get(first.orderId) || input.onHandByMaterialId
+
     const issuableQuantity = computeIssuableProductQuantity(
       first.productId,
       remainingProductQuantity,
       input.edgesByParent,
-      input.onHandByMaterialId,
+      stockForOrder,
       filter,
     )
 

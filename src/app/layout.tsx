@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Geist_Mono, Noto_Sans_KR } from 'next/font/google'
+import { ToastProvider } from '@/components/ui/toast-provider'
 import './globals.css'
 
 const notoSansKr = Noto_Sans_KR({
@@ -29,7 +30,9 @@ export default function RootLayout({
       lang="ko"
       className={`${notoSansKr.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   )
 }

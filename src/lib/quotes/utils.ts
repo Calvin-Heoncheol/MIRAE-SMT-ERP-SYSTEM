@@ -192,6 +192,7 @@ export function toEstimateInputFromDetail(
     // 미설정(구 견적) = 포함. 신규만 false
     includeMaterialCosts: settings.includeMaterialCosts !== false,
     includeMetalMask: settings.includeMetalMask !== false,
+    metalMaskSide: settings.metalMaskSide,
     ...overrides,
   }
 }

@@ -24,6 +24,12 @@ function toPayloads(group: BomGroup): BomLinePayload[] {
       childProductId: line.childProductId.trim(),
       quantityPer: line.quantityPer,
       note: line.note || '',
+      process: line.process || '',
+      designators: line.designators || '',
+      sourceMpn: line.sourceMpn || '',
+      sourcePartCode: line.sourcePartCode || '',
+      sourceName: line.sourceName || '',
+      sourceSpec: line.sourceSpec || '',
     }))
 }
 

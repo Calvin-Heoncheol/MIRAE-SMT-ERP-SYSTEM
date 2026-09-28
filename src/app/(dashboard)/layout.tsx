@@ -5,7 +5,6 @@ import { ForcePasswordChangeModal } from '@/components/auth/force-password-chang
 import { BusyProvider } from '@/components/ui/busy-provider'
 import { ErpConfirmProvider } from '@/components/ui/erp-confirm'
 import { PageLocationHeader } from '@/components/ui/page-location-header'
-import { ToastProvider } from '@/components/ui/toast-provider'
 import { isAuthDisabled } from '@/lib/auth/config'
 import { getAuthProfile } from '@/lib/auth/session'
 import { DashboardChromeShell } from '@/components/dashboard/dashboard-chrome-shell'
@@ -23,21 +22,19 @@ export default async function DashboardLayout({
 
   return (
     <AuthProfileProvider profile={profile} authDisabled={authDisabled}>
-      <ToastProvider>
-        <BusyProvider>
-          <ErpConfirmProvider>
-            <DashboardChromeProvider>
-              <DashboardChromeShell
-                sideNav={<SideNav profile={profile} authDisabled={authDisabled} />}
-                pageHeader={<PageLocationHeader />}
-              >
-                {children}
-              </DashboardChromeShell>
-              <ForcePasswordChangeModal open={Boolean(profile?.mustChangePassword)} />
-            </DashboardChromeProvider>
-          </ErpConfirmProvider>
-        </BusyProvider>
-      </ToastProvider>
+      <BusyProvider>
+        <ErpConfirmProvider>
+          <DashboardChromeProvider>
+            <DashboardChromeShell
+              sideNav={<SideNav profile={profile} authDisabled={authDisabled} />}
+              pageHeader={<PageLocationHeader />}
+            >
+              {children}
+            </DashboardChromeShell>
+            <ForcePasswordChangeModal open={Boolean(profile?.mustChangePassword)} />
+          </DashboardChromeProvider>
+        </ErpConfirmProvider>
+      </BusyProvider>
     </AuthProfileProvider>
   )
 }

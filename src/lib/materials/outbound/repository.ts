@@ -8,6 +8,13 @@ import {
 import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { buildFullyShippedOrderIdSet } from '@/lib/delivery/utils'
+import {
+  applyOutboundIssuedToAllocations,
+  applyRestockToAllocations,
+  assertOutboundWithinOrderAtp,
+  fetchPendingInboundByOrderMaterial,
+  syncMaterialOrderAllocations,
+} from '@/lib/materials/allocations/repository'
 import { fetchMaterials } from '@/lib/materials/repository'
 import { formatMaterialDisplayCode } from '@/lib/materials/utils'
 import { fetchOrders } from '@/lib/orders/repository'
@@ -339,7 +346,7 @@ async function fetchBomEdges(): Promise<BomEdge[]> {
 
 export { fetchBomEdges }
 
-async function fetchIssuedOrderMaterialRows() {
+export async function fetchIssuedOrderMaterialRows() {
   const supabase = createSupabaseClient()
   const { data, error } = await supabase
     .from('material_outbound_records')
@@ -515,13 +522,14 @@ export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutb
   if (!ordersResult.ok) return ordersResult
 
   try {
-    const [bomEdges, issuedRows, onHandResult, assemblyResult, deliveryCountsResult] =
+    const [bomEdges, issuedRows, onHandResult, assemblyResult, deliveryCountsResult, pendingResult] =
       await Promise.all([
         fetchBomEdges(),
         fetchIssuedOrderMaterialRows(),
         fetchOnHandByMaterialId(),
         fetchAssemblyGroups(),
         fetchDeliveryCumulativeCounts(),
+        fetchPendingInboundByOrderMaterial(),
       ])
 
     if (!onHandResult.ok) {
@@ -555,6 +563,50 @@ export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutb
       materialsResult.materials.map((material) => [material.id, resolveMaterialBucket(material.type)]),
     )
     const issuedByOrderMaterial = aggregateIssuedByOrderMaterial(issuedRows)
+
+    const issuedNested = new Map<string, Map<string, number>>()
+    for (const row of issuedRows) {
+      const orderId = String(row.order_id || '').trim()
+      const materialId = String(row.material_id || '').trim()
+      const quantity = Math.floor(Number(row.quantity) || 0)
+      if (!orderId || !materialId || quantity === 0) continue
+      let byMaterial = issuedNested.get(orderId)
+      if (!byMaterial) {
+        byMaterial = new Map()
+        issuedNested.set(orderId, byMaterial)
+      }
+      byMaterial.set(materialId, (byMaterial.get(materialId) ?? 0) + quantity)
+    }
+    for (const byMaterial of issuedNested.values()) {
+      for (const [materialId, total] of byMaterial) {
+        byMaterial.set(materialId, Math.max(0, total))
+      }
+    }
+
+    const pendingInboundByOrderMaterial = pendingResult.ok
+      ? pendingResult.pendingByOrderMaterial
+      : new Map<string, number>()
+
+    const synced = await syncMaterialOrderAllocations({
+      orders: pendingOrders,
+      bomEdges,
+      materials: materialsResult.materials,
+      onHandByMaterialId,
+      pendingInboundByOrderMaterial,
+      issuedByOrderMaterial: issuedNested,
+      persist: true,
+    })
+
+    const orderAvailableByOrderMaterial = new Map<string, number>()
+    if (synced.ok) {
+      for (const line of synced.atpLines) {
+        orderAvailableByOrderMaterial.set(
+          `${line.orderId}::${line.materialId}`,
+          line.availableQty,
+        )
+      }
+    }
+
     const needs = buildOutboundNeedRows({
       orders: pendingOrders,
       edgesByParent,
@@ -563,12 +615,29 @@ export async function fetchMaterialOutboundPageData(): Promise<FetchMaterialOutb
       issuedByOrderMaterial,
       bucketByMaterialId,
       onHandByMaterialId,
+      orderAvailableByOrderMaterial,
     })
+
+    const stockByOrder = new Map<string, Map<string, number>>()
+    for (const [key, available] of orderAvailableByOrderMaterial) {
+      const sep = key.indexOf('::')
+      if (sep < 0) continue
+      const orderId = key.slice(0, sep)
+      const materialId = key.slice(sep + 2)
+      let map = stockByOrder.get(orderId)
+      if (!map) {
+        map = new Map()
+        stockByOrder.set(orderId, map)
+      }
+      map.set(materialId, available)
+    }
+
     const needCards = buildOutboundNeedCards({
       rows: needs,
       edgesByParent,
       onHandByMaterialId,
       bucketByMaterialId,
+      stockByOrderId: stockByOrder,
     })
 
     return {
@@ -652,6 +721,64 @@ export async function createMaterialOutbound(
     return { ok: false, reason: 'validation', detail: stockError }
   }
 
+  if (
+    (payload.outbound_type === 'production' || payload.outbound_type === 'restock') &&
+    payload.order_id?.trim()
+  ) {
+    const orderId = payload.order_id.trim()
+    const [onHandResult, pendingResult, materialsResult, ordersResult, bomEdges] = await Promise.all([
+      fetchOnHandByMaterialId(),
+      fetchPendingInboundByOrderMaterial(),
+      fetchMaterials(),
+      fetchOrders({ includeDerivedLines: true }),
+      fetchBomEdges(),
+    ])
+    if (onHandResult.ok && materialsResult.ok && ordersResult.ok) {
+      const order = ordersResult.orders.find((row) => row.orderId === orderId)
+      const orders = order ? [order] : ordersResult.orders.filter((row) => row.orderId === orderId)
+      const issuedRows = await fetchIssuedOrderMaterialRows()
+      const issuedNested = new Map<string, Map<string, number>>()
+      for (const row of issuedRows) {
+        const oid = String(row.order_id || '').trim()
+        const mid = String(row.material_id || '').trim()
+        const quantity = Math.floor(Number(row.quantity) || 0)
+        if (!oid || !mid || quantity === 0) continue
+        let byMaterial = issuedNested.get(oid)
+        if (!byMaterial) {
+          byMaterial = new Map()
+          issuedNested.set(oid, byMaterial)
+        }
+        byMaterial.set(mid, (byMaterial.get(mid) ?? 0) + quantity)
+      }
+      for (const byMaterial of issuedNested.values()) {
+        for (const [mid, total] of byMaterial) byMaterial.set(mid, Math.max(0, total))
+      }
+
+      const synced = await syncMaterialOrderAllocations({
+        orders: orders.length ? orders : ordersResult.orders,
+        bomEdges,
+        materials: materialsResult.materials,
+        onHandByMaterialId: onHandResult.onHandByMaterialId,
+        pendingInboundByOrderMaterial: pendingResult.ok
+          ? pendingResult.pendingByOrderMaterial
+          : new Map(),
+        issuedByOrderMaterial: issuedNested,
+        persist: true,
+      })
+
+      if (synced.ok && payload.outbound_type === 'production') {
+        const atpError = await assertOutboundWithinOrderAtp({
+          orderId,
+          items,
+          atpLines: synced.atpLines,
+        })
+        if (atpError) {
+          return { ok: false, reason: 'validation', detail: atpError }
+        }
+      }
+    }
+  }
+
   try {
     let allocated: Awaited<ReturnType<typeof allocateFifoReelLines>> | null = null
     try {
@@ -714,6 +841,23 @@ export async function createMaterialOutbound(
       }
       await supabase.from('material_outbound_records').delete().eq('id', inserted.id)
       return { ok: false, reason: 'query', detail: linesError.message }
+    }
+
+    if (payload.order_id?.trim()) {
+      if (payload.outbound_type === 'production') {
+        const applied = await applyOutboundIssuedToAllocations({
+          orderId: payload.order_id.trim(),
+          items,
+        })
+        if (!applied.ok && applied.reason !== 'auth') {
+          // 불출은 저장됨 — allocation 실패는 다음 sync 로 보정
+        }
+      } else if (payload.outbound_type === 'restock') {
+        await applyRestockToAllocations({
+          orderId: payload.order_id.trim(),
+          items,
+        }).catch(() => undefined)
+      }
     }
 
     return { ok: true, outboundId: inserted.id, outboundNumber: inserted.id }

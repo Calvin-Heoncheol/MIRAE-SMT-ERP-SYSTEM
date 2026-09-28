@@ -39,6 +39,7 @@ export type QuoteFormSnapshot = {
   /** false = 원자재·관리비 제외 */
   includeMaterialCosts?: boolean
   includeMetalMask?: boolean
+  metalMaskSide?: 'single' | 'double'
   /** @deprecated 카테고리별 배열 사용 */
   postProcessLines?: PostProcessLineForm[]
   assemblyLines?: PostProcessLineForm[]
@@ -193,6 +194,7 @@ export function buildQuoteDetailInfo(
       includeDip: Boolean(form.includeDip),
       includeMaterialCosts,
       includeMetalMask: form.includeMetalMask !== false,
+      ...(form.metalMaskSide ? { metalMaskSide: form.metalMaskSide } : {}),
       ...(form.productId?.trim() ? { productId: form.productId.trim() } : {}),
       ...(form.productCode?.trim() ? { productCode: form.productCode.trim() } : {}),
     },

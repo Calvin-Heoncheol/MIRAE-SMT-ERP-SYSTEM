@@ -62,7 +62,6 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
       customer: order.customer || '',
       category: order.category,
       currency: normalizeOrderCurrency(order.currency),
-      includeVat: order.includeVat === true,
       note: order.note || '',
       customerPoNumber: order.customerPoNumber || '',
     }
@@ -74,7 +73,6 @@ function createInitialForm(order?: OrderListGroup | null): OrderFormState {
     customer: '',
     category: '양산',
     currency: 'KRW',
-    includeVat: false,
     note: '',
     customerPoNumber: '',
   }
@@ -213,7 +211,6 @@ function OrderModalContent({
       customer: customerName,
       category: form.category,
       currency: normalizeOrderCurrency(form.currency),
-      includeVat: form.includeVat === true,
       note: form.note,
       customer_po_number: form.customerPoNumber,
       source: order?.source || 'manual',
@@ -283,7 +280,6 @@ function OrderModalContent({
       customer: form.customer.trim() || order.customer,
       category: form.category,
       currency: normalizeOrderCurrency(form.currency),
-      includeVat: form.includeVat === true,
       note: form.note,
       customerPoNumber: form.customerPoNumber,
       items: order.items,
@@ -426,7 +422,7 @@ function OrderModalContent({
         </label>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>구분</span>
           <select
@@ -455,18 +451,6 @@ function OrderModalContent({
                 {ORDER_CURRENCY_LABELS[currency]}
               </option>
             ))}
-          </select>
-        </label>
-        <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>부가세</span>
-          <select
-            value={form.includeVat ? 'incl' : 'excl'}
-            onChange={(event) => updateForm('includeVat', event.target.value === 'incl')}
-            disabled={form.currency === 'USD'}
-            className={ERP_FIELD_INPUT_CLASS}
-          >
-            <option value="excl">VAT 별도</option>
-            <option value="incl">VAT 포함</option>
           </select>
         </label>
       </div>

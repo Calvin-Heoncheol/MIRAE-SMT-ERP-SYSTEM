@@ -571,7 +571,7 @@ export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundS
                             자재
                           </th>
                           <th className="w-[14%] px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
-                            현재고
+                            주문가용
                           </th>
                           <th className="w-[14%] px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                             소요

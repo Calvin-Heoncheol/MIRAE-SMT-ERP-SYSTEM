@@ -1,5 +1,6 @@
 import {
   computeMetalMaskCostTotal,
+  normalizeMetalMaskSide,
   computeSampleCostTotal,
   DIP_UNIT,
   getAoiUnit,
@@ -396,7 +397,8 @@ export function calculateEstimate(
   const metalMaskTotal = includeMetalMask
     ? Math.max(
         0,
-        Math.round(Number(data.metalMaskCost) || 0) || computeMetalMaskCostTotal(pcbBoards),
+        Math.round(Number(data.metalMaskCost) || 0) ||
+          computeMetalMaskCostTotal(pcbBoards, true, normalizeMetalMaskSide(data.metalMaskSide)),
       )
     : 0
   const sampleCostTotal = computeSampleCostTotal(qty, pcbBoards, data.productionKind)

@@ -179,8 +179,7 @@ function pickUniqueOrActiveItem<T extends Pick<Item, 'isActive'>>(hits: T[]): T 
   return null
 }
 
-/** 고객사 BOM 기준: 품목코드 → MPN → 품목ID */
-export function resolveBomChildItem(token: string, items: Item[]): Item | null {
+function matchBomChildByPartCode(token: string, items: Item[]): Item | null {
   const needle = token.trim()
   if (!needle) return null
 
@@ -196,16 +195,46 @@ export function resolveBomChildItem(token: string, items: Item[]): Item | null {
     if (`${code}-${version}` === lower || `${code}${version}` === compact) return true
     return false
   })
-  const byCode = pickUniqueOrActiveItem(codeHits)
+  return pickUniqueOrActiveItem(codeHits)
+}
+
+function matchBomChildByMpn(token: string, items: Item[]): Item | null {
+  const needle = token.trim()
+  if (!needle) return null
+  const lower = needle.toLowerCase()
+  return pickUniqueOrActiveItem(
+    items.filter((item) => item.mpn.trim() && item.mpn.toLowerCase() === lower),
+  )
+}
+
+/** 고객사 BOM 기준: 품목코드 → MPN → 품목ID */
+export function resolveBomChildItem(token: string, items: Item[]): Item | null {
+  const needle = token.trim()
+  if (!needle) return null
+
+  const byCode = matchBomChildByPartCode(needle, items)
   if (byCode) return byCode
 
-  const mpnHits = items.filter(
-    (item) => item.mpn.trim() && item.mpn.toLowerCase() === lower,
-  )
-  const byMpn = pickUniqueOrActiveItem(mpnHits)
+  const byMpn = matchBomChildByMpn(needle, items)
   if (byMpn) return byMpn
 
+  const lower = needle.toLowerCase()
   return items.find((item) => item.id.toLowerCase() === lower) ?? null
+}
+
+/**
+ * Excel 행 매칭 — 품목코드 또는 MPN (둘 다 있으면 코드 우선, 불일치 시 null)
+ */
+export function resolveBomChildByCodeOrMpn(
+  partCode: string,
+  mpn: string,
+  items: Item[],
+): Item | null {
+  const byCode = matchBomChildByPartCode(partCode, items)
+  const byMpn = matchBomChildByMpn(mpn, items)
+
+  if (byCode && byMpn && byCode.id !== byMpn.id) return null
+  return byCode || byMpn
 }
 
 /** 구성 품목 단가 × 소요량 합산 (원 단위 반올림) */

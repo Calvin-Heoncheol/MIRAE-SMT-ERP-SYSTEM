@@ -14,6 +14,7 @@ import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import type { MaterialPurchaseOrderItemForm } from '@/lib/materials/purchase-orders/form-state'
 import { buildOrderPurchaseMaterialPreview } from '@/lib/materials/purchase-orders/need-utils'
+import { mtoPurchaseWarningForMaterialOnlyPo } from '@/lib/materials/mto-rules'
 import type { FetchMaterialPurchaseRegisterResult } from '@/lib/materials/purchase-orders/repository'
 import type {
   MaterialPurchaseSuggestionLine,
@@ -79,7 +80,7 @@ function cardMatchesFilter(card: OrderPurchaseCard, filter: StatusFilter) {
 
 export function MaterialPurchaseOrdersWorkspace({
   result,
-  initialPanel = 'suggestion',
+  initialPanel = 'partial',
 }: MaterialPurchaseOrdersWorkspaceProps) {
   const router = useRouter()
   const { afterSave } = useSaveFeedback()
@@ -114,8 +115,8 @@ export function MaterialPurchaseOrdersWorkspace({
   )
 
   const panelChips = [
-    { value: 'suggestion' as const, label: '구매발주 제안', count: suggestionLines.length },
-    { value: 'partial' as const, label: '부분 구매발주', count: activeCount },
+    { value: 'partial' as const, label: '발주서 구매 (MTO)', count: activeCount },
+    { value: 'suggestion' as const, label: '자재별 제안 (예외)', count: suggestionLines.length },
   ]
 
   const statusChips = [
@@ -133,14 +134,15 @@ export function MaterialPurchaseOrdersWorkspace({
     setPanel(next)
     setSearch('')
     const href =
-      next === 'partial'
-        ? '/materials/purchase-orders/by-material?mode=partial'
-        : '/materials/purchase-orders/by-material'
+      next === 'suggestion'
+        ? '/materials/purchase-orders/by-material?mode=suggestion'
+        : '/materials/purchase-orders/by-material?mode=partial'
     window.history.replaceState(window.history.state, '', href)
   }
 
   function openSuggestionCreate(items: MaterialPurchaseOrderItemForm[], supplier: string) {
     if (!items.length) return
+    if (!window.confirm(mtoPurchaseWarningForMaterialOnlyPo())) return
     setModalSession((value) => value + 1)
     setCreateModal({
       open: true,
@@ -259,15 +261,15 @@ export function MaterialPurchaseOrdersWorkspace({
           meta={
             panel === 'suggestion' ? (
               <p className="text-slate-500">
-                구매발주필요{' '}
+                MTO 예외 · 주문 미연결 구매{' '}
                 <span className="tabular-nums font-semibold text-rose-600">
                   {suggestionLines.length.toLocaleString('ko-KR')}
                 </span>
-                종 · 발주서 기준
+                종 (주문별 ATP 부족 합)
               </p>
             ) : (
               <p className="text-slate-500">
-                발주의 제품 대수에서 커버할 대수를 지정합니다.
+                MTO 기본 · 발주서에 연결해 구매합니다. 제품 대수에서 커버할 대수를 지정하세요.
               </p>
             )
           }

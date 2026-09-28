@@ -29,6 +29,8 @@ import {
 import { formatQuoteProcessTypeCodes } from './production-flags'
 import { formatQuoteMoneyTotal, formatQuoteValidityText, domesticPage1SummaryAmounts, domesticVatBreakdown, formatQuoteKrw, formatQuoteKrwRate } from './format'
 import {
+  breakdownSmdGroupTitle,
+  breakdownSmtPlacementSubtitle,
   breakdownSmtSectionTitle,
   getPreviewLabels,
   resolveLabelQuoteType,
@@ -275,6 +277,8 @@ function buildPreviewRowHtml(
         : showBoardSubtotalMetrics
           ? ''
           : '-'
+  const metricStyle = 'font-size:13px;color:#475569;'
+  const countStyle = row.countEmphasize ? 'font-size:13px;font-weight:700;color:#0f172a;' : metricStyle
   const firstMetric = swapUnitAndCount ? count : unit
   const secondMetric = swapUnitAndCount ? unit : count
   const firstMetricAlign = swapUnitAndCount ? 'center' : unitAlign
@@ -326,8 +330,8 @@ function buildPreviewRowHtml(
   return `<tr class="${rowClass}" style="border-top:${borderTop};">
     ${boardCell}
     <td class="breakdown-col-item" style="padding:8px 12px;${indent}${labelStyle}${cellBg}${cellBorder}">${escapeHtml(row.label)}${descriptionHtml}</td>
-    <td style="padding:8px 12px;text-align:${firstMetricAlign};${cellBg}${cellBorder}font-size:13px;color:#475569;">${firstMetric}</td>
-    <td style="padding:8px 12px;text-align:${secondMetricAlign};white-space:nowrap;${cellBg}${cellBorder}font-size:13px;color:#475569;">${secondMetric}</td>
+    <td style="padding:8px 12px;text-align:${firstMetricAlign};${cellBg}${cellBorder}${swapUnitAndCount ? countStyle : metricStyle}">${firstMetric}</td>
+    <td style="padding:8px 12px;text-align:${secondMetricAlign};white-space:nowrap;${cellBg}${cellBorder}${swapUnitAndCount ? metricStyle : countStyle}">${secondMetric}</td>
     ${unitPriceCell}
     ${productionQtyCell}
     <td style="padding:8px 12px;text-align:right;${amountStyle}${cellBg}${cellBorder}">${amount}</td>
@@ -378,7 +382,7 @@ function buildQuoteBreakdownTableHtml(
       : 'quote-table line-items-table'
   const boardHeader = showBoardColumn ? `<th class="breakdown-col-board">${breakdownBoardColLabel(labelType)}</th>` : ''
   const unitTotalHeader = `<th style="text-align:right;">${
-    isSmdSection ? labels.colSmdUnitPrice : labels.colUnitTotal
+    isSmdSection || isPostSection || isSetupSection ? labels.colSmdUnitPrice : labels.colUnitTotal
   }</th>`
   const productionQtyHeader = showProductionQty
     ? `<th style="text-align:center;">${labels.colProductionQty}</th>`
@@ -469,6 +473,56 @@ function buildBreakdownSectionHtml(
         labelType,
         sectionKey,
       })}
+    </div>
+  </div>`
+}
+
+function buildBreakdownSubsectionHtml(
+  subtitle: string,
+  rows: PreviewRow[],
+  quoteType: QuoteType,
+  sectionKey: PreviewSection,
+  labelType: QuoteLabelType,
+  qty: number,
+) {
+  if (!rows.length) return ''
+  const tableRows = prepareBreakdownSectionTableRows(rows, sectionKey, quoteType, qty, labelType)
+  return `<div class="breakdown-subsection breakdown-section-${sectionKey}">
+      <h4 class="breakdown-subsection-title">${escapeHtml(subtitle)}</h4>
+      ${buildQuoteBreakdownTableHtml(tableRows, quoteType, {
+        continuous: true,
+        showBoardColumn: tableRows.some((row) => row.boardName),
+        labelType,
+        sectionKey,
+      })}
+    </div>`
+}
+
+/** SMD 묶음 — SET-UP(발주 1회) + 실장·검사 */
+function buildSmdBreakdownSectionHtml(
+  setupRows: PreviewRow[],
+  smtRows: PreviewRow[],
+  quoteType: QuoteType,
+  labelType: QuoteLabelType,
+  qty: number,
+) {
+  if (!setupRows.length) {
+    return buildBreakdownSectionHtml(
+      breakdownSmtSectionTitle(labelType),
+      smtRows,
+      quoteType,
+      'smt',
+      'breakdown-section-smt',
+      labelType,
+      qty,
+    )
+  }
+
+  return `<div class="breakdown-section breakdown-section-smt">
+    <div class="breakdown-section-inner">
+      <h3 class="breakdown-section-title">${escapeHtml(breakdownSmdGroupTitle(labelType))}</h3>
+      ${buildBreakdownSubsectionHtml('SET-UP', setupRows, quoteType, 'setup', labelType, qty)}
+      ${buildBreakdownSubsectionHtml(breakdownSmtPlacementSubtitle(labelType), smtRows, quoteType, 'smt', labelType, qty)}
     </div>
   </div>`
 }
@@ -954,20 +1008,20 @@ function buildUnitPriceExplanationHtml(
         unit: perMin,
         hint: pdfText(
           lang,
-          '후공정 작업 직접 인건비',
-          'Direct labor for post-process work',
-          '后工序作业直接人工费',
+          '후공정 작업자 인건비 (4대보험·퇴직금·식대·연차 포함)',
+          'Post-process operator labor incl. social insurance, severance, meals, and paid leave',
+          '后工序作业人员人工费 (含四大保险·退职金·餐费·年假)',
         ),
       },
       {
-        label: pdfText(lang, '제조간접비', 'Manufacturing Overhead', '制造间接费'),
+        label: pdfText(lang, '간접노무비', 'Indirect Labor', '间接人工费'),
         amount: formatQuoteKrw(POST_RATE_OVERHEAD),
         unit: perMin,
         hint: pdfText(
           lang,
-          '설비·유틸리티·현장 지원',
-          'Equipment, utilities, and shop support',
-          '设备·公用工程·现场支援',
+          '반장·자재·관리 인력 등 간접 인건비',
+          'Indirect labor for supervisors, material handlers, and administrative staff',
+          '班长·物料·管理人员等间接人工费',
         ),
       },
       {
@@ -982,14 +1036,14 @@ function buildUnitPriceExplanationHtml(
         ),
       },
       {
-        label: pdfText(lang, '일반관리비', 'General & Administrative', '一般管理费'),
+        label: pdfText(lang, '제조경비', 'Manufacturing Expenses', '制造费用'),
         amount: formatQuoteKrw(POST_RATE_ADMIN),
         unit: perMin,
         hint: pdfText(
           lang,
-          '영업·관리·품질 지원',
-          'Sales, admin, and quality support',
-          '营业·管理·品质支援',
+          '품질관리, 전력, 부자재 등 소모품',
+          'Quality control, power, and consumables such as sub-materials',
+          '品质管理、电力、辅料等消耗品',
         ),
       },
     ],
@@ -1061,9 +1115,9 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
   const pageTitle = pdfText(lang, '공정별 세부 산정내역', 'Detailed Breakdown by Process', '各工序明细')
   const pageNote = pdfText(
     lang,
-    'SET-UP·SMD(실장·검사)·납땜·후공정·자재 항목별 단가·수량 기준 산정식입니다.',
-    'Itemized calculation for SET-UP, SMD (placement, inspection), soldering, post-process, and materials.',
-    'SET-UP·SMD(贴装·检查)·焊接·后工序·材料各项单价·数量计算式。',
+    'SMD(SET-UP·실장·검사)·납땜·후공정·자재 항목별 단가·수량 기준 산정식입니다.',
+    'Itemized calculation for SMD (SET-UP, placement, inspection), soldering, post-process, and materials.',
+    'SMD(SET-UP·贴装·检查)·焊接·后工序·材料各项单价·数量计算式。',
   )
   const solderingTitle = labels.soldering
   const postTitle = pdfSummarySectionLabel(labels.postProcess, labelType)
@@ -1073,8 +1127,7 @@ function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteD
     <div class="quote-card">
       ${buildSectionPageHeaderHtml(quote, estimate, pageTitle, pageNote)}
       <div class="breakdown-sections">
-        ${buildBreakdownSectionHtml('SET-UP', setupRows, quote.quoteType, 'setup', 'breakdown-section-separated', labelType, estimate.qty || 1)}
-        ${buildBreakdownSectionHtml(breakdownSmtSectionTitle(labelType), smtRows, quote.quoteType, 'smt', 'breakdown-section-smt', labelType, estimate.qty || 1)}
+        ${buildSmdBreakdownSectionHtml(setupRows, smtRows, quote.quoteType, labelType, estimate.qty || 1)}
         ${buildBreakdownSectionHtml(solderingTitle, dipRows, quote.quoteType, 'dip', 'breakdown-section-separated', labelType, estimate.qty || 1)}
         ${buildBreakdownSectionHtml(postTitle, postRows, quote.quoteType, 'post', 'breakdown-section-separated', labelType, estimate.qty || 1)}
         ${buildBreakdownSectionHtml(materialTitle, materialRows, quote.quoteType, 'material', 'breakdown-section-separated', labelType, estimate.qty || 1)}
@@ -1541,6 +1594,11 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       color: #64748b;
       font-weight: 600;
     }
+    .unit-price-table th:first-child,
+    .unit-price-item {
+      word-break: keep-all;
+      min-width: 5.5em;
+    }
     .unit-price-item {
       font-weight: 700;
       color: #0f172a;
@@ -1712,6 +1770,18 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
     .breakdown-section-other .breakdown-section-inner {
       break-inside: avoid;
       page-break-inside: avoid;
+    }
+    .breakdown-subsection + .breakdown-subsection {
+      margin-top: 14px;
+    }
+    .breakdown-subsection-title {
+      margin: 0 0 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #475569;
+      text-align: left;
+      break-after: avoid;
+      page-break-after: avoid;
     }
     .breakdown-section-separated {
       margin-top: 24px;

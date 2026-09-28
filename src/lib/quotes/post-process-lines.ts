@@ -13,11 +13,11 @@ export type PostProcessLineForm = {
 
 export type PostProcessProductionKind = '샘플' | '양산'
 
-/** 후공정 분 — 소수 첫째 자리까지 (반올림) */
+/** 후공정 분 — 소수 둘째 자리까지 (반올림) */
 export function roundPostProcessMinutes(value: number | string | undefined | null) {
   const n = Number(value)
   if (!Number.isFinite(n) || n <= 0) return 0
-  return Math.round(n * 10) / 10
+  return Math.round(n * 100) / 100
 }
 
 export function parsePostProcessMinutes(value: number | string | undefined | null) {
@@ -27,7 +27,7 @@ export function parsePostProcessMinutes(value: number | string | undefined | nul
 export function formatPostProcessMinutesDisplay(minutes: number) {
   const rounded = roundPostProcessMinutes(minutes)
   if (rounded <= 0) return '—'
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+  return rounded.toFixed(2)
 }
 
 export function parsePostProcessSeconds(value: number | string | undefined | null) {

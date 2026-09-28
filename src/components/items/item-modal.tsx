@@ -27,7 +27,6 @@ import {
   ITEM_CATEGORY_LABELS,
   ITEM_CATEGORY_CODE_PREFIX,
   ITEM_MATERIAL_TYPE_OPTIONS,
-  ITEM_SUPPLY_TYPE_OPTIONS,
   ITEM_PCB_SIDE_MODE_LABELS,
   ITEM_PCB_SIDE_MODES,
   type ItemPcbSideMode,
@@ -41,7 +40,6 @@ import {
   type Item,
   type ItemCategory,
   type ItemMaterialType,
-  type ItemSupplyType,
 } from '@/lib/items/types'
 import { nextItemCodeForCategory, itemFromPayload, displayItemUnitPrice, formatItemUnitPrice } from '@/lib/items/utils'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
@@ -424,7 +422,6 @@ function ItemModalContent({
           '',
           '· 발주·생산 이력은 그대로 유지됩니다.',
           '· 품목 수정 화면에서「사용중지」로 표시됩니다.',
-          '· BOM 등록 목록에서는 숨겨집니다.',
           '· 실수로 만든 버전을 없애고 싶을 때 삭제 대신 이 방법을 권장합니다.',
         ].join('\n'),
         confirmLabel: '사용중지',
@@ -454,8 +451,6 @@ function ItemModalContent({
         title: '품목 재사용',
         message: [
           `${item.name} (${item.id}) 을(를) 다시 사용중으로 바꿀까요?`,
-          '',
-          '· BOM 등록 목록에도 다시 표시됩니다.',
         ].join('\n'),
         confirmLabel: '확인',
         tone: 'default',
@@ -561,7 +556,7 @@ function ItemModalContent({
         {showRawMaterialTypeField ? (
           <section className="space-y-3">
             <div className="overflow-x-auto rounded-lg border border-slate-200">
-              <table className="erp-data-table erp-data-table--compact min-w-[1080px] w-full border-collapse text-sm">
+              <table className="erp-data-table erp-data-table--compact min-w-[960px] w-full border-collapse text-sm">
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
@@ -587,9 +582,6 @@ function ItemModalContent({
                     </th>
                     <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
                       MPN
-                    </th>
-                    <th className="whitespace-nowrap px-3 py-2 text-left font-semibold text-slate-600">
-                      도급/사급
                     </th>
                   </tr>
                 </thead>
@@ -717,22 +709,6 @@ function ItemModalContent({
                           </div>
                         ))}
                       </div>
-                    </td>
-                    <td className="min-w-[6.5rem] px-2 py-2">
-                      <select
-                        value={form.supplyType}
-                        onChange={(event) =>
-                          updateForm('supplyType', event.target.value as ItemSupplyType)
-                        }
-                        className={ERP_FIELD_INPUT_CLASS}
-                      >
-                        <option value="">선택</option>
-                        {ITEM_SUPPLY_TYPE_OPTIONS.map((type) => (
-                          <option key={type} value={type}>
-                            {type}
-                          </option>
-                        ))}
-                      </select>
                     </td>
                   </tr>
                 </tbody>
@@ -896,7 +872,7 @@ function ItemModalContent({
                   {formatItemUnitPrice(displayItemUnitPrice(item))}원
                 </p>
               ) : (
-                <p className="text-sm text-slate-500">BOM 등록 후 자동 계산</p>
+                <p className="text-sm text-slate-500">품목 목록 BOM에서 등록 후 자동 계산</p>
               )}
             </div>
             <p className="text-xs text-slate-500">
@@ -1188,23 +1164,6 @@ function ItemModalContent({
                         </div>
                       ))}
                     </div>
-                  </label>
-                  <label className="block text-sm">
-                    <span className={ERP_FIELD_LABEL_CLASS}>도급/사급</span>
-                    <select
-                      value={form.supplyType}
-                      onChange={(event) =>
-                        updateForm('supplyType', event.target.value as ItemSupplyType)
-                      }
-                      className={ERP_FIELD_INPUT_CLASS}
-                    >
-                      <option value="">선택</option>
-                      {ITEM_SUPPLY_TYPE_OPTIONS.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
                   </label>
                 </>
               ) : null}

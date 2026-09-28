@@ -1,3 +1,5 @@
+import type { MaterialAtpLine } from '@/lib/materials/atp'
+import { atpShortageByMaterial } from '@/lib/materials/atp'
 import type { BomEdge } from '@/lib/materials/outbound/types'
 import { explodeBomToMaterials } from '@/lib/materials/outbound/utils'
 import type { Material } from '@/lib/materials/types'
@@ -47,9 +49,29 @@ function resolveCardStatus(products: OrderPurchaseProductLine[]): OrderPurchaseS
   return 'partial'
 }
 
+/** 주문 연동 PO 미입고 — key: orderId::materialId */
+export function buildPendingInboundByOrderMaterial(
+  purchaseOrders: MaterialPurchaseOrderListGroup[],
+): Map<string, number> {
+  const map = new Map<string, number>()
+  for (const po of purchaseOrders) {
+    const orderId = (po.sourceOrderId || '').trim()
+    if (!orderId) continue
+    for (const item of po.items) {
+      const materialId = (item.materialId || '').trim()
+      if (!materialId) continue
+      const pending = Math.max(0, (Number(item.quantity) || 0) - (Number(item.inboundQuantity) || 0))
+      if (pending <= 0) continue
+      const key = `${orderId}::${materialId}`
+      map.set(key, (map.get(key) ?? 0) + pending)
+    }
+  }
+  return map
+}
+
 /**
- * 구매발주 제안 — 고객 발주서(미커버 대수) BOM 소요 − 현재고 − 입고예정.
- * SMT 생산계획과 무관하게 주문 수량을 목표로 한다.
+ * 구매발주 제안 — MTO: 주문별 ATP 부족분 합산.
+ * (구: 전체 소요 − 공용 현재고 − 전체 입고예정)
  */
 export function buildPurchaseSuggestionLines(input: {
   orders: OrderListGroup[]
@@ -57,7 +79,52 @@ export function buildPurchaseSuggestionLines(input: {
   materials: Material[]
   onHandByMaterialId: Map<string, number>
   purchaseOrders?: MaterialPurchaseOrderListGroup[]
+  /** 있으면 주문별 부족 합으로 제안 */
+  atpLines?: MaterialAtpLine[]
 }): MaterialPurchaseSuggestionLine[] {
+  if (input.atpLines?.length) {
+    const shortageByMaterial = atpShortageByMaterial(input.atpLines)
+    const pendingByMaterial = new Map<string, number>()
+    for (const line of input.atpLines) {
+      if (line.pendingInboundQty <= 0) continue
+      pendingByMaterial.set(
+        line.materialId,
+        (pendingByMaterial.get(line.materialId) ?? 0) + line.pendingInboundQty,
+      )
+    }
+    const requiredByMaterial = new Map<string, number>()
+    for (const line of input.atpLines) {
+      requiredByMaterial.set(
+        line.materialId,
+        (requiredByMaterial.get(line.materialId) ?? 0) + line.remainingNeed,
+      )
+    }
+
+    return [...shortageByMaterial.entries()]
+      .map(([materialId, suggestedQuantity]) => {
+        const material = resolveMaterialMeta(input.materials, materialId)
+        return {
+          materialId: material?.id || materialId,
+          materialName: material?.materialName || materialId,
+          specification: material?.specification || '',
+          mpn: material?.mpn || '',
+          supplier: material?.supplier || '',
+          unitPrice: material?.unitPrice || 0,
+          totalRequiredQuantity: requiredByMaterial.get(materialId) ?? suggestedQuantity,
+          onHandQuantity: Math.max(0, input.onHandByMaterialId.get(materialId) ?? 0),
+          pendingInboundQuantity: pendingByMaterial.get(materialId) ?? 0,
+          suggestedQuantity,
+        }
+      })
+      .filter((line) => line.suggestedQuantity > 0)
+      .sort((a, b) => {
+        const supplierCompare = a.supplier.localeCompare(b.supplier, 'ko')
+        if (supplierCompare !== 0) return supplierCompare
+        return a.materialName.localeCompare(b.materialName, 'ko')
+      })
+  }
+
+  // 폴백 — allocation 테이블 없을 때 기존 합산
   const edgesByParent = buildEdgesByParent(input.bomEdges)
   const coveredByLine = buildCoveredQuantityByOrderLine(input.purchaseOrders ?? [])
 
@@ -213,6 +280,8 @@ export function buildOrderPurchaseMaterialPreview(input: {
   bomEdges: BomEdge[]
   materials: Material[]
   onHandByMaterialId: Map<string, number>
+  /** 이 주문의 ATP 가용 (있으면 제안 수량에 반영) */
+  orderAvailableByMaterialId?: Map<string, number>
 }): OrderPurchaseMaterialPreview[] {
   const edgesByParent = buildEdgesByParent(input.bomEdges)
   const qty = Math.max(0, Math.floor(Number(input.purchaseQuantity) || 0))
@@ -229,7 +298,12 @@ export function buildOrderPurchaseMaterialPreview(input: {
           input.onHandByMaterialId.get(materialId) ??
           0,
       )
-      const suggestedQuantity = Math.max(0, requiredQuantity - onHandQuantity)
+      const orderAvailable =
+        input.orderAvailableByMaterialId?.get(resolvedId) ??
+        input.orderAvailableByMaterialId?.get(materialId)
+      const coverFromStock =
+        orderAvailable != null ? Math.min(requiredQuantity, orderAvailable) : onHandQuantity
+      const suggestedQuantity = Math.max(0, requiredQuantity - coverFromStock)
       return {
         materialId: resolvedId,
         materialCode: resolvedId,

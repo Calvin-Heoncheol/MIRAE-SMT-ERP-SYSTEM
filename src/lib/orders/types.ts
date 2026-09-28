@@ -50,8 +50,6 @@ export type OrderListGroup = {
   category: OrderCategory
   /** 표시 통화 — 기본 KRW */
   currency: OrderCurrency
-  /** true = 발주서 PDF에 부가세(10%) 포함 표시 */
-  includeVat: boolean
   note: string
   /** 발주번호(고객 PO/NO) — 발주ID와 별도 */
   customerPoNumber: string
@@ -116,8 +114,6 @@ export type OrderRowPayload = {
   customer: string
   category: OrderCategory
   currency?: OrderCurrency
-  /** true = 발주서에 부가세 포함 표시 */
-  includeVat?: boolean
   note?: string
   customer_po_number?: string
   source?: string

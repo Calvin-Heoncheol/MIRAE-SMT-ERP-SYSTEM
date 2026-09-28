@@ -7,8 +7,9 @@ import {
 } from '@/lib/auth/created-by'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
 import { buildFullyShippedOrderIdSet } from '@/lib/delivery/utils'
+import { syncMaterialOrderAllocations } from '@/lib/materials/allocations/repository'
 import { createSupabaseClient } from '@/lib/supabase'
-import { fetchBomEdges } from '@/lib/materials/outbound/repository'
+import { fetchBomEdges, fetchIssuedOrderMaterialRows } from '@/lib/materials/outbound/repository'
 import type { BomEdge } from '@/lib/materials/outbound/types'
 import { fetchMaterials } from '@/lib/materials/repository'
 import type { Material } from '@/lib/materials/types'
@@ -18,8 +19,34 @@ import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
 import type { OrderListGroup } from '@/lib/orders/types'
 import {
   buildOrderPurchaseCards,
+  buildPendingInboundByOrderMaterial,
   buildPurchaseSuggestionLines,
 } from './need-utils'
+
+/** 불출 실적 → 주문×자재 합 (ATP issued) */
+function buildIssuedByOrderMaterial(
+  rows: Array<{ order_id: string | null; material_id: string; quantity: number }>,
+): Map<string, Map<string, number>> {
+  const map = new Map<string, Map<string, number>>()
+  for (const row of rows) {
+    const orderId = String(row.order_id || '').trim()
+    const materialId = String(row.material_id || '').trim()
+    const quantity = Math.floor(Number(row.quantity) || 0)
+    if (!orderId || !materialId || quantity === 0) continue
+    let byMaterial = map.get(orderId)
+    if (!byMaterial) {
+      byMaterial = new Map()
+      map.set(orderId, byMaterial)
+    }
+    byMaterial.set(materialId, (byMaterial.get(materialId) ?? 0) + quantity)
+  }
+  for (const byMaterial of map.values()) {
+    for (const [materialId, total] of byMaterial) {
+      byMaterial.set(materialId, Math.max(0, total))
+    }
+  }
+  return map
+}
 import type {
   MaterialPurchaseOrderListGroup,
   MaterialPurchaseOrderRecord,
@@ -268,12 +295,31 @@ export async function fetchMaterialPurchaseOrderRegisterData(): Promise<FetchMat
 
     const materials = await mergeMaterialsFromBomLeaves(materialsResult.materials, bomEdges)
 
+    const issuedRows = await fetchIssuedOrderMaterialRows()
+    const issuedFlat = buildIssuedByOrderMaterial(issuedRows)
+    const pendingInboundByOrderMaterial = buildPendingInboundByOrderMaterial(
+      purchaseOrdersResult.orders,
+    )
+
+    const synced = await syncMaterialOrderAllocations({
+      orders: activeOrders,
+      bomEdges,
+      materials,
+      onHandByMaterialId: onHandResult.onHandByMaterialId,
+      pendingInboundByOrderMaterial,
+      issuedByOrderMaterial: issuedFlat,
+      persist: true,
+    })
+
+    const atpLines = synced.ok ? synced.atpLines : []
+
     const suggestionLines = buildPurchaseSuggestionLines({
       orders: activeOrders,
       bomEdges,
       materials,
       onHandByMaterialId: onHandResult.onHandByMaterialId,
       purchaseOrders: purchaseOrdersResult.orders,
+      atpLines,
     })
 
     const cards = buildOrderPurchaseCards({

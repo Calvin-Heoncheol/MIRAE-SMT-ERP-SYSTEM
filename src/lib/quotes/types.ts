@@ -128,6 +128,8 @@ export type QuoteDetailInfo = {
     includeMaterialCosts?: boolean
     /** 메탈마스크 포함 여부 */
     includeMetalMask?: boolean
+    /** 메탈마스크 단면/양면 — 미설정이면 보드 면 기준 */
+    metalMaskSide?: 'single' | 'double'
     productId?: string
     /** 미등록 포함 — 견적에 적힌 제품코드 */
     productCode?: string
@@ -212,6 +214,8 @@ export type EstimateInput = {
   includeMaterialCosts?: boolean
   /** false 이면 메탈마스크 비용 제외 */
   includeMetalMask?: boolean
+  /** 메탈마스크 단면/양면 — 미설정이면 보드 면 기준 */
+  metalMaskSide?: 'single' | 'double'
   smtSide?: SmtSide
   aoiEnabled?: boolean
   pcbWashEnabled?: boolean

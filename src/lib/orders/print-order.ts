@@ -16,7 +16,6 @@ import {
 } from '@/lib/app-config'
 import type { OrderCurrency, OrderListGroup } from '@/lib/orders/types'
 import { formatOrderDate, formatOrderMoney, normalizeOrderCurrency } from '@/lib/orders/utils'
-import { domesticVatBreakdown } from '@/lib/quotes/format'
 import {
   getQuoteProcessTypeCodes,
   type QuoteProcessTypeCode,
@@ -48,8 +47,6 @@ export type OrderPrintData = {
   customerPoNumber?: string
   /** 발주서 상단 연락 이메일 — 없으면 회사 기본값 */
   contactEmail?: string
-  /** 원본 견적이 VAT 포함 표시일 때 발주 PDF에도 VAT 표기 */
-  includeVat?: boolean
   /** 해외 견적 기준이면 영문 업체명·주소를 미국 법인으로 */
   quoteType?: 'domestic' | 'export'
   /** Confirmation 공정 표기 — 예: SMD + Assembly + Testing + Packing */
@@ -186,13 +183,8 @@ export function buildOrderHtml(
   const totalAmount = data.items.reduce((sum, item) => sum + Math.max(0, Number(item.orderAmount) || 0), 0)
   const currency = normalizeOrderCurrency(data.currency)
   const moneyPrefix = currency === 'USD' ? '$' : '₩'
-  const includeVat = data.includeVat === true && currency === 'KRW'
   const unitPriceHeader = t('단가', 'Unit Price')
   const amountHeader = t('금액', 'Amount')
-  const vatBreakdown = includeVat ? domesticVatBreakdown(totalAmount) : null
-  const vatAmount = vatBreakdown?.vat ?? 0
-  const displayTotalIncl = vatBreakdown?.totalIncl ?? totalAmount
-
   const rows = data.items
     .map((item, index) => {
       const name = escapeHtml(item.productName || '—')
@@ -213,20 +205,7 @@ export function buildOrderHtml(
     })
     .join('')
 
-  const totalsHtml = includeVat
-    ? `<div class="row">
-        <span class="label">${t('공급가액', 'Supply Amount')}</span>
-        <span class="value">${escapeHtml(formatOrderMoney(totalAmount, currency))}</span>
-      </div>
-      <div class="row">
-        <span class="label">${t('부가세 (10%)', 'VAT (10%)')}</span>
-        <span class="value">${escapeHtml(formatOrderMoney(vatAmount, currency))}</span>
-      </div>
-      <div class="row grand">
-        <span class="label">${t('최종 합계 (VAT 포함)', 'Grand Total (incl. VAT)')}</span>
-        <span class="value">${escapeHtml(formatOrderMoney(displayTotalIncl, currency))}</span>
-      </div>`
-    : `<div class="row grand">
+  const totalsHtml = `<div class="row grand">
         <span class="label">${t('금액 합계', 'Total Amount')}</span>
         <span class="value">${escapeHtml(formatOrderMoney(totalAmount, currency))}</span>
       </div>`
@@ -726,7 +705,6 @@ export function buildOrderPrintData(order: OrderListGroup): OrderPrintData {
     currency: normalizeOrderCurrency(order.currency),
     note: order.note,
     customerPoNumber: order.customerPoNumber,
-    includeVat: order.includeVat === true && normalizeOrderCurrency(order.currency) === 'KRW',
     processLabel: processParts.length ? processParts.join(' + ') : undefined,
     items: order.items.map((item) => ({
       productId: item.productId,
@@ -766,8 +744,6 @@ export function buildOrderPrintDataFromQuote(
   const unitPrice = quantity > 0 ? Math.round(totalAmount / quantity) : 0
   const productionKind =
     quote.detailInfo?.settings?.productionKind === '샘플' ? '샘플' : '양산'
-  const includeVat =
-    quote.detailInfo?.settings?.includeVat === true && quote.quoteType === 'domestic'
   const processLabel = formatOrderProcessLabel(getQuoteProcessTypeCodes(quote))
 
   return {
@@ -778,7 +754,6 @@ export function buildOrderPrintDataFromQuote(
     customer: quote.customer,
     category: productionKind,
     currency: 'KRW',
-    includeVat,
     contactEmail: options?.contactEmail,
     quoteType: quote.quoteType,
     processLabel: processLabel || undefined,

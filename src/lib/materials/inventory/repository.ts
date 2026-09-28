@@ -1,4 +1,5 @@
 import { createSupabaseClient } from '@/lib/supabase'
+import { fetchMaterialOrderAllocations } from '@/lib/materials/allocations/repository'
 import { isMissingMaterialInboundTable } from '@/lib/materials/inbound/repository'
 import { isMissingMaterialOutboundTable } from '@/lib/materials/outbound/repository'
 import { isMissingMaterialsTable } from '@/lib/materials/repository'
@@ -62,7 +63,7 @@ export async function fetchMaterialInventoryStatus(): Promise<FetchMaterialInven
   try {
     const supabase = createSupabaseClient()
 
-    const [materialsResult, linesResult, onHandResult] = await Promise.all([
+    const [materialsResult, linesResult, onHandResult, allocationsResult] = await Promise.all([
       supabase
         .from('items')
         .select('*')
@@ -73,6 +74,7 @@ export async function fetchMaterialInventoryStatus(): Promise<FetchMaterialInven
         .select('material_id, quantity, inbound_quantity')
         .not('material_id', 'is', null),
       fetchOnHandByMaterialId(),
+      fetchMaterialOrderAllocations(),
     ])
 
     if (materialsResult.error) {
@@ -103,10 +105,21 @@ export async function fetchMaterialInventoryStatus(): Promise<FetchMaterialInven
       (linesResult.data || []) as MaterialPurchaseOrderLineAggregateRecord[],
     )
 
+    const reservedByMaterialId = new Map<string, number>()
+    if (allocationsResult.ok) {
+      for (const row of allocationsResult.allocations) {
+        reservedByMaterialId.set(
+          row.materialId,
+          (reservedByMaterialId.get(row.materialId) ?? 0) + row.reservedQty,
+        )
+      }
+    }
+
     const rows = mergeMaterialInventoryRows(
       materials,
       pendingByMaterialId,
       onHandResult.onHandByMaterialId,
+      reservedByMaterialId,
     )
 
     return { ok: true, rows }

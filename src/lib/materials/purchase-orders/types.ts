@@ -1,4 +1,4 @@
-/** 자재 기준 구매발주 제안 — 주문(미커버) 소요를 자재별로 합산한 라인 */
+/** 자재 기준 구매발주 제안 — 주문별 ATP 부족분 합산 */
 export type MaterialPurchaseSuggestionLine = {
   materialId: string
   materialName: string
@@ -6,13 +6,13 @@ export type MaterialPurchaseSuggestionLine = {
   mpn: string
   supplier: string
   unitPrice: number
-  /** 주문 미커버 대수 기준 BOM 소요 합계 */
+  /** 주문 잔여 소요 합계 (ATP remainingNeed 합) */
   totalRequiredQuantity: number
   /** 창고 현재고 (물리적 수량) */
   onHandQuantity: number
-  /** 전체 구매발주서의 미입고 잔량 합계 */
+  /** 주문 연동 구매발주의 미입고 잔량 합 */
   pendingInboundQuantity: number
-  /** 구매발주필요 = 총소요 − 현재고 − 입고예정 */
+  /** 구매발주필요 = 주문별 ATP 부족 합 */
   suggestedQuantity: number
 }
 

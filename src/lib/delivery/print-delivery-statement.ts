@@ -7,6 +7,7 @@ import {
 } from '@/lib/app-config'
 import { parseItemVersionCode, stripTrailingVersionFromName } from '@/lib/items/version-code'
 import { normalizeOrderCurrency } from '@/lib/orders/utils'
+import { DOMESTIC_VAT_RATE } from '@/lib/quotes/format'
 import type { DeliveryStatementData, DeliveryStatementLine } from './types'
 
 /** 고전 양식: 표 여백용 빈 행 */
@@ -94,11 +95,15 @@ function formatProductLabel(productName: string, productCode: string) {
   return `${baseName} ${version}`
 }
 
-function buildItemRows(items: DeliveryStatementLine[]) {
+function lineVat(item: DeliveryStatementLine, includeVat: boolean) {
+  if (!includeVat) return 0
+  return Math.round(Math.max(0, Number(item.supplyAmount) || 0) * DOMESTIC_VAT_RATE)
+}
+
+function buildItemRows(items: DeliveryStatementLine[], includeVat: boolean) {
   const rows: string[] = items.map((item, index) => {
     const code = escapeHtml(item.productCode || '')
     const name = escapeHtml(formatStatementProductLabel(item))
-    // 세액은 현재 0 유지
     return `<tr>
       <td class="c-no">${index + 1}</td>
       <td class="c-code">${code}</td>
@@ -106,7 +111,7 @@ function buildItemRows(items: DeliveryStatementLine[]) {
       <td class="c-num">${formatNumber(item.qty)}</td>
       <td class="c-num">${formatNumber(item.unitPrice)}</td>
       <td class="c-num">${formatNumber(item.supplyAmount)}</td>
-      <td class="c-num">0</td>
+      <td class="c-num">${formatNumber(lineVat(item, includeVat))}</td>
     </tr>`
   })
 
@@ -145,9 +150,10 @@ function buildStatementCopyHtml(
   const docNo = String(data.docNo || '').trim()
   const items = (data.items || []).map(normalizeStatementLine)
   const { qty, supply } = sumStatementTotals(items)
-  const vat = 0
-  const total = supply + vat
   const currency = normalizeOrderCurrency(data.currency)
+  const includeVat = data.includeVat === true && currency === 'KRW'
+  const vat = items.reduce((sum, item) => sum + lineVat(item, includeVat), 0)
+  const total = supply + vat
   const moneyPrefix = currency === 'USD' ? '$' : '₩'
   const roleLabel = role === 'supplier' ? '공급자용' : '공급받는자용'
   const seal = escapeHtml(sealSrc)
@@ -244,11 +250,11 @@ function buildStatementCopyHtml(
           <th class="c-num">수 량</th>
           <th class="c-num">단 가</th>
           <th class="c-num">공급가액</th>
-          <th class="c-num">세 액</th>
+          <th class="c-num">VAT</th>
         </tr>
       </thead>
       <tbody>
-        ${buildItemRows(items)}
+        ${buildItemRows(items, includeVat)}
       </tbody>
       <tfoot>
         <tr class="summary-row">
@@ -257,6 +263,10 @@ function buildStatementCopyHtml(
           <td class="c-num">&nbsp;</td>
           <td class="c-num">${formatNumber(supply)}</td>
           <td class="c-num">${formatNumber(vat)}</td>
+        </tr>
+        <tr class="summary-row grand-row">
+          <th colspan="5">총합계 (공급가액 + VAT)</th>
+          <td colspan="2" class="c-num">${moneyPrefix}${formatNumber(total)}</td>
         </tr>
       </tfoot>
     </table>
@@ -517,6 +527,11 @@ table.items tfoot .summary-row td.c-num {
   font-size: 11px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+}
+table.items tfoot .grand-row th,
+table.items tfoot .grand-row td.c-num {
+  background: #e5e7eb;
+  font-size: 11.5px;
 }
 </style></head><body>
 ${list

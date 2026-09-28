@@ -54,13 +54,13 @@ export const POST_RATE_DOMESTIC = 460
 /** 후공정 임율: 해외 ₩460/분 */
 export const POST_RATE_EXPORT = 460
 /** 분당임률 구성 — 직접노무비 */
-export const POST_RATE_DIRECT_LABOR = 250
-/** 분당임률 구성 — 제조간접비 */
-export const POST_RATE_OVERHEAD = 90
+export const POST_RATE_DIRECT_LABOR = 330
+/** 분당임률 구성 — 간접노무비 (반장·자재·관리 인력) */
+export const POST_RATE_OVERHEAD = 70
 /** 분당임률 구성 — 기업이윤 */
-export const POST_RATE_CORPORATE_PROFIT = 60
-/** 분당임률 구성 — 일반관리비 */
-export const POST_RATE_ADMIN = 60
+export const POST_RATE_CORPORATE_PROFIT = 35
+/** 분당임률 구성 — 제조경비 (품질관리·전력·부자재 등 소모품) */
+export const POST_RATE_ADMIN = 25
 /** @deprecated POST_RATE_CORPORATE_PROFIT 사용 */
 export const POST_RATE_MIN_PROFIT = POST_RATE_CORPORATE_PROFIT
 /** 후공정 작업시간 여유 — 생산수량 1,000대 미만 30% */
@@ -188,12 +188,30 @@ export function metalMaskCostForSide(side: SmtSide | string | undefined) {
   return toBillingSmtSide(side) === 'double' ? METAL_MASK_COST_DOUBLE : METAL_MASK_COST_SINGLE
 }
 
-/** PCB별 메탈마스크 비용 합계 (단면 11만 / 듀얼·양면 22만) */
+export type MetalMaskSide = 'single' | 'double'
+
+export function normalizeMetalMaskSide(value: unknown): MetalMaskSide | undefined {
+  return value === 'single' || value === 'double' ? value : undefined
+}
+
+/** 선택값이 없을 때 보드 면 기준 기본 선택 (하나라도 듀얼·양면이면 양면) */
+export function defaultMetalMaskSide(boards?: Array<{ smtSide?: SmtSide | string }> | null): MetalMaskSide {
+  return boards?.some((board) => toBillingSmtSide(board.smtSide) === 'double') ? 'double' : 'single'
+}
+
+/**
+ * PCB별 메탈마스크 비용 합계 (단면 11만 / 듀얼·양면 22만).
+ * side를 지정하면 모든 PCB에 그 면 단가를 적용.
+ */
 export function computeMetalMaskCostTotal(
   boards: Array<{ smtSide?: SmtSide | string }>,
   includeSmd = true,
+  side?: MetalMaskSide,
 ) {
   if (!includeSmd || boards.length === 0) return 0
+  if (side) {
+    return boards.length * (side === 'double' ? METAL_MASK_COST_DOUBLE : METAL_MASK_COST_SINGLE)
+  }
   return boards.reduce((sum, board) => sum + metalMaskCostForSide(board.smtSide), 0)
 }
 

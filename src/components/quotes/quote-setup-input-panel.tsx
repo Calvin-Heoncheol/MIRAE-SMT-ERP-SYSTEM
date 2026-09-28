@@ -8,6 +8,7 @@ import {
   SAMPLE_COST_DOUBLE,
   SAMPLE_COST_SINGLE,
   SAMPLE_QTY_THRESHOLD,
+  type MetalMaskSide,
 } from '@/lib/quotes/constants'
 import {
   buildQuoteSetupDetailRows,
@@ -32,6 +33,8 @@ type QuoteSetupInputPanelProps = {
   orderLevelTotal: number
   onSmtBoardChange: (index: number, board: SmtBoardForm) => void
   onIncludeMetalMaskChange: (checked: boolean) => void
+  metalMaskSide: MetalMaskSide
+  onMetalMaskSideChange: (side: MetalMaskSide) => void
   formatAmount: (krw: number) => string
 }
 
@@ -49,6 +52,8 @@ export function QuoteSetupInputPanel({
   orderLevelTotal,
   onSmtBoardChange,
   onIncludeMetalMaskChange,
+  metalMaskSide,
+  onMetalMaskSideChange,
   formatAmount,
 }: QuoteSetupInputPanelProps) {
   const setupRows = result ? buildQuoteSetupDetailRows(result, quoteType) : []
@@ -87,7 +92,7 @@ export function QuoteSetupInputPanel({
                 <tr>
                   <th className="px-2 py-2 text-left">{isDomestic ? '항목' : 'Item'}</th>
                   <th className="w-[100px] px-2 py-2 text-right">
-                    {isDomestic ? '분당임률' : 'Rate /min'}
+                    {isDomestic ? '분당 장비임률' : 'Equipment Rate /min'}
                   </th>
                   <th className="w-[72px] px-2 py-2 text-center">
                     {isDomestic ? '시간(분)' : 'Min'}
@@ -139,24 +144,39 @@ export function QuoteSetupInputPanel({
           </div>
         ) : null}
 
-        <label className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">
-          <span className="inline-flex items-center gap-2 font-medium text-slate-700">
-            <input
-              type="checkbox"
-              checked={form.includeMetalMask}
-              onChange={(event) => onIncludeMetalMaskChange(event.target.checked)}
-              className="rounded border-slate-300"
-            />
-            {isDomestic ? '메탈마스크 비용 (일회성)' : 'Metal Mask (one-time)'}
-            <span className="font-normal text-slate-500">
-              (단면 {METAL_MASK_COST_SINGLE.toLocaleString('ko-KR')} / 양면{' '}
-              {METAL_MASK_COST_DOUBLE.toLocaleString('ko-KR')})
-            </span>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">
+          <span className="inline-flex flex-wrap items-center gap-2 font-medium text-slate-700">
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.includeMetalMask}
+                onChange={(event) => onIncludeMetalMaskChange(event.target.checked)}
+                className="rounded border-slate-300"
+              />
+              {isDomestic ? '메탈마스크 비용 (일회성)' : 'Metal Mask (one-time)'}
+            </label>
+            <select
+              value={metalMaskSide}
+              onChange={(event) => onMetalMaskSideChange(event.target.value as MetalMaskSide)}
+              disabled={!form.includeMetalMask}
+              className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs font-semibold text-slate-700 disabled:opacity-50"
+              aria-label={isDomestic ? '메탈마스크 단면/양면' : 'Metal mask side'}
+            >
+              <option value="single">
+                {isDomestic ? '단면' : 'Single'} {METAL_MASK_COST_SINGLE.toLocaleString('ko-KR')}
+              </option>
+              <option value="double">
+                {isDomestic ? '양면' : 'Double'} {METAL_MASK_COST_DOUBLE.toLocaleString('ko-KR')}
+              </option>
+            </select>
+            {smtForms.length > 1 ? (
+              <span className="font-normal text-slate-500">× PCB {smtForms.length}개</span>
+            ) : null}
           </span>
           <span className="font-semibold tabular-nums text-slate-900">
             {formatAmount(form.includeMetalMask ? metalMaskTotal : 0)}
           </span>
-        </label>
+        </div>
 
         {samplePreview > 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-2.5 py-2 text-xs">

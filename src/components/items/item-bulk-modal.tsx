@@ -37,13 +37,11 @@ import {
   ITEM_MATERIAL_TYPE_OPTIONS,
   ITEM_PCB_SIDE_MODE_LABELS,
   ITEM_PCB_SIDE_MODES,
-  ITEM_SUPPLY_TYPE_OPTIONS,
   isRawMaterialItemCategory,
   type ItemCategory,
   type ItemMaterialType,
   type ItemPcbSideMode,
   type ItemPayload,
-  type ItemSupplyType,
 } from '@/lib/items/types'
 import { formatItemDisplayCode } from '@/lib/items/utils'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
@@ -105,7 +103,6 @@ function ItemBulkModalContent({
   const [salesPartners, setSalesPartners] = useState<BusinessPartner[]>([])
   const [sharedCustomerId, setSharedCustomerId] = useState('')
   const [sharedCustomerName, setSharedCustomerName] = useState('')
-  const [sharedSupplyType, setSharedSupplyType] = useState<ItemSupplyType>('')
   const [bomHint, setBomHint] = useState<string | null>(null)
   const [existingCodeSet, setExistingCodeSet] = useState<Set<string>>(() => new Set())
   const [aiSplitByCode, setAiSplitByCode] = useState<Record<string, string>>({})
@@ -114,7 +111,7 @@ function ItemBulkModalContent({
   const columns = itemBulkColumns(category).filter((column) => {
     if (!isRawMaterial) return true
     // 기본정보에서 공통 선택 → 표에서는 숨김
-    return column.key !== 'customerName' && column.key !== 'supplyType'
+    return column.key !== 'customerName'
   })
   const aiSplitTargetCount = isRawMaterial ? collectBomSpecAiRows(rows).length : 0
   const inputClassName = ERP_FIELD_INPUT_CLASS
@@ -148,7 +145,7 @@ function ItemBulkModalContent({
       ...row,
       customerId: sharedCustomerId || row.customerId,
       customerName: sharedCustomerName || row.customerName,
-      supplyType: sharedSupplyType || row.supplyType,
+      supplyType: '',
     }))
   }
 
@@ -164,12 +161,6 @@ function ItemBulkModalContent({
         customerName: name,
       })),
     )
-    clearDuplicateState()
-  }
-
-  function setSharedSupply(value: ItemSupplyType) {
-    setSharedSupplyType(value)
-    setRows((current) => current.map((row) => ({ ...row, supplyType: value })))
     clearDuplicateState()
   }
 
@@ -239,10 +230,6 @@ function ItemBulkModalContent({
       setSaveError('BOM 업로드 전에 고객사를 선택해 주세요.')
       return
     }
-    if (sharedSupplyType !== '도급' && sharedSupplyType !== '사급') {
-      setSaveError('BOM 업로드 전에 도급/사급을 선택해 주세요.')
-      return
-    }
 
     setBomLoading(true)
     setSaveError(null)
@@ -255,7 +242,6 @@ function ItemBulkModalContent({
       const parsed = parseBomRowsToRawMaterials(sheetRows, file.name, {
         customerId: sharedCustomerId,
         customerName: sharedCustomerName,
-        supplyType: sharedSupplyType,
       })
       if (!parsed.ok) {
         setSaveError(parsed.detail)
@@ -369,7 +355,7 @@ function ItemBulkModalContent({
           ...next,
           customerId: sharedCustomerId,
           customerName: sharedCustomerName,
-          supplyType: sharedSupplyType,
+          supplyType: '',
         },
       ]
     })
@@ -458,7 +444,7 @@ function ItemBulkModalContent({
               itemCategory: category,
               customerId: sharedCustomerId || row.customerId,
               customerName: sharedCustomerName || row.customerName,
-              supplyType: sharedSupplyType || row.supplyType,
+              supplyType: '',
             }
           : { ...row, itemCategory: category }
       const form = resolveRowCustomer(withShared)
@@ -552,7 +538,7 @@ function ItemBulkModalContent({
       open
       size="lg"
       title="원자재 일괄등록"
-      description="고객사·도급/사급을 선택한 뒤 BOM 파일을 업로드하세요."
+      description="고객사를 선택한 뒤 BOM 파일을 업로드하세요."
       onClose={onClose}
       closeOnEscape={!saving}
       footer={
@@ -581,11 +567,10 @@ function ItemBulkModalContent({
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
             <p className="text-sm font-bold text-slate-900">기본정보 (BOM 공통)</p>
             <p className="mt-1 text-xs text-slate-500">
-              선택한 고객사·도급/사급이 등록 품목 전체에 적용됩니다. 품목코드는 CPN을 그대로
-              사용합니다.
+              선택한 고객사가 등록 품목 전체에 적용됩니다. 품목코드는 CPN을 그대로 사용합니다.
             </p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="block text-sm">
+              <label className="block text-sm sm:col-span-2">
                 <span className={ERP_FIELD_LABEL_CLASS}>
                   고객사
                   <RequiredMark />
@@ -599,25 +584,6 @@ function ItemBulkModalContent({
                   }}
                   onPartnerSelect={(partner) => setSharedCustomer(partner)}
                 />
-              </label>
-              <label className="block text-sm">
-                <span className={ERP_FIELD_LABEL_CLASS}>
-                  도급/사급
-                  <RequiredMark />
-                </span>
-                <select
-                  value={sharedSupplyType}
-                  onChange={(event) => setSharedSupply(event.target.value as ItemSupplyType)}
-                  disabled={saving || bomLoading || aiSplitLoading}
-                  className={ERP_FIELD_INPUT_CLASS}
-                >
-                  <option value="">선택</option>
-                  {ITEM_SUPPLY_TYPE_OPTIONS.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
               </label>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -844,23 +810,6 @@ function ItemBulkModalContent({
                           >
                             <option value="">선택</option>
                             {ITEM_MATERIAL_TYPE_OPTIONS.map((value) => (
-                              <option key={value} value={value}>
-                                {value}
-                              </option>
-                            ))}
-                          </select>
-                        ) : column.key === 'supplyType' ? (
-                          <select
-                            value={row.supplyType}
-                            onChange={(event) =>
-                              patchRow(index, {
-                                supplyType: event.target.value as ItemSupplyType,
-                              })
-                            }
-                            className={rowInputClass}
-                          >
-                            <option value="">선택</option>
-                            {ITEM_SUPPLY_TYPE_OPTIONS.map((value) => (
                               <option key={value} value={value}>
                                 {value}
                               </option>

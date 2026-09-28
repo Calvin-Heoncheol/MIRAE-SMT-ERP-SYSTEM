@@ -136,7 +136,7 @@ const DOMESTIC_LABELS: PreviewLabels = {
   colUnitTotal: '대당합계',
   colQty: '수량',
   colPerUnitTotal: '합계',
-  colSetupBasis: '분당임률',
+  colSetupBasis: '분당 장비임률',
   colSetupMinutes: '시간(분)',
   colSmdBaseRate: '기본 단가',
   colSmdUnitPrice: '대당 단가',
@@ -217,7 +217,7 @@ const EXPORT_LABELS: PreviewLabels = {
   colUnitTotal: 'Unit Total',
   colQty: 'Qty',
   colPerUnitTotal: 'Total',
-  colSetupBasis: 'Rate /min',
+  colSetupBasis: 'Equipment Rate /min',
   colSetupMinutes: 'Time (min)',
   colSmdBaseRate: 'Base Rate',
   colSmdUnitPrice: 'Unit Price',
@@ -298,7 +298,7 @@ const CHINESE_LABELS: PreviewLabels = {
   colUnitTotal: '单价合计',
   colQty: '数量',
   colPerUnitTotal: '合计',
-  colSetupBasis: '每分钟费率',
+  colSetupBasis: '每分钟设备费率',
   colSetupMinutes: '时间(分)',
   colSmdBaseRate: '基本单价',
   colSmdUnitPrice: '单价',
@@ -417,6 +417,18 @@ export function breakdownSmtSectionTitle(labelType: QuoteLabelType) {
   if (labelType === 'zh') return 'SMD · 贴装·检查'
   if (labelType === 'domestic') return 'SMD · 실장·검사'
   return 'SMD · Placement & Inspection'
+}
+
+/** SET-UP을 품는 SMD 묶음 제목 */
+export function breakdownSmdGroupTitle(_labelType: QuoteLabelType) {
+  return 'SMD'
+}
+
+/** SMD 묶음 안 실장·검사 소제목 */
+export function breakdownSmtPlacementSubtitle(labelType: QuoteLabelType) {
+  if (labelType === 'zh') return '贴装·检查'
+  if (labelType === 'domestic') return '실장·검사'
+  return 'Placement & Inspection'
 }
 
 export function breakdownBoardColLabelLocalized(labelType: QuoteLabelType) {

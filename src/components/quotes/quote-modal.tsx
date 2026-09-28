@@ -20,7 +20,10 @@ import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
   computeSampleCostTotal,
+  defaultMetalMaskSide,
   getPostRate,
+  normalizeMetalMaskSide,
+  type MetalMaskSide,
 } from '@/lib/quotes/constants'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
@@ -112,6 +115,8 @@ type FormState = {
   includeMaterialCosts: boolean
   /** 메탈마스크 포함 (발주 1회, SET-UP) */
   includeMetalMask: boolean
+  /** 메탈마스크 단면/양면 — 미설정이면 보드 면 기준 */
+  metalMaskSide?: MetalMaskSide
 }
 
 const INITIAL_FORM: FormState = {
@@ -240,6 +245,7 @@ function buildStateFromQuote(quote: QuoteListItem) {
       includeDip: flags.includeDip,
       includeMaterialCosts: quote.detailInfo.settings?.includeMaterialCosts !== false,
       includeMetalMask: quote.detailInfo.settings?.includeMetalMask !== false,
+      metalMaskSide: normalizeMetalMaskSide(quote.detailInfo.settings?.metalMaskSide),
     } satisfies FormState,
     smtForms,
     dipForms,
@@ -311,6 +317,7 @@ function computeEstimate(
       boardQty: form.boardQty,
       materialCost: form.materialCost,
       includeMetalMask: form.includeMetalMask,
+      metalMaskSide: form.metalMaskSide,
       productionKind: form.productionKind,
       postAssembly,
       postDownload,
@@ -383,7 +390,6 @@ function QuoteModalContent({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [displayCurrency, setDisplayCurrency] = useState<QuoteDisplayCurrency>('krw')
   const [openSections, setOpenSections] = useState({
-    setup: true,
     smt: true,
     dip: false,
     material: false,
@@ -481,7 +487,6 @@ function QuoteModalContent({
     )
     setSaveError(null)
     setOpenSections({
-      setup: true,
       smt: true,
       dip: mode !== 'edit',
       material: mode !== 'edit',
@@ -752,10 +757,9 @@ function QuoteModalContent({
     packingLines: form.packingLines,
   }
   const sectionNumbers = {
-    setup: 1,
-    smt: 2,
-    dip: 3,
-    material: 4,
+    smt: 1,
+    dip: 2,
+    material: 3,
   }
 
   const qty = result?.qty || Number(form.boardQty) || 1
@@ -975,18 +979,18 @@ function QuoteModalContent({
               <section className="mb-3 overflow-hidden rounded-xl border border-slate-200">
                 <button
                   type="button"
-                  onClick={() => toggleSection('setup')}
+                  onClick={() => toggleSection('smt')}
                   className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
                 >
                   <h3 className="min-w-0 flex-1 text-sm font-bold text-slate-900">
-                    {sectionNumbers.setup}. SET-UP
+                    {sectionNumbers.smt}. SMD
                   </h3>
                   <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-800">
-                    {formatAmount(orderLevelTotal)}
+                    {formatAmount(orderLevelTotal + smdSectionTotal)}
                   </span>
-                  <span className="shrink-0 text-slate-400">{openSections.setup ? '▴' : '▾'}</span>
+                  <span className="shrink-0 text-slate-400">{openSections.smt ? '▴' : '▾'}</span>
                 </button>
-                {openSections.setup ? (
+                {openSections.smt ? (
                   <div className="space-y-4 border-t border-slate-100 px-3.5 py-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-medium text-slate-500">
@@ -1028,28 +1032,11 @@ function QuoteModalContent({
                       onIncludeMetalMaskChange={(checked) =>
                         updateForm('includeMetalMask', checked)
                       }
+                      metalMaskSide={form.metalMaskSide ?? defaultMetalMaskSide(smtForms)}
+                      onMetalMaskSideChange={(side) => updateForm('metalMaskSide', side)}
                       formatAmount={formatAmount}
                     />
-                  </div>
-                ) : null}
-              </section>
 
-              <section className="mb-3 overflow-hidden rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => toggleSection('smt')}
-                  className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
-                >
-                  <h3 className="min-w-0 flex-1 text-sm font-bold text-slate-900">
-                    {sectionNumbers.smt}. SMD
-                  </h3>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-800">
-                    {formatAmount(smdSectionTotal)}
-                  </span>
-                  <span className="shrink-0 text-slate-400">{openSections.smt ? '▴' : '▾'}</span>
-                </button>
-                {openSections.smt ? (
-                  <div className="space-y-4 border-t border-slate-100 px-3.5 py-3">
                     <div className="overflow-hidden rounded-lg border border-slate-200">
                       <div className="flex items-center gap-3 bg-slate-50 px-3 py-2.5">
                         <h4 className="min-w-0 flex-1 text-xs font-bold tracking-wide text-slate-700">

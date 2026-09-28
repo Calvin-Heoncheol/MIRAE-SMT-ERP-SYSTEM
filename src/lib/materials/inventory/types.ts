@@ -3,6 +3,10 @@ import type { Material } from '@/lib/materials/types'
 export type MaterialInventoryRow = Material & {
   onHandQuantity: number
   expectedInboundQuantity: number
+  /** MTO 소프트 예약 합 */
+  reservedQuantity: number
+  /** 미예약 가용 = max(0, onHand - safety(소모품) - reserved) */
+  availableQuantity: number
 }
 
 export type MaterialPurchaseOrderLineAggregateRecord = {

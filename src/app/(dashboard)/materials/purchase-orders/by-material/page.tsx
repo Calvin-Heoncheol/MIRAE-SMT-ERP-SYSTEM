@@ -14,10 +14,13 @@ export default async function MaterialPurchaseOrdersByMaterialPage({ searchParam
   const params = searchParams ? await searchParams : {}
   const mode = firstParam(params.mode)
   const result = await fetchMaterialPurchaseOrderRegisterData()
+  // MTO: 기본은 발주서(부분) 구매. mode=suggestion 일 때만 자재별 제안
+  const initialPanel =
+    mode === 'suggestion' ? 'suggestion' : mode === 'partial' || !mode ? 'partial' : 'partial'
   return (
     <MaterialPurchaseOrdersWorkspace
       result={result}
-      initialPanel={mode === 'partial' ? 'partial' : 'suggestion'}
+      initialPanel={initialPanel}
     />
   )
 }

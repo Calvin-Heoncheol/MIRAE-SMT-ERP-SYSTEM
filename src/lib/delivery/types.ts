@@ -112,6 +112,8 @@ export type DeliveryStatementData = {
   note: string
   /** 표시 통화 — 발주서 통화 기준 (기본 KRW) */
   currency?: OrderCurrency
+  /** true면 VAT(공급가액 10%)를 표시하고 총합계에 포함 — KRW만 적용 */
+  includeVat?: boolean
   /** 이번 출하(명세) 품목 */
   items: DeliveryStatementLine[]
 }

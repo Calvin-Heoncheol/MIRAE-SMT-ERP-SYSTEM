@@ -26,7 +26,6 @@ const RAW_MATERIAL_BULK_COLUMNS: ItemBulkColumn[] = [
   { key: 'specification', label: '사양 규격' },
   { key: 'package', label: '패키지' },
   { key: 'mpn', label: 'MPN' },
-  { key: 'supplyType', label: '도급/사급' },
 ]
 
 const SUB_MATERIAL_BULK_COLUMNS: ItemBulkColumn[] = [
@@ -36,7 +35,6 @@ const SUB_MATERIAL_BULK_COLUMNS: ItemBulkColumn[] = [
   { key: 'specification', label: '사양' },
   { key: 'package', label: '패키지' },
   { key: 'mpn', label: 'MPN' },
-  { key: 'supplyType', label: '도급/사급' },
 ]
 
 const PRODUCT_BULK_COLUMNS: ItemBulkColumn[] = [
@@ -72,7 +70,7 @@ export function itemBulkColumns(category: ItemCategory): ItemBulkColumn[] {
 
 export function itemBulkPasteSampleValues(category: ItemCategory): string[] {
   if (category === 2) {
-    return ['미래전자', '', '나사 M3', 'SUS', '', '', '도급']
+    return ['미래전자', '', '나사 M3', 'SUS', '', '']
   }
   if (category === 3) {
     return ['미래전자', '', '메인보드', 'A1', '단면', '10000', '5000', '2000']
@@ -80,7 +78,7 @@ export function itemBulkPasteSampleValues(category: ItemCategory): string[] {
   if (category === 4) {
     return ['미래전자', '', '조립제품 A', 'V1']
   }
-  return ['미래전자', '', 'SMD', '저항 10K', '1/10W', '0603', 'RC0603FR', '도급']
+  return ['미래전자', '', 'SMD', '저항 10K', '1/10W', '0603', 'RC0603FR']
 }
 
 export function itemBulkPastePlaceholder(category: ItemCategory) {
@@ -477,7 +475,6 @@ export function isEmptyItemBulkRow(row: ItemFormState) {
     !row.materialType &&
     !row.package.trim() &&
     !row.specification.trim() &&
-    !row.mpn.trim() &&
-    !row.supplyType
+    !row.mpn.trim()
   )
 }

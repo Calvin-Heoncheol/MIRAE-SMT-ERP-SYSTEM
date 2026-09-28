@@ -17,6 +17,7 @@ import {
   hasPostProcessLineInput,
   resolveCategorizedPostProcessLineForms,
   resolvePostProcessLineBilledMinutes,
+  roundPostProcessMinutes,
 } from './post-process-lines'
 import type {
   DipBoardDetail,
@@ -47,6 +48,8 @@ export type PreviewRow = {
   indent?: number
   emphasize?: boolean
   amountEmphasize?: boolean
+  /** true면 수량·시간 칸 굵게 */
+  countEmphasize?: boolean
   sectionTotal?: PreviewSection
   boardTotal?: boolean
   boardSubtotal?: boolean
@@ -239,6 +242,7 @@ export function prepareBreakdownSectionTableRows(
       indent: 0,
       emphasize: true,
       amountEmphasize: true,
+      countEmphasize: sectionKey === 'post',
       boardSubtotal: false,
       sectionTotal: undefined,
       boardName: undefined,
@@ -269,7 +273,7 @@ function computePostSectionFooterMetrics(
     if (minuteMatch) totalMinutes += Number(minuteMatch[1])
   }
 
-  const roundedMinutes = Math.round(totalMinutes * 10) / 10
+  const roundedMinutes = roundPostProcessMinutes(totalMinutes)
   const perUnitTotal = scaledSectionAmount / safeQty
   return {
     count: roundedMinutes > 0 ? labels.minutesCount(roundedMinutes) : undefined,
@@ -344,7 +348,6 @@ function scalePreviewRowAmountsByQty(
       return {
         ...row,
         productionQty: labels.oneTime,
-        count: row.count ?? labels.oneTime,
         // 발주 1회 금액 → 대당은 수량으로 나눈 값(원 반올림)
         unitPrice:
           orderAmount != null
@@ -827,6 +830,7 @@ function postCategoryDetailRows(
 
   const rows: PreviewRow[] = []
   let categoryTotal = 0
+  let categoryMinutes = 0
   const detailRows: PreviewRow[] = []
 
   for (const line of active) {
@@ -834,6 +838,7 @@ function postCategoryDetailRows(
     const name = (line.name || '').trim()
     const perUnit = minutes * postRate
     categoryTotal += perUnit
+    categoryMinutes += minutes
     detailRows.push(
       withProductionQty(
         {
@@ -853,10 +858,12 @@ function postCategoryDetailRows(
   rows.push({
     label: categoryLabel,
     amount: categoryTotal,
+    count: labels.minutesCount(roundPostProcessMinutes(categoryMinutes)),
     indent,
     boardSubtotal: true,
     emphasize: true,
     amountEmphasize: true,
+    countEmphasize: true,
   })
   rows.push(...detailRows)
   return rows
@@ -1129,7 +1136,7 @@ function previewOrderLevelRows(
     rows.push({
       label: labels.metalMask,
       amount: metalMask,
-      count: labels.oneTime,
+      count: '',
       orderLevel: true,
       indent: 1,
       emphasize: true,
@@ -1141,7 +1148,7 @@ function previewOrderLevelRows(
     rows.push({
       label: labels.sampleCost,
       amount: sample,
-      count: labels.oneTime,
+      count: '',
       orderLevel: true,
       indent: 1,
       emphasize: true,
@@ -1370,7 +1377,7 @@ export function buildProcessCentricPdfBreakdownRows(
     rows.push({
       label: 'SET-UP',
       amount: setupTotal,
-      count: labels.oneTime,
+      count: '',
       orderLevel: true,
       sectionTotal: 'setup',
       emphasize: true,

@@ -559,14 +559,11 @@ export function parseBomRowsToRawMaterials(
   options: {
     customerId: string
     customerName: string
-    supplyType: ItemSupplyType
+    supplyType?: ItemSupplyType
   },
 ): ParseBomToRawMaterialsResult {
   if (!options.customerId.trim() || !options.customerName.trim()) {
     return { ok: false, detail: '고객사를 먼저 선택해 주세요.' }
-  }
-  if (options.supplyType !== '도급' && options.supplyType !== '사급') {
-    return { ok: false, detail: '도급/사급을 먼저 선택해 주세요.' }
   }
 
   const normalized = rows
@@ -577,10 +574,17 @@ export function parseBomRowsToRawMaterials(
     return { ok: false, detail: '파일이 비어 있습니다.' }
   }
 
-  const custom = parseCustomRawMaterialRows(normalized, options)
+  const withSupply = {
+    ...options,
+    supplyType: (options.supplyType === '도급' || options.supplyType === '사급'
+      ? options.supplyType
+      : '') as ItemSupplyType,
+  }
+
+  const custom = parseCustomRawMaterialRows(normalized, withSupply)
   if (custom) return custom
 
-  return parseAltiumRawMaterialRows(normalized, fileName, options)
+  return parseAltiumRawMaterialRows(normalized, fileName, withSupply)
 }
 
 /** 미리보기용: 이미 등록된 품목코드 집합과 대조 */

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { BomModal } from '@/components/bom/bom-modal'
 import { ItemBulkModal } from '@/components/items/item-bulk-modal'
 import { ItemFetchError } from '@/components/items/item-fetch-error'
 import { ItemListTable } from '@/components/items/item-list-table'
@@ -11,6 +12,9 @@ import { FilterChipBar } from '@/components/ui/filter-chip'
 import { PageShell } from '@/components/ui/page-shell'
 import { WorkspaceHeader } from '@/components/ui/workspace-header'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
+import type { FetchBomResult } from '@/lib/bom/repository'
+import type { BomGroup } from '@/lib/bom/types'
+import { groupBomLines } from '@/lib/bom/utils'
 import { downloadExcel } from '@/lib/excel/export'
 import type { FetchItemsResult } from '@/lib/items/repository'
 import { excelProductionStdTopBot } from '@/lib/items/production-std'
@@ -35,24 +39,63 @@ import { formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type ItemsWorkspaceProps = {
   result: FetchItemsResult
+  bomResult?: FetchBomResult
+  /** URL ?category=3|4 등으로 초기 탭 */
+  initialCategory?: ItemCategory | null
 }
 
-type ModalState =
+type ItemModalState =
   | { open: false }
   | { open: true; mode: 'create'; initialCategory: ItemCategory | null }
   | { open: true; mode: 'edit'; item: Item }
   | { open: true; mode: 'bulk'; initialCategory: ItemCategory | null }
 
-export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
+type BomModalState =
+  | { open: false }
+  | { open: true; mode: 'create'; parentProductId: string }
+  | { open: true; mode: 'edit'; group: BomGroup }
+
+function resolveInitialCategory(value: ItemCategory | null | undefined): ItemCategory {
+  if (value === 1 || value === 2 || value === 3 || value === 4) return value
+  return ITEM_CATEGORIES[0]
+}
+
+export function ItemsWorkspace({
+  result,
+  bomResult,
+  initialCategory = null,
+}: ItemsWorkspaceProps) {
   const { afterSave, afterDelete } = useSaveFeedback()
   const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState<ItemCategory>(ITEM_CATEGORIES[0])
-  const [modal, setModal] = useState<ModalState>({ open: false })
+  const [categoryFilter, setCategoryFilter] = useState<ItemCategory>(() =>
+    resolveInitialCategory(initialCategory),
+  )
+  const [modal, setModal] = useState<ItemModalState>({ open: false })
   const [modalSession, setModalSession] = useState(0)
+  const [bomModal, setBomModal] = useState<BomModalState>({ open: false })
+  const [bomModalSession, setBomModalSession] = useState(0)
 
   const items = result.ok ? result.items : []
+  const bomLines = bomResult?.ok ? bomResult.lines : []
   const query = search.trim()
   const hasActiveFilter = Boolean(query)
+
+  const bomGroups = useMemo(() => groupBomLines(bomLines), [bomLines])
+  const bomRegisteredByItemId = useMemo(() => {
+    const map = new Map<string, boolean>()
+    for (const group of bomGroups) {
+      map.set(group.parentProductId, true)
+    }
+    return map
+  }, [bomGroups])
+  const bomGroupByParentId = useMemo(
+    () => new Map(bomGroups.map((group) => [group.parentProductId, group])),
+    [bomGroups],
+  )
+  const existingParentIds = useMemo(
+    () => bomGroups.map((group) => group.parentProductId),
+    [bomGroups],
+  )
 
   const filtered = useMemo(() => {
     const searched = filterItemsForSearch(items, query)
@@ -101,8 +144,23 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     setModal({ open: true, mode: 'edit', item })
   }
 
+  function openBom(item: Item) {
+    if (!isProductItemCategory(item.itemCategory)) return
+    setBomModalSession((value) => value + 1)
+    const group = bomGroupByParentId.get(item.id)
+    if (group) {
+      setBomModal({ open: true, mode: 'edit', group })
+      return
+    }
+    setBomModal({ open: true, mode: 'create', parentProductId: item.id })
+  }
+
   function closeModal() {
     setModal({ open: false })
+  }
+
+  function closeBomModal() {
+    setBomModal({ open: false })
   }
 
   function handleSaved(message?: string) {
@@ -113,9 +171,24 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
     afterDelete(message ?? '품목이 삭제되었습니다.', { close: closeModal })
   }
 
+  function handleBomSaved(message?: string) {
+    afterSave(message ?? 'BOM이 저장되었습니다.', { close: closeBomModal })
+  }
+
+  function handleBomDeleted(message?: string) {
+    afterDelete(message ?? 'BOM이 삭제되었습니다.', { close: closeBomModal })
+  }
+
+  function handleBomVersioned(newGroup: BomGroup) {
+    setBomModalSession((value) => value + 1)
+    setBomModal({ open: true, mode: 'edit', group: newGroup })
+    afterSave('BOM이 버전업되었습니다.')
+  }
+
   async function handleExcelDownload() {
     const hideMaterialDetailColumns = isProductItemCategory(categoryFilter)
     const showProductionProcessColumn = categoryFilter === 4
+    const showBomColumn = isProductItemCategory(categoryFilter)
 
     function moneyExcel(value: number) {
       const amount = Math.max(0, Math.round(Number(value) || 0))
@@ -223,9 +296,18 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
               { header: '패키지', value: (row: Item) => row.package, width: 12 },
               { header: '사양', value: (row: Item) => row.specification, width: 20 },
               { header: 'MPN', value: (row: Item) => row.mpn, width: 18 },
-              { header: '도급/사급', value: (row: Item) => row.supplyType, width: 10 },
               ...processAndPriceColumns,
             ]),
+        ...(showBomColumn
+          ? [
+              {
+                header: 'BOM',
+                value: (row: Item) =>
+                  bomRegisteredByItemId.get(row.id) ? '등록완료' : '미등록',
+                width: 10,
+              },
+            ]
+          : []),
         { header: '사용여부', value: (row) => (row.isActive === false ? '사용중지' : '사용중'), width: 10 },
       ],
     })
@@ -261,12 +343,16 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
         <ItemListTable
           items={filtered}
           categoryFilter={categoryFilter}
+          bomRegisteredByItemId={
+            isProductItemCategory(categoryFilter) ? bomRegisteredByItemId : undefined
+          }
           emptyMessage={formatEmptyListMessage({
             hasQuery: hasActiveFilter,
             emptyLabel: '등록된 품목이 없습니다',
             actionHint: '오른쪽 상단에서 등록하세요',
           })}
           onSelectItem={openEdit}
+          onSelectBom={openBom}
         />
       </PageShell>
 
@@ -291,6 +377,22 @@ export function ItemsWorkspace({ result }: ItemsWorkspaceProps) {
           initialCategory={modal.initialCategory}
           onClose={closeModal}
           onSaved={handleSaved}
+        />
+      ) : null}
+
+      {bomModal.open ? (
+        <BomModal
+          key={`${bomModal.mode}-${bomModal.mode === 'edit' ? bomModal.group.parentProductId : bomModal.parentProductId}-${bomModalSession}`}
+          open
+          mode={bomModal.mode}
+          group={bomModal.mode === 'edit' ? bomModal.group : null}
+          initialParentProductId={bomModal.mode === 'create' ? bomModal.parentProductId : undefined}
+          items={items}
+          existingParentIds={existingParentIds}
+          onClose={closeBomModal}
+          onSaved={handleBomSaved}
+          onDeleted={handleBomDeleted}
+          onVersioned={handleBomVersioned}
         />
       ) : null}
     </>

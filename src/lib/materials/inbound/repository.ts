@@ -795,6 +795,55 @@ export async function createMaterialInbound(
       }
     }
 
+    // MTO: 입고 후 주문 소프트 예약 재계산 (실패해도 입고는 유지)
+    try {
+      const { fetchOnHandByMaterialId } = await import('@/lib/materials/inventory/stock')
+      const { fetchMaterials } = await import('@/lib/materials/repository')
+      const { fetchOrders } = await import('@/lib/orders/repository')
+      const { fetchBomEdges, fetchIssuedOrderMaterialRows } = await import(
+        '@/lib/materials/outbound/repository'
+      )
+      const { resyncMaterialOrderAllocationsAfterStockChange } = await import(
+        '@/lib/materials/allocations/repository'
+      )
+      const [onHandResult, materialsResult, ordersResult, bomEdges, issuedRows] = await Promise.all([
+        fetchOnHandByMaterialId(),
+        fetchMaterials(),
+        fetchOrders({ includeDerivedLines: true }),
+        fetchBomEdges(),
+        fetchIssuedOrderMaterialRows(),
+      ])
+      if (onHandResult.ok && materialsResult.ok && ordersResult.ok) {
+        const issuedNested = new Map<string, Map<string, number>>()
+        for (const row of issuedRows) {
+          const orderId = String(row.order_id || '').trim()
+          const materialId = String(row.material_id || '').trim()
+          const quantity = Math.floor(Number(row.quantity) || 0)
+          if (!orderId || !materialId || quantity === 0) continue
+          let byMaterial = issuedNested.get(orderId)
+          if (!byMaterial) {
+            byMaterial = new Map()
+            issuedNested.set(orderId, byMaterial)
+          }
+          byMaterial.set(materialId, (byMaterial.get(materialId) ?? 0) + quantity)
+        }
+        for (const byMaterial of issuedNested.values()) {
+          for (const [materialId, total] of byMaterial) {
+            byMaterial.set(materialId, Math.max(0, total))
+          }
+        }
+        await resyncMaterialOrderAllocationsAfterStockChange({
+          orders: ordersResult.orders,
+          bomEdges,
+          materials: materialsResult.materials,
+          onHandByMaterialId: onHandResult.onHandByMaterialId,
+          issuedByOrderMaterial: issuedNested,
+        })
+      }
+    } catch {
+      // ignore sync errors
+    }
+
     return { ok: true, inboundId: inserted.id, inboundNumber: inserted.id }
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)

@@ -26,6 +26,10 @@ type ItemListTableProps = {
   items: Item[]
   emptyMessage: string
   onSelectItem?: (item: Item) => void
+  /** BOM 배지 클릭 — 반제품·조립제품 */
+  onSelectBom?: (item: Item) => void
+  /** parentProductId → BOM 등록 여부 */
+  bomRegisteredByItemId?: Map<string, boolean>
   /** 반제품·조립제품 — 버전·생산공정 표시, 패키지·사양·MPN 숨김 */
   categoryFilter?: ItemCategory | 'all'
 }
@@ -51,22 +55,30 @@ export function ItemListTable({
   items,
   emptyMessage,
   onSelectItem,
+  onSelectBom,
+  bomRegisteredByItemId,
   categoryFilter = 'all',
 }: ItemListTableProps) {
   const showProductColumns =
     categoryFilter !== 'all' && isProductItemCategory(categoryFilter)
   const hideMaterialDetailColumns = showProductColumns
+  /** 반제품·조립제품 탭 — 사용여부 왼쪽에 BOM 상태 */
+  const showBomColumn = showProductColumns && Boolean(bomRegisteredByItemId)
   /** 반제품은 가공비로 공정 파악 가능 — 목록에서 생산 공정 컬럼 생략 */
   const showProductionProcessColumn = categoryFilter === 'all' || categoryFilter === 4
   const showPcbSideColumn = categoryFilter === 'all' || categoryFilter === 3
 
   const tableMinWidth = showProductColumns
     ? showPcbSideColumn
-      ? 'min-w-[1120px]'
-      : 'min-w-[1020px]'
+      ? showBomColumn
+        ? 'min-w-[1208px]'
+        : 'min-w-[1120px]'
+      : showBomColumn
+        ? 'min-w-[1108px]'
+        : 'min-w-[1020px]'
     : showProductionProcessColumn
-      ? 'min-w-[1380px]'
-      : 'min-w-[1180px]'
+      ? 'min-w-[1292px]'
+      : 'min-w-[1092px]'
 
   if (!items.length) {
     return (
@@ -83,7 +95,7 @@ export function ItemListTable({
           <colgroup>
             <col className="w-[120px]" />
             <col className="w-[120px]" />
-            <col className="w-[180px]" />
+            <col className="w-[200px]" />
             {showProductColumns ? <col className="w-[88px]" /> : null}
             {showProductColumns ? (
               <>
@@ -96,10 +108,9 @@ export function ItemListTable({
             {hideMaterialDetailColumns ? null : (
               <>
                 <col className="w-[100px]" />
-                <col className="w-[100px]" />
+                <col className="w-[120px]" />
+                <col className="w-[180px]" />
                 <col className="w-[160px]" />
-                <col className="w-[140px]" />
-                <col className="w-[88px]" />
               </>
             )}
             {!showProductColumns && showProductionProcessColumn ? (
@@ -110,6 +121,7 @@ export function ItemListTable({
                 <col className="w-[88px]" />
               </>
             ) : null}
+            {showBomColumn ? <col className="w-[88px]" /> : null}
             <col className="w-[88px]" />
           </colgroup>
           <thead className={ERP_TABLE_HEAD_CLASS}>
@@ -136,7 +148,6 @@ export function ItemListTable({
                   <th className="px-3 py-2.5 text-left">패키지</th>
                   <th className="px-3 py-2.5 text-left">사양</th>
                   <th className="px-3 py-2.5 text-left">MPN</th>
-                  <th className="px-3 py-2.5 text-center">도급/사급</th>
                 </>
               )}
               {!showProductColumns && showProductionProcessColumn ? (
@@ -147,6 +158,7 @@ export function ItemListTable({
                   <th className="px-3 py-2.5 text-right">자재비</th>
                 </>
               ) : null}
+              {showBomColumn ? <th className="px-3 py-2.5 text-center">BOM</th> : null}
               <th className="px-3 py-2.5 text-center">사용여부</th>
             </tr>
           </thead>
@@ -203,9 +215,6 @@ export function ItemListTable({
                     <td className={`px-3 py-2.5 font-mono text-sm text-slate-700 ${ERP_TABLE_TD_WRAP_CLASS}`}>
                       {cell(item.mpn)}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-slate-700">
-                      {cell(item.supplyType)}
-                    </td>
                   </>
                 )}
                 {!showProductColumns && showProductionProcessColumn ? (
@@ -221,6 +230,29 @@ export function ItemListTable({
                     {moneyCell(displayItemProcessingUnitPrice(item))}
                     {moneyCell(displayItemMaterialUnitPrice(item))}
                   </>
+                ) : null}
+                {showBomColumn ? (
+                  <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                    {(() => {
+                      const registered = bomRegisteredByItemId?.get(item.id) === true
+                      return (
+                        <button
+                          type="button"
+                          title={registered ? 'BOM 수정' : 'BOM 등록'}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            onSelectBom?.(item)
+                          }}
+                          className="inline-flex rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                        >
+                          <StatusBadge
+                            label={registered ? '등록완료' : '미등록'}
+                            tone={registered ? 'success' : 'warning'}
+                          />
+                        </button>
+                      )
+                    })()}
+                  </td>
                 ) : null}
                 <td className="whitespace-nowrap px-3 py-2.5 text-center">
                   <StatusBadge

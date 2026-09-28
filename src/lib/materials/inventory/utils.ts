@@ -1,4 +1,5 @@
 import type { Material } from '@/lib/materials/types'
+import { safetyStockForAtp } from '@/lib/materials/atp'
 import { computePurchaseOrderRemainingQuantity } from '@/lib/materials/purchase-orders/utils'
 import type {
   InventoryFilterMode,
@@ -47,13 +48,19 @@ export function mergeMaterialInventoryRows(
   materials: Material[],
   pendingByMaterialId: Map<string, number>,
   onHandByMaterialId: Map<string, number>,
+  reservedByMaterialId?: Map<string, number>,
 ): MaterialInventoryRow[] {
   return materials.map((material) => {
     const onHandQuantity = onHandByMaterialId.get(material.id) ?? 0
+    const reservedQuantity = Math.max(0, reservedByMaterialId?.get(material.id) ?? 0)
+    const safety = safetyStockForAtp(material)
+    const availableQuantity = Math.max(0, onHandQuantity - safety - reservedQuantity)
     return {
       ...material,
       onHandQuantity,
       expectedInboundQuantity: pendingByMaterialId.get(material.id) ?? 0,
+      reservedQuantity,
+      availableQuantity,
     }
   })
 }

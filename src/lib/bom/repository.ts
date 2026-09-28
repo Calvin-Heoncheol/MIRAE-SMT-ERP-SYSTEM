@@ -4,6 +4,7 @@ import type { ItemCategory } from '@/lib/items/types'
 import { isRawMaterialItemCategory } from '@/lib/items/types'
 import { normalizeItemCategory } from '@/lib/items/utils'
 import type { BomLine, BomLinePayload } from './types'
+import { normalizeBomProcess } from './types'
 import { isValidBomPair, sumBomComponentUnitPrices } from './utils'
 
 export type FetchBomResult =
@@ -44,6 +45,12 @@ function mapBomDetailRow(row: {
   child_mpn?: string | null
   quantity_per?: number | string | null
   note?: string | null
+  process?: string | null
+  designators?: string | null
+  source_mpn?: string | null
+  source_part_code?: string | null
+  source_name?: string | null
+  source_spec?: string | null
 }): BomLine | null {
   const parentItemCategory = normalizeItemCategory(row.parent_item_category)
   const childItemCategory = normalizeItemCategory(row.child_item_category)
@@ -54,6 +61,12 @@ function mapBomDetailRow(row: {
     childProductId: String(row.child_product_id || '').trim(),
     quantityPer: Math.max(0, Number(row.quantity_per) || 0) || 1,
     note: String(row.note || '').trim(),
+    process: normalizeBomProcess(row.process),
+    designators: String(row.designators || '').trim(),
+    sourceMpn: String(row.source_mpn || '').trim(),
+    sourcePartCode: String(row.source_part_code || '').trim(),
+    sourceName: String(row.source_name || '').trim(),
+    sourceSpec: String(row.source_spec || '').trim(),
     parentProductName: String(row.parent_product_name || '').trim(),
     parentItemCategory,
     childProductName: String(row.child_product_name || '').trim(),
@@ -66,14 +79,46 @@ async function fetchBomFromItemsTable(): Promise<FetchBomResult> {
   const supabase = createSupabaseClient()
   const { data, error } = await supabase
     .from('bom_items')
-    .select('parent_product_id, child_product_id, quantity_per, note')
+    .select(
+      'parent_product_id, child_product_id, quantity_per, note, process, designators, source_mpn, source_part_code, source_name, source_spec',
+    )
     .order('parent_product_id', { ascending: true })
 
   if (error) {
+    if (
+      error.message.includes('process') ||
+      error.message.includes('designators') ||
+      error.message.includes('source_mpn')
+    ) {
+      const legacy = await supabase
+        .from('bom_items')
+        .select('parent_product_id, child_product_id, quantity_per, note')
+        .order('parent_product_id', { ascending: true })
+      if (legacy.error) {
+        return { ok: false, reason: 'query', detail: legacy.error.message }
+      }
+      return mapBomItemsWithMeta(legacy.data || [])
+    }
     return { ok: false, reason: 'query', detail: error.message }
   }
 
-  const rows = data || []
+  return mapBomItemsWithMeta(data || [])
+}
+
+async function mapBomItemsWithMeta(
+  rows: Array<{
+    parent_product_id?: string | null
+    child_product_id?: string | null
+    quantity_per?: number | string | null
+    note?: string | null
+    process?: string | null
+    designators?: string | null
+    source_mpn?: string | null
+    source_part_code?: string | null
+    source_name?: string | null
+    source_spec?: string | null
+  }>,
+): Promise<FetchBomResult> {
   const ids = [
     ...new Set(
       rows.flatMap((row) => [
@@ -83,12 +128,13 @@ async function fetchBomFromItemsTable(): Promise<FetchBomResult> {
     ),
   ].filter(Boolean)
 
-  const itemById: Record<
+  const metaById = new Map<
     string,
     { name: string; itemCategory: ItemCategory; mpn: string }
-  > = {}
+  >()
 
   if (ids.length) {
+    const supabase = createSupabaseClient()
     const { data: items, error: itemsError } = await supabase
       .from('items')
       .select('id, name, item_category, mpn')
@@ -99,29 +145,35 @@ async function fetchBomFromItemsTable(): Promise<FetchBomResult> {
     }
 
     for (const item of items || []) {
+      const id = String(item.id || '').trim()
       const category = normalizeItemCategory(item.item_category)
-      if (!category) continue
-      itemById[String(item.id)] = {
+      if (!id || !category) continue
+      metaById.set(id, {
         name: String(item.name || '').trim(),
         itemCategory: category,
         mpn: String(item.mpn || '').trim(),
-      }
+      })
     }
   }
 
   const lines: BomLine[] = []
   for (const row of rows) {
-    const parentId = String(row.parent_product_id || '').trim()
-    const childId = String(row.child_product_id || '').trim()
-    const parent = itemById[parentId]
-    const child = itemById[childId]
+    const parentProductId = String(row.parent_product_id || '').trim()
+    const childProductId = String(row.child_product_id || '').trim()
+    const parent = metaById.get(parentProductId)
+    const child = metaById.get(childProductId)
     if (!parent || !child) continue
-
     lines.push({
-      parentProductId: parentId,
-      childProductId: childId,
+      parentProductId,
+      childProductId,
       quantityPer: Math.max(0, Number(row.quantity_per) || 0) || 1,
       note: String(row.note || '').trim(),
+      process: normalizeBomProcess(row.process),
+      designators: String(row.designators || '').trim(),
+      sourceMpn: String(row.source_mpn || '').trim(),
+      sourcePartCode: String(row.source_part_code || '').trim(),
+      sourceName: String(row.source_name || '').trim(),
+      sourceSpec: String(row.source_spec || '').trim(),
       parentProductName: parent.name,
       parentItemCategory: parent.itemCategory,
       childProductName: child.name,
@@ -140,11 +192,22 @@ export async function fetchBomLines(): Promise<FetchBomResult> {
 
   try {
     const supabase = createSupabaseClient()
-    const { data, error } = await supabase
-      .from('bom_detail')
-      .select(
-        'parent_product_id, parent_product_name, parent_item_category, child_product_id, child_product_name, child_item_category, child_mpn, quantity_per, note',
-      )
+    const fullSelect =
+      'parent_product_id, parent_product_name, parent_item_category, child_product_id, child_product_name, child_item_category, child_mpn, quantity_per, note, process, designators, source_mpn, source_part_code, source_name, source_spec'
+    const legacySelect =
+      'parent_product_id, parent_product_name, parent_item_category, child_product_id, child_product_name, child_item_category, child_mpn, quantity_per, note'
+
+    let { data, error } = await supabase.from('bom_detail').select(fullSelect)
+
+    if (
+      error &&
+      (error.message.includes('process') ||
+        error.message.includes('designators') ||
+        error.message.includes('source_mpn') ||
+        error.message.includes('source_part_code'))
+    ) {
+      ;({ data, error } = await supabase.from('bom_detail').select(legacySelect))
+    }
 
     if (!error) {
       return {
@@ -565,6 +628,12 @@ export async function saveBomForParent(
         childProductId: childId,
         quantityPer,
         note: line.note.trim(),
+        process: normalizeBomProcess(line.process),
+        designators: String(line.designators || '').trim(),
+        sourceMpn: String(line.sourceMpn || '').trim(),
+        sourcePartCode: String(line.sourcePartCode || '').trim(),
+        sourceName: String(line.sourceName || '').trim(),
+        sourceSpec: String(line.sourceSpec || '').trim(),
       })
     }
 
@@ -598,15 +667,39 @@ export async function saveBomForParent(
       }
     }
 
-    const { error: upsertError } = await supabase.from('bom_items').upsert(
-      normalized.map((line) => ({
-        parent_product_id: parentId,
-        child_product_id: line.childProductId,
-        quantity_per: line.quantityPer,
-        note: line.note,
-      })),
-      { onConflict: 'parent_product_id,child_product_id' },
-    )
+    const upsertRows = normalized.map((line) => ({
+      parent_product_id: parentId,
+      child_product_id: line.childProductId,
+      quantity_per: line.quantityPer,
+      note: line.note,
+      process: line.process || '',
+      designators: line.designators || '',
+      source_mpn: line.sourceMpn || '',
+      source_part_code: line.sourcePartCode || '',
+      source_name: line.sourceName || '',
+      source_spec: line.sourceSpec || '',
+    }))
+
+    let { error: upsertError } = await supabase
+      .from('bom_items')
+      .upsert(upsertRows, { onConflict: 'parent_product_id,child_product_id' })
+
+    if (
+      upsertError &&
+      (upsertError.message.includes('process') ||
+        upsertError.message.includes('designators') ||
+        upsertError.message.includes('source_mpn'))
+    ) {
+      ;({ error: upsertError } = await supabase.from('bom_items').upsert(
+        normalized.map((line) => ({
+          parent_product_id: parentId,
+          child_product_id: line.childProductId,
+          quantity_per: line.quantityPer,
+          note: line.note,
+        })),
+        { onConflict: 'parent_product_id,child_product_id' },
+      ))
+    }
 
     if (upsertError) {
       return { ok: false, reason: 'query', detail: upsertError.message }

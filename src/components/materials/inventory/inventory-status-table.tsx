@@ -42,12 +42,18 @@ function CellText({
   return <span className={`block text-sm ${ERP_TABLE_TD_WRAP_CLASS} ${className}`}>{text}</span>
 }
 
-function quantityClass(value: number, variant: 'onHand' | 'expected') {
+function quantityClass(value: number, variant: 'onHand' | 'expected' | 'reserved' | 'available') {
   if (variant === 'onHand' && value < 0) {
     return 'font-semibold text-rose-700'
   }
   if (variant === 'expected' && value > 0) {
     return 'font-semibold text-amber-700'
+  }
+  if (variant === 'reserved' && value > 0) {
+    return 'font-semibold text-sky-700'
+  }
+  if (variant === 'available' && value <= 0) {
+    return 'font-semibold text-rose-700'
   }
   return 'font-medium text-slate-900'
 }
@@ -68,7 +74,7 @@ export function InventoryStatusTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className="erp-data-table w-full min-w-[1120px] table-fixed border-collapse">
+        <table className="erp-data-table w-full min-w-[1280px] table-fixed border-collapse">
           <thead className="sticky top-0 z-[1] bg-slate-50">
             <tr>
               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">
@@ -97,6 +103,12 @@ export function InventoryStatusTable({
               </th>
               <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
                 현재고
+              </th>
+              <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
+                예약
+              </th>
+              <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500">
+                가용
               </th>
             </tr>
           </thead>
@@ -152,6 +164,16 @@ export function InventoryStatusTable({
                   className={`px-3 py-2.5 text-right text-sm tabular-nums ${quantityClass(row.onHandQuantity, 'onHand')}`}
                 >
                   {formatInventoryQuantity(row.onHandQuantity)}
+                </td>
+                <td
+                  className={`px-3 py-2.5 text-right text-sm tabular-nums ${quantityClass(row.reservedQuantity, 'reserved')}`}
+                >
+                  {formatInventoryQuantity(row.reservedQuantity)}
+                </td>
+                <td
+                  className={`px-3 py-2.5 text-right text-sm tabular-nums ${quantityClass(row.availableQuantity, 'available')}`}
+                >
+                  {formatInventoryQuantity(row.availableQuantity)}
                 </td>
               </tr>
             ))}

@@ -90,6 +90,8 @@ export function InventoryStatusWorkspace({ result }: InventoryStatusWorkspacePro
         { header: '구분', value: (row) => row.type, width: 10 },
         { header: '입고예정', value: (row) => row.expectedInboundQuantity, width: 10 },
         { header: '현재고', value: (row) => row.onHandQuantity, width: 10 },
+        { header: '예약', value: (row) => row.reservedQuantity, width: 10 },
+        { header: '가용', value: (row) => row.availableQuantity, width: 10 },
       ],
     })
   }

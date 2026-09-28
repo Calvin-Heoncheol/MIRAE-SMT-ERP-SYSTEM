@@ -13,12 +13,10 @@ import type {
   UpdateItemPayload,
 } from './types'
 import {
-  isMaterialItemCategory,
   isProductItemCategory,
   isRawMaterialItemCategory,
   isSemiFinishedItemCategory,
   deriveItemProcessType,
-  ITEM_SUPPLY_TYPE_OPTIONS,
 } from './types'
 import { EMPTY_SMT_QUOTE_PARTS } from './smt-quote-parts'
 import { normalizeItemCategory, normalizeAlternateMpns } from './utils'
@@ -184,12 +182,6 @@ export function validateItemForm(form: ItemFormState, options?: { isCreate?: boo
   if (isRawMaterialItemCategory(category) && !form.materialType) {
     return '공정구분을 선택해 주세요.'
   }
-  if (isMaterialItemCategory(category)) {
-    const supplyType = String(form.supplyType || '').trim()
-    if (!ITEM_SUPPLY_TYPE_OPTIONS.includes(supplyType as (typeof ITEM_SUPPLY_TYPE_OPTIONS)[number])) {
-      return '도급/사급을 선택해 주세요.'
-    }
-  }
   if (isSemiFinishedItemCategory(category)) {
     const processType = deriveItemProcessType(form.smdUnitPrice, form.dipUnitPrice)
     if (!processType) {
@@ -233,7 +225,7 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     alternateMpns: isProduct ? [] : normalizeAlternateMpns(form.alternateMpns, form.mpn),
     customerId: form.customerId.trim(),
     materialType: isRawMaterial ? form.materialType : '',
-    supplyType: isProduct ? '' : form.supplyType,
+    supplyType: '',
     supplier: form.supplier.trim(),
     pcbSideMode: isSemiFinishedItemCategory(itemCategory) ? form.pcbSideMode || 'single' : '',
     processType: isSemiFinishedItemCategory(itemCategory)

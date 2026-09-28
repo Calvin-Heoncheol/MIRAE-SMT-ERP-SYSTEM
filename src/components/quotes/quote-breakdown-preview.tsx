@@ -3,7 +3,11 @@ import {
   COMPANY_NAME_EN,
 } from '@/lib/app-config'
 import { formatQuoteMoneyByDisplay, formatQuotePreviewSummary, formatQuoteValidityText } from '@/lib/quotes/format'
-import { getPreviewLabels } from '@/lib/quotes/preview-i18n'
+import {
+  breakdownSmdGroupTitle,
+  breakdownSmtPlacementSubtitle,
+  getPreviewLabels,
+} from '@/lib/quotes/preview-i18n'
 import {
   BOARD_SUBTOTAL_ROW_BG,
   breakdownBoardColLabel,
@@ -43,8 +47,8 @@ function breakdownPageTitle(quoteType: QuoteType) {
 
 function breakdownPageNote(quoteType: QuoteType) {
   return quoteType === 'domestic'
-    ? 'SET-UP·SMD(실장·검사)·납땜·후공정·자재 항목별 단가·부품수·소요시간·생산수량 기준 합계입니다.'
-    : 'Itemized totals for SET-UP, SMD (placement, inspection), soldering, post-process, and materials.'
+    ? 'SMD(SET-UP·실장·검사)·납땜·후공정·자재 항목별 단가·부품수·소요시간·생산수량 기준 합계입니다.'
+    : 'Itemized totals for SMD (SET-UP, placement, inspection), soldering, post-process, and materials.'
 }
 
 function formatAmount(
@@ -136,8 +140,10 @@ function BreakdownTableRow({
 
   const labelClass = row.emphasize || row.sectionFooter ? 'font-bold text-slate-900' : 'text-slate-700'
   const amountClass = row.amountEmphasize || row.sectionFooter ? 'font-bold text-slate-900' : 'text-xs text-slate-600'
-  const firstMetricClass = `${firstMetricAlign} text-xs text-slate-600`
-  const secondMetricClass = `${secondMetricAlign} text-xs text-slate-600`
+  const countClass = row.countEmphasize ? 'text-xs font-bold text-slate-900' : 'text-xs text-slate-600'
+  const unitClass = 'text-xs text-slate-600'
+  const firstMetricClass = `${firstMetricAlign} ${swapUnitAndCount ? countClass : unitClass}`
+  const secondMetricClass = `${secondMetricAlign} ${swapUnitAndCount ? unitClass : countClass}`
 
   return (
     <tr className={borderTopClass} style={rowStyle}>
@@ -181,10 +187,13 @@ function BreakdownSectionTable({
   section,
   quoteType,
   displayCurrency,
+  subsection = false,
 }: {
   section: BreakdownSectionPreview
   quoteType: QuoteType
   displayCurrency: QuoteDisplayCurrency
+  /** true면 SMD 묶음 안 소제목으로 표시 */
+  subsection?: boolean
 }) {
   const labels = getPreviewLabels(quoteType)
   const showBoardColumn = section.rows.some((row) => row.boardName)
@@ -198,7 +207,8 @@ function BreakdownSectionTable({
     : isSmdSection
       ? labels.colSmdBaseRate
       : labels.colUnit
-  const unitTotalHeader = isSmdSection ? labels.colSmdUnitPrice : labels.colUnitTotal
+  const unitTotalHeader =
+    isSmdSection || isPostSection || isSetupSection ? labels.colSmdUnitPrice : labels.colUnitTotal
   const qtyHeader = isSetupSection
     ? labels.colSetupMinutes
     : isSmdSection
@@ -211,7 +221,15 @@ function BreakdownSectionTable({
 
   return (
     <div className={`breakdown-section-${section.key}`}>
-      <h4 className="mb-2 text-xs font-bold tracking-[0.08em] text-slate-600">{section.title}</h4>
+      <h4
+        className={
+          subsection
+            ? 'mb-1.5 text-[11px] font-semibold text-slate-500'
+            : 'mb-2 text-xs font-bold tracking-[0.08em] text-slate-600'
+        }
+      >
+        {section.title}
+      </h4>
       <div className="overflow-x-auto rounded border-2 border-slate-400">
         <table className="erp-data-table erp-data-table--compact min-w-full border-collapse text-sm">
           <thead className="bg-slate-100">
@@ -286,6 +304,8 @@ export function QuoteBreakdownPreview({
   const companyName = isDomestic ? APP_SHORT_NAME : COMPANY_NAME_EN
   const breakdownRows = result ? buildProcessCentricPdfBreakdownRows(result, form, quoteType) : []
   const sections = result ? buildProcessBreakdownSections(breakdownRows, quoteType, result.qty || 1) : []
+  const setupSection = sections.find((section) => section.key === 'setup')
+  const smtSection = sections.find((section) => section.key === 'smt')
   const previewSummary = result
     ? formatQuotePreviewSummary(result.values.grandTotal, result.qty || 1, quoteType, displayCurrency)
     : null
@@ -328,14 +348,40 @@ export function QuoteBreakdownPreview({
               <h4 className="text-xs font-bold tracking-[0.12em] text-slate-500">{breakdownPageTitle(quoteType)}</h4>
               <p className="mt-1 text-[11px] text-slate-500">{breakdownPageNote(quoteType)}</p>
             </div>
-            {sections.map((section) => (
-              <BreakdownSectionTable
-                key={section.key}
-                section={section}
-                quoteType={quoteType}
-                displayCurrency={displayCurrency}
-              />
-            ))}
+            {sections.map((section) => {
+              if (section.key === 'smt' && setupSection) return null
+              if (section.key === 'setup') {
+                return (
+                  <div key="smd-group" className="breakdown-section-smd space-y-3">
+                    <h4 className="text-xs font-bold tracking-[0.08em] text-slate-600">
+                      {breakdownSmdGroupTitle(quoteType)}
+                    </h4>
+                    <BreakdownSectionTable
+                      section={section}
+                      quoteType={quoteType}
+                      displayCurrency={displayCurrency}
+                      subsection
+                    />
+                    {smtSection ? (
+                      <BreakdownSectionTable
+                        section={{ ...smtSection, title: breakdownSmtPlacementSubtitle(quoteType) }}
+                        quoteType={quoteType}
+                        displayCurrency={displayCurrency}
+                        subsection
+                      />
+                    ) : null}
+                  </div>
+                )
+              }
+              return (
+                <BreakdownSectionTable
+                  key={section.key}
+                  section={section}
+                  quoteType={quoteType}
+                  displayCurrency={displayCurrency}
+                />
+              )
+            })}
           </div>
         )}
       </div>

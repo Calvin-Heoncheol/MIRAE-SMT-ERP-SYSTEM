@@ -21,6 +21,8 @@ export type ErpConfirmOptions = {
   confirmLabel?: string
   cancelLabel?: string
   tone?: ErpConfirmTone
+  /** 목록이 길 때 md 권장 */
+  size?: 'form' | 'md'
 }
 
 type PendingConfirm = ErpConfirmOptions & {
@@ -74,7 +76,7 @@ export function ErpConfirmProvider({ children }: { children: ReactNode }) {
       {pending ? (
         <ErpModal
           open
-          size="form"
+          size={pending.size || 'form'}
           title={pending.title}
           onClose={() => finish(false)}
           closeOnEscape
@@ -98,7 +100,16 @@ export function ErpConfirmProvider({ children }: { children: ReactNode }) {
           <div className="space-y-1 text-sm leading-relaxed text-slate-700">
             {lines.map((line, index) =>
               line ? (
-                <p key={index}>{line}</p>
+                <p
+                  key={index}
+                  className={
+                    line.startsWith('·') || line.startsWith('-')
+                      ? 'font-mono text-xs text-slate-600'
+                      : undefined
+                  }
+                >
+                  {line}
+                </p>
               ) : (
                 <div key={index} className="h-2" aria-hidden />
               ),

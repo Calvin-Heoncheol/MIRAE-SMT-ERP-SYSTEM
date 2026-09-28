@@ -3,22 +3,16 @@
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import {
-  POST_RATE_ADMIN,
-  POST_RATE_CORPORATE_PROFIT,
-  POST_RATE_DIRECT_LABOR,
-  POST_RATE_OVERHEAD,
-} from '@/lib/quotes/constants'
-import {
   emptyPostProcessLineForm,
   formatPostProcessBilledMinutes,
   formatPostProcessMinutesDisplay,
   parsePostProcessBufferPercent,
   parsePostProcessSeconds,
   postProcessBufferSeconds,
+  roundPostProcessMinutes,
   sumPostProcessBilledMinutes,
   type PostProcessLineForm,
 } from '@/lib/quotes/post-process-lines'
-import { formatQuoteMoneyByDisplay } from '@/lib/quotes/format'
 import type { QuoteDisplayCurrency, QuoteType } from '@/lib/quotes/types'
 
 type PostProcessLinesEditorProps = {
@@ -36,23 +30,27 @@ type PostProcessLinesEditorProps = {
   onBufferPercentChange?: (value: string) => void
 }
 
+function minutesText(minutes: number) {
+  const display = formatPostProcessMinutesDisplay(minutes)
+  return display === '—' ? '0.00' : display
+}
+
 export function PostProcessLinesEditor({
   title,
-  ratePerMinute,
   lines,
   boardQty,
   bufferPercent,
-  quoteType,
-  displayCurrency,
   onChange,
   showBufferControl = false,
   onBufferPercentChange,
 }: PostProcessLinesEditorProps) {
   const totalMinutes = sumPostProcessBilledMinutes(lines, boardQty, bufferPercent)
+  const baseMinutes = roundPostProcessMinutes(
+    lines.reduce((sum, line) => sum + parsePostProcessSeconds(line.seconds), 0) / 60,
+  )
+  const bufferMinutes = roundPostProcessMinutes(totalMinutes - baseMinutes)
   const resolvedBufferPercent =
     parsePostProcessBufferPercent(bufferPercent) ?? 0
-  const rateLabel = formatQuoteMoneyByDisplay(ratePerMinute, quoteType, displayCurrency)
-  const rateHint = `분당임률 구성: 직접노무비 ${POST_RATE_DIRECT_LABOR}원 + 제조간접비 ${POST_RATE_OVERHEAD}원 + 기업이윤 ${POST_RATE_CORPORATE_PROFIT}원 + 일반관리비 ${POST_RATE_ADMIN}원`
   const bufferHint =
     '기본: 1,000미만 30% · 1,000↑ 25% · 2,000↑ 20% · 5,000↑ 15% (수량 변경 시 기본값으로 다시 맞춰집니다)'
 
@@ -77,10 +75,8 @@ export function PostProcessLinesEditor({
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h5 className="text-xs font-bold text-slate-700">{title}</h5>
         <span className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[11px] text-slate-500">
-          총 시간 합계 {formatPostProcessMinutesDisplay(totalMinutes)}분 ·{' '}
-          <span className="cursor-help underline decoration-dotted decoration-slate-300" title={rateHint}>
-            {rateLabel}/분
-          </span>
+          시간합계 {minutesText(baseMinutes)}분 + 여유시간 {minutesText(bufferMinutes)}분 = 총 합계{' '}
+          <span className="font-semibold text-slate-700">{minutesText(totalMinutes)}분</span>
           {showBufferControl && onBufferPercentChange ? (
             <>
               {' · '}

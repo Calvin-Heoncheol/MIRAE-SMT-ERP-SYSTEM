@@ -1,4 +1,5 @@
-import type { BomGroup, BomLinePayload } from './types'
+import type { BomGroup, BomLinePayload, BomProcess } from './types'
+import { normalizeBomProcess } from './types'
 import type { Item, ItemCategory } from '@/lib/items/types'
 import { isRawMaterialItemCategory } from '@/lib/items/types'
 
@@ -6,6 +7,12 @@ export type BomFormLine = {
   key: string
   childProductId: string
   quantityPer: string
+  process: BomProcess
+  designators: string
+  sourceMpn: string
+  sourcePartCode: string
+  sourceName: string
+  sourceSpec: string
 }
 
 export type BomFormState = {
@@ -22,28 +29,49 @@ export function createBomFormLine(
   return {
     key: partial?.key || `bom-line-${lineKeySeq}`,
     childProductId: partial?.childProductId || '',
-    quantityPer: partial?.quantityPer ?? '1',
+    quantityPer: partial?.quantityPer ?? '',
+    process: normalizeBomProcess(partial?.process),
+    designators: partial?.designators?.trim() || '',
+    sourceMpn: partial?.sourceMpn?.trim() || '',
+    sourcePartCode: partial?.sourcePartCode?.trim() || '',
+    sourceName: partial?.sourceName?.trim() || '',
+    sourceSpec: partial?.sourceSpec?.trim() || '',
   }
+}
+
+const EMPTY_SHEET_ROWS = 20
+
+export function createEmptyBomSheetLines(rowCount = EMPTY_SHEET_ROWS): BomFormLine[] {
+  return Array.from({ length: Math.max(1, rowCount) }, () => createBomFormLine())
 }
 
 export function emptyBomForm(parentProductId = ''): BomFormState {
   return {
     parentProductId,
-    lines: [createBomFormLine()],
+    lines: createEmptyBomSheetLines(),
   }
 }
 
 export function bomGroupToForm(group: BomGroup): BomFormState {
+  const lines = group.lines.length
+    ? group.lines.map((line) =>
+        createBomFormLine({
+          childProductId: line.childProductId,
+          quantityPer: String(line.quantityPer),
+          process: line.process,
+          designators: line.designators,
+          sourceMpn: line.sourceMpn || line.childMpn,
+          sourcePartCode: line.sourcePartCode,
+          sourceName: line.sourceName || line.childProductName,
+          sourceSpec: line.sourceSpec,
+        }),
+      )
+    : []
+
+  const pad = Math.max(0, EMPTY_SHEET_ROWS - lines.length)
   return {
     parentProductId: group.parentProductId,
-    lines: group.lines.length
-      ? group.lines.map((line) =>
-          createBomFormLine({
-            childProductId: line.childProductId,
-            quantityPer: String(line.quantityPer),
-          }),
-        )
-      : [createBomFormLine()],
+    lines: pad > 0 ? [...lines, ...createEmptyBomSheetLines(pad)] : lines.length ? lines : createEmptyBomSheetLines(),
   }
 }
 
@@ -53,6 +81,12 @@ export function formToBomLinePayloads(form: BomFormState): BomLinePayload[] {
       childProductId: line.childProductId.trim(),
       quantityPer: Number(line.quantityPer),
       note: '',
+      process: normalizeBomProcess(line.process),
+      designators: line.designators.trim(),
+      sourceMpn: line.sourceMpn.trim(),
+      sourcePartCode: line.sourcePartCode.trim(),
+      sourceName: line.sourceName.trim(),
+      sourceSpec: line.sourceSpec.trim(),
     }))
     .filter((line) => line.childProductId)
 }
@@ -62,10 +96,24 @@ export function validateBomForm(
   options?: {
     parentItemCategory?: ItemCategory | null
     childItems?: Array<Pick<Item, 'id' | 'baseCode' | 'itemCategory'>>
+    /** true면 미매칭 행을 저장 전 원자재 자동등록에 맡김 */
+    allowUnmatched?: boolean
   },
 ): string | null {
   if (!form.parentProductId.trim()) {
     return '부모 품목을 선택해 주세요.'
+  }
+
+  const unmatchedCount = form.lines.filter(
+    (line) =>
+      !line.childProductId.trim() &&
+      (line.sourcePartCode.trim() ||
+        line.sourceMpn.trim() ||
+        line.sourceName.trim() ||
+        line.designators.trim()),
+  ).length
+  if (unmatchedCount > 0 && !options?.allowUnmatched) {
+    return `미등록 품목 ${unmatchedCount}건이 있습니다. 품목코드 또는 MPN을 확인해 주세요.`
   }
 
   const payloads = formToBomLinePayloads(form)
