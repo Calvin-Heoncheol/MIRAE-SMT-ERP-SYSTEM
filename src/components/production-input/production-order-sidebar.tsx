@@ -25,7 +25,6 @@ import {
   getMaterialInboundState,
   materialInboundFilterLabel,
   materialInboundProgressPercent,
-  materialOutboundProgressPercent,
   countMaterialInboundStates,
   filterOrdersByMaterialInbound,
   resolveMaterialInboundSets,
@@ -84,14 +83,6 @@ function materialProgressBarClass(state: MaterialInboundState, complete: boolean
   if (complete) return 'bg-emerald-500'
   if (state === 'partial') return 'bg-amber-500'
   return 'bg-slate-300'
-}
-
-function materialOutboundProgressBarClass(outboundSets: number, inboundSets: number) {
-  const inbound = Math.max(0, Math.floor(inboundSets))
-  const outbound = Math.max(0, Math.floor(outboundSets))
-  if (inbound <= 0 || outbound <= 0) return 'bg-slate-300'
-  if (outbound >= inbound) return 'bg-sky-500'
-  return 'bg-sky-400'
 }
 
 function stateLabel(state: ProductionOrderState) {
@@ -393,9 +384,6 @@ export function ProductionOrderSidebar({
             const inboundSets = isMaterialInboundMode
               ? resolveMaterialInboundSets(order, inboundMetricsByLineId!)
               : 0
-            const outboundSets = isMaterialInboundMode
-              ? Math.max(0, Math.floor(materialMetricsByLineId![order.orderLineId]?.outboundSets ?? 0))
-              : 0
             const materialState = isMaterialInboundMode
               ? getMaterialInboundState(order, inboundSets)
               : null
@@ -408,12 +396,8 @@ export function ProductionOrderSidebar({
             const progress = isMaterialInboundMode
               ? materialInboundProgressPercent(order, inboundSets)
               : getProgressPercent(cumulative, target)
-            const outboundProgress = isMaterialInboundMode
-              ? materialOutboundProgressPercent(inboundSets, outboundSets)
-              : 0
             const inboundComplete = target > 0 && inboundSets >= target
             const inboundRemaining = Math.max(0, target - inboundSets)
-            const outboundRemaining = Math.max(0, inboundSets - outboundSets)
             const complete = isMaterialInboundMode ? inboundComplete : target > 0 && cumulative >= target
             const remaining = isMaterialInboundMode ? inboundRemaining : Math.max(0, target - cumulative)
             const daysUntilDelivery = order.deliveryDate
@@ -580,37 +564,6 @@ export function ProductionOrderSidebar({
                           <div
                             className={`h-full rounded-full transition-all ${materialProgressBarClass(materialState!, inboundComplete)}`}
                             style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <div
-                          className={[
-                            'mb-1 flex items-center justify-between gap-2 font-medium text-slate-500',
-                            isBoard ? 'text-xs' : 'text-[11px]',
-                          ].join(' ')}
-                        >
-                          <span className="tabular-nums">
-                            불출 {outboundSets.toLocaleString('ko-KR')}
-                            {inboundSets > 0 ? ` / ${inboundSets.toLocaleString('ko-KR')}` : ''}
-                            <span className="ml-1.5 font-bold text-slate-400">{outboundProgress}%</span>
-                          </span>
-                          <span>
-                            미불출{' '}
-                            <span className="font-bold text-slate-700 tabular-nums">
-                              {outboundRemaining.toLocaleString('ko-KR')}
-                            </span>
-                          </span>
-                        </div>
-                        <div
-                          className={[
-                            'overflow-hidden rounded-full bg-slate-100',
-                            isBoard ? 'h-2' : 'h-1.5',
-                          ].join(' ')}
-                        >
-                          <div
-                            className={`h-full rounded-full transition-all ${materialOutboundProgressBarClass(outboundSets, inboundSets)}`}
-                            style={{ width: `${outboundProgress}%` }}
                           />
                         </div>
                       </div>

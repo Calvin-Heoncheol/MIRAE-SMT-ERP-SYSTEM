@@ -81,6 +81,7 @@ export async function buildDeliveryStatementDataFromTableGroup(
       qty: extra.qty,
       unitPrice: extra.unitPrice,
       billingOnly: true,
+      material: extra.lineKind === 'material',
     })
   }
 
@@ -103,6 +104,7 @@ export async function buildDeliveryStatementDataFromTableGroup(
       qty: line.qty,
       unitPrice: line.unitPrice ?? 0,
       billingOnly: line.billingOnly,
+      material: line.material,
       orderLineId: line.orderLineId,
     })),
   })

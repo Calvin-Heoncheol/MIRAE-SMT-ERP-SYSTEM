@@ -1,5 +1,10 @@
+import { fetchAssemblyGroups } from '@/lib/assembly/repository'
+import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
+import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
+import { buildOrderLineToAssemblyGroupMap } from '@/lib/delivery/utils'
+import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { fetchProductionInputPageData } from '@/lib/production-input/repository'
 import { formatProductionProductName } from '@/lib/production-input/utils'
 import { SMT_PRODUCTION_INPUT_CONFIG } from '@/lib/smt/config'
@@ -72,15 +77,37 @@ async function fetchOutboundTotalsByLineId(): Promise<
   return { ok: true, totals }
 }
 
+/** 조립 그룹 출하 비율만큼 발주 라인 수량을 환산 (출하 완료면 라인 수량 전체) */
+function shippedSetsForOrderLine(
+  order: ProductionOrderLine,
+  groupById: Map<string, OrderAssemblyGroup>,
+  lineToGroup: Map<string, string>,
+  deliveryCounts: Record<string, number>,
+) {
+  const lineQty = Math.max(0, Math.floor(order.quantity))
+  const groupId = order.assemblyGroupId || lineToGroup.get(order.orderLineId) || ''
+  const group = groupId ? groupById.get(groupId) : undefined
+  if (!group || lineQty <= 0) return 0
+
+  const target = Math.max(0, Math.floor(group.targetQuantity))
+  const shipped = Math.max(0, Math.floor(Number(deliveryCounts[group.id]) || 0))
+  if (target <= 0 || shipped <= 0) return 0
+  if (shipped >= target) return lineQty
+  return Math.min(lineQty, Math.floor((lineQty * shipped) / target))
+}
+
 export async function fetchMaterialManualPageData(): Promise<FetchMaterialManualPageResult> {
   const supabase = createSupabaseClient()
   if (!supabase) return missingEnv()
 
-  const [inputResult, boardResult, outboundResult] = await Promise.all([
-    fetchProductionInputPageData(SMT_PRODUCTION_INPUT_CONFIG),
-    fetchProductionPlanBoard(),
-    fetchOutboundTotalsByLineId(),
-  ])
+  const [inputResult, boardResult, outboundResult, assemblyResult, deliveryCountsResult] =
+    await Promise.all([
+      fetchProductionInputPageData(SMT_PRODUCTION_INPUT_CONFIG, { includeDeliveryComplete: true }),
+      fetchProductionPlanBoard(),
+      fetchOutboundTotalsByLineId(),
+      fetchAssemblyGroups(),
+      fetchDeliveryCumulativeCounts(),
+    ])
 
   if (!inputResult.ok) {
     return inputResult
@@ -91,14 +118,29 @@ export async function fetchMaterialManualPageData(): Promise<FetchMaterialManual
   if (!outboundResult.ok) {
     return outboundResult
   }
+  if (!assemblyResult.ok) {
+    return assemblyResult
+  }
+  if (!deliveryCountsResult.ok) {
+    return deliveryCountsResult
+  }
 
   const inboundByLineId = buildInboundByLineId(boardResult)
+  const groupById = new Map(assemblyResult.groups.map((group) => [group.id, group] as const))
+  const lineToGroup = buildOrderLineToAssemblyGroupMap(assemblyResult.groups)
   const metricsByLineId: MaterialManualPageData['metricsByLineId'] = {}
 
   for (const order of inputResult.data.orders) {
+    const shippedSets = shippedSetsForOrderLine(
+      order,
+      groupById,
+      lineToGroup,
+      deliveryCountsResult.counts,
+    )
     metricsByLineId[order.orderLineId] = {
-      inboundSets: inboundByLineId[order.orderLineId] ?? 0,
-      outboundSets: outboundResult.totals[order.orderLineId] ?? 0,
+      inboundSets: Math.max(inboundByLineId[order.orderLineId] ?? 0, shippedSets),
+      outboundSets: Math.max(outboundResult.totals[order.orderLineId] ?? 0, shippedSets),
+      shippedSets,
     }
   }
 

@@ -995,6 +995,7 @@ export function DeliveryHistoryModal({
         qty: Math.max(0, Math.floor(Number(line.quantity) || 0)),
         unitPrice: parseMoneyInput(line.unitPrice),
         billingOnly: Boolean(line.billingOnly),
+        material: false,
         orderLineId: line.orderLineId,
       }))
       .filter((line) => line.qty > 0 || line.billingOnly)
@@ -1010,6 +1011,7 @@ export function DeliveryHistoryModal({
         qty: extra.qty,
         unitPrice: extra.unitPrice,
         billingOnly: true,
+        material: extra.lineKind === 'material',
         orderLineId: undefined,
       })
     }

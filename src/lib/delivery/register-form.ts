@@ -292,6 +292,7 @@ export function registerItemsToStatementShippedLines(items: DeliveryRegisterItem
       qty: Math.floor(Number(item.quantity) || 0),
       unitPrice: Math.round(Number(item.unitPrice) || 0),
       billingOnly: isBillingRegisterItem(item),
+      material: item.lineKind === 'material',
       orderLineId: isManualRegisterItem(item)
         ? undefined
         : isBillingRegisterItem(item)

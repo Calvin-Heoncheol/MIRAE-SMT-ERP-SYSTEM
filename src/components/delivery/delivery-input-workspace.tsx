@@ -39,6 +39,7 @@ import {
 } from '@/lib/delivery/history-utils'
 import { buildDeliveryStatementDataFromTableGroup } from '@/lib/delivery/statement-from-group'
 import { printDeliveryStatements } from '@/lib/delivery/print-delivery-statement'
+import { exportMonthlyClosingExcel } from '@/lib/reports/export-monthly-closing-excel'
 import { exportMonthlyClosingPdf } from '@/lib/reports/export-monthly-closing-pdf'
 import {
   buildMonthlyClosingRows,
@@ -225,9 +226,10 @@ export function DeliveryInputWorkspace({
     }
   }
 
-  async function handleMonthlyClosingExport() {
+  async function handleMonthlyClosingExport(format: 'pdf' | 'excel') {
     setClosingExporting(true)
     setPrintError(null)
+    const formatLabel = format === 'excel' ? 'EXCEL' : 'PDF'
 
     try {
       const rows = buildMonthlyClosingRows(statementGroups, {
@@ -237,18 +239,25 @@ export function DeliveryInputWorkspace({
       })
 
       if (!rows.length) {
-        setPrintError('월 마감 PDF로 보낼 출하·명세 내역이 없습니다.')
+        setPrintError(`월 마감 ${formatLabel}로 보낼 출하·명세 내역이 없습니다.`)
         return
       }
 
       const customer = resolveMonthlyClosingCustomerLabel(statementGroups, search)
+      const input = { rows, customer, startDate, endDate }
 
-      const ok = exportMonthlyClosingPdf({
-        rows,
-        customer,
-        startDate,
-        endDate,
-      })
+      if (format === 'excel') {
+        try {
+          await exportMonthlyClosingExcel(input)
+        } catch (error) {
+          setPrintError(
+            `월 마감 EXCEL을 만들지 못했습니다. ${error instanceof Error ? error.message : ''}`.trim(),
+          )
+        }
+        return
+      }
+
+      const ok = exportMonthlyClosingPdf(input)
       if (!ok) {
         setPrintError('월 마감 PDF를 열 수 없습니다. 브라우저 팝업 차단을 해제한 뒤 다시 시도해 주세요.')
       }
@@ -430,9 +439,13 @@ export function DeliveryInputWorkspace({
                 label={printing ? '준비 중…' : '거래명세서'}
               />
               <PdfDownloadButton
-                onDownload={() => void handleMonthlyClosingExport()}
+                onDownload={() => void handleMonthlyClosingExport('pdf')}
                 disabled={printing || closingExporting || statementGroups.length === 0}
                 label={closingExporting ? '준비 중…' : '월 마감'}
+                menuItems={[
+                  { label: 'PDF', onDownload: () => void handleMonthlyClosingExport('pdf') },
+                  { label: 'EXCEL', onDownload: () => void handleMonthlyClosingExport('excel') },
+                ]}
               />
               <DeliveryRegisterMenu onOpenRegister={() => openRegister()} />
             </>

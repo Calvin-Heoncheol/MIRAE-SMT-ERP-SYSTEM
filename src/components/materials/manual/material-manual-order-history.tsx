@@ -167,7 +167,7 @@ export function MaterialManualOrderHistory({
     <aside className="flex min-h-0 min-w-0 flex-1 flex-col self-stretch border-t border-slate-200 bg-slate-50 lg:min-w-0 lg:flex-1 lg:border-t-0 lg:border-l">
       <div className="shrink-0 border-b border-slate-200 px-3 py-2.5">
         <h3 className="text-sm font-bold text-slate-800">등록 이력</h3>
-        <p className="mt-0.5 text-[11px] text-slate-500">최근 입고·불출부터 표시합니다.</p>
+        <p className="mt-0.5 text-[11px] text-slate-500">최근 등록부터 표시합니다.</p>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50">
         {loading ? (

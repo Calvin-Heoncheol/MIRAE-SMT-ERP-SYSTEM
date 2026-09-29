@@ -53,6 +53,7 @@ type StatementShippedLineInput = {
   qty: number
   unitPrice?: number | null
   billingOnly?: boolean
+  material?: boolean
   orderLineId?: string
 }
 
@@ -66,6 +67,7 @@ function normalizeStatementShippedLines(lines: StatementShippedLineInput[]) {
       unitPrice:
         line.unitPrice != null ? Math.max(0, Math.round(Number(line.unitPrice) || 0)) : null,
       billingOnly: Boolean(line.billingOnly),
+      material: Boolean(line.material),
       orderLineId: String(line.orderLineId || '').trim(),
     }))
     .filter(
@@ -193,6 +195,7 @@ export async function buildDeliveryStatementDataFromShipment(input: {
         unitPrice,
         supplyAmount: Math.round(line.qty * unitPrice),
         billingOnly: true,
+        material: Boolean(line.material),
       })
       continue
     }

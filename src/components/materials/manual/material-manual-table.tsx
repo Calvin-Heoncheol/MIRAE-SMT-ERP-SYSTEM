@@ -8,7 +8,6 @@ import {
   getMaterialInboundState,
   materialInboundFilterLabel,
   materialInboundProgressPercent,
-  materialOutboundProgressPercent,
   type MaterialInboundState,
 } from '@/lib/materials/manual/utils'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
@@ -87,7 +86,7 @@ function ProgressCell({
       <button
         type="button"
         onClick={onClick}
-        title={`${label} 클릭하여 입고·불출 등록`}
+        title={`${label} 클릭하여 등록`}
         className="w-full rounded-lg px-1 py-0.5 text-left transition hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
       >
         {content}
@@ -113,7 +112,7 @@ export function MaterialManualTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className={`${ERP_TABLE_CLASS} min-w-[960px]`}>
+        <table className={`${ERP_TABLE_CLASS} min-w-[840px]`}>
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>발주서</th>
@@ -122,7 +121,6 @@ export function MaterialManualTable({
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>버전</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>납기</th>
               <th className={ERP_TABLE_TH_CLASS}>입고</th>
-              <th className={ERP_TABLE_TH_CLASS}>불출</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>상태</th>
             </tr>
           </thead>
@@ -134,16 +132,11 @@ export function MaterialManualTable({
               }
               const target = Math.max(0, Math.floor(order.quantity))
               const inboundSets = Math.max(0, Math.floor(metrics.inboundSets))
-              const outboundSets = Math.max(0, Math.floor(metrics.outboundSets))
+              const shippedSets = Math.max(0, Math.floor(metrics.shippedSets ?? 0))
               const inboundState = getMaterialInboundState(order, inboundSets)
               const inboundComplete = target > 0 && inboundSets >= target
               const inboundPercent = materialInboundProgressPercent(order, inboundSets)
-              const outboundPercent = materialOutboundProgressPercent(inboundSets, outboundSets)
               const inboundDetail = `${inboundSets.toLocaleString('ko-KR')} / ${target.toLocaleString('ko-KR')}`
-              const outboundDetail =
-                inboundSets > 0
-                  ? `${outboundSets.toLocaleString('ko-KR')} / ${inboundSets.toLocaleString('ko-KR')}`
-                  : `${outboundSets.toLocaleString('ko-KR')} / —`
               const { name, version } = formatProductionProductDisplay(order)
               const openModal = onOrderClick ? () => onOrderClick(order) : undefined
 
@@ -182,19 +175,20 @@ export function MaterialManualTable({
                     label="입고"
                     onClick={openModal}
                   />
-                  <ProgressCell
-                    percent={outboundPercent}
-                    tone="sky"
-                    detail={outboundDetail}
-                    label="불출"
-                    onClick={openModal}
-                  />
                   <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
                     <span
                       className={`${ERP_BADGE_COMPACT_CLASS} ${materialStateBadgeClass(inboundState)}`}
                     >
                       {materialInboundFilterLabel(inboundState)}
                     </span>
+                    {shippedSets > 0 ? (
+                      <p
+                        className="mt-1 text-[11px] font-medium text-slate-500"
+                        title="출하 수량만큼 입고 완료로 간주합니다"
+                      >
+                        출하 {shippedSets.toLocaleString('ko-KR')} 반영
+                      </p>
+                    ) : null}
                   </td>
                 </tr>
               )

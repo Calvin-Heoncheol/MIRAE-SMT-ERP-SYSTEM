@@ -15,11 +15,7 @@ type MaterialManualModalProps = {
   metrics: MaterialManualOrderMetrics
   refreshing?: boolean
   onClose: () => void
-  onSave: (input: {
-    recordDate: string
-    inboundQty: number
-    outboundQty: number
-  }) => Promise<boolean>
+  onSave: (input: { recordDate: string; inboundQty: number }) => Promise<boolean>
   onHistoryChanged?: () => void
 }
 
@@ -34,7 +30,7 @@ export function MaterialManualModal({
 }: MaterialManualModalProps) {
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
 
-  const title = order ? formatProductionProductName(order) : '입고 및 불출'
+  const title = order ? formatProductionProductName(order) : '자재 입고'
   const description = order
     ? [
         order.customer || '—',
@@ -45,11 +41,7 @@ export function MaterialManualModal({
         .join(' · ')
     : undefined
 
-  async function handleSave(input: {
-    recordDate: string
-    inboundQty: number
-    outboundQty: number
-  }) {
+  async function handleSave(input: { recordDate: string; inboundQty: number }) {
     const ok = await onSave(input)
     if (ok) {
       setHistoryRefreshKey((current) => current + 1)

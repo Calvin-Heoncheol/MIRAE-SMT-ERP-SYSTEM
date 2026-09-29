@@ -3,6 +3,8 @@ import type { ProductionOrderLine } from '@/lib/production-input/types'
 export type MaterialManualOrderMetrics = {
   inboundSets: number
   outboundSets: number
+  /** 출하 수량 환산 세트 — BOM 미등록 품목도 출하분은 입고·불출 완료로 간주 */
+  shippedSets?: number
 }
 
 export type MaterialManualPageData = {

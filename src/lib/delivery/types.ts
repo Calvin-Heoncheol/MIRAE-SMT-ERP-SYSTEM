@@ -97,6 +97,8 @@ export type DeliveryStatementLine = {
   supplyAmount: number
   /** 금액전용(추가작업) — 합계 수량 집계에서 제외 */
   billingOnly?: boolean
+  /** 출하 등록 수동 자재 행 — (추가작업) 접미사 없음 */
+  material?: boolean
 }
 
 export type DeliveryStatementData = {

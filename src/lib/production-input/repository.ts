@@ -15,6 +15,7 @@ export type FetchProductionInputPageResult =
 
 export async function fetchProductionInputPageData(
   config: Pick<ProductionInputConfig, 'productKindLabel' | 'productionModule'>,
+  options: { includeDeliveryComplete?: boolean } = {},
 ): Promise<FetchProductionInputPageResult> {
   // 조립 그룹 동기화는 주문 저장/수정 시 수행. 탭 로드는 조회만 해서 Vercel 응답을 빠르게 유지.
   if (config.productionModule === 'smt') {
@@ -50,17 +51,20 @@ export async function fetchProductionInputPageData(
       return quotesResult
     }
 
-    const orders = excludeDeliveryCompleteProductionOrders(
-      buildProductionOrderLines(
-        smtOrdersResult.orders,
-        config.productKindLabel,
-        productById,
-        config.productionModule,
-        quotesResult.quotes,
-      ),
-      assemblyResult.groups,
-      deliveryCountsResult.counts,
+    const allOrders = buildProductionOrderLines(
+      smtOrdersResult.orders,
+      config.productKindLabel,
+      productById,
+      config.productionModule,
+      quotesResult.quotes,
     )
+    const orders = options.includeDeliveryComplete
+      ? allOrders
+      : excludeDeliveryCompleteProductionOrders(
+          allOrders,
+          assemblyResult.groups,
+          deliveryCountsResult.counts,
+        )
 
     return {
       ok: true,

@@ -62,12 +62,13 @@ function normalizeStatementLine(line: DeliveryStatementLine): DeliveryStatementL
     unitPrice,
     supplyAmount,
     billingOnly: Boolean(line.billingOnly),
+    material: Boolean(line.material),
   }
 }
 
 function formatStatementProductLabel(item: DeliveryStatementLine) {
   const base = formatProductLabel(item.productName, item.productCode)
-  if (!item.billingOnly) return base
+  if (!item.billingOnly || item.material) return base
   const trimmed = base.trim()
   if (!trimmed) return '(추가작업)'
   if (trimmed.includes('(추가작업)')) return trimmed
@@ -111,7 +112,7 @@ function buildItemRows(items: DeliveryStatementLine[], includeVat: boolean) {
       <td class="c-num">${formatNumber(item.qty)}</td>
       <td class="c-num">${formatNumber(item.unitPrice)}</td>
       <td class="c-num">${formatNumber(item.supplyAmount)}</td>
-      <td class="c-num">${formatNumber(lineVat(item, includeVat))}</td>
+      ${includeVat ? `<td class="c-num">${formatNumber(lineVat(item, includeVat))}</td>` : ''}
     </tr>`
   })
 
@@ -125,7 +126,7 @@ function buildItemRows(items: DeliveryStatementLine[], includeVat: boolean) {
         <td class="c-num">&nbsp;</td>
         <td class="c-num">&nbsp;</td>
         <td class="c-num">&nbsp;</td>
-        <td class="c-num">&nbsp;</td>
+        ${includeVat ? '<td class="c-num">&nbsp;</td>' : ''}
       </tr>`,
     )
   }
@@ -232,7 +233,7 @@ function buildStatementCopyHtml(
   </table>
 
   <div class="items-grow">
-    <table class="items">
+    <table class="items${includeVat ? '' : ' no-vat'}">
       <colgroup>
         <col class="col-no" />
         <col class="col-code" />
@@ -240,7 +241,7 @@ function buildStatementCopyHtml(
         <col class="col-num" />
         <col class="col-num" />
         <col class="col-num" />
-        <col class="col-num" />
+        ${includeVat ? '<col class="col-num" />' : ''}
       </colgroup>
       <thead>
         <tr>
@@ -250,7 +251,7 @@ function buildStatementCopyHtml(
           <th class="c-num">수 량</th>
           <th class="c-num">단 가</th>
           <th class="c-num">공급가액</th>
-          <th class="c-num">VAT</th>
+          ${includeVat ? '<th class="c-num">VAT</th>' : ''}
         </tr>
       </thead>
       <tbody>
@@ -262,12 +263,16 @@ function buildStatementCopyHtml(
           <td class="c-num">${formatNumber(qty)}</td>
           <td class="c-num">&nbsp;</td>
           <td class="c-num">${formatNumber(supply)}</td>
-          <td class="c-num">${formatNumber(vat)}</td>
+          ${includeVat ? `<td class="c-num">${formatNumber(vat)}</td>` : ''}
         </tr>
-        <tr class="summary-row grand-row">
+        ${
+          includeVat
+            ? `<tr class="summary-row grand-row">
           <th colspan="5">총합계 (공급가액 + VAT)</th>
           <td colspan="2" class="c-num">${moneyPrefix}${formatNumber(total)}</td>
-        </tr>
+        </tr>`
+            : ''
+        }
       </tfoot>
     </table>
   </div>
@@ -483,6 +488,7 @@ table.items {
 table.items col.col-no { width: 6%; }
 table.items col.col-code { width: 14%; }
 table.items col.col-name { width: 36%; }
+table.items.no-vat col.col-name { width: 47%; }
 table.items col.col-num { width: 11%; }
 table.items th,
 table.items td {

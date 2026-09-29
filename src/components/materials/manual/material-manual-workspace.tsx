@@ -11,7 +11,6 @@ import type { FetchMaterialManualPageResult } from '@/lib/materials/manual/types
 import {
   fetchMaterialManualPageData,
   saveMaterialManualInbound,
-  saveMaterialManualOutbound,
 } from '@/lib/materials/manual/repository'
 import {
   countMaterialInboundStates,
@@ -98,51 +97,25 @@ export function MaterialManualWorkspace({
     setMetricsByLineId(result.data.metricsByLineId)
   }
 
-  async function handleSave(input: {
-    recordDate: string
-    inboundQty: number
-    outboundQty: number
-  }) {
+  async function handleSave(input: { recordDate: string; inboundQty: number }) {
     if (!selectedOrder) return false
 
     const inboundQty = Math.floor(Number(input.inboundQty) || 0)
-    const outboundQty = Math.floor(Number(input.outboundQty) || 0)
-
-    if (inboundQty < 1 && outboundQty < 1) {
-      setError('입고 또는 불출 수량을 입력하세요.')
+    if (inboundQty < 1) {
+      setError('입고 수량을 입력하세요.')
       return false
     }
 
-    if (inboundQty >= 1) {
-      const inboundResult = await saveMaterialManualInbound({
-        orderId: selectedOrder.orderId,
-        orderLineId: selectedOrder.orderLineId,
-        recordDate: input.recordDate,
-        quantity: inboundQty,
-      })
-      if (!inboundResult.ok) {
-        notifyAuthOrFailure(inboundResult, { toastAllFailures: true, title: '입고 저장 실패' })
-        setError(inboundResult.detail)
-        return false
-      }
-    }
-
-    if (outboundQty >= 1) {
-      const outboundResult = await saveMaterialManualOutbound({
-        orderId: selectedOrder.orderId,
-        orderLineId: selectedOrder.orderLineId,
-        recordDate: input.recordDate,
-        quantity: outboundQty,
-      })
-      if (!outboundResult.ok) {
-        notifyAuthOrFailure(outboundResult, {
-          toastAllFailures: true,
-          title: inboundQty >= 1 ? '불출 저장 실패 (입고는 저장됨)' : '불출 저장 실패',
-        })
-        setError(outboundResult.detail)
-        await reload()
-        return false
-      }
+    const inboundResult = await saveMaterialManualInbound({
+      orderId: selectedOrder.orderId,
+      orderLineId: selectedOrder.orderLineId,
+      recordDate: input.recordDate,
+      quantity: inboundQty,
+    })
+    if (!inboundResult.ok) {
+      notifyAuthOrFailure(inboundResult, { toastAllFailures: true, title: '입고 저장 실패' })
+      setError(inboundResult.detail)
+      return false
     }
 
     setError('')
@@ -216,7 +189,7 @@ export function MaterialManualWorkspace({
             emptyMessage={formatEmptyListMessage({
               hasQuery: Boolean(search.trim()) || statusFilter !== 'all',
               emptyLabel: '표시할 발주가 없습니다',
-              actionHint: '입고·불출 셀을 클릭하면 등록 모달이 열립니다',
+              actionHint: '입고 셀을 클릭하면 등록 모달이 열립니다',
             })}
           />
         </div>

@@ -14,11 +14,7 @@ type MaterialManualInputPanelProps = {
   refreshing?: boolean
   /** 모달 등 임베드 — 제품 헤더 숨김 */
   embedded?: boolean
-  onSave: (input: {
-    recordDate: string
-    inboundQty: number
-    outboundQty: number
-  }) => Promise<boolean>
+  onSave: (input: { recordDate: string; inboundQty: number }) => Promise<boolean>
 }
 
 export function MaterialManualInputPanel({
@@ -30,7 +26,6 @@ export function MaterialManualInputPanel({
 }: MaterialManualInputPanelProps) {
   const [recordDate, setRecordDate] = useState(() => todayYmdSeoul())
   const [inboundQty, setInboundQty] = useState('')
-  const [outboundQty, setOutboundQty] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -40,12 +35,10 @@ export function MaterialManualInputPanel({
     const ok = await onSave({
       recordDate,
       inboundQty: Math.floor(Number(inboundQty) || 0),
-      outboundQty: Math.floor(Number(outboundQty) || 0),
     })
     setSaving(false)
     if (ok) {
       setInboundQty('')
-      setOutboundQty('')
       setMessage('저장했습니다.')
     }
   }
@@ -54,13 +47,12 @@ export function MaterialManualInputPanel({
     return (
       <div className="flex min-h-[12rem] flex-col items-center justify-center px-6 py-8 text-center">
         <p className="text-sm font-semibold text-slate-700">발주를 선택하세요</p>
-        <p className="mt-1 text-xs text-slate-500">표에서 입고·불출 셀을 클릭하면 등록할 수 있습니다.</p>
+        <p className="mt-1 text-xs text-slate-500">표에서 입고 셀을 클릭하면 등록할 수 있습니다.</p>
       </div>
     )
   }
 
   const remainingInbound = Math.max(0, order.quantity - metrics.inboundSets)
-  const remainingOutbound = Math.max(0, metrics.inboundSets - metrics.outboundSets)
   const { name: productName, version: productVersion } = formatProductionProductDisplay(order)
 
   return (
@@ -68,7 +60,7 @@ export function MaterialManualInputPanel({
       {!embedded ? (
         <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3">
           <div>
-            <p className="text-xs font-semibold text-amber-700">입고 및 불출</p>
+            <p className="text-xs font-semibold text-amber-700">자재 입고</p>
             <h2 className="mt-0.5 text-lg font-bold text-slate-900">
               <span>{productName}</span>
               {productVersion ? (
@@ -85,7 +77,7 @@ export function MaterialManualInputPanel({
 
       <div className="min-h-0 flex-1 overflow-auto p-4">
         <div className="mx-auto grid max-w-xl gap-4">
-          <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm sm:grid-cols-4">
+          <div className="grid grid-cols-3 gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
             <div>
               <p className="text-[11px] font-semibold text-slate-500">발주</p>
               <p className="mt-0.5 font-bold tabular-nums text-slate-900">
@@ -96,12 +88,6 @@ export function MaterialManualInputPanel({
               <p className="text-[11px] font-semibold text-slate-500">누적 입고</p>
               <p className="mt-0.5 font-bold tabular-nums text-amber-800">
                 {metrics.inboundSets.toLocaleString('ko-KR')}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-slate-500">누적 불출</p>
-              <p className="mt-0.5 font-bold tabular-nums text-sky-800">
-                {metrics.outboundSets.toLocaleString('ko-KR')}
               </p>
             </div>
             <div>
@@ -123,7 +109,7 @@ export function MaterialManualInputPanel({
           </label>
 
           <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>입고 수량</span>
+            <span className={ERP_FIELD_LABEL_CLASS}>입고 수량 (제품 세트)</span>
             <input
               type="number"
               min={0}
@@ -134,24 +120,7 @@ export function MaterialManualInputPanel({
               className={`${ERP_FIELD_INPUT_CLASS} text-right tabular-nums`}
             />
             <p className="mt-1 text-xs text-slate-500">
-              이번에 입고할 수량입니다. SMT 생산계획의 자재 가용 수량에 반영됩니다.
-            </p>
-          </label>
-
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>불출 수량</span>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={outboundQty}
-              onChange={(event) => setOutboundQty(event.target.value)}
-              placeholder={remainingOutbound > 0 ? String(remainingOutbound) : '0'}
-              className={`${ERP_FIELD_INPUT_CLASS} text-right tabular-nums`}
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              이번에 불출할 수량입니다. 누적 불출에 더해집니다.
-              {metrics.inboundSets <= 0 ? ' (입고 기록 후 불출 가능)' : ''}
+              제품 몇 대분의 자재가 입고됐는지 입력합니다. SMT 생산계획의 자재 가용 수량에 반영됩니다.
             </p>
           </label>
 

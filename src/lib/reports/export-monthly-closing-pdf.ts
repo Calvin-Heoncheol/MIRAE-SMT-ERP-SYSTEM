@@ -46,7 +46,7 @@ function buildMonthlyClosingHeading(customer?: string) {
   return name ? `${name} 월 마감` : '월 마감'
 }
 
-function buildMonthlyClosingPdfTitle(input: ExportMonthlyClosingPdfInput) {
+export function buildMonthlyClosingPdfTitle(input: ExportMonthlyClosingPdfInput) {
   const heading = sanitizePdfFilenamePart(buildMonthlyClosingHeading(input.customer))
   const period = sanitizePdfFilenamePart(formatPeriodLabel(input.startDate, input.endDate))
   if (heading && period) return `${heading}_${period}`

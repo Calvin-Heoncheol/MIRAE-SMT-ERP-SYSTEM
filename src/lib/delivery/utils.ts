@@ -213,6 +213,8 @@ export type StatementShippedProductLine = {
 
 export type StatementShippedLine = StatementShippedProductLine & {
   billingOnly?: boolean
+  /** 출하 등록 수동 자재 행 — 명세서에 (추가작업) 접미사 없음 */
+  material?: boolean
   orderLineId?: string
 }
 
