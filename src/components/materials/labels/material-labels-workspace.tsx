@@ -2,10 +2,16 @@
 
 import { useMemo, useState } from 'react'
 import { MaterialLabelVisualPreview } from '@/components/materials/labels/material-label-visual-preview'
+import { ViucommLabelPreview } from '@/components/materials/labels/viucomm-label-preview'
 import { MaterialLabelSettingsButton } from '@/components/materials/material-label-settings-button'
 import { ErpButton } from '@/components/ui/erp-button'
 import { PageShell } from '@/components/ui/page-shell'
 import { useToast } from '@/components/ui/toast-provider'
+import { printViucommP141aBoxLabels } from '@/lib/labels/print-viucomm-p141a-box-labels'
+import {
+  VIUCOMM_P141A_BOX_LABEL,
+  validateViucommSerial,
+} from '@/lib/labels/viucomm-p141a-box-label'
 import { printMaterialLabels } from '@/lib/materials/print-material-labels'
 import {
   describeSequentialLabelRange,
@@ -23,8 +29,17 @@ import {
 const MAX_SEQUENCE = 500
 const LIST_PREVIEW_LIMIT = 40
 
+type LabelTemplateId = 'default' | typeof VIUCOMM_P141A_BOX_LABEL.id
+
+const LABEL_TEMPLATES: { id: LabelTemplateId; label: string }[] = [
+  { id: 'default', label: '기본 (품목코드 바코드)' },
+  { id: VIUCOMM_P141A_BOX_LABEL.id, label: VIUCOMM_P141A_BOX_LABEL.label },
+]
+
 export function MaterialLabelsWorkspace() {
   const toast = useToast()
+  const [templateId, setTemplateId] = useState<LabelTemplateId>('default')
+  const isViucomm = templateId === VIUCOMM_P141A_BOX_LABEL.id
   const [startCode, setStartCode] = useState('')
   const [sequenceCount, setSequenceCount] = useState('1')
   const [copiesPerCode, setCopiesPerCode] = useState('1')
@@ -79,6 +94,28 @@ export function MaterialLabelsWorkspace() {
       return
     }
 
+    if (isViucomm) {
+      const invalid = expanded.map(validateViucommSerial).find(Boolean)
+      if (invalid) {
+        setError(invalid)
+        return
+      }
+      setPrinting(true)
+      try {
+        const mode = await printViucommP141aBoxLabels(expanded, copies)
+        if (mode === 'cancelled') return
+        toast.success(
+          '라벨 출력',
+          mode === 'zpl'
+            ? `프린터 전송 ${totalLabels.toLocaleString('ko-KR')}장`
+            : `인쇄 준비 ${totalLabels.toLocaleString('ko-KR')}장`,
+        )
+      } finally {
+        setPrinting(false)
+      }
+      return
+    }
+
     setPrinting(true)
     try {
       const mode = await printMaterialLabels(
@@ -130,12 +167,30 @@ export function MaterialLabelsWorkspace() {
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <label className="block text-sm sm:col-span-2">
-                <span className={ERP_FIELD_LABEL_CLASS}>시작 코드</span>
+                <span className={ERP_FIELD_LABEL_CLASS}>라벨 양식</span>
+                <select
+                  value={templateId}
+                  onChange={(event) => {
+                    setTemplateId(event.target.value as LabelTemplateId)
+                    setError(null)
+                  }}
+                  className={ERP_FIELD_INPUT_CLASS}
+                >
+                  {LABEL_TEMPLATES.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block text-sm sm:col-span-2">
+                <span className={ERP_FIELD_LABEL_CLASS}>{isViucomm ? '시작 S/N' : '시작 코드'}</span>
                 <input
                   value={startCode}
                   onChange={(event) => setStartCode(event.target.value)}
                   className={`${ERP_FIELD_INPUT_CLASS} font-mono`}
-                  placeholder="예: WAA26881000"
+                  placeholder={isViucomm ? '예: WAG268830726' : '예: WAA26881000'}
                   autoComplete="off"
                   spellCheck={false}
                 />
@@ -165,29 +220,39 @@ export function MaterialLabelsWorkspace() {
                 />
               </label>
 
-              <label className="block text-sm sm:col-span-2">
-                <span className={ERP_FIELD_LABEL_CLASS}>품명 (선택)</span>
-                <input
-                  value={materialName}
-                  onChange={(event) => setMaterialName(event.target.value)}
-                  className={ERP_FIELD_INPUT_CLASS}
-                  placeholder="라벨 상단 표시"
-                />
-              </label>
+              {!isViucomm ? (
+                <>
+                  <label className="block text-sm sm:col-span-2">
+                    <span className={ERP_FIELD_LABEL_CLASS}>품명 (선택)</span>
+                    <input
+                      value={materialName}
+                      onChange={(event) => setMaterialName(event.target.value)}
+                      className={ERP_FIELD_INPUT_CLASS}
+                      placeholder="라벨 상단 표시"
+                    />
+                  </label>
 
-              <label className="block text-sm sm:col-span-2">
-                <span className={ERP_FIELD_LABEL_CLASS}>사양 (선택)</span>
-                <input
-                  value={specification}
-                  onChange={(event) => setSpecification(event.target.value)}
-                  className={ERP_FIELD_INPUT_CLASS}
-                  placeholder="라벨 사양 줄"
-                />
-              </label>
+                  <label className="block text-sm sm:col-span-2">
+                    <span className={ERP_FIELD_LABEL_CLASS}>사양 (선택)</span>
+                    <input
+                      value={specification}
+                      onChange={(event) => setSpecification(event.target.value)}
+                      className={ERP_FIELD_INPUT_CLASS}
+                      placeholder="라벨 사양 줄"
+                    />
+                  </label>
+                </>
+              ) : (
+                <p className="text-xs text-slate-500 sm:col-span-2">
+                  고객사 양식 고정 라벨입니다 ({VIUCOMM_P141A_BOX_LABEL.widthMm}×
+                  {VIUCOMM_P141A_BOX_LABEL.heightMm}mm · {VIUCOMM_P141A_BOX_LABEL.dpi}dpi). S/N과 바코드만
+                  바뀝니다. 용지 설정은 적용되지 않습니다.
+                </p>
+              )}
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-              <MaterialLabelSettingsButton />
+              {!isViucomm ? <MaterialLabelSettingsButton /> : null}
               <ErpButton disabled={printing} loading={printing} onClick={() => void handlePrint()}>
                 라벨 출력
               </ErpButton>
@@ -203,12 +268,16 @@ export function MaterialLabelsWorkspace() {
             {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
           </div>
 
-          <MaterialLabelVisualPreview
-            code={previewCode}
-            materialName={materialName}
-            specification={specification}
-            nextCodes={previewNext}
-          />
+          {isViucomm ? (
+            <ViucommLabelPreview serial={previewCode} nextSerials={previewNext} />
+          ) : (
+            <MaterialLabelVisualPreview
+              code={previewCode}
+              materialName={materialName}
+              specification={specification}
+              nextCodes={previewNext}
+            />
+          )}
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
