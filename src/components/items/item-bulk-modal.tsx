@@ -145,7 +145,7 @@ function ItemBulkModalContent({
       ...row,
       customerId: sharedCustomerId || row.customerId,
       customerName: sharedCustomerName || row.customerName,
-      supplyType: '',
+      supplyType: '' as const,
     }))
   }
 
@@ -355,7 +355,7 @@ function ItemBulkModalContent({
           ...next,
           customerId: sharedCustomerId,
           customerName: sharedCustomerName,
-          supplyType: '',
+          supplyType: '' as const,
         },
       ]
     })
@@ -444,7 +444,7 @@ function ItemBulkModalContent({
               itemCategory: category,
               customerId: sharedCustomerId || row.customerId,
               customerName: sharedCustomerName || row.customerName,
-              supplyType: '',
+              supplyType: '' as const,
             }
           : { ...row, itemCategory: category }
       const form = resolveRowCustomer(withShared)
