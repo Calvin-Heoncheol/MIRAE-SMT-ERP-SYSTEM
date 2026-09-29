@@ -59,7 +59,7 @@ export const POST_RATE_DIRECT_LABOR = 330
 export const POST_RATE_OVERHEAD = 70
 /** 분당임률 구성 — 기업이윤 */
 export const POST_RATE_CORPORATE_PROFIT = 35
-/** 분당임률 구성 — 제조경비 (품질관리·전력·부자재 등 소모품) */
+/** 분당임률 구성 — 제조경비 (품질관리·전력·부자재·설비·공장 운영비 등) */
 export const POST_RATE_ADMIN = 25
 /** @deprecated POST_RATE_CORPORATE_PROFIT 사용 */
 export const POST_RATE_MIN_PROFIT = POST_RATE_CORPORATE_PROFIT

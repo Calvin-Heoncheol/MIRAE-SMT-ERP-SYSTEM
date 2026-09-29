@@ -39,6 +39,15 @@ function mapDuplicateError(detail: string) {
   if (detail.includes('payment_term') || detail.includes('payment_deposit') || detail.includes('payment_net') || detail.includes('payment_monthly')) {
     return '결제조건 컬럼이 없습니다. supabase/migrate-partners-payment-terms.sql 을 실행해 주세요.'
   }
+  if (detail.includes('document_language')) {
+    return '언어 컬럼이 없습니다. supabase/migrate-partners-document-language.sql 을 실행해 주세요.'
+  }
+  if (detail.includes('include_vat')) {
+    return '부가세 컬럼이 없습니다. supabase/migrate-partners-include-vat.sql 을 실행해 주세요.'
+  }
+  if (detail.includes("'currency'") || detail.includes('business_partners_currency')) {
+    return '통화 컬럼이 없습니다. supabase/migrate-partners-currency.sql 을 실행해 주세요.'
+  }
   return detail
 }
 
@@ -55,6 +64,9 @@ function validatePartnerPayload(payload: BusinessPartnerPayload) {
     paymentDepositPercent: String(payload.paymentDepositPercent || ''),
     paymentNetDays: String(payload.paymentNetDays || ''),
     paymentMonthlyDay: String(payload.paymentMonthlyDay || ''),
+    documentLanguage: payload.documentLanguage,
+    includeVat: payload.includeVat,
+    currency: payload.currency,
   } satisfies PartnerFormState)
 }
 

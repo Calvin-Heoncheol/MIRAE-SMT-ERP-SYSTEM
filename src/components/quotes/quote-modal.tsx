@@ -641,13 +641,14 @@ function QuoteModalContent({
     }
   }
 
-  function handleDownloadPdf(language?: 'ko' | 'en' | 'zh') {
+  function handleDownloadPdf() {
     const snapshot = buildExportQuoteSnapshot()
     if (!snapshot) return
     if (!snapshot.customer.trim() || !snapshot.productName.trim()) {
       setSaveError('PDF 전에 고객사와 제품코드 또는 제품명을 입력해 주세요.')
       return
     }
+    const language = resolvePartnerFromInput(salesPartners, snapshot.customer)?.documentLanguage
     exportQuotesToPdf([snapshot], {
       ...(language ? { language } : {}),
       ...(contactEmail ? { contactEmail } : {}),
@@ -824,11 +825,6 @@ function QuoteModalContent({
               <PdfDownloadButton
                 onDownload={() => handleDownloadPdf()}
                 disabled={busy}
-                menuItems={[
-                  { label: '한글', onDownload: () => handleDownloadPdf('ko') },
-                  { label: '영문', onDownload: () => handleDownloadPdf('en') },
-                  { label: '중국어', onDownload: () => handleDownloadPdf('zh') },
-                ]}
               />
             </>
           ) : null}
@@ -859,8 +855,21 @@ function QuoteModalContent({
                       ariaLabel="고객사"
                       inputClassName={ERP_FIELD_INPUT_CLASS}
                       autoFocus={mode === 'create'}
-                      onValueChange={(value) => updateForm('customer', value)}
-                      onPartnerSelect={(partner) => updateForm('customer', partner.name)}
+                      onValueChange={(value) => {
+                        const partner = resolvePartnerFromInput(salesPartners, value)
+                        setForm((current) => ({
+                          ...current,
+                          customer: value,
+                          ...(partner ? { includeVat: partner.includeVat } : {}),
+                        }))
+                      }}
+                      onPartnerSelect={(partner) =>
+                        setForm((current) => ({
+                          ...current,
+                          customer: partner.name,
+                          includeVat: partner.includeVat,
+                        }))
+                      }
                     />
                     <p className="mt-1 text-xs text-slate-500">
                       {partnersLoading
@@ -929,7 +938,7 @@ function QuoteModalContent({
                   품목등록에서 검색해 선택하거나, 미등록 제품도 코드·이름을 직접 입력해 견적할 수 있습니다.
                 </p>
 
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <label className="block text-sm">
                     <span className="mb-1 block font-medium text-slate-600">생산 수량</span>
                     <QuoteNumericInput
@@ -958,19 +967,6 @@ function QuoteModalContent({
                     >
                       <option value="양산">양산</option>
                       <option value="샘플">샘플</option>
-                    </select>
-                  </label>
-                  <label className="block text-sm">
-                    <span className="mb-1 block font-medium text-slate-600">부가세</span>
-                    <select
-                      value={form.includeVat ? 'incl' : 'excl'}
-                      onChange={(event) =>
-                        updateForm('includeVat', event.target.value === 'incl')
-                      }
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800"
-                    >
-                      <option value="excl">VAT 별도</option>
-                      <option value="incl">VAT 포함</option>
                     </select>
                   </label>
                 </div>

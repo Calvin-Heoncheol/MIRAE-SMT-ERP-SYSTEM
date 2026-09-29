@@ -1,6 +1,8 @@
 import type {
   BusinessPartner,
   BusinessPartnerPayload,
+  PartnerCurrency,
+  PartnerDocumentLanguage,
   PartnerPaymentTermType,
   PartnerTradeRole,
 } from './types'
@@ -18,6 +20,9 @@ export type PartnerFormState = {
   paymentDepositPercent: string
   paymentNetDays: string
   paymentMonthlyDay: string
+  documentLanguage: PartnerDocumentLanguage
+  includeVat: boolean
+  currency: PartnerCurrency
 }
 
 export function emptyPartnerForm(): PartnerFormState {
@@ -33,6 +38,9 @@ export function emptyPartnerForm(): PartnerFormState {
     paymentDepositPercent: '30',
     paymentNetDays: '30',
     paymentMonthlyDay: '15',
+    documentLanguage: 'ko',
+    includeVat: false,
+    currency: 'KRW',
   }
 }
 
@@ -49,6 +57,9 @@ export function partnerToForm(partner: BusinessPartner): PartnerFormState {
     paymentDepositPercent: String(partner.paymentDepositPercent || 30),
     paymentNetDays: String(partner.paymentNetDays || 30),
     paymentMonthlyDay: String(partner.paymentMonthlyDay || 15),
+    documentLanguage: partner.documentLanguage,
+    includeVat: partner.includeVat,
+    currency: partner.currency,
   }
 }
 
@@ -89,5 +100,8 @@ export function formToPartnerPayload(form: PartnerFormState): BusinessPartnerPay
     paymentDepositPercent: paymentTermType === 'installment' ? deposit : 0,
     paymentNetDays: paymentTermType === 'net' ? netDays : 0,
     paymentMonthlyDay: paymentTermType === 'monthly' ? monthlyDay : 0,
+    documentLanguage: form.documentLanguage,
+    includeVat: form.includeVat,
+    currency: form.currency,
   }
 }

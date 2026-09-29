@@ -9,8 +9,6 @@ import {
   COMPANY_CEO_NAME,
   COMPANY_NAME_DOMESTIC_EN,
   COMPANY_NAME_EN,
-  COMPANY_PAYMENT_TERMS_EN,
-  COMPANY_PAYMENT_TERMS_KO,
   COMPANY_QUOTE_EMAIL_DOMESTIC,
   COMPANY_TEL,
 } from '@/lib/app-config'
@@ -20,6 +18,7 @@ import {
   getQuoteProcessTypeCodes,
   type QuoteProcessTypeCode,
 } from '@/lib/quotes/production-flags'
+import { DOMESTIC_VAT_RATE } from '@/lib/quotes/format'
 import type { QuoteDetailInfo } from '@/lib/quotes/types'
 
 export type OrderPrintLanguage = 'ko' | 'en'
@@ -51,6 +50,8 @@ export type OrderPrintData = {
   quoteType?: 'domestic' | 'export'
   /** Confirmation 공정 표기 — 예: SMD + Assembly + Testing + Packing */
   processLabel?: string
+  /** 부가세(10%) 포함 표시 — KRW 발주서에만 적용 */
+  includeVat?: boolean
 }
 
 const ORDER_PRINT_LOGO_PATH = '/branding/logo.png'
@@ -205,7 +206,28 @@ export function buildOrderHtml(
     })
     .join('')
 
-  const totalsHtml = `<div class="row grand">
+  const includeVat = data.includeVat === true && currency === 'KRW'
+  const vatAmount = includeVat
+    ? data.items.reduce(
+        (sum, item) =>
+          sum + Math.round(Math.max(0, Number(item.orderAmount) || 0) * DOMESTIC_VAT_RATE),
+        0,
+      )
+    : 0
+  const totalsHtml = includeVat
+    ? `<div class="row">
+        <span class="label">${t('공급가액', 'Supply Amount')}</span>
+        <span class="value">${escapeHtml(formatOrderMoney(totalAmount, currency))}</span>
+      </div>
+      <div class="row">
+        <span class="label">${t('부가세 (10%)', 'VAT (10%)')}</span>
+        <span class="value">${escapeHtml(formatOrderMoney(vatAmount, currency))}</span>
+      </div>
+      <div class="row grand">
+        <span class="label">${t('합계 (VAT 포함)', 'Total')}</span>
+        <span class="value">${escapeHtml(formatOrderMoney(totalAmount + vatAmount, currency))}</span>
+      </div>`
+    : `<div class="row grand">
         <span class="label">${t('금액 합계', 'Total Amount')}</span>
         <span class="value">${escapeHtml(formatOrderMoney(totalAmount, currency))}</span>
       </div>`
@@ -213,17 +235,17 @@ export function buildOrderHtml(
   const confirmationNote = noteRaw
     ? note
     : t('위 발주 내용을 확인합니다.', 'We confirm the purchase order above.')
-  const processRaw = String(data.processLabel || '').trim()
-  const paymentTerms = t(COMPANY_PAYMENT_TERMS_KO, COMPANY_PAYMENT_TERMS_EN)
-  const confirmationLines = [
-    processRaw ? `${t('공정', 'Process')}: ${processRaw}` : '',
-    `${t('결제조건', 'Payment Terms')}: ${paymentTerms}`,
-    `${t('입금계좌', 'Bank Account')}: ${COMPANY_BANK_ACCOUNT}`,
-    `Swift Code: ${COMPANY_BANK_SWIFT}`,
-  ].filter(Boolean)
-  const confirmationBody = `${confirmationLines
-    .map((line) => escapeHtml(line))
-    .join('<br />')}<br /><br />${confirmationNote}`
+  const paymentInfoRows = [
+    [t('입금계좌', 'Bank Account'), COMPANY_BANK_ACCOUNT],
+    ['Swift Code', COMPANY_BANK_SWIFT],
+  ]
+    .map(
+      ([label, value]) => `<div class="pay-row">
+        <span class="pay-label">${escapeHtml(label)}</span>
+        <span class="pay-value">${escapeHtml(value)}</span>
+      </div>`,
+    )
+    .join('')
 
   const htmlLang = language === 'en' ? 'en' : 'ko'
   const fontStack =
@@ -447,7 +469,7 @@ table.items td.num {
 table.items td.amt { font-weight: 800; color: #0f172a; }
 .bottom-grid {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
+  grid-template-columns: 1fr 1.2fr 0.9fr;
   gap: 10px;
   margin-top: 12px;
   align-items: stretch;
@@ -500,6 +522,26 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
   color: #475569;
   line-height: 1.5;
   white-space: pre-wrap;
+}
+.pay-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+}
+.pay-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pay-label {
+  font-size: 8px;
+  color: #64748b;
+}
+.pay-value {
+  font-size: 9.5px;
+  color: #334155;
+  word-break: break-word;
 }
 .footer {
   margin-top: 16px;
@@ -582,7 +624,11 @@ table.items td.amt { font-weight: 800; color: #0f172a; }
   <div class="bottom-grid">
     <div class="sign">
       <div class="label">${t('확인 · Confirmation', 'Confirmation')}</div>
-      <div class="body">${confirmationBody}</div>
+      <div class="body">${confirmationNote}</div>
+    </div>
+    <div class="sign payment">
+      <div class="label">${t('결제 정보 · Payment Info', 'Payment Info')}</div>
+      <div class="pay-rows">${paymentInfoRows}</div>
     </div>
     <div class="totals">
       ${totalsHtml}

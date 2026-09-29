@@ -23,8 +23,8 @@ import {
 import { buildOrderPrintData, printOrder } from '@/lib/orders/print-order'
 import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
 import { formatAutoOrderCodeExample } from '@/lib/orders/order-code-prefix'
-import { ORDER_CATEGORIES, ORDER_CURRENCIES, ORDER_CURRENCY_LABELS } from '@/lib/orders/types'
-import type { OrderCurrency, OrderListGroup, OrderRowPayload } from '@/lib/orders/types'
+import { ORDER_CATEGORIES } from '@/lib/orders/types'
+import type { OrderListGroup, OrderRowPayload } from '@/lib/orders/types'
 import { normalizeOrderCurrency, todayYmdSeoul } from '@/lib/orders/utils'
 import { hasOrderUnitPriceChange } from '@/lib/change-logs/utils'
 import { fetchProducts } from '@/lib/products/repository'
@@ -210,7 +210,10 @@ function OrderModalContent({
       delivery_date: headerDeliveryDate,
       customer: customerName,
       category: form.category,
-      currency: normalizeOrderCurrency(form.currency),
+      currency:
+        order && order.customer === customerName
+          ? normalizeOrderCurrency(form.currency)
+          : resolvedPartner.currency,
       note: form.note,
       customer_po_number: form.customerPoNumber,
       source: order?.source || 'manual',
@@ -259,7 +262,7 @@ function OrderModalContent({
     await commitSave(payload)
   }
 
-  async function handlePrintOrder(language: 'ko' | 'en' = 'ko') {
+  async function handlePrintOrder() {
     if (!order) {
       setSaveError('발주서를 저장한 뒤 인쇄할 수 있습니다.')
       return
@@ -284,7 +287,11 @@ function OrderModalContent({
       customerPoNumber: form.customerPoNumber,
       items: order.items,
     }
-    const ok = printOrder(buildOrderPrintData(printSource), { language })
+    const partner = resolvePartnerFromInput(salesPartners, printSource.customer)
+    const ok = printOrder(
+      { ...buildOrderPrintData(printSource), includeVat: partner?.includeVat === true },
+      { language: partner?.documentLanguage ?? 'ko' },
+    )
     if (!ok) setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')
   }
 
@@ -333,13 +340,8 @@ function OrderModalContent({
       headerActions={
         mode === 'edit' && order ? (
           <PdfDownloadButton
-            label="발주서"
-            onDownload={() => handlePrintOrder('ko')}
+            onDownload={() => void handlePrintOrder()}
             disabled={busy}
-            menuItems={[
-              { label: '한글', onDownload: () => handlePrintOrder('ko') },
-              { label: '영문', onDownload: () => handlePrintOrder('en') },
-            ]}
           />
         ) : null
       }
@@ -378,7 +380,7 @@ function OrderModalContent({
     >
       <div lang="ko" className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>고객사</span>
           {mode === 'create' ? (
@@ -396,7 +398,13 @@ function OrderModalContent({
               placeholder="거래처명 검색 (예: 센서)"
               inputClassName={ERP_FIELD_INPUT_CLASS}
               onValueChange={(value) => updateForm('customer', value)}
-              onPartnerSelect={(partner) => updateForm('customer', partner.name)}
+              onPartnerSelect={(partner) =>
+                setForm((current) => ({
+                  ...current,
+                  customer: partner.name,
+                  currency: partner.currency,
+                }))
+              }
             />
           )}
           {mode === 'edit' && (partnersLoading || salesPartners.length === 0) ? (
@@ -407,22 +415,6 @@ function OrderModalContent({
             </p>
           ) : null}
         </label>
-        <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>발주번호</span>
-          <input
-            value={form.customerPoNumber}
-            onChange={(event) => updateForm('customerPoNumber', event.target.value)}
-            placeholder={
-              mode === 'create'
-                ? `비우면 ${formatAutoOrderCodeExample(form.orderDate, form.customer)} 자동`
-                : '고객사 PO/NO'
-            }
-            className={ERP_FIELD_INPUT_CLASS}
-          />
-        </label>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>구분</span>
           <select
@@ -438,20 +430,17 @@ function OrderModalContent({
           </select>
         </label>
         <label className="block text-sm">
-          <span className={ERP_FIELD_LABEL_CLASS}>통화</span>
-          <select
-            value={form.currency}
-            onChange={(event) =>
-              updateForm('currency', event.target.value as OrderCurrency)
+          <span className={ERP_FIELD_LABEL_CLASS}>발주번호</span>
+          <input
+            value={form.customerPoNumber}
+            onChange={(event) => updateForm('customerPoNumber', event.target.value)}
+            placeholder={
+              mode === 'create'
+                ? `비우면 ${formatAutoOrderCodeExample(form.orderDate, form.customer)} 자동`
+                : '고객사 PO/NO'
             }
             className={ERP_FIELD_INPUT_CLASS}
-          >
-            {ORDER_CURRENCIES.map((currency) => (
-              <option key={currency} value={currency}>
-                {ORDER_CURRENCY_LABELS[currency]}
-              </option>
-            ))}
-          </select>
+          />
         </label>
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

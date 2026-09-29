@@ -15,6 +15,7 @@ async function resolveCustomerContact(customerName: string) {
   return {
     address: String(partner?.address || '').trim(),
     phone: String(partner?.phone || '').trim(),
+    includeVat: partner?.includeVat === true,
   }
 }
 
@@ -261,6 +262,7 @@ export async function buildDeliveryStatementDataFromShipment(input: {
       customer,
       customerAddress: contact.address,
       customerPhone: contact.phone,
+      includeVat: contact.includeVat,
       note: String(input.note || '').trim(),
       currency,
       items,

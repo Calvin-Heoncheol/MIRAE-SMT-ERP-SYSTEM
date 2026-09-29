@@ -673,15 +673,15 @@ function buildQuoteSummaryTableHtml(
   const note = includeVat
     ? pdfText(
         lang,
-        '※ 기본 단가 안내와 공정별 세부 산정내역은 다음 페이지를 참고해 주세요. 표의 단가·합계는 공급가액(VAT 별도)이며, 최종 합계만 VAT 포함입니다.',
-        '※ See the following pages for the base unit price guide and detailed process breakdown. Unit prices and line totals are excl. VAT; only the grand total includes VAT.',
-        '※ 基本单价说明与各工序明细请参见后续页面。表内单价·合计为供应金额(不含税)，仅最终合计含增值税。',
+        '※ 공정별 세부 산정내역과 기본 단가 안내는 다음 페이지를 참고해 주세요. 표의 단가·합계는 공급가액(VAT 별도)이며, 최종 합계만 VAT 포함입니다.',
+        '※ See the following pages for the detailed process breakdown and base unit price guide. Unit prices and line totals are excl. VAT; only the grand total includes VAT.',
+        '※ 各工序明细与基本单价说明请参见后续页面。表内单价·合计为供应金额(不含税)，仅最终合计含增值税。',
       )
     : pdfText(
         lang,
-        '※ 기본 단가 안내와 공정별 세부 산정내역은 다음 페이지를 참고해 주세요.',
-        '※ See the following pages for the base unit price guide and detailed process breakdown.',
-        '※ 基本单价说明与各工序明细请参见后续页面。',
+        '※ 공정별 세부 산정내역과 기본 단가 안내는 다음 페이지를 참고해 주세요.',
+        '※ See the following pages for the detailed process breakdown and base unit price guide.',
+        '※ 各工序明细与基本单价说明请参见后续页面。',
       )
 
   const displayUnitText = unitPriceText
@@ -1041,9 +1041,9 @@ function buildUnitPriceExplanationHtml(
         unit: perMin,
         hint: pdfText(
           lang,
-          '품질관리, 전력, 부자재 등 소모품',
-          'Quality control, power, and consumables such as sub-materials',
-          '品质管理、电力、辅料等消耗品',
+          '품질관리, 전력, 부자재, 설비·공장 운영비 등',
+          'Quality control, power, sub-materials, and equipment & facility operating costs',
+          '品质管理、电力、辅料、设备·工厂运营费等',
         ),
       },
     ],
@@ -1055,9 +1055,9 @@ function buildUnitPriceExplanationHtml(
 
   const footer = pdfText(
     lang,
-    '※ 제품별 적용 수량·시간·합계는 다음 페이지의 공정별 세부 산정내역을 참고해 주세요.',
-    '※ See the next page for the detailed process breakdown by product quantity and work time.',
-    '※ 各产品适用数量·时间·合计请参见下一页各工序明细。',
+    '※ 제품별 적용 수량·시간·합계는 앞 페이지의 공정별 세부 산정내역을 참고해 주세요.',
+    '※ See the previous page for the detailed process breakdown by product quantity and work time.',
+    '※ 各产品适用数量·时间·合计请参见前一页各工序明细。',
   )
 
   return `<div class="unit-price-explain">
@@ -1159,8 +1159,8 @@ function buildQuotePages(
 ) {
   return (
     buildQuoteSummaryPage(quote, language, contactEmail) +
-    buildQuoteDetailPage(quote, language) +
-    buildQuoteDetailedBreakdownPage(quote, language)
+    buildQuoteDetailedBreakdownPage(quote, language) +
+    buildQuoteDetailPage(quote, language)
   )
 }
 

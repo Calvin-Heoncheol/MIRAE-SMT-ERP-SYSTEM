@@ -22,10 +22,16 @@ import {
   type PartnerFormState,
 } from '@/lib/partners/form-state'
 import {
+  PARTNER_CURRENCIES,
+  PARTNER_CURRENCY_LABELS,
+  PARTNER_DOCUMENT_LANGUAGE_LABELS,
+  PARTNER_DOCUMENT_LANGUAGES,
   PARTNER_PAYMENT_TERM_TYPE_HINTS,
   PARTNER_PAYMENT_TERM_TYPE_LABELS,
   PARTNER_PAYMENT_TERM_TYPES,
   type BusinessPartner,
+  type PartnerCurrency,
+  type PartnerDocumentLanguage,
   type PartnerPaymentTermType,
 } from '@/lib/partners/types'
 import { formatBusinessRegNo } from '@/lib/partners/utils'
@@ -223,6 +229,53 @@ function PartnerModalContent({
             onChange={(event) => updateForm('businessType', event.target.value)}
             className={ERP_FIELD_INPUT_CLASS}
           />
+        </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>
+            언어 <span className="font-normal text-slate-400">(견적서·발주서 PDF)</span>
+          </span>
+          <select
+            value={form.documentLanguage}
+            onChange={(event) =>
+              updateForm('documentLanguage', event.target.value as PartnerDocumentLanguage)
+            }
+            className={ERP_FIELD_INPUT_CLASS}
+          >
+            {PARTNER_DOCUMENT_LANGUAGES.map((language) => (
+              <option key={language} value={language}>
+                {PARTNER_DOCUMENT_LANGUAGE_LABELS[language]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>
+            부가세 <span className="font-normal text-slate-400">(견적서·거래명세서)</span>
+          </span>
+          <select
+            value={form.includeVat ? 'incl' : 'excl'}
+            onChange={(event) => updateForm('includeVat', event.target.value === 'incl')}
+            className={ERP_FIELD_INPUT_CLASS}
+          >
+            <option value="excl">VAT 별도</option>
+            <option value="incl">VAT 포함</option>
+          </select>
+        </label>
+        <label className="block text-sm">
+          <span className={ERP_FIELD_LABEL_CLASS}>
+            통화 <span className="font-normal text-slate-400">(발주서·구매발주)</span>
+          </span>
+          <select
+            value={form.currency}
+            onChange={(event) => updateForm('currency', event.target.value as PartnerCurrency)}
+            className={ERP_FIELD_INPUT_CLASS}
+          >
+            {PARTNER_CURRENCIES.map((currency) => (
+              <option key={currency} value={currency}>
+                {PARTNER_CURRENCY_LABELS[currency]}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="block text-sm">
           <span className={ERP_FIELD_LABEL_CLASS}>결제조건</span>

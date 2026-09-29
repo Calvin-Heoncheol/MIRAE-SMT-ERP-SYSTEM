@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useCanDeleteRecords, useAuthProfile } from '@/components/auth/auth-profile-provider'
 import {
   MaterialPurchaseAssistPanel,
@@ -48,6 +48,7 @@ import {
   normalizeMaterialPurchaseOrderAmount,
   todayYmdSeoul,
 } from '@/lib/materials/purchase-orders/utils'
+import { findActiveBusinessPartnerByName } from '@/lib/partners/repository'
 import type { BomEdge } from '@/lib/materials/outbound/types'
 import { fetchMaterials } from '@/lib/materials/repository'
 import type { Material } from '@/lib/materials/types'
@@ -131,6 +132,7 @@ function MaterialPurchaseOrderModalContent({
   const [form, setForm] = useState<MaterialPurchaseOrderFormState>(() =>
     createInitialForm(order, initialSupplier),
   )
+  const lastCurrencySupplierRef = useRef((order?.supplier || '').trim())
   const [items, setItems] = useState<MaterialPurchaseOrderItemForm[]>(() => {
     const defaultDelivery = createInitialForm(order, initialSupplier).deliveryDate
     if (order) {
@@ -217,10 +219,12 @@ function MaterialPurchaseOrderModalContent({
       })),
     )
     if (payload.supplier.trim()) {
+      const nextSupplier = form.supplier.trim() || payload.supplier.trim()
       setForm((current) => ({
         ...current,
         supplier: current.supplier.trim() || payload.supplier.trim(),
       }))
+      void applySupplierCurrency(nextSupplier)
     }
     setCoverSourceOrderId(payload.sourceOrderId ?? null)
     setCoverOrderLineId(payload.coveredOrderLineId ?? null)
@@ -231,6 +235,12 @@ function MaterialPurchaseOrderModalContent({
     )
     setAssistMode(null)
   }
+
+  useEffect(() => {
+    if (order || !initialSupplier?.trim()) return
+    void applySupplierCurrency(initialSupplier)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -300,10 +310,20 @@ function MaterialPurchaseOrderModalContent({
     })
   }
 
+  async function applySupplierCurrency(supplier: string) {
+    const name = supplier.trim()
+    if (!name || name === lastCurrencySupplierRef.current) return
+    lastCurrencySupplierRef.current = name
+    const partner = await findActiveBusinessPartnerByName(name)
+    if (!partner || lastCurrencySupplierRef.current !== name) return
+    updateForm('currency', partner.currency)
+  }
+
   function suggestSupplier(supplier: string) {
     if (lockSeededFields) return
     if (!form.supplier.trim()) {
       updateForm('supplier', supplier)
+      void applySupplierCurrency(supplier)
     }
   }
 
@@ -364,15 +384,18 @@ function MaterialPurchaseOrderModalContent({
     onSaved?.()
   }
 
-  function handlePrint(language: MaterialPurchaseOrderPrintLanguage) {
+  async function handlePrint() {
     if (!order) return
+    const supplier = order.supplier || form.supplier
+    const partner = await findActiveBusinessPartnerByName(supplier)
+    const language: MaterialPurchaseOrderPrintLanguage = partner?.documentLanguage ?? 'ko'
     const printed = printMaterialPurchaseOrder(
       buildMaterialPurchaseOrderPrintData({
         orderNumber: order.orderNumber,
         sourceOrderNumber: order.sourceOrderId,
         orderDate: order.orderDate || form.orderDate || todayYmdSeoul(),
         deliveryDate: order.deliveryDate || form.deliveryDate || '',
-        supplier: order.supplier || form.supplier,
+        supplier,
         currency: order.currency || form.currency,
         freightAmount: normalizeMaterialPurchaseOrderAmount(
           form.freightAmount || order.freightAmount,
@@ -483,13 +506,8 @@ function MaterialPurchaseOrderModalContent({
                 {mode === 'edit' && order ? (
                   <PdfDownloadButton
                     label="발주서 출력"
-                    onDownload={() => handlePrint('ko')}
+                    onDownload={() => void handlePrint()}
                     disabled={busy}
-                    menuPlacement="above"
-                    menuItems={[
-                      { label: '한글', onDownload: () => handlePrint('ko') },
-                      { label: '영문', onDownload: () => handlePrint('en') },
-                    ]}
                   />
                 ) : null}
                 {!readOnly ? (
@@ -558,6 +576,7 @@ function MaterialPurchaseOrderModalContent({
             <input
               value={form.supplier}
               onChange={(event) => updateForm('supplier', event.target.value)}
+              onBlur={(event) => void applySupplierCurrency(event.target.value)}
               readOnly={readOnly || lockSeededFields}
               placeholder="공급사명"
               className={`${ERP_FIELD_INPUT_CLASS} read-only:bg-slate-50`}

@@ -1,6 +1,8 @@
 import type {
   BusinessPartner,
   BusinessPartnerPayload,
+  PartnerCurrency,
+  PartnerDocumentLanguage,
   PartnerPaymentTermType,
   PartnerTradeRole,
 } from './types'
@@ -31,6 +33,9 @@ export function mapBusinessPartnerRecord(row: {
   payment_deposit_percent?: number | null
   payment_net_days?: number | null
   payment_monthly_day?: number | null
+  document_language?: string | null
+  include_vat?: boolean | null
+  currency?: string | null
   created_at: string
   updated_at: string
 }): BusinessPartner {
@@ -51,6 +56,9 @@ export function mapBusinessPartnerRecord(row: {
     paymentDepositPercent: Math.max(0, Math.floor(Number(row.payment_deposit_percent) || 0)),
     paymentNetDays: Math.max(0, Math.floor(Number(row.payment_net_days) || 0)),
     paymentMonthlyDay: Math.max(0, Math.floor(Number(row.payment_monthly_day) || 0)),
+    documentLanguage: normalizePartnerDocumentLanguage(row.document_language),
+    includeVat: row.include_vat === true,
+    currency: normalizePartnerCurrency(row.currency),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -69,7 +77,20 @@ export function toBusinessPartnerRow(payload: BusinessPartnerPayload) {
     payment_deposit_percent: Math.max(0, Math.floor(Number(payload.paymentDepositPercent) || 0)),
     payment_net_days: Math.max(0, Math.floor(Number(payload.paymentNetDays) || 0)),
     payment_monthly_day: Math.max(0, Math.floor(Number(payload.paymentMonthlyDay) || 0)),
+    document_language: normalizePartnerDocumentLanguage(payload.documentLanguage),
+    include_vat: payload.includeVat === true,
+    currency: normalizePartnerCurrency(payload.currency),
   }
+}
+
+export function normalizePartnerCurrency(value: string | null | undefined): PartnerCurrency {
+  return String(value || '').trim().toUpperCase() === 'USD' ? 'USD' : 'KRW'
+}
+
+export function normalizePartnerDocumentLanguage(
+  value: string | null | undefined,
+): PartnerDocumentLanguage {
+  return String(value || '').trim().toLowerCase() === 'en' ? 'en' : 'ko'
 }
 
 export function normalizePartnerPaymentTermType(value: string | null | undefined): PartnerPaymentTermType {

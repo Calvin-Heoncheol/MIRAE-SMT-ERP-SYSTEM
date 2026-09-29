@@ -5,7 +5,6 @@ import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { ChangeReasonModal } from '@/components/change-logs/change-reason-modal'
 import { ProductCombobox } from '@/components/orders/product-combobox'
 import { ErpButton } from '@/components/ui/erp-button'
-import { StatementPrintMenu } from '@/components/delivery/statement-print-menu'
 import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { buildDeliveryStatementDataFromShipment } from '@/lib/delivery/build-delivery-statement-data'
@@ -978,7 +977,7 @@ export function DeliveryHistoryModal({
     await commitSave()
   }
 
-  async function handlePrintStatement(includeVat: boolean) {
+  async function handlePrintStatement() {
     if (!shipmentId || !drafts.length || !group) return
     setPrinting(true)
     setError(null)
@@ -1030,7 +1029,7 @@ export function DeliveryHistoryModal({
       return
     }
 
-    const ok = printDeliveryStatement({ ...built.data, includeVat })
+    const ok = printDeliveryStatement(built.data)
     if (!ok) {
       setError('거래명세서를 열 수 없습니다. 브라우저 팝업 차단을 해제한 뒤 다시 시도해 주세요.')
     }
@@ -1095,11 +1094,14 @@ export function DeliveryHistoryModal({
                 {deleting ? '삭제 중…' : '삭제'}
               </button>
             ) : null}
-            <StatementPrintMenu
+            <ErpButton
+              variant="secondary"
               disabled={busy || !drafts.length}
               loading={printing}
-              onPrint={(includeVat) => void handlePrintStatement(includeVat)}
-            />
+              onClick={() => void handlePrintStatement()}
+            >
+              거래명세서
+            </ErpButton>
           </div>
           <div className="flex flex-wrap gap-2">
             <CancelButton disabled={busy} />

@@ -15,6 +15,9 @@ create table if not exists public.business_partners (
   payment_deposit_percent integer not null default 0,
   payment_net_days integer not null default 0,
   payment_monthly_day integer not null default 0,
+  document_language text not null default 'ko' check (document_language in ('ko', 'en')),
+  include_vat boolean not null default false,
+  currency text not null default 'KRW' check (currency in ('KRW', 'USD')),
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -33,6 +36,9 @@ comment on column public.business_partners.payment_term_type is '결제조건: i
 comment on column public.business_partners.payment_deposit_percent is '분할 지급 선금 % (1~99)';
 comment on column public.business_partners.payment_net_days is '일반 후불 Net 일수';
 comment on column public.business_partners.payment_monthly_day is '월괄 후불 익월 입금일 (1~31)';
+comment on column public.business_partners.document_language is '견적서·발주서 PDF 언어: ko=한국어, en=영어';
+comment on column public.business_partners.include_vat is '견적서·거래명세서 부가세(10%) 포함 여부';
+comment on column public.business_partners.currency is '발주서·구매발주 기본 통화: KRW / USD';
 
 create sequence if not exists public.partner_id_seq;
 
@@ -64,6 +70,17 @@ alter table public.business_partners add column if not exists payment_term_type 
 alter table public.business_partners add column if not exists payment_deposit_percent integer not null default 0;
 alter table public.business_partners add column if not exists payment_net_days integer not null default 0;
 alter table public.business_partners add column if not exists payment_monthly_day integer not null default 0;
+alter table public.business_partners add column if not exists document_language text not null default 'ko';
+alter table public.business_partners drop constraint if exists business_partners_document_language_check;
+alter table public.business_partners
+  add constraint business_partners_document_language_check
+  check (document_language in ('ko', 'en'));
+alter table public.business_partners add column if not exists include_vat boolean not null default false;
+alter table public.business_partners add column if not exists currency text not null default 'KRW';
+alter table public.business_partners drop constraint if exists business_partners_currency_check;
+alter table public.business_partners
+  add constraint business_partners_currency_check
+  check (currency in ('KRW', 'USD'));
 alter table public.business_partners drop constraint if exists business_partners_payment_term_type_check;
 alter table public.business_partners
   add constraint business_partners_payment_term_type_check
