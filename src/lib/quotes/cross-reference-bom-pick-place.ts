@@ -1,5 +1,5 @@
 import type { AltiumBomAnalysis, BomLine } from '@/lib/quotes/parse-altium-bom'
-import { bomExcludeReasonLabel, type BomExcludeReason } from '@/lib/quotes/bom-dnp'
+import { bomExcludeReasonLabel } from '@/lib/quotes/bom-dnp'
 import type {
   AltiumPickPlaceAnalysis,
   PickPlaceClassifiedRow,
@@ -83,7 +83,7 @@ function mergePickPlaceRowWithBom(
     mpn: row.mpn || bomLine.mpn,
   }
 
-  let classified = classifyPickPlaceRow(mergedRow, { hasLayerColumn })
+  const classified = classifyPickPlaceRow(mergedRow, { hasLayerColumn })
 
   const dipFromRow = classifyPickPlaceDipFromRow({
     category: classified.category,

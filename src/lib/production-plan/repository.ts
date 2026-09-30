@@ -394,7 +394,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     return total
   }
 
-  let assemblyResult = assemblyFetch
+  const assemblyResult = assemblyFetch
 
   const smtOrders = excludeDeliveryCompleteProductionOrders(
     buildProductionOrderLines(
@@ -898,7 +898,7 @@ async function saveBoardConfirmation(input: {
   }
 
   if (input.boardItemId) {
-    let { error } = await supabase
+    const { error } = await supabase
       .from('production_plan_board_items')
       .update(schedulePayload)
       .eq('id', input.boardItemId)

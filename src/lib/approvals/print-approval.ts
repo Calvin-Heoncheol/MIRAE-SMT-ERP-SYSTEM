@@ -15,18 +15,11 @@ import {
 } from '@/lib/approvals/form-state'
 import { formatApprovalMoney } from '@/lib/approvals/utils'
 import type { ApprovalDetailItem } from '@/lib/approvals/types'
+import { escapeHtml } from '@/lib/print/escape-html'
 
 export type ApprovalPrintInput = {
   category: ApprovalCategory
   form: ApprovalFormState
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
 }
 
 function dash(value: string) {

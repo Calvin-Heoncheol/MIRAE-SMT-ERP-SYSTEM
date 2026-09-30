@@ -1,20 +1,12 @@
 import type { MonthlyClosingRow } from '@/lib/reports/monthly-closing'
 import { summarizeMonthlyClosingRows } from '@/lib/reports/monthly-closing'
+import { escapeHtml } from '@/lib/print/escape-html'
 
 export type ExportMonthlyClosingPdfInput = {
   rows: MonthlyClosingRow[]
   customer?: string
   startDate?: string
   endDate?: string
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
 }
 
 function sanitizePdfFilenamePart(value: string) {

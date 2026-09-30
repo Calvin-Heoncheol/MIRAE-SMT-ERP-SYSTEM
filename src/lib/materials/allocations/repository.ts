@@ -11,6 +11,7 @@ import type { BomEdge } from '@/lib/materials/outbound/types'
 import type { Material } from '@/lib/materials/types'
 import type { OrderListGroup } from '@/lib/orders/types'
 import { createSupabaseClient } from '@/lib/supabase'
+import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 
 export type FetchAllocationsResult =
   | { ok: true; allocations: MaterialOrderAllocation[] }
@@ -269,16 +270,20 @@ export async function syncMaterialOrderAllocations(input: {
       (row) => openOrderIds.has(row.orderId) && !nextKeys.has(`${row.orderId}::${row.materialId}`),
     )
 
-    if (toDelete.length) {
-      for (const row of toDelete) {
-        const { error } = await supabase
-          .from('material_order_allocations')
-          .delete()
-          .eq('order_id', row.orderId)
-          .eq('material_id', row.materialId)
-        if (error && !isMissingMaterialOrderAllocationsTable(error.message)) {
-          return { ok: false, reason: 'query', detail: error.message }
-        }
+    const deleteMaterialIdsByOrder = new Map<string, string[]>()
+    for (const row of toDelete) {
+      const ids = deleteMaterialIdsByOrder.get(row.orderId)
+      if (ids) ids.push(row.materialId)
+      else deleteMaterialIdsByOrder.set(row.orderId, [row.materialId])
+    }
+    for (const [orderId, materialIds] of deleteMaterialIdsByOrder) {
+      const { error } = await supabase
+        .from('material_order_allocations')
+        .delete()
+        .eq('order_id', orderId)
+        .in('material_id', materialIds)
+      if (error && !isMissingMaterialOrderAllocationsTable(error.message)) {
+        return { ok: false, reason: 'query', detail: error.message }
       }
     }
 
@@ -347,6 +352,23 @@ export async function assertOutboundWithinOrderAtp(input: {
   return null
 }
 
+/** 'applied' = DB 에서 원자적으로 반영됨, 'missing' = RPC 미적용 DB (기존 방식으로 처리) */
+async function applyAllocationIssueAtomic(
+  orderId: string,
+  materialId: string,
+  issuedDelta: number,
+): Promise<'applied' | 'missing' | { ok: true } | { ok: false; reason: 'query'; detail: string }> {
+  const { error } = await createSupabaseClient().rpc('apply_material_allocation_issue', {
+    p_order_id: orderId,
+    p_material_id: materialId,
+    p_issued_delta: issuedDelta,
+  })
+  if (!error) return 'applied'
+  if (isMissingRpcFunction(error.message)) return 'missing'
+  if (isMissingMaterialOrderAllocationsTable(error.message)) return { ok: true }
+  return { ok: false, reason: 'query', detail: error.message }
+}
+
 /** 불출 후 issued_qty 증가 + reserved 재조정은 sync 로 맡김 */
 export async function applyOutboundIssuedToAllocations(input: {
   orderId: string
@@ -377,6 +399,10 @@ export async function applyOutboundIssuedToAllocations(input: {
     }
 
     for (const [materialId, quantity] of byMaterial) {
+      const atomic = await applyAllocationIssueAtomic(orderId, materialId, quantity)
+      if (atomic === 'applied') continue
+      if (atomic !== 'missing') return atomic
+
       const { data, error } = await supabase
         .from('material_order_allocations')
         .select('required_qty, reserved_qty, issued_qty')
@@ -448,6 +474,10 @@ export async function applyRestockToAllocations(input: {
       const materialId = item.material_id.trim()
       const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0))
       if (!materialId || quantity <= 0) continue
+
+      const atomic = await applyAllocationIssueAtomic(orderId, materialId, -quantity)
+      if (atomic === 'applied') continue
+      if (atomic !== 'missing') return atomic
 
       const { data, error } = await supabase
         .from('material_order_allocations')

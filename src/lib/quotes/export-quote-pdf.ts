@@ -57,6 +57,7 @@ import {
   type PreviewSection,
 } from './preview-rows'
 import type { QuoteListItem, QuoteType } from './types'
+import { escapeHtml } from '@/lib/print/escape-html'
 
 export type ExportQuotePdfOptions = {
   /** 국내용도 영문 문구로 PDF 출력 가능 */
@@ -87,15 +88,6 @@ function pdfText(lang: QuoteDocumentLanguage, ko: string, en: string, zh: string
   if (lang === 'zh') return zh
   if (lang === 'en') return en
   return ko
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;')
 }
 
 /** PDF「다른 이름으로 저장」기본 파일명용 — Windows 금지문자 제거 */

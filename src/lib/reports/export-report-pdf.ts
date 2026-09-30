@@ -1,3 +1,5 @@
+import { escapeHtml } from '@/lib/print/escape-html'
+
 export type ReportPdfStat = {
   label: string
   value: string
@@ -23,14 +25,6 @@ type ExportReportPdfOptions = {
   rangeLabel: string
   stats: ReportPdfStat[]
   tables: ReportPdfTable[]
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
 }
 
 function buildStatsHtml(stats: ReportPdfStat[]): string {

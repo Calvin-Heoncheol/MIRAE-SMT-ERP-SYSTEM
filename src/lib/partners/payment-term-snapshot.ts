@@ -129,7 +129,7 @@ export async function fetchPaymentTermSnapshotForCustomer(
   const select =
     'name, payment_term_type, payment_deposit_percent, payment_net_days, payment_monthly_day'
 
-  let { data, error } = await supabase
+  const { data, error } = await supabase
     .from('business_partners')
     .select(select)
     .eq('is_active', true)

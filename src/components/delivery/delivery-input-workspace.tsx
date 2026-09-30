@@ -416,6 +416,12 @@ export function DeliveryInputWorkspace({
             detail={legacyGroupsResult.detail}
           />
         ) : null}
+        {historyResult.truncated ? (
+          <FetchErrorBanner
+            title="출하 이력이 많아 최근 1,000건만 표시합니다"
+            detail="그 이전 이력은 목록·검색·명세서 출력에 포함되지 않습니다."
+          />
+        ) : null}
 
         <WorkspaceHeader
           search={search}

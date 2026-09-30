@@ -138,11 +138,11 @@ async function syncDerivedOrderLines(
   const supabase = createSupabaseClient()
   const activeParentIds = new Set(specs.map((spec) => spec.parentLineId))
 
-  for (const line of orderLines) {
-    if (!line.derived_from_line_id) continue
-    if (activeParentIds.has(line.derived_from_line_id)) continue
-
-    const { error } = await supabase.from('order_lines').delete().eq('id', line.id)
+  const staleDerivedIds = orderLines
+    .filter((line) => line.derived_from_line_id && !activeParentIds.has(line.derived_from_line_id))
+    .map((line) => line.id)
+  if (staleDerivedIds.length) {
+    const { error } = await supabase.from('order_lines').delete().in('id', staleDerivedIds)
     if (error) {
       return { ok: false, detail: error.message }
     }

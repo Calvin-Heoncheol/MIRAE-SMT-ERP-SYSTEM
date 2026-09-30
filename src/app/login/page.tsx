@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import { LoginForm } from '@/components/auth/login-form'
 import { tryDevAutoLogin } from '@/lib/auth/actions'
-import { isAuthDevAutoLoginEnabled, isAuthDisabled } from '@/lib/auth/config'
+import { isAuthDevAutoLoginEnabled, isAuthDisabled, safeRedirectPath } from '@/lib/auth/config'
 import { APP_NAME, APP_SHORT_NAME } from '@/lib/app-config'
 import { redirect } from 'next/navigation'
 
@@ -58,7 +58,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </p>
         ) : null}
 
-        <LoginForm nextPath={nextPath.startsWith('/') ? nextPath : '/'} />
+        <LoginForm nextPath={safeRedirectPath(nextPath)} />
       </div>
     </div>
   )

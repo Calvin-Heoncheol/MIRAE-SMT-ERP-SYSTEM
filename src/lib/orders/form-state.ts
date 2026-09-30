@@ -4,7 +4,7 @@ import {
   normalizeOrderProcessType,
   type OrderProcessType,
 } from './process-scope'
-import { isBillingOnlyOrderItem, computeOrderLineAmortizedUnitPrice, computeOrderLineMaterialCost, resolveOrderLineSmdUnitPrice } from './utils'
+import { isBillingOnlyOrderItem, computeOrderLineAmortizedUnitPrice, resolveOrderLineSmdUnitPrice } from './utils'
 import type { Product } from '@/lib/products/types'
 import { findProductsByCode } from '@/lib/products/utils'
 

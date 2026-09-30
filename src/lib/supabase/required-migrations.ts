@@ -15,6 +15,8 @@ export const RECOMMENDED_SCHEMA_MIGRATIONS = [
   'supabase/migrate-orders-canonical-id-work-number.sql',
   'supabase/migrate-delivery-extra-lines.sql',
   'supabase/migrate-items-material-cost-lines.sql',
+  'supabase/migrate-atomic-inventory.sql',
+  'supabase/migrate-delivery-number-3digit-lock.sql',
 ] as const
 
 export type RequiredRpcName = keyof typeof REQUIRED_RPC_MIGRATIONS

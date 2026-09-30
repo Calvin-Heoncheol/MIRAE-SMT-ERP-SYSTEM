@@ -1,4 +1,5 @@
 import { createSupabaseClient } from '@/lib/supabase'
+import { isMissingRpcFunction } from '@/lib/supabase/rpc'
 import { fetchMaterials } from '@/lib/materials/repository'
 import { resolveMaterialByInventoryCode } from '@/lib/materials/utils'
 import { todayYmdSeoul } from '@/lib/orders/utils'
@@ -100,6 +101,26 @@ async function setReelRemaining(inboundLineId: string, remainingQty: number, ori
   }
 }
 
+/** 'applied' = DB 에서 원자적으로 반영됨, 'missing' = RPC 미적용 DB (기존 방식으로 처리) */
+async function adjustReelRemainingAtomic(
+  inboundLineId: string,
+  delta: number,
+  strict: boolean,
+): Promise<'applied' | 'missing'> {
+  const supabase = createSupabaseClient()
+  const { error } = await supabase.rpc('adjust_material_reel_remaining', {
+    p_inbound_line_id: inboundLineId,
+    p_delta: delta,
+    p_strict: strict,
+  })
+  if (!error) return 'applied'
+  if (isMissingRpcFunction(error.message)) return 'missing'
+  if (error.message.includes('REEL_REMAINING_OUT_OF_RANGE')) {
+    throw new Error('릴 잔량이 부족합니다. 다른 사용자가 먼저 불출했을 수 있으니 새로고침 후 다시 시도하세요.')
+  }
+  throw new Error(error.message)
+}
+
 async function consumeReelQty(reel: MaterialReelRow, qty: number) {
   if (qty <= 0) return
   if (qty > reel.remainingQty) {
@@ -107,6 +128,7 @@ async function consumeReelQty(reel: MaterialReelRow, qty: number) {
       `${reel.lotNumber || reel.materialId} 릴 잔량(${reel.remainingQty.toLocaleString('ko-KR')})을 초과합니다.`,
     )
   }
+  if ((await adjustReelRemainingAtomic(reel.id, -qty, true)) === 'applied') return
   await setReelRemaining(reel.id, reel.remainingQty - qty, reel.quantity)
 }
 
@@ -120,6 +142,9 @@ export async function restoreReelsForOutboundLines(
   const supabase = createSupabaseClient()
   for (const line of linked) {
     const inboundLineId = String(line.inbound_line_id)
+    const qty = Math.max(0, Number(line.quantity) || 0)
+    const delta = outboundType === 'restock' ? -qty : qty
+    if ((await adjustReelRemainingAtomic(inboundLineId, delta, false)) === 'applied') continue
     const { data, error } = await supabase
       .from('material_inbound_lines')
       .select('id, quantity, remaining_qty')
@@ -132,9 +157,7 @@ export async function restoreReelsForOutboundLines(
     if (!data?.id) continue
     const original = Number(data.quantity) || 0
     const remaining = Number(data.remaining_qty) || 0
-    const qty = Math.max(0, Number(line.quantity) || 0)
-    const next = outboundType === 'restock' ? remaining - qty : remaining + qty
-    await setReelRemaining(inboundLineId, next, original)
+    await setReelRemaining(inboundLineId, remaining + delta, original)
   }
 }
 

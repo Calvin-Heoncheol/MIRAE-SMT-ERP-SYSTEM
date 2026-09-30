@@ -147,7 +147,7 @@ type OrderLineUnitPriceLookup = {
 }
 
 export type FetchDeliveryHistoryResult =
-  | { ok: true; rows: DeliveryHistoryRow[] }
+  | { ok: true; rows: DeliveryHistoryRow[]; truncated?: boolean }
   | { ok: false; reason: 'env' | 'query' | 'validation'; detail: string }
 
 export function isMissingDeliveryTable(detail: string) {
@@ -354,7 +354,7 @@ export async function fetchDeliveryInputPageData(): Promise<FetchDeliveryInputPa
   if (!deliveryCountsResult.ok) return deliveryCountsResult
   if (!quotesResult.ok) return quotesResult
 
-  let assemblyResult = assemblyFetchResult
+  const assemblyResult = assemblyFetchResult
 
   const deliveryCounts = deliveryCountsResult.counts
   const orderById = Object.fromEntries(orders.map((order) => [order.orderId, order]))
@@ -596,14 +596,14 @@ export async function createDeliveryRecord(
     const shipmentNumber = input.shipmentNumber?.trim() || ''
     const shipmentGroupId = input.shipmentGroupId?.trim() || ''
 
-    if (shipmentNumber && !/^MRS-([0-9]+|[0-9]{6}-[0-9]{2})$/.test(shipmentNumber)) {
+    if (shipmentNumber && !/^MRS-([0-9]+|[0-9]{6}-[0-9]{2,})$/.test(shipmentNumber)) {
       return {
         ok: false,
         reason: 'validation',
         detail: '출하번호 형식이 올바르지 않습니다. (예: MRS-260811-01)',
       }
     }
-    if (shipmentGroupId && !/^MRS-([0-9]+|[0-9]{6}-[0-9]{2})$/.test(shipmentGroupId)) {
+    if (shipmentGroupId && !/^MRS-([0-9]+|[0-9]{6}-[0-9]{2,})$/.test(shipmentGroupId)) {
       return {
         ok: false,
         reason: 'validation',
@@ -1816,7 +1816,8 @@ async function fetchDeliveryRecords(options?: {
 
     await enrichDeliveryHistoryProductCodes(rows)
 
-    return { ok: true, rows: assignShipmentRounds(rows) }
+    const truncated = (data?.length ?? 0) >= (options?.limit ?? 1000)
+    return { ok: true, rows: assignShipmentRounds(rows), truncated }
   } catch (error) {
     return {
       ok: false,

@@ -18,9 +18,7 @@ export function InboundFetchError({
           <>
             Supabase SQL Editor에서{' '}
             <code className="rounded bg-white/70 px-1">supabase/setup-material-inbound.sql</code>을 실행한 뒤,
-            Supabase Dashboard → Settings → API에서 schema cache를 새로고침해 주세요. 스키마가 맞지 않으면{' '}
-            <code className="rounded bg-white/70 px-1">supabase/reset-erp.sql</code> 후 setup 스크립트를 다시
-            실행하세요.
+            Supabase Dashboard → Settings → API에서 schema cache를 새로고침해 주세요.
           </>
         ) : null
       }

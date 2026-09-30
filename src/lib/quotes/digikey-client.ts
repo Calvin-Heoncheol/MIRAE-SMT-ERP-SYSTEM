@@ -24,10 +24,10 @@ export type DigiKeyProductSummary = {
 let cachedToken: { accessToken: string; expiresAt: number } | null = null
 
 function digiKeyBaseUrl() {
-  return useDigiKeySandbox() ? 'https://sandbox-api.digikey.com' : 'https://api.digikey.com'
+  return isDigiKeySandbox() ? 'https://sandbox-api.digikey.com' : 'https://api.digikey.com'
 }
 
-function useDigiKeySandbox() {
+function isDigiKeySandbox() {
   return process.env.DIGIKEY_USE_SANDBOX === 'true'
 }
 
@@ -58,7 +58,7 @@ async function fetchDigiKeyAccessToken() {
     throw new Error('DigiKey API 키가 설정되지 않았습니다. DIGIKEY_CLIENT_ID, DIGIKEY_CLIENT_SECRET을 추가해 주세요.')
   }
 
-  const sandbox = useDigiKeySandbox()
+  const sandbox = isDigiKeySandbox()
 
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
     return cachedToken.accessToken
@@ -202,7 +202,7 @@ export async function searchDigiKeyProductByMpn(input: {
       throw new Error('DigiKey API 호출 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.')
     }
     if (response.status === 403) {
-      const mode = useDigiKeySandbox() ? 'Sandbox' : 'Production'
+      const mode = isDigiKeySandbox() ? 'Sandbox' : 'Production'
       throw new Error(
         `DigiKey 조회 권한 없음 (403): ${mode} 앱이 Product Information V4 API에 구독·승인(Approved)되어 있는지 developer.digikey.com → My Apps에서 확인해 주세요. 토큰은 되는데 검색만 403이면 API 구독 문제입니다.`,
       )

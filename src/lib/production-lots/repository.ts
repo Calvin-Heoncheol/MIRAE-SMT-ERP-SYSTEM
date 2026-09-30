@@ -5,6 +5,7 @@ import { buildSmtCountKey } from '@/lib/smt/count-keys'
 import { normalizeSmtPlanPcbSide } from '@/lib/smt/plan/utils'
 import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { createSupabaseClient } from '@/lib/supabase'
+import { fetchAllPages } from '@/lib/supabase/fetch-all-pages'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import type { LotAllocation, LotSyncResult, ProductionLot } from './types'
 import { allocateLotsFifo, formatLotIdsLabel, isMissingProductionLotsTable } from './utils'
@@ -748,11 +749,21 @@ export async function fetchProductionLotSearchIndex(): Promise<ProductionLotSear
   try {
     const supabase = createSupabaseClient()
     const [{ data: lots, error: lotsError }, { data: lines, error: linesError }] = await Promise.all([
-      supabase
-        .from('production_lots')
-        .select('id, lot_date, assembly_group_id, product_code, order_id')
-        .limit(20000),
-      supabase.from('order_assembly_group_lines').select('assembly_group_id, order_line_id').limit(20000),
+      fetchAllPages((from, to) =>
+        supabase
+          .from('production_lots')
+          .select('id, lot_date, assembly_group_id, product_code, order_id')
+          .order('id')
+          .range(from, to),
+      ),
+      fetchAllPages((from, to) =>
+        supabase
+          .from('order_assembly_group_lines')
+          .select('assembly_group_id, order_line_id')
+          .order('assembly_group_id')
+          .order('order_line_id')
+          .range(from, to),
+      ),
     ])
 
     if (lotsError) {
@@ -846,18 +857,32 @@ export async function fetchShipmentSearchIndex(): Promise<ShipmentSearchIndex> {
 
   try {
     const supabase = createSupabaseClient()
-    let [{ data: deliveries, error: deliveryError }, { data: lotLinks, error: lotLinkError }] =
-      await Promise.all([
+    const [deliveryResult, { data: lotLinks, error: lotLinkError }] = await Promise.all([
+      fetchAllPages<{ id: string; shipment_id: string | null; assembly_group_id: string | null }, { message: string }>(
+        (from, to) =>
+          supabase
+            .from('delivery_records')
+            .select('id, shipment_id, assembly_group_id')
+            .order('id')
+            .range(from, to),
+      ),
+      fetchAllPages((from, to) =>
         supabase
-          .from('delivery_records')
-          .select('id, shipment_id, assembly_group_id')
-          .limit(20000),
-        supabase.from('delivery_record_lots').select('delivery_record_id, lot_id').limit(20000),
-      ])
+          .from('delivery_record_lots')
+          .select('delivery_record_id, lot_id')
+          .order('delivery_record_id')
+          .order('lot_id')
+          .range(from, to),
+      ),
+    ])
+    let deliveries = deliveryResult.data
+    let deliveryError = deliveryResult.error
 
     if (deliveryError && /shipment_id/i.test(deliveryError.message)) {
-      const fallback = await supabase.from('delivery_records').select('id, assembly_group_id').limit(20000)
-      deliveries = (fallback.data || []).map((row) => ({
+      const fallback = await fetchAllPages((from, to) =>
+        supabase.from('delivery_records').select('id, assembly_group_id').order('id').range(from, to),
+      )
+      deliveries = fallback.data.map((row) => ({
         id: row.id,
         assembly_group_id: row.assembly_group_id,
         shipment_id: null,

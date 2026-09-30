@@ -32,7 +32,7 @@ export function orderIdFromLegacyShipmentNote(note: string | null | undefined) {
   return value.slice(LEGACY_SHIPMENT_NOTE_PREFIX.length).trim()
 }
 
-const MRS_IN_ORDER_NOTE_RE = /\[MRS:(MRS-(?:[0-9]{6}-[0-9]{2}|[0-9]+))\]/
+const MRS_IN_ORDER_NOTE_RE = /\[MRS:(MRS-(?:[0-9]{6}-[0-9]{2,}|[0-9]+))\]/
 
 export function parseLegacyShipmentIdFromOrderNote(note: string | null | undefined) {
   const match = String(note || '').match(MRS_IN_ORDER_NOTE_RE)
@@ -200,7 +200,7 @@ export async function ensureLegacyShipmentNumber(input: {
 
   const generated = await supabase.rpc('generate_delivery_number', { p_record_date: shipDate })
   const shipmentId = String(generated.data || '').trim()
-  if (!/^MRS-([0-9]{6}-[0-9]{2}|[0-9]+)$/.test(shipmentId)) {
+  if (!/^MRS-([0-9]{6}-[0-9]{2,}|[0-9]+)$/.test(shipmentId)) {
     return parseLegacyShipmentIdFromOrderNote(input.orderNote) || ''
   }
 

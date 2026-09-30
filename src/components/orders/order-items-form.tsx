@@ -45,7 +45,7 @@ function applyProductSelection(items: OrderItemForm[], index: number, product: P
   const parent = items[index]
   if (!parent) return items
 
-  let next = stripCompanionRows(items, parent.rowKey)
+  const next = stripCompanionRows(items, parent.rowKey)
   const parentIndex = next.findIndex((row) => row.rowKey === parent.rowKey)
   if (parentIndex < 0) return next
 

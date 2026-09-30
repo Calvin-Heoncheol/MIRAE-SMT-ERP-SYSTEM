@@ -1,5 +1,4 @@
 import type { ApprovalCategory } from './categories'
-import { getApprovalIntroBodyPlaceholder } from './categories'
 import { DEFAULT_APPROVAL_DEPARTMENT, normalizeApprovalDepartment } from './departments'
 import { formatSeoulDateInput } from './date'
 import { createDefaultSignoffs, normalizeSignoffs } from './signoffs'

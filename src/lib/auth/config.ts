@@ -18,6 +18,16 @@ export function isAuthDisabled() {
 /** 신규 계정 초기 비밀번호 (로그인 후 변경 강제) */
 export const DEFAULT_INITIAL_PASSWORD = '123123'
 
+/** 사용자가 직접 정하는 비밀번호 최소 길이 */
+export const MIN_PASSWORD_LENGTH = 8
+
+/** 로그인 후 이동 경로 — 같은 사이트 내부 경로만 허용 (`//host`, `/\host` 차단) */
+export function safeRedirectPath(value: string | null | undefined) {
+  const path = String(value || '').trim()
+  if (!path.startsWith('/') || path.startsWith('//') || path.startsWith('/\\')) return '/'
+  return path
+}
+
 /** 개발 환경에서 로그인 페이지 진입 시 자동 로그인 */
 export function isAuthDevAutoLoginEnabled() {
   if (process.env.NODE_ENV === 'production') return false

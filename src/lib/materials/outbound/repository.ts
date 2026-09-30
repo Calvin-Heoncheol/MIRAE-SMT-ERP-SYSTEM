@@ -17,7 +17,7 @@ import {
 } from '@/lib/materials/allocations/repository'
 import { fetchMaterials } from '@/lib/materials/repository'
 import { formatMaterialDisplayCode } from '@/lib/materials/utils'
-import { fetchOrders } from '@/lib/orders/repository'
+import { fetchOrderById, fetchOrders } from '@/lib/orders/repository'
 import type { Material } from '@/lib/materials/types'
 import type { OrderListGroup } from '@/lib/orders/types'
 import type {
@@ -726,16 +726,18 @@ export async function createMaterialOutbound(
     payload.order_id?.trim()
   ) {
     const orderId = payload.order_id.trim()
-    const [onHandResult, pendingResult, materialsResult, ordersResult, bomEdges] = await Promise.all([
+    const [onHandResult, pendingResult, materialsResult, targetOrder, bomEdges] = await Promise.all([
       fetchOnHandByMaterialId(),
       fetchPendingInboundByOrderMaterial(),
       fetchMaterials(),
-      fetchOrders({ includeDerivedLines: true }),
+      fetchOrderById(orderId, { includeDerivedLines: true }),
       fetchBomEdges(),
     ])
+    const ordersResult = targetOrder
+      ? { ok: true as const, orders: [targetOrder] }
+      : await fetchOrders({ includeDerivedLines: true })
     if (onHandResult.ok && materialsResult.ok && ordersResult.ok) {
-      const order = ordersResult.orders.find((row) => row.orderId === orderId)
-      const orders = order ? [order] : ordersResult.orders.filter((row) => row.orderId === orderId)
+      const orders = ordersResult.orders.filter((row) => row.orderId === orderId)
       const issuedRows = await fetchIssuedOrderMaterialRows()
       const issuedNested = new Map<string, Map<string, number>>()
       for (const row of issuedRows) {

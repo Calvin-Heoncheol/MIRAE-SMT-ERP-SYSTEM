@@ -59,7 +59,7 @@ export async function fetchProductionStatusPageData(): Promise<FetchProductionSt
     quotesResult.quotes,
   )
 
-  let assemblyResult = await fetchAssemblyGroups(productById)
+  const assemblyResult = await fetchAssemblyGroups(productById)
   if (!assemblyResult.ok) {
     return assemblyResult
   }

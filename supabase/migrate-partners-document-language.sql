@@ -10,3 +10,11 @@ alter table public.business_partners
   check (document_language in ('ko', 'en'));
 
 comment on column public.business_partners.document_language is '견적서·발주서 PDF 언어: ko=한국어, en=영어';
+
+-- 적용 이력 기록 (setup-schema-migrations.sql 실행 후에만 기록됨)
+do $$
+begin
+  if to_regclass('public.schema_migrations') is not null then
+    insert into public.schema_migrations (filename) values ('migrate-partners-document-language.sql') on conflict do nothing;
+  end if;
+end $$;

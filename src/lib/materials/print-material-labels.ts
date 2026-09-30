@@ -1,6 +1,7 @@
 import { buildMaterialLabelsZpl } from '@/lib/materials/build-material-label-zpl'
 import { getLabelPrintSettings } from '@/lib/materials/label-print-settings'
 import { sendZplViaBrowserPrint } from '@/lib/materials/zebra-browser-print'
+import { escapeHtml } from '@/lib/print/escape-html'
 
 export type MaterialLabelPrintItem = {
   id: string
@@ -23,14 +24,6 @@ export type PrintMaterialLabelsOptions = {
   autoPrint?: boolean
   /** false면 Browser Print(ZPL)를 건너뛰고 브라우저 인쇄만 사용 */
   preferBrowserPrint?: boolean
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
 }
 
 function truncateText(value: string, maxLength: number) {

@@ -11,8 +11,6 @@ import { isBillingOnlyOrderItem } from '@/lib/orders/utils'
 import type { OrderAssemblyGroup } from '@/lib/assembly/types'
 import { parseItemVersionCode, stripTrailingVersionFromName } from '@/lib/items/version-code'
 import {
-  processTypeIncludesPostProcess,
-  processTypeIncludesSmt,
   resolveProductionFlagsForAssemblyParent,
   resolveProductionFlagsForOrderLine,
 } from '@/lib/quotes/production-flags'

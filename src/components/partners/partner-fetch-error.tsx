@@ -18,8 +18,7 @@ export function PartnerFetchError({
           <>
             Supabase SQL Editor에서{' '}
             <code className="rounded bg-white/70 px-1">supabase/setup-business-partners.sql</code>을 실행해
-            주세요. 스키마가 맞지 않으면 <code className="rounded bg-white/70 px-1">supabase/reset-erp.sql</code>{' '}
-            후 setup 스크립트를 다시 실행하세요.
+            주세요.
           </>
         ) : null
       }

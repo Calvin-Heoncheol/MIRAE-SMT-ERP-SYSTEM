@@ -61,7 +61,7 @@ export function ForcePasswordChangeModal({ open }: ForcePasswordChangeModalProps
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="6자 이상"
+            placeholder="8자 이상"
             autoComplete="new-password"
             disabled={pending}
           />

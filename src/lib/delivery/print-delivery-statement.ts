@@ -9,6 +9,7 @@ import { parseItemVersionCode, stripTrailingVersionFromName } from '@/lib/items/
 import { normalizeOrderCurrency } from '@/lib/orders/utils'
 import { DOMESTIC_VAT_RATE } from '@/lib/quotes/format'
 import type { DeliveryStatementData, DeliveryStatementLine } from './types'
+import { escapeHtml } from '@/lib/print/escape-html'
 
 /** 고전 양식: 표 여백용 빈 행 */
 const MIN_ITEM_ROW_COUNT = 8
@@ -24,14 +25,6 @@ function resolvePrintAssetSrc(path: string) {
 
 function resolveStatementSealSrc() {
   return resolvePrintAssetSrc(STATEMENT_SEAL_PATH)
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
 }
 
 function formatNumber(value: number) {

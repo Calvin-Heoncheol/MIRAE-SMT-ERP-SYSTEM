@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { isAuthDisabled } from '@/lib/auth/config'
+import { isAuthDisabled, safeRedirectPath } from '@/lib/auth/config'
 import { canAccessPath } from '@/lib/auth/permissions'
 import { normalizeAuthDepartment, normalizeAuthRole } from '@/lib/auth/types'
 
@@ -72,8 +72,8 @@ export async function updateSession(request: NextRequest) {
 
   if (user && isLoginPage) {
     const redirectUrl = request.nextUrl.clone()
-    const next = request.nextUrl.searchParams.get('next') || '/'
-    if (next.startsWith('/')) {
+    const next = safeRedirectPath(request.nextUrl.searchParams.get('next'))
+    if (next !== '/') {
       const [path, query = ''] = next.split('?')
       redirectUrl.pathname = path || '/'
       redirectUrl.search = query ? `?${query}` : ''

@@ -7,6 +7,8 @@ import {
   isAuthDevAutoLoginEnabled,
   isAuthDisabled,
   DEFAULT_INITIAL_PASSWORD,
+  MIN_PASSWORD_LENGTH,
+  safeRedirectPath,
 } from '@/lib/auth/config'
 
 export type LoginActionState = {
@@ -49,7 +51,7 @@ export async function loginWithPassword(
     }
   }
 
-  redirect(next.startsWith('/') ? next : '/')
+  redirect(safeRedirectPath(next))
 }
 
 export async function tryDevAutoLogin(nextPath = '/') {
@@ -62,7 +64,7 @@ export async function tryDevAutoLogin(nextPath = '/') {
     data: { user },
   } = await supabase.auth.getUser()
   if (user) {
-    redirect(nextPath.startsWith('/') ? nextPath : '/')
+    redirect(safeRedirectPath(nextPath))
   }
 
   const { error } = await supabase.auth.signInWithPassword(credentials)
@@ -74,7 +76,7 @@ export async function tryDevAutoLogin(nextPath = '/') {
     }
   }
 
-  redirect(nextPath.startsWith('/') ? nextPath : '/')
+  redirect(safeRedirectPath(nextPath))
 }
 
 export async function logoutAction() {
@@ -101,8 +103,8 @@ export async function changeOwnPasswordAction(input: {
   const password = String(input.password || '')
   const confirmPassword = String(input.confirmPassword || '')
 
-  if (password.length < 6) {
-    return { ok: false, message: '비밀번호는 6자 이상이어야 합니다.' }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return { ok: false, message: `비밀번호는 ${MIN_PASSWORD_LENGTH}자 이상이어야 합니다.` }
   }
   if (password !== confirmPassword) {
     return { ok: false, message: '새 비밀번호가 일치하지 않습니다.' }

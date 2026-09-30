@@ -108,7 +108,7 @@ export async function fetchProductionInputPageData(
       return quotesResult
     }
 
-    let assemblyResult = assemblyFetchResult
+    const assemblyResult = assemblyFetchResult
 
     const orders = excludeDeliveryCompleteProductionOrders(
       buildPostProcessAssemblyLines(

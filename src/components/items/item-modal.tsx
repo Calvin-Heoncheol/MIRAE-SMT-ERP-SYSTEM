@@ -43,7 +43,6 @@ import {
 } from '@/lib/items/types'
 import { nextItemCodeForCategory, itemFromPayload, displayItemUnitPrice, formatItemUnitPrice } from '@/lib/items/utils'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
-import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import type { BusinessPartner } from '@/lib/partners/types'
 import { hasItemUnitPriceChange } from '@/lib/change-logs/utils'
 import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'

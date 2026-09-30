@@ -22,7 +22,6 @@ import { parseOrderRecord, parseOrderRecords } from '@/lib/db/parse-row'
 import type { OrderCurrency, OrderListGroup, OrderRecord, OrderRowPayload } from './types'
 import {
   groupOrdersFromRecords,
-  isBillingOnlyOrderItem,
   normalizeOrderCurrency,
   sumCommercialOrderQuantity,
 } from './utils'
@@ -209,6 +208,12 @@ async function applyManualOrderWorkNumbers(
 
     const uiLines = (lines || []).filter((line) => !line.derived_from_line_id)
     const workNumberById = new Map<string, string | null>()
+    const lineIdsByWorkNumber = new Map<string | null, string[]>()
+    const queueUpdate = (lineId: string, workNumber: string | null) => {
+      const ids = lineIdsByWorkNumber.get(workNumber)
+      if (ids) ids.push(lineId)
+      else lineIdsByWorkNumber.set(workNumber, [lineId])
+    }
 
     for (let index = 0; index < uiLines.length; index += 1) {
       const line = uiLines[index]!
@@ -216,23 +221,21 @@ async function applyManualOrderWorkNumbers(
       const isBillingOnly = !String(line.product_id || '').trim()
       const workNumber = isBillingOnly ? null : fromPayload
       workNumberById.set(String(line.id), workNumber)
-      if (workNumber === (line.work_number ?? null)) continue
-      const { error: updateError } = await supabase
-        .from('order_lines')
-        .update({ work_number: workNumber })
-        .eq('id', line.id)
-      if (updateError) return { ok: false, reason: 'query', detail: updateError.message }
+      if (workNumber !== (line.work_number ?? null)) queueUpdate(String(line.id), workNumber)
     }
 
     for (const line of lines || []) {
       const parentId = String(line.derived_from_line_id || '').trim()
       if (!parentId) continue
       const parentWorkNumber = workNumberById.get(parentId) ?? null
-      if (parentWorkNumber === (line.work_number ?? null)) continue
+      if (parentWorkNumber !== (line.work_number ?? null)) queueUpdate(String(line.id), parentWorkNumber)
+    }
+
+    for (const [workNumber, lineIds] of lineIdsByWorkNumber) {
       const { error: updateError } = await supabase
         .from('order_lines')
-        .update({ work_number: parentWorkNumber })
-        .eq('id', line.id)
+        .update({ work_number: workNumber })
+        .in('id', lineIds)
       if (updateError) return { ok: false, reason: 'query', detail: updateError.message }
     }
 
@@ -316,7 +319,10 @@ export async function fetchOrders(options?: {
   }
 }
 
-export async function fetchOrderById(orderId: string): Promise<OrderListGroup | null> {
+export async function fetchOrderById(
+  orderId: string,
+  options?: { includeDerivedLines?: boolean },
+): Promise<OrderListGroup | null> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return null
   }
@@ -331,7 +337,9 @@ export async function fetchOrderById(orderId: string): Promise<OrderListGroup | 
   if (error || !data) return null
   const record = parseOrderRecord(data)
   if (!record) return null
-  return groupOrdersFromRecords([record])[0] ?? null
+  return (
+    groupOrdersFromRecords([record], { includeDerivedLines: options?.includeDerivedLines })[0] ?? null
+  )
 }
 
 /** 견적에서 이미 전환된 발주서 번호 (있으면) */

@@ -20,6 +20,7 @@ import {
 } from '@/lib/quotes/production-flags'
 import { DOMESTIC_VAT_RATE } from '@/lib/quotes/format'
 import type { QuoteDetailInfo } from '@/lib/quotes/types'
+import { escapeHtml } from '@/lib/print/escape-html'
 
 export type OrderPrintLanguage = 'ko' | 'en'
 
@@ -59,14 +60,6 @@ const ORDER_PRINT_SEAL_PATH = '/branding/company-seal.png'
 /** 브랜드 틸 — 로고 악센트와 맞춤 */
 const BRAND_TEAL = '#0f766e'
 const BRAND_TEAL_SOFT = '#ecfdf5'
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-}
 
 function formatNumber(value: number) {
   return Math.max(0, Math.round(Number(value) || 0)).toLocaleString('ko-KR')

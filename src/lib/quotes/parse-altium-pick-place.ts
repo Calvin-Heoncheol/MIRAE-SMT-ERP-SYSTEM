@@ -7,9 +7,6 @@ import {
   isPickPlaceDipCategory,
   isPickPlaceSmdCategory,
   pickPlaceCategoryLabel,
-  PICK_PLACE_DIP_CATEGORY_OPTIONS,
-  PICK_PLACE_MANUAL_CATEGORY_OPTIONS,
-  PICK_PLACE_SMD_CATEGORY_OPTIONS,
   type AltiumPickPlaceDipStats,
   type PickPlaceComponentCategory,
 } from '@/lib/quotes/pick-place-mount-categories'

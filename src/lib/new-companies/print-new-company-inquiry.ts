@@ -4,14 +4,7 @@ import {
   type NewCompanyInquiry,
   type NewCompanyStatus,
 } from '@/lib/new-companies/types'
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-}
+import { escapeHtml } from '@/lib/print/escape-html'
 
 function dash(value: string) {
   const trimmed = value.trim()

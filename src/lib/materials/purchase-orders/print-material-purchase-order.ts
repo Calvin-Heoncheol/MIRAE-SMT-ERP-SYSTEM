@@ -14,6 +14,7 @@ import {
   normalizeMaterialPurchaseOrderAmount,
   normalizeMaterialPurchaseOrderUnitPrice,
 } from '@/lib/materials/purchase-orders/utils'
+import { escapeHtml } from '@/lib/print/escape-html'
 
 export type MaterialPurchaseOrderPrintLanguage = 'ko' | 'en'
 
@@ -41,14 +42,6 @@ export type MaterialPurchaseOrderPrintData = {
   contactEmail?: string | null
   items: MaterialPurchaseOrderPrintLine[]
   note?: string
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
 }
 
 function formatNumber(value: number, maxFractionDigits = 0) {

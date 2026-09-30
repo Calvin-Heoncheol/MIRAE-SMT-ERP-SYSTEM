@@ -411,7 +411,7 @@ export async function fetchPostProcessPlanPageData(
   if (!deliveryCountsResult.ok) return deliveryCountsResult
   if (!quotesResult.ok) return quotesResult
 
-  let assemblyResult = assemblyFetchResult
+  const assemblyResult = assemblyFetchResult
 
   const [onHandResult, pendingResult, bomEdges] = await Promise.all([
     fetchOnHandByMaterialId(),
