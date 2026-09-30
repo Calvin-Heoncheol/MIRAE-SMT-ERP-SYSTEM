@@ -246,13 +246,17 @@ export function MaterialLabelsWorkspace() {
                 <p className="text-xs text-slate-500 sm:col-span-2">
                   고객사 양식 고정 라벨입니다 ({VIUCOMM_P141A_BOX_LABEL.widthMm}×
                   {VIUCOMM_P141A_BOX_LABEL.heightMm}mm · {VIUCOMM_P141A_BOX_LABEL.dpi}dpi). S/N과 바코드만
-                  바뀝니다. 용지 설정은 적용되지 않습니다.
+                  바뀝니다. 톱니바퀴에서 라벨지 크기·DPI·위치 보정을 맞출 수 있습니다.
                 </p>
               )}
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-              {!isViucomm ? <MaterialLabelSettingsButton /> : null}
+              {isViucomm ? (
+                <MaterialLabelSettingsButton key="viucomm" scope="viucomm-p141a-box" />
+              ) : (
+                <MaterialLabelSettingsButton key="material" />
+              )}
               <ErpButton disabled={printing} loading={printing} onClick={() => void handlePrint()}>
                 라벨 출력
               </ErpButton>

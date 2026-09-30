@@ -13,7 +13,6 @@ const VAR_X = 16
 const VAR_Y = 113
 const VAR_WIDTH = 184
 const VAR_HEIGHT = 33
-const VAR_ROW_BYTES = VAR_WIDTH / 8
 
 /** S/N 번호 글자 위치 (라벨 좌표) — 원본 "WAG268830726" 잉크 기준 */
 const SERIAL_LEFT = 43
@@ -128,12 +127,21 @@ function drawSerial(target: Bitmap, serial: string, offsetX: number, offsetY: nu
   }
 }
 
-function drawBarcode(target: Bitmap, serial: string, offsetX: number, offsetY: number) {
+function drawBarcode(
+  target: Bitmap,
+  serial: string,
+  offsetX: number,
+  offsetY: number,
+  moduleWidth = 1,
+  height = BARCODE_HEIGHT,
+) {
   const modules = encodeCode128Modules(serial)
   if (!modules) return
   modules.forEach((black, index) => {
     if (!black) return
-    for (let y = 0; y < BARCODE_HEIGHT; y += 1) setDot(target, offsetX + index, offsetY + y)
+    for (let dx = 0; dx < moduleWidth; dx += 1) {
+      for (let y = 0; y < height; y += 1) setDot(target, offsetX + index * moduleWidth + dx, offsetY + y)
+    }
   })
 }
 
@@ -142,6 +150,59 @@ function buildVariableRegion(serial: string): Bitmap {
   drawSerial(region, serial, SERIAL_LEFT - VAR_X, SERIAL_DIGIT_TOP - VAR_Y)
   drawBarcode(region, serial, BARCODE_X - VAR_X, BARCODE_Y - VAR_Y)
   return region
+}
+
+/** 최근접 보간 확대/축소 (203dpi 원본 → 다른 DPI) */
+function scaleBitmap(source: Bitmap, scale: number, width?: number, height?: number): Bitmap {
+  const out = createBitmap(width ?? Math.round(source.width * scale), height ?? Math.round(source.height * scale))
+  for (let y = 0; y < out.height; y += 1) {
+    const sy = Math.floor(y / scale)
+    if (sy >= source.height) break
+    for (let x = 0; x < out.width; x += 1) {
+      const sx = Math.floor(x / scale)
+      if (sx >= source.width) break
+      if (getDot(source, sx, sy)) setDot(out, x, y)
+    }
+  }
+  return out
+}
+
+/** 다른 DPI용 가변 영역 — S/N 글자는 확대, 바코드는 정수 모듈로 다시 그림 (스캔 품질 유지) */
+function buildScaledVariableRegion(serial: string, scale: number): Bitmap {
+  const serialOnly = createBitmap(VAR_WIDTH, VAR_HEIGHT)
+  drawSerial(serialOnly, serial, SERIAL_LEFT - VAR_X, SERIAL_DIGIT_TOP - VAR_Y)
+
+  const moduleWidth = Math.max(1, Math.round(scale))
+  const barcodeLeft = Math.round((BARCODE_X - VAR_X) * scale)
+  const barcodeTop = Math.round((BARCODE_Y - VAR_Y) * scale)
+  const barcodeHeight = Math.round(BARCODE_HEIGHT * scale)
+  const moduleCount = encodeCode128Modules(serial)?.length ?? 0
+  const width = Math.max(Math.round(VAR_WIDTH * scale), barcodeLeft + moduleCount * moduleWidth)
+  const height = Math.max(Math.round(VAR_HEIGHT * scale), barcodeTop + barcodeHeight)
+
+  const region = scaleBitmap(serialOnly, scale, Math.ceil(width / 8) * 8, height)
+  drawBarcode(region, serial, barcodeLeft, barcodeTop, moduleWidth, barcodeHeight)
+  return region
+}
+
+export type ViucommPrintLayout = {
+  /** 실제 라벨 용지 크기 */
+  widthMm: number
+  heightMm: number
+  dpi: number
+  /** 위치 보정 (+ 오른쪽·아래) */
+  offsetXMm?: number
+  offsetYMm?: number
+  /** 0~30 */
+  darkness?: number
+  /** 2~6 ips */
+  printSpeed?: number
+}
+
+const DEFAULT_LAYOUT: ViucommPrintLayout = { widthMm: 30, heightMm: 20, dpi: 203 }
+
+function mmToDots(mm: number, dpi: number) {
+  return Math.round((mm * dpi) / 25.4)
 }
 
 export function validateViucommSerial(serial: string): string | null {
@@ -153,29 +214,60 @@ export function validateViucommSerial(serial: string): string | null {
 }
 
 /** ZPL — 배경은 프린터 메모리에 1회 저장, 라벨마다 S/N·바코드 영역만 전송 */
-export function buildViucommP141aBoxLabelsZpl(serials: string[], copiesPerSerial = 1) {
+export function buildViucommP141aBoxLabelsZpl(
+  serials: string[],
+  copiesPerSerial = 1,
+  layout: ViucommPrintLayout = DEFAULT_LAYOUT,
+) {
   const list = serials.map((value) => value.trim()).filter(Boolean)
   if (!list.length) return ''
   const copies = Math.max(1, Math.floor(copiesPerSerial) || 1)
-  const base = baseBitmap()
+
+  const dpi = layout.dpi > 0 ? layout.dpi : VIUCOMM_P141A_BOX_LABEL.dpi
+  const scale = dpi / VIUCOMM_P141A_BOX_LABEL.dpi
+  const exact = Math.abs(scale - 1) < 0.001
+  const base = exact ? baseBitmap() : scaleBitmap(baseBitmap(), scale)
+  const graphicName = exact ? BASE_GRAPHIC_NAME : `R:VIUB${dpi}.GRF`
+
+  const designWidth = exact ? PRINT_WIDTH : Math.round(PRINT_WIDTH * scale)
+  const designHeight = base.height
+  const labelWidth = Math.max(designWidth, mmToDots(layout.widthMm, dpi))
+  const labelHeight = Math.max(designHeight, mmToDots(layout.heightMm, dpi))
+  const originX = Math.round((labelWidth - designWidth) / 2 + mmToDots(layout.offsetXMm ?? 0, dpi))
+  const originY = Math.round((labelHeight - designHeight) / 2)
+  // 상하 보정은 ^LT로 인쇄 영역 전체를 옮김 — ^LH로 내리면 ^LL 경계에서 아래가 잘림
+  const topShift = Math.min(120, Math.max(-120, mmToDots(layout.offsetYMm ?? 0, dpi)))
+  // 왼쪽 이동은 ^LH가 음수를 못 받으므로 ^LS(라벨 시프트)로 처리
+  const homeX = Math.max(0, originX)
+  const shiftX = originX < 0 ? -originX : 0
+  // 오른쪽으로 옮긴 만큼 인쇄 폭을 늘려 오른쪽 끝이 잘리지 않게
+  const printWidth = labelWidth + homeX
+
+  const darkness = Math.min(30, Math.max(0, Math.round(layout.darkness ?? 20)))
+  const speed = Math.min(6, Math.max(2, Math.round(layout.printSpeed ?? 3)))
 
   const parts = [
-    '^XA~TA000~JSN^LT0^MNW^MTT^PON^PMN^LH0,0^JMA^PR6,6~SD15^LRN^CI27^PA0,1,1,0^XZ',
-    `~DG${BASE_GRAPHIC_NAME},${base.bits.length},${ROW_BYTES},${toHex(base.bits)}`,
+    `^XA^MNW^MTT^PON^PMN^LRN^PR${speed},${speed}~SD${String(darkness).padStart(2, '0')}^CI27^XZ`,
+    `~DG${graphicName},${base.bits.length},${base.rowBytes},${toHex(base.bits)}`,
   ]
 
   for (const serial of list) {
-    const region = buildVariableRegion(serial)
+    const region = exact ? buildVariableRegion(serial) : buildScaledVariableRegion(serial, scale)
+    const varX = exact ? VAR_X : Math.round(VAR_X * scale)
+    const varY = exact ? VAR_Y : Math.round(VAR_Y * scale)
     parts.push(
       [
         '^XA^MMT',
-        `^PW${PRINT_WIDTH}^LL${LABEL_HEIGHT}^LS0`,
-        `^FO0,0^XG${BASE_GRAPHIC_NAME},1,1^FS`,
-        `^FO${VAR_X},${VAR_Y}^GFA,${region.bits.length},${region.bits.length},${VAR_ROW_BYTES},${toHex(region.bits)}^FS`,
+        `^PW${printWidth}^LL${labelHeight}^LT${topShift}^LS${shiftX}^LH${homeX},${originY}`,
+        `^FO0,0^XG${graphicName},1,1^FS`,
+        `^FO${varX},${varY}^GFA,${region.bits.length},${region.bits.length},${region.rowBytes},${toHex(region.bits)}^FS`,
         `^PQ${copies},0,1,Y^XZ`,
       ].join('\n'),
     )
   }
+
+  // ^LT·^LS는 프린터에 계속 남으므로 다른 라벨 출력에 영향 없게 원복
+  parts.push('^XA^LT0^LS0^XZ')
 
   return parts.join('\n')
 }

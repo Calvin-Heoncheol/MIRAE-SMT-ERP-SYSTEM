@@ -1,22 +1,31 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
 import { ErpNumericInput } from '@/components/ui/erp-numeric-input'
 import {
-  DEFAULT_LABEL_PRINT_SETTINGS,
   formatLabelPrintSize,
+  getDefaultLabelPrintSettings,
   getLabelPrintSettings,
-  LABEL_PRINT_SIZE_PRESETS,
+  getLabelPrintSizePresets,
+  LABEL_PRINT_SETTINGS_CHANGED,
   setLabelPrintSettings,
   type LabelPrintDpi,
   type LabelPrintSettings,
+  type LabelPrintSettingsScope,
 } from '@/lib/materials/label-print-settings'
 import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 type MaterialLabelSettingsButtonProps = {
   className?: string
+  /** 설정 저장 단위 — 고정 양식(VIUCOMM 등)은 미리보기 대신 위치 보정 표시 */
+  scope?: LabelPrintSettingsScope
+}
+
+function subscribeLabelPrintSettings(onChange: () => void) {
+  window.addEventListener(LABEL_PRINT_SETTINGS_CHANGED, onChange)
+  return () => window.removeEventListener(LABEL_PRINT_SETTINGS_CHANGED, onChange)
 }
 
 const PREVIEW_SAMPLE = {
@@ -142,35 +151,38 @@ function CancelButton({ disabled }: { disabled?: boolean }) {
 function MaterialLabelSettingsModal({
   open,
   onClose,
+  scope,
 }: {
   open: boolean
   onClose: () => void
+  scope: LabelPrintSettingsScope
 }) {
-  const [form, setForm] = useState<LabelPrintSettings>(() => getLabelPrintSettings())
-
-  useEffect(() => {
-    if (!open) return
-    setForm(getLabelPrintSettings())
-  }, [open])
+  const fixedLayout = scope !== 'material'
+  const presets = getLabelPrintSizePresets(scope)
+  const [form, setForm] = useState<LabelPrintSettings>(() => getLabelPrintSettings(scope))
 
   function applyPreset(widthMm: number, heightMm: number) {
     setForm((current) => ({ ...current, widthMm, heightMm }))
   }
 
   function handleSave() {
-    setLabelPrintSettings(form)
+    setLabelPrintSettings(form, scope)
     onClose()
   }
 
   function handleReset() {
-    setForm(DEFAULT_LABEL_PRINT_SETTINGS)
+    setForm(getDefaultLabelPrintSettings(scope))
   }
 
   return (
     <ErpModal
       open={open}
       title="바코드 라벨 용지 설정"
-      description="실제 라벨지 크기·프린터 DPI와 같아야 선명합니다. (예: 40×30mm + 203dpi)"
+      description={
+        fixedLayout
+          ? '프린터에 걸린 라벨지 크기·DPI를 맞추면 양식이 용지 가운데에 인쇄됩니다.'
+          : '실제 라벨지 크기·프린터 DPI와 같아야 선명합니다. (예: 40×30mm + 203dpi)'
+      }
       onClose={onClose}
       size="form"
       footer={
@@ -186,12 +198,12 @@ function MaterialLabelSettingsModal({
       }
     >
       <div className="space-y-4">
-        <LabelPreview widthMm={form.widthMm} heightMm={form.heightMm} />
+        {fixedLayout ? null : <LabelPreview widthMm={form.widthMm} heightMm={form.heightMm} />}
 
         <div>
           <p className={ERP_FIELD_LABEL_CLASS}>빠른 선택</p>
           <div className="mt-1.5 flex flex-wrap gap-2">
-            {LABEL_PRINT_SIZE_PRESETS.map((preset) => {
+            {presets.map((preset) => {
               const active = form.widthMm === preset.widthMm && form.heightMm === preset.heightMm
               return (
                 <button
@@ -254,6 +266,70 @@ function MaterialLabelSettingsModal({
           </select>
         </label>
 
+        {fixedLayout ? (
+          <div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>좌우 위치 보정 (mm)</span>
+                <ErpNumericInput
+                  min={-10}
+                  max={10}
+                  integer={false}
+                  value={form.offsetXMm ?? 0}
+                  onValueChange={(offsetXMm) => setForm((current) => ({ ...current, offsetXMm }))}
+                  className={ERP_FIELD_INPUT_CLASS}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>상하 위치 보정 (mm)</span>
+                <ErpNumericInput
+                  min={-10}
+                  max={10}
+                  integer={false}
+                  value={form.offsetYMm ?? 0}
+                  onValueChange={(offsetYMm) => setForm((current) => ({ ...current, offsetYMm }))}
+                  className={ERP_FIELD_INPUT_CLASS}
+                />
+              </label>
+            </div>
+            <p className="mt-1.5 text-xs text-slate-500">
+              + 값은 오른쪽·아래로, − 값은 왼쪽·위로 이동합니다. 위쪽이 잘리면 상하에 +1 정도부터 넣어 보세요.
+            </p>
+
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>인쇄 농도 (0~30)</span>
+                <ErpNumericInput
+                  min={0}
+                  max={30}
+                  value={form.darkness ?? 20}
+                  onValueChange={(darkness) => setForm((current) => ({ ...current, darkness }))}
+                  className={ERP_FIELD_INPUT_CLASS}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>인쇄 속도</span>
+                <select
+                  value={form.printSpeed ?? 3}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, printSpeed: Number(event.target.value) }))
+                  }
+                  className={ERP_FIELD_INPUT_CLASS}
+                >
+                  <option value={2}>2 (가장 선명)</option>
+                  <option value={3}>3</option>
+                  <option value={4}>4</option>
+                  <option value={6}>6 (빠름)</option>
+                </select>
+              </label>
+            </div>
+            <p className="mt-1.5 text-xs text-slate-500">
+              바코드가 흐리거나 막대가 끊겨 보이면 농도를 올리고(예: 22~25) 속도를 낮추세요. 막대가 번져
+              뭉개지면 농도를 내립니다.
+            </p>
+          </div>
+        ) : null}
+
         <label className="flex items-start gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
@@ -279,14 +355,17 @@ function MaterialLabelSettingsModal({
 }
 
 /** 바코드 라벨 용지 설정 아이콘 버튼 */
-export function MaterialLabelSettingsButton({ className = '' }: MaterialLabelSettingsButtonProps) {
+export function MaterialLabelSettingsButton({
+  className = '',
+  scope = 'material',
+}: MaterialLabelSettingsButtonProps) {
   const [open, setOpen] = useState(false)
-  // SSR·첫 클라이언트 렌더는 기본값으로 맞추고, 마운트 후 localStorage 반영 (hydration mismatch 방지)
-  const [summary, setSummary] = useState(() => formatLabelPrintSize(DEFAULT_LABEL_PRINT_SETTINGS))
-
-  useEffect(() => {
-    setSummary(formatLabelPrintSize(getLabelPrintSettings()))
-  }, [open])
+  // 서버 스냅샷은 기본값 — localStorage 값은 하이드레이션 후 반영 (mismatch 방지)
+  const summary = useSyncExternalStore(
+    subscribeLabelPrintSettings,
+    () => formatLabelPrintSize(getLabelPrintSettings(scope)),
+    () => formatLabelPrintSize(getDefaultLabelPrintSettings(scope)),
+  )
 
   return (
     <>
@@ -306,10 +385,8 @@ export function MaterialLabelSettingsButton({ className = '' }: MaterialLabelSet
       {open ? (
         <MaterialLabelSettingsModal
           open
-          onClose={() => {
-            setSummary(formatLabelPrintSize(getLabelPrintSettings()))
-            setOpen(false)
-          }}
+          scope={scope}
+          onClose={() => setOpen(false)}
         />
       ) : null}
     </>
