@@ -18,9 +18,13 @@ import {
 import {
   deliveryRegisterLineKindLabel,
   encodeShipmentExtraNote,
+  encodeShipmentSkippedBillingNote,
+  filterSkippedBillingLines,
   findShippableOptionsForProduct,
   firstShipmentExtraLinesFromNotes,
   isExtrasOnlyDeliveryStub,
+  shipmentBillingSkipKey,
+  shipmentSkippedBillingKeysFromNotes,
   type DeliveryRegisterLineKind,
   type DeliveryShippableOption,
   type ShipmentExtraStatementLine,
@@ -370,6 +374,7 @@ function buildDisplayDrafts(
   productionOrders: ProductionOrderLine[],
   unitPriceByDeliveryId: Record<string, number>,
 ): LineDraft[] {
+  const skippedBillingKeys = shipmentSkippedBillingKeysFromNotes(group.lines.map((line) => line.note))
   const statementLines = buildShipmentStatementLinesFromHistory({
     lines: group.lines
       .filter((line) => !isExtrasOnlyDeliveryStub(line))
@@ -383,7 +388,7 @@ function buildDisplayDrafts(
         quantity: line.quantity,
       })),
     unitPriceByDeliveryId,
-    billingOnlyLines,
+    billingOnlyLines: filterSkippedBillingLines(billingOnlyLines, skippedBillingKeys),
     productionOrders: productionOrders.map((order) => ({
       assemblyGroupId: order.assemblyGroupId,
       orderNumber: order.orderNumber,
@@ -502,6 +507,7 @@ export function DeliveryHistoryModal({
   const [recordDate, setRecordDate] = useState('')
   const [drafts, setDrafts] = useState<LineDraft[]>([])
   const [removedDeliveryIds, setRemovedDeliveryIds] = useState<string[]>([])
+  const [skippedBillingKeys, setSkippedBillingKeys] = useState<string[]>([])
   const [customer, setCustomer] = useState('')
   const [shipmentId, setShipmentId] = useState('')
   const [saving, setSaving] = useState(false)
@@ -546,6 +552,7 @@ export function DeliveryHistoryModal({
     setCustomer(group.customer)
     setShipmentId(group.shipmentId)
     setRemovedDeliveryIds([])
+    setSkippedBillingKeys(shipmentSkippedBillingKeysFromNotes(group.lines.map((line) => line.note)))
     setDrafts(group.lines.map((line) => toDraft({ ...line, quantity: line.quantity })))
     setError(null)
     setSaving(false)
@@ -620,12 +627,18 @@ export function DeliveryHistoryModal({
     draftsReadyRef.current = true
   }, [open, drafts])
 
+  const activeBillingLines = useMemo(
+    () => filterSkippedBillingLines(billingOnlyLines, skippedBillingKeys),
+    [billingOnlyLines, skippedBillingKeys],
+  )
+
   function commitDrafts(
     updater: LineDraft[] | ((current: LineDraft[]) => LineDraft[]),
+    billingLines: DeliveryBillingOnlyLine[] = activeBillingLines,
   ) {
     setDrafts((current) => {
       const next = typeof updater === 'function' ? updater(current) : updater
-      return syncHistoryDraftBillingCompanions(next, billingOnlyLines)
+      return syncHistoryDraftBillingCompanions(next, billingLines)
     })
   }
 
@@ -644,7 +657,7 @@ export function DeliveryHistoryModal({
       return bindOptionToDraft(item, matches[0]!)
     })
     if (changed) commitDrafts(next)
-  }, [customer, drafts, options, productionOrders, billingOnlyLines])
+  }, [customer, drafts, options, productionOrders, activeBillingLines])
 
   const productRowCount = drafts.filter((line) => !line.billingOnly).length
   const totals = useMemo(() => {
@@ -730,7 +743,19 @@ export function DeliveryHistoryModal({
       setError(null)
       return
     }
-    if (target.billingOnly) return
+    if (target.billingOnly) {
+      const key = shipmentBillingSkipKey(target)
+      const nextSkipped = skippedBillingKeys.includes(key)
+        ? skippedBillingKeys
+        : [...skippedBillingKeys, key]
+      setSkippedBillingKeys(nextSkipped)
+      commitDrafts(
+        (current) => current.filter((_, lineIndex) => lineIndex !== index),
+        filterSkippedBillingLines(billingOnlyLines, nextSkipped),
+      )
+      setError(null)
+      return
+    }
     const productRows = drafts.filter((line) => !line.billingOnly)
     if (productRows.length <= 1) {
       setError('마지막 품목은 아래 삭제로 출하 전체를 지워 주세요.')
@@ -941,7 +966,10 @@ export function DeliveryHistoryModal({
       group.lines.map((line) => line.note).find((note) => String(note || '').trim()) ||
       productDrafts.find((line) => line.note.trim())?.note ||
       ''
-    const nextNote = encodeShipmentExtraNote(noteSource, extraLines)
+    const nextNote = encodeShipmentSkippedBillingNote(
+      encodeShipmentExtraNote(noteSource, extraLines),
+      skippedBillingKeys,
+    )
     const removedSet = new Set(removedDeliveryIds)
     const noteTargetIds = [
       ...group.lines
@@ -985,7 +1013,7 @@ export function DeliveryHistoryModal({
     const productDrafts = drafts.filter(
       (line) => !line.billingOnly && !isBlankNewDraft(line) && line.assemblyGroupId.trim(),
     )
-    const shippedLines = syncHistoryDraftBillingCompanions(productDrafts, billingOnlyLines)
+    const shippedLines = syncHistoryDraftBillingCompanions(productDrafts, activeBillingLines)
       .filter((line) => !isBlankNewDraft(line) && !line.manualEntry)
       .map((line) => ({
         orderNumber: line.orderNumber,
@@ -1021,6 +1049,7 @@ export function DeliveryHistoryModal({
       customer: customer || group.customer,
       note: drafts[0]?.note || '',
       shippedLines,
+      skippedBillingKeys,
     })
 
     setPrinting(false)
@@ -1212,9 +1241,9 @@ export function DeliveryHistoryModal({
                           productName: line.productName,
                         })
                       : []
-                  const canRemove = isManual
+                  const canRemove = isManual || isOrderBilling
                     ? true
-                    : !line.billingOnly && productRowCount > 1 && (isNew || canDelete)
+                    : productRowCount > 1 && (isNew || canDelete)
                   const qtyReadOnly = isOrderBilling
                   return (
                     <tr

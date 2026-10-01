@@ -42,11 +42,14 @@ import {
   type SmtBoardForm,
 } from '@/lib/quotes/form-state'
 import {
+  DEFAULT_POST_PROCESS_ORDER,
   defaultPostProcessBufferPercent,
   emptyPostProcessLineForm,
+  normalizePostProcessOrder,
   parsePostProcessBufferPercent,
   resolveCategorizedPostProcessLineForms,
   sumPostProcessBilledMinutes,
+  type PostProcessCategory,
   type PostProcessLineForm,
 } from '@/lib/quotes/post-process-lines'
 import { createQuote, deleteQuotes, updateQuote } from '@/lib/quotes/repository'
@@ -107,6 +110,8 @@ type FormState = {
   packingLines: PostProcessLineForm[]
   /** 후공정 시간 여유 % */
   postProcessBufferPercent: string
+  /** 조립·다운로드·테스트·포장 순서 */
+  postProcessOrder: PostProcessCategory[]
   materialCost: string
   specialDiscount: string
   includeSmd: boolean
@@ -117,6 +122,16 @@ type FormState = {
   includeMetalMask: boolean
   /** 메탈마스크 단면/양면 — 미설정이면 보드 면 기준 */
   metalMaskSide?: MetalMaskSide
+}
+
+const POST_PROCESS_EDITORS: Record<
+  PostProcessCategory,
+  { title: string; field: 'assemblyLines' | 'downloadLines' | 'testLines' | 'packingLines' }
+> = {
+  assembly: { title: '조립', field: 'assemblyLines' },
+  download: { title: '다운로드', field: 'downloadLines' },
+  test: { title: '테스트', field: 'testLines' },
+  packing: { title: '포장', field: 'packingLines' },
 }
 
 const INITIAL_FORM: FormState = {
@@ -134,6 +149,7 @@ const INITIAL_FORM: FormState = {
   testLines: [emptyPostProcessLineForm()],
   packingLines: [emptyPostProcessLineForm()],
   postProcessBufferPercent: String(defaultPostProcessBufferPercent(1000)),
+  postProcessOrder: DEFAULT_POST_PROCESS_ORDER,
   materialCost: '0',
   specialDiscount: '0',
   includeSmd: true,
@@ -239,6 +255,7 @@ function buildStateFromQuote(quote: QuoteListItem) {
       testLines: categorized.testLines,
       packingLines: categorized.packingLines,
       postProcessBufferPercent: String(bufferPercent),
+      postProcessOrder: normalizePostProcessOrder(post.order),
       materialCost: String(input.materialCost || 0),
       specialDiscount: String(input.specialDiscount || 0),
       includeSmd: flags.includeSmd,
@@ -513,6 +530,17 @@ function QuoteModalContent({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function movePostProcess(category: PostProcessCategory, direction: -1 | 1) {
+    setForm((current) => {
+      const order = [...current.postProcessOrder]
+      const from = order.indexOf(category)
+      const to = from + direction
+      if (from < 0 || to < 0 || to >= order.length) return current
+      ;[order[from], order[to]] = [order[to]!, order[from]!]
+      return { ...current, postProcessOrder: order }
+    })
+  }
+
   function setBoardCount(nextCount: number) {
     const count = Number(clampPcbCount(String(nextCount)))
     updateForm('pcbBoardCount', String(count))
@@ -752,6 +780,7 @@ function QuoteModalContent({
     includeMaterialCosts: form.includeMaterialCosts,
     includeMetalMask: form.includeMetalMask,
     timeBufferPercent: form.postProcessBufferPercent,
+    postProcessOrder: form.postProcessOrder,
     assemblyLines: form.assemblyLines,
     downloadLines: form.downloadLines,
     testLines: form.testLines,
@@ -1125,50 +1154,50 @@ function QuoteModalContent({
                     </div>
 
                     <div className="space-y-3">
-                      <PostProcessLinesEditor
-                        title="조립"
-                        ratePerMinute={getPostRate(quoteType)}
-                        lines={form.assemblyLines}
-                        boardQty={form.boardQty}
-                        bufferPercent={form.postProcessBufferPercent}
-                        quoteType={quoteType}
-                        displayCurrency={displayCurrency}
-                        showBufferControl
-                        onBufferPercentChange={(postProcessBufferPercent) =>
-                          updateForm('postProcessBufferPercent', postProcessBufferPercent)
-                        }
-                        onChange={(assemblyLines) => updateForm('assemblyLines', assemblyLines)}
-                      />
-                      <PostProcessLinesEditor
-                        title="다운로드"
-                        ratePerMinute={getPostRate(quoteType)}
-                        lines={form.downloadLines}
-                        boardQty={form.boardQty}
-                        bufferPercent={form.postProcessBufferPercent}
-                        quoteType={quoteType}
-                        displayCurrency={displayCurrency}
-                        onChange={(downloadLines) => updateForm('downloadLines', downloadLines)}
-                      />
-                      <PostProcessLinesEditor
-                        title="테스트"
-                        ratePerMinute={getPostRate(quoteType)}
-                        lines={form.testLines}
-                        boardQty={form.boardQty}
-                        bufferPercent={form.postProcessBufferPercent}
-                        quoteType={quoteType}
-                        displayCurrency={displayCurrency}
-                        onChange={(testLines) => updateForm('testLines', testLines)}
-                      />
-                      <PostProcessLinesEditor
-                        title="포장"
-                        ratePerMinute={getPostRate(quoteType)}
-                        lines={form.packingLines}
-                        boardQty={form.boardQty}
-                        bufferPercent={form.postProcessBufferPercent}
-                        quoteType={quoteType}
-                        displayCurrency={displayCurrency}
-                        onChange={(packingLines) => updateForm('packingLines', packingLines)}
-                      />
+                      {form.postProcessOrder.map((category, index) => {
+                        const config = POST_PROCESS_EDITORS[category]
+                        return (
+                          <PostProcessLinesEditor
+                            key={category}
+                            title={config.title}
+                            ratePerMinute={getPostRate(quoteType)}
+                            lines={form[config.field]}
+                            boardQty={form.boardQty}
+                            bufferPercent={form.postProcessBufferPercent}
+                            quoteType={quoteType}
+                            displayCurrency={displayCurrency}
+                            showBufferControl={index === 0}
+                            onBufferPercentChange={(postProcessBufferPercent) =>
+                              updateForm('postProcessBufferPercent', postProcessBufferPercent)
+                            }
+                            onChange={(lines) => updateForm(config.field, lines)}
+                            headerActions={
+                              <span className="inline-flex overflow-hidden rounded border border-slate-200 bg-white">
+                                <button
+                                  type="button"
+                                  disabled={index === 0}
+                                  onClick={() => movePostProcess(category, -1)}
+                                  className="px-1 text-[10px] leading-4 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                                  title={`${config.title} 위로`}
+                                  aria-label={`${config.title} 순서 위로`}
+                                >
+                                  ▲
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={index === form.postProcessOrder.length - 1}
+                                  onClick={() => movePostProcess(category, 1)}
+                                  className="border-l border-slate-200 px-1 text-[10px] leading-4 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                                  title={`${config.title} 아래로`}
+                                  aria-label={`${config.title} 순서 아래로`}
+                                >
+                                  ▼
+                                </button>
+                              </span>
+                            }
+                          />
+                        )
+                      })}
                     </div>
                   </div>
                 ) : null}

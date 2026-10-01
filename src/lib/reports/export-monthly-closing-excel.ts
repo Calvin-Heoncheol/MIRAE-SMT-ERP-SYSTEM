@@ -1,6 +1,6 @@
 import { downloadExcel, type ExcelCellStyle } from '@/lib/excel/export'
 import type { MonthlyClosingRow } from '@/lib/reports/monthly-closing'
-import { summarizeMonthlyClosingRows } from '@/lib/reports/monthly-closing'
+import { monthlyClosingKindLabel, summarizeMonthlyClosingRows } from '@/lib/reports/monthly-closing'
 import {
   buildMonthlyClosingPdfTitle,
   type ExportMonthlyClosingPdfInput,
@@ -8,6 +8,8 @@ import {
 
 type ClosingExcelRow = {
   recordDate: string
+  shipmentId: string
+  kind: string
   productCode: string
   productName: string
   quantity: number | string
@@ -27,6 +29,8 @@ export async function exportMonthlyClosingExcel(input: ExportMonthlyClosingPdfIn
   const totals = summarizeMonthlyClosingRows(input.rows)
   const rows: ClosingExcelRow[] = input.rows.map((row: MonthlyClosingRow) => ({
     recordDate: row.recordDate || '',
+    shipmentId: row.shipmentId || '',
+    kind: monthlyClosingKindLabel(row.kind),
     productCode: row.productCode || '',
     productName: row.productName || '',
     quantity: row.quantity,
@@ -35,6 +39,8 @@ export async function exportMonthlyClosingExcel(input: ExportMonthlyClosingPdfIn
   }))
   rows.push({
     recordDate: '합계',
+    shipmentId: '',
+    kind: '',
     productCode: '',
     productName: '',
     quantity: totals.quantity,
@@ -50,6 +56,8 @@ export async function exportMonthlyClosingExcel(input: ExportMonthlyClosingPdfIn
     sheetName: '월마감',
     columns: [
       { header: '일자', value: (row: ClosingExcelRow) => row.recordDate, width: 12, cellStyle: totalStyle },
+      { header: '출하번호', value: (row) => row.shipmentId, width: 18, cellStyle: totalStyle },
+      { header: '구분', value: (row) => row.kind, width: 10, cellStyle: totalStyle },
       { header: '품목코드', value: (row) => row.productCode, width: 18, cellStyle: totalStyle },
       { header: '품목명', value: (row) => row.productName, width: 36, cellStyle: totalStyle },
       { header: '수량', value: (row) => row.quantity, width: 10, cellStyle: totalStyle },

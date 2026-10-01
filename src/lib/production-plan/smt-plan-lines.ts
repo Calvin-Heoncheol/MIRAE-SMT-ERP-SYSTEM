@@ -38,13 +38,8 @@ export type SmtPlanLineGroup = {
   smtComplete: boolean
 }
 
-function computeSmtAvailableQty(
-  materialReadyQty: number,
-  unplannedQty: number,
-  plannedTotal: number,
-) {
-  if (unplannedQty <= 0 || materialReadyQty <= 0) return 0
-  return Math.min(unplannedQty, Math.max(0, materialReadyQty - plannedTotal))
+function computeSmtAvailableQty(unplannedQty: number) {
+  return Math.max(0, unplannedQty)
 }
 
 function materialLabelForRow(materialReadyQty: number) {
@@ -98,7 +93,7 @@ export function buildSmtPlanLineGroups(rows: ProductionPlanBoardRow[]): SmtPlanL
       remainder?.unplannedQty ?? Math.max(0, rep.remainingQty - plannedTotal)
     const planRow = remainder ?? lineRows.find((row) => row.status === 'waiting') ?? rep
     const materialReadyQty = rep.materialReadyQty
-    const availableQty = computeSmtAvailableQty(materialReadyQty, unplannedQty, plannedTotal)
+    const availableQty = computeSmtAvailableQty(unplannedQty)
     const canPlan = canPlanSmt(planRow) && unplannedQty > 0 && availableQty > 0
 
     groups.push({

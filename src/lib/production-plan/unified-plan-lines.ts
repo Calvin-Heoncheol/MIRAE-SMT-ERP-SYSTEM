@@ -192,7 +192,7 @@ function isActiveSmtMainLine(line: UnifiedPlanSheetLine) {
   const smtUnplanned = line.smtRow?.unplannedQty ?? remaining
   const materialUnplanned = line.materialRow?.unplannedQty ?? remaining
   if (materialUnplanned > 0 || materialReady < remaining) return true
-  if (materialReady > 0 && smtUnplanned > 0 && line.smtRow && canPlanSmt(line.smtRow)) return true
+  if (smtUnplanned > 0 && line.smtRow && canPlanSmt(line.smtRow)) return true
   return false
 }
 

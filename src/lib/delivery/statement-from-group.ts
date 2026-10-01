@@ -6,8 +6,10 @@ import {
   type DeliveryBillingOnlyLine,
 } from '@/lib/delivery/utils'
 import {
+  filterSkippedBillingLines,
   firstShipmentExtraLinesFromNotes,
   isExtrasOnlyDeliveryStub,
+  shipmentSkippedBillingKeysFromNotes,
   stripShipmentInternalNotes,
 } from '@/lib/delivery/register-form'
 
@@ -57,6 +59,7 @@ export async function buildDeliveryStatementDataFromTableGroup(
   }
 
   const productHistoryLines = group.lines.filter((line) => !isExtrasOnlyDeliveryStub(line))
+  const skippedBillingKeys = shipmentSkippedBillingKeysFromNotes(group.lines.map((line) => line.note))
   const shippedLines = buildShipmentStatementLinesFromHistory({
     lines: productHistoryLines.map((line) => ({
       id: line.id,
@@ -68,7 +71,7 @@ export async function buildDeliveryStatementDataFromTableGroup(
       quantity: line.quantity,
     })),
     unitPriceByDeliveryId: context.unitPriceByDeliveryId,
-    billingOnlyLines: context.billingOnlyLines,
+    billingOnlyLines: filterSkippedBillingLines(context.billingOnlyLines, skippedBillingKeys),
     productionOrders: context.productionOrders,
   })
 
@@ -107,5 +110,6 @@ export async function buildDeliveryStatementDataFromTableGroup(
       material: line.material,
       orderLineId: line.orderLineId,
     })),
+    skippedBillingKeys,
   })
 }

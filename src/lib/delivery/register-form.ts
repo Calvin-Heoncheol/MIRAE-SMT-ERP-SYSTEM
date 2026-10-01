@@ -136,6 +136,8 @@ export type ShipmentExtraStatementLine = {
 
 const SHIPMENT_EXTRA_NOTE_RE = /<!--SHIP_EXTRA:([\s\S]*?)-->/
 const SHIPMENT_CUSTOMER_NOTE_RE = /<!--SHIP_CUSTOMER:([\s\S]*?)-->/
+/** 출하 수정에서 지운 발주 추가작업 — 이 출하의 명세서·월마감에서 제외 */
+const SHIPMENT_SKIP_BILLING_NOTE_RE = /<!--SHIP_SKIP_BILLING:([\s\S]*?)-->/
 
 export function encodeShipmentCustomerNote(existingNote: string, customer: string) {
   const name = String(customer || '').trim()
@@ -246,7 +248,57 @@ export function stripShipmentInternalNotes(note: string | null | undefined) {
   return String(note || '')
     .replace(SHIPMENT_EXTRA_NOTE_RE, '')
     .replace(SHIPMENT_CUSTOMER_NOTE_RE, '')
+    .replace(SHIPMENT_SKIP_BILLING_NOTE_RE, '')
     .trim()
+}
+
+export function shipmentBillingSkipKey(line: {
+  orderLineId?: string | null
+  orderNumber: string
+  productCode: string
+  productName: string
+}) {
+  const orderLineId = String(line.orderLineId || '').trim()
+  if (orderLineId) return `ol:${orderLineId}`
+  return `name:${line.orderNumber.trim()}|${line.productCode.trim()}|${line.productName.trim()}`
+}
+
+export function encodeShipmentSkippedBillingNote(existingNote: string, keys: string[]) {
+  const base = String(existingNote || '')
+    .replace(SHIPMENT_SKIP_BILLING_NOTE_RE, '')
+    .trim()
+  const unique = [...new Set(keys.map((key) => key.trim()).filter(Boolean))]
+  if (!unique.length) return base
+  const marker = `<!--SHIP_SKIP_BILLING:${encodeURIComponent(JSON.stringify(unique))}-->`
+  return base ? `${base}\n${marker}` : marker
+}
+
+export function parseShipmentSkippedBillingKeys(note: string | null | undefined): string[] {
+  const match = String(note || '').match(SHIPMENT_SKIP_BILLING_NOTE_RE)
+  if (!match?.[1]) return []
+  try {
+    const parsed = JSON.parse(decodeURIComponent(match[1])) as unknown
+    return Array.isArray(parsed) ? parsed.map((key) => String(key || '').trim()).filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+/** 출하 묶음 note에 복제된 제외 목록 중 첫 유효 목록 */
+export function shipmentSkippedBillingKeysFromNotes(notes: Array<string | null | undefined>) {
+  for (const note of notes) {
+    const keys = parseShipmentSkippedBillingKeys(note)
+    if (keys.length) return keys
+  }
+  return []
+}
+
+export function filterSkippedBillingLines<
+  T extends { orderLineId?: string | null; orderNumber: string; productCode: string; productName: string },
+>(lines: T[], skippedKeys: Iterable<string>): T[] {
+  const skipped = new Set(skippedKeys)
+  if (!skipped.size) return lines
+  return lines.filter((line) => !skipped.has(shipmentBillingSkipKey(line)))
 }
 
 export function collectManualRegisterStatementLines(

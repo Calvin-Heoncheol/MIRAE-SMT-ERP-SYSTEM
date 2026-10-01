@@ -7,6 +7,7 @@ import {
   resolveStatementDisplayProductCode,
   type StatementShippedLine,
 } from '@/lib/delivery/utils'
+import { filterSkippedBillingLines } from '@/lib/delivery/register-form'
 import { findActiveBusinessPartnerByName } from '@/lib/partners/repository'
 import type { DeliveryStatementData, DeliveryStatementLine } from './types'
 
@@ -88,6 +89,8 @@ export async function buildDeliveryStatementDataFromShipment(input: {
   customer: string
   note?: string
   shippedLines: StatementShippedLineInput[]
+  /** 출하 수정에서 지운 발주 추가작업 키 — 자동 보충 시에도 제외 */
+  skippedBillingKeys?: string[]
 }): Promise<
   | { ok: true; data: DeliveryStatementData }
   | { ok: false; detail: string }
@@ -178,7 +181,7 @@ export async function buildDeliveryStatementDataFromShipment(input: {
     }
     normalizedShippedLines = interleaveStatementShippedLinesWithBilling(
       enrichedProducts,
-      billingLines,
+      filterSkippedBillingLines(billingLines, input.skippedBillingKeys ?? []),
     )
   }
 

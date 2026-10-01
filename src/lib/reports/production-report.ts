@@ -52,11 +52,17 @@ export type ProductionReportDailyRow = {
   plannedByTeam: Record<string, number>
   total: number
   plannedTotal: number
+  /** 생산1팀(SMT) 라인별 실적 — key: 라인 번호 */
+  smtByLine: Record<number, number>
+  /** 생산1팀(SMT) 라인별 계획 — key: 라인 번호 */
+  smtPlannedByLine: Record<number, number>
 }
 
 export type ProductionReportData = {
   startDate: string
   endDate: string
+  /** 기간 내 계획 또는 실적이 있는 SMT 라인 번호 (오름차순) */
+  smtLines: number[]
   teams: ProductionReportTeamSummary[]
   daily: ProductionReportDailyRow[]
   details: ProductionReportDetailRow[]
@@ -506,7 +512,40 @@ export async function fetchProductionReportData(
       dailyPlannedByDate.set(date, byTeam)
     }
 
+    const smtLineSet = new Set<number>()
+    const dailySmtPlannedByLine = new Map<string, Record<number, number>>()
+    const dailySmtActualByLine = new Map<string, Record<number, number>>()
+
+    function addSmtLine(
+      target: Map<string, Record<number, number>>,
+      date: string,
+      lineNo: number,
+      quantity: number,
+    ) {
+      const qty = Math.max(0, Math.floor(Number(quantity) || 0))
+      if (qty <= 0 || lineNo < 1 || date < startDate || date > endDate) return
+      smtLineSet.add(lineNo)
+      const byLine = target.get(date) ?? {}
+      byLine[lineNo] = (byLine[lineNo] ?? 0) + qty
+      target.set(date, byLine)
+    }
+
+    for (const row of smtRows) {
+      addSmtLine(
+        dailySmtActualByLine,
+        String(row.record_date || '').trim(),
+        Math.floor(Number(row.line_no) || 0),
+        row.quantity,
+      )
+    }
+
     for (const plan of smtPlansInRange) {
+      addSmtLine(
+        dailySmtPlannedByLine,
+        plan.plannedDate,
+        Math.floor(Number(plan.lineNo) || 0),
+        plan.plannedQuantity,
+      )
       addDailyPlanned(plan.plannedDate, SMT_REPORT_TEAM, plan.plannedQuantity)
       if (plan.plannedDate >= today) continue
       addPlanned(SMT_REPORT_TEAM, plan.plannedQuantity)
@@ -577,6 +616,8 @@ export async function fetchProductionReportData(
         plannedByTeam: plannedByTeamForDate,
         total: Object.values(byTeam).reduce((sum, value) => sum + value, 0),
         plannedTotal: Object.values(plannedByTeamForDate).reduce((sum, value) => sum + value, 0),
+        smtByLine: dailySmtActualByLine.get(date) ?? {},
+        smtPlannedByLine: dailySmtPlannedByLine.get(date) ?? {},
       })
     }
 
@@ -585,6 +626,7 @@ export async function fetchProductionReportData(
       data: {
         startDate,
         endDate,
+        smtLines: [...smtLineSet].sort((a, b) => a - b),
         teams,
         daily,
         details,

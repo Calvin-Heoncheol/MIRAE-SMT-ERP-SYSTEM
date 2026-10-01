@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import {
@@ -28,6 +29,8 @@ type PostProcessLinesEditorProps = {
   /** true면 헤더에 여유 % 입력 표시 (공통 값) */
   showBufferControl?: boolean
   onBufferPercentChange?: (value: string) => void
+  /** 제목 옆 버튼 (공정 순서 이동 등) */
+  headerActions?: ReactNode
 }
 
 function minutesText(minutes: number) {
@@ -43,6 +46,7 @@ export function PostProcessLinesEditor({
   onChange,
   showBufferControl = false,
   onBufferPercentChange,
+  headerActions,
 }: PostProcessLinesEditorProps) {
   const totalMinutes = sumPostProcessBilledMinutes(lines, boardQty, bufferPercent)
   const baseMinutes = roundPostProcessMinutes(
@@ -73,7 +77,10 @@ export function PostProcessLinesEditor({
   return (
     <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h5 className="text-xs font-bold text-slate-700">{title}</h5>
+        <span className="flex items-center gap-1.5">
+          {headerActions}
+          <h5 className="text-xs font-bold text-slate-700">{title}</h5>
+        </span>
         <span className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[11px] text-slate-500">
           시간합계 {minutesText(baseMinutes)}분 + 여유시간 {minutesText(bufferMinutes)}분 = 총 합계{' '}
           <span className="font-semibold text-slate-700">{minutesText(totalMinutes)}분</span>

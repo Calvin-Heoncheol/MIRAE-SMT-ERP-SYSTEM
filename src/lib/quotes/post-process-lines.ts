@@ -234,6 +234,27 @@ function lineHasContent(line: Pick<PostProcessLine, 'name' | 'minutes'> & { seco
   return Boolean(line.name?.trim()) || hasPostProcessLineInput(line)
 }
 
+export type PostProcessCategory = 'assembly' | 'download' | 'test' | 'packing'
+
+export const DEFAULT_POST_PROCESS_ORDER: PostProcessCategory[] = ['assembly', 'download', 'test', 'packing']
+
+/** 저장된 공정 순서 복원 — 누락·중복·알 수 없는 값은 기본 순서로 보정 */
+export function normalizePostProcessOrder(value: unknown): PostProcessCategory[] {
+  const order: PostProcessCategory[] = []
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const category = item as PostProcessCategory
+      if (DEFAULT_POST_PROCESS_ORDER.includes(category) && !order.includes(category)) {
+        order.push(category)
+      }
+    }
+  }
+  for (const category of DEFAULT_POST_PROCESS_ORDER) {
+    if (!order.includes(category)) order.push(category)
+  }
+  return order
+}
+
 export type CategorizedPostProcessLineForms = {
   assemblyLines: PostProcessLineForm[]
   downloadLines: PostProcessLineForm[]

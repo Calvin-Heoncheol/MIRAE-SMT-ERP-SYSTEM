@@ -29,7 +29,8 @@ type ReportBarChartProps = {
   unit: string
   /** true면 bar 시리즈를 한 막대에 누적 */
   stacked?: boolean
-  height?: number
+  /** px 또는 '100%'(부모 높이에 맞춤 — 부모에 높이가 있어야 함) */
+  height?: number | `${number}%`
 }
 
 function formatCompactKr(value: number): string {

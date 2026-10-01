@@ -1,5 +1,5 @@
 import type { MonthlyClosingRow } from '@/lib/reports/monthly-closing'
-import { summarizeMonthlyClosingRows } from '@/lib/reports/monthly-closing'
+import { monthlyClosingKindLabel, summarizeMonthlyClosingRows } from '@/lib/reports/monthly-closing'
 import { escapeHtml } from '@/lib/print/escape-html'
 
 export type ExportMonthlyClosingPdfInput = {
@@ -52,8 +52,11 @@ function buildMonthlyClosingPdfHtml(input: ExportMonthlyClosingPdfInput) {
 
   const bodyRows = input.rows
     .map((row) => {
+      const kindClass = row.kind === 'product' ? '' : ` kind-${row.kind}`
       return `<tr>
         <td class="col-date">${escapeHtml(row.recordDate || '—')}</td>
+        <td class="col-shipment">${escapeHtml(row.shipmentId || '—')}</td>
+        <td class="col-kind${kindClass}">${escapeHtml(monthlyClosingKindLabel(row.kind))}</td>
         <td class="col-code">${escapeHtml(row.productCode || '—')}</td>
         <td class="col-name">${escapeHtml(row.productName || '—')}</td>
         <td class="col-qty">${formatCount(row.quantity)}</td>
@@ -64,7 +67,7 @@ function buildMonthlyClosingPdfHtml(input: ExportMonthlyClosingPdfInput) {
     .join('')
 
   const totalRow = `<tr class="total-row">
-    <td colspan="3">합계</td>
+    <td colspan="5">합계</td>
     <td class="col-qty">${formatCount(totals.quantity)}</td>
     <td class="col-price"></td>
     <td class="col-amount">${formatCount(totals.amount)}</td>
@@ -148,10 +151,15 @@ function buildMonthlyClosingPdfHtml(input: ExportMonthlyClosingPdfInput) {
       break-inside: avoid;
       page-break-inside: avoid;
     }
-    .col-date { width: 12%; }
-    .col-code { width: 16%; }
-    .col-name { width: 28%; }
-    .col-qty, .col-price, .col-amount { width: 14.5%; text-align: right; }
+    .col-date { width: 10%; }
+    .col-shipment { width: 12%; font-size: 10px; }
+    .col-kind { width: 7%; }
+    td.kind-additional_work { color: #b45309; font-weight: 700; }
+    td.kind-material { color: #0369a1; font-weight: 700; }
+    .col-code { width: 13%; }
+    .col-name { width: 22%; }
+    .col-qty { width: 9%; text-align: right; }
+    .col-price, .col-amount { width: 13.5%; text-align: right; }
     thead .col-qty, thead .col-price, thead .col-amount { text-align: right; }
     @media print {
       .no-print { display: none !important; }
@@ -169,6 +177,8 @@ function buildMonthlyClosingPdfHtml(input: ExportMonthlyClosingPdfInput) {
     <thead>
       <tr>
         <th class="col-date">일자</th>
+        <th class="col-shipment">출하번호</th>
+        <th class="col-kind">구분</th>
         <th class="col-code">품목코드</th>
         <th class="col-name">품목명</th>
         <th class="col-qty">수량</th>

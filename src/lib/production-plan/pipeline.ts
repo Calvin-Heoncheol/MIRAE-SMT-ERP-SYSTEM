@@ -9,10 +9,9 @@ export type ProductionPlanPipelineBuckets = {
   postWaitingBlocked: ProductionPlanBoardRow[]
 }
 
-/** SMD 계획 가능 — 자재 입고(수동 또는 BOM 현재고) 가능 수량 > 0 */
+/** SMD 계획 가능 — 자재 준비 여부와 무관하게 waiting 이면 배정 가능 (자재 상태는 표시용) */
 export function canPlanSmt(row: ProductionPlanBoardRow): boolean {
-  if (row.scope !== 'smt' || row.status !== 'waiting') return false
-  return row.materialReadyQty > 0
+  return row.scope === 'smt' && row.status === 'waiting'
 }
 
 /**

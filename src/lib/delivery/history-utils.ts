@@ -5,7 +5,12 @@ import {
   buildShipmentStatementLinesFromHistory,
   type DeliveryBillingOnlyLine,
 } from '@/lib/delivery/utils'
-import { firstShipmentExtraLinesFromNotes, isExtrasOnlyDeliveryStub } from '@/lib/delivery/register-form'
+import {
+  filterSkippedBillingLines,
+  firstShipmentExtraLinesFromNotes,
+  isExtrasOnlyDeliveryStub,
+  shipmentSkippedBillingKeysFromNotes,
+} from '@/lib/delivery/register-form'
 
 export type DeliveryHistoryShipmentGroup = {
   shipmentId: string
@@ -184,7 +189,10 @@ export function computeShipmentGroupSupplyAmount(
         quantity: line.quantity,
       })),
     unitPriceByDeliveryId: input.unitPriceByDeliveryId,
-    billingOnlyLines: input.billingOnlyLines,
+    billingOnlyLines: filterSkippedBillingLines(
+      input.billingOnlyLines,
+      shipmentSkippedBillingKeysFromNotes(group.lines.map((line) => line.note)),
+    ),
     productionOrders: input.productionOrders,
   })
 

@@ -15,9 +15,11 @@ import { formatQuoteMoneyRateByDisplay, roundDomesticKrw } from './format'
 import { breakdownSmtSectionTitle, getPreviewLabels, localizePostProcessItemName, resolveLabelQuoteType, type QuoteDocumentLanguage, type QuoteLabelType } from './preview-i18n'
 import {
   hasPostProcessLineInput,
+  normalizePostProcessOrder,
   resolveCategorizedPostProcessLineForms,
   resolvePostProcessLineBilledMinutes,
   roundPostProcessMinutes,
+  type PostProcessCategory,
 } from './post-process-lines'
 import type {
   DipBoardDetail,
@@ -78,6 +80,8 @@ export type PreviewFormFields = {
   includeMetalMask?: boolean
   /** 후공정 시간 여유 % */
   timeBufferPercent?: number | string
+  /** 조립·다운로드·테스트·포장 표시 순서 */
+  postProcessOrder?: PostProcessCategory[]
   /** @deprecated 카테고리별 배열 사용 */
   postProcessLines?: PreviewPostProcessLine[]
   assemblyLines?: PreviewPostProcessLine[]
@@ -432,6 +436,7 @@ export function previewFormFromQuote(quote: QuoteListItem): PreviewFormFields {
     includeMaterialCosts: input.includeMaterialCosts !== false,
     includeMetalMask: input.includeMetalMask !== false,
     timeBufferPercent: post.timeBufferPercent,
+    postProcessOrder: normalizePostProcessOrder(post.order),
     assemblyLines: categorized.assemblyLines,
     downloadLines: categorized.downloadLines,
     testLines: categorized.testLines,
@@ -905,45 +910,23 @@ function postDetailRows(
 
   if (hasCategoryLines) {
     const bufferPercent = form.timeBufferPercent
-    const categoryRows = [
-      ...postCategoryDetailRows(
-        labels.assembly,
-        categorized.assemblyLines,
+    const categories: Record<PostProcessCategory, { label: string; lines: PreviewPostProcessLine[] }> = {
+      assembly: { label: labels.assembly, lines: categorized.assemblyLines },
+      download: { label: labels.download, lines: categorized.downloadLines },
+      test: { label: labels.test, lines: categorized.testLines },
+      packing: { label: labels.packing, lines: categorized.packingLines },
+    }
+    return normalizePostProcessOrder(form.postProcessOrder).flatMap((category) =>
+      postCategoryDetailRows(
+        categories[category].label,
+        categories[category].lines,
         indent,
         quoteType,
         labelType,
         qty,
         bufferPercent,
       ),
-      ...postCategoryDetailRows(
-        labels.download,
-        categorized.downloadLines,
-        indent,
-        quoteType,
-        labelType,
-        qty,
-        bufferPercent,
-      ),
-      ...postCategoryDetailRows(
-        labels.test,
-        categorized.testLines,
-        indent,
-        quoteType,
-        labelType,
-        qty,
-        bufferPercent,
-      ),
-      ...postCategoryDetailRows(
-        labels.packing,
-        categorized.packingLines,
-        indent,
-        quoteType,
-        labelType,
-        qty,
-        bufferPercent,
-      ),
-    ]
-    return categoryRows
+    )
   }
 
   // 구 견적: 합계 분만 있는 경우

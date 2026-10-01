@@ -95,6 +95,8 @@ export type QuoteDetailInfo = {
       postPacking?: number
       /** 후공정 시간 여유 % (수동 입력, 미설정 시 수량 구간 기본값) */
       timeBufferPercent?: number
+      /** 조립·다운로드·테스트·포장 표시 순서 (미설정 시 기본 순서) */
+      order?: Array<'assembly' | 'download' | 'test' | 'packing'>
       /** @deprecated 하위호환 — 전체 행 merge. 신규는 카테고리별 배열 사용 */
       lines?: PostProcessLine[]
       assemblyLines?: PostProcessLine[]

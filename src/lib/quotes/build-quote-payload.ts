@@ -7,8 +7,13 @@ import type {
   QuoteType,
   SmtPcbBoard,
 } from './types'
-import { postProcessLinesToModels, parsePostProcessBufferPercent, sumPostProcessLineMinutes } from './post-process-lines'
-import type { PostProcessLineForm } from './post-process-lines'
+import {
+  normalizePostProcessOrder,
+  postProcessLinesToModels,
+  parsePostProcessBufferPercent,
+  sumPostProcessLineMinutes,
+} from './post-process-lines'
+import type { PostProcessCategory, PostProcessLineForm } from './post-process-lines'
 import { getPostRate } from './constants'
 
 export type QuoteFormSnapshot = {
@@ -48,6 +53,8 @@ export type QuoteFormSnapshot = {
   packingLines?: PostProcessLineForm[]
   /** 후공정 시간 여유 % (수동, 비우면 수량 기본) */
   postProcessBufferPercent?: string
+  /** 조립·다운로드·테스트·포장 순서 */
+  postProcessOrder?: PostProcessCategory[]
 }
 
 export type QuoteRowPayload = {
@@ -117,7 +124,14 @@ export function buildQuoteDetailInfo(
     ? sumPostProcessLineMinutes(packingLines)
     : Number(form.postPacking) || 0
 
-  const mergedLines = [...assemblyLines, ...downloadLines, ...testLines, ...packingLines]
+  const postProcessOrder = normalizePostProcessOrder(form.postProcessOrder)
+  const linesByCategory: Record<PostProcessCategory, PostProcessLine[]> = {
+    assembly: assemblyLines,
+    download: downloadLines,
+    test: testLines,
+    packing: packingLines,
+  }
+  const mergedLines = postProcessOrder.flatMap((category) => linesByCategory[category])
 
   return {
     amounts: {
@@ -172,6 +186,7 @@ export function buildQuoteDetailInfo(
         postTest,
         postPacking,
         ...(savedBufferPercent != null ? { timeBufferPercent: savedBufferPercent } : {}),
+        order: postProcessOrder,
         assemblyLines,
         downloadLines,
         testLines,
