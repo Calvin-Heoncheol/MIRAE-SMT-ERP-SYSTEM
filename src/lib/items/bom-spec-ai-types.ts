@@ -12,6 +12,8 @@ export type BomSpecAiRowInput = {
 
 export type BomSpecAiSplit = {
   code: string
+  /** 값·MPN을 뺀 짧은 품목명 (C, R, IC …). 판단 못 하면 빈 문자열 */
+  name: string
   specification: string
   package: string
   mpn: string

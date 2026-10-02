@@ -183,9 +183,6 @@ export function EquipmentWorkspace({ result }: EquipmentWorkspaceProps) {
                     ) : (
                       <p className="mt-0.5 text-xs text-slate-400">등록된 마운터가 없습니다.</p>
                     )}
-                    {selectedLine.note.trim() ? (
-                      <p className="mt-0.5 text-xs text-slate-500">{selectedLine.note}</p>
-                    ) : null}
                   </div>
                   <ErpButton onClick={() => openModal({ kind: 'line', line: selectedLine })}>
                     라인·설비 수정

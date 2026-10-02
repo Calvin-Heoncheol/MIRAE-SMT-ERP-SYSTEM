@@ -105,14 +105,20 @@ export function allocateSoftReservations(input: {
   safetyStockByMaterialId?: Map<string, number>
   pendingInboundByOrderMaterial?: Map<string, number>
   orderPriority: Array<{ orderId: string; deliveryDate?: string; orderNumber?: string }>
+  /** orderId → 주자재 ID → BOM 대체 품목 ID 목록 */
+  alternatesByOrderMaterial?: Map<string, Map<string, string[]>>
 }): MaterialOrderAllocation[] {
   const issuedMap = input.issuedByOrderMaterial || new Map()
   const pendingMap = input.pendingInboundByOrderMaterial || new Map()
   const safetyMap = input.safetyStockByMaterialId || new Map()
+  const alternatesMap = input.alternatesByOrderMaterial || new Map()
 
   const materialIds = new Set<string>()
   for (const byMaterial of input.requiredByOrderMaterial.values()) {
     for (const materialId of byMaterial.keys()) materialIds.add(materialId)
+  }
+  for (const byPrimary of alternatesMap.values()) {
+    for (const alts of byPrimary.values()) for (const altId of alts) materialIds.add(altId)
   }
 
   const poolByMaterial = new Map<string, number>()
@@ -149,7 +155,101 @@ export function allocateSoftReservations(input: {
     }
   }
 
+  if (alternatesMap.size) {
+    coverShortagesWithBomAlternates({
+      rows,
+      sortedOrders,
+      alternatesMap,
+      issuedMap,
+      pendingMap,
+      poolByMaterial,
+    })
+  }
+
   return rows
+}
+
+/**
+ * BOM 대체 — 모든 주문의 주자재 예약이 끝난 뒤 남은 부족분을 대체 품목으로 메움.
+ * 1) 이 주문에서 대체 품목을 자체 소요보다 더 불출했으면 주자재 불출로 인정
+ * 2) 그래도 부족하면 대체 품목의 미예약 재고를 납기 우선으로 예약
+ * 대체로 넘긴 수량만큼 주자재 required 를 줄이고 대체 행 required 에 더함 (구매 이중계산 방지).
+ */
+function coverShortagesWithBomAlternates(input: {
+  rows: MaterialOrderAllocation[]
+  sortedOrders: Array<{ orderId: string }>
+  alternatesMap: Map<string, Map<string, string[]>>
+  issuedMap: Map<string, Map<string, number>>
+  pendingMap: Map<string, number>
+  poolByMaterial: Map<string, number>
+}) {
+  const rowByKey = new Map(input.rows.map((row) => [`${row.orderId}::${row.materialId}`, row]))
+
+  function ensureRow(orderId: string, materialId: string) {
+    const key = `${orderId}::${materialId}`
+    let row = rowByKey.get(key)
+    if (!row) {
+      row = {
+        orderId,
+        materialId,
+        requiredQty: 0,
+        reservedQty: 0,
+        issuedQty: qty(input.issuedMap.get(orderId)?.get(materialId)),
+      }
+      rowByKey.set(key, row)
+      input.rows.push(row)
+    }
+    return row
+  }
+
+  for (const order of input.sortedOrders) {
+    const byPrimary = input.alternatesMap.get(order.orderId)
+    if (!byPrimary) continue
+
+    for (const [primaryId, alts] of byPrimary) {
+      const primary = rowByKey.get(`${order.orderId}::${primaryId}`)
+      if (!primary) continue
+
+      const pending = qty(input.pendingMap.get(`${order.orderId}::${primaryId}`))
+      let short = Math.max(
+        0,
+        primary.requiredQty - primary.issuedQty - primary.reservedQty - pending,
+      )
+
+      for (const altId of alts) {
+        if (short <= 0) break
+        if (!altId || altId === primaryId) continue
+        const alt = ensureRow(order.orderId, altId)
+
+        const excessIssued = Math.max(0, alt.issuedQty - alt.requiredQty)
+        const credit = Math.min(short, excessIssued)
+        if (credit > 0) {
+          primary.requiredQty -= credit
+          alt.requiredQty += credit
+          short -= credit
+        }
+        if (short <= 0) break
+
+        const pool = qty(input.poolByMaterial.get(altId))
+        const take = Math.min(short, pool)
+        if (take > 0) {
+          input.poolByMaterial.set(altId, pool - take)
+          primary.requiredQty -= take
+          alt.requiredQty += take
+          alt.reservedQty += take
+          short -= take
+        }
+      }
+    }
+  }
+
+  // 대체로 연결만 되고 소요·불출·예약이 없는 행은 저장하지 않음
+  for (let index = input.rows.length - 1; index >= 0; index -= 1) {
+    const row = input.rows[index]!
+    if (row.requiredQty <= 0 && row.issuedQty <= 0 && row.reservedQty <= 0) {
+      input.rows.splice(index, 1)
+    }
+  }
 }
 
 /** 할당 행 → 주문별 ATP 라인 */

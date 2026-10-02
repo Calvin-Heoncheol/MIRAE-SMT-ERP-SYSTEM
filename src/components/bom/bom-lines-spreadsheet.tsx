@@ -6,6 +6,8 @@ import {
   rematchBomFormLine,
   type BomSpreadsheetColumnKey,
 } from '@/lib/bom/bulk-paste'
+import { resolveBomLineAlternates } from '@/lib/bom/alternates'
+import { bomDesignatorQtyIssue } from '@/lib/bom/designator-check'
 import type { BomFormLine } from '@/lib/bom/form-state'
 import { BOM_PROCESS_LABELS, normalizeBomProcess } from '@/lib/bom/types'
 import type { Item } from '@/lib/items/types'
@@ -36,6 +38,7 @@ function isBlankLine(line: BomFormLine) {
     line.sourceName.trim() ||
     line.sourceSpec.trim() ||
     line.designators.trim() ||
+    line.sourceAlternates.trim() ||
     (line.quantityPer.trim() && line.quantityPer.trim() !== '1' && line.quantityPer.trim() !== '')
   )
 }
@@ -56,6 +59,8 @@ function cellValue(line: BomFormLine, key: BomSpreadsheetColumnKey) {
       return line.quantityPer
     case 'designators':
       return line.designators
+    case 'sourceAlternates':
+      return line.sourceAlternates
   }
 }
 
@@ -225,6 +230,20 @@ export function BomLinesSpreadsheet({
               !line.childProductId.trim() &&
               !isBlankLine(line) &&
               Boolean(line.sourcePartCode.trim() || line.sourceMpn.trim())
+            const qtyIssue = bomDesignatorQtyIssue(line)
+            const qtyIssueTitle = qtyIssue
+              ? `Designator ${qtyIssue.designatorCount}개 ≠ Qty ${qtyIssue.quantity}`
+              : undefined
+            const unresolvedAlternates = line.sourceAlternates.trim()
+              ? resolveBomLineAlternates(line.childProductId, line.sourceAlternates, childItems)
+                  .unresolvedTokens
+              : []
+            const cellTitle = (key: BomSpreadsheetColumnKey) =>
+              qtyIssue && (key === 'quantityPer' || key === 'designators')
+                ? qtyIssueTitle
+                : key === 'sourceAlternates' && unresolvedAlternates.length
+                  ? `미등록 대체: ${unresolvedAlternates.join(', ')}`
+                  : undefined
 
             return (
               <tr
@@ -238,10 +257,15 @@ export function BomLinesSpreadsheet({
                   <td
                     key={column.key}
                     className={`border-b border-r border-slate-200 p-0 ${column.widthClass} ${
-                      unmatched && (column.key === 'sourcePartCode' || column.key === 'sourceMpn')
-                        ? 'bg-amber-50'
-                        : ''
+                      qtyIssue && (column.key === 'quantityPer' || column.key === 'designators')
+                        ? 'bg-red-100 text-red-700 ring-1 ring-inset ring-red-400'
+                        : (unmatched &&
+                              (column.key === 'sourcePartCode' || column.key === 'sourceMpn')) ||
+                            (column.key === 'sourceAlternates' && unresolvedAlternates.length)
+                          ? 'bg-amber-50'
+                          : ''
                     }`}
+                    title={cellTitle(column.key)}
                   >
                     <input
                       data-bom-cell={`${index}:${columnIndex}`}

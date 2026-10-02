@@ -30,6 +30,8 @@ function toPayloads(group: BomGroup): BomLinePayload[] {
       sourcePartCode: line.sourcePartCode || '',
       sourceName: line.sourceName || '',
       sourceSpec: line.sourceSpec || '',
+      sourceAlternates: line.sourceAlternates || '',
+      alternateChildProductIds: line.alternateChildProductIds || [],
     }))
 }
 

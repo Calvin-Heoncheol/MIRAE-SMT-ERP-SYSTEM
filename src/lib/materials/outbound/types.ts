@@ -106,6 +106,8 @@ export type MaterialOutboundNeedRow = {
   issuedQuantity: number
   remainingQuantity: number
   onHandQuantity: number
+  /** BOM 에 등록된 대체 품목 */
+  alternateMaterialIds?: string[]
 }
 
 /** 미불출 주문·품목·자재구분 카드 (SMD/DIP/기타 액션 단위) */
@@ -145,4 +147,6 @@ export type BomEdge = {
   childProductId: string
   quantityPer: number
   childItemCategory: number
+  /** BOM 줄 대체 품목 (주자재 대신 사용 가능) */
+  alternateChildProductIds?: string[]
 }

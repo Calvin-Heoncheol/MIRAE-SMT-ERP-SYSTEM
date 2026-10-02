@@ -467,6 +467,44 @@ export function applyItemBulkColumnPaste(input: {
   return next
 }
 
+/**
+ * 엑셀 여러 열(탭) 블록을 붙여넣은 셀 위치부터 화면 열 순서대로 채움.
+ * 첫 행이 헤더(품목코드 등)면 건너뜀. 행 부족 시 추가.
+ */
+export function applyItemBulkBlockPaste(input: {
+  rows: ItemFormState[]
+  category: ItemCategory
+  columns: ItemBulkColumn[]
+  startRowIndex: number
+  startColumnKey: keyof ItemFormState
+  text: string
+}): ItemFormState[] | null {
+  const startColumn = input.columns.findIndex((column) => column.key === input.startColumnKey)
+  if (startColumn < 0) return null
+
+  const records = parseQuotedRecords(input.text, '\t').filter((record) =>
+    record.some((cell) => cell.trim()),
+  )
+  if (records.length && isHeaderColumns(records[0]!, input.category)) records.shift()
+  if (!records.length) return null
+
+  const next = input.rows.map((row) => ({ ...row }))
+  while (next.length < input.startRowIndex + records.length) {
+    next.push(defaultItemBulkRow(input.category))
+  }
+
+  records.forEach((record, offset) => {
+    const rowIndex = input.startRowIndex + offset
+    record.forEach((cell, cellIndex) => {
+      const column = input.columns[startColumn + cellIndex]
+      if (!column) return
+      next[rowIndex] = applyPasteValue(next[rowIndex]!, column.key, cell)
+    })
+  })
+
+  return next
+}
+
 export function isEmptyItemBulkRow(row: ItemFormState) {
   return (
     !row.customerName.trim() &&

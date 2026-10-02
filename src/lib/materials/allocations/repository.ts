@@ -6,7 +6,10 @@ import {
   type MaterialAtpLine,
   type MaterialOrderAllocation,
 } from '@/lib/materials/atp'
-import { explodeBomToMaterials } from '@/lib/materials/outbound/utils'
+import {
+  collectBomAlternatesForProduct,
+  explodeBomToMaterials,
+} from '@/lib/materials/outbound/utils'
 import type { BomEdge } from '@/lib/materials/outbound/types'
 import type { Material } from '@/lib/materials/types'
 import type { OrderListGroup } from '@/lib/orders/types'
@@ -187,6 +190,26 @@ export function buildRequiredByOrderMaterial(
   return requiredByOrderMaterial
 }
 
+/** 주문별 BOM 대체 (orderId → 주자재 → 대체 품목 ID) */
+export function buildAlternatesByOrderMaterial(
+  orders: OrderListGroup[],
+  bomEdges: BomEdge[],
+): Map<string, Map<string, string[]>> {
+  const edgesByParent = buildEdgesByParent(bomEdges)
+  const result = new Map<string, Map<string, string[]>>()
+  for (const order of orders) {
+    const byPrimary = new Map<string, string[]>()
+    for (const item of order.items) {
+      if (item.derivedFromLineId) continue
+      const productId = (item.productId || item.productCode || '').trim()
+      if (!productId) continue
+      collectBomAlternatesForProduct(productId, edgesByParent, byPrimary)
+    }
+    if (byPrimary.size) result.set(order.orderId, byPrimary)
+  }
+  return result
+}
+
 /**
  * 열린 주문에 대해 소프트 예약을 재계산·저장.
  * issued_qty 는 DB에 있는 값을 유지(또는 issuedByOrderMaterial 로 덮어씀).
@@ -244,6 +267,7 @@ export async function syncMaterialOrderAllocations(input: {
     safetyStockByMaterialId,
     pendingInboundByOrderMaterial: input.pendingInboundByOrderMaterial,
     orderPriority,
+    alternatesByOrderMaterial: buildAlternatesByOrderMaterial(input.orders, input.bomEdges),
   })
 
   const atpLines = buildAtpLinesFromAllocations({

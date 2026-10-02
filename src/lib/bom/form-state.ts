@@ -1,3 +1,4 @@
+import { resolveBomLineAlternates } from './alternates'
 import type { BomGroup, BomLinePayload, BomProcess } from './types'
 import { normalizeBomProcess } from './types'
 import type { Item, ItemCategory } from '@/lib/items/types'
@@ -13,6 +14,8 @@ export type BomFormLine = {
   sourcePartCode: string
   sourceName: string
   sourceSpec: string
+  /** 대체 품목코드·MPN (쉼표 구분) */
+  sourceAlternates: string
 }
 
 export type BomFormState = {
@@ -36,6 +39,7 @@ export function createBomFormLine(
     sourcePartCode: partial?.sourcePartCode?.trim() || '',
     sourceName: partial?.sourceName?.trim() || '',
     sourceSpec: partial?.sourceSpec?.trim() || '',
+    sourceAlternates: partial?.sourceAlternates?.trim() || '',
   }
 }
 
@@ -64,6 +68,7 @@ export function bomGroupToForm(group: BomGroup): BomFormState {
           sourcePartCode: line.sourcePartCode,
           sourceName: line.sourceName || line.childProductName,
           sourceSpec: line.sourceSpec,
+          sourceAlternates: line.sourceAlternates,
         }),
       )
     : []
@@ -75,19 +80,31 @@ export function bomGroupToForm(group: BomGroup): BomFormState {
   }
 }
 
-export function formToBomLinePayloads(form: BomFormState): BomLinePayload[] {
+export function formToBomLinePayloads(
+  form: BomFormState,
+  childItems: Item[] = [],
+): BomLinePayload[] {
   return form.lines
-    .map((line) => ({
-      childProductId: line.childProductId.trim(),
-      quantityPer: Number(line.quantityPer),
-      note: '',
-      process: normalizeBomProcess(line.process),
-      designators: line.designators.trim(),
-      sourceMpn: line.sourceMpn.trim(),
-      sourcePartCode: line.sourcePartCode.trim(),
-      sourceName: line.sourceName.trim(),
-      sourceSpec: line.sourceSpec.trim(),
-    }))
+    .map((line) => {
+      const childProductId = line.childProductId.trim()
+      return {
+        childProductId,
+        quantityPer: Number(line.quantityPer),
+        note: '',
+        process: normalizeBomProcess(line.process),
+        designators: line.designators.trim(),
+        sourceMpn: line.sourceMpn.trim(),
+        sourcePartCode: line.sourcePartCode.trim(),
+        sourceName: line.sourceName.trim(),
+        sourceSpec: line.sourceSpec.trim(),
+        sourceAlternates: line.sourceAlternates.trim(),
+        alternateChildProductIds: resolveBomLineAlternates(
+          childProductId,
+          line.sourceAlternates,
+          childItems,
+        ).alternateChildProductIds,
+      }
+    })
     .filter((line) => line.childProductId)
 }
 

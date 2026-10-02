@@ -282,11 +282,36 @@ export async function fetchMaterialOutbounds(): Promise<FetchMaterialOutboundsRe
   }
 }
 
+async function fetchBomAlternatesByEdge(
+  supabase: ReturnType<typeof createSupabaseClient>,
+): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>()
+  const { data, error } = await supabase
+    .from('bom_items')
+    .select('parent_product_id, child_product_id, alternate_child_product_ids')
+  // 대체 컬럼 미적용 DB — 대체 없이 계산
+  if (error) return map
+  for (const row of data || []) {
+    const ids = Array.isArray(row.alternate_child_product_ids)
+      ? row.alternate_child_product_ids.map((id: unknown) => String(id || '').trim()).filter(Boolean)
+      : []
+    if (!ids.length) continue
+    map.set(
+      `${String(row.parent_product_id || '').trim()}::${String(row.child_product_id || '').trim()}`,
+      ids,
+    )
+  }
+  return map
+}
+
 async function fetchBomEdges(): Promise<BomEdge[]> {
   const supabase = createSupabaseClient()
-  const { data, error } = await supabase
-    .from('bom_detail')
-    .select('parent_product_id, child_product_id, quantity_per, child_item_category')
+  const [{ data, error }, alternatesByEdge] = await Promise.all([
+    supabase
+      .from('bom_detail')
+      .select('parent_product_id, child_product_id, quantity_per, child_item_category'),
+    fetchBomAlternatesByEdge(supabase),
+  ])
 
   let rows: {
     parent_product_id: string
@@ -332,14 +357,16 @@ async function fetchBomEdges(): Promise<BomEdge[]> {
   )
 
   return rows.map((row) => {
+    const parentProductId = String(row.parent_product_id || '').trim()
     const childProductId = String(row.child_product_id || '').trim()
     return {
-      parentProductId: String(row.parent_product_id || '').trim(),
+      parentProductId,
       childProductId,
       quantityPer: Number(row.quantity_per) || 0,
       // 품목 마스터 구분을 우선 — bom_detail 스냅샷과 어긋나면 MPN/규격 조회가 빠짐
       childItemCategory:
         categoryById.get(childProductId) || Number(row.child_item_category) || 0,
+      alternateChildProductIds: alternatesByEdge.get(`${parentProductId}::${childProductId}`) ?? [],
     }
   })
 }

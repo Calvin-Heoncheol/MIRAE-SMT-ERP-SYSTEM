@@ -10,6 +10,7 @@ import { isSpreadsheetAiConfigured } from '@/lib/quotes/spreadsheet-ai-client'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 const AI_BATCH_SIZE = 25
+const AI_PARALLEL_BATCHES = 4
 const MAX_ROWS_TOTAL = 300
 
 function sanitizeRow(row: BomSpecAiRowInput): BomSpecAiRowInput {
@@ -42,9 +43,11 @@ export async function splitBomSpecsWithAiAction(input: {
     return { ok: false, detail: '로그인이 필요합니다.' }
   }
 
-  const rows = input.rows.map(sanitizeRow).filter((row) => row.code && row.specification)
+  const rows = input.rows
+    .map(sanitizeRow)
+    .filter((row) => row.code && (row.specification || row.name))
   if (!rows.length) {
-    return { ok: false, detail: '분리할 사양 행이 없습니다. (패키지·MPN이 비고 사양이 섞인 행만 대상)' }
+    return { ok: false, detail: '분리할 행이 없습니다. (품목명·사양에 값이 섞인 행만 대상)' }
   }
   if (rows.length > MAX_ROWS_TOTAL) {
     return {
@@ -54,11 +57,16 @@ export async function splitBomSpecsWithAiAction(input: {
   }
 
   try {
-    const splits: BomSpecAiSplit[] = []
+    const batches: BomSpecAiRowInput[][] = []
     for (let index = 0; index < rows.length; index += AI_BATCH_SIZE) {
-      const batch = rows.slice(index, index + AI_BATCH_SIZE)
-      const batchResult = await inferBomSpecSplitsWithAi(batch)
-      splits.push(...batchResult)
+      batches.push(rows.slice(index, index + AI_BATCH_SIZE))
+    }
+    const splits: BomSpecAiSplit[] = []
+    for (let index = 0; index < batches.length; index += AI_PARALLEL_BATCHES) {
+      const results = await Promise.all(
+        batches.slice(index, index + AI_PARALLEL_BATCHES).map((batch) => inferBomSpecSplitsWithAi(batch)),
+      )
+      for (const result of results) splits.push(...result)
     }
     if (!splits.length) {
       return { ok: false, detail: 'AI가 분리 결과를 반환하지 못했습니다.' }

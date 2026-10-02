@@ -84,6 +84,40 @@ export function resolveBomAlternates(
   }
 }
 
+export type ResolveBomLineAlternatesResult = {
+  alternateChildProductIds: string[]
+  /** 등록된 품목과 매칭되지 않은 토큰 — 원문에만 남음 */
+  unresolvedTokens: string[]
+}
+
+/**
+ * BOM 줄 대체 열 해석 — 등록된 다른 품목(품목코드·MPN)만 대체 품목으로 연결.
+ * 주자재 자신은 건너뜀. 품목 마스터는 수정하지 않음.
+ */
+export function resolveBomLineAlternates(
+  primaryChildProductId: string,
+  alternatesText: string,
+  childItems: Item[],
+): ResolveBomLineAlternatesResult {
+  const primaryId = primaryChildProductId.trim()
+  const alternateChildProductIds: string[] = []
+  const unresolvedTokens: string[] = []
+  const seen = new Set<string>()
+
+  for (const token of splitBomAlternateTokens(alternatesText)) {
+    const matched = resolveBomChildItem(token, childItems)
+    if (!matched) {
+      unresolvedTokens.push(token)
+      continue
+    }
+    if (matched.id === primaryId || seen.has(matched.id)) continue
+    seen.add(matched.id)
+    alternateChildProductIds.push(matched.id)
+  }
+
+  return { alternateChildProductIds, unresolvedTokens }
+}
+
 /** 표시용 — 저장된 스냅샷 우선, 없으면 대체 품목코드 조합 */
 export function formatBomAlternatesDisplay(
   sourceAlternates: string,

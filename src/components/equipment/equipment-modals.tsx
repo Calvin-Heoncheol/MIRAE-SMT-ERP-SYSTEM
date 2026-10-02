@@ -148,7 +148,6 @@ export function SmtLineModal({ line, suggestedLineNo, onClose, onSaved, onDelete
   const [lineNo, setLineNo] = useState(String(line?.lineNo ?? suggestedLineNo))
   const [name, setName] = useState(line?.name ?? '')
   const [isActive, setIsActive] = useState(line?.isActive ?? true)
-  const [note, setNote] = useState(line?.note ?? '')
   const [drafts, setDrafts] = useState<EquipmentDraft[]>(() =>
     sortDrafts((line?.equipment ?? []).map(equipmentToDraft)),
   )
@@ -249,7 +248,7 @@ export function SmtLineModal({ line, suggestedLineNo, onClose, onSaved, onDelete
       () =>
         saveSmtLineWithEquipment(
           line?.id ?? null,
-          { lineNo: n, name, isActive, note },
+          { lineNo: n, name, isActive, note: line?.note ?? '' },
           parsed.items,
           removedIds,
         ),
@@ -327,14 +326,6 @@ export function SmtLineModal({ line, suggestedLineNo, onClose, onSaved, onDelete
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder={`LINE ${lineNo || ''}`.trim()}
-            className={ERP_FIELD_INPUT_CLASS}
-          />
-        </label>
-        <label className="block text-sm sm:col-span-2">
-          <span className={ERP_FIELD_LABEL_CLASS}>비고</span>
-          <input
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
             className={ERP_FIELD_INPUT_CLASS}
           />
         </label>

@@ -2,7 +2,8 @@
  * MTO 자재 운영 규칙 (Phase 2)
  * - 안전재고: SMD/DIP는 ATP에서 무시, 미분류(소모품)만 버퍼 → safetyStockForAtp
  * - 주문 수량 변경: syncMaterialOrderAllocations / resyncMaterialOrderAllocationsAfterStockChange
- * - 대체 자재: 같은 주문 소요 안에서만 부족분 커버 → coverShortageWithOrderAlternates
+ * - 대체 자재: BOM 줄에 등록된 대체만, 주자재 예약 후 남은 부족분을 대체 미예약 재고로 커버
+ *   → allocateSoftReservations(alternatesByOrderMaterial)
  */
 
 export const MTO_RULES = {
@@ -14,8 +15,8 @@ export const MTO_RULES = {
   hardReelPegging: false,
   /** 주문 변경 시 소프트 예약 재계산 */
   resyncAllocationsOnOrderChange: true,
-  /** 대체는 동일 주문 내에서만 */
-  alternateScope: 'same_order' as const,
+  /** 대체는 BOM 줄에 등록된 품목만 */
+  alternateScope: 'bom_line' as const,
 } as const
 
 export function mtoPurchaseWarningForMaterialOnlyPo() {

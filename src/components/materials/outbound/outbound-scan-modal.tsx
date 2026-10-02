@@ -221,18 +221,23 @@ export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundS
   const activeAlternateMaterial = activeAlternateLineId
     ? materials.find((material) => material.id === alternateByLine[activeAlternateLineId]) ?? null
     : null
+  const bomAlternateIds = useMemo(
+    () => new Set(activeAlternateLine?.alternateMaterialIds ?? []),
+    [activeAlternateLine],
+  )
   const alternateOptions = useMemo(() => {
     if (!activeAlternateLine) return []
-    return materials
-      .filter((material) => {
-        if (!material.id || material.id === activeAlternateLine.materialId) return false
-        if (Object.entries(alternateByLine).some(([lineId, value]) => lineId !== activeAlternateLine.materialId && value === material.id)) {
-          return false
-        }
-        return matchesMaterialSearch(material, alternateQuery)
-      })
-      .slice(0, 12)
-  }, [activeAlternateLine, alternateByLine, alternateQuery, materials])
+    const candidates = materials.filter((material) => {
+      if (!material.id || material.id === activeAlternateLine.materialId) return false
+      if (Object.entries(alternateByLine).some(([lineId, value]) => lineId !== activeAlternateLine.materialId && value === material.id)) {
+        return false
+      }
+      return matchesMaterialSearch(material, alternateQuery)
+    })
+    const registered = candidates.filter((material) => bomAlternateIds.has(material.id))
+    const others = candidates.filter((material) => !bomAlternateIds.has(material.id))
+    return [...registered, ...others.slice(0, Math.max(0, 12 - registered.length))]
+  }, [activeAlternateLine, alternateByLine, alternateQuery, bomAlternateIds, materials])
 
   function goToScan() {
     if (!action) return
@@ -678,7 +683,12 @@ export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundS
                                     </button>
                                   </div>
                                 ) : short ? (
-                                  <span className="font-medium text-rose-700">클릭해서 대체 선택</span>
+                                  <span className="font-medium text-rose-700">
+                                    클릭해서 대체 선택
+                                    {line.alternateMaterialIds?.length
+                                      ? ` · BOM 대체 ${line.alternateMaterialIds.length}개`
+                                      : ''}
+                                  </span>
                                 ) : (
                                   '—'
                                 )}
@@ -735,10 +745,20 @@ export function OutboundScanModal({ open, action, onClose, onIssued }: OutboundS
                       key={material.id}
                       type="button"
                       onClick={() => selectAlternateMaterial(activeAlternateLine, material)}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left hover:border-sky-300 hover:bg-sky-50"
+                      className={[
+                        'rounded-xl border px-3 py-3 text-left hover:border-sky-300 hover:bg-sky-50',
+                        bomAlternateIds.has(material.id)
+                          ? 'border-emerald-300 bg-emerald-50/60'
+                          : 'border-slate-200 bg-white',
+                      ].join(' ')}
                     >
-                      <p className="font-mono text-sm font-semibold text-slate-900">
+                      <p className="flex items-center gap-2 font-mono text-sm font-semibold text-slate-900">
                         {displayMaterialCode(material)}
+                        {bomAlternateIds.has(material.id) ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-emerald-700">
+                            BOM 대체
+                          </span>
+                        ) : null}
                       </p>
                       <p className="mt-0.5 text-sm text-slate-700">{material.materialName}</p>
                       {material.baseCode && material.baseCode !== material.id ? (

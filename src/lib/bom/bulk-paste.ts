@@ -6,6 +6,7 @@ import {
   resolveBomChildItem,
 } from '@/lib/bom/utils'
 import type { Item } from '@/lib/items/types'
+import { joinBomAlternateTokens, splitBomAlternateTokens } from '@/lib/bom/alternates'
 
 export const BOM_PASTE_COLUMNS = [
   { key: 'partCode', label: '품목코드', required: false },
@@ -15,12 +16,13 @@ export const BOM_PASTE_COLUMNS = [
   { key: 'mpn', label: 'MPN', required: false },
   { key: 'quantityPer', label: 'Qty', required: true },
   { key: 'designators', label: 'Designator', required: false },
+  { key: 'alternates', label: '대체', required: false },
 ] as const
 
 export function bomPasteSampleValues(): string[][] {
   return [
-    ['C1608-104K', 'CAP 100nF', 'SMD', '1608 100nF', 'GRM188R71C104KA01D', '2', 'C1,C2'],
-    ['', 'RES 10k', 'SMD', '1005 10k', 'RC1005FR-0710KL', '1', 'R1'],
+    ['C1608-104K', 'CAP 100nF', 'SMD', '1608 100nF', 'GRM188R71C104KA01D', '2', 'C1,C2', 'C1608-104K-B'],
+    ['', 'RES 10k', 'SMD', '1005 10k', 'RC1005FR-0710KL', '1', 'R1', ''],
   ]
 }
 
@@ -60,6 +62,7 @@ type ColumnKey =
   | 'mpn'
   | 'quantityPer'
   | 'designators'
+  | 'alternates'
 
 const HEADER_ALIASES: Record<ColumnKey, string[]> = {
   partCode: ['품목코드', '자재코드', 'partcode', 'part no', 'partno', 'item code', 'itemcode', 'code'],
@@ -69,6 +72,19 @@ const HEADER_ALIASES: Record<ColumnKey, string[]> = {
   mpn: ['mpn', 'manufacturer part', 'mfr part', 'part number', 'partnumber', '제조사부품'],
   quantityPer: ['qty', 'quantity', '수량', '소요량', 'qnty', 'count'],
   designators: ['designator', 'designators', 'ref', 'refdes', 'reference', '위치번호'],
+  alternates: [
+    '대체',
+    '대체자재',
+    '대체품',
+    '대체품목',
+    '대체코드',
+    'alternate',
+    'alternates',
+    'alt',
+    'substitute',
+    '2nd source',
+    'second source',
+  ],
 }
 
 function normalizeHeaderToken(value: string) {
@@ -110,6 +126,7 @@ function defaultHeaderMap(): Record<ColumnKey, number> {
     mpn: 4,
     quantityPer: 5,
     designators: 6,
+    alternates: 7,
   }
 }
 
@@ -121,6 +138,7 @@ export type BomPasteRow = {
   mpn: string
   quantityPer: string
   designators: string
+  alternates: string
 }
 
 function cellAt(cols: string[], index: number | undefined) {
@@ -147,6 +165,7 @@ export function parseBomImportRows(rawRows: string[][]): BomPasteRow[] {
     const name = cellAt(cols, map.name)
     const spec = cellAt(cols, map.spec)
     const designators = cellAt(cols, map.designators)
+    const alternates = cellAt(cols, map.alternates)
     const process = normalizeBomProcess(cellAt(cols, map.process))
     const quantityRaw = cellAt(cols, map.quantityPer) || '1'
     const quantityPer = quantityRaw.replace(/,/g, '').trim() || '1'
@@ -161,6 +180,7 @@ export function parseBomImportRows(rawRows: string[][]): BomPasteRow[] {
       mpn,
       quantityPer,
       designators,
+      alternates,
     })
   }
 
@@ -216,6 +236,7 @@ function pasteRowToFormLine(row: BomPasteRow, matched: Item | null): BomFormLine
     sourcePartCode: row.partCode || (matched ? formatBomItemCode(matched) : ''),
     sourceName: row.name || matched?.name || '',
     sourceSpec: row.spec || matched?.specification || '',
+    sourceAlternates: row.alternates,
   })
 }
 
@@ -279,6 +300,12 @@ export function resolveBomPasteRows(
       if (!existing.process && row.process) existing.process = row.process
       if (!existing.sourceName && row.name) existing.sourceName = row.name
       if (!existing.sourceSpec && row.spec) existing.sourceSpec = row.spec
+      if (row.alternates) {
+        existing.sourceAlternates = joinBomAlternateTokens([
+          ...splitBomAlternateTokens(existing.sourceAlternates),
+          ...splitBomAlternateTokens(row.alternates),
+        ])
+      }
       continue
     }
 
@@ -301,6 +328,7 @@ export type BomSpreadsheetColumnKey =
   | 'sourceMpn'
   | 'quantityPer'
   | 'designators'
+  | 'sourceAlternates'
 
 export const BOM_SPREADSHEET_COLUMNS: Array<{
   key: BomSpreadsheetColumnKey
@@ -316,6 +344,7 @@ export const BOM_SPREADSHEET_COLUMNS: Array<{
   { key: 'sourceMpn', label: 'MPN', widthClass: 'min-w-[10rem]', mono: true },
   { key: 'quantityPer', label: 'Qty', widthClass: 'w-24', align: 'right' },
   { key: 'designators', label: 'Designator', widthClass: 'min-w-[9rem]', mono: true },
+  { key: 'sourceAlternates', label: '대체', widthClass: 'min-w-[10rem]', mono: true },
 ]
 
 /** 한 열에 세로 붙여넣기 — 행이 부족하면 추가 */

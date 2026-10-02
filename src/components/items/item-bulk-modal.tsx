@@ -8,8 +8,9 @@ import { ErpRowAddButton } from '@/components/ui/erp-row-add-button'
 import { ExcelPasteSampleTable } from '@/components/ui/excel-paste-sample-table'
 import { RequiredMark } from '@/components/ui/required-mark'
 import { useToast } from '@/components/ui/toast-provider'
-import { readBomSpreadsheetFile } from '@/lib/excel/read-spreadsheet'
+import { fallbackShortName, looksPacked } from '@/lib/bom/ai-classify'
 import {
+  applyItemBulkBlockPaste,
   applyItemBulkColumnPaste,
   defaultItemBulkRow,
   isEmptyItemBulkRow,
@@ -18,7 +19,6 @@ import {
   itemBulkPasteSampleValues,
   parseItemBulkPaste,
 } from '@/lib/items/bulk-paste'
-import { parseBomRowsToRawMaterials } from '@/lib/items/bom-to-raw-materials'
 import { splitBomSpecsWithAiAction } from '@/lib/items/bom-spec-ai-actions'
 import { collectBomSpecAiRows } from '@/lib/items/bom-spec-ai-utils'
 import type { BomSpecAiSplit } from '@/lib/items/bom-spec-ai-types'
@@ -85,14 +85,12 @@ function ItemBulkModalContent({
   onSaved?: (message?: string) => void
 }) {
   const pasteRef = useRef<HTMLTextAreaElement>(null)
-  const bomInputRef = useRef<HTMLInputElement>(null)
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const errorRowRef = useRef<HTMLTableRowElement>(null)
   const toast = useToast()
   const category = 1 as ItemCategory
   const [rows, setRows] = useState<ItemFormState[]>(() => [defaultItemBulkRow(1)])
   const [saving, setSaving] = useState(false)
-  const [bomLoading, setBomLoading] = useState(false)
   const [aiSplitLoading, setAiSplitLoading] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   /** 검증 실패 시 테이블에서 강조할 행 (0-based, rows 기준) */
@@ -113,7 +111,6 @@ function ItemBulkModalContent({
     // 기본정보에서 공통 선택 → 표에서는 숨김
     return column.key !== 'customerName'
   })
-  const aiSplitTargetCount = isRawMaterial ? collectBomSpecAiRows(rows).length : 0
   const inputClassName = ERP_FIELD_INPUT_CLASS
   const errorInputClassName =
     'w-full rounded-lg border border-red-400 bg-red-50/80 px-3 py-2 text-sm text-slate-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100'
@@ -167,137 +164,93 @@ function ItemBulkModalContent({
   function applyAiSplitsToRows(nextRows: ItemFormState[], splits: BomSpecAiSplit[]) {
     const byCode = new Map(splits.map((split) => [split.code.trim().toLowerCase(), split]))
     const reasons: Record<string, string> = {}
-    const updated = nextRows.map((row) => {
+    let mpnFilledCount = 0
+    const updated = nextRows.map((row): ItemFormState => {
       const key = row.id.trim().toLowerCase()
       const split = byCode.get(key)
       if (!split) return row
-      reasons[key] = split.reason || 'AI 사양 분리'
+      reasons[key] = split.reason || 'AI 분류'
+      const mpn = split.mpn.trim() || row.mpn
+      if (!row.mpn.trim() && mpn.trim()) mpnFilledCount += 1
       return {
         ...row,
-        specification: split.specification.trim() || row.specification,
+        name:
+          split.name.trim() || (looksPacked(row.name) ? fallbackShortName(row.name) : row.name),
+        specification: split.specification.trim(),
         package: split.package.trim() || row.package,
-        mpn: split.mpn.trim() || row.mpn,
-        materialType: split.materialType || row.materialType,
+        mpn,
+        materialType: row.materialType || split.materialType || '',
       }
     })
-    return { rows: updated, reasons }
+    return { rows: updated, reasons, mpnFilledCount }
   }
 
-  async function runAiSpecSplit(targetRows: ItemFormState[], options?: { silentIfEmpty?: boolean }) {
-    const targets = collectBomSpecAiRows(targetRows)
+  function reviewSummary(targetRows: ItemFormState[]) {
+    const filled = targetRows.filter((row) => !isEmptyItemBulkRow(row))
+    const codeCounts = new Map<string, number>()
+    for (const row of filled) {
+      const key = row.id.trim().toLowerCase()
+      if (key) codeCounts.set(key, (codeCounts.get(key) ?? 0) + 1)
+    }
+    const errors = filled.filter((row) => {
+      const key = row.id.trim().toLowerCase()
+      return !key || !row.name.trim() || !row.materialType || (codeCounts.get(key) ?? 0) > 1
+    }).length
+    const existing = filled.filter((row) =>
+      existingCodeSet.has(row.id.trim().toLowerCase()),
+    ).length
+    const missingMpn = filled.filter((row) => row.id.trim() && !row.mpn.trim()).length
+    const parts = [
+      errors ? `수정 필요 ${errors}건 (빨간 셀)` : '필수값 이상 없음',
+      existing ? `이미 등록 ${existing}건` : '',
+      missingMpn ? `MPN 없음 ${missingMpn}건` : '',
+    ].filter(Boolean)
+    return parts.join(' · ')
+  }
+
+  /** 표에 붙여넣은 행을 AI 로 품목명/사양/패키지/MPN 분류 + 필수값·중복 검토 */
+  async function handleAiClassifyAndReview() {
+    setSaveError(null)
+    clearValidationHighlight()
+    const targets = collectBomSpecAiRows(rows)
     if (!targets.length) {
-      if (!options?.silentIfEmpty) {
-        toast.push({
-          title: 'AI 분리 대상 없음',
-          description: '패키지·MPN이 비어 있고 사양이 한 칸에 섞인 행만 분리합니다.',
-          kind: 'info',
-          durationMs: 4000,
-        })
-      }
+      setBomHint(`AI 분류할 행 없음 · ${reviewSummary(rows)}`)
       return
     }
 
     setAiSplitLoading(true)
+    setBomHint(null)
     try {
       const result = await splitBomSpecsWithAiAction({ rows: targets })
       if (!result.ok) {
         setSaveError(result.detail)
-        toast.error('AI 사양 분리 실패', result.detail)
+        setBomHint(reviewSummary(rows))
+        toast.error('AI 분류 실패', result.detail)
         return
       }
 
-      const applied = applyAiSplitsToRows(targetRows, result.splits)
-      setRows(applied.rows)
+      const applied = applyAiSplitsToRows(rows, result.splits)
+      const classifiedCodes = new Set(Object.keys(applied.reasons))
+      const appliedByCode = new Map(
+        applied.rows.map((row) => [row.id.trim().toLowerCase(), row] as const),
+      )
+      setRows((current) =>
+        current.map((row) => {
+          const key = row.id.trim().toLowerCase()
+          return classifiedCodes.has(key) ? (appliedByCode.get(key) ?? row) : row
+        }),
+      )
       setAiSplitByCode((current) => ({ ...current, ...applied.reasons }))
-      setBomHint((current) => {
-        const base = current?.split(' · AI')[0] || current || ''
-        const note = `AI 분리 ${result.splits.length}/${result.processedCount}건`
-        return base ? `${base} · ${note}` : note
-      })
-      toast.push({
-        title: 'AI 사양 분리 완료',
-        description: `${result.splits.length}건을 사양·패키지·MPN으로 나눴습니다.`,
-        kind: 'success',
-        durationMs: 4000,
-      })
+      setBomHint(
+        `AI 분류 ${result.splits.length}행 완료 · MPN 추출 ${applied.mpnFilledCount}건 · ${reviewSummary(applied.rows)}`,
+      )
+      clearDuplicateState()
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'AI 분류 중 오류가 발생했습니다.'
+      setSaveError(detail)
+      toast.error('AI 분류 실패', detail)
     } finally {
       setAiSplitLoading(false)
-    }
-  }
-
-  async function handleBomFile(file: File) {
-    if (!sharedCustomerId.trim() || !sharedCustomerName.trim()) {
-      setSaveError('BOM 업로드 전에 고객사를 선택해 주세요.')
-      return
-    }
-
-    setBomLoading(true)
-    setSaveError(null)
-    setBomHint(null)
-    clearValidationHighlight()
-    clearDuplicateState()
-
-    try {
-      const { rows: sheetRows } = await readBomSpreadsheetFile(file)
-      const parsed = parseBomRowsToRawMaterials(sheetRows, file.name, {
-        customerId: sharedCustomerId,
-        customerName: sharedCustomerName,
-      })
-      if (!parsed.ok) {
-        setSaveError(parsed.detail)
-        toast.error('BOM 분석 실패', parsed.detail)
-        return
-      }
-
-      const nextRows = applySharedDefaultsToRows(parsed.drafts.map((draft) => draft.form))
-      setRows(nextRows.length ? nextRows : [defaultItemBulkRow(1)])
-      setAiSplitByCode({})
-
-      const existingCount = nextRows.filter((row) =>
-        existingCodeSet.has(row.id.trim().toLowerCase()),
-      ).length
-      const missingCodeCount = nextRows.filter((row) => !row.id.trim()).length
-      const missingMpnCount = nextRows.filter((row) => row.id.trim() && !row.mpn.trim()).length
-      const formatLabel = parsed.format === 'custom' ? '커스텀 BOM' : 'Altium BOM'
-      const warningText = parsed.warnings.length ? ` · ${parsed.warnings.join(' ')}` : ''
-      setBomHint(
-        `${formatLabel} · ${nextRows.length}종 미리보기` +
-          (existingCount > 0 ? ` · 이미 등록 ${existingCount}건` : '') +
-          (missingCodeCount > 0 ? ` · 품목코드 없음 ${missingCodeCount}건` : '') +
-          (missingMpnCount > 0 ? ` · MPN 없음 ${missingMpnCount}건` : '') +
-          warningText,
-      )
-      toast.push({
-        title: 'BOM 불러오기 완료',
-        description: `${nextRows.length}종 자재를 미리보기에 채웠습니다.`,
-        kind: 'success',
-        durationMs: 4000,
-      })
-      if (missingCodeCount > 0 || missingMpnCount > 0) {
-        toast.push({
-          title: 'BOM 확인 필요',
-          description: [
-            missingCodeCount > 0 ? `품목코드 없음 ${missingCodeCount}건` : '',
-            missingMpnCount > 0 ? `MPN 없음 ${missingMpnCount}건` : '',
-          ]
-            .filter(Boolean)
-            .join(' · '),
-          kind: 'info',
-          durationMs: 6000,
-        })
-      }
-
-      // 사양이 한 칸에 섞인 경우 AI로 패키지·MPN 분리
-      if (nextRows.length) {
-        void runAiSpecSplit(nextRows, { silentIfEmpty: true })
-      }
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : '파일을 읽는 중 오류가 발생했습니다.'
-      setSaveError(detail)
-      toast.error('BOM 업로드 실패', detail)
-    } finally {
-      setBomLoading(false)
-      if (bomInputRef.current) bomInputRef.current.value = ''
     }
   }
 
@@ -396,10 +349,26 @@ function ItemBulkModalContent({
     const text = event.clipboardData.getData('text')
     if (!text.trim()) return
 
-    // 여러 열(탭) → 기존처럼 전체 일괄 파싱
     if (text.includes('\t')) {
       event.preventDefault()
-      applyPasteText(text)
+      if (!isRawMaterial) {
+        applyPasteText(text)
+        return
+      }
+      // 원자재: 붙여넣은 셀 위치부터 화면 열 순서대로
+      const blockRows = applyItemBulkBlockPaste({
+        rows,
+        category,
+        columns,
+        startRowIndex,
+        startColumnKey: columnKey,
+        text,
+      })
+      if (!blockRows) return
+      setRows(applySharedDefaultsToRows(blockRows))
+      setSaveError(null)
+      clearValidationHighlight()
+      clearDuplicateState()
       return
     }
 
@@ -538,7 +507,7 @@ function ItemBulkModalContent({
       open
       size="lg"
       title="원자재 일괄등록"
-      description="고객사를 선택한 뒤 BOM 파일을 업로드하세요."
+      description="고객사를 선택한 뒤 엑셀 값을 표에 붙여넣고 AI 분류 및 검토를 누르세요."
       onClose={onClose}
       closeOnEscape={!saving}
       footer={
@@ -587,40 +556,19 @@ function ItemBulkModalContent({
               </label>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <input
-                ref={bomInputRef}
-                type="file"
-                accept=".csv,.xls,.xlsx,.xlsm,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) void handleBomFile(file)
-                }}
-              />
               <ErpButton
                 type="button"
                 variant="secondary"
-                disabled={saving || bomLoading || aiSplitLoading}
-                loading={bomLoading}
-                onClick={() => bomInputRef.current?.click()}
-              >
-                {bomLoading ? 'BOM 분석 중…' : 'BOM 파일 업로드'}
-              </ErpButton>
-              <ErpButton
-                type="button"
-                variant="secondary"
-                disabled={saving || bomLoading || aiSplitLoading || aiSplitTargetCount === 0}
+                disabled={saving || aiSplitLoading}
                 loading={aiSplitLoading}
-                onClick={() => void runAiSpecSplit(rows)}
+                onClick={() => void handleAiClassifyAndReview()}
+                className="min-w-[10rem] justify-center"
+                title="표에 붙여넣은 품목명·사양을 AI 가 품목명·사양·패키지·MPN 으로 나누고, 필수값·중복을 검토합니다"
               >
-                {aiSplitLoading
-                  ? 'AI 분리 중…'
-                  : aiSplitTargetCount > 0
-                    ? `AI 사양 분리 (${aiSplitTargetCount})`
-                    : 'AI 사양 분리'}
+                {aiSplitLoading ? 'AI 분류·검토 중…' : 'AI 분류 및 검토'}
               </ErpButton>
               <span className="text-xs text-slate-500">
-                Altium BOM · 또는 품목코드/품목명/공정/패키지/사양/MPN 양식
+                엑셀에서 복사해 아래 표의 셀에 붙여넣은 뒤 누르세요.
               </span>
             </div>
             {bomHint ? <p className="mt-2 text-xs font-medium text-slate-700">{bomHint}</p> : null}
@@ -650,7 +598,7 @@ function ItemBulkModalContent({
               ref={pasteRef}
               rows={3}
               onPaste={handleBulkPaste}
-              disabled={saving || bomLoading || aiSplitLoading}
+              disabled={saving || aiSplitLoading}
               placeholder={itemBulkPastePlaceholder(category)}
               className={ERP_PASTE_TEXTAREA_CLASS}
             />
@@ -732,21 +680,35 @@ function ItemBulkModalContent({
                     (other, otherIndex) =>
                       otherIndex !== index && other.id.trim().toLowerCase() === codeKey,
                   )
+                const missingName = isRawMaterial && !isBlankRow && !row.name.trim()
+                const missingProcess = isRawMaterial && !isBlankRow && !row.materialType
+                const hasRequiredIssue =
+                  missingCode || isDuplicateInList || missingName || missingProcess
                 const statusReason = isErrorRow
                   ? saveError?.replace(/^\d+행:\s*/, '') || '입력 오류'
                   : missingCode
                     ? '품목코드 없음'
                     : isDuplicateInList
                       ? '목록 내 중복 품목코드'
-                      : isExisting
-                        ? '이미 등록된 품목코드'
-                        : missingMpn
-                          ? 'MPN 없음'
-                          : aiSplitByCode[codeKey]
-                            ? `AI 분리: ${aiSplitByCode[codeKey]}`
-                            : ''
-                const isIssueRow = missingCode || missingMpn
+                      : missingName
+                        ? '품목명 없음'
+                        : missingProcess
+                          ? '공정 미선택'
+                          : isExisting
+                            ? '이미 등록된 품목코드'
+                            : missingMpn
+                              ? 'MPN 없음'
+                              : aiSplitByCode[codeKey]
+                                ? `AI 분류: ${aiSplitByCode[codeKey]}`
+                                : ''
+                const isIssueRow = hasRequiredIssue || missingMpn
                 const rowInputClass = isErrorRow ? errorInputClassName : inputClassName
+                const cellInputClass = (key: keyof ItemFormState) =>
+                  (key === 'id' && (missingCode || isDuplicateInList)) ||
+                  (key === 'name' && missingName) ||
+                  (key === 'materialType' && missingProcess)
+                    ? errorInputClassName
+                    : rowInputClass
                 return (
                   <tr
                     key={index}
@@ -755,9 +717,9 @@ function ItemBulkModalContent({
                       'border-t',
                       isErrorRow
                         ? 'border-red-200 bg-red-50 ring-2 ring-inset ring-red-300'
-                        : missingCode
+                        : hasRequiredIssue
                           ? 'border-red-100 bg-red-50/70'
-                          : isExisting || isDuplicateInList || missingMpn
+                          : isExisting || missingMpn
                             ? 'border-amber-100 bg-amber-50/70'
                             : 'border-slate-100',
                     ].join(' ')}
@@ -765,9 +727,9 @@ function ItemBulkModalContent({
                     <td
                       className={[
                         'whitespace-nowrap px-2 py-2 text-center align-top text-xs tabular-nums',
-                        isErrorRow || missingCode
+                        isErrorRow || hasRequiredIssue
                           ? 'font-bold text-red-700'
-                          : isExisting || isDuplicateInList || missingMpn
+                          : isExisting || missingMpn
                             ? 'font-semibold text-amber-700'
                             : 'text-slate-400',
                       ].join(' ')}
@@ -806,7 +768,7 @@ function ItemBulkModalContent({
                                 materialType: event.target.value as ItemMaterialType,
                               })
                             }
-                            className={`${rowInputClass} min-w-[5.5rem]`}
+                            className={`${cellInputClass('materialType')} min-w-[5.5rem]`}
                           >
                             <option value="">선택</option>
                             {ITEM_MATERIAL_TYPE_OPTIONS.map((value) => (
@@ -861,7 +823,7 @@ function ItemBulkModalContent({
                               } as Partial<ItemFormState>)
                             }
                             onPaste={(event) => handleColumnPaste(index, column.key, event)}
-                            className={`${rowInputClass}${
+                            className={`${cellInputClass(column.key)}${
                               column.key === 'id' || column.key === 'mpn' ? ' font-mono' : ''
                             }${column.key === 'version' ? ' max-w-[5.5rem]' : ''}`}
                           />
@@ -873,9 +835,9 @@ function ItemBulkModalContent({
                         <span
                           className={[
                             'inline-block text-xs font-medium leading-snug',
-                            isErrorRow || missingCode
+                            isErrorRow || hasRequiredIssue
                               ? 'text-red-700'
-                              : isIssueRow || isExisting || isDuplicateInList
+                              : isIssueRow || isExisting
                                 ? 'text-amber-800'
                                 : 'text-slate-600',
                           ].join(' ')}
@@ -910,8 +872,9 @@ function ItemBulkModalContent({
           </p>
         ) : (
           <p className="text-xs text-slate-500">
-            사유: 품목코드 없음(등록 불가) · MPN 없음(확인 권장) · 이미 등록된 품목코드. BOM
-            사양이 한 칸에 섞여 있으면 AI가 사양·패키지·MPN으로 나눕니다.
+            엑셀 여러 열을 복사해 셀에 붙여넣으면 그 셀부터 오른쪽·아래로 채워집니다. 빨간 셀은
+            수정 필요(품목코드·품목명·공정 없음, 목록 내 중복), 노란 행은 확인 권장(MPN 없음, 이미
+            등록된 품목코드)입니다.
           </p>
         )}
 

@@ -176,6 +176,30 @@ export function explodeBomToMaterials(
   return result
 }
 
+/** 제품 BOM 트리에서 자재별 BOM 대체 품목 수집 (주자재 ID → 대체 ID 목록) */
+export function collectBomAlternatesForProduct(
+  rootProductId: string,
+  edgesByParent: Map<string, BomEdge[]>,
+  into: Map<string, string[]> = new Map(),
+  depth = 0,
+): Map<string, string[]> {
+  if (!rootProductId.trim() || depth > 8) return into
+  for (const edge of edgesByParent.get(rootProductId) || []) {
+    if (edge.childItemCategory === 1 || edge.childItemCategory === 2) {
+      const alts = (edge.alternateChildProductIds || []).filter(
+        (id) => id && id !== edge.childProductId,
+      )
+      if (!alts.length) continue
+      into.set(edge.childProductId, [...new Set([...(into.get(edge.childProductId) || []), ...alts])])
+      continue
+    }
+    if (edge.childItemCategory === 3 || edge.childItemCategory === 4) {
+      collectBomAlternatesForProduct(edge.childProductId, edgesByParent, into, depth + 1)
+    }
+  }
+  return into
+}
+
 export function buildOutboundNeedRows(input: {
   orders: OrderListGroup[]
   edgesByParent: Map<string, BomEdge[]>
@@ -230,24 +254,55 @@ export function buildOutboundNeedRows(input: {
     }
 
     const unscopedLeft = new Map<string, number>()
+    const scopedLeft = new Map<string, number>()
     const orderPrefix = `${order.orderId}::`
     for (const [key, qty] of input.issuedByOrderMaterial) {
       if (!key.startsWith(orderPrefix)) continue
       const rest = key.slice(orderPrefix.length)
       if (!rest.includes('::')) unscopedLeft.set(`${order.orderId}::${rest}`, qty)
+      else scopedLeft.set(key, qty)
     }
 
-    for (const need of materialNeed.values()) {
-      const scoped =
-        input.issuedByOrderMaterial.get(`${order.orderId}::${need.productId}::${need.materialId}`) ?? 0
-      const issued =
+    const alternatesByProduct = new Map<string, Map<string, string[]>>()
+    const issuedByNeed = new Map<string, number>()
+    for (const [needKey, need] of materialNeed) {
+      const scopedKey = `${order.orderId}::${need.productId}::${need.materialId}`
+      const scoped = scopedLeft.get(scopedKey) ?? 0
+      scopedLeft.set(scopedKey, 0)
+      issuedByNeed.set(
+        needKey,
         scoped +
-        takeUnscopedIssued(
-          unscopedLeft,
-          order.orderId,
-          need.materialId,
-          Math.max(0, need.required - scoped),
-        )
+          takeUnscopedIssued(
+            unscopedLeft,
+            order.orderId,
+            need.materialId,
+            Math.max(0, need.required - scoped),
+          ),
+      )
+    }
+
+    // 주자재 대신 불출한 BOM 대체 품목 — 대체 자체 소요분을 뺀 나머지를 주자재 불출로 인정
+    for (const [needKey, need] of materialNeed) {
+      let alts = alternatesByProduct.get(need.productId)
+      if (!alts) {
+        alts = collectBomAlternatesForProduct(need.productId, input.edgesByParent)
+        alternatesByProduct.set(need.productId, alts)
+      }
+      let short = Math.max(0, need.required - (issuedByNeed.get(needKey) ?? 0))
+      for (const altId of alts.get(need.materialId) || []) {
+        if (short <= 0) break
+        const scopedKey = `${order.orderId}::${need.productId}::${altId}`
+        const fromScoped = Math.min(short, scopedLeft.get(scopedKey) ?? 0)
+        scopedLeft.set(scopedKey, (scopedLeft.get(scopedKey) ?? 0) - fromScoped)
+        short -= fromScoped
+        const fromUnscoped = takeUnscopedIssued(unscopedLeft, order.orderId, altId, short)
+        short -= fromUnscoped
+        issuedByNeed.set(needKey, (issuedByNeed.get(needKey) ?? 0) + fromScoped + fromUnscoped)
+      }
+    }
+
+    for (const [needKey, need] of materialNeed) {
+      const issued = issuedByNeed.get(needKey) ?? 0
       const remaining = Math.max(0, need.required - issued)
       if (remaining <= 0) continue
 
@@ -272,6 +327,7 @@ export function buildOutboundNeedRows(input: {
             input.onHandByMaterialId?.get(need.materialId) ??
             0,
         ),
+        alternateMaterialIds: alternatesByProduct.get(need.productId)?.get(need.materialId) ?? [],
       })
     }
   }

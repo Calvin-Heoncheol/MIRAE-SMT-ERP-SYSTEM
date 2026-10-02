@@ -1,3 +1,4 @@
+import { looksPacked } from '@/lib/bom/ai-classify'
 import type { ItemFormState } from '@/lib/items/form-state'
 import type { BomSpecAiRowInput } from '@/lib/items/bom-spec-ai-types'
 
@@ -16,18 +17,18 @@ export function looksLikePackedBomSpec(row: {
   return false
 }
 
+/** 품목명·사양에 값이 섞였거나 MPN 이 비어 있는 행 (BOM 등록 AI 분류와 같은 기준) */
 export function toBomSpecAiRowInput(row: ItemFormState): BomSpecAiRowInput | null {
   const code = row.id.trim()
   if (!code) return null
-  if (
-    !looksLikePackedBomSpec({
-      specification: row.specification,
-      package: row.package,
-      mpn: row.mpn,
-    })
-  ) {
-    return null
-  }
+  const name = row.name.trim()
+  const spec = row.specification.trim()
+  if (!name && !spec) return null
+  const packed =
+    looksPacked(name) ||
+    looksPacked(spec) ||
+    looksLikePackedBomSpec({ specification: spec, package: row.package, mpn: row.mpn })
+  if (!packed && row.mpn.trim()) return null
   return {
     code,
     name: row.name.trim(),

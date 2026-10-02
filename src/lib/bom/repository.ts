@@ -35,6 +35,18 @@ function missingEnvResult<T extends { ok: false; reason: 'env'; detail: string }
   } as T
 }
 
+function normalizeAlternateIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.map((id) => String(id || '').trim()).filter(Boolean))]
+}
+
+function isMissingAlternateColumn(detail: string) {
+  return detail.includes('source_alternates') || detail.includes('alternate_child_product_ids')
+}
+
+const BOM_ALTERNATES_SQL_HINT =
+  '대체자재 저장용 DB 컬럼이 없습니다. Supabase에서 supabase/migrate-bom-alternates.sql 을 실행해 주세요.'
+
 function mapBomDetailRow(row: {
   parent_product_id: string
   parent_product_name?: string | null
@@ -51,6 +63,8 @@ function mapBomDetailRow(row: {
   source_part_code?: string | null
   source_name?: string | null
   source_spec?: string | null
+  source_alternates?: string | null
+  alternate_child_product_ids?: string[] | null
 }): BomLine | null {
   const parentItemCategory = normalizeItemCategory(row.parent_item_category)
   const childItemCategory = normalizeItemCategory(row.child_item_category)
@@ -67,6 +81,8 @@ function mapBomDetailRow(row: {
     sourcePartCode: String(row.source_part_code || '').trim(),
     sourceName: String(row.source_name || '').trim(),
     sourceSpec: String(row.source_spec || '').trim(),
+    sourceAlternates: String(row.source_alternates || '').trim(),
+    alternateChildProductIds: normalizeAlternateIds(row.alternate_child_product_ids),
     parentProductName: String(row.parent_product_name || '').trim(),
     parentItemCategory,
     childProductName: String(row.child_product_name || '').trim(),
@@ -77,12 +93,23 @@ function mapBomDetailRow(row: {
 
 async function fetchBomFromItemsTable(): Promise<FetchBomResult> {
   const supabase = createSupabaseClient()
-  const { data, error } = await supabase
+  const baseSelect =
+    'parent_product_id, child_product_id, quantity_per, note, process, designators, source_mpn, source_part_code, source_name, source_spec'
+  const withAlternates = await supabase
     .from('bom_items')
-    .select(
-      'parent_product_id, child_product_id, quantity_per, note, process, designators, source_mpn, source_part_code, source_name, source_spec',
-    )
+    .select(`${baseSelect}, source_alternates, alternate_child_product_ids`)
     .order('parent_product_id', { ascending: true })
+  let data: Parameters<typeof mapBomItemsWithMeta>[0] | null = withAlternates.data
+  let error = withAlternates.error
+
+  if (error && isMissingAlternateColumn(error.message)) {
+    const base = await supabase
+      .from('bom_items')
+      .select(baseSelect)
+      .order('parent_product_id', { ascending: true })
+    data = base.data
+    error = base.error
+  }
 
   if (error) {
     if (
@@ -117,6 +144,8 @@ async function mapBomItemsWithMeta(
     source_part_code?: string | null
     source_name?: string | null
     source_spec?: string | null
+    source_alternates?: string | null
+    alternate_child_product_ids?: string[] | null
   }>,
 ): Promise<FetchBomResult> {
   const ids = [
@@ -174,6 +203,8 @@ async function mapBomItemsWithMeta(
       sourcePartCode: String(row.source_part_code || '').trim(),
       sourceName: String(row.source_name || '').trim(),
       sourceSpec: String(row.source_spec || '').trim(),
+      sourceAlternates: String(row.source_alternates || '').trim(),
+      alternateChildProductIds: normalizeAlternateIds(row.alternate_child_product_ids),
       parentProductName: parent.name,
       parentItemCategory: parent.itemCategory,
       childProductName: child.name,
@@ -197,7 +228,13 @@ export async function fetchBomLines(): Promise<FetchBomResult> {
     const legacySelect =
       'parent_product_id, parent_product_name, parent_item_category, child_product_id, child_product_name, child_item_category, child_mpn, quantity_per, note'
 
-    let { data, error } = await supabase.from('bom_detail').select(fullSelect)
+    let { data, error } = await supabase
+      .from('bom_detail')
+      .select(`${fullSelect}, source_alternates, alternate_child_product_ids`)
+
+    if (error && isMissingAlternateColumn(error.message)) {
+      ;({ data, error } = await supabase.from('bom_detail').select(fullSelect))
+    }
 
     if (
       error &&
@@ -634,6 +671,10 @@ export async function saveBomForParent(
         sourcePartCode: String(line.sourcePartCode || '').trim(),
         sourceName: String(line.sourceName || '').trim(),
         sourceSpec: String(line.sourceSpec || '').trim(),
+        sourceAlternates: String(line.sourceAlternates || '').trim(),
+        alternateChildProductIds: normalizeAlternateIds(line.alternateChildProductIds).filter(
+          (id) => id !== childId && id !== parentId,
+        ),
       })
     }
 
@@ -680,9 +721,23 @@ export async function saveBomForParent(
       source_spec: line.sourceSpec || '',
     }))
 
-    let { error: upsertError } = await supabase
-      .from('bom_items')
-      .upsert(upsertRows, { onConflict: 'parent_product_id,child_product_id' })
+    let { error: upsertError } = await supabase.from('bom_items').upsert(
+      upsertRows.map((row, index) => ({
+        ...row,
+        source_alternates: normalized[index]!.sourceAlternates || '',
+        alternate_child_product_ids: normalized[index]!.alternateChildProductIds || [],
+      })),
+      { onConflict: 'parent_product_id,child_product_id' },
+    )
+
+    if (upsertError && isMissingAlternateColumn(upsertError.message)) {
+      if (normalized.some((line) => line.sourceAlternates)) {
+        return { ok: false, reason: 'query', detail: BOM_ALTERNATES_SQL_HINT }
+      }
+      ;({ error: upsertError } = await supabase
+        .from('bom_items')
+        .upsert(upsertRows, { onConflict: 'parent_product_id,child_product_id' }))
+    }
 
     if (
       upsertError &&

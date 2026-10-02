@@ -20,6 +20,10 @@ export type BomLine = {
   sourcePartCode: string
   sourceName: string
   sourceSpec: string
+  /** 대체 열 원문 */
+  sourceAlternates: string
+  /** 이 줄에서 주자재 대신 쓸 수 있는 품목 ID */
+  alternateChildProductIds: string[]
   parentProductName: string
   parentItemCategory: ItemCategory
   childProductName: string
@@ -52,6 +56,8 @@ export type BomLinePayload = {
   sourcePartCode?: string
   sourceName?: string
   sourceSpec?: string
+  sourceAlternates?: string
+  alternateChildProductIds?: string[]
 }
 
 export type BomParentFilter = 'all' | 3 | 4

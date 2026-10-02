@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCanDeleteRecords } from '@/components/auth/auth-profile-provider'
 import { BomChildItemCombobox } from '@/components/bom/bom-child-item-combobox'
 import { BomAddRowsControl } from '@/components/bom/bom-add-rows-control'
@@ -14,7 +14,6 @@ import {
   applyBomColumnPaste,
   enrichBomFormLinesFromItems,
   parseBomBulkPaste,
-  parseBomImportRows,
   resolveBomPasteRows,
   unresolvedFromBomLines,
   type BomSpreadsheetColumnKey,
@@ -37,8 +36,11 @@ import {
   parentItemsForBom,
 } from '@/lib/bom/utils'
 import { registerMissingBomRawMaterials } from '@/lib/bom/register-missing-raw'
+import { applyBomAiSplits, toBomAiRows } from '@/lib/bom/ai-classify'
+import { resolveBomLineAlternates } from '@/lib/bom/alternates'
+import { countBomDesignatorQtyIssues } from '@/lib/bom/designator-check'
+import { splitBomSpecsWithAiAction } from '@/lib/items/bom-spec-ai-actions'
 import type { BomGroup } from '@/lib/bom/types'
-import { readBomSpreadsheetFile } from '@/lib/excel/read-spreadsheet'
 import type { Item } from '@/lib/items/types'
 import {
   ITEM_CATEGORY_LABELS,
@@ -91,8 +93,7 @@ function BomModalContent({
   const [pasteHint, setPasteHint] = useState<string | null>(null)
   const [localItems, setLocalItems] = useState<Item[]>([])
   const [versionUpInput, setVersionUpInput] = useState('')
-  const [fileLoading, setFileLoading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [aiLoading, setAiLoading] = useState(false)
 
   const busyUi = useBusy()
   const { notifyAuthOrFailure } = useWriteFailureToast()
@@ -266,33 +267,63 @@ function BomModalContent({
     setPasteHint(`${columnKey === 'quantityPer' ? 'Qty' : '열'} 붙여넣기 반영`)
   }
 
-  async function handleBomFile(file: File) {
+  /** 표에 붙여넣은 행을 AI 로 품목명/규격/MPN 분류 + Designator·Qty 검토 */
+  async function handleAiClassify() {
     if (!selectedParent) {
       setPasteHint('부모 품목을 먼저 선택해 주세요.')
       return
     }
 
-    setFileLoading(true)
+    const qtyIssueCount = countBomDesignatorQtyIssues(form.lines)
+    const unresolvedAlternateCount = form.lines.reduce(
+      (sum, line) =>
+        line.sourceAlternates.trim()
+          ? sum +
+            resolveBomLineAlternates(line.childProductId, line.sourceAlternates, childOptions)
+              .unresolvedTokens.length
+          : sum,
+      0,
+    )
+    const reviewNote =
+      (qtyIssueCount
+        ? ` · Designator·Qty 불일치 ${qtyIssueCount}건 (빨간 셀 확인)`
+        : ' · Designator·Qty 이상 없음') +
+      (unresolvedAlternateCount
+        ? ` · 미등록 대체 ${unresolvedAlternateCount}건 (노란 셀 — 품목등록 후 연결됨)`
+        : '')
+
+    const aiRows = toBomAiRows(form.lines)
+    if (!aiRows.length) {
+      setPasteHint(`AI 분류할 행 없음${reviewNote}`)
+      return
+    }
+
+    setAiLoading(true)
     setPasteHint(null)
     try {
-      const { rows } = await readBomSpreadsheetFile(file)
-      const parsed = parseBomImportRows(rows)
-      const resolved = resolveBomPasteRows(parsed, childOptions)
-      if (!resolved.ok) {
-        setPasteHint(resolved.detail)
+      const ai = await splitBomSpecsWithAiAction({ rows: aiRows })
+      if (!ai.ok) {
+        setPasteHint(`AI 분류 실패: ${ai.detail}${reviewNote}`)
         return
       }
-      await applyResolvedLines(resolved.lines, '파일')
+      const applied = applyBomAiSplits(form.lines, ai.splits, childOptions)
+      const appliedByKey = new Map(applied.lines.map((line) => [line.key, line]))
+      const classifiedKeys = new Set(ai.splits.map((split) => split.code))
+      setForm((current) => ({
+        ...current,
+        lines: current.lines.map((line) =>
+          classifiedKeys.has(line.key) ? (appliedByKey.get(line.key) ?? line) : line,
+        ),
+      }))
       setPasteHint(
-        resolved.unresolved.length
-          ? `${file.name}: ${resolved.lines.length}행 · 미등록 ${resolved.unresolved.length}건`
-          : `${file.name}: ${resolved.lines.length}행 반영`,
+        `AI 분류 ${applied.classifiedCount}행 완료 · MPN 추출 ${applied.mpnFilledCount}건${
+          applied.matchedCount ? ` · 기존 품목 연결 ${applied.matchedCount}건` : ''
+        }${reviewNote}`,
       )
     } catch (error) {
-      setPasteHint(error instanceof Error ? error.message : 'BOM 파일을 읽지 못했습니다.')
+      setPasteHint(error instanceof Error ? error.message : 'AI 분류 중 오류가 발생했습니다.')
     } finally {
-      setFileLoading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      setAiLoading(false)
     }
   }
 
@@ -384,7 +415,10 @@ function BomModalContent({
     setSaveError(null)
 
     const result = await busyUi.run(() =>
-      saveBomForParent(workingForm.parentProductId, formToBomLinePayloads(workingForm)),
+      saveBomForParent(
+        workingForm.parentProductId,
+        formToBomLinePayloads(workingForm, workingChildren),
+      ),
     )
     setSaving(false)
 
@@ -475,7 +509,7 @@ function BomModalContent({
     onVersioned?.(result.newGroup)
   }
 
-  const busy = saving || deleting || versioning || fileLoading
+  const busy = saving || deleting || versioning || aiLoading
 
   const filledLineCount = useMemo(
     () => form.lines.filter((line) => line.childProductId.trim()).length,
@@ -525,25 +559,16 @@ function BomModalContent({
                 <span />
               )}
               <div className="flex flex-wrap items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,.xls,.xlsx,.xlsm,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0]
-                    if (file) void handleBomFile(file)
-                  }}
-                />
                 <ErpButton
                   type="button"
                   variant="secondary"
                   disabled={!selectedParent || busy}
-                  loading={fileLoading}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="min-w-[8.75rem] justify-center"
+                  loading={aiLoading}
+                  onClick={() => void handleAiClassify()}
+                  className="min-w-[10rem] justify-center"
+                  title="표에 붙여넣은 품목명·규격을 AI 가 품목명·규격·MPN 으로 나누고, Designator 개수와 Qty 가 맞는지 검토합니다"
                 >
-                  Excel 불러오기
+                  {aiLoading ? 'AI 분류·검토 중…' : 'AI 분류 및 검토'}
                 </ErpButton>
                 <BomAddRowsControl
                   disabled={!selectedParent || busy}
