@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function ProductionPlanPage() {
   const weekStart = getWeekStartYmd(todayYmdSeoul())
-  const result = await fetchProductionPlanBoard()
+  const result = await fetchProductionPlanBoard({ includeLineEfficiency: true })
 
   return (
     <PageShell>

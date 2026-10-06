@@ -46,6 +46,8 @@ export type PreviewRow = {
   productionQty?: number | string | null
   /** 발주 1회 고정 비용 — 생산수량으로 곱하지 않음 */
   orderLevel?: boolean
+  /** 대당 단가 표시 안 함 (메탈마스크 등) — 합계에서도 대당 계산 제외 */
+  noUnitPrice?: boolean
   amount?: number | null
   indent?: number
   emphasize?: boolean
@@ -211,8 +213,18 @@ export function prepareBreakdownSectionTableRows(
 
   if (sectionTotalRow) {
     const safeQty = qty || 1
+    const noUnitPriceAmount = detailRows
+      .filter((row) => row.noUnitPrice)
+      .reduce((sum, row) => sum + (row.amount || 0), 0)
     const footerMetrics =
-      sectionKey === 'post'
+      noUnitPriceAmount > 0 && sectionTotalRow.amount != null
+        ? {
+            unitPrice: quotePerUnitTotal(
+              Math.max(0, sectionTotalRow.amount - noUnitPriceAmount),
+              qty,
+            ),
+          }
+        : sectionKey === 'post'
         ? computePostSectionFooterMetrics(
             detailRows,
             quoteType,
@@ -349,6 +361,9 @@ function scalePreviewRowAmountsByQty(
   return rows.map((row) => {
     if (row.orderLevel) {
       const orderAmount = row.amount
+      if (row.noUnitPrice) {
+        return { ...row, productionQty: labels.oneTime, unitPrice: null }
+      }
       return {
         ...row,
         productionQty: labels.oneTime,
@@ -1121,6 +1136,7 @@ function previewOrderLevelRows(
       amount: metalMask,
       count: '',
       orderLevel: true,
+      noUnitPrice: true,
       indent: 1,
       emphasize: true,
       amountEmphasize: true,
@@ -1598,7 +1614,7 @@ export function buildPdfSummaryBreakdownLines(
   if (metalMask > 0) {
     lines.push({
       label: labels.metalMask,
-      unitTotal: quotePerUnitTotal(metalMask, qty),
+      unitTotal: 0,
       total: metalMask,
       section: 'setup',
       fixedCost: true,

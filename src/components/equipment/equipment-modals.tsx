@@ -370,7 +370,6 @@ export function SmtLineModal({ line, suggestedLineNo, onClose, onSaved, onDelete
                   <th className="px-2 py-2 text-left">모델명</th>
                   <th className="px-2 py-2 text-left">시리얼</th>
                   <th className="w-28 px-2 py-2 text-right">사양 CPH</th>
-                  <th className="w-28 px-2 py-2 text-right">실제 CPH</th>
                   <th className="w-36 px-2 py-2 text-left">도입일</th>
                   <th className="w-14 px-2 py-2 text-center">사용</th>
                   <th className="w-12 px-2 py-2" />
@@ -433,18 +432,6 @@ export function SmtLineModal({ line, suggestedLineNo, onClose, onSaved, onDelete
                           onChange={(event) => updateDraft(draft.key, 'ratedCph', event.target.value)}
                           disabled={!isMounter}
                           placeholder={isMounter ? '카탈로그' : '—'}
-                          className={`${CELL_INPUT_CLASS} text-right tabular-nums`}
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <input
-                          inputMode="numeric"
-                          value={isMounter ? draft.effectiveCph : ''}
-                          onChange={(event) =>
-                            updateDraft(draft.key, 'effectiveCph', event.target.value)
-                          }
-                          disabled={!isMounter}
-                          placeholder={isMounter ? '현장 기준' : '—'}
                           className={`${CELL_INPUT_CLASS} text-right tabular-nums`}
                         />
                       </td>

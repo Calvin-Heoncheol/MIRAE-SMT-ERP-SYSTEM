@@ -2,7 +2,10 @@ import { assertCanWrite } from '@/lib/auth/assert-can-write'
 import { resolveCreatedBySnapshot } from '@/lib/auth/created-by'
 import { fetchAssemblyGroups } from '@/lib/assembly/repository'
 import { fetchDeliveryCumulativeCounts } from '@/lib/delivery/repository'
-import { excludeDeliveryCompleteProductionOrders } from '@/lib/delivery/utils'
+import {
+  buildOrderLineToAssemblyGroupMap,
+  excludeDeliveryCompleteProductionOrders,
+} from '@/lib/delivery/utils'
 import { fetchPendingInboundByMaterialId } from '@/lib/materials/inventory/pending-inbound'
 import { fetchOnHandByMaterialId } from '@/lib/materials/inventory/stock'
 import {
@@ -25,7 +28,16 @@ import {
   resolveProductionCount,
   resolveProductionSideCount,
 } from '@/lib/production-input/utils'
+import { findQuoteUnitPriceOptions } from '@/lib/orders/quote-unit-price'
+import type { Product } from '@/lib/products/types'
 import { fetchQuotes } from '@/lib/quotes/repository'
+import type { QuoteListItem } from '@/lib/quotes/types'
+import {
+  quoteBoardPlacementPoints,
+  splitPointsBySide,
+  type SmtOrderLinePoints,
+} from './line-efficiency'
+import { fetchBomSmdPointsByParent, fetchSmtLineCapacities } from './line-efficiency-data'
 import type { SmtProductionPlan } from '@/lib/smt/plan/types'
 import { upsertSmtProductionPlan, deleteSmtProductionPlan, fetchAllSmtProductionPlans } from '@/lib/smt/plan/repository'
 import { buildSmtPlanOrderCandidates } from '@/lib/smt/plan/utils'
@@ -217,7 +229,9 @@ async function fetchConfirmRows(): Promise<
   return { ok: true, rows: data || [] }
 }
 
-export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoardResult> {
+export async function fetchProductionPlanBoard(
+  options: { includeLineEfficiency?: boolean } = {},
+): Promise<FetchProductionPlanBoardResult> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return missingEnv()
   }
@@ -396,14 +410,15 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
 
   const assemblyResult = assemblyFetch
 
+  const allSmtOrderLines = buildProductionOrderLines(
+    ordersResult.orders,
+    '반제품',
+    productById,
+    'smt',
+    quotesResult.quotes,
+  )
   const smtOrders = excludeDeliveryCompleteProductionOrders(
-    buildProductionOrderLines(
-      ordersResult.orders,
-      '반제품',
-      productById,
-      'smt',
-      quotesResult.quotes,
-    ),
+    allSmtOrderLines,
     assemblyResult.groups,
     deliveryCountsResult.counts,
   )
@@ -418,6 +433,12 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     assemblyResult.groups,
     deliveryCountsResult.counts,
   )
+
+  const groupIdByOrderLine = buildOrderLineToAssemblyGroupMap(assemblyResult.groups)
+  const deliveryCounts = deliveryCountsResult.counts
+  function shippedQtyForGroup(groupId: string) {
+    return Math.max(0, Math.floor(Number(deliveryCounts[groupId]) || 0))
+  }
 
   const productIdByOrderLine = new Map<string, string>()
   for (const order of ordersResult.orders) {
@@ -511,6 +532,9 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
           }
         : {}),
       remainingQty,
+      shippedQty: shippedQtyForGroup(
+        line.assemblyGroupId || groupIdByOrderLine.get(line.orderLineId) || '',
+      ),
       ...hint,
     }
 
@@ -668,6 +692,7 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
       orderQty: Math.floor(line.quantity),
       producedQty,
       remainingQty,
+      shippedQty: shippedQtyForGroup(groupId),
       ...hint,
     }
 
@@ -754,10 +779,82 @@ export async function fetchProductionPlanBoard(): Promise<FetchProductionPlanBoa
     if (smtEnd) row.smtPlannedEndDate = smtEnd
   }
 
+  if (!options.includeLineEfficiency) {
+    return {
+      ok: true,
+      data: { rows: sortProductionPlanRows(rows) },
+    }
+  }
+
+  const [bomPointsByParent, smtLineCapacities] = await Promise.all([
+    fetchBomSmdPointsByParent(),
+    fetchSmtLineCapacities(),
+  ])
+  const orderById = new Map(ordersResult.orders.map((order) => [order.orderId, order]))
+  const smtPointsByOrderLine: Record<string, SmtOrderLinePoints> = {}
+  for (const line of allSmtOrderLines) {
+    const order = orderById.get(line.orderId)
+    const productId = String(
+      productIdByOrderLine.get(line.orderLineId) || line.productId || '',
+    ).trim()
+    const product = productById[productId]
+    const resolved = resolveSmtOrderLinePointsPerUnit({
+      bomPoints: bomPointsByParent.get(productId) ?? 0,
+      product,
+      customer: order?.customer || line.customer,
+      quotes: quotesResult.quotes,
+    })
+    if (!resolved) continue
+    smtPointsByOrderLine[line.orderLineId] = {
+      ...resolved,
+      ...splitPointsBySide(resolved.pointsPerUnit, line.splitPcbSides, product?.productionStd),
+    }
+  }
+
   return {
     ok: true,
-    data: { rows: sortProductionPlanRows(rows) },
+    data: { rows: sortProductionPlanRows(rows), smtPointsByOrderLine, smtLineCapacities },
   }
+}
+
+function normalizeMatchText(value: string | null | undefined) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[\s\-_./()[\]]+/g, '')
+}
+
+/** BOM 점수 우선, 없으면 고객사+품목의 최신 견적 보드 점수 */
+function resolveSmtOrderLinePointsPerUnit(input: {
+  bomPoints: number
+  product: Product | undefined
+  customer: string
+  quotes: QuoteListItem[]
+}): Pick<SmtOrderLinePoints, 'pointsPerUnit' | 'source'> | null {
+  if (input.bomPoints > 0) return { pointsPerUnit: input.bomPoints, source: 'bom' }
+  const product = input.product
+  if (!product) return null
+
+  const latestQuoteId = findQuoteUnitPriceOptions(input.quotes, input.customer, product)[0]?.quoteId
+  if (!latestQuoteId) return null
+  const quote = input.quotes.find((entry) => entry.quoteId === latestQuoteId)
+  const boards = (quote?.detailInfo?.inputs?.smt?.pcbBoards || []).filter(
+    (board) => quoteBoardPlacementPoints(board) > 0,
+  )
+  if (!boards.length) return null
+
+  const name = normalizeMatchText(product.productName)
+  const code = normalizeMatchText(product.productCode)
+  const matched = boards.find((board) => {
+    const pcbName = normalizeMatchText(board.pcbName)
+    if (!pcbName) return false
+    return (
+      (name && (pcbName.includes(name) || name.includes(pcbName))) ||
+      (code && (pcbName.includes(code) || code.includes(pcbName)))
+    )
+  })
+  const board = matched ?? (boards.length === 1 ? boards[0] : null)
+  if (!board) return null
+  return { pointsPerUnit: quoteBoardPlacementPoints(board), source: 'quote' }
 }
 
 export async function confirmProductionPlanItem(

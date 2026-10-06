@@ -530,17 +530,6 @@ function QuoteModalContent({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
-  function movePostProcess(category: PostProcessCategory, direction: -1 | 1) {
-    setForm((current) => {
-      const order = [...current.postProcessOrder]
-      const from = order.indexOf(category)
-      const to = from + direction
-      if (from < 0 || to < 0 || to >= order.length) return current
-      ;[order[from], order[to]] = [order[to]!, order[from]!]
-      return { ...current, postProcessOrder: order }
-    })
-  }
-
   function setBoardCount(nextCount: number) {
     const count = Number(clampPcbCount(String(nextCount)))
     updateForm('pcbBoardCount', String(count))
@@ -1171,30 +1160,6 @@ function QuoteModalContent({
                               updateForm('postProcessBufferPercent', postProcessBufferPercent)
                             }
                             onChange={(lines) => updateForm(config.field, lines)}
-                            headerActions={
-                              <span className="inline-flex overflow-hidden rounded border border-slate-200 bg-white">
-                                <button
-                                  type="button"
-                                  disabled={index === 0}
-                                  onClick={() => movePostProcess(category, -1)}
-                                  className="px-1 text-[10px] leading-4 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
-                                  title={`${config.title} 위로`}
-                                  aria-label={`${config.title} 순서 위로`}
-                                >
-                                  ▲
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={index === form.postProcessOrder.length - 1}
-                                  onClick={() => movePostProcess(category, 1)}
-                                  className="border-l border-slate-200 px-1 text-[10px] leading-4 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
-                                  title={`${config.title} 아래로`}
-                                  aria-label={`${config.title} 순서 아래로`}
-                                >
-                                  ▼
-                                </button>
-                              </span>
-                            }
                           />
                         )
                       })}

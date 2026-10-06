@@ -74,6 +74,15 @@ export function PostProcessLinesEditor({
     onChange([...lines, emptyPostProcessLineForm()])
   }
 
+  function moveLine(index: number, delta: -1 | 1) {
+    const target = index + delta
+    if (target < 0 || target >= lines.length) return
+    const next = [...lines]
+    const [moved] = next.splice(index, 1)
+    next.splice(target, 0, moved!)
+    onChange(next)
+  }
+
   return (
     <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -115,6 +124,7 @@ export function PostProcessLinesEditor({
 
       <div className="space-y-1.5">
         <div className="flex items-center gap-1.5 px-0.5 text-[10px] font-semibold text-slate-500">
+          <span className="w-5 shrink-0 text-center" title="공정 순서">순서</span>
           <span className="min-w-0 flex-1">공정명</span>
           <span className="w-20 shrink-0 text-center">초</span>
           <span className="w-14 shrink-0 cursor-help text-center" title={bufferHint}>
@@ -131,6 +141,28 @@ export function PostProcessLinesEditor({
 
           return (
             <div key={index} className="flex items-center gap-1.5">
+              <span className="flex w-5 shrink-0 flex-col overflow-hidden rounded border border-slate-200 bg-white">
+                <button
+                  type="button"
+                  disabled={index === 0}
+                  onClick={() => moveLine(index, -1)}
+                  className="text-[9px] leading-[14px] text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                  title="위로"
+                  aria-label={`${title} ${index + 1}번째 공정 위로`}
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  disabled={index === lines.length - 1}
+                  onClick={() => moveLine(index, 1)}
+                  className="border-t border-slate-200 text-[9px] leading-[14px] text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                  title="아래로"
+                  aria-label={`${title} ${index + 1}번째 공정 아래로`}
+                >
+                  ▼
+                </button>
+              </span>
               <input
                 value={line.name}
                 onChange={(event) => updateLine(index, { name: event.target.value })}

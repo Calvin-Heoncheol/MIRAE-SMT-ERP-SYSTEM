@@ -1,6 +1,7 @@
 import type { MaterialInboundStatus } from '@/lib/materials/material-inbound-status'
 import type { ItemProductionStd } from '@/lib/items/production-std'
 import type { ProductPcbSideMode } from '@/lib/products/types'
+import type { SmtLineCapacity, SmtOrderLinePoints } from './line-efficiency'
 
 export type ProductionPlanScope = 'material' | 'smt' | 'post'
 
@@ -38,6 +39,8 @@ export type ProductionPlanBoardRow = {
   producedQtyTop?: number
   producedQtyBot?: number
   remainingQty: number
+  /** 연결된 조립 그룹 누적 출하 수량 */
+  shippedQty?: number
   materialReadyQty: number
   materialScheduledQty?: number
   /** 입고예정 병목일(YYYY-MM-DD) */
@@ -101,6 +104,10 @@ export type ConfirmProductionPlanScheduleInput = {
 
 export type ProductionPlanBoardPageData = {
   rows: ProductionPlanBoardRow[]
+  /** includeLineEfficiency 일 때만 — SMT 주문라인별 1대당 실장 점수 */
+  smtPointsByOrderLine?: Record<string, SmtOrderLinePoints>
+  /** includeLineEfficiency 일 때만 — 설비등록 라인별 사양 CPH */
+  smtLineCapacities?: SmtLineCapacity[]
 }
 
 export type FetchProductionPlanBoardResult =

@@ -84,6 +84,8 @@ export type SmtLineCapacitySummary = {
   effectiveCphTotal: number
   /** 실제 CPH 가 비어 있는 사용중 마운터 수 */
   missingEffectiveCount: number
+  /** 사양 CPH 가 비어 있는 사용중 마운터 수 */
+  missingRatedCount: number
 }
 
 /** 사용중 마운터 기준 라인 CPH 합계 */
@@ -96,5 +98,6 @@ export function summarizeSmtLineCapacity(line: Pick<SmtLine, 'equipment'>): SmtL
     ratedCphTotal: mounters.reduce((sum, equipment) => sum + (equipment.ratedCph ?? 0), 0),
     effectiveCphTotal: mounters.reduce((sum, equipment) => sum + (equipment.effectiveCph ?? 0), 0),
     missingEffectiveCount: mounters.filter((equipment) => !equipment.effectiveCph).length,
+    missingRatedCount: mounters.filter((equipment) => !equipment.ratedCph).length,
   }
 }

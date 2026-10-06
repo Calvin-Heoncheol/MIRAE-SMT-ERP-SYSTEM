@@ -29,8 +29,12 @@ import {
 } from '@/lib/production-plan/repository'
 import type {
   FetchProductionPlanBoardResult,
+  ProductionPlanBoardPageData,
   ProductionPlanBoardRow,
 } from '@/lib/production-plan/types'
+import { PRODUCTION_PLAN_DAY_CAPACITY_HOURS } from '@/lib/production-plan/capacity'
+import { summarizeSmtLineDayEfficiency } from '@/lib/production-plan/line-efficiency'
+import { fetchSmtPlanProgressRange } from '@/lib/smt/repository'
 import {
   buildUnifiedPlanSheetLines,
   filterUnifiedPlanSheetLines,
@@ -64,6 +68,13 @@ function lastCommittedQtyKey(row: ProductionPlanBoardRow) {
   return `${row.targetId}:${row.scope}`
 }
 
+function efficiencyBaseFromData(data: ProductionPlanBoardPageData | null) {
+  return {
+    pointsByOrderLine: data?.smtPointsByOrderLine ?? {},
+    capacities: data?.smtLineCapacities ?? [],
+  }
+}
+
 function matchesSearchHaystack(
   fields: Array<string | null | undefined>,
   query: string,
@@ -86,6 +97,11 @@ export function ProductionPlanUnifiedWorkspace({
     initialResult.ok ? initialResult.data.rows : [],
   )
   const [error, setError] = useState(initialResult.ok ? '' : initialResult.detail)
+  const [efficiencyBase, setEfficiencyBase] = useState(() =>
+    efficiencyBaseFromData(initialResult.ok ? initialResult.data : null),
+  )
+  const [weekProgress, setWeekProgress] = useState<Record<string, number>>({})
+  const [progressReloadToken, setProgressReloadToken] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [modalSaving, setModalSaving] = useState(false)
   const [modalDeleting, setModalDeleting] = useState(false)
@@ -104,7 +120,10 @@ export function ProductionPlanUnifiedWorkspace({
   const pendingLines = useMemo(() => {
     const q = pendingSearch.trim().toLowerCase()
     return filterUnifiedPlanSheetLines(allLines, 'now', weekStart, rows).filter((line) => {
-      if (!pickPlanningRowForLine(line, scopeFilter)) return false
+      const planningRow = pickPlanningRowForLine(line, scopeFilter)
+      if (!planningRow) return false
+      // 한 번이라도 출하된 주문은 미배정 목록에서 숨김 (이미 잡힌 계획은 달력에 유지)
+      if ((planningRow.shippedQty ?? 0) > 0) return false
       return matchesSearchHaystack(
         [
           line.rep.orderNumber,
@@ -120,6 +139,31 @@ export function ProductionPlanUnifiedWorkspace({
   }, [allLines, weekStart, rows, scopeFilter, pendingSearch])
 
   const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart])
+  const weekFirstYmd = weekDates[0] ?? weekStart
+  const weekLastYmd = weekDates[weekDates.length - 1] ?? weekStart
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchSmtPlanProgressRange(weekFirstYmd, weekLastYmd).then((result) => {
+      if (cancelled) return
+      setWeekProgress(result.ok ? result.progress : {})
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [weekFirstYmd, weekLastYmd, progressReloadToken])
+
+  const lineEfficiency = useMemo(
+    () =>
+      summarizeSmtLineDayEfficiency({
+        progress: weekProgress,
+        pointsByOrderLine: efficiencyBase.pointsByOrderLine,
+        capacities: efficiencyBase.capacities,
+        dayHours: PRODUCTION_PLAN_DAY_CAPACITY_HOURS,
+      }),
+    [weekProgress, efficiencyBase],
+  )
+
   const isSmtTab = scopeFilter === 'smt'
   const isPostTab = scopeFilter === 'post'
 
@@ -137,7 +181,7 @@ export function ProductionPlanUnifiedWorkspace({
       setRefreshing(true)
     }
     setError('')
-    const result = await fetchProductionPlanBoard()
+    const result = await fetchProductionPlanBoard({ includeLineEfficiency: true })
     if (background) {
       setRefreshing(false)
     }
@@ -146,6 +190,8 @@ export function ProductionPlanUnifiedWorkspace({
       return
     }
     setRows(result.data.rows)
+    setEfficiencyBase(efficiencyBaseFromData(result.data))
+    setProgressReloadToken((value) => value + 1)
   }, [])
 
   function openScheduleModal(
@@ -410,6 +456,8 @@ export function ProductionPlanUnifiedWorkspace({
             <ProductionPlanSmtWeekCalendar
               weekDates={weekDates}
               scheduledRows={scheduledRows}
+              lineEfficiency={lineEfficiency}
+              lineCapacities={efficiencyBase.capacities}
               onDropOrder={handleSmtDrop}
               onSelectRow={(row) => openScheduleModal(row)}
             />

@@ -12,7 +12,6 @@ import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import { isMissingSmtEquipmentTable, type FetchSmtLinesResult } from '@/lib/equipment/repository'
 import {
   equipmentDisplayName,
-  equipmentEfficiencyPercent,
   EQUIPMENT_TYPES,
   SMT_LINE_NO_MAX,
   smtLineDisplayName,
@@ -59,10 +58,10 @@ function LineCapacityText({ line }: { line: SmtLine }) {
   }
   return (
     <span className="tabular-nums">
-      마운터 {summary.mounterCount}대 · 실제 CPH{' '}
-      <span className="font-semibold text-slate-800">{formatCph(summary.effectiveCphTotal)}</span>
-      {summary.missingEffectiveCount > 0 ? (
-        <span className="text-amber-600"> (미입력 {summary.missingEffectiveCount})</span>
+      마운터 {summary.mounterCount}대 · 사양 CPH{' '}
+      <span className="font-semibold text-slate-800">{formatCph(summary.ratedCphTotal)}</span>
+      {summary.missingRatedCount > 0 ? (
+        <span className="text-amber-600"> (미입력 {summary.missingRatedCount})</span>
       ) : null}
     </span>
   )
@@ -175,9 +174,11 @@ export function EquipmentWorkspace({ result }: EquipmentWorkspaceProps) {
                     {selectedSummary && selectedSummary.mounterCount > 0 ? (
                       <p className="mt-0.5 text-xs tabular-nums text-slate-500">
                         사용중 마운터 {selectedSummary.mounterCount}대 · 사양 CPH 합계{' '}
-                        {formatCph(selectedSummary.ratedCphTotal)} · 실제 CPH 합계{' '}
                         <span className="font-semibold text-slate-800">
-                          {formatCph(selectedSummary.effectiveCphTotal)}
+                          {formatCph(selectedSummary.ratedCphTotal)}
+                        </span>
+                        <span className="ml-2 text-slate-400">
+                          가동효율은 생산계획에서 실적 기준으로 계산합니다.
                         </span>
                       </p>
                     ) : (
@@ -202,16 +203,12 @@ export function EquipmentWorkspace({ result }: EquipmentWorkspaceProps) {
                         <ErpTableTh>모델명</ErpTableTh>
                         <ErpTableTh className="hidden lg:table-cell">시리얼</ErpTableTh>
                         <ErpTableTh className="text-right">사양 CPH</ErpTableTh>
-                        <ErpTableTh className="text-right">실제 CPH</ErpTableTh>
-                        <ErpTableTh className="text-right">효율</ErpTableTh>
                         <ErpTableTh className="hidden md:table-cell">도입일</ErpTableTh>
                         <ErpTableTh>상태</ErpTableTh>
                       </tr>
                     </ErpTableHead>
                     <tbody>
-                      {equipment.map((item) => {
-                        const efficiency = equipmentEfficiencyPercent(item)
-                        return (
+                      {equipment.map((item) => (
                           <tr
                             key={item.id}
                             onClick={() => openModal({ kind: 'line', line: selectedLine })}
@@ -227,14 +224,8 @@ export function EquipmentWorkspace({ result }: EquipmentWorkspaceProps) {
                             <ErpTableTd className="hidden text-slate-500 lg:table-cell">
                               {cell(item.serialNo)}
                             </ErpTableTd>
-                            <ErpTableTd className="text-right tabular-nums text-slate-700">
-                              {formatCph(item.ratedCph)}
-                            </ErpTableTd>
                             <ErpTableTd className="text-right font-semibold tabular-nums text-slate-900">
-                              {formatCph(item.effectiveCph)}
-                            </ErpTableTd>
-                            <ErpTableTd className="text-right tabular-nums text-slate-600">
-                              {efficiency != null ? `${efficiency}%` : '—'}
+                              {formatCph(item.ratedCph)}
                             </ErpTableTd>
                             <ErpTableTd className="hidden tabular-nums text-slate-600 md:table-cell">
                               {cell(item.installedAt)}
@@ -251,8 +242,7 @@ export function EquipmentWorkspace({ result }: EquipmentWorkspaceProps) {
                               </span>
                             </ErpTableTd>
                           </tr>
-                        )
-                      })}
+                      ))}
                     </tbody>
                   </ErpTableShell>
                 )}

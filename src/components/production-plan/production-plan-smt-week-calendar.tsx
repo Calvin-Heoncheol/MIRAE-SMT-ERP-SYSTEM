@@ -12,6 +12,12 @@ import {
   summarizeCellLoad,
 } from '@/lib/production-plan/capacity'
 import { planCoversYmd } from '@/lib/production-plan/calendar'
+import {
+  formatSmtPoints,
+  smtLineDayKey,
+  type SmtLineCapacity,
+  type SmtLineDayEfficiency,
+} from '@/lib/production-plan/line-efficiency'
 import type { ProductionPlanBoardRow } from '@/lib/production-plan/types'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
@@ -29,6 +35,40 @@ type ProductionPlanSmtWeekCalendarProps = {
   ) => void
   /** false면 카드 드래그 비활성 (기본 true) */
   cardDraggable?: boolean
+  /** 라인·일자별 실적 점수 / 사양 CPH 대비 효율 */
+  lineEfficiency?: Map<string, SmtLineDayEfficiency>
+  lineCapacities?: SmtLineCapacity[]
+}
+
+function efficiencyToneClass(percent: number | null) {
+  if (percent == null) return 'text-slate-500'
+  if (percent >= 60) return 'text-emerald-700'
+  if (percent >= 40) return 'text-amber-700'
+  return 'text-rose-700'
+}
+
+function efficiencyTitle(entry: SmtLineDayEfficiency, capacity: SmtLineCapacity | undefined) {
+  const lines = [
+    `실적 ${entry.producedQty.toLocaleString('ko-KR')}EA · ${formatSmtPoints(entry.points)}점`,
+  ]
+  if (capacity && capacity.ratedCph > 0) {
+    lines.push(
+      `능력 ${formatSmtPoints(entry.capacityPoints)}점 = 사양 CPH ${capacity.ratedCph.toLocaleString('ko-KR')} × ${PRODUCTION_PLAN_DAY_CAPACITY_HOURS}시간`,
+    )
+  } else {
+    lines.push('설비등록에 사양 CPH가 없어 효율을 계산할 수 없습니다.')
+  }
+  if (entry.sources.length) {
+    lines.push(
+      `점수 기준: ${entry.sources.map((source) => (source === 'bom' ? 'BOM' : '견적')).join(', ')}`,
+    )
+  }
+  if (entry.missingPointsQty > 0) {
+    lines.push(
+      `점수 미등록 ${entry.missingPointsQty.toLocaleString('ko-KR')}EA — BOM(SMD) 또는 견적 점수가 없어 제외`,
+    )
+  }
+  return lines.join('\n')
 }
 
 function cellKey(plannedDate: string, lineNo: number) {
@@ -42,9 +82,15 @@ export function ProductionPlanSmtWeekCalendar({
   onEmptyCellClick,
   onDropOrder,
   cardDraggable = true,
+  lineEfficiency,
+  lineCapacities = [],
 }: ProductionPlanSmtWeekCalendarProps) {
   const today = todayYmdSeoul()
   const lineNos = SMT_PLAN_LINE_NOS
+  const capacityByLine = useMemo(
+    () => new Map(lineCapacities.map((entry) => [entry.lineNo, entry])),
+    [lineCapacities],
+  )
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
 
   const rowsByCell = useMemo(() => {
@@ -116,10 +162,26 @@ export function ProductionPlanSmtWeekCalendar({
           </tr>
         </thead>
         <tbody>
-          {lineNos.map((lineNo) => (
+          {lineNos.map((lineNo) => {
+            const capacity = capacityByLine.get(lineNo)
+            return (
             <tr key={lineNo} className="border-b border-slate-100 last:border-b-0">
               <td className="sticky left-0 z-[1] border-r border-slate-200 bg-slate-50 px-2 py-3 align-top text-xs font-bold text-slate-700">
                 라인 {lineNo}
+                {lineEfficiency ? (
+                  <p
+                    className="mt-0.5 text-[10px] font-medium tabular-nums text-slate-400"
+                    title={
+                      capacity && capacity.ratedCph > 0
+                        ? `사용중 마운터 ${capacity.mounterCount}대 사양 CPH 합계`
+                        : '설비등록에서 마운터 사양 CPH를 입력하세요'
+                    }
+                  >
+                    {capacity && capacity.ratedCph > 0
+                      ? `${capacity.ratedCph.toLocaleString('ko-KR')} CPH`
+                      : 'CPH 미등록'}
+                  </p>
+                ) : null}
               </td>
               {weekDates.map((plannedDate) => {
                 const key = cellKey(plannedDate, lineNo)
@@ -130,6 +192,7 @@ export function ProductionPlanSmtWeekCalendar({
                 const load = summarizeCellLoad(loadRows)
                 const isToday = plannedDate === today
                 const isDropTarget = dragOverKey === key
+                const efficiency = lineEfficiency?.get(smtLineDayKey(lineNo, plannedDate))
 
                 return (
                   <td
@@ -148,6 +211,18 @@ export function ProductionPlanSmtWeekCalendar({
                     onDrop={(event) => handleDrop(event, plannedDate, lineNo)}
                   >
                     <div className="flex min-h-[96px] flex-col gap-1">
+                      {efficiency ? (
+                        <p
+                          className={`rounded bg-slate-50 px-1 py-0.5 text-[11px] font-semibold tabular-nums ${efficiencyToneClass(efficiency.percent)}`}
+                          title={efficiencyTitle(efficiency, capacity)}
+                        >
+                          실적 {formatSmtPoints(efficiency.points)}점
+                          {efficiency.percent != null ? ` · 효율 ${efficiency.percent}%` : ''}
+                          {efficiency.missingPointsQty > 0 ? (
+                            <span className="text-amber-600"> · 점수미등록</span>
+                          ) : null}
+                        </p>
+                      ) : null}
                       {load.quantity > 0 ? (
                         <p
                           className={`px-0.5 text-[11px] font-semibold tabular-nums ${
@@ -205,7 +280,8 @@ export function ProductionPlanSmtWeekCalendar({
                 )
               })}
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </div>
