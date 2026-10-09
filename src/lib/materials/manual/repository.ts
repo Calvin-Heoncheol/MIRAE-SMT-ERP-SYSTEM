@@ -77,6 +77,89 @@ async function fetchOutboundTotalsByLineId(): Promise<
   return { ok: true, totals }
 }
 
+export const MATERIAL_EXPECTED_INBOUND_SQL_HINT =
+  'Supabase SQL Editor에서 supabase/migrate-material-expected-inbound.sql 을 실행해 주세요.'
+
+function isMissingExpectedInboundTable(detail: string) {
+  const lower = detail.toLowerCase()
+  return (
+    lower.includes('material_order_expected_inbound') ||
+    (lower.includes('schema cache') && lower.includes('expected_inbound'))
+  )
+}
+
+async function fetchExpectedInboundByLineId(): Promise<{
+  dates: Record<string, string>
+  tableMissing: boolean
+}> {
+  const supabase = createSupabaseClient()
+  if (!supabase) return { dates: {}, tableMissing: false }
+
+  const { data, error } = await supabase
+    .from('material_order_expected_inbound')
+    .select('order_line_id, expected_date')
+  if (error) {
+    return { dates: {}, tableMissing: isMissingExpectedInboundTable(error.message) }
+  }
+
+  const dates: Record<string, string> = {}
+  for (const row of data || []) {
+    const lineId = String(row.order_line_id || '').trim()
+    const date = String(row.expected_date || '').slice(0, 10)
+    if (lineId && date) dates[lineId] = date
+  }
+  return { dates, tableMissing: false }
+}
+
+/** 예상입고일 저장 — 빈 값이면 삭제 */
+export async function saveMaterialExpectedInboundDate(input: {
+  orderId: string
+  orderLineId: string
+  expectedDate: string
+}): Promise<MaterialManualSaveResult> {
+  const gate = await assertCanWrite({ module: 'materials', action: 'update' })
+  if (!gate.ok) return gate
+
+  const orderId = input.orderId.trim()
+  const orderLineId = input.orderLineId.trim()
+  const expectedDate = String(input.expectedDate || '').trim().slice(0, 10)
+  if (!orderId || !orderLineId) {
+    return { ok: false, reason: 'validation', detail: '발주 정보가 올바르지 않습니다.' }
+  }
+  if (expectedDate && !/^\d{4}-\d{2}-\d{2}$/.test(expectedDate)) {
+    return { ok: false, reason: 'validation', detail: '예상입고일 형식이 올바르지 않습니다.' }
+  }
+
+  const supabase = createSupabaseClient()
+  if (!supabase) {
+    return { ok: false, reason: 'env', detail: 'Supabase 설정이 없습니다.' }
+  }
+
+  const { error } = expectedDate
+    ? await supabase.from('material_order_expected_inbound').upsert(
+        {
+          order_line_id: orderLineId,
+          order_id: orderId,
+          expected_date: expectedDate,
+          updated_at: new Date().toISOString(),
+          updated_by_name: (await resolveCreatedBySnapshot()).createdByName,
+        },
+        { onConflict: 'order_line_id' },
+      )
+    : await supabase
+        .from('material_order_expected_inbound')
+        .delete()
+        .eq('order_line_id', orderLineId)
+
+  if (error) {
+    const detail = isMissingExpectedInboundTable(error.message)
+      ? `예상입고일 테이블이 없습니다. ${MATERIAL_EXPECTED_INBOUND_SQL_HINT}`
+      : error.message
+    return { ok: false, reason: 'query', detail }
+  }
+  return { ok: true }
+}
+
 /** 조립 그룹 출하 비율만큼 발주 라인 수량을 환산 (출하 완료면 라인 수량 전체) */
 function shippedSetsForOrderLine(
   order: ProductionOrderLine,
@@ -100,14 +183,21 @@ export async function fetchMaterialManualPageData(): Promise<FetchMaterialManual
   const supabase = createSupabaseClient()
   if (!supabase) return missingEnv()
 
-  const [inputResult, boardResult, outboundResult, assemblyResult, deliveryCountsResult] =
-    await Promise.all([
-      fetchProductionInputPageData(SMT_PRODUCTION_INPUT_CONFIG, { includeDeliveryComplete: true }),
-      fetchProductionPlanBoard(),
-      fetchOutboundTotalsByLineId(),
-      fetchAssemblyGroups(),
-      fetchDeliveryCumulativeCounts(),
-    ])
+  const [
+    inputResult,
+    boardResult,
+    outboundResult,
+    assemblyResult,
+    deliveryCountsResult,
+    expectedInbound,
+  ] = await Promise.all([
+    fetchProductionInputPageData(SMT_PRODUCTION_INPUT_CONFIG, { includeDeliveryComplete: true }),
+    fetchProductionPlanBoard(),
+    fetchOutboundTotalsByLineId(),
+    fetchAssemblyGroups(),
+    fetchDeliveryCumulativeCounts(),
+    fetchExpectedInboundByLineId(),
+  ])
 
   if (!inputResult.ok) {
     return inputResult
@@ -149,6 +239,8 @@ export async function fetchMaterialManualPageData(): Promise<FetchMaterialManual
     data: {
       orders: inputResult.data.orders,
       metricsByLineId,
+      expectedInboundByLineId: expectedInbound.dates,
+      expectedInboundTableMissing: expectedInbound.tableMissing,
     },
   }
 }

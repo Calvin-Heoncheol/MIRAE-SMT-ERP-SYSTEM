@@ -4,6 +4,7 @@ import { OrderCategoryBadge } from '@/components/orders/order-category-badge'
 import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ErpTableHead, ErpTableShell, ErpTableTd, ErpTableTh } from '@/components/ui/erp-table'
 import { formatQuoteMoneyTotal, formatQuoteMoneyUnit } from '@/lib/quotes/format'
+import { resolveSavedQuoteAmounts } from '@/lib/quotes/saved-quote-amounts'
 import { formatQuoteProcessLabel } from '@/lib/quotes/production-flags'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { QUOTE_STATUS_LABELS, type QuoteListItem, type QuoteStatus } from '@/lib/quotes/types'
@@ -24,8 +25,7 @@ function quoteProductionKind(quote: QuoteListItem): '샘플' | '양산' {
 }
 
 function quoteUnitPriceDisplay(quote: QuoteListItem) {
-  const qty = quote.boardQty || 1
-  return formatQuoteMoneyUnit(quote.totalAmount / qty, quote.quoteType)
+  return formatQuoteMoneyUnit(resolveSavedQuoteAmounts(quote).unitPrice, quote.quoteType)
 }
 
 function statusButtonClass(status: QuoteStatus) {
@@ -101,7 +101,7 @@ export function QuoteListTable({
                 {quote.boardQty.toLocaleString('ko-KR')}
               </ErpTableTd>
               <ErpTableTd align="right" className="font-semibold tabular-nums text-slate-900">
-                {formatQuoteMoneyTotal(quote.totalAmount, quote.quoteType)}
+                {formatQuoteMoneyTotal(resolveSavedQuoteAmounts(quote).totalAmount, quote.quoteType)}
               </ErpTableTd>
               <ErpTableTd className="text-slate-700">
                 {quoteRegistrantLabel(quote) || '-'}

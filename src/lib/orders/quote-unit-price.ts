@@ -1,3 +1,4 @@
+import { resolveSavedQuoteAmounts } from '@/lib/quotes/saved-quote-amounts'
 import type { QuoteListItem } from '@/lib/quotes/types'
 import type { Product } from '@/lib/products/types'
 import { formatProductOptionLabel } from '@/lib/products/utils'
@@ -46,9 +47,9 @@ function stripVersionNoise(value: string) {
     .trim()
 }
 
-export function unitPriceFromQuote(quote: Pick<QuoteListItem, 'boardQty' | 'totalAmount'>) {
-  const qty = Math.max(1, Math.floor(Number(quote.boardQty) || 0) || 1)
-  return Math.max(0, Math.round((Number(quote.totalAmount) || 0) / qty))
+/** 견적 대당단가 — 메탈마스크(일회성) 제외, 견적서와 같은 계산식 */
+export function unitPriceFromQuote(quote: QuoteListItem) {
+  return Math.max(0, resolveSavedQuoteAmounts(quote).unitPrice)
 }
 
 export function quoteMatchesCustomer(quoteCustomer: string, orderCustomer: string) {
@@ -132,7 +133,7 @@ function toOption(
     quoteDate: quote.quoteDate,
     unitPrice: unitPriceFromQuote(quote),
     boardQty: Math.max(0, Math.floor(Number(quote.boardQty) || 0)),
-    totalAmount: Math.max(0, Math.round(Number(quote.totalAmount) || 0)),
+    totalAmount: resolveSavedQuoteAmounts(quote).totalAmount,
     customerMismatch,
   }
 }

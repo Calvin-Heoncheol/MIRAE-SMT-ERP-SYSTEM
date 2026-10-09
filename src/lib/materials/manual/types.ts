@@ -10,6 +10,10 @@ export type MaterialManualOrderMetrics = {
 export type MaterialManualPageData = {
   orders: ProductionOrderLine[]
   metricsByLineId: Record<string, MaterialManualOrderMetrics>
+  /** order_line_id → 예상입고일 (YYYY-MM-DD) */
+  expectedInboundByLineId: Record<string, string>
+  /** material_order_expected_inbound 테이블 미생성 */
+  expectedInboundTableMissing?: boolean
 }
 
 export type FetchMaterialManualPageResult =

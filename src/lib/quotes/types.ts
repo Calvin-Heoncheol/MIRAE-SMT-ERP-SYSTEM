@@ -246,7 +246,12 @@ export type EstimateResult = {
     laborMarkup: number
     specialDiscount: number
     subtotalBeforeDiscount: number
+    /** 대당단가 × 수량 + 메탈마스크 */
     grandTotal: number
+    /** 대당단가 (메탈마스크 제외) */
+    unitPrice: number
+    /** 메탈마스크 — 일회성, 대당단가 미포함 */
+    metalMask: number
   }
   common: {
     smtSetup: number

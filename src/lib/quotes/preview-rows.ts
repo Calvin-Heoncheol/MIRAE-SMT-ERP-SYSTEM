@@ -10,6 +10,7 @@ import {
   calculateEstimate,
   computeSmtPlacementScore,
   computeSmtSetupBillingBreakdown,
+  smtLineAmount,
 } from './calculate-estimate'
 import { formatQuoteMoneyRateByDisplay, roundDomesticKrw } from './format'
 import { breakdownSmtSectionTitle, getPreviewLabels, localizePostProcessItemName, resolveLabelQuoteType, type QuoteDocumentLanguage, type QuoteLabelType } from './preview-i18n'
@@ -499,7 +500,7 @@ function smtDetailRowsForBoard(
             label: 'CHIP',
             unit: rates.chip,
             count: labels.partsCount(board.chip),
-            amount: board.chip * rates.chip,
+            amount: smtLineAmount(board.chip, rates.chip),
             indent: 2,
           },
           qty,
@@ -514,7 +515,7 @@ function smtDetailRowsForBoard(
             label: labels.oddParts,
             unit: rates.odd,
             count: labels.partsCount(board.smtOdd),
-            amount: board.smtOdd * rates.odd,
+            amount: smtLineAmount(board.smtOdd, rates.odd),
             indent: 2,
           },
           qty,
@@ -529,7 +530,7 @@ function smtDetailRowsForBoard(
             label: labels.specialParts,
             unit: rates.special,
             count: labels.partsCount(board.smtSpecial),
-            amount: board.smtSpecial * rates.special,
+            amount: smtLineAmount(board.smtSpecial, rates.special),
             indent: 2,
           },
           qty,
@@ -544,7 +545,7 @@ function smtDetailRowsForBoard(
             label: 'IC PIN',
             unit: rates.icPin,
             count: `${board.icPin} PIN`,
-            amount: board.icPin * rates.icPin,
+            amount: smtLineAmount(board.icPin, rates.icPin),
             indent: 2,
           },
           qty,
@@ -559,7 +560,7 @@ function smtDetailRowsForBoard(
             label: 'BGA BALL',
             unit: rates.bgaBall,
             count: `${board.bga} BALL`,
-            amount: board.bga * rates.bgaBall,
+            amount: smtLineAmount(board.bga, rates.bgaBall),
             indent: 2,
           },
           qty,
@@ -1849,7 +1850,7 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
     materialTotalPerUnit: includeMaterial ? materialPerUnit + materialMgmtPerUnit : 0,
     otherRows,
     otherTotalPerUnit: orderLevelTotal,
-    grandPerUnit: result.values.grandTotal / qty,
+    grandPerUnit: result.values.unitPrice,
   }
 }
 

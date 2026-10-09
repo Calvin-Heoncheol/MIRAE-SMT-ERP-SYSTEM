@@ -307,7 +307,13 @@ export function QuoteBreakdownPreview({
   const setupSection = sections.find((section) => section.key === 'setup')
   const smtSection = sections.find((section) => section.key === 'smt')
   const previewSummary = result
-    ? formatQuotePreviewSummary(result.values.grandTotal, result.qty || 1, quoteType, displayCurrency)
+    ? formatQuotePreviewSummary(
+        result.values.grandTotal,
+        result.qty || 1,
+        quoteType,
+        displayCurrency,
+        result.values.metalMask,
+      )
     : null
 
   return (
@@ -397,6 +403,26 @@ export function QuoteBreakdownPreview({
               : formatAmount(0, quoteType, displayCurrency)}
           </span>
         </div>
+        {previewSummary?.oneTimeFormatted ? (
+          <>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="font-medium text-slate-600">
+                {isDomestic ? '제품 금액 (대당단가 × 수량)' : 'Product Amount (Unit × Qty)'}
+              </span>
+              <span className="font-semibold tabular-nums text-slate-800">
+                {previewSummary.productTotalFormatted}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="font-medium text-slate-600">
+                {isDomestic ? '메탈마스크 (일회성)' : 'Metal Mask (one-time)'}
+              </span>
+              <span className="font-semibold tabular-nums text-slate-800">
+                {previewSummary.oneTimeFormatted}
+              </span>
+            </div>
+          </>
+        ) : null}
         {showVat && isDomestic && previewSummary?.totalFormatted ? (
           <>
             <div className="flex items-center justify-between text-[13px]">

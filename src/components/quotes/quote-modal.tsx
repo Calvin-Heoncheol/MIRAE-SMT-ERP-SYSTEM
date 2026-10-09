@@ -809,6 +809,7 @@ function QuoteModalContent({
         result.qty || 1,
         quoteType,
         displayCurrency,
+        result.values.metalMask,
       )
     : null
 
@@ -1206,6 +1207,11 @@ function QuoteModalContent({
                   <p className="truncate text-sm font-semibold text-slate-900">
                     {liveSummary?.unitFormatted ?? '-'}
                   </p>
+                  {liveSummary?.oneTimeFormatted ? (
+                    <p className="truncate text-[11px] text-slate-500">
+                      + 메탈마스크 {liveSummary.oneTimeFormatted} (일회성)
+                    </p>
+                  ) : null}
                 </div>
                 <div className="min-w-0 text-right">
                   {form.includeVat &&

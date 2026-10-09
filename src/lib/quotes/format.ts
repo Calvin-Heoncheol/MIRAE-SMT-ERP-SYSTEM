@@ -22,13 +22,22 @@ export function formatUsdAmount(usd: number, fractionDigits = EXPORT_USD_FRACTIO
   })}`
 }
 
-/** 해외용 1페이지: 단가(2dp) × 수량 = 합계(2dp) 검산 일치 */
-export function exportPage1SummaryAmounts(grandTotalKrw: number, qty: number) {
+/** 합계 중 대당단가에 넣지 않는 일회성 금액(메탈마스크) — 0 ~ 합계 범위 */
+function clampOneTimeKrw(grandTotalKrw: number, oneTimeKrw: number) {
+  const total = Math.max(0, Number(grandTotalKrw) || 0)
+  return Math.min(total, Math.max(0, Math.round(Number(oneTimeKrw) || 0)))
+}
+
+/** 해외용 1페이지: 단가(2dp) × 수량 (+ 일회성) = 합계(2dp) 검산 일치 */
+export function exportPage1SummaryAmounts(grandTotalKrw: number, qty: number, oneTimeKrw = 0) {
+  const oneTime = clampOneTimeKrw(grandTotalKrw, oneTimeKrw)
   const totalUsdPrecise = krwToUsd(grandTotalKrw)
   const safeQty = qty || 1
-  const unitUsd = roundExportSummaryUsd(totalUsdPrecise / safeQty)
-  const totalUsd = roundExportSummaryUsd(unitUsd * safeQty)
-  return { unitUsd, totalUsd, totalUsdPrecise }
+  const unitUsd = roundExportSummaryUsd(krwToUsd((Number(grandTotalKrw) || 0) - oneTime) / safeQty)
+  const productTotalUsd = roundExportSummaryUsd(unitUsd * safeQty)
+  const oneTimeUsd = roundExportSummaryUsd(krwToUsd(oneTime))
+  const totalUsd = roundExportSummaryUsd(productTotalUsd + oneTimeUsd)
+  return { unitUsd, productTotalUsd, oneTimeUsd, totalUsd, totalUsdPrecise }
 }
 
 /** 해외용 1페이지 요약 금액 — 소수점 2자리 */
@@ -73,14 +82,20 @@ export function formatQuoteUsd(krw: number) {
 }
 
 /** 해외용 요약: 대당·합계 소수점 2자리 */
-export function exportSummaryFromKrw(grandTotalKrw: number, qty: number) {
-  const { unitUsd, totalUsd } = exportPage1SummaryAmounts(grandTotalKrw, qty)
+export function exportSummaryFromKrw(grandTotalKrw: number, qty: number, oneTimeKrw = 0) {
+  const { unitUsd, productTotalUsd, oneTimeUsd, totalUsd } = exportPage1SummaryAmounts(
+    grandTotalKrw,
+    qty,
+    oneTimeKrw,
+  )
 
   return {
     totalUsd,
     unitUsd,
     totalFormatted: formatExportSummaryUsd(totalUsd),
     unitFormatted: formatExportSummaryUsd(unitUsd),
+    productTotalFormatted: formatExportSummaryUsd(productTotalUsd),
+    oneTimeFormatted: oneTimeUsd > 0 ? formatExportSummaryUsd(oneTimeUsd) : null,
   }
 }
 
@@ -121,12 +136,17 @@ export function formatQuoteMoneyUnit(krw: number, _quoteType?: QuoteType) {
   return formatQuoteKrw(krw)
 }
 
-/** 국내용 대당·합계 요약 — 대당(원) 반올림 후 합계 = 대당 × 수량 */
-export function domesticPage1SummaryAmounts(grandTotalKrw: number, qty: number) {
+/**
+ * 국내용 대당·합계 요약 — 대당(원) 반올림 후 합계 = 대당 × 수량 + 일회성(메탈마스크).
+ * 메탈마스크는 대당단가에 포함하지 않는다.
+ */
+export function domesticPage1SummaryAmounts(grandTotalKrw: number, qty: number, oneTimeKrw = 0) {
   const safeQty = qty || 1
-  const unitKrw = roundDomesticKrw((Number(grandTotalKrw) || 0) / safeQty)
-  const totalKrw = unitKrw * safeQty
-  return { unitKrw, totalKrw }
+  const oneTime = clampOneTimeKrw(grandTotalKrw, oneTimeKrw)
+  const unitKrw = roundDomesticKrw(((Number(grandTotalKrw) || 0) - oneTime) / safeQty)
+  const productTotalKrw = unitKrw * safeQty
+  const totalKrw = productTotalKrw + oneTime
+  return { unitKrw, productTotalKrw, oneTimeKrw: oneTime, totalKrw }
 }
 
 /** 국내 부가세율 10% */
@@ -139,32 +159,74 @@ export function domesticVatBreakdown(supplyKrw: number) {
   return { supply, vat, totalIncl: supply + vat }
 }
 
+export type QuotePreviewSummary = {
+  unitFormatted: string
+  totalFormatted: string
+  /** 대당단가 × 수량 */
+  productTotalFormatted: string
+  /** 메탈마스크(일회성) — 없으면 null */
+  oneTimeFormatted: string | null
+  vatFormatted?: string
+  totalInclFormatted?: string
+}
+
 export function formatQuotePreviewSummary(
   grandTotalKrw: number,
   qty: number,
   quoteType: QuoteType,
   displayCurrency: QuoteDisplayCurrency = 'krw',
-) {
+  oneTimeKrw = 0,
+): QuotePreviewSummary {
   if (quoteType === 'export' && resolveQuoteDisplayCurrency(quoteType, displayCurrency) === 'usd') {
-    return exportSummaryFromKrw(grandTotalKrw, qty)
+    return exportSummaryFromKrw(grandTotalKrw, qty, oneTimeKrw)
+  }
+
+  const { unitKrw, productTotalKrw, oneTimeKrw: oneTime, totalKrw } = domesticPage1SummaryAmounts(
+    grandTotalKrw,
+    qty,
+    oneTimeKrw,
+  )
+  const base = {
+    unitFormatted: formatQuoteKrw(unitKrw),
+    totalFormatted: formatQuoteKrw(totalKrw),
+    productTotalFormatted: formatQuoteKrw(productTotalKrw),
+    oneTimeFormatted: oneTime > 0 ? formatQuoteKrw(oneTime) : null,
   }
 
   if (quoteType === 'domestic') {
-    const { unitKrw, totalKrw } = domesticPage1SummaryAmounts(grandTotalKrw, qty)
     const { vat, totalIncl } = domesticVatBreakdown(totalKrw)
     return {
-      unitFormatted: formatQuoteKrw(unitKrw),
-      totalFormatted: formatQuoteKrw(totalKrw),
+      ...base,
       vatFormatted: formatQuoteKrw(vat),
       totalInclFormatted: formatQuoteKrw(totalIncl),
     }
   }
 
-  const { unitKrw, totalKrw } = domesticPage1SummaryAmounts(grandTotalKrw, qty)
-  return {
-    unitFormatted: formatQuoteKrw(unitKrw),
-    totalFormatted: formatQuoteKrw(totalKrw),
-  }
+  return base
+}
+
+/** 저장된 견적의 메탈마스크(일회성) 금액 */
+export function quoteMetalMaskAmount(detailInfo?: {
+  amounts?: { subMaterialCost?: number }
+  settings?: { metalMaskCost?: number; includeMetalMask?: boolean }
+} | null) {
+  if (detailInfo?.settings?.includeMetalMask === false) return 0
+  const value = detailInfo?.amounts?.subMaterialCost ?? detailInfo?.settings?.metalMaskCost ?? 0
+  return Math.max(0, Math.round(Number(value) || 0))
+}
+
+/** 저장된 견적의 대당단가(원) — 메탈마스크 제외 */
+export function quoteUnitPriceKrw(quote: {
+  totalAmount: number
+  boardQty: number
+  detailInfo?: Parameters<typeof quoteMetalMaskAmount>[0]
+}) {
+  const qty = Math.max(1, Math.floor(Number(quote.boardQty) || 0) || 1)
+  return domesticPage1SummaryAmounts(
+    Number(quote.totalAmount) || 0,
+    qty,
+    quoteMetalMaskAmount(quote.detailInfo),
+  ).unitKrw
 }
 
 export function inferQuoteTypeFromNumber(quoteNumber: string): QuoteType {

@@ -1,11 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { MaterialManualInputPanel } from '@/components/materials/manual/material-manual-input-panel'
+import {
+  MaterialManualInputPanel,
+  type MaterialManualSaveInput,
+} from '@/components/materials/manual/material-manual-input-panel'
 import { MaterialManualOrderHistory } from '@/components/materials/manual/material-manual-order-history'
 import { ErpModal } from '@/components/ui/erp-modal'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
-import type { MaterialManualOrderMetrics } from '@/lib/materials/manual/types'
+import type {
+  MaterialManualHistoryKind,
+  MaterialManualOrderMetrics,
+} from '@/lib/materials/manual/types'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionProductName } from '@/lib/production-input/utils'
 
@@ -13,9 +19,11 @@ type MaterialManualModalProps = {
   open: boolean
   order: ProductionOrderLine | null
   metrics: MaterialManualOrderMetrics
+  kind: MaterialManualHistoryKind
+  onKindChange: (kind: MaterialManualHistoryKind) => void
   refreshing?: boolean
   onClose: () => void
-  onSave: (input: { recordDate: string; inboundQty: number }) => Promise<boolean>
+  onSave: (input: MaterialManualSaveInput) => Promise<boolean>
   onHistoryChanged?: () => void
 }
 
@@ -23,6 +31,8 @@ export function MaterialManualModal({
   open,
   order,
   metrics,
+  kind,
+  onKindChange,
   refreshing = false,
   onClose,
   onSave,
@@ -30,7 +40,11 @@ export function MaterialManualModal({
 }: MaterialManualModalProps) {
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
 
-  const title = order ? formatProductionProductName(order) : '자재 입고'
+  const title = order
+    ? formatProductionProductName(order)
+    : kind === 'inbound'
+      ? '자재 입고'
+      : '자재 불출'
   const description = order
     ? [
         order.customer || '—',
@@ -41,7 +55,7 @@ export function MaterialManualModal({
         .join(' · ')
     : undefined
 
-  async function handleSave(input: { recordDate: string; inboundQty: number }) {
+  async function handleSave(input: MaterialManualSaveInput) {
     const ok = await onSave(input)
     if (ok) {
       setHistoryRefreshKey((current) => current + 1)
@@ -65,6 +79,8 @@ export function MaterialManualModal({
           <MaterialManualInputPanel
             order={order}
             metrics={metrics}
+            kind={kind}
+            onKindChange={onKindChange}
             refreshing={refreshing}
             embedded
             onSave={handleSave}

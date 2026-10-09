@@ -2,12 +2,16 @@
 
 import { DeliveryDueBadge } from '@/components/ui/delivery-due-badge'
 import { EmptyListState } from '@/components/ui/empty-list-state'
-import { displayOrderPoNumber } from '@/lib/orders/utils'
-import type { MaterialManualOrderMetrics } from '@/lib/materials/manual/types'
+import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
+import type {
+  MaterialManualHistoryKind,
+  MaterialManualOrderMetrics,
+} from '@/lib/materials/manual/types'
 import {
   getMaterialInboundState,
   materialInboundFilterLabel,
   materialInboundProgressPercent,
+  materialOutboundProgressPercent,
   type MaterialInboundState,
 } from '@/lib/materials/manual/utils'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
@@ -29,7 +33,64 @@ type MaterialManualTableProps = {
   orders: ProductionOrderLine[]
   metricsByLineId: Record<string, MaterialManualOrderMetrics>
   emptyMessage?: string
-  onOrderClick?: (order: ProductionOrderLine) => void
+  onOrderClick?: (order: ProductionOrderLine, kind: MaterialManualHistoryKind) => void
+  expectedInboundByLineId?: Record<string, string>
+  /** 저장 중인 order_line_id */
+  savingExpectedLineIds?: Set<string>
+  onExpectedInboundChange?: (order: ProductionOrderLine, expectedDate: string) => void
+}
+
+function ExpectedInboundCell({
+  order,
+  value,
+  inboundComplete,
+  saving,
+  onChange,
+}: {
+  order: ProductionOrderLine
+  value: string
+  inboundComplete: boolean
+  saving: boolean
+  onChange?: (order: ProductionOrderLine, expectedDate: string) => void
+}) {
+  const deliveryYmd = String(order.deliveryDate || '').slice(0, 10)
+  const lateForDelivery = Boolean(value && deliveryYmd && value > deliveryYmd)
+  const overdue = Boolean(value && !inboundComplete && value < todayYmdSeoul())
+
+  if (inboundComplete && !value) {
+    return (
+      <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS} text-center`}>
+        <span className="text-xs text-slate-300">—</span>
+      </td>
+    )
+  }
+
+  const toneClass = lateForDelivery
+    ? 'border-rose-300 bg-rose-50 text-rose-800'
+    : overdue
+      ? 'border-amber-300 bg-amber-50 text-amber-800'
+      : value
+        ? 'border-slate-200 bg-white text-slate-800'
+        : 'border-dashed border-slate-300 bg-white text-slate-400'
+  const title = lateForDelivery
+    ? `예상입고일이 납기(${deliveryYmd})보다 늦습니다`
+    : overdue
+      ? '예상입고일이 지났는데 입고가 완료되지 않았습니다'
+      : '자재 예상입고일 — 선택하면 바로 저장됩니다'
+
+  return (
+    <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
+      <input
+        type="date"
+        value={value}
+        disabled={!onChange || saving}
+        onChange={(event) => onChange?.(order, event.target.value)}
+        title={title}
+        aria-label="예상입고일"
+        className={`w-[8.5rem] rounded-md border px-1.5 py-1 text-xs tabular-nums outline-none focus:ring-2 focus:ring-amber-200 disabled:opacity-60 ${toneClass}`}
+      />
+    </td>
+  )
 }
 
 function MiniProgress({
@@ -81,13 +142,18 @@ function ProgressCell({
     return <td className={`${ERP_TABLE_TD_CLASS} align-top`}>{content}</td>
   }
 
+  const hoverClass =
+    tone === 'amber'
+      ? 'hover:bg-amber-50 focus-visible:ring-amber-300'
+      : 'hover:bg-sky-50 focus-visible:ring-sky-300'
+
   return (
     <td className={`${ERP_TABLE_TD_CLASS} align-top`}>
       <button
         type="button"
         onClick={onClick}
         title={`${label} 클릭하여 등록`}
-        className="w-full rounded-lg px-1 py-0.5 text-left transition hover:bg-amber-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+        className={`w-full rounded-lg px-1 py-0.5 text-left transition focus:outline-none focus-visible:ring-2 ${hoverClass}`}
       >
         {content}
       </button>
@@ -100,6 +166,9 @@ export function MaterialManualTable({
   metricsByLineId,
   emptyMessage,
   onOrderClick,
+  expectedInboundByLineId = {},
+  savingExpectedLineIds,
+  onExpectedInboundChange,
 }: MaterialManualTableProps) {
   if (!orders.length) {
     return (
@@ -112,7 +181,7 @@ export function MaterialManualTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className={`${ERP_TABLE_CLASS} min-w-[840px]`}>
+        <table className={`${ERP_TABLE_CLASS} min-w-[1080px]`}>
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>발주서</th>
@@ -120,7 +189,9 @@ export function MaterialManualTable({
               <th className={ERP_TABLE_TH_CLASS}>제품</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>버전</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>납기</th>
+              <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>예상입고일</th>
               <th className={ERP_TABLE_TH_CLASS}>입고</th>
+              <th className={ERP_TABLE_TH_CLASS}>불출</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>상태</th>
             </tr>
           </thead>
@@ -137,8 +208,12 @@ export function MaterialManualTable({
               const inboundComplete = target > 0 && inboundSets >= target
               const inboundPercent = materialInboundProgressPercent(order, inboundSets)
               const inboundDetail = `${inboundSets.toLocaleString('ko-KR')} / ${target.toLocaleString('ko-KR')}`
+              const outboundSets = Math.max(0, Math.floor(metrics.outboundSets))
+              const outboundPercent = materialOutboundProgressPercent(inboundSets, outboundSets)
+              const outboundDetail = `${outboundSets.toLocaleString('ko-KR')} / ${inboundSets.toLocaleString('ko-KR')}`
               const { name, version } = formatProductionProductDisplay(order)
-              const openModal = onOrderClick ? () => onOrderClick(order) : undefined
+              const openInbound = onOrderClick ? () => onOrderClick(order, 'inbound') : undefined
+              const openOutbound = onOrderClick ? () => onOrderClick(order, 'outbound') : undefined
 
               return (
                 <tr key={order.uiKey} className={ERP_TABLE_ROW_CLASS}>
@@ -168,12 +243,26 @@ export function MaterialManualTable({
                   <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
                     <DeliveryDueBadge deliveryDate={order.deliveryDate} done={inboundComplete} />
                   </td>
+                  <ExpectedInboundCell
+                    order={order}
+                    value={expectedInboundByLineId[order.orderLineId] ?? ''}
+                    inboundComplete={inboundComplete}
+                    saving={savingExpectedLineIds?.has(order.orderLineId) ?? false}
+                    onChange={onExpectedInboundChange}
+                  />
                   <ProgressCell
                     percent={inboundPercent}
                     tone="amber"
                     detail={inboundDetail}
                     label="입고"
-                    onClick={openModal}
+                    onClick={openInbound}
+                  />
+                  <ProgressCell
+                    percent={outboundPercent}
+                    tone="sky"
+                    detail={outboundDetail}
+                    label="불출"
+                    onClick={openOutbound}
                   />
                   <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
                     <span

@@ -214,13 +214,23 @@ export function ProductionPlanSmtWeekCalendar({
                       {efficiency ? (
                         <p
                           className={`rounded bg-slate-50 px-1 py-0.5 text-[11px] font-semibold tabular-nums ${efficiencyToneClass(efficiency.percent)}`}
-                          title={efficiencyTitle(efficiency, capacity)}
+                          title={
+                            efficiencyTitle(efficiency, capacity) +
+                            (load.quantity > 0
+                              ? ''
+                              : '\n이 칸에 생산계획은 없고 생산실적만 입력되어 있습니다.')
+                          }
                         >
-                          실적 {formatSmtPoints(efficiency.points)}점
+                          {efficiency.points > 0
+                            ? `실적 ${formatSmtPoints(efficiency.points)}점`
+                            : `실적 ${efficiency.producedQty.toLocaleString('ko-KR')}EA`}
                           {efficiency.percent != null ? ` · 효율 ${efficiency.percent}%` : ''}
                           {efficiency.missingPointsQty > 0 ? (
                             <span className="text-amber-600"> · 점수미등록</span>
                           ) : null}
+                          {load.quantity > 0 ? null : (
+                            <span className="font-normal text-slate-400"> · 계획없음</span>
+                          )}
                         </p>
                       ) : null}
                       {load.quantity > 0 ? (

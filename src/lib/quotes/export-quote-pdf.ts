@@ -641,10 +641,15 @@ function buildQuoteSummaryTableHtml(
   language?: QuoteDocumentLanguage,
 ) {
   const qty = estimate.qty || 1
-  const page1Amounts = domesticPage1SummaryAmounts(estimate.values.grandTotal, qty)
+  const page1Amounts = domesticPage1SummaryAmounts(
+    estimate.values.grandTotal,
+    qty,
+    estimate.values.metalMask,
+  )
   const page1Domestic = quote.quoteType === 'domestic' ? page1Amounts : null
   const unitPriceText = formatQuoteKrw(page1Amounts.unitKrw)
   const totalText = formatQuoteKrw(page1Amounts.totalKrw)
+  const productTotalText = formatQuoteKrw(page1Amounts.productTotalKrw)
   const labelType = pdfLabelType(quote, language)
   const lang = pdfLang(quote, language)
   const labels = getPreviewLabels(labelType)
@@ -677,7 +682,16 @@ function buildQuoteSummaryTableHtml(
       )
 
   const displayUnitText = unitPriceText
-  const displayTotalText = totalText
+  const displayTotalText = productTotalText
+  const metalMaskRowHtml =
+    page1Amounts.oneTimeKrw > 0
+      ? `<tr>
+          <td>${escapeHtml(pdfText(lang, '메탈마스크 (일회성)', 'Metal Mask (one-time)', '钢网 (一次性)'))}</td>
+          <td>-</td>
+          <td>${escapeHtml(pdfText(lang, '1식', '1 lot', '1套'))}</td>
+          <td class="summary-row-total">${formatQuoteKrw(page1Amounts.oneTimeKrw)}</td>
+        </tr>`
+      : ''
   let supplyText = totalText
   let vatText = ''
   let grandText = totalText
@@ -718,6 +732,7 @@ function buildQuoteSummaryTableHtml(
           <td>${escapeHtml(qtyText)}</td>
           <td class="summary-row-total">${displayTotalText}</td>
         </tr>
+        ${metalMaskRowHtml}
       </tbody>
     </table>
     ${vatBreakdownHtml}

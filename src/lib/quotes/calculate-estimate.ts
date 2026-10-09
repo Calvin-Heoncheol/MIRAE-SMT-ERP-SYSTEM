@@ -41,12 +41,17 @@ function readSmtBoardComponentFields(board: Partial<SmtPcbBoard>): SmtComponentF
   }
 }
 
+/** SMD 항목(CHIP·ODD 등) 대당 금액 — 견적서 행 표시와 합계가 일치하도록 항목별 원 단위 반올림 */
+export function smtLineAmount(count: number, rate: number) {
+  return Math.round((Number(count) || 0) * rate)
+}
+
 function computeSmtChipOddLabor(
   input: SmtComponentFields,
   quoteType: QuoteType = 'export',
 ) {
   const rates = getSmtUnitRates(quoteType)
-  return (Number(input.chip) || 0) * rates.chip + (Number(input.smtOdd) || 0) * rates.odd
+  return smtLineAmount(input.chip, rates.chip) + smtLineAmount(input.smtOdd, rates.odd)
 }
 
 function computeSmtOtherLabor(
@@ -55,9 +60,9 @@ function computeSmtOtherLabor(
 ) {
   const rates = getSmtUnitRates(quoteType)
   return (
-    (Number(input.smtSpecial) || 0) * rates.special +
-    (Number(input.icPin) || 0) * rates.icPin +
-    (Number(input.bga) || 0) * rates.bgaBall
+    smtLineAmount(input.smtSpecial, rates.special) +
+    smtLineAmount(input.icPin, rates.icPin) +
+    smtLineAmount(input.bga, rates.bgaBall)
   )
 }
 
@@ -79,18 +84,7 @@ function computeSmtChipTotal(
   input: SmtComponentFields,
   quoteType: QuoteType = 'export',
 ) {
-  const rates = getSmtUnitRates(quoteType)
-  const chip = Number(input.chip) || 0
-  const smtOdd = Number(input.smtOdd) || 0
-  const smtSpecial = Number(input.smtSpecial) || 0
-
-  return (
-    chip * rates.chip +
-    smtOdd * rates.odd +
-    smtSpecial * rates.special +
-    (Number(input.icPin) || 0) * rates.icPin +
-    (Number(input.bga) || 0) * rates.bgaBall
-  )
+  return computeSmtChipOddLabor(input, quoteType) + computeSmtOtherLabor(input, quoteType)
 }
 
 function hasSmtComponentInputs(input: SmtComponentFields) {
@@ -149,17 +143,36 @@ export function computeSmtSetupBillingMinutes(
   return computeSmtSetupBillingBreakdown(partCount, smtSide, quoteType).totalMinutes
 }
 
-function computeSmtSetup(partCount: number, quoteType: QuoteType, smtSide: SmtSide | 'single' | 'double') {
+/** 발주 1회 금액의 대당(원) — 견적서 행 표시와 동일한 반올림 */
+export function orderLevelPerUnit(amount: number, qty: number) {
+  return Math.round((Number(amount) || 0) / (qty || 1))
+}
+
+/**
+ * SET-UP 금액 = (기본시간·초품검사·SETTING 항목별 대당 원 반올림 합) × 수량.
+ * 견적서에 보이는 항목별 대당 금액의 합이 대당단가·합계와 1원도 어긋나지 않게 한다.
+ */
+function computeSmtSetup(
+  partCount: number,
+  quoteType: QuoteType,
+  smtSide: SmtSide | 'single' | 'double',
+  qty: number,
+) {
   const count = Math.max(0, Math.floor(Number(partCount) || 0))
   if (count <= 0) {
     return { setupMinutes: 0, setupAmount: 0, setupMinApplied: false, setupRate: 0 }
   }
 
-  const setupMinutes = computeSmtSetupBillingMinutes(count, smtSide, quoteType)
+  const breakdown = computeSmtSetupBillingBreakdown(count, smtSide, quoteType)
   const setupRate = getSmtSetupRate(quoteType)
+  const safeQty = qty || 1
+  const setupPerUnit =
+    orderLevelPerUnit(breakdown.baseMinutes * setupRate, safeQty) +
+    orderLevelPerUnit(breakdown.firstArticleMinutes * setupRate, safeQty) +
+    orderLevelPerUnit(breakdown.settingMinutes * setupRate, safeQty)
   return {
-    setupMinutes,
-    setupAmount: setupMinutes * setupRate,
+    setupMinutes: breakdown.totalMinutes,
+    setupAmount: setupPerUnit * safeQty,
     setupMinApplied: true,
     setupRate,
   }
@@ -274,7 +287,11 @@ function computeDipBoardUnit(board: DipPcbBoard) {
   )
 }
 
-export function aggregateSmtFromPcbBoards(pcbBoards: SmtPcbBoard[], quoteType: QuoteType = 'export') {
+export function aggregateSmtFromPcbBoards(
+  pcbBoards: SmtPcbBoard[],
+  quoteType: QuoteType = 'export',
+  qty = 1,
+) {
   let laborUnit = 0
   let laborRaw = 0
   let laborMinAdj = 0
@@ -295,7 +312,7 @@ export function aggregateSmtFromPcbBoards(pcbBoards: SmtPcbBoard[], quoteType: Q
 
     const smtSide = toBillingSmtSide(board.smtSide)
     const partCount = getSmtSetupPartCount(board)
-    const setup = computeSmtSetup(partCount, quoteType, smtSide)
+    const setup = computeSmtSetup(partCount, quoteType, smtSide, qty)
     const setupMinutes = setup.setupMinutes
     const setupAmt = setup.setupAmount
     const setupMinApplied = setup.setupMinApplied
@@ -375,7 +392,7 @@ export function calculateEstimate(
     : '저장 시 MRQ-YYMMDD-NN 자동 발급'
 
   const pcbBoards = normalizeSmtPcbBoards(data)
-  const smtAgg = aggregateSmtFromPcbBoards(pcbBoards, quoteType)
+  const smtAgg = aggregateSmtFromPcbBoards(pcbBoards, quoteType, qty || 1)
   const smtUnit = smtAgg.smtLaborUnit
   const smtSetupAmount = smtAgg.smtSetupAmount
   const setupPartCount = smtAgg.setupPartCount
@@ -401,7 +418,9 @@ export function calculateEstimate(
           computeMetalMaskCostTotal(pcbBoards, true, normalizeMetalMaskSide(data.metalMaskSide)),
       )
     : 0
-  const sampleCostTotal = computeSampleCostTotal(qty, pcbBoards, data.productionKind)
+  const sampleCostTotal =
+    orderLevelPerUnit(computeSampleCostTotal(qty, pcbBoards, data.productionKind), qty || 1) *
+    (qty || 1)
 
   const matTotalRaw = matUnit * qty
   const smtPlacementTotal = smtUnit * qty + smtInspectionPerUnit * qty
@@ -434,9 +453,10 @@ export function calculateEstimate(
   if (specialDiscount > subtotalBeforeDiscount) specialDiscount = subtotalBeforeDiscount
   const rawGrandTotal = subtotalBeforeDiscount - specialDiscount
   const safeQty = qty || 1
-  /** 견적 면 금액: 대당(원) 반올림 × 수량 = 합계 — 표시·저장·단가 일치 */
-  const unitTotal = Math.round(rawGrandTotal / safeQty)
-  const grandTotal = unitTotal * safeQty
+  /** 대당(원) 반올림 × 수량 + 메탈마스크(일회성, 대당단가 미포함) = 합계 */
+  const metalMaskInTotal = Math.min(metalMaskTotal, Math.max(0, rawGrandTotal))
+  const unitTotal = Math.round((rawGrandTotal - metalMaskInTotal) / safeQty)
+  const grandTotal = unitTotal * safeQty + metalMaskInTotal
 
   return {
     estNo: quoteNumber,
@@ -451,6 +471,8 @@ export function calculateEstimate(
       specialDiscount,
       subtotalBeforeDiscount,
       grandTotal,
+      unitPrice: unitTotal,
+      metalMask: metalMaskInTotal,
     },
     common: {
       smtSetup: smtSetupAmount,
