@@ -199,6 +199,8 @@ export function mapItemRecord(row: {
   smt_quote_parts?: unknown
   baseline_quote_id?: string | null
   safety_stock?: number | null
+  smd_billing_code?: string | null
+  post_billing_code?: string | null
   item_category: number | string
   is_active: boolean
   created_at: string
@@ -266,6 +268,8 @@ export function mapItemRecord(row: {
     baselineQuoteId: isProduct ? String(row.baseline_quote_id || '').trim() : '',
     itemCategory,
     safetyStock,
+    smdBillingCode: itemCategory === 3 ? String(row.smd_billing_code || '').trim() : '',
+    postBillingCode: itemCategory === 3 ? String(row.post_billing_code || '').trim() : '',
     isActive: row.is_active !== false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -467,6 +471,8 @@ export function itemFromPayload(
     baselineQuoteId: String(payload.baselineQuoteId || '').trim(),
     itemCategory: payload.itemCategory,
     safetyStock: payload.safetyStock,
+    smdBillingCode: String(payload.smdBillingCode || '').trim(),
+    postBillingCode: String(payload.postBillingCode || '').trim(),
     isActive: options?.isActive !== false,
     createdAt: options?.createdAt || now,
     updatedAt: options?.updatedAt || now,
@@ -479,6 +485,8 @@ export function itemSearchHaystack(item: Item) {
     item.baseCode,
     item.customerName,
     item.customerId,
+    item.smdBillingCode,
+    item.postBillingCode,
     item.version,
     item.name,
     item.specification,

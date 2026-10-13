@@ -1,11 +1,7 @@
 'use client'
 
-import { useMemo, useState, type DragEvent } from 'react'
+import { useMemo } from 'react'
 import { ProductionPlanBoardCard } from '@/components/production-plan/production-plan-board-card'
-import {
-  readProductionPlanDragPayloadFromDataTransfer,
-  type ProductionPlanDragPayload,
-} from '@/lib/production-plan/config'
 import {
   PRODUCTION_PLAN_DAY_CAPACITY_HOURS,
   formatCellLoadLabel,
@@ -25,11 +21,11 @@ type ProductionPlanPostWeekCalendarProps = {
   weekDates: string[]
   scheduledRows: ProductionPlanBoardRow[]
   onSelectRow?: (row: ProductionPlanBoardRow) => void
-  onEmptyCellClick?: (target: { plannedDate: string; team: PostProcessTeam }) => void
-  onDropOrder?: (
-    payload: ProductionPlanDragPayload,
-    target: { plannedDate: string; team: PostProcessTeam },
-  ) => void
+  /** 있으면 칸 클릭으로 발주 배정 */
+  onCellClick?: (target: { plannedDate: string; team: PostProcessTeam }) => void
+  onStartMove?: (row: ProductionPlanBoardRow) => void
+  /** 이동 모드 — 카드 클릭도 칸 클릭으로 처리 */
+  movingRowKey?: string | null
 }
 
 function cellKey(plannedDate: string, team: string) {
@@ -40,11 +36,12 @@ export function ProductionPlanPostWeekCalendar({
   weekDates,
   scheduledRows,
   onSelectRow,
-  onEmptyCellClick,
-  onDropOrder,
+  onCellClick,
+  onStartMove,
+  movingRowKey = null,
 }: ProductionPlanPostWeekCalendarProps) {
+  const moving = Boolean(movingRowKey)
   const today = todayYmdSeoul()
-  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
 
   const rowsByCell = useMemo(() => {
     const map = new Map<string, ProductionPlanBoardRow[]>()
@@ -62,22 +59,6 @@ export function ProductionPlanPostWeekCalendar({
     }
     return map
   }, [scheduledRows, weekDates])
-
-  function handleDragOver(event: DragEvent, key: string) {
-    if (!onDropOrder) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'copy'
-    setDragOverKey(key)
-  }
-
-  function handleDrop(event: DragEvent, plannedDate: string, team: PostProcessTeam) {
-    if (!onDropOrder) return
-    event.preventDefault()
-    setDragOverKey(null)
-    const payload = readProductionPlanDragPayloadFromDataTransfer(event.dataTransfer)
-    if (!payload || payload.scope !== 'post') return
-    onDropOrder(payload, { plannedDate, team })
-  }
 
   return (
     <div className="min-h-0 flex-1 overflow-auto bg-white">
@@ -128,23 +109,24 @@ export function ProductionPlanPostWeekCalendar({
                 )
                 const load = summarizeCellLoad(loadRows)
                 const isToday = plannedDate === today
-                const isDropTarget = dragOverKey === key
 
                 return (
                   <td
                     key={key}
-                    className={`min-h-[110px] border-r align-top p-1.5 last:border-r-0 ${
-                      isDropTarget
-                        ? 'border-violet-300 bg-violet-100 ring-2 ring-inset ring-violet-400'
-                        : load.overCapacity
-                          ? 'border-rose-200 bg-rose-50/60'
-                          : isToday
-                            ? 'border-violet-200 bg-violet-50/70'
-                            : 'border-slate-100'
+                    className={`group min-h-[110px] border-r align-top p-1.5 last:border-r-0 ${
+                      load.overCapacity
+                        ? 'border-rose-200 bg-rose-50/60'
+                        : isToday
+                          ? 'border-violet-200 bg-violet-50/70'
+                          : 'border-slate-100'
+                    } ${
+                      onCellClick
+                        ? moving
+                          ? 'cursor-copy hover:bg-amber-50'
+                          : 'cursor-pointer hover:bg-violet-50'
+                        : ''
                     }`}
-                    onDragOver={(event) => handleDragOver(event, key)}
-                    onDragLeave={() => setDragOverKey((current) => (current === key ? null : current))}
-                    onDrop={(event) => handleDrop(event, plannedDate, team)}
+                    onClick={onCellClick ? () => onCellClick({ plannedDate, team }) : undefined}
                   >
                     <div className="flex min-h-[96px] flex-col gap-1">
                       {load.quantity > 0 ? (
@@ -167,37 +149,26 @@ export function ProductionPlanPostWeekCalendar({
                           key={row.key}
                           row={row}
                           tone="post"
-                          onSelect={onSelectRow}
-                          draggable={Boolean(onDropOrder)}
+                          onSelect={
+                            moving ? () => onCellClick?.({ plannedDate, team }) : onSelectRow
+                          }
                           spanDay={row.plannedDate.slice(0, 10) !== plannedDate}
+                          highlighted={row.key === movingRowKey}
+                          onStartMove={moving ? undefined : onStartMove}
                         />
                       ))}
-                      {cellRows.length === 0 ? (
-                        onDropOrder ? (
-                          <div
-                            className={`flex flex-1 items-center justify-center rounded-lg border border-dashed px-1 py-6 text-[11px] transition ${
-                              isDropTarget
-                                ? 'border-violet-400 bg-violet-50 text-violet-700'
-                                : 'border-slate-200 text-slate-400'
-                            }`}
-                          >
-                            {isDropTarget ? '여기에 놓기' : '끌어다 놓기'}
-                          </div>
-                        ) : (
-                          <div className="min-h-[48px] flex-1" />
-                        )
-                      ) : isDropTarget ? (
-                        <div className="rounded-md border border-dashed border-violet-400 bg-violet-50 px-1 py-2 text-center text-[11px] font-semibold text-violet-700">
-                          여기에 추가
-                        </div>
-                      ) : onEmptyCellClick ? (
-                        <button
-                          type="button"
-                          onClick={() => onEmptyCellClick({ plannedDate, team })}
-                          className="rounded-md border border-dashed border-slate-200 px-1 py-1.5 text-center text-[11px] text-slate-400 hover:border-violet-300 hover:bg-violet-50/50 hover:text-violet-700"
+                      {onCellClick ? (
+                        <div
+                          className={`flex items-center justify-center rounded-md border border-dashed px-1 text-[11px] ${
+                            moving
+                              ? 'border-amber-200 text-amber-500 group-hover:border-amber-400 group-hover:text-amber-700'
+                              : 'border-slate-200 text-slate-400 group-hover:border-violet-300 group-hover:text-violet-700'
+                          } ${cellRows.length === 0 ? 'flex-1 py-6' : 'py-1.5'}`}
                         >
-                          + 배정
-                        </button>
+                          {moving ? '여기로 이동' : '+ 배정'}
+                        </div>
+                      ) : cellRows.length === 0 ? (
+                        <div className="min-h-[48px] flex-1" />
                       ) : null}
                     </div>
                   </td>

@@ -67,7 +67,6 @@ export function ProductionInputPlanCalendarPanel({
         <ProductionPlanSmtWeekCalendar
           weekDates={weekDates}
           scheduledRows={scheduledRows}
-          cardDraggable={false}
           onSelectRow={onSelectPlan}
         />
       )}

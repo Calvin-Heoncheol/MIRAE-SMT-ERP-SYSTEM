@@ -1,10 +1,5 @@
 'use client'
 
-import type { DragEvent } from 'react'
-import {
-  SHARED_PRODUCTION_PLAN_DRAG_MIME,
-  type ProductionPlanDragPayload,
-} from '@/lib/production-plan/config'
 import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
 import { formatPlanPcbSideBadge, pcbSideChipClass } from '@/lib/products/utils'
 import type { ProductionPlanBoardRow } from '@/lib/production-plan/types'
@@ -14,16 +9,11 @@ type ProductionPlanBoardCardProps = {
   row: ProductionPlanBoardRow
   tone: 'smt' | 'post'
   onSelect?: (row: ProductionPlanBoardRow) => void
-  draggable?: boolean
   /** 다일 계획에서 오늘 칸이 시작일이 아닐 때 */
   spanDay?: boolean
-}
-
-function setDragPayload(event: DragEvent, payload: ProductionPlanDragPayload) {
-  const raw = JSON.stringify(payload)
-  event.dataTransfer.setData(SHARED_PRODUCTION_PLAN_DRAG_MIME, raw)
-  event.dataTransfer.setData('text/plain', raw)
-  event.dataTransfer.effectAllowed = 'copy'
+  /** 이동 중인 카드 강조 */
+  highlighted?: boolean
+  onStartMove?: (row: ProductionPlanBoardRow) => void
 }
 
 /** 주간 보드에 올라간 확정(배정) 카드 */
@@ -31,8 +21,9 @@ export function ProductionPlanBoardCard({
   row,
   tone,
   onSelect,
-  draggable = true,
   spanDay = false,
+  highlighted = false,
+  onStartMove,
 }: ProductionPlanBoardCardProps) {
   const orderLabel =
     displayOrderPoNumber(row.customerPoNumber, row.orderNumber) || row.orderNumber || '—'
@@ -44,9 +35,6 @@ export function ProductionPlanBoardCard({
         splitPcbSides: row.splitPcbSides,
       })
     : null
-  const deliveryShort = row.deliveryDate?.trim()
-    ? row.deliveryDate.trim().slice(5).replace('-', '/')
-    : ''
   const planned = Math.max(0, Math.round(Number(row.plannedQuantity) || 0))
   const produced = Math.max(0, Math.round(Number(row.planProducedQty) || 0))
   const endDate = (row.plannedEndDate || row.plannedDate).slice(0, 10)
@@ -55,43 +43,68 @@ export function ProductionPlanBoardCard({
   const multiDay =
     Boolean(row.plannedEndDate) &&
     row.plannedEndDate!.slice(0, 10) !== row.plannedDate.slice(0, 10)
+  const tooltip = [
+    `발주 ${orderLabel}`,
+    row.customer ? `고객사 ${row.customer}` : '',
+    `모델 ${row.productName || '—'}`,
+    `계획 ${planned.toLocaleString('ko-KR')}EA`,
+    multiDay
+      ? `기간 ${row.plannedDate.slice(5, 10).replace('-', '/')}–${endDate.slice(5).replace('-', '/')}`
+      : '',
+    row.deliveryDate?.trim() ? `납기 ${row.deliveryDate.trim().slice(0, 10)}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
 
   return (
-    <button
-      type="button"
-      draggable={draggable}
-      onDragStart={(event) => {
-        if (!draggable) return
-        setDragPayload(event, {
-          kind: 'order',
-          key: row.key,
-          scope: row.scope,
-        })
+    <div
+      role="button"
+      tabIndex={0}
+      title={tooltip}
+      onClick={(event) => {
+        event.stopPropagation()
+        onSelect?.(row)
       }}
-      onClick={() => onSelect?.(row)}
-      className={`w-full rounded-md border px-1.5 py-1.5 text-left text-[11px] leading-snug shadow-sm transition hover:brightness-95 ${
-        draggable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
-      } ${
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        event.stopPropagation()
+        onSelect?.(row)
+      }}
+      className={`group/card relative w-full min-w-0 cursor-pointer rounded-md border border-l-4 py-1.5 pl-2 pr-1.5 text-left leading-tight text-slate-900 shadow-sm transition hover:shadow ${
+        highlighted ? 'animate-pulse ring-2 ring-amber-400 ring-offset-1' : ''
+      } ${isLate ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-white hover:bg-slate-50'} ${
         isLate
-          ? 'border-rose-300 bg-rose-50 text-rose-950'
+          ? 'border-l-rose-500'
           : sideLabel === 'TOP'
-            ? 'border-sky-300 bg-sky-50 text-sky-950'
+            ? 'border-l-sky-500'
             : sideLabel === 'BOT'
-              ? 'border-indigo-300 bg-indigo-50 text-indigo-950'
+              ? 'border-l-indigo-500'
               : sideLabel === 'DOUBLE'
-                ? 'border-amber-300 bg-amber-50 text-amber-950'
+                ? 'border-l-amber-500'
                 : isSmt
-                  ? 'border-sky-200 bg-sky-50 text-sky-900'
-                  : 'border-violet-200 bg-violet-50 text-violet-900'
+                  ? 'border-l-sky-400'
+                  : 'border-l-violet-400'
       }`}
     >
-      <div className="flex items-center gap-1">
-        <p className="min-w-0 flex-1 truncate font-mono text-[11px] font-semibold opacity-80">
-          {orderLabel}
-        </p>
+      {onStartMove ? (
+        <button
+          type="button"
+          title="다른 날짜·라인으로 이동"
+          onClick={(event) => {
+            event.stopPropagation()
+            onStartMove(row)
+          }}
+          className="absolute right-1 top-1 rounded border border-current/20 bg-white px-1 text-[10px] font-semibold opacity-0 shadow-sm transition hover:bg-slate-50 group-hover/card:opacity-100 focus:opacity-100"
+        >
+          이동
+        </button>
+      ) : null}
+      <p className="truncate text-xs font-bold tracking-tight">{row.productName || '—'}</p>
+      <div className="mt-1 flex min-w-0 items-center gap-1.5 tabular-nums">
         {sideLabel ? (
           <span
-            className={`${ERP_BOARD_CHIP_CLASS} ${
+            className={`${ERP_BOARD_CHIP_CLASS} shrink-0 ${
               sideLabel === 'DOUBLE'
                 ? 'bg-amber-100 text-amber-800'
                 : pcbSideChipClass(sideLabel)
@@ -100,31 +113,12 @@ export function ProductionPlanBoardCard({
             {sideLabel}
           </span>
         ) : null}
-        {isLate ? (
-          <span className={`${ERP_BOARD_CHIP_CLASS} bg-rose-100 text-rose-800`}>지연</span>
-        ) : null}
-      </div>
-      <div className="mt-0.5 flex min-w-0 items-center gap-1">
-        <p className="min-w-0 flex-1 truncate font-semibold">{row.productName || '—'}</p>
-      </div>
-      <div className="mt-1 flex items-baseline justify-between gap-1 tabular-nums opacity-90">
-        <span>
-          계획 <strong>{planned.toLocaleString('ko-KR')}</strong>
-          {planned > 0 ? (
-            <span className="opacity-80">
-              {' '}
-              · 실적 {produced.toLocaleString('ko-KR')}
-            </span>
-          ) : null}
+        <span className="truncate">
+          <span className="text-sm font-extrabold">{planned.toLocaleString('ko-KR')}</span>
+          <span className="ml-0.5 text-[10px] font-medium text-slate-500">EA</span>
+          {spanDay ? <span className="ml-1 text-[10px] text-slate-400">연속</span> : null}
         </span>
-        {deliveryShort ? <span className="truncate text-[11px] opacity-80">납기 {deliveryShort}</span> : null}
       </div>
-      {multiDay ? (
-        <p className="mt-0.5 truncate text-[10px] opacity-70">
-          {row.plannedDate.slice(5).replace('-', '/')}–{endDate.slice(5).replace('-', '/')}
-          {spanDay ? ' · 연속' : ''}
-        </p>
-      ) : null}
-    </button>
+    </div>
   )
 }

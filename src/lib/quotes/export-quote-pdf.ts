@@ -18,7 +18,9 @@ import {
   formatQuoteKrw,
   formatQuoteUsd,
   formatQuoteValidityText,
+  krwToUsd,
   resolveQuoteDisplayCurrency,
+  withDomesticVat,
 } from './format'
 import {
   breakdownSmdGroupTitle,
@@ -50,6 +52,12 @@ import {
 } from './preview-rows'
 import type { QuoteDisplayCurrency, QuoteListItem, QuoteType } from './types'
 import { escapeHtml } from '@/lib/print/escape-html'
+import {
+  processBillingPartName,
+  splitAmountByProcess,
+  type ProcessBillingCodes,
+} from '@/lib/items/process-billing'
+import { buildItemPriceBreakdownFromQuote } from './quote-to-item'
 
 export type ExportQuotePdfOptions = {
   /** 국내용도 영문 문구로 PDF 출력 가능 */
@@ -58,6 +66,14 @@ export type ExportQuotePdfOptions = {
   contactEmail?: string
   /** 해외 견적 금액 표시 통화 (국내 견적은 항상 원화) */
   displayCurrency?: QuoteDisplayCurrency
+  /** 품목 id → 공정별 분리 청구 코드. 연결 품목에 코드가 있으면 견적 금액을 SMD / 후공정 두 줄로 */
+  processBillingCodesByItemId?: Map<string, ProcessBillingCodes>
+}
+
+function resolveQuoteProcessBillingCodes(quote: QuoteListItem, options?: ExportQuotePdfOptions) {
+  const productId = String(quote.detailInfo?.settings?.productId || '').trim()
+  if (!productId) return null
+  return options?.processBillingCodesByItemId?.get(productId) ?? null
 }
 
 /** 현재 렌더링 중인 견적의 표시 통화 — buildQuotePages 동안만 유효 */
@@ -639,6 +655,7 @@ function buildQuoteSummaryTableHtml(
   quote: QuoteListItem,
   estimate: ReturnType<typeof buildQuotePreviewData>['estimate'],
   language?: QuoteDocumentLanguage,
+  processBillingCodes?: ProcessBillingCodes | null,
 ) {
   const qty = estimate.qty || 1
   const includeVat = quote.quoteType === 'domestic' && quote.detailInfo.settings?.includeVat === true
@@ -705,10 +722,60 @@ function buildQuoteSummaryTableHtml(
 
   const displayUnitText = unitPriceText
   const displayTotalText = productTotalText
+  const mainRowsHtml = processBillingCodes
+    ? (() => {
+        const postSupplyKrw = buildItemPriceBreakdownFromQuote(quote).dipUnitPrice
+        let rows: Record<'smd' | 'post', { unit: string; amount: string }>
+        if (usdAmounts) {
+          const roundUsd = (usd: number) => Math.round(usd * 100) / 100
+          const postUnit = Math.min(usdAmounts.unitUsd, roundUsd(krwToUsd(postSupplyKrw)))
+          const postAmount = Math.min(usdAmounts.productTotalUsd, roundUsd(postUnit * qty))
+          rows = {
+            smd: {
+              unit: formatExportSummaryUsd(usdAmounts.unitUsd - postUnit),
+              amount: formatExportSummaryUsd(usdAmounts.productTotalUsd - postAmount),
+            },
+            post: {
+              unit: formatExportSummaryUsd(postUnit),
+              amount: formatExportSummaryUsd(postAmount),
+            },
+          }
+        } else {
+          const split = splitAmountByProcess({
+            qty,
+            unitPrice: page1Amounts.unitKrw,
+            amount: page1Amounts.productTotalKrw,
+            postUnitPrice: includeVat ? withDomesticVat(postSupplyKrw) : postSupplyKrw,
+          })
+          rows = {
+            smd: { unit: formatQuoteKrw(split.smd.unitPrice), amount: formatQuoteKrw(split.smd.amount) },
+            post: { unit: formatQuoteKrw(split.post.unitPrice), amount: formatQuoteKrw(split.post.amount) },
+          }
+        }
+        const partLanguage = lang === 'ko' ? 'ko' : 'en'
+        return (['smd', 'post'] as const)
+          .map((part) => {
+            const code = part === 'smd' ? processBillingCodes.smdCode : processBillingCodes.postCode
+            const name = processBillingPartName(productName, part, partLanguage)
+            return `<tr class="summary-main-row">
+          <td>${escapeHtml(`${name} [${code}]`)}</td>
+          <td>${rows[part].unit}</td>
+          <td>${escapeHtml(qtyText)}</td>
+          <td class="summary-row-total">${rows[part].amount}</td>
+        </tr>`
+          })
+          .join('')
+      })()
+    : `<tr class="summary-main-row">
+          <td>${escapeHtml(productName)}</td>
+          <td>${displayUnitText}</td>
+          <td>${escapeHtml(qtyText)}</td>
+          <td class="summary-row-total">${displayTotalText}</td>
+        </tr>`
   const metalMaskRowHtml =
     page1Amounts.oneTimeKrw > 0
       ? `<tr>
-          <td>${escapeHtml(pdfText(lang, '메탈마스크 (일회성)', 'Metal Mask (one-time)', '钢网 (一次性)'))}</td>
+          <td>${escapeHtml(pdfText(lang, '메탈마스크 (일회성)', 'SMT Stencil (one-time)', '钢网 (一次性)'))}</td>
           <td>-</td>
           <td>${escapeHtml(pdfText(lang, '1식', '1 lot', '1套'))}</td>
           <td class="summary-row-total">${oneTimeText}</td>
@@ -728,12 +795,7 @@ function buildQuoteSummaryTableHtml(
         </tr>
       </thead>
       <tbody>
-        <tr class="summary-main-row">
-          <td>${escapeHtml(productName)}</td>
-          <td>${displayUnitText}</td>
-          <td>${escapeHtml(qtyText)}</td>
-          <td class="summary-row-total">${displayTotalText}</td>
-        </tr>
+        ${mainRowsHtml}
         ${metalMaskRowHtml}
       </tbody>
     </table>
@@ -794,6 +856,7 @@ function buildQuoteSummaryPage(
   quote: QuoteListItem,
   language?: QuoteDocumentLanguage,
   contactEmail?: string,
+  processBillingCodes?: ProcessBillingCodes | null,
 ) {
   const { estimate, labelType } = buildQuotePreviewData(quote, { labelLanguage: language })
   const labels = getPreviewLabels(labelType)
@@ -801,7 +864,7 @@ function buildQuoteSummaryPage(
   return `<section class="quote-page quote-page-summary">
     <div class="quote-card quote-card-summary">
       ${buildQuoteSummaryMetaHtml(quote, estimate, labels.title, language, contactEmail)}
-      ${buildQuoteSummaryTableHtml(quote, estimate, language)}
+      ${buildQuoteSummaryTableHtml(quote, estimate, language, processBillingCodes)}
     </div>
   </section>`
 }
@@ -810,9 +873,10 @@ function buildQuotePages(
   quote: QuoteListItem,
   language?: QuoteDocumentLanguage,
   contactEmail?: string,
+  processBillingCodes?: ProcessBillingCodes | null,
 ) {
   return (
-    buildQuoteSummaryPage(quote, language, contactEmail) +
+    buildQuoteSummaryPage(quote, language, contactEmail, processBillingCodes) +
     buildQuoteDetailedBreakdownPage(quote, language)
   )
 }
@@ -841,7 +905,12 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
     .map((quote) => {
       activePdfCurrency = resolveQuoteDisplayCurrency(quote.quoteType, options?.displayCurrency)
       try {
-        return buildQuotePages(quote, language, contactEmail)
+        return buildQuotePages(
+          quote,
+          language,
+          contactEmail,
+          resolveQuoteProcessBillingCodes(quote, options),
+        )
       } finally {
         activePdfCurrency = 'krw'
       }

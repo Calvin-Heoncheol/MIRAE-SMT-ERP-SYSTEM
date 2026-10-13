@@ -57,6 +57,10 @@ export type ItemFormState = {
   baselineQuoteId: string
   /** 표시용 (저장하지 않음) */
   baselineQuoteLabel: string
+  /** 공정별 분리 청구 — 고객 SMD 코드 */
+  smdBillingCode: string
+  /** 공정별 분리 청구 — 고객 후공정 코드 */
+  postBillingCode: string
 }
 
 function money(value: unknown) {
@@ -128,6 +132,8 @@ export function emptyItemForm(): ItemFormState {
     productionStd: { ...EMPTY_ITEM_PRODUCTION_STD },
     baselineQuoteId: '',
     baselineQuoteLabel: '',
+    smdBillingCode: '',
+    postBillingCode: '',
   }
 }
 
@@ -166,6 +172,8 @@ export function itemToForm(item: Item): ItemFormState {
     productionStd: normalizeItemProductionStd(item.productionStd),
     baselineQuoteId: item.baselineQuoteId || '',
     baselineQuoteLabel: '',
+    smdBillingCode: item.smdBillingCode || '',
+    postBillingCode: item.postBillingCode || '',
   }
 }
 
@@ -190,6 +198,16 @@ export function validateItemForm(form: ItemFormState, options?: { isCreate?: boo
     if ((processType === 'smt' || processType === 'smt_post') && !form.pcbSideMode) {
       return '면(단면/더블/양면)을 선택해 주세요.'
     }
+    if (processType === 'smt_post') {
+      const smdCode = form.smdBillingCode.trim()
+      const postCode = form.postBillingCode.trim()
+      if (Boolean(smdCode) !== Boolean(postCode)) {
+        return '공정별 분리 청구는 SMD 코드와 후공정 코드를 모두 입력해 주세요.'
+      }
+      if (smdCode && smdCode === postCode) {
+        return '공정별 분리 청구의 SMD 코드와 후공정 코드가 같습니다.'
+      }
+    }
   }
   return null
 }
@@ -207,6 +225,8 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
   const dip = money(form.dipUnitPrice)
   const material = isSemiFinishedItemCategory(itemCategory) ? money(form.materialUnitPrice) : 0
   const baseCodeInput = form.id.trim()
+  const splitBilling =
+    isSemiFinishedItemCategory(itemCategory) && deriveItemProcessType(smd, dip) === 'smt_post'
   const { baseCode, version } = resolveItemCodeParts({
     codeOrId: baseCodeInput,
     version: form.version,
@@ -251,6 +271,8 @@ export function formToItemPayload(form: ItemFormState): ItemPayload {
     baselineQuoteId: form.baselineQuoteId.trim(),
     itemCategory,
     safetyStock: 0,
+    smdBillingCode: splitBilling ? form.smdBillingCode.trim() : '',
+    postBillingCode: splitBilling ? form.postBillingCode.trim() : '',
   }
 }
 

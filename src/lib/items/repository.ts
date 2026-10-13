@@ -23,6 +23,7 @@ import {
   toItemUpdateRow,
 } from './utils'
 import { normalizeVersionLabel, parseItemVersionCode } from './version-code'
+import { resolveProcessBillingCodes, type ProcessBillingCodes } from './process-billing'
 
 export type FetchItemsResult =
   | { ok: true; items: Item[] }
@@ -35,6 +36,57 @@ export type SaveItemResult =
 export type DeleteItemResult =
   | { ok: true }
   | { ok: false; reason: 'env' | 'query' | 'validation' | 'auth' | 'in_use'; detail: string }
+
+const PROCESS_BILLING_MIGRATION_HINT =
+  '공정별 분리 청구 컬럼이 없습니다. Supabase SQL Editor에서 supabase/migrate-items-process-billing-codes.sql 을 실행해 주세요.'
+
+/** 공정별 분리 청구 코드 저장 — 값이 없고 바뀐 것도 없으면 DB 를 건드리지 않음 (컬럼 미적용 DB 호환) */
+async function saveItemProcessBillingCodes(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  itemId: string,
+  payload: Pick<ItemPayload, 'smdBillingCode' | 'postBillingCode'>,
+  beforeItem?: Pick<Item, 'smdBillingCode' | 'postBillingCode'> | null,
+): Promise<string | null> {
+  if (payload.smdBillingCode === undefined && payload.postBillingCode === undefined) return null
+  const smdCode = String(payload.smdBillingCode || '').trim()
+  const postCode = String(payload.postBillingCode || '').trim()
+  if (
+    smdCode === (beforeItem?.smdBillingCode || '') &&
+    postCode === (beforeItem?.postBillingCode || '')
+  ) {
+    return null
+  }
+
+  const { error } = await supabase
+    .from('items')
+    .update({ smd_billing_code: smdCode, post_billing_code: postCode })
+    .eq('id', itemId)
+  if (!error) return null
+  if (/smd_billing_code|post_billing_code/i.test(error.message)) {
+    return smdCode || postCode ? PROCESS_BILLING_MIGRATION_HINT : null
+  }
+  return error.message
+}
+
+/** 공정별 분리 청구 코드가 있는 품목만 (품목 id → 코드). 컬럼 미적용 DB 는 빈 Map */
+export async function fetchProcessBillingCodesByItemId(): Promise<Map<string, ProcessBillingCodes>> {
+  const map = new Map<string, ProcessBillingCodes>()
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return map
+  const { data, error } = await createSupabaseClient()
+    .from('items')
+    .select('id, smd_billing_code, post_billing_code')
+    .neq('smd_billing_code', '')
+    .neq('post_billing_code', '')
+  if (error) return map
+  for (const row of data || []) {
+    const codes = resolveProcessBillingCodes({
+      smdBillingCode: row.smd_billing_code,
+      postBillingCode: row.post_billing_code,
+    })
+    if (codes) map.set(String(row.id), codes)
+  }
+  return map
+}
 
 export function isMissingItemsTable(detail: string) {
   return detail.includes('items') || detail.includes('schema cache')
@@ -455,7 +507,8 @@ export async function createItem(payload: ItemPayload): Promise<SaveItemResult> 
     }
 
     if (!error && data?.id) {
-      return { ok: true, id: data.id }
+      const codesError = await saveItemProcessBillingCodes(supabase, data.id, insertPayload)
+      return { ok: true, id: data.id, changeLogWarning: codesError ?? undefined }
     }
 
     return {
@@ -896,6 +949,9 @@ export async function updateItem(
         return { ok: false, reason: 'query', detail: error.message }
       }
     }
+
+    const codesError = await saveItemProcessBillingCodes(supabase, key, updatePayload, beforeItem)
+    if (codesError) return { ok: false, reason: 'query', detail: codesError }
 
     let changeLogWarning: string | undefined
     if (beforeItem) {

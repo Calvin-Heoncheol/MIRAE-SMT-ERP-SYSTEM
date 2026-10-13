@@ -66,10 +66,10 @@ function computeSmtOtherLabor(
   )
 }
 
-function computeBoardInspection(board: SmtPcbBoard, _quoteType: QuoteType = 'export') {
+function computeBoardInspection(board: SmtPcbBoard, quoteType: QuoteType = 'export') {
   const smtSide = toBillingSmtSide(board.smtSide)
   const comp = readSmtBoardComponentFields(board)
-  const aoiInspectionUnit = hasSmtComponentInputs(comp) ? getAoiUnit(smtSide) : 0
+  const aoiInspectionUnit = hasSmtComponentInputs(comp) ? getAoiUnit(smtSide, quoteType) : 0
 
   return {
     aoiInspectionUnit,

@@ -178,6 +178,10 @@ export type Item = {
   baselineQuoteId: string
   itemCategory: ItemCategory
   safetyStock: number
+  /** 공정별 분리 청구 — SMD 줄 고객 품목코드 (후공정 코드와 둘 다 있어야 분리) */
+  smdBillingCode: string
+  /** 공정별 분리 청구 — 후공정 줄 고객 품목코드 */
+  postBillingCode: string
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -210,6 +214,9 @@ export type ItemPayload = {
   baselineQuoteId: string
   itemCategory: ItemCategory
   safetyStock: number
+  /** 없으면 기존 값 유지 (일괄 단가 수정 등) */
+  smdBillingCode?: string
+  postBillingCode?: string
 }
 
 export type UpdateItemPayload = Omit<ItemPayload, 'id'>

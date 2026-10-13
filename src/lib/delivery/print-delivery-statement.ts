@@ -56,6 +56,7 @@ function normalizeStatementLine(line: DeliveryStatementLine): DeliveryStatementL
     supplyAmount,
     billingOnly: Boolean(line.billingOnly),
     material: Boolean(line.material),
+    processBillingPart: line.processBillingPart,
   }
 }
 
@@ -74,7 +75,7 @@ function sumStatementTotals(items: DeliveryStatementLine[]) {
   let qty = 0
   let supply = 0
   for (const item of items) {
-    if (!item.billingOnly) qty += item.qty
+    if (!item.billingOnly && item.processBillingPart !== 'post') qty += item.qty
     supply += item.supplyAmount
   }
   return { qty, supply }

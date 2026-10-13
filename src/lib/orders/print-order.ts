@@ -21,6 +21,11 @@ import {
 import { DOMESTIC_VAT_RATE } from '@/lib/quotes/format'
 import type { QuoteDetailInfo } from '@/lib/quotes/types'
 import { escapeHtml } from '@/lib/print/escape-html'
+import {
+  processBillingPartName,
+  splitAmountByProcess,
+  type ProcessBillingCodes,
+} from '@/lib/items/process-billing'
 
 export type OrderPrintLanguage = 'ko' | 'en'
 
@@ -32,6 +37,35 @@ export type OrderPrintLine = {
   unitPrice: number
   orderAmount: number
   deliveryDate: string
+  /** 후공정 단가(대당) — 공정별 분리 청구 시 후공정 줄 금액 */
+  postUnitPrice?: number
+  /** 있으면 SMD 줄 / 후공정 줄 두 줄로 나눠 인쇄 */
+  processBillingCodes?: ProcessBillingCodes | null
+}
+
+type OrderPrintRow = Pick<
+  OrderPrintLine,
+  'productCode' | 'productName' | 'quantity' | 'unitPrice' | 'orderAmount'
+>
+
+function expandOrderPrintRows(items: OrderPrintLine[], language: OrderPrintLanguage): OrderPrintRow[] {
+  return items.flatMap((item): OrderPrintRow[] => {
+    const codes = item.processBillingCodes
+    if (!codes) return [item]
+    const split = splitAmountByProcess({
+      qty: item.quantity,
+      unitPrice: item.unitPrice,
+      amount: item.orderAmount,
+      postUnitPrice: item.postUnitPrice ?? 0,
+    })
+    return (['smd', 'post'] as const).map((part) => ({
+      productCode: part === 'smd' ? codes.smdCode : codes.postCode,
+      productName: processBillingPartName(item.productName, part, language),
+      quantity: item.quantity,
+      unitPrice: split[part].unitPrice,
+      orderAmount: split[part].amount,
+    }))
+  })
 }
 
 export type OrderPrintData = {
@@ -179,7 +213,7 @@ export function buildOrderHtml(
   const moneyPrefix = currency === 'USD' ? '$' : '₩'
   const unitPriceHeader = t('단가', 'Unit Price')
   const amountHeader = t('금액', 'Amount')
-  const rows = data.items
+  const rows = expandOrderPrintRows(data.items, language)
     .map((item, index) => {
       const name = escapeHtml(item.productName || '—')
       const code = escapeHtml(item.productCode || '—')
@@ -724,7 +758,10 @@ export function printOrder(
   return true
 }
 
-export function buildOrderPrintData(order: OrderListGroup): OrderPrintData {
+export function buildOrderPrintData(
+  order: OrderListGroup,
+  processBillingCodesByItemId?: Map<string, ProcessBillingCodes>,
+): OrderPrintData {
   const processParts: string[] = []
   const types = new Set(
     order.items.map((item) => item.processType).filter((value): value is NonNullable<typeof value> => Boolean(value)),
@@ -753,6 +790,10 @@ export function buildOrderPrintData(order: OrderListGroup): OrderPrintData {
       unitPrice: item.unitPrice,
       orderAmount: item.orderAmount,
       deliveryDate: item.deliveryDate || order.deliveryDate,
+      postUnitPrice: item.dipUnitPrice,
+      processBillingCodes: item.productId
+        ? processBillingCodesByItemId?.get(String(item.productId)) ?? null
+        : null,
     })),
   }
 }

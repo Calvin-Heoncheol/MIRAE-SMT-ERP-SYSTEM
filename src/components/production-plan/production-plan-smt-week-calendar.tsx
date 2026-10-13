@@ -1,23 +1,13 @@
 'use client'
 
-import { useMemo, useState, type DragEvent } from 'react'
+import { useMemo } from 'react'
 import { ProductionPlanBoardCard } from '@/components/production-plan/production-plan-board-card'
-import {
-  readProductionPlanDragPayloadFromDataTransfer,
-  type ProductionPlanDragPayload,
-} from '@/lib/production-plan/config'
 import {
   PRODUCTION_PLAN_DAY_CAPACITY_HOURS,
   formatCellLoadLabel,
   summarizeCellLoad,
 } from '@/lib/production-plan/capacity'
 import { planCoversYmd } from '@/lib/production-plan/calendar'
-import {
-  formatSmtPoints,
-  smtLineDayKey,
-  type SmtLineCapacity,
-  type SmtLineDayEfficiency,
-} from '@/lib/production-plan/line-efficiency'
 import type { ProductionPlanBoardRow } from '@/lib/production-plan/types'
 import { todayYmdSeoul } from '@/lib/orders/utils'
 import { SMT_PLAN_LINE_NOS } from '@/lib/smt/plan/config'
@@ -28,47 +18,11 @@ type ProductionPlanSmtWeekCalendarProps = {
   weekDates: string[]
   scheduledRows: ProductionPlanBoardRow[]
   onSelectRow?: (row: ProductionPlanBoardRow) => void
-  onEmptyCellClick?: (target: { plannedDate: string; lineNo: number }) => void
-  onDropOrder?: (
-    payload: ProductionPlanDragPayload,
-    target: { plannedDate: string; lineNo: number },
-  ) => void
-  /** false면 카드 드래그 비활성 (기본 true) */
-  cardDraggable?: boolean
-  /** 라인·일자별 실적 점수 / 사양 CPH 대비 효율 */
-  lineEfficiency?: Map<string, SmtLineDayEfficiency>
-  lineCapacities?: SmtLineCapacity[]
-}
-
-function efficiencyToneClass(percent: number | null) {
-  if (percent == null) return 'text-slate-500'
-  if (percent >= 60) return 'text-emerald-700'
-  if (percent >= 40) return 'text-amber-700'
-  return 'text-rose-700'
-}
-
-function efficiencyTitle(entry: SmtLineDayEfficiency, capacity: SmtLineCapacity | undefined) {
-  const lines = [
-    `실적 ${entry.producedQty.toLocaleString('ko-KR')}EA · ${formatSmtPoints(entry.points)}점`,
-  ]
-  if (capacity && capacity.ratedCph > 0) {
-    lines.push(
-      `능력 ${formatSmtPoints(entry.capacityPoints)}점 = 사양 CPH ${capacity.ratedCph.toLocaleString('ko-KR')} × ${PRODUCTION_PLAN_DAY_CAPACITY_HOURS}시간`,
-    )
-  } else {
-    lines.push('설비등록에 사양 CPH가 없어 효율을 계산할 수 없습니다.')
-  }
-  if (entry.sources.length) {
-    lines.push(
-      `점수 기준: ${entry.sources.map((source) => (source === 'bom' ? 'BOM' : '견적')).join(', ')}`,
-    )
-  }
-  if (entry.missingPointsQty > 0) {
-    lines.push(
-      `점수 미등록 ${entry.missingPointsQty.toLocaleString('ko-KR')}EA — BOM(SMD) 또는 견적 점수가 없어 제외`,
-    )
-  }
-  return lines.join('\n')
+  /** 있으면 칸 클릭으로 발주 배정 */
+  onCellClick?: (target: { plannedDate: string; lineNo: number }) => void
+  onStartMove?: (row: ProductionPlanBoardRow) => void
+  /** 이동 모드 — 카드 클릭도 칸 클릭으로 처리 */
+  movingRowKey?: string | null
 }
 
 function cellKey(plannedDate: string, lineNo: number) {
@@ -79,19 +33,13 @@ export function ProductionPlanSmtWeekCalendar({
   weekDates,
   scheduledRows,
   onSelectRow,
-  onEmptyCellClick,
-  onDropOrder,
-  cardDraggable = true,
-  lineEfficiency,
-  lineCapacities = [],
+  onCellClick,
+  onStartMove,
+  movingRowKey = null,
 }: ProductionPlanSmtWeekCalendarProps) {
+  const moving = Boolean(movingRowKey)
   const today = todayYmdSeoul()
   const lineNos = SMT_PLAN_LINE_NOS
-  const capacityByLine = useMemo(
-    () => new Map(lineCapacities.map((entry) => [entry.lineNo, entry])),
-    [lineCapacities],
-  )
-  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
 
   const rowsByCell = useMemo(() => {
     const map = new Map<string, ProductionPlanBoardRow[]>()
@@ -109,22 +57,6 @@ export function ProductionPlanSmtWeekCalendar({
     }
     return map
   }, [scheduledRows, weekDates])
-
-  function handleDragOver(event: DragEvent, key: string) {
-    if (!onDropOrder) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'copy'
-    setDragOverKey(key)
-  }
-
-  function handleDrop(event: DragEvent, plannedDate: string, lineNo: number) {
-    if (!onDropOrder) return
-    event.preventDefault()
-    setDragOverKey(null)
-    const payload = readProductionPlanDragPayloadFromDataTransfer(event.dataTransfer)
-    if (!payload || payload.scope !== 'smt') return
-    onDropOrder(payload, { plannedDate, lineNo })
-  }
 
   return (
     <div className="min-h-0 flex-1 overflow-auto bg-white">
@@ -162,26 +94,10 @@ export function ProductionPlanSmtWeekCalendar({
           </tr>
         </thead>
         <tbody>
-          {lineNos.map((lineNo) => {
-            const capacity = capacityByLine.get(lineNo)
-            return (
+          {lineNos.map((lineNo) => (
             <tr key={lineNo} className="border-b border-slate-100 last:border-b-0">
               <td className="sticky left-0 z-[1] border-r border-slate-200 bg-slate-50 px-2 py-3 align-top text-xs font-bold text-slate-700">
                 라인 {lineNo}
-                {lineEfficiency ? (
-                  <p
-                    className="mt-0.5 text-[10px] font-medium tabular-nums text-slate-400"
-                    title={
-                      capacity && capacity.ratedCph > 0
-                        ? `사용중 마운터 ${capacity.mounterCount}대 사양 CPH 합계`
-                        : '설비등록에서 마운터 사양 CPH를 입력하세요'
-                    }
-                  >
-                    {capacity && capacity.ratedCph > 0
-                      ? `${capacity.ratedCph.toLocaleString('ko-KR')} CPH`
-                      : 'CPH 미등록'}
-                  </p>
-                ) : null}
               </td>
               {weekDates.map((plannedDate) => {
                 const key = cellKey(plannedDate, lineNo)
@@ -191,48 +107,26 @@ export function ProductionPlanSmtWeekCalendar({
                 )
                 const load = summarizeCellLoad(loadRows)
                 const isToday = plannedDate === today
-                const isDropTarget = dragOverKey === key
-                const efficiency = lineEfficiency?.get(smtLineDayKey(lineNo, plannedDate))
 
                 return (
                   <td
                     key={key}
-                    className={`min-h-[110px] border-r align-top p-1.5 last:border-r-0 ${
-                      isDropTarget
-                        ? 'border-sky-300 bg-sky-100 ring-2 ring-inset ring-sky-400'
-                        : load.overCapacity
-                          ? 'border-rose-200 bg-rose-50/60'
-                          : isToday
-                            ? 'border-sky-200 bg-sky-50/70'
-                            : 'border-slate-100'
+                    className={`group min-h-[110px] border-r align-top p-1.5 last:border-r-0 ${
+                      load.overCapacity
+                        ? 'border-rose-200 bg-rose-50/60'
+                        : isToday
+                          ? 'border-sky-200 bg-sky-50/70'
+                          : 'border-slate-100'
+                    } ${
+                      onCellClick
+                        ? moving
+                          ? 'cursor-copy hover:bg-amber-50'
+                          : 'cursor-pointer hover:bg-sky-50'
+                        : ''
                     }`}
-                    onDragOver={(event) => handleDragOver(event, key)}
-                    onDragLeave={() => setDragOverKey((current) => (current === key ? null : current))}
-                    onDrop={(event) => handleDrop(event, plannedDate, lineNo)}
+                    onClick={onCellClick ? () => onCellClick({ plannedDate, lineNo }) : undefined}
                   >
                     <div className="flex min-h-[96px] flex-col gap-1">
-                      {efficiency ? (
-                        <p
-                          className={`rounded bg-slate-50 px-1 py-0.5 text-[11px] font-semibold tabular-nums ${efficiencyToneClass(efficiency.percent)}`}
-                          title={
-                            efficiencyTitle(efficiency, capacity) +
-                            (load.quantity > 0
-                              ? ''
-                              : '\n이 칸에 생산계획은 없고 생산실적만 입력되어 있습니다.')
-                          }
-                        >
-                          {efficiency.points > 0
-                            ? `실적 ${formatSmtPoints(efficiency.points)}점`
-                            : `실적 ${efficiency.producedQty.toLocaleString('ko-KR')}EA`}
-                          {efficiency.percent != null ? ` · 효율 ${efficiency.percent}%` : ''}
-                          {efficiency.missingPointsQty > 0 ? (
-                            <span className="text-amber-600"> · 점수미등록</span>
-                          ) : null}
-                          {load.quantity > 0 ? null : (
-                            <span className="font-normal text-slate-400"> · 계획없음</span>
-                          )}
-                        </p>
-                      ) : null}
                       {load.quantity > 0 ? (
                         <p
                           className={`px-0.5 text-[11px] font-semibold tabular-nums ${
@@ -253,45 +147,33 @@ export function ProductionPlanSmtWeekCalendar({
                           key={row.key}
                           row={row}
                           tone="smt"
-                          onSelect={onSelectRow}
-                          draggable={cardDraggable && Boolean(onDropOrder)}
+                          onSelect={
+                            moving ? () => onCellClick?.({ plannedDate, lineNo }) : onSelectRow
+                          }
                           spanDay={row.plannedDate.slice(0, 10) !== plannedDate}
+                          highlighted={row.key === movingRowKey}
+                          onStartMove={moving ? undefined : onStartMove}
                         />
                       ))}
-                      {cellRows.length === 0 ? (
-                        onDropOrder ? (
-                          <div
-                            className={`flex flex-1 items-center justify-center rounded-lg border border-dashed px-1 py-6 text-[11px] transition ${
-                              isDropTarget
-                                ? 'border-sky-400 bg-sky-50 text-sky-700'
-                                : 'border-slate-200 text-slate-400'
-                            }`}
-                          >
-                            {isDropTarget ? '여기에 놓기' : '끌어다 놓기'}
-                          </div>
-                        ) : (
-                          <div className="min-h-[48px] flex-1" />
-                        )
-                      ) : isDropTarget ? (
-                        <div className="rounded-md border border-dashed border-sky-400 bg-sky-50 px-1 py-2 text-center text-[11px] font-semibold text-sky-700">
-                          여기에 추가
-                        </div>
-                      ) : onEmptyCellClick ? (
-                        <button
-                          type="button"
-                          onClick={() => onEmptyCellClick({ plannedDate, lineNo })}
-                          className="rounded-md border border-dashed border-slate-200 px-1 py-1.5 text-center text-[11px] text-slate-400 hover:border-sky-300 hover:bg-sky-50/50 hover:text-sky-700"
+                      {onCellClick ? (
+                        <div
+                          className={`flex items-center justify-center rounded-md border border-dashed px-1 text-[11px] ${
+                            moving
+                              ? 'border-amber-200 text-amber-500 group-hover:border-amber-400 group-hover:text-amber-700'
+                              : 'border-slate-200 text-slate-400 group-hover:border-sky-300 group-hover:text-sky-700'
+                          } ${cellRows.length === 0 ? 'flex-1 py-6' : 'py-1.5'}`}
                         >
-                          + 배정
-                        </button>
+                          {moving ? '여기로 이동' : '+ 배정'}
+                        </div>
+                      ) : cellRows.length === 0 ? (
+                        <div className="min-h-[48px] flex-1" />
                       ) : null}
                     </div>
                   </td>
                 )
               })}
             </tr>
-            )
-          })}
+          ))}
         </tbody>
       </table>
     </div>

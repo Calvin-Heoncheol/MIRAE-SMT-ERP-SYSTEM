@@ -417,7 +417,7 @@ export function QuoteBreakdownPreview({
             </div>
             <div className="flex items-center justify-between text-[13px]">
               <span className="font-medium text-slate-600">
-                {isDomestic ? '메탈마스크 (일회성)' : 'Metal Mask (one-time)'}
+                {isDomestic ? '메탈마스크 (일회성)' : 'SMT Stencil (one-time)'}
               </span>
               <span className="font-semibold tabular-nums text-slate-800">
                 {previewSummary.oneTimeFormatted}

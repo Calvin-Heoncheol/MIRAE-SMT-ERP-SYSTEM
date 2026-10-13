@@ -9,6 +9,12 @@ import {
 } from '@/lib/delivery/utils'
 import { filterSkippedBillingLines } from '@/lib/delivery/register-form'
 import { findActiveBusinessPartnerByName } from '@/lib/partners/repository'
+import { fetchProcessBillingCodesByItemId } from '@/lib/items/repository'
+import {
+  processBillingPartName,
+  splitAmountByProcess,
+  type ProcessBillingCodes,
+} from '@/lib/items/process-billing'
 import type { DeliveryStatementData, DeliveryStatementLine } from './types'
 
 async function resolveCustomerContact(customerName: string) {
@@ -187,6 +193,8 @@ export async function buildDeliveryStatementDataFromShipment(input: {
 
   const items: DeliveryStatementLine[] = []
   const expandedOrders = new Set<string>()
+  let processBillingCodes: Promise<Map<string, ProcessBillingCodes>> | null = null
+  const getProcessBillingCodes = () => (processBillingCodes ??= fetchProcessBillingCodesByItemId())
 
   for (const line of normalizedShippedLines) {
     if (line.billingOnly) {
@@ -220,14 +228,49 @@ export async function buildDeliveryStatementDataFromShipment(input: {
         ? line.unitPrice
         : Math.max(0, Math.round(Number(matched?.unitPrice) || 0))
     const qty = line.qty
+    const orderNumber = line.orderNumber || order?.orderNumber || ''
+    const productName = line.productName || String(matched?.productName || '').trim()
+    const processCodes = matched?.productId
+      ? (await getProcessBillingCodes()).get(String(matched.productId))
+      : undefined
+
+    if (processCodes) {
+      const split = splitAmountByProcess({
+        qty,
+        unitPrice,
+        postUnitPrice: Number(matched?.dipUnitPrice) || 0,
+      })
+      items.push(
+        {
+          orderNumber,
+          productCode: processCodes.smdCode,
+          productName: processBillingPartName(productName, 'smd'),
+          qty,
+          unitPrice: split.smd.unitPrice,
+          supplyAmount: split.smd.amount,
+          processBillingPart: 'smd',
+        },
+        {
+          orderNumber,
+          productCode: processCodes.postCode,
+          productName: processBillingPartName(productName, 'post'),
+          qty,
+          unitPrice: split.post.unitPrice,
+          supplyAmount: split.post.amount,
+          processBillingPart: 'post',
+        },
+      )
+      continue
+    }
+
     items.push({
-      orderNumber: line.orderNumber || order?.orderNumber || '',
+      orderNumber,
       productCode: resolveStatementDisplayProductCode({
         productCode: line.productCode,
         productId: matched?.productId ?? undefined,
         orderProductCode: matched?.productCode,
       }),
-      productName: line.productName || String(matched?.productName || '').trim(),
+      productName,
       qty,
       unitPrice,
       supplyAmount: Math.round(qty * unitPrice),

@@ -153,7 +153,7 @@ export function QuoteSetupInputPanel({
                 onChange={(event) => onIncludeMetalMaskChange(event.target.checked)}
                 className="rounded border-slate-300"
               />
-              {isDomestic ? '메탈마스크 비용 (일회성)' : 'Metal Mask (one-time)'}
+              {isDomestic ? '메탈마스크 비용 (일회성)' : 'SMT Stencil (one-time)'}
             </label>
             <select
               value={metalMaskSide}

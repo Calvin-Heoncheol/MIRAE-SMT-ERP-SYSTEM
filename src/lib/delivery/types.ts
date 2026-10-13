@@ -1,3 +1,5 @@
+import type { ProcessBillingPart } from '@/lib/items/process-billing'
+
 export type DeliverySource = 'manual'
 
 export type DeliveryRecord = {
@@ -99,6 +101,8 @@ export type DeliveryStatementLine = {
   billingOnly?: boolean
   /** 출하 등록 수동 자재 행 — (추가작업) 접미사 없음 */
   material?: boolean
+  /** 공정별 분리 청구 줄 — 'post' 줄은 같은 보드라 합계 수량에서 제외 */
+  processBillingPart?: ProcessBillingPart
 }
 
 export type DeliveryStatementData = {

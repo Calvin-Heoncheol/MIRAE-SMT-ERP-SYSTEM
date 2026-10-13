@@ -106,7 +106,7 @@ export function SmtPcbBoardForm({
       icPin: Number(board.icPin) || 0,
       bga: Number(board.bga) || 0,
     }) > 0
-  const aoiUnit = hasPlacementInputs ? getAoiUnit(billingSide) : 0
+  const aoiUnit = hasPlacementInputs ? getAoiUnit(billingSide, quoteType) : 0
 
   function patch(patch: Partial<SmtBoardForm>) {
     onChange({ ...board, ...patch })

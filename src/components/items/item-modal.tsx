@@ -919,6 +919,38 @@ function ItemModalContent({
           </section>
         ) : null}
 
+        {showProductUnitPriceField && derivedProcessType === 'smt_post' ? (
+          <section className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              공정별 분리 청구 (선택)
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>SMD 코드</span>
+                <input
+                  value={form.smdBillingCode}
+                  onChange={(event) => updateForm('smdBillingCode', event.target.value)}
+                  className={ERP_FIELD_INPUT_CLASS}
+                  placeholder="고객사 SMD 품목코드"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className={ERP_FIELD_LABEL_CLASS}>후공정 코드</span>
+                <input
+                  value={form.postBillingCode}
+                  onChange={(event) => updateForm('postBillingCode', event.target.value)}
+                  className={ERP_FIELD_INPUT_CLASS}
+                  placeholder="고객사 후공정 품목코드"
+                />
+              </label>
+            </div>
+            <p className="text-xs text-slate-500">
+              둘 다 입력하면 견적서·발주서 PDF·거래명세서에서 SMD 줄과 후공정 줄로 나눠 출력합니다. 생산·자재·출하
+              수량은 이 품목 하나로 관리됩니다.
+            </p>
+          </section>
+        ) : null}
+
         {/* C. 생산 기준 (접이식) */}
         {showProductUnitPriceField ? (
           <OpenableDetails

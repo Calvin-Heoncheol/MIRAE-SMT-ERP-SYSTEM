@@ -21,6 +21,7 @@ import {
   type OrderItemForm,
 } from '@/lib/orders/form-state'
 import { buildOrderPrintData, printOrder } from '@/lib/orders/print-order'
+import { fetchProcessBillingCodesByItemId } from '@/lib/items/repository'
 import { createOrder, deleteOrder, updateOrder } from '@/lib/orders/repository'
 import { formatAutoOrderCodeExample } from '@/lib/orders/order-code-prefix'
 import { ORDER_CATEGORIES } from '@/lib/orders/types'
@@ -288,8 +289,12 @@ function OrderModalContent({
       items: order.items,
     }
     const partner = resolvePartnerFromInput(salesPartners, printSource.customer)
+    const processBillingCodes = await fetchProcessBillingCodesByItemId()
     const ok = printOrder(
-      { ...buildOrderPrintData(printSource), includeVat: partner?.includeVat === true },
+      {
+        ...buildOrderPrintData(printSource, processBillingCodes),
+        includeVat: partner?.includeVat === true,
+      },
       { language: partner?.documentLanguage ?? 'ko' },
     )
     if (!ok) setSaveError('발주서를 열 수 없습니다. 팝업 차단을 해제해 주세요.')

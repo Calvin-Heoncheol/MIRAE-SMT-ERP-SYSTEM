@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ProductionPlanFetchError } from '@/components/production-plan/production-plan-fetch-error'
-import { ProductionPlanPendingSidebar } from '@/components/production-plan/production-plan-pending-sidebar'
+import {
+  ProductionPlanOrderPickerModal,
+  type ProductionPlanPickerTarget,
+} from '@/components/production-plan/production-plan-order-picker-modal'
 import { ProductionPlanPostWeekCalendar } from '@/components/production-plan/production-plan-post-week-calendar'
 import { ProductionPlanSmtWeekCalendar } from '@/components/production-plan/production-plan-smt-week-calendar'
 import {
@@ -12,7 +15,7 @@ import {
 } from '@/components/production-plan/production-plan-schedule-modal'
 import { useDashboardChrome } from '@/components/dashboard/dashboard-chrome'
 import { useToast } from '@/components/ui/toast-provider'
-import { todayYmdSeoul } from '@/lib/orders/utils'
+import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
 import {
   addWeeksYmd,
   formatWeekLabel,
@@ -20,7 +23,6 @@ import {
   isYmdInWeek,
   planCoversYmd,
 } from '@/lib/production-plan/calendar'
-import type { ProductionPlanDragPayload } from '@/lib/production-plan/config'
 import { canPlanPost, canPlanSmt, validatePostPlanDate } from '@/lib/production-plan/pipeline'
 import {
   confirmProductionPlanItem,
@@ -29,19 +31,14 @@ import {
 } from '@/lib/production-plan/repository'
 import type {
   FetchProductionPlanBoardResult,
-  ProductionPlanBoardPageData,
   ProductionPlanBoardRow,
 } from '@/lib/production-plan/types'
-import { PRODUCTION_PLAN_DAY_CAPACITY_HOURS } from '@/lib/production-plan/capacity'
-import { summarizeSmtLineDayEfficiency } from '@/lib/production-plan/line-efficiency'
-import { fetchSmtPlanProgressRange } from '@/lib/smt/repository'
 import {
   buildUnifiedPlanSheetLines,
   filterUnifiedPlanSheetLines,
   pickPlanningRowForLine,
 } from '@/lib/production-plan/unified-plan-lines'
 import { isProductionPlanRemainderRow, isProductionPlanScheduleRow } from '@/lib/production-plan/utils'
-import type { PostProcessTeam } from '@/lib/post-process/teams'
 import { getWeekDates } from '@/lib/smt/plan/utils'
 
 type ProductionPlanUnifiedWorkspaceProps = {
@@ -68,23 +65,14 @@ function lastCommittedQtyKey(row: ProductionPlanBoardRow) {
   return `${row.targetId}:${row.scope}`
 }
 
-function efficiencyBaseFromData(data: ProductionPlanBoardPageData | null) {
-  return {
-    pointsByOrderLine: data?.smtPointsByOrderLine ?? {},
-    capacities: data?.smtLineCapacities ?? [],
-  }
+function ymdDiffDays(from: string, to: string) {
+  const a = Date.parse(`${from.slice(0, 10)}T00:00:00Z`)
+  const b = Date.parse(`${to.slice(0, 10)}T00:00:00Z`)
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0
+  return Math.max(0, Math.round((b - a) / 86_400_000))
 }
 
-function matchesSearchHaystack(
-  fields: Array<string | null | undefined>,
-  query: string,
-) {
-  if (!query) return true
-  return fields
-    .map((value) => String(value || '').toLowerCase())
-    .join(' ')
-    .includes(query)
-}
+type MoveTarget = { plannedDate: string; lineNo?: number; team?: string }
 
 export function ProductionPlanUnifiedWorkspace({
   initialResult,
@@ -97,16 +85,13 @@ export function ProductionPlanUnifiedWorkspace({
     initialResult.ok ? initialResult.data.rows : [],
   )
   const [error, setError] = useState(initialResult.ok ? '' : initialResult.detail)
-  const [efficiencyBase, setEfficiencyBase] = useState(() =>
-    efficiencyBaseFromData(initialResult.ok ? initialResult.data : null),
-  )
-  const [weekProgress, setWeekProgress] = useState<Record<string, number>>({})
-  const [progressReloadToken, setProgressReloadToken] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [modalSaving, setModalSaving] = useState(false)
   const [modalDeleting, setModalDeleting] = useState(false)
-  const [pendingSearch, setPendingSearch] = useState('')
+  const [pickerTarget, setPickerTarget] = useState<ProductionPlanPickerTarget | null>(null)
   const [modal, setModal] = useState<ModalState>({ open: false })
+  const [moveSource, setMoveSource] = useState<ProductionPlanBoardRow | null>(null)
+  const [moveSaving, setMoveSaving] = useState(false)
   const lastCommittedQtyRef = useRef<Record<string, number>>({})
   const toast = useToast()
   const { focusMode, toggleFocusMode, setFocusMode } = useDashboardChrome()
@@ -115,54 +100,27 @@ export function ProductionPlanUnifiedWorkspace({
     return () => setFocusMode(false)
   }, [setFocusMode])
 
+  useEffect(() => {
+    if (!moveSource) return
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setMoveSource(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [moveSource])
+
   const allLines = useMemo(() => buildUnifiedPlanSheetLines(rows), [rows])
 
   const pendingLines = useMemo(() => {
-    const q = pendingSearch.trim().toLowerCase()
     return filterUnifiedPlanSheetLines(allLines, 'now', weekStart, rows).filter((line) => {
       const planningRow = pickPlanningRowForLine(line, scopeFilter)
       if (!planningRow) return false
       // 한 번이라도 출하된 주문은 미배정 목록에서 숨김 (이미 잡힌 계획은 달력에 유지)
-      if ((planningRow.shippedQty ?? 0) > 0) return false
-      return matchesSearchHaystack(
-        [
-          line.rep.orderNumber,
-          line.rep.customerPoNumber,
-          line.rep.customer,
-          line.rep.productName,
-          line.rep.productCode,
-          line.rep.deliveryDate,
-        ],
-        q,
-      )
+      return (planningRow.shippedQty ?? 0) <= 0
     })
-  }, [allLines, weekStart, rows, scopeFilter, pendingSearch])
+  }, [allLines, weekStart, rows, scopeFilter])
 
   const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart])
-  const weekFirstYmd = weekDates[0] ?? weekStart
-  const weekLastYmd = weekDates[weekDates.length - 1] ?? weekStart
-
-  useEffect(() => {
-    let cancelled = false
-    void fetchSmtPlanProgressRange(weekFirstYmd, weekLastYmd).then((result) => {
-      if (cancelled) return
-      setWeekProgress(result.ok ? result.progress : {})
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [weekFirstYmd, weekLastYmd, progressReloadToken])
-
-  const lineEfficiency = useMemo(
-    () =>
-      summarizeSmtLineDayEfficiency({
-        progress: weekProgress,
-        pointsByOrderLine: efficiencyBase.pointsByOrderLine,
-        capacities: efficiencyBase.capacities,
-        dayHours: PRODUCTION_PLAN_DAY_CAPACITY_HOURS,
-      }),
-    [weekProgress, efficiencyBase],
-  )
 
   const isSmtTab = scopeFilter === 'smt'
   const isPostTab = scopeFilter === 'post'
@@ -181,7 +139,7 @@ export function ProductionPlanUnifiedWorkspace({
       setRefreshing(true)
     }
     setError('')
-    const result = await fetchProductionPlanBoard({ includeLineEfficiency: true })
+    const result = await fetchProductionPlanBoard()
     if (background) {
       setRefreshing(false)
     }
@@ -190,8 +148,6 @@ export function ProductionPlanUnifiedWorkspace({
       return
     }
     setRows(result.data.rows)
-    setEfficiencyBase(efficiencyBaseFromData(result.data))
-    setProgressReloadToken((value) => value + 1)
   }, [])
 
   function openScheduleModal(
@@ -222,55 +178,21 @@ export function ProductionPlanUnifiedWorkspace({
     }
   }
 
-  function resolveDropRow(payload: ProductionPlanDragPayload): ProductionPlanBoardRow | null {
-    for (const line of pendingLines) {
-      const planRow = pickPlanningRowForLine(line, payload.scope)
-      if (planRow && planRow.key === payload.key) return planRow
-    }
-    return rows.find((row) => row.key === payload.key && row.scope === payload.scope) ?? null
-  }
-
-  function handleSmtDrop(
-    payload: ProductionPlanDragPayload,
-    target: { plannedDate: string; lineNo: number },
-  ) {
-    if (payload.scope !== 'smt') {
-      toast.error('배정 불가', 'SMT 탭에는 SMT 미배정 발주만 놓을 수 있습니다.')
-      return
-    }
-    const row = resolveDropRow(payload)
-    if (!row) {
-      toast.error('배정 불가', '해당 발주를 찾을 수 없습니다.')
-      return
-    }
-    if (isProductionPlanRemainderRow(row) && !canPlanSmt(row)) {
-      toast.error('배정 불가', '자재 준비 후 SMT 배정이 가능합니다.')
-      return
-    }
-    handleSelectDate(target.plannedDate)
-    openScheduleModal(row, target.plannedDate, { lineNo: target.lineNo })
-  }
-
-  function handlePostDrop(
-    payload: ProductionPlanDragPayload,
-    target: { plannedDate: string; team: PostProcessTeam },
-  ) {
-    if (payload.scope !== 'post') {
-      toast.error('배정 불가', '후공정 탭에는 후공정 미배정 발주만 놓을 수 있습니다.')
-      return
-    }
-    const row = resolveDropRow(payload)
-    if (!row) {
-      toast.error('배정 불가', '해당 발주를 찾을 수 없습니다.')
-      return
-    }
+  function handlePickOrder(row: ProductionPlanBoardRow) {
+    if (!pickerTarget) return
+    const target = pickerTarget
     const validationError = validateBeforeSchedule(row, target.plannedDate)
     if (validationError) {
       toast.error('배정 불가', validationError)
       return
     }
+    setPickerTarget(null)
     handleSelectDate(target.plannedDate)
-    openScheduleModal(row, target.plannedDate, { team: target.team })
+    openScheduleModal(
+      row,
+      target.plannedDate,
+      target.scope === 'smt' ? { lineNo: target.lineNo } : { team: target.team },
+    )
   }
 
   function validateBeforeSchedule(row: ProductionPlanBoardRow, plannedDate: string) {
@@ -285,6 +207,56 @@ export function ProductionPlanUnifiedWorkspace({
       if (!timing.ok) return timing.detail
     }
     return ''
+  }
+
+  async function handleMoveTo(target: MoveTarget) {
+    const row = moveSource
+    if (!row || moveSaving) return
+    const startDate = row.plannedDate.slice(0, 10)
+    const lineNo = row.scope === 'smt' ? (target.lineNo ?? row.lineNo ?? 1) : undefined
+    const team = row.scope === 'post' ? (target.team ?? row.team ?? '') : undefined
+    if (
+      target.plannedDate === startDate &&
+      (row.scope === 'smt' ? lineNo === row.lineNo : team === row.team)
+    ) {
+      setMoveSource(null)
+      return
+    }
+
+    const validationError = validateBeforeSchedule(row, target.plannedDate)
+    if (validationError) {
+      toast.error('이동 불가', validationError)
+      return
+    }
+
+    const spanDays = ymdDiffDays(startDate, row.plannedEndDate || startDate)
+    setMoveSaving(true)
+    const result = await confirmProductionPlanItem({
+      scope: row.scope,
+      orderId: row.orderId,
+      targetId: row.targetId,
+      plannedDate: target.plannedDate,
+      plannedEndDate: addDaysYmd(target.plannedDate, spanDays),
+      planStatus: 'confirmed',
+      plannedQuantity: Math.max(1, Math.round(Number(row.plannedQuantity) || 1)),
+      lineNo,
+      pcbSide: row.scope === 'smt' ? (row.pcbSide ?? 'SINGLE') : undefined,
+      team,
+      note: row.note ?? '',
+      planId: row.planId,
+      boardItemId: row.boardItemId,
+    })
+    setMoveSaving(false)
+
+    if (!result.ok) {
+      toast.error('이동 실패', result.detail)
+      return
+    }
+
+    setMoveSource(null)
+    setSelectedYmd(target.plannedDate)
+    toast.success('생산계획', '이동했습니다.')
+    await reload({ background: true })
   }
 
   async function handleModalSubmit(values: ProductionPlanScheduleFormValues) {
@@ -368,7 +340,10 @@ export function ProductionPlanUnifiedWorkspace({
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => setScopeFilter(option.value)}
+                    onClick={() => {
+                      setScopeFilter(option.value)
+                      setMoveSource(null)
+                    }}
                     className={`px-3.5 py-1.5 text-sm font-semibold transition ${
                       active
                         ? option.value === 'smt'
@@ -444,33 +419,68 @@ export function ProductionPlanUnifiedWorkspace({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-          <ProductionPlanPendingSidebar
-            pendingLines={pendingLines}
-            allRows={rows}
-            scope={scopeFilter}
-            search={pendingSearch}
-            onSearchChange={setPendingSearch}
-          />
+        {moveSource ? (
+          <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+            <span className="font-semibold">
+              {moveSource.productName || moveSource.orderNumber} 이동 중
+            </span>
+            <span className="text-xs text-amber-700">
+              옮길 칸을 클릭하세요. 다른 주로 넘겨서 옮길 수도 있습니다. (Esc 취소)
+            </span>
+            {moveSaving ? <span className="text-xs text-amber-700">저장 중…</span> : null}
+            <button
+              type="button"
+              onClick={() => setMoveSource(null)}
+              className="ml-auto rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+            >
+              이동 취소
+            </button>
+          </div>
+        ) : null}
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {isSmtTab ? (
             <ProductionPlanSmtWeekCalendar
               weekDates={weekDates}
               scheduledRows={scheduledRows}
-              lineEfficiency={lineEfficiency}
-              lineCapacities={efficiencyBase.capacities}
-              onDropOrder={handleSmtDrop}
+              onCellClick={({ plannedDate, lineNo }) =>
+                moveSource
+                  ? void handleMoveTo({ plannedDate, lineNo })
+                  : setPickerTarget({ scope: 'smt', plannedDate, lineNo })
+              }
               onSelectRow={(row) => openScheduleModal(row)}
+              onStartMove={setMoveSource}
+              movingRowKey={moveSource?.key ?? null}
             />
           ) : isPostTab ? (
             <ProductionPlanPostWeekCalendar
               weekDates={weekDates}
               scheduledRows={scheduledRows}
-              onDropOrder={handlePostDrop}
+              onCellClick={({ plannedDate, team }) =>
+                moveSource
+                  ? void handleMoveTo({ plannedDate, team })
+                  : setPickerTarget({ scope: 'post', plannedDate, team })
+              }
               onSelectRow={(row) => openScheduleModal(row)}
+              onStartMove={setMoveSource}
+              movingRowKey={moveSource?.key ?? null}
             />
           ) : null}
         </div>
       </div>
+
+      <ProductionPlanOrderPickerModal
+        key={
+          pickerTarget
+            ? `${pickerTarget.plannedDate}:${pickerTarget.scope === 'smt' ? pickerTarget.lineNo : pickerTarget.team}`
+            : 'closed'
+        }
+        target={pickerTarget}
+        pendingLines={pendingLines}
+        allRows={rows}
+        onClose={() => setPickerTarget(null)}
+        onPick={handlePickOrder}
+      />
 
       <ProductionPlanScheduleModal
         open={modal.open}

@@ -54,6 +54,7 @@ import {
 } from '@/lib/quotes/post-process-lines'
 import { createQuote, deleteQuotes, updateQuote } from '@/lib/quotes/repository'
 import { exportQuotesToPdf } from '@/lib/quotes/export-quote-pdf'
+import { fetchProcessBillingCodesByItemId } from '@/lib/items/repository'
 import type {
   EstimateResult,
   QuoteDisplayCurrency,
@@ -656,7 +657,7 @@ function QuoteModalContent({
     }
   }
 
-  function handleDownloadPdf() {
+  async function handleDownloadPdf() {
     const snapshot = buildExportQuoteSnapshot()
     if (!snapshot) return
     if (!snapshot.customer.trim() || !snapshot.productName.trim()) {
@@ -664,10 +665,14 @@ function QuoteModalContent({
       return
     }
     const language = resolvePartnerFromInput(salesPartners, snapshot.customer)?.documentLanguage
+    const processBillingCodesByItemId = snapshot.detailInfo.settings?.productId
+      ? await fetchProcessBillingCodesByItemId()
+      : undefined
     exportQuotesToPdf([snapshot], {
       ...(language ? { language } : {}),
       ...(contactEmail ? { contactEmail } : {}),
       displayCurrency,
+      ...(processBillingCodesByItemId ? { processBillingCodesByItemId } : {}),
     })
   }
 
@@ -843,7 +848,7 @@ function QuoteModalContent({
                 발주 등록
               </ErpButton>
               <PdfDownloadButton
-                onDownload={() => handleDownloadPdf()}
+                onDownload={() => void handleDownloadPdf()}
                 disabled={busy}
               />
             </>

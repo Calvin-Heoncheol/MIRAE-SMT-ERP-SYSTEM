@@ -108,8 +108,10 @@ export const SMT_UNIT_IC_PIN = SMT_UNIT_IC_PIN_EXPORT
 /** @deprecated getSmtUnitRates 사용 */
 export const SMT_UNIT_BGA_BALL = SMT_UNIT_BGA_BALL_EXPORT
 
-/** AOI 검사 PCB당 (양면은 2배) */
+/** AOI 검사 PCB당: 국내 ₩100 (양면은 2배) */
 export const AOI_UNIT = 100
+/** AOI 검사 PCB당: 해외 ₩150 (양면은 2배) */
+export const AOI_UNIT_EXPORT = 150
 /** PCB 세척 PCB당 */
 export const PCB_WASH_UNIT = 100
 /** @deprecated AOI·세척 개별 옵션으로 대체 */
@@ -296,11 +298,15 @@ export function getSmtSetupBaseMinutes(
     : SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT
 }
 
-export function getAoiUnit(smtSide: SmtSide | 'single' | 'double') {
-  return toBillingSmtSide(smtSide) === 'double' ? AOI_UNIT * 2 : AOI_UNIT
+export function getAoiUnit(smtSide: SmtSide | 'single' | 'double', quoteType: QuoteType) {
+  const unit = quoteType === 'domestic' ? AOI_UNIT : AOI_UNIT_EXPORT
+  return toBillingSmtSide(smtSide) === 'double' ? unit * 2 : unit
 }
 
 /** @deprecated getAoiUnit 사용 */
-export function getBoardInspectionUnit(smtSide: SmtSide | 'single' | 'double') {
-  return getAoiUnit(smtSide)
+export function getBoardInspectionUnit(
+  smtSide: SmtSide | 'single' | 'double',
+  quoteType: QuoteType = 'domestic',
+) {
+  return getAoiUnit(smtSide, quoteType)
 }
