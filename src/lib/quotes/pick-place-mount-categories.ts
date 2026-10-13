@@ -2,13 +2,7 @@ export type PickPlaceMountType = 'smd' | 'dip'
 
 export type PickPlaceSmdCategory = 'chip' | 'ic' | 'bga' | 'odd' | 'special' | 'skip'
 
-export type PickPlaceDipCategory =
-  | 'dip_general'
-  | 'dip_connector'
-  | 'dip_wire'
-  | 'wave_general'
-  | 'wave_connector'
-  | 'wave_wire'
+export type PickPlaceDipCategory = 'dip_general' | 'dip_connector' | 'dip_wire' | 'dip_xlarge'
 
 export type PickPlaceComponentCategory = PickPlaceSmdCategory | PickPlaceDipCategory
 
@@ -16,19 +10,26 @@ export type AltiumPickPlaceDipStats = {
   dipGeneral: number
   dipConnector: number
   dipWire: number
-  waveGeneral: number
-  waveConnector: number
-  waveWire: number
+  dipXLarge: number
 }
 
 const DIP_CATEGORIES = new Set<PickPlaceComponentCategory>([
   'dip_general',
   'dip_connector',
   'dip_wire',
-  'wave_general',
-  'wave_connector',
-  'wave_wire',
+  'dip_xlarge',
 ])
+
+const LEGACY_WAVE_TO_DIP: Record<string, PickPlaceDipCategory> = {
+  wave_general: 'dip_general',
+  wave_connector: 'dip_connector',
+  wave_wire: 'dip_wire',
+}
+
+/** 저장된 분류값 정규화 — 폐지된 WAVE 분류는 같은 크기의 수납땜으로 */
+export function normalizeLegacyPickPlaceCategory(category: string): string {
+  return LEGACY_WAVE_TO_DIP[category] ?? category
+}
 
 const SMD_FOOTPRINT_HINT =
   /\b(1608|1005|0603|0201|0402|1206|2012|3216|3225|0805|1210|1812|2512|QFP|QFN|BGA|DFN|SOT|SOIC|TQFP|LQFP|VQFP|WSON|SON|CSP|LGA|CHIP|SC0201|SC0402|SC0603|SC0805|SC1206|C_1608|R_1608)\b/i
@@ -74,9 +75,7 @@ export function emptyPickPlaceDipStats(): AltiumPickPlaceDipStats {
     dipGeneral: 0,
     dipConnector: 0,
     dipWire: 0,
-    waveGeneral: 0,
-    waveConnector: 0,
-    waveWire: 0,
+    dipXLarge: 0,
   }
 }
 
@@ -100,7 +99,6 @@ export function pickPlaceProcessLabel(
   row: MountSuggestionRow & { category: PickPlaceComponentCategory },
 ): string {
   if (row.category === 'skip') return '—'
-  if (row.category.startsWith('wave_')) return 'WAVE'
   if (isPickPlaceDipCategory(row.category)) return 'DIP'
   if (suggestPickPlaceMountType(row) === 'dip') return 'DIP'
   return 'SMD'
@@ -110,7 +108,6 @@ export function pickPlaceProcessHint(
   row: MountSuggestionRow & { category: PickPlaceComponentCategory },
 ): string | undefined {
   if (row.category === 'skip') return undefined
-  if (row.category.startsWith('wave_')) return '웨이브 솔더링'
   if (isPickPlaceDipCategory(row.category)) return '수삽(DIP/TH)'
   if (suggestPickPlaceMountType(row) === 'dip') return '수삽 후보 — 현재 분류는 SMD'
   return '표면실장(SMD)'
@@ -143,14 +140,11 @@ export const PICK_PLACE_DIP_CATEGORY_OPTIONS: Array<{
   category: PickPlaceDipCategory
   label: string
   hint: string
-  group: 'hand' | 'wave'
 }> = [
-  { category: 'dip_general', label: '수납땜 소형', hint: '1~3 PIN', group: 'hand' },
-  { category: 'dip_connector', label: '수납땜 중형', hint: '4~10 PIN', group: 'hand' },
-  { category: 'dip_wire', label: '수납땜 대형', hint: '10 PIN+', group: 'hand' },
-  { category: 'wave_general', label: 'WAVE 소형', hint: '1~3 PIN', group: 'wave' },
-  { category: 'wave_connector', label: 'WAVE 중형', hint: '4~10 PIN', group: 'wave' },
-  { category: 'wave_wire', label: 'WAVE 대형', hint: '10 PIN+', group: 'wave' },
+  { category: 'dip_general', label: '수납땜 소형', hint: '1~3 PIN' },
+  { category: 'dip_connector', label: '수납땜 중형', hint: '4~10 PIN' },
+  { category: 'dip_wire', label: '수납땜 대형', hint: '11~19 PIN' },
+  { category: 'dip_xlarge', label: '수납땜 초대형', hint: '20 PIN+' },
 ]
 
 function estimatePinCount(footprint: string) {
@@ -207,6 +201,7 @@ export function classifyPickPlaceDipFromRow(row: MountSuggestionRow): {
 export function suggestPickPlaceDipCategory(row: MountSuggestionRow): PickPlaceDipCategory {
   if (isPickPlaceDipCategory(row.category)) return row.category
   const pins = estimatePinCount(row.package)
+  if (pins >= 20) return 'dip_xlarge'
   if (pins >= 11) return 'dip_wire'
   if (pins >= 4) return 'dip_connector'
   return 'dip_general'
@@ -219,7 +214,5 @@ export function addPickPlaceDipClassification(
   if (category === 'dip_general') stats.dipGeneral += 1
   else if (category === 'dip_connector') stats.dipConnector += 1
   else if (category === 'dip_wire') stats.dipWire += 1
-  else if (category === 'wave_general') stats.waveGeneral += 1
-  else if (category === 'wave_connector') stats.waveConnector += 1
-  else if (category === 'wave_wire') stats.waveWire += 1
+  else if (category === 'dip_xlarge') stats.dipXLarge += 1
 }

@@ -2,15 +2,14 @@ import {
   computeMetalMaskCostTotal,
   normalizeMetalMaskSide,
   computeSampleCostTotal,
-  DIP_UNIT,
+  foldLegacyWaveCounts,
+  getDipUnitRates,
   getAoiUnit,
   getPostRate,
   SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
-  SMT_PLACEMENT_MIN_SCORE,
   getSmtSetupBaseMinutes,
   getSmtSetupMinutesPerPart,
   getSmtSetupRate,
-  getSmtPlacementMinFee,
   getSmtUnitRates,
   isMultiSideSmt,
   normalizeSmtSide,
@@ -23,6 +22,7 @@ import type {
   DipPcbBoard,
   EstimateInput,
   EstimateResult,
+  LegacyWaveCounts,
   QuoteType,
   SmtBoardDetail,
   SmtPcbBoard,
@@ -112,7 +112,7 @@ export type SmtSetupBillingBreakdown = {
   totalMinutes: number
 }
 
-/** SET-UP 청구 분 = 기본시간 + 초품검사(종당 20초) + SETTING(국내 종당 2분 / 해외 종당 3분) */
+/** SET-UP 청구 분 = 기본시간 + 초품검사(종당 20초) + SETTING(종당 2분, 국내·해외 동일) */
 export function computeSmtSetupBillingBreakdown(
   partCount: number,
   smtSide: SmtSide | 'single' | 'double',
@@ -188,33 +188,19 @@ export function computeSmtPlacementScore(input: SmtComponentFields) {
   )
 }
 
-function shouldApplyMinPlacementFee(input: SmtComponentFields) {
-  const score = computeSmtPlacementScore(input)
-  return score > 0 && score <= SMT_PLACEMENT_MIN_SCORE
-}
-
+/** 최소 실장비 없음 — 항목별 단가 합계만 청구. smtLaborMin* 필드는 저장 데이터 호환용(항상 false/0) */
 function computeSmtLaborPerUnit(board: SmtPcbBoard, quoteType: QuoteType) {
   const comp = readSmtBoardComponentFields(board)
   const chipTotal = computeSmtChipTotal(comp, quoteType)
   const chipOddLabor = computeSmtChipOddLabor(comp, quoteType)
   const otherLabor = computeSmtOtherLabor(comp, quoteType)
   const smtLaborRaw = chipOddLabor + otherLabor
-  const hasPlacementInputs = hasSmtComponentInputs(comp)
-  const hasSmtLabor = smtLaborRaw > 0 || hasPlacementInputs
-  const applyMinFee = hasPlacementInputs && shouldApplyMinPlacementFee(comp)
-  const minPlacementFee = getSmtPlacementMinFee(quoteType)
-
-  const smtLaborUnit = applyMinFee
-    ? minPlacementFee
-    : hasSmtLabor
-      ? chipOddLabor + otherLabor
-      : 0
 
   return {
-    smtLaborUnit,
+    smtLaborUnit: smtLaborRaw,
     smtLaborRaw,
-    smtLaborMinApplied: applyMinFee,
-    smtLaborMinAdjustment: applyMinFee ? minPlacementFee : 0,
+    smtLaborMinApplied: false,
+    smtLaborMinAdjustment: 0,
     chipTotal,
   }
 }
@@ -254,36 +240,25 @@ export function normalizeDipPcbBoards(data: EstimateInput): DipPcbBoard[] {
   if (src) {
     return src.map((board, index) => ({
       pcbName: String(board.pcbName || `PCB ${index + 1}`).trim() || `PCB ${index + 1}`,
-      dipGeneral: Number(board.dipGeneral) || 0,
-      dipConnector: Number(board.dipConnector) || 0,
-      dipWire: Number(board.dipWire) || 0,
-      waveGeneral: Number(board.waveGeneral) || 0,
-      waveConnector: Number(board.waveConnector) || 0,
-      waveWire: Number(board.waveWire) || 0,
+      ...foldLegacyWaveCounts(board as DipPcbBoard & LegacyWaveCounts),
     }))
   }
 
   return [
     {
       pcbName: 'PCB 1',
-      dipGeneral: Number(data.dipGeneral) || 0,
-      dipConnector: Number(data.dipConnector) || 0,
-      dipWire: Number(data.dipWire) || 0,
-      waveGeneral: Number(data.waveGeneral) || 0,
-      waveConnector: Number(data.waveConnector) || 0,
-      waveWire: Number(data.waveWire) || 0,
+      ...foldLegacyWaveCounts(data as EstimateInput & LegacyWaveCounts),
     },
   ]
 }
 
-function computeDipBoardUnit(board: DipPcbBoard) {
+function computeDipBoardUnit(board: DipPcbBoard, quoteType: QuoteType) {
+  const rates = getDipUnitRates(quoteType)
   return (
-    (Number(board.dipGeneral) || 0) * DIP_UNIT.dipGeneral +
-    (Number(board.dipConnector) || 0) * DIP_UNIT.dipConnector +
-    (Number(board.dipWire) || 0) * DIP_UNIT.dipWire +
-    (Number(board.waveGeneral) || 0) * DIP_UNIT.waveGeneral +
-    (Number(board.waveConnector) || 0) * DIP_UNIT.waveConnector +
-    (Number(board.waveWire) || 0) * DIP_UNIT.waveWire
+    (Number(board.dipGeneral) || 0) * rates.dipGeneral +
+    (Number(board.dipConnector) || 0) * rates.dipConnector +
+    (Number(board.dipWire) || 0) * rates.dipWire +
+    (Number(board.dipXLarge) || 0) * rates.dipXLarge
   )
 }
 
@@ -353,12 +328,12 @@ export function aggregateSmtFromPcbBoards(
   }
 }
 
-export function aggregateDipFromPcbBoards(dipBoards: DipPcbBoard[]) {
+export function aggregateDipFromPcbBoards(dipBoards: DipPcbBoard[], quoteType: QuoteType = 'export') {
   let unit = 0
   const boardDetails: DipBoardDetail[] = []
 
   for (const board of dipBoards) {
-    const boardUnit = computeDipBoardUnit(board)
+    const boardUnit = computeDipBoardUnit(board, quoteType)
     unit += boardUnit
     boardDetails.push({ ...board, boardUnit })
   }
@@ -399,7 +374,7 @@ export function calculateEstimate(
   const smtInspectionPerUnit = smtAgg.smtInspectionPerUnit
 
   const dipBoards = normalizeDipPcbBoards(data)
-  const dipAgg = aggregateDipFromPcbBoards(dipBoards)
+  const dipAgg = aggregateDipFromPcbBoards(dipBoards, quoteType)
   const dipUnit = dipAgg.dipUnit
 
   const postAssembly = Number(data.postAssembly) || 0
@@ -425,7 +400,8 @@ export function calculateEstimate(
   const matTotalRaw = matUnit * qty
   const smtPlacementTotal = smtUnit * qty + smtInspectionPerUnit * qty
   const smtTotal = smtPlacementTotal + smtSetupAmount
-  const orderLevelTotal = smtSetupAmount + metalMaskTotal + sampleCostTotal
+  /** SET-UP 섹션 합계 — 메탈마스크는 별도 표시라 제외 */
+  const orderLevelTotal = smtSetupAmount + sampleCostTotal
   const dipTotal = dipUnit * qty
   const postProcessTotal = postProcessUnit * qty
   const dipSectionTotal = dipTotal + postProcessTotal

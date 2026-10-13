@@ -9,25 +9,17 @@ import {
   COMPANY_QUOTE_EMAIL_DOMESTIC,
   COMPANY_QUOTE_EMAIL_EXPORT,
 } from '@/lib/app-config'
-import {
-  AOI_UNIT,
-  DIP_UNIT,
-  POST_RATE_ADMIN,
-  POST_RATE_CORPORATE_PROFIT,
-  POST_RATE_DIRECT_LABOR,
-  POST_RATE_OVERHEAD,
-  SMT_SETUP_BASE_TIME_DESCRIPTION,
-  SMT_SETUP_FIRST_ARTICLE_DESCRIPTION,
-  SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
-  SMT_SETUP_SETTING_DESCRIPTION,
-  getPostRate,
-  getSmtSetupBaseMinutes,
-  getSmtSetupMinutesPerPart,
-  getSmtSetupRate,
-  getSmtUnitRates,
-} from './constants'
+import { QUOTE_KRW_PER_USD } from './constants'
 import { formatQuoteProcessTypeCodes } from './production-flags'
-import { formatQuoteMoneyTotal, formatQuoteValidityText, domesticPage1SummaryAmounts, domesticVatBreakdown, formatQuoteKrw, formatQuoteKrwRate } from './format'
+import {
+  domesticPage1SummaryAmounts,
+  exportPage1SummaryAmounts,
+  formatExportSummaryUsd,
+  formatQuoteKrw,
+  formatQuoteUsd,
+  formatQuoteValidityText,
+  resolveQuoteDisplayCurrency,
+} from './format'
 import {
   breakdownSmdGroupTitle,
   breakdownSmtPlacementSubtitle,
@@ -56,7 +48,7 @@ import {
   type PreviewRow,
   type PreviewSection,
 } from './preview-rows'
-import type { QuoteListItem, QuoteType } from './types'
+import type { QuoteDisplayCurrency, QuoteListItem, QuoteType } from './types'
 import { escapeHtml } from '@/lib/print/escape-html'
 
 export type ExportQuotePdfOptions = {
@@ -64,8 +56,16 @@ export type ExportQuotePdfOptions = {
   language?: QuoteDocumentLanguage
   /** 공급자 E-mail — 로그인 사용자 이메일 (없으면 회사 기본 메일) */
   contactEmail?: string
+  /** 해외 견적 금액 표시 통화 (국내 견적은 항상 원화) */
+  displayCurrency?: QuoteDisplayCurrency
 }
 
+/** 현재 렌더링 중인 견적의 표시 통화 — buildQuotePages 동안만 유효 */
+let activePdfCurrency: QuoteDisplayCurrency = 'krw'
+
+function pdfMoney(krw: number) {
+  return activePdfCurrency === 'usd' ? formatQuoteUsd(krw) : formatQuoteKrw(krw)
+}
 function resolveQuoteContactEmail(
   useDomesticCompany: boolean,
   contactEmail?: string | null,
@@ -123,9 +123,9 @@ function buildSectionPageHeaderHtml(
   </div>`
 }
 
-function formatBoardDetailCellAmount(value: number, quoteType: QuoteType) {
+function formatBoardDetailCellAmount(value: number, _quoteType: QuoteType) {
   if (!value) return '-'
-  return formatQuoteMoneyTotal(value, quoteType)
+  return pdfMoney(value)
 }
 
 function buildSummaryBreakdownLineRowHtml(line: PdfSummaryBreakdownLine, quoteType: QuoteType) {
@@ -259,7 +259,7 @@ function buildPreviewRowHtml(
         ? ''
         : showUnitTotal && row.unit == null && !row.unitLabel
           ? ''
-          : formatPreviewRowUnit(row, quoteType)
+          : formatPreviewRowUnit(row, quoteType, activePdfCurrency)
   const unitAlign = row.unitLabel ? 'left' : 'right'
   const count =
     isBoardSubtotal && !showBoardSubtotalMetrics
@@ -290,7 +290,7 @@ function buildPreviewRowHtml(
         ? showUnitTotal
           ? '-'
           : ''
-        : formatQuoteMoneyTotal(row.unitPrice, quoteType)
+        : pdfMoney(row.unitPrice)
   const amount =
     row.amount == null
       ? isBoardSubtotal && !showBoardSubtotalMetrics
@@ -298,7 +298,7 @@ function buildPreviewRowHtml(
         : '-'
       : isBoardSubtotal && !showBoardSubtotalMetrics
         ? ''
-        : formatQuoteMoneyTotal(row.amount, quoteType)
+        : pdfMoney(row.amount)
   const borderTop = boardGroupStart
     ? '2px solid #94a3b8'
     : highlight
@@ -641,45 +641,67 @@ function buildQuoteSummaryTableHtml(
   language?: QuoteDocumentLanguage,
 ) {
   const qty = estimate.qty || 1
+  const includeVat = quote.quoteType === 'domestic' && quote.detailInfo.settings?.includeVat === true
   const page1Amounts = domesticPage1SummaryAmounts(
     estimate.values.grandTotal,
     qty,
     estimate.values.metalMask,
+    includeVat,
   )
-  const page1Domestic = quote.quoteType === 'domestic' ? page1Amounts : null
-  const unitPriceText = formatQuoteKrw(page1Amounts.unitKrw)
-  const totalText = formatQuoteKrw(page1Amounts.totalKrw)
-  const productTotalText = formatQuoteKrw(page1Amounts.productTotalKrw)
+  const usdAmounts =
+    activePdfCurrency === 'usd'
+      ? exportPage1SummaryAmounts(estimate.values.grandTotal, qty, estimate.values.metalMask)
+      : null
+  const unitPriceText = usdAmounts
+    ? formatExportSummaryUsd(usdAmounts.unitUsd)
+    : formatQuoteKrw(page1Amounts.unitKrw)
+  const totalText = usdAmounts
+    ? formatExportSummaryUsd(usdAmounts.totalUsd)
+    : formatQuoteKrw(page1Amounts.totalKrw)
+  const productTotalText = usdAmounts
+    ? formatExportSummaryUsd(usdAmounts.productTotalUsd)
+    : formatQuoteKrw(page1Amounts.productTotalKrw)
+  const oneTimeText = usdAmounts
+    ? formatExportSummaryUsd(usdAmounts.oneTimeUsd)
+    : formatQuoteKrw(page1Amounts.oneTimeKrw)
   const labelType = pdfLabelType(quote, language)
   const lang = pdfLang(quote, language)
   const labels = getPreviewLabels(labelType)
   const qtyText = labels.formatQty(qty)
   const productName = quote.productName?.trim() || '-'
-  const includeVat = quote.detailInfo.settings?.includeVat === true
   const sectionTitle = pdfText(lang, '견적 금액', 'Quote Amount', '报价金额')
-  /** 단가·표 합계는 공급가액(VAT 별도). VAT 포함은 최종 합계에만 표기 */
-  const unitPriceLabel = pdfText(lang, '단가', 'Unit Price', '单价')
+  const unitPriceLabel = includeVat
+    ? pdfText(lang, '단가 (VAT 포함)', 'Unit Price (incl. VAT)', '单价 (含增值税)')
+    : pdfText(lang, '단가', 'Unit Price', '单价')
   const qtyColLabel = pdfText(lang, '개수', 'Qty', '数量')
   const totalLabel = pdfText(lang, '총 합계', 'Total', '合计')
   const productColLabel = pdfText(lang, '제품명', 'Product', '产品名')
-  const supplyLabel = pdfText(lang, '공급가액', 'Supply Amount', '供应金额')
-  const vatLabel = pdfText(lang, '부가세 (10%)', 'VAT (10%)', '增值税 (10%)')
   const grandLabel = includeVat
     ? pdfText(lang, '최종 합계 금액 (VAT 포함)', 'Grand Total (incl. VAT)', '最终合计 (含增值税)')
     : pdfText(lang, '최종 합계 금액', 'Grand Total', '最终合计')
-  const note = includeVat
+  const rateNote = usdAmounts
+    ? ' ' +
+      pdfText(
+        lang,
+        `금액은 USD 1 = ₩${QUOTE_KRW_PER_USD.toLocaleString('ko-KR')} 기준입니다.`,
+        `Amounts are based on USD 1 = KRW ${QUOTE_KRW_PER_USD.toLocaleString('en-US')}.`,
+        `金额按 USD 1 = KRW ${QUOTE_KRW_PER_USD.toLocaleString('en-US')} 计算。`,
+      )
+    : ''
+  const baseNote = includeVat
     ? pdfText(
         lang,
-        '※ 공정별 세부 산정내역과 기본 단가 안내는 다음 페이지를 참고해 주세요. 표의 단가·합계는 공급가액(VAT 별도)이며, 최종 합계만 VAT 포함입니다.',
-        '※ See the following pages for the detailed process breakdown and base unit price guide. Unit prices and line totals are excl. VAT; only the grand total includes VAT.',
-        '※ 各工序明细与基本单价说明请参见后续页面。表内单价·合计为供应金额(不含税)，仅最终合计含增值税。',
+        '※ 공정별 세부 산정내역은 다음 페이지를 참고해 주세요. 표의 단가·합계는 VAT 포함 금액이며, 세부 산정내역은 공급가액(VAT 별도) 기준입니다.',
+        '※ See the following page for the detailed process breakdown. Unit prices and totals in this table include VAT; the detailed breakdown is excl. VAT.',
+        '※ 各工序明细请参见后续页面。本表单价·合计为含增值税金额，明细按供应金额(不含税)计算。',
       )
     : pdfText(
         lang,
-        '※ 공정별 세부 산정내역과 기본 단가 안내는 다음 페이지를 참고해 주세요.',
-        '※ See the following pages for the detailed process breakdown and base unit price guide.',
-        '※ 各工序明细与基本单价说明请参见后续页面。',
+        '※ 공정별 세부 산정내역은 다음 페이지를 참고해 주세요.',
+        '※ See the following page for the detailed process breakdown.',
+        '※ 各工序明细请参见后续页面。',
       )
+  const note = baseNote + rateNote
 
   const displayUnitText = unitPriceText
   const displayTotalText = productTotalText
@@ -689,30 +711,10 @@ function buildQuoteSummaryTableHtml(
           <td>${escapeHtml(pdfText(lang, '메탈마스크 (일회성)', 'Metal Mask (one-time)', '钢网 (一次性)'))}</td>
           <td>-</td>
           <td>${escapeHtml(pdfText(lang, '1식', '1 lot', '1套'))}</td>
-          <td class="summary-row-total">${formatQuoteKrw(page1Amounts.oneTimeKrw)}</td>
+          <td class="summary-row-total">${oneTimeText}</td>
         </tr>`
       : ''
-  let supplyText = totalText
-  let vatText = ''
-  let grandText = totalText
-  let vatBreakdownHtml = ''
-
-  if (includeVat && page1Domestic != null) {
-    const { vat, totalIncl } = domesticVatBreakdown(page1Domestic.totalKrw)
-    supplyText = formatQuoteKrw(page1Domestic.totalKrw)
-    vatText = formatQuoteKrw(vat)
-    grandText = formatQuoteKrw(totalIncl)
-    vatBreakdownHtml = `<div class="summary-vat-breakdown">
-      <div class="summary-vat-row">
-        <span>${supplyLabel}</span>
-        <span>${supplyText}</span>
-      </div>
-      <div class="summary-vat-row">
-        <span>${vatLabel}</span>
-        <span>${vatText}</span>
-      </div>
-    </div>`
-  }
+  const grandText = totalText
 
   return `<div class="summary-amount-section">
     <h2 class="summary-section-title">${sectionTitle}</h2>
@@ -735,367 +737,12 @@ function buildQuoteSummaryTableHtml(
         ${metalMaskRowHtml}
       </tbody>
     </table>
-    ${vatBreakdownHtml}
     <div class="summary-grand-total">
       <span class="summary-grand-label">${grandLabel}</span>
       <strong class="summary-grand-value">${grandText}</strong>
     </div>
     <p class="summary-note">${note}</p>
   </div>`
-}
-
-type UnitPriceExplainRow = {
-  label: string
-  amount: string
-  unit: string
-  hint: string
-}
-
-function buildUnitPriceExplainSectionHtml(input: {
-  title: string
-  intro: string
-  rows: UnitPriceExplainRow[]
-  total?: { label: string; amount: string }
-  labels: { item: string; amount: string; unit: string; desc: string }
-}) {
-  const { title, intro, rows, total, labels } = input
-  return `<div class="unit-price-section">
-    <h3 class="unit-price-section-title">${escapeHtml(title)}</h3>
-    <p class="unit-price-section-intro">${escapeHtml(intro)}</p>
-    <table class="quote-table unit-price-table">
-      <thead>
-        <tr>
-          <th>${labels.item}</th>
-          <th>${labels.amount}</th>
-          <th>${labels.unit}</th>
-          <th>${labels.desc}</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows
-          .map(
-            (row) => `<tr>
-          <td class="unit-price-item">${escapeHtml(row.label)}</td>
-          <td class="unit-price-amount">${escapeHtml(row.amount)}</td>
-          <td class="unit-price-unit">${escapeHtml(row.unit)}</td>
-          <td class="unit-price-desc">${escapeHtml(row.hint)}</td>
-        </tr>`,
-          )
-          .join('')}
-        ${
-          total
-            ? `<tr class="unit-price-total-row">
-          <td class="unit-price-item">${escapeHtml(total.label)}</td>
-          <td class="unit-price-amount">${escapeHtml(total.amount)}</td>
-          <td class="unit-price-unit"></td>
-          <td class="unit-price-desc"></td>
-        </tr>`
-            : ''
-        }
-      </tbody>
-    </table>
-  </div>`
-}
-
-function buildUnitPriceExplanationHtml(
-  quote: QuoteListItem,
-  language?: QuoteDocumentLanguage,
-) {
-  const lang = pdfLang(quote, language)
-  const quoteType = quote.quoteType
-  const smtRates = getSmtUnitRates(quoteType)
-  const setupRate = getSmtSetupRate(quoteType)
-  const setupPerPart = getSmtSetupMinutesPerPart(quoteType)
-  const setupBaseSingle = getSmtSetupBaseMinutes('single', quoteType)
-  const setupBaseDouble = getSmtSetupBaseMinutes('double', quoteType)
-  const postRate = getPostRate(quoteType)
-
-  const tableLabels = {
-    item: pdfText(lang, '항목', 'Item', '项目'),
-    amount: pdfText(lang, '단가', 'Rate', '单价'),
-    unit: pdfText(lang, '단위', 'Unit', '单位'),
-    desc: pdfText(lang, '설명', 'Description', '说明'),
-  }
-
-  const perPc = pdfText(lang, '/개', '/pc', '/个')
-  const perMin = pdfText(lang, '/분', '/min', '/分钟')
-  const minUnit = pdfText(lang, '분', 'min', '分钟')
-
-  const intro = pdfText(
-    lang,
-    '아래는 본 견적에 적용되는 기본 단가 기준입니다. 제품별 수량·작업시간에 단가를 곱해 견적 금액이 산정됩니다.',
-    'These are the base unit rates applied to this quotation. Quote amounts are calculated by multiplying quantities and work time by the rates below.',
-    '以下为本报价适用的基本单价标准。按产品数量、作业时间乘以单价计算报价金额。',
-  )
-
-  const smtSection = buildUnitPriceExplainSectionHtml({
-    title: pdfText(lang, '1. SMD 실장 단가', '1. SMD Placement Rates', '1. SMD贴装单价'),
-    intro: pdfText(
-      lang,
-      '부품 종류별 실장 단가입니다. CHIP·이형·특수/모듈은 개당, IC는 PIN당, BGA는 BALL당으로 산정합니다.',
-      'Placement rates by part type. CHIP / odd / special are per piece, IC per PIN, and BGA per BALL.',
-      '按部品类型的贴装单价。CHIP·异形·特殊/模块按个、IC按PIN、BGA按BALL计算。',
-    ),
-    labels: tableLabels,
-    rows: [
-      {
-        label: 'CHIP',
-        amount: formatQuoteKrwRate(smtRates.chip),
-        unit: perPc,
-        hint: pdfText(lang, '일반 CHIP 부품 실장', 'Standard chip placement', '普通CHIP部品贴装'),
-      },
-      {
-        label: pdfText(lang, '이형', 'Odd-form', '异形'),
-        amount: formatQuoteKrwRate(smtRates.odd),
-        unit: perPc,
-        hint: pdfText(lang, '이형 부품 실장', 'Odd-form / irregular parts', '异形部品贴装'),
-      },
-      {
-        label: pdfText(lang, '특수/모듈', 'Special / Module', '特殊/模块'),
-        amount: formatQuoteKrwRate(smtRates.special),
-        unit: perPc,
-        hint: pdfText(lang, '특수 부품·모듈 실장', 'Special parts and modules', '特殊部品·模块贴装'),
-      },
-      {
-        label: 'IC PIN',
-        amount: formatQuoteKrwRate(smtRates.icPin),
-        unit: pdfText(lang, '/PIN', '/PIN', '/PIN'),
-        hint: pdfText(lang, 'IC 핀 수 기준 실장', 'IC placement by pin count', '按IC引脚数贴装'),
-      },
-      {
-        label: 'BGA BALL',
-        amount: formatQuoteKrwRate(smtRates.bgaBall),
-        unit: pdfText(lang, '/BALL', '/BALL', '/BALL'),
-        hint: pdfText(lang, 'BGA 볼 수 기준 실장', 'BGA placement by ball count', '按BGA球数贴装'),
-      },
-      {
-        label: 'AOI',
-        amount: formatQuoteKrw(AOI_UNIT),
-        unit: pdfText(lang, '/면', '/side', '/面'),
-        hint: pdfText(
-          lang,
-          '자동 광학 검사 (양면은 2배)',
-          'Automated optical inspection (×2 for double-sided)',
-          '自动光学检查 (双面为2倍)',
-        ),
-      },
-    ],
-  })
-
-  const setupSection = buildUnitPriceExplainSectionHtml({
-    title: pdfText(lang, '2. SET-UP 단가', '2. SET-UP Rates', '2. SET-UP单价'),
-    intro: pdfText(
-      lang,
-      '프로그램·세팅 등 생산 준비 비용입니다. 장비 임률(분당) × 소요 시간으로 산정합니다.',
-      'Production preparation (program/setting). Calculated as equipment rate per minute × required time.',
-      '程序·调试等生产准备费用。按设备费率(每分钟) × 所需时间计算。',
-    ),
-    labels: tableLabels,
-    rows: [
-      {
-        label: pdfText(lang, '장비 임률', 'Equipment Rate', '设备费率'),
-        amount: formatQuoteKrw(setupRate),
-        unit: perMin,
-        hint: pdfText(
-          lang,
-          'SET-UP 작업 분당 임률',
-          'SET-UP labor/equipment rate per minute',
-          'SET-UP作业每分钟费率',
-        ),
-      },
-      {
-        label: pdfText(lang, '기본시간 (단면)', 'Base Time (Single)', '基本时间 (单面)'),
-        amount: String(setupBaseSingle),
-        unit: minUnit,
-        hint: pdfText(
-          lang,
-          SMT_SETUP_BASE_TIME_DESCRIPTION,
-          'Loader/Unloader · Screen Print & SPI · Reflow profile',
-          'Loader/Unloader · Screen Print & SPI · Reflow Profile 测定',
-        ),
-      },
-      {
-        label: pdfText(lang, '기본시간 (양면)', 'Base Time (Double)', '基本时间 (双面)'),
-        amount: String(setupBaseDouble),
-        unit: minUnit,
-        hint: pdfText(
-          lang,
-          '양면·듀얼 PCB 기본 준비시간',
-          'Base preparation time for double-sided / dual PCB',
-          '双面·Dual PCB基本准备时间',
-        ),
-      },
-      {
-        label: pdfText(lang, '초품검사', 'First Article', '首件检查'),
-        amount: String(SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART),
-        unit: pdfText(lang, '초/종', 'sec/type', '秒/种'),
-        hint: pdfText(
-          lang,
-          SMT_SETUP_FIRST_ARTICLE_DESCRIPTION,
-          'BOM placement check and LCR measurement',
-          'BOM贴装确认及LCR测定',
-        ),
-      },
-      {
-        label: 'SETTING',
-        amount: String(setupPerPart),
-        unit: pdfText(lang, '분/종', 'min/type', '分钟/种'),
-        hint: pdfText(
-          lang,
-          SMT_SETUP_SETTING_DESCRIPTION,
-          'Feeder setup and coordinate verification',
-          '供料器安装及坐标确认',
-        ),
-      },
-    ],
-  })
-
-  const solderingSection = buildUnitPriceExplainSectionHtml({
-    title: pdfText(lang, '3. 납땜(SOLDERING) 단가', '3. Soldering Rates', '3. 焊接(SOLDERING)单价'),
-    intro: pdfText(
-      lang,
-      '수납땜·웨이브 납땜 단가입니다. 부품 유형·작업 방식에 따라 개당(또는 PIN당)으로 산정합니다.',
-      'Manual and wave soldering rates by part/process type.',
-      '手工焊·波峰焊单价。按部品类型·作业方式以个(或PIN)计算。',
-    ),
-    labels: tableLabels,
-    rows: [
-      {
-        label: pdfText(lang, '수납땜 소형', 'Hand Solder (Small)', '手工焊小型'),
-        amount: formatQuoteKrw(DIP_UNIT.dipGeneral),
-        unit: perPc,
-        hint: pdfText(lang, '1~3 PIN 소형 부품', 'Small parts (1–3 PIN)', '1~3 PIN小型部品'),
-      },
-      {
-        label: pdfText(lang, '수납땜 커넥터', 'Hand Solder (Connector)', '手工焊连接器'),
-        amount: formatQuoteKrw(DIP_UNIT.dipConnector),
-        unit: perPc,
-        hint: pdfText(lang, '커넥터 수납땜', 'Connector hand soldering', '连接器手工焊'),
-      },
-      {
-        label: pdfText(lang, '수납땜 와이어', 'Hand Solder (Wire)', '手工焊线材'),
-        amount: formatQuoteKrw(DIP_UNIT.dipWire),
-        unit: perPc,
-        hint: pdfText(lang, '와이어 수납땜', 'Wire hand soldering', '线材手工焊'),
-      },
-      {
-        label: pdfText(lang, '웨이브 소형', 'Wave (Small)', '波峰小型'),
-        amount: formatQuoteKrw(DIP_UNIT.waveGeneral),
-        unit: perPc,
-        hint: pdfText(lang, '웨이브 솔더 소형 부품', 'Wave soldering for small parts', '波峰焊小型部品'),
-      },
-      {
-        label: pdfText(lang, '웨이브 커넥터', 'Wave (Connector)', '波峰连接器'),
-        amount: formatQuoteKrw(DIP_UNIT.waveConnector),
-        unit: perPc,
-        hint: pdfText(lang, '웨이브 솔더 커넥터', 'Wave soldering for connectors', '波峰焊连接器'),
-      },
-      {
-        label: pdfText(lang, '웨이브 와이어', 'Wave (Wire)', '波峰线材'),
-        amount: formatQuoteKrw(DIP_UNIT.waveWire),
-        unit: perPc,
-        hint: pdfText(lang, '웨이브 솔더 와이어', 'Wave soldering for wires', '波峰焊线材'),
-      },
-    ],
-  })
-
-  const postSection = buildUnitPriceExplainSectionHtml({
-    title: pdfText(lang, '4. 후공정 분당임률', '4. Post-Process Rate / Minute', '4. 后工序每分钟费率'),
-    intro: pdfText(
-      lang,
-      '조립·다운로드·테스트·포장 등 후공정 작업시간은 아래 분당임률로 산정합니다.',
-      'Assembly, download, test, packing and other post-process work time uses the per-minute rate below.',
-      '组装·下载·测试·包装等后工序作业时间按以下每分钟费率计算。',
-    ),
-    labels: tableLabels,
-    rows: [
-      {
-        label: pdfText(lang, '직접노무비', 'Direct Labor', '直接人工费'),
-        amount: formatQuoteKrw(POST_RATE_DIRECT_LABOR),
-        unit: perMin,
-        hint: pdfText(
-          lang,
-          '후공정 작업자 인건비 (4대보험·퇴직금·식대·연차 포함)',
-          'Post-process operator labor incl. social insurance, severance, meals, and paid leave',
-          '后工序作业人员人工费 (含四大保险·退职金·餐费·年假)',
-        ),
-      },
-      {
-        label: pdfText(lang, '간접노무비', 'Indirect Labor', '间接人工费'),
-        amount: formatQuoteKrw(POST_RATE_OVERHEAD),
-        unit: perMin,
-        hint: pdfText(
-          lang,
-          '반장·자재·관리 인력 등 간접 인건비',
-          'Indirect labor for supervisors, material handlers, and administrative staff',
-          '班长·物料·管理人员等间接人工费',
-        ),
-      },
-      {
-        label: pdfText(lang, '기업이윤', 'Corporate Profit', '企业利润'),
-        amount: formatQuoteKrw(POST_RATE_CORPORATE_PROFIT),
-        unit: perMin,
-        hint: pdfText(
-          lang,
-          '지속 가능한 운영을 위한 최소 이윤',
-          'Minimum sustainable operating margin',
-          '可持续经营所需最低利润',
-        ),
-      },
-      {
-        label: pdfText(lang, '제조경비', 'Manufacturing Expenses', '制造费用'),
-        amount: formatQuoteKrw(POST_RATE_ADMIN),
-        unit: perMin,
-        hint: pdfText(
-          lang,
-          '품질관리, 전력, 부자재, 설비·공장 운영비 등',
-          'Quality control, power, sub-materials, and equipment & facility operating costs',
-          '品质管理、电力、辅料、设备·工厂运营费等',
-        ),
-      },
-    ],
-    total: {
-      label: pdfText(lang, '합계 (분당임률)', 'Total (Rate / Minute)', '合计 (每分钟费率)'),
-      amount: formatQuoteKrw(postRate),
-    },
-  })
-
-  const footer = pdfText(
-    lang,
-    '※ 제품별 적용 수량·시간·합계는 앞 페이지의 공정별 세부 산정내역을 참고해 주세요.',
-    '※ See the previous page for the detailed process breakdown by product quantity and work time.',
-    '※ 各产品适用数量·时间·合计请参见前一页各工序明细。',
-  )
-
-  return `<div class="unit-price-explain">
-    <p class="unit-price-explain-note">${escapeHtml(intro)}</p>
-    <div class="unit-price-grid">
-      ${smtSection}
-      ${setupSection}
-      ${solderingSection}
-      ${postSection}
-    </div>
-    <p class="unit-price-footer">${footer}</p>
-  </div>`
-}
-
-function buildQuoteDetailPage(quote: QuoteListItem, language?: QuoteDocumentLanguage) {
-  const { estimate } = buildQuotePreviewData(quote, { labelLanguage: language })
-  const lang = pdfLang(quote, language)
-  const title = pdfText(lang, '기본 단가 안내', 'Base Unit Price Guide', '基本单价说明')
-  const note = pdfText(
-    lang,
-    'SMD · SET-UP · 납땜 · 후공정 기본 단가 구성입니다.',
-    'Base unit rates for SMD, SET-UP, soldering, and post-process.',
-    'SMD · SET-UP · 焊接 · 后工序基本单价构成。',
-  )
-
-  return `<section class="quote-page quote-page-detail">
-    <div class="quote-card">
-      ${buildSectionPageHeaderHtml(quote, estimate, title, note)}
-      ${buildUnitPriceExplanationHtml(quote, language)}
-    </div>
-  </section>`
 }
 
 function buildQuoteDetailedBreakdownPage(quote: QuoteListItem, language?: QuoteDocumentLanguage) {
@@ -1166,8 +813,7 @@ function buildQuotePages(
 ) {
   return (
     buildQuoteSummaryPage(quote, language, contactEmail) +
-    buildQuoteDetailedBreakdownPage(quote, language) +
-    buildQuoteDetailPage(quote, language)
+    buildQuoteDetailedBreakdownPage(quote, language)
   )
 }
 
@@ -1191,7 +837,16 @@ function buildPdfSectionColorCss() {
 function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOptions) {
   const language = options?.language
   const contactEmail = options?.contactEmail
-  const pages = quotes.map((quote) => buildQuotePages(quote, language, contactEmail)).join('')
+  const pages = quotes
+    .map((quote) => {
+      activePdfCurrency = resolveQuoteDisplayCurrency(quote.quoteType, options?.displayCurrency)
+      try {
+        return buildQuotePages(quote, language, contactEmail)
+      } finally {
+        activePdfCurrency = 'krw'
+      }
+    })
+    .join('')
   const primaryQuoteType = quotes[0]?.quoteType ?? 'domestic'
   const docLang = resolvePdfLanguage(primaryQuoteType, language)
   const printHint = pdfText(
@@ -1538,92 +1193,6 @@ function buildQuotesPdfHtml(quotes: QuoteListItem[], options?: ExportQuotePdfOpt
       margin: 6px 0 0;
       font-size: 12px;
       color: #94a3b8;
-    }
-    .unit-price-explain {
-      margin-top: 8px;
-    }
-    .unit-price-explain-note {
-      margin: 0 0 14px;
-      font-size: 12px;
-      line-height: 1.5;
-      color: #475569;
-    }
-    .unit-price-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: auto auto;
-      gap: 14px;
-      align-items: stretch;
-    }
-    .unit-price-section {
-      margin: 0;
-      padding: 12px;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      background: #f8fafc;
-      min-width: 0;
-    }
-    .unit-price-section-title {
-      margin: 0 0 4px;
-      font-size: 13px;
-      font-weight: 800;
-      color: #0f172a;
-      letter-spacing: -0.01em;
-    }
-    .unit-price-section-intro {
-      margin: 0 0 8px;
-      font-size: 10px;
-      line-height: 1.4;
-      color: #64748b;
-    }
-    .unit-price-table {
-      width: 100%;
-      margin: 0;
-      background: #fff;
-    }
-    .unit-price-table th,
-    .unit-price-table td {
-      padding: 5px 6px;
-      font-size: 10px;
-    }
-    .unit-price-table th:nth-child(2),
-    .unit-price-table th:nth-child(3),
-    .unit-price-amount,
-    .unit-price-unit {
-      text-align: right;
-      white-space: nowrap;
-      font-variant-numeric: tabular-nums;
-    }
-    .unit-price-amount {
-      font-weight: 700;
-    }
-    .unit-price-unit {
-      color: #64748b;
-      font-weight: 600;
-    }
-    .unit-price-table th:first-child,
-    .unit-price-item {
-      word-break: keep-all;
-      min-width: 5.5em;
-    }
-    .unit-price-item {
-      font-weight: 700;
-      color: #0f172a;
-    }
-    .unit-price-desc {
-      color: #64748b;
-      word-break: keep-all;
-    }
-    .unit-price-total-row td {
-      background: #e2e8f0 !important;
-      font-weight: 800;
-      border-top: 1px solid #94a3b8;
-    }
-    .unit-price-footer {
-      margin: 12px 0 0;
-      font-size: 11px;
-      color: #94a3b8;
-      text-align: center;
     }
     .detail-footer-note {
       margin: 16px 0 0;

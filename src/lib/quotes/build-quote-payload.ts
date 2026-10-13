@@ -174,9 +174,7 @@ export function buildQuoteDetailInfo(
               dipGeneral: d0.dipGeneral,
               dipConnector: d0.dipConnector,
               dipWire: d0.dipWire,
-              waveGeneral: d0.waveGeneral,
-              waveConnector: d0.waveConnector,
-              waveWire: d0.waveWire,
+              dipXLarge: d0.dipXLarge,
             }
           : {}),
       },

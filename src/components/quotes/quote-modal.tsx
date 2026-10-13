@@ -62,6 +62,7 @@ import type {
   QuoteType,
 } from '@/lib/quotes/types'
 import { normalizeQuoteStatus, toEstimateInputFromDetail } from '@/lib/quotes/utils'
+import { foldLegacyWaveCounts } from '@/lib/quotes/constants'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import {
   EMPTY_PAYMENT_TERM_SNAPSHOT,
@@ -189,13 +190,10 @@ function inferIncludeFlags(quote: QuoteListItem): { includeSmd: boolean; include
     hasPostLines ||
     Boolean(
       quote.detailInfo.inputs?.dip?.dipBoards?.some(
-        (board) =>
-          board.dipGeneral ||
-          board.dipConnector ||
-          board.dipWire ||
-          board.waveGeneral ||
-          board.waveConnector ||
-          board.waveWire,
+        (board) => {
+          const counts = foldLegacyWaveCounts(board)
+          return counts.dipGeneral || counts.dipConnector || counts.dipWire || counts.dipXLarge
+        },
       ),
     )
 
@@ -669,6 +667,7 @@ function QuoteModalContent({
     exportQuotesToPdf([snapshot], {
       ...(language ? { language } : {}),
       ...(contactEmail ? { contactEmail } : {}),
+      displayCurrency,
     })
   }
 
@@ -810,8 +809,10 @@ function QuoteModalContent({
         quoteType,
         displayCurrency,
         result.values.metalMask,
+        form.includeVat,
       )
     : null
+  const liveVatIncluded = form.includeVat && quoteType === 'domestic'
 
   function formatAmount(krw: number) {
     return formatQuoteMoneyByDisplay(krw, quoteType, displayCurrency)
@@ -1203,7 +1204,9 @@ function QuoteModalContent({
             <div className="shrink-0 border-t border-slate-200 bg-slate-50/80 px-4 py-3">
               <div className="mb-2 flex items-end justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-medium text-slate-500">대당 단가</p>
+                  <p className="text-[11px] font-medium text-slate-500">
+                    대당 단가{liveVatIncluded ? ' (VAT 포함)' : ''}
+                  </p>
                   <p className="truncate text-sm font-semibold text-slate-900">
                     {liveSummary?.unitFormatted ?? '-'}
                   </p>
@@ -1214,28 +1217,12 @@ function QuoteModalContent({
                   ) : null}
                 </div>
                 <div className="min-w-0 text-right">
-                  {form.includeVat &&
-                  quoteType === 'domestic' &&
-                  liveSummary &&
-                  'totalInclFormatted' in liveSummary ? (
-                    <>
-                      <p className="text-[11px] font-medium text-slate-500">
-                        공급가액 {liveSummary.totalFormatted}
-                        {liveSummary.vatFormatted ? ` · 부가세 ${liveSummary.vatFormatted}` : ''}
-                      </p>
-                      <p className="truncate text-base font-bold text-slate-900">
-                        {liveSummary.totalInclFormatted}
-                        <span className="ml-1 text-[11px] font-medium text-slate-500">VAT 포함</span>
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-[11px] font-medium text-slate-500">최종 합계</p>
-                      <p className="truncate text-base font-bold text-slate-900">
-                        {liveSummary?.totalFormatted ?? '-'}
-                      </p>
-                    </>
-                  )}
+                  <p className="text-[11px] font-medium text-slate-500">
+                    최종 합계{liveVatIncluded ? ' (VAT 포함)' : ''}
+                  </p>
+                  <p className="truncate text-base font-bold text-slate-900">
+                    {liveSummary?.totalFormatted ?? '-'}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-2">

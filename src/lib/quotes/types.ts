@@ -44,9 +44,14 @@ export type DipPcbBoard = {
   dipGeneral: number
   dipConnector: number
   dipWire: number
-  waveGeneral: number
-  waveConnector: number
-  waveWire: number
+  dipXLarge: number
+}
+
+/** 폐지된 WAVE 수량 — 예전에 저장된 견적에만 존재 */
+export type LegacyWaveCounts = {
+  waveGeneral?: number | string
+  waveConnector?: number | string
+  waveWire?: number | string
 }
 
 export type QuoteDetailAmounts = {
@@ -229,9 +234,7 @@ export type EstimateInput = {
   dipGeneral?: number
   dipConnector?: number
   dipWire?: number
-  waveGeneral?: number
-  waveConnector?: number
-  waveWire?: number
+  dipXLarge?: number
 }
 
 export type EstimateResult = {

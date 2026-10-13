@@ -5,6 +5,7 @@ import {
 import { ITEM_PROCESS_TYPE_LABELS } from '@/lib/items/types'
 import type { OrderLineItem, OrderListGroup } from '@/lib/orders/types'
 import type { Product, ProductProcessType } from '@/lib/products/types'
+import { foldLegacyWaveCounts } from '@/lib/quotes/constants'
 import { hasPostProcessLineInput } from '@/lib/quotes/post-process-lines'
 import type { QuoteDetailInfo, QuoteListItem } from '@/lib/quotes/types'
 
@@ -30,15 +31,15 @@ function money(value: unknown) {
 
 function hasDipBoardInput(detailInfo: QuoteDetailInfo | undefined) {
   const boards = detailInfo?.inputs?.dip?.dipBoards || []
-  return boards.some(
-    (board) =>
-      money(board.dipGeneral) > 0 ||
-      money(board.dipConnector) > 0 ||
-      money(board.dipWire) > 0 ||
-      money(board.waveGeneral) > 0 ||
-      money(board.waveConnector) > 0 ||
-      money(board.waveWire) > 0,
-  )
+  return boards.some((board) => {
+    const counts = foldLegacyWaveCounts(board)
+    return (
+      money(counts.dipGeneral) > 0 ||
+      money(counts.dipConnector) > 0 ||
+      money(counts.dipWire) > 0 ||
+      money(counts.dipXLarge) > 0
+    )
+  })
 }
 
 function hasSmdBoardInput(detailInfo: QuoteDetailInfo | undefined) {

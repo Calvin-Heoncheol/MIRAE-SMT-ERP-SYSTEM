@@ -95,9 +95,18 @@ function centeredTextLine(y: number, fontH: number, width: number, text: string)
  * 자재 라벨 1장 ZPL.
  * 표시: 품목명 · 규격, 패키지 (가운데) + 바코드 + 코드 + (있으면) LOT
  */
+export type MaterialLabelZplOptions = {
+  widthMm?: number
+  heightMm?: number
+  dpi?: number
+  /** 위치 보정 (mm, + 오른쪽·아래) */
+  offsetXMm?: number
+  offsetYMm?: number
+}
+
 export function buildMaterialLabelZpl(
   item: MaterialLabelPrintItem,
-  options?: { widthMm?: number; heightMm?: number; dpi?: number },
+  options?: MaterialLabelZplOptions,
 ): string {
   const id = sanitizeZplField(item.id)
   if (!id) return ''
@@ -156,6 +165,13 @@ export function buildMaterialLabelZpl(
   const copies = Math.max(1, Math.floor(Number(item.copies) || 1))
   const byModule = formatByModule(moduleW)
 
+  // 오른쪽은 ^LH(+ 인쇄 폭 확장), 왼쪽은 ^LH가 음수를 못 받으므로 ^LS, 상하는 ^LT(±120 dot)
+  const offsetX = Math.round(((Number(options?.offsetXMm) || 0) * dpi) / 25.4)
+  const offsetY = Math.round(((Number(options?.offsetYMm) || 0) * dpi) / 25.4)
+  const homeX = Math.max(0, offsetX)
+  const shiftX = offsetX < 0 ? -offsetX : 0
+  const topShift = clamp(offsetY, -120, 120)
+
   const lines: string[] = []
   for (let index = 0; index < copies; index += 1) {
     const blocks = [
@@ -163,11 +179,11 @@ export function buildMaterialLabelZpl(
       '^CI28',
       '^PR1',
       '^MD25',
-      `^PW${width}`,
+      `^PW${width + homeX}`,
       `^LL${height}`,
-      '^LH0,0',
-      '^LS0',
-      '^LT0',
+      `^LH${homeX},0`,
+      `^LS${shiftX}`,
+      `^LT${topShift}`,
       '^JMA',
     ]
 
@@ -217,10 +233,13 @@ export function buildMaterialLabelZpl(
 
 export function buildMaterialLabelsZpl(
   items: MaterialLabelPrintItem[],
-  options?: { widthMm?: number; heightMm?: number; dpi?: number },
+  options?: MaterialLabelZplOptions,
 ) {
-  return items
+  const zpl = items
     .map((item) => buildMaterialLabelZpl(item, options))
     .filter(Boolean)
     .join('\n')
+  if (!zpl) return ''
+  // ^LT·^LS는 프린터에 남으므로 다른 양식 출력에 영향 없게 원복
+  return `${zpl}\n^XA^LT0^LS0^XZ`
 }

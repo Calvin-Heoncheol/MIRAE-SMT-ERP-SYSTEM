@@ -41,9 +41,7 @@ export function defaultDipPcbBoard(index = 0): DipPcbBoard {
     dipGeneral: 0,
     dipConnector: 0,
     dipWire: 0,
-    waveGeneral: 0,
-    waveConnector: 0,
-    waveWire: 0,
+    dipXLarge: 0,
   }
 }
 

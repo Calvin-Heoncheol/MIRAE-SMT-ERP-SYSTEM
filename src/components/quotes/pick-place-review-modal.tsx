@@ -27,6 +27,7 @@ import {
   type PickPlaceConfidence,
   type PickPlaceManualOverride,
   type PickPlaceMountType,
+  type PickPlaceQuoteFieldKey,
   type PickPlaceReviewSource,
 } from '@/lib/quotes/parse-altium-pick-place'
 import { classifyPickPlaceRowsWithDigiKeyAction } from '@/lib/quotes/pick-place-digikey-actions'
@@ -159,28 +160,46 @@ function QuoteFieldCard({
   confidence,
   note,
   compact = false,
+  active = false,
+  onClick,
 }: {
   label: string
   value: string
   confidence: PickPlaceConfidence
   note?: string
   compact?: boolean
+  active?: boolean
+  onClick?: () => void
 }) {
   if (compact) {
-    return (
-      <div
-        className={[
-          'rounded-md border px-2 py-1.5',
-          PICK_PLACE_CONFIDENCE_STYLES[confidence].card,
-        ].join(' ')}
-      >
+    const className = [
+      'block w-full rounded-md border px-2 py-1.5 text-left',
+      PICK_PLACE_CONFIDENCE_STYLES[confidence].card,
+      onClick ? 'cursor-pointer transition hover:brightness-95' : '',
+      active ? 'ring-2 ring-sky-500 ring-offset-1' : '',
+    ].join(' ')
+    const content = (
+      <>
         <div className="flex items-center justify-between gap-1.5">
           <p className="text-[11px] font-medium leading-tight text-slate-600">{label}</p>
           <ConfidenceDot confidence={confidence} />
         </div>
         <p className="mt-0.5 text-xs font-semibold tabular-nums leading-tight text-slate-900">{value}</p>
         {note ? <p className="mt-0.5 truncate text-[11px] text-slate-500" title={note}>{note}</p> : null}
-      </div>
+      </>
+    )
+    return onClick ? (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={active}
+        title={active ? '필터 해제' : `${label} 부품만 보기`}
+        className={className}
+      >
+        {content}
+      </button>
+    ) : (
+      <div className={className}>{content}</div>
     )
   }
 
@@ -280,8 +299,7 @@ function ManualReviewPanel({
   const [suggestionSource, setSuggestionSource] = useState<'ai' | 'digikey' | null>(null)
 
   const smdOptions = PICK_PLACE_SMD_CATEGORY_OPTIONS
-  const dipHandOptions = PICK_PLACE_DIP_CATEGORY_OPTIONS.filter((option) => option.group === 'hand')
-  const dipWaveOptions = PICK_PLACE_DIP_CATEGORY_OPTIONS.filter((option) => option.group === 'wave')
+  const dipHandOptions = PICK_PLACE_DIP_CATEGORY_OPTIONS
   const selectedSmdOption = smdOptions.find((item) => item.category === category)
   const selectedDipOption = PICK_PLACE_DIP_CATEGORY_OPTIONS.find((item) => item.category === category)
 
@@ -418,7 +436,7 @@ function ManualReviewPanel({
               className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-4 text-left hover:border-amber-300"
             >
               <p className="text-sm font-semibold text-amber-950">DIP / 후공정 납땜</p>
-              <p className="mt-1 text-[11px] text-amber-900/80">수납땜 · WAVE 소/중/대형</p>
+              <p className="mt-1 text-[11px] text-amber-900/80">수납땜 소/중/대형</p>
             </button>
           </div>
           <button
@@ -503,7 +521,7 @@ function ManualReviewPanel({
           </div>
           <div>
             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">수납땜</p>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-4">
               {dipHandOptions.map((option) => (
                 <button
                   key={option.category}
@@ -513,27 +531,6 @@ function ManualReviewPanel({
                     'rounded-md border px-2.5 py-2 text-left text-xs transition',
                     category === option.category
                       ? 'border-amber-400 bg-amber-50 text-amber-950 ring-1 ring-amber-200'
-                      : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300',
-                  ].join(' ')}
-                >
-                  <span className="font-semibold">{option.label}</span>
-                  <span className="mt-0.5 block text-[11px] text-slate-500">{option.hint}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">WAVE</p>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {dipWaveOptions.map((option) => (
-                <button
-                  key={option.category}
-                  type="button"
-                  onClick={() => setCategory(option.category)}
-                  className={[
-                    'rounded-md border px-2.5 py-2 text-left text-xs transition',
-                    category === option.category
-                      ? 'border-violet-400 bg-violet-50 text-violet-950 ring-1 ring-violet-200'
                       : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300',
                   ].join(' ')}
                 >
@@ -581,9 +578,7 @@ function ProcessBadge({ row }: { row: PickPlaceClassifiedRow }) {
   const style =
     label === 'SMD'
       ? 'bg-sky-100 text-sky-800 ring-sky-200'
-      : label === 'WAVE'
-        ? 'bg-violet-100 text-violet-800 ring-violet-200'
-        : 'bg-amber-100 text-amber-900 ring-amber-200'
+      : 'bg-amber-100 text-amber-900 ring-amber-200'
 
   return (
     <span
@@ -689,6 +684,31 @@ function ReviewRow({
   )
 }
 
+const SMD_COUNT_CATEGORIES = new Set<PickPlaceComponentCategory>(['chip', 'ic', 'bga', 'odd', 'special'])
+
+const QUOTE_FIELD_CATEGORY: Partial<Record<PickPlaceQuoteFieldKey, PickPlaceComponentCategory>> = {
+  chip: 'chip',
+  icPin: 'ic',
+  bga: 'bga',
+  smtOdd: 'odd',
+  smtSpecial: 'special',
+  dipGeneral: 'dip_general',
+  dipConnector: 'dip_connector',
+  dipWire: 'dip_wire',
+  dipXLarge: 'dip_xlarge',
+}
+
+function isFilterableQuoteField(key: PickPlaceQuoteFieldKey) {
+  return key === 'smtTopCount' || key === 'smtBotCount' || key in QUOTE_FIELD_CATEGORY
+}
+
+function rowMatchesQuoteField(row: PickPlaceClassifiedRow, key: PickPlaceQuoteFieldKey) {
+  if (key === 'smtTopCount') return row.side === 'top' && SMD_COUNT_CATEGORIES.has(row.category)
+  if (key === 'smtBotCount') return row.side === 'bottom' && SMD_COUNT_CATEGORIES.has(row.category)
+  const category = QUOTE_FIELD_CATEGORY[key]
+  return category ? row.category === category : true
+}
+
 function PickPlaceReviewContent({
   analysis,
   bomAnalysis = null,
@@ -745,6 +765,11 @@ function PickPlaceReviewContent({
     [analysis.classifiedRows],
   )
 
+  const [fieldFilter, setFieldFilter] = useState<PickPlaceQuoteFieldKey | null>(null)
+  const fieldFilterLabel = fieldFilter
+    ? analysis.quoteFields.find((field) => field.key === fieldFilter)?.label ?? null
+    : null
+
   const visibleRows = useMemo(() => {
     const indexed = analysis.classifiedRows.map((row, index) => ({
       row,
@@ -754,9 +779,11 @@ function PickPlaceReviewContent({
     const bomUnpopulated = indexed.filter(({ row }) => isPickPlaceBomUnpopulatedRow(row))
     const active = indexed.filter(({ row }) => row.category !== 'skip')
 
-    let rows = showAllRows
-      ? [...active, ...bomUnpopulated]
-      : active.filter(({ row }) => row.confidence === 'ambiguous')
+    let rows = fieldFilter
+      ? active.filter(({ row }) => rowMatchesQuoteField(row, fieldFilter))
+      : showAllRows
+        ? [...active, ...bomUnpopulated]
+        : active.filter(({ row }) => row.confidence === 'ambiguous')
 
     if (reasonFilter) {
       rows = rows.filter(({ row }) => rowMatchesPickPlaceReviewFilter(row, reasonFilter))
@@ -767,7 +794,7 @@ function PickPlaceReviewContent({
     }
 
     return rows
-  }, [analysis.classifiedRows, showAllRows, reasonFilter])
+  }, [analysis.classifiedRows, showAllRows, reasonFilter, fieldFilter])
 
   return (
     <div className="space-y-4">
@@ -870,9 +897,21 @@ function PickPlaceReviewContent({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-5">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-slate-900">
-            부품 분류 {showAllRows ? '전체' : '검토 필요'}
-          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-slate-900">
+              부품 분류 {fieldFilterLabel ? fieldFilterLabel : showAllRows ? '전체' : '검토 필요'}
+            </h3>
+            {fieldFilterLabel ? (
+              <button
+                type="button"
+                onClick={() => setFieldFilter(null)}
+                className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800 ring-1 ring-inset ring-sky-200 hover:bg-sky-200"
+                title="필터 해제"
+              >
+                필터: {fieldFilterLabel} {visibleRows.length}건 ✕
+              </button>
+            ) : null}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             {analysis.ambiguousCount > 0 ? (
               <button
@@ -890,7 +929,10 @@ function PickPlaceReviewContent({
             ) : null}
             <button
               type="button"
-              onClick={onToggleRows}
+              onClick={() => {
+                setFieldFilter(null)
+                onToggleRows()
+              }}
               className="text-xs font-medium text-sky-700 hover:text-sky-900"
             >
               {showAllRows ? '검토 필요만 보기' : `전체 보기 (${analysis.certainCount + analysis.ambiguousCount}건)`}
@@ -933,7 +975,9 @@ function PickPlaceReviewContent({
               ) : (
                 <tr>
                   <td colSpan={9} className="px-3 py-8 text-center text-sm text-emerald-700">
-                    검토가 필요한 항목이 없습니다. 견적에 적용해도 됩니다.
+                    {fieldFilterLabel
+                      ? `${fieldFilterLabel}에 해당하는 부품이 없습니다.`
+                      : '검토가 필요한 항목이 없습니다. 견적에 적용해도 됩니다.'}
                   </td>
                 </tr>
               )}
@@ -955,6 +999,12 @@ function PickPlaceReviewContent({
               confidence={field.confidence}
               note={field.note}
               compact
+              active={fieldFilter === field.key}
+              onClick={
+                isFilterableQuoteField(field.key)
+                  ? () => setFieldFilter((current) => (current === field.key ? null : field.key))
+                  : undefined
+              }
             />
           ))}
         </div>

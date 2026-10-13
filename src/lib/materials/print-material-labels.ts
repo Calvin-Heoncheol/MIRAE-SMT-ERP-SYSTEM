@@ -24,6 +24,9 @@ export type PrintMaterialLabelsOptions = {
   autoPrint?: boolean
   /** false면 Browser Print(ZPL)를 건너뛰고 브라우저 인쇄만 사용 */
   preferBrowserPrint?: boolean
+  /** 위치 보정 (mm, + 오른쪽·아래) */
+  offsetXMm?: number
+  offsetYMm?: number
 }
 
 function truncateText(value: string, maxLength: number) {
@@ -94,6 +97,10 @@ function buildPrintHtml(
   const lotPt = Math.max(5.5, 6.2 * scale)
   const barcodeMm = Math.max(3.5, Math.min(heightMm * 0.28, 11 * scale))
   const barcodeBarWidth = Math.max(1.2, Number((1.55 * scale).toFixed(2)))
+  const offsetXMm = Number(options.offsetXMm) || 0
+  const offsetYMm = Number(options.offsetYMm) || 0
+  const contentShift =
+    offsetXMm || offsetYMm ? `transform: translate(${offsetXMm}mm, ${offsetYMm}mm);` : ''
 
   return `<!DOCTYPE html>
 <html lang="ko">
@@ -147,6 +154,7 @@ function buildPrintHtml(
       overflow: hidden;
       page-break-inside: avoid;
     }
+    .label > * { ${contentShift} }
     .label-head {
       flex-shrink: 0;
       width: 100%;
@@ -342,12 +350,16 @@ export async function printMaterialLabels(
     options.preferBrowserPrint !== undefined
       ? options.preferBrowserPrint
       : settings.preferBrowserPrint
+  const offsetXMm = options.offsetXMm ?? settings.offsetXMm ?? 0
+  const offsetYMm = options.offsetYMm ?? settings.offsetYMm ?? 0
 
   if (preferBrowserPrint) {
     const zpl = buildMaterialLabelsZpl(printable, {
       widthMm,
       heightMm,
       dpi: settings.dpi,
+      offsetXMm,
+      offsetYMm,
     })
     if (zpl) {
       const result = await sendZplViaBrowserPrint(zpl)
@@ -362,7 +374,7 @@ export async function printMaterialLabels(
     }
   }
 
-  printMaterialLabelsHtml(printable, { ...options, widthMm, heightMm })
+  printMaterialLabelsHtml(printable, { ...options, widthMm, heightMm, offsetXMm, offsetYMm })
   return 'html'
 }
 

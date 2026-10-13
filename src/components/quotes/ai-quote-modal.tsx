@@ -68,12 +68,7 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
     const unpopulated = bomAnalysis?.summary.excludedDesignatorCount ?? 0
     const dipTotals = pickPlaceAnalysis?.summary.dipTotals
     const dipCount = dipTotals
-      ? dipTotals.dipGeneral +
-        dipTotals.dipConnector +
-        dipTotals.dipWire +
-        dipTotals.waveGeneral +
-        dipTotals.waveConnector +
-        dipTotals.waveWire
+      ? dipTotals.dipGeneral + dipTotals.dipConnector + dipTotals.dipWire + dipTotals.dipXLarge
       : 0
     const reviewPending = pickPlaceAnalysis
       ? countBlockingPickPlaceReviews(pickPlaceAnalysis.classifiedRows)

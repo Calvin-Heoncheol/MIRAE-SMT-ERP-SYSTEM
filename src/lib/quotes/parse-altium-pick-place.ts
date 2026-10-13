@@ -89,9 +89,7 @@ export type PickPlaceQuoteFieldKey =
   | 'dipGeneral'
   | 'dipConnector'
   | 'dipWire'
-  | 'waveGeneral'
-  | 'waveConnector'
-  | 'waveWire'
+  | 'dipXLarge'
 
 export type PickPlaceQuoteField = {
   key: PickPlaceQuoteFieldKey
@@ -958,22 +956,10 @@ function buildQuoteFields(
       confidence: fieldConfidence(classifiedRows, ['dip_wire']),
     },
     {
-      key: 'waveGeneral',
-      label: 'WAVE 소형',
-      displayValue: String(summary.dipTotals.waveGeneral),
-      confidence: fieldConfidence(classifiedRows, ['wave_general']),
-    },
-    {
-      key: 'waveConnector',
-      label: 'WAVE 중형',
-      displayValue: String(summary.dipTotals.waveConnector),
-      confidence: fieldConfidence(classifiedRows, ['wave_connector']),
-    },
-    {
-      key: 'waveWire',
-      label: 'WAVE 대형',
-      displayValue: String(summary.dipTotals.waveWire),
-      confidence: fieldConfidence(classifiedRows, ['wave_wire']),
+      key: 'dipXLarge',
+      label: '수납땜 초대형',
+      displayValue: String(summary.dipTotals.dipXLarge),
+      confidence: fieldConfidence(classifiedRows, ['dip_xlarge']),
     },
   ]
 }
@@ -1159,9 +1145,7 @@ export function applyAltiumPickPlaceToDipBoardForm(
     dipGeneral: toNumericField(dipTotals.dipGeneral),
     dipConnector: toNumericField(dipTotals.dipConnector),
     dipWire: toNumericField(dipTotals.dipWire),
-    waveGeneral: toNumericField(dipTotals.waveGeneral),
-    waveConnector: toNumericField(dipTotals.waveConnector),
-    waveWire: toNumericField(dipTotals.waveWire),
+    dipXLarge: toNumericField(dipTotals.dipXLarge),
   }
 }
 

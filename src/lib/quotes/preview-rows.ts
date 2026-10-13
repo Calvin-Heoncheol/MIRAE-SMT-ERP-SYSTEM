@@ -1,14 +1,11 @@
 import {
   computeAuxiliaryMaterialAmount,
-  DIP_UNIT,
-  SMT_PLACEMENT_MIN_SCORE,
+  getDipUnitRates,
   getPostRate,
-  getSmtPlacementMinFee,
   getSmtUnitRates,
 } from './constants'
 import {
   calculateEstimate,
-  computeSmtPlacementScore,
   computeSmtSetupBillingBreakdown,
   smtLineAmount,
 } from './calculate-estimate'
@@ -473,104 +470,34 @@ function smtDetailRowsForBoard(
   const labels = getPreviewLabels(labelType)
   const rates = getSmtUnitRates(quoteType)
   const qty = result.qty || 1
-  const rows: PreviewRow[] = []
-  const useMinPlacementFee = board.laborMinApplied && board.laborMinAdjustment > 0
-  const placementScore = computeSmtPlacementScore(board)
+  const items: Array<{ label: string; count: number; countText: string; rate: number }> = [
+    { label: 'CHIP', count: board.chip, countText: labels.partsCount(board.chip), rate: rates.chip },
+    { label: labels.oddParts, count: board.smtOdd, countText: labels.partsCount(board.smtOdd), rate: rates.odd },
+    {
+      label: labels.specialParts,
+      count: board.smtSpecial,
+      countText: labels.partsCount(board.smtSpecial),
+      rate: rates.special,
+    },
+    { label: 'IC PIN', count: board.icPin, countText: `${board.icPin} PIN`, rate: rates.icPin },
+    { label: 'BGA BALL', count: board.bga, countText: `${board.bga} BALL`, rate: rates.bgaBall },
+  ]
 
-  if (useMinPlacementFee) {
-    rows.push(
+  return items
+    .filter((item) => item.count > 0)
+    .map((item) =>
       withProductionQty(
         {
-          label: labels.minPlacement,
-          description: labels.minPlacementDesc(placementScore, SMT_PLACEMENT_MIN_SCORE),
-          unit: getSmtPlacementMinFee(quoteType),
-          count: labels.onePcb,
-          amount: board.laborMinAdjustment,
+          label: item.label,
+          unit: item.rate,
+          count: item.countText,
+          amount: smtLineAmount(item.count, item.rate),
           indent: 2,
         },
         qty,
         labels,
       ),
     )
-  } else {
-    if (board.chip > 0) {
-      rows.push(
-        withProductionQty(
-          {
-            label: 'CHIP',
-            unit: rates.chip,
-            count: labels.partsCount(board.chip),
-            amount: smtLineAmount(board.chip, rates.chip),
-            indent: 2,
-          },
-          qty,
-          labels,
-        ),
-      )
-    }
-    if (board.smtOdd > 0) {
-      rows.push(
-        withProductionQty(
-          {
-            label: labels.oddParts,
-            unit: rates.odd,
-            count: labels.partsCount(board.smtOdd),
-            amount: smtLineAmount(board.smtOdd, rates.odd),
-            indent: 2,
-          },
-          qty,
-          labels,
-        ),
-      )
-    }
-    if (board.smtSpecial > 0) {
-      rows.push(
-        withProductionQty(
-          {
-            label: labels.specialParts,
-            unit: rates.special,
-            count: labels.partsCount(board.smtSpecial),
-            amount: smtLineAmount(board.smtSpecial, rates.special),
-            indent: 2,
-          },
-          qty,
-          labels,
-        ),
-      )
-    }
-    if (board.icPin > 0) {
-      rows.push(
-        withProductionQty(
-          {
-            label: 'IC PIN',
-            unit: rates.icPin,
-            count: `${board.icPin} PIN`,
-            amount: smtLineAmount(board.icPin, rates.icPin),
-            indent: 2,
-          },
-          qty,
-          labels,
-        ),
-      )
-    }
-    if (board.bga > 0) {
-      rows.push(
-        withProductionQty(
-          {
-            label: 'BGA BALL',
-            unit: rates.bgaBall,
-            count: `${board.bga} BALL`,
-            amount: smtLineAmount(board.bga, rates.bgaBall),
-            indent: 2,
-          },
-          qty,
-          labels,
-        ),
-      )
-    }
-  }
-
-  return rows
 }
 
 function inspectionDetailRowsForBoard(
@@ -693,6 +620,7 @@ function dipDetailRowsForBoard(
   qty = 1,
 ): PreviewRow[] {
   const labels = getPreviewLabels(labelType)
+  const DIP_UNIT = getDipUnitRates(quoteType)
   const rows: PreviewRow[] = []
   if (board.dipGeneral > 0) {
     rows.push(
@@ -742,47 +670,15 @@ function dipDetailRowsForBoard(
       ),
     )
   }
-  if (board.waveGeneral > 0) {
+  if (board.dipXLarge > 0) {
     rows.push(
       withProductionQty(
         {
-          label: labels.waveGeneral,
-          unit: DIP_UNIT.waveGeneral,
-          unitPrice: board.waveGeneral * DIP_UNIT.waveGeneral,
-          count: board.waveGeneral,
-          amount: board.waveGeneral * DIP_UNIT.waveGeneral,
-          indent: 2,
-        },
-        qty,
-        labels,
-      ),
-    )
-  }
-  if (board.waveConnector > 0) {
-    rows.push(
-      withProductionQty(
-        {
-          label: labels.waveConnector,
-          unit: DIP_UNIT.waveConnector,
-          unitPrice: board.waveConnector * DIP_UNIT.waveConnector,
-          count: board.waveConnector,
-          amount: board.waveConnector * DIP_UNIT.waveConnector,
-          indent: 2,
-        },
-        qty,
-        labels,
-      ),
-    )
-  }
-  if (board.waveWire > 0) {
-    rows.push(
-      withProductionQty(
-        {
-          label: labels.waveWire,
-          unit: DIP_UNIT.waveWire,
-          unitPrice: board.waveWire * DIP_UNIT.waveWire,
-          count: board.waveWire,
-          amount: board.waveWire * DIP_UNIT.waveWire,
+          label: labels.dipXLarge,
+          unit: DIP_UNIT.dipXLarge,
+          unitPrice: board.dipXLarge * DIP_UNIT.dipXLarge,
+          count: board.dipXLarge,
+          amount: board.dipXLarge * DIP_UNIT.dipXLarge,
           indent: 2,
         },
         qty,
@@ -1128,21 +1024,6 @@ function previewOrderLevelRows(
 ): PreviewRow[] {
   const labels = getPreviewLabels(labelType)
   const rows: PreviewRow[] = []
-  const metalMask = form.includeMetalMask === false
-    ? 0
-    : Math.max(0, Math.round(Number(form.metalMaskCost) || 0) || result.common.subMaterial || 0)
-  if (metalMask > 0) {
-    rows.push({
-      label: labels.metalMask,
-      amount: metalMask,
-      count: '',
-      orderLevel: true,
-      noUnitPrice: true,
-      indent: 1,
-      emphasize: true,
-      amountEmphasize: true,
-    })
-  }
   const sample = result.common.sampleCost || 0
   if (sample > 0) {
     rows.push({
@@ -1372,7 +1253,7 @@ export function buildProcessCentricPdfBreakdownRows(
   const multiBoard = pcbCount > 1
   const rows: PreviewRow[] = []
 
-  const setupTotal = pdfOrderLevelSectionTotal(result, form)
+  const setupTotal = pdfOrderLevelSectionTotal(result)
   if (setupTotal > 0) {
     rows.push({
       label: 'SET-UP',
@@ -1567,14 +1448,8 @@ function pdfSetupSectionTotal(result: EstimateResult) {
   return result.common.smtSetup || 0
 }
 
-function pdfOrderLevelSectionTotal(result: EstimateResult, form: PreviewFormFields) {
-  const metalMask =
-    form.includeMetalMask === false
-      ? 0
-      : Math.max(0, Math.round(Number(form.metalMaskCost) || 0) || result.common.subMaterial || 0)
-  return (result.common.orderLevelTotal || 0) > 0
-    ? result.common.orderLevelTotal
-    : pdfSetupSectionTotal(result) + metalMask + (result.common.sampleCost || 0)
+function pdfOrderLevelSectionTotal(result: EstimateResult) {
+  return pdfSetupSectionTotal(result) + (result.common.sampleCost || 0)
 }
 
 function pdfSolderingSectionTotal(result: EstimateResult) {
@@ -1605,20 +1480,6 @@ export function buildPdfSummaryBreakdownLines(
       unitTotal: quotePerUnitTotal(setupAmount, qty),
       total: setupAmount,
       section: 'setup',
-    })
-  }
-
-  const metalMask =
-    form.includeMetalMask === false
-      ? 0
-      : Math.max(0, Math.round(Number(form.metalMaskCost) || 0) || result.common.subMaterial || 0)
-  if (metalMask > 0) {
-    lines.push({
-      label: labels.metalMask,
-      unitTotal: 0,
-      total: metalMask,
-      section: 'setup',
-      fixedCost: true,
     })
   }
 
@@ -1824,13 +1685,6 @@ export function buildPreviewMatrix(result: EstimateResult, form: PreviewFormFiel
   const setupAmount = result.common.smtSetup || 0
   if (setupAmount > 0) {
     otherRows.push({ label: 'SET-UP', amountPerUnit: setupAmount, fixedCost: true })
-  }
-  const metalMask =
-    form.includeMetalMask === false
-      ? 0
-      : Math.max(0, Math.round(Number(form.metalMaskCost) || 0) || result.common.subMaterial || 0)
-  if (metalMask > 0) {
-    otherRows.push({ label: '메탈마스크', amountPerUnit: metalMask, fixedCost: true })
   }
   const sample = result.common.sampleCost || 0
   if (sample > 0) {

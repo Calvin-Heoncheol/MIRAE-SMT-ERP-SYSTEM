@@ -56,6 +56,17 @@ describe('calculateEstimate 원 단위 일치', () => {
     expect(result.common.smtLaborPerUnit).toBe(2906)
   })
 
+  it('예전 견적의 WAVE 수량은 같은 크기의 수납땜 단가로 계산', () => {
+    const result = calculateEstimate({
+      boardQty: 10,
+      quoteType: 'domestic',
+      includeMetalMask: false,
+      dipBoards: [{ pcbName: 'P', dipGeneral: 2, dipConnector: 0, dipWire: 0, waveGeneral: 3, waveWire: 1 } as never],
+    })
+    // (2+3)×250 + 1×400
+    expect(result.common.dipBoardDetails[0].boardUnit).toBe(1650)
+  })
+
   it('메탈마스크는 대당단가에서 제외되고 합계에 별도 포함', () => {
     const result = calculateEstimate({
       boardQty: 100,

@@ -1,4 +1,4 @@
-import type { QuoteType, SmtSide } from './types'
+import type { LegacyWaveCounts, QuoteType, SmtSide } from './types'
 
 export const SMT_SIDES: SmtSide[] = ['single', 'dual', 'double']
 
@@ -18,7 +18,7 @@ export function toBillingSmtSide(side: SmtSide | string | undefined): 'single' |
   return isMultiSideSmt(side) ? 'double' : 'single'
 }
 
-export const QUOTE_KRW_PER_USD = 1350
+export const QUOTE_KRW_PER_USD = 1300
 
 /** 장비 임율: 국내 ₩3,500/분 */
 export const SMT_SETUP_RATE_DOMESTIC = 3_500
@@ -26,12 +26,12 @@ export const SMT_SETUP_RATE_DOMESTIC = 3_500
 export const SMT_SETUP_RATE_EXPORT = 3_500
 /** 단면 기본시간: 국내 60분 */
 export const SMT_SETUP_BASE_MINUTES_SINGLE_DOMESTIC = 60
-/** 단면 기본시간: 해외 80분 */
-export const SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT = 80
+/** 단면 기본시간: 해외 = 국내 */
+export const SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT = SMT_SETUP_BASE_MINUTES_SINGLE_DOMESTIC
 /** 양면 기본시간: 국내 90분 */
 export const SMT_SETUP_BASE_MINUTES_DOUBLE_DOMESTIC = 90
-/** 양면 기본시간: 해외 120분 */
-export const SMT_SETUP_BASE_MINUTES_DOUBLE_EXPORT = 120
+/** 양면 기본시간: 해외 = 국내 */
+export const SMT_SETUP_BASE_MINUTES_DOUBLE_EXPORT = SMT_SETUP_BASE_MINUTES_DOUBLE_DOMESTIC
 /** @deprecated getSmtSetupBaseMinutes 사용 */
 export const SMT_SETUP_BASE_MINUTES_SINGLE = SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT
 /** @deprecated getSmtSetupBaseMinutes 사용 */
@@ -40,19 +40,14 @@ export const SMT_SETUP_BASE_MINUTES_DOUBLE = SMT_SETUP_BASE_MINUTES_DOUBLE_EXPOR
 export const SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART = 20
 /** SETTING: 국내 종(부품 종수)당 2분 */
 export const SMT_SETUP_MINUTES_PER_PART_DOMESTIC = 2
-/** SETTING: 해외 종(부품 종수)당 3분 */
-export const SMT_SETUP_MINUTES_PER_PART_EXPORT = 3
+/** SETTING: 해외 = 국내 */
+export const SMT_SETUP_MINUTES_PER_PART_EXPORT = SMT_SETUP_MINUTES_PER_PART_DOMESTIC
 /** @deprecated getSmtSetupMinutesPerPart 사용 */
 export const SMT_SETUP_MINUTES_PER_PART = SMT_SETUP_MINUTES_PER_PART_EXPORT
-/** 150점 이하일 때 PCB당 적용되는 최소 실장비 (IC/BGA 등 단가 무효, 이 금액만 청구) */
-export const SMT_PLACEMENT_MIN_FEE_DOMESTIC = 5_000
-export const SMT_PLACEMENT_MIN_FEE_EXPORT = 6_000
-/** CHIP·이형·특수/모듈·IC PIN·BGA BALL 합산 점수(개수 1:1)가 이 값 이하이면 최소 실장비 적용 */
-export const SMT_PLACEMENT_MIN_SCORE = 150
 /** 후공정 임율: 국내 ₩460/분 */
 export const POST_RATE_DOMESTIC = 460
-/** 후공정 임율: 해외 ₩460/분 */
-export const POST_RATE_EXPORT = 460
+/** 후공정 임율: 해외 ₩800/분 */
+export const POST_RATE_EXPORT = 800
 /** 분당임률 구성 — 직접노무비 */
 export const POST_RATE_DIRECT_LABOR = 330
 /** 분당임률 구성 — 간접노무비 (반장·자재·관리 인력) */
@@ -61,6 +56,8 @@ export const POST_RATE_OVERHEAD = 70
 export const POST_RATE_CORPORATE_PROFIT = 35
 /** 분당임률 구성 — 제조경비 (품질관리·전력·부자재·설비·공장 운영비 등) */
 export const POST_RATE_ADMIN = 25
+/** 분당임률 구성 — 해외 대응비 (수출 서류·포장·커뮤니케이션 등, 해외용만) */
+export const POST_RATE_EXPORT_SURCHARGE = POST_RATE_EXPORT - POST_RATE_DOMESTIC
 /** @deprecated POST_RATE_CORPORATE_PROFIT 사용 */
 export const POST_RATE_MIN_PROFIT = POST_RATE_CORPORATE_PROFIT
 /** 후공정 작업시간 여유 — 생산수량 1,000대 미만 30% */
@@ -82,23 +79,28 @@ export const POST_RATE = POST_RATE_EXPORT
 
 /** CHIP 단가: 국내 ₩6/개 */
 export const SMT_UNIT_CHIP_DOMESTIC = 6
-/** CHIP 단가: 해외 ₩20/개 */
-export const SMT_UNIT_CHIP_EXPORT = 20
+/** CHIP 단가: 해외 ₩10/개 */
+export const SMT_UNIT_CHIP_EXPORT = 10
 /** 이형 단가: 국내 ₩20/개 */
 export const SMT_UNIT_ODD_DOMESTIC = 20
-/** 이형 단가: 해외 ₩60/개 */
-export const SMT_UNIT_ODD_EXPORT = 60
+/** 이형 단가: 해외 ₩35/개 */
+export const SMT_UNIT_ODD_EXPORT = 35
 /** @deprecated getSmtUnitRates 사용 */
 export const SMT_UNIT_ODD = SMT_UNIT_ODD_EXPORT
-export const SMT_UNIT_SPECIAL = 100
+/** 특수모듈 단가: 국내 ₩100/개 */
+export const SMT_UNIT_SPECIAL_DOMESTIC = 100
+/** 특수모듈 단가: 해외 ₩175/개 */
+export const SMT_UNIT_SPECIAL_EXPORT = 175
+/** @deprecated getSmtUnitRates 사용 */
+export const SMT_UNIT_SPECIAL = SMT_UNIT_SPECIAL_DOMESTIC
 /** IC PIN 단가: 국내 ₩2/PIN */
 export const SMT_UNIT_IC_PIN_DOMESTIC = 2
-/** IC PIN 단가: 해외 ₩9/PIN */
-export const SMT_UNIT_IC_PIN_EXPORT = 9
+/** IC PIN 단가: 해외 ₩3.5/PIN */
+export const SMT_UNIT_IC_PIN_EXPORT = 3.5
 /** BGA BALL 단가: 국내 ₩2.5/BALL */
 export const SMT_UNIT_BGA_BALL_DOMESTIC = 2.5
-/** BGA BALL 단가: 해외 ₩10/BALL */
-export const SMT_UNIT_BGA_BALL_EXPORT = 10
+/** BGA BALL 단가: 해외 ₩4/BALL */
+export const SMT_UNIT_BGA_BALL_EXPORT = 4
 /** @deprecated getSmtUnitRates 사용 */
 export const SMT_UNIT_CHIP = SMT_UNIT_CHIP_EXPORT
 /** @deprecated getSmtUnitRates 사용 */
@@ -125,10 +127,41 @@ export const DIP_UNIT = {
   dipGeneral: 250,
   dipConnector: 300,
   dipWire: 400,
-  waveGeneral: 200,
-  waveConnector: 250,
-  waveWire: 350,
+  /** 초대형 20PIN 이상 */
+  dipXLarge: 600,
 } as const
+
+export type DipUnitRates = { [K in keyof typeof DIP_UNIT]: number }
+
+/** 해외 수납땜 단가 */
+export const DIP_UNIT_EXPORT: DipUnitRates = {
+  dipGeneral: 350,
+  dipConnector: 400,
+  dipWire: 500,
+  dipXLarge: 600,
+}
+
+export function getDipUnitRates(quoteType: QuoteType): DipUnitRates {
+  return quoteType === 'domestic' ? DIP_UNIT : DIP_UNIT_EXPORT
+}
+
+/** 예전 견적의 WAVE 수량을 같은 크기의 수납땜 수량에 합산 */
+export function foldLegacyWaveCounts(
+  board: {
+    dipGeneral?: number | string
+    dipConnector?: number | string
+    dipWire?: number | string
+    dipXLarge?: number | string
+  } & LegacyWaveCounts,
+) {
+  const num = (value: number | string | undefined) => Number(value) || 0
+  return {
+    dipGeneral: num(board.dipGeneral) + num(board.waveGeneral),
+    dipConnector: num(board.dipConnector) + num(board.waveConnector),
+    dipWire: num(board.dipWire) + num(board.waveWire),
+    dipXLarge: num(board.dipXLarge),
+  }
+}
 
 /** 관리비: 원자재 비용의 10% */
 export const RAW_MATERIAL_MANAGEMENT_RATE = 0.1
@@ -215,10 +248,6 @@ export function computeMetalMaskCostTotal(
   return boards.reduce((sum, board) => sum + metalMaskCostForSide(board.smtSide), 0)
 }
 
-export function getSmtPlacementMinFee(quoteType: QuoteType) {
-  return quoteType === 'domestic' ? SMT_PLACEMENT_MIN_FEE_DOMESTIC : SMT_PLACEMENT_MIN_FEE_EXPORT
-}
-
 export function getSmtSetupRate(quoteType: QuoteType) {
   return quoteType === 'domestic' ? SMT_SETUP_RATE_DOMESTIC : SMT_SETUP_RATE_EXPORT
 }
@@ -238,7 +267,7 @@ export function getSmtUnitRates(quoteType: QuoteType) {
     return {
       chip: SMT_UNIT_CHIP_DOMESTIC,
       odd: SMT_UNIT_ODD_DOMESTIC,
-      special: SMT_UNIT_SPECIAL,
+      special: SMT_UNIT_SPECIAL_DOMESTIC,
       icPin: SMT_UNIT_IC_PIN_DOMESTIC,
       bgaBall: SMT_UNIT_BGA_BALL_DOMESTIC,
     }
@@ -246,7 +275,7 @@ export function getSmtUnitRates(quoteType: QuoteType) {
   return {
     chip: SMT_UNIT_CHIP_EXPORT,
     odd: SMT_UNIT_ODD_EXPORT,
-    special: SMT_UNIT_SPECIAL,
+    special: SMT_UNIT_SPECIAL_EXPORT,
     icPin: SMT_UNIT_IC_PIN_EXPORT,
     bgaBall: SMT_UNIT_BGA_BALL_EXPORT,
   }

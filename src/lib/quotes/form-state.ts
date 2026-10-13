@@ -1,6 +1,6 @@
-import type { DipPcbBoard, SmtPcbBoard, SmtSide } from './types'
+import type { DipPcbBoard, LegacyWaveCounts, SmtPcbBoard, SmtSide } from './types'
 import { defaultDipPcbBoard, defaultSmtPcbBoard } from './utils'
-import { isMultiSideSmt, normalizeSmtSide } from './constants'
+import { foldLegacyWaveCounts, isMultiSideSmt, normalizeSmtSide } from './constants'
 
 export type SmtBoardForm = {
   pcbName: string
@@ -21,9 +21,7 @@ export type DipBoardForm = {
   dipGeneral: string
   dipConnector: string
   dipWire: string
-  waveGeneral: string
-  waveConnector: string
-  waveWire: string
+  dipXLarge: string
 }
 
 export function parseNumericField(value: string) {
@@ -87,15 +85,14 @@ export function smtBoardFormToModel(form: SmtBoardForm): SmtPcbBoard {
   }
 }
 
-export function dipBoardToForm(board: DipPcbBoard): DipBoardForm {
+export function dipBoardToForm(board: DipPcbBoard & LegacyWaveCounts): DipBoardForm {
+  const counts = foldLegacyWaveCounts(board)
   return {
     pcbName: board.pcbName,
-    dipGeneral: toNumericField(board.dipGeneral),
-    dipConnector: toNumericField(board.dipConnector),
-    dipWire: toNumericField(board.dipWire),
-    waveGeneral: toNumericField(board.waveGeneral),
-    waveConnector: toNumericField(board.waveConnector),
-    waveWire: toNumericField(board.waveWire),
+    dipGeneral: toNumericField(counts.dipGeneral),
+    dipConnector: toNumericField(counts.dipConnector),
+    dipWire: toNumericField(counts.dipWire),
+    dipXLarge: toNumericField(counts.dipXLarge),
   }
 }
 
@@ -105,9 +102,7 @@ export function dipBoardFormToModel(form: DipBoardForm): DipPcbBoard {
     dipGeneral: parseNumericField(form.dipGeneral),
     dipConnector: parseNumericField(form.dipConnector),
     dipWire: parseNumericField(form.dipWire),
-    waveGeneral: parseNumericField(form.waveGeneral),
-    waveConnector: parseNumericField(form.waveConnector),
-    waveWire: parseNumericField(form.waveWire),
+    dipXLarge: parseNumericField(form.dipXLarge),
   }
 }
 

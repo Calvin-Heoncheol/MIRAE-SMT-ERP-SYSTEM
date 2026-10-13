@@ -68,7 +68,17 @@ function PreviewBarcode() {
   )
 }
 
-function LabelPreview({ widthMm, heightMm }: { widthMm: number; heightMm: number }) {
+function LabelPreview({
+  widthMm,
+  heightMm,
+  offsetXMm = 0,
+  offsetYMm = 0,
+}: {
+  widthMm: number
+  heightMm: number
+  offsetXMm?: number
+  offsetYMm?: number
+}) {
   const scale = useMemo(() => {
     const maxW = 280
     const maxH = 200
@@ -85,6 +95,8 @@ function LabelPreview({ widthMm, heightMm }: { widthMm: number; heightMm: number
   const nameSize = Math.max(9, 12 * contentScale)
   const specSize = Math.max(8, 10 * contentScale)
   const idSize = Math.max(7, 9 * contentScale)
+  const pxPerMm = 3.2 * scale
+  const contentShift = `translate(${offsetXMm * pxPerMm}px, ${offsetYMm * pxPerMm}px)`
 
   return (
     <div>
@@ -103,7 +115,7 @@ function LabelPreview({ widthMm, heightMm }: { widthMm: number; heightMm: number
             padding: compact ? '3px 4px' : `${Math.max(3, 5 * contentScale)}px ${Math.max(4, 6 * contentScale)}px`,
           }}
         >
-          <div className="shrink-0 text-center">
+          <div className="shrink-0 text-center" style={{ transform: contentShift }}>
             <p
               className="truncate font-bold text-slate-900"
               style={{ fontSize: nameSize, lineHeight: 1.15 }}
@@ -120,7 +132,7 @@ function LabelPreview({ widthMm, heightMm }: { widthMm: number; heightMm: number
 
           <div
             className="mt-auto mb-auto flex shrink-0 flex-col items-center justify-center"
-            style={{ height: barcodeBoxH }}
+            style={{ height: barcodeBoxH, transform: contentShift }}
           >
             <PreviewBarcode />
             <p
@@ -198,7 +210,14 @@ function MaterialLabelSettingsModal({
       }
     >
       <div className="space-y-4">
-        {fixedLayout ? null : <LabelPreview widthMm={form.widthMm} heightMm={form.heightMm} />}
+        {fixedLayout ? null : (
+          <LabelPreview
+            widthMm={form.widthMm}
+            heightMm={form.heightMm}
+            offsetXMm={form.offsetXMm ?? 0}
+            offsetYMm={form.offsetYMm ?? 0}
+          />
+        )}
 
         <div>
           <p className={ERP_FIELD_LABEL_CLASS}>빠른 선택</p>
@@ -266,37 +285,39 @@ function MaterialLabelSettingsModal({
           </select>
         </label>
 
+        <div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>좌우 위치 보정 (mm)</span>
+              <ErpNumericInput
+                min={-10}
+                max={10}
+                integer={false}
+                value={form.offsetXMm ?? 0}
+                onValueChange={(offsetXMm) => setForm((current) => ({ ...current, offsetXMm }))}
+                className={ERP_FIELD_INPUT_CLASS}
+              />
+            </label>
+            <label className="block text-sm">
+              <span className={ERP_FIELD_LABEL_CLASS}>상하 위치 보정 (mm)</span>
+              <ErpNumericInput
+                min={-10}
+                max={10}
+                integer={false}
+                value={form.offsetYMm ?? 0}
+                onValueChange={(offsetYMm) => setForm((current) => ({ ...current, offsetYMm }))}
+                className={ERP_FIELD_INPUT_CLASS}
+              />
+            </label>
+          </div>
+          <p className="mt-1.5 text-xs text-slate-500">
+            + 값은 오른쪽·아래로, − 값은 왼쪽·위로 이동합니다. 위쪽이 잘리면 상하에 +1 정도부터 넣어 보세요.
+          </p>
+        </div>
+
         {fixedLayout ? (
           <div>
             <div className="grid grid-cols-2 gap-3">
-              <label className="block text-sm">
-                <span className={ERP_FIELD_LABEL_CLASS}>좌우 위치 보정 (mm)</span>
-                <ErpNumericInput
-                  min={-10}
-                  max={10}
-                  integer={false}
-                  value={form.offsetXMm ?? 0}
-                  onValueChange={(offsetXMm) => setForm((current) => ({ ...current, offsetXMm }))}
-                  className={ERP_FIELD_INPUT_CLASS}
-                />
-              </label>
-              <label className="block text-sm">
-                <span className={ERP_FIELD_LABEL_CLASS}>상하 위치 보정 (mm)</span>
-                <ErpNumericInput
-                  min={-10}
-                  max={10}
-                  integer={false}
-                  value={form.offsetYMm ?? 0}
-                  onValueChange={(offsetYMm) => setForm((current) => ({ ...current, offsetYMm }))}
-                  className={ERP_FIELD_INPUT_CLASS}
-                />
-              </label>
-            </div>
-            <p className="mt-1.5 text-xs text-slate-500">
-              + 값은 오른쪽·아래로, − 값은 왼쪽·위로 이동합니다. 위쪽이 잘리면 상하에 +1 정도부터 넣어 보세요.
-            </p>
-
-            <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="block text-sm">
                 <span className={ERP_FIELD_LABEL_CLASS}>인쇄 농도 (0~30)</span>
                 <ErpNumericInput

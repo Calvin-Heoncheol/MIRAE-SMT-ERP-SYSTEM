@@ -299,7 +299,8 @@ export function QuoteBreakdownPreview({
   emptyMessage,
 }: QuoteBreakdownPreviewProps) {
   const isDomestic = quoteType === 'domestic'
-  const showVat = includeVat || form.includeVat === true
+  const showVat = isDomestic && (includeVat || form.includeVat === true)
+  const vatSuffix = showVat ? ' (VAT 포함)' : ''
   const previewLabels = getPreviewLabels(quoteType)
   const companyName = isDomestic ? APP_SHORT_NAME : COMPANY_NAME_EN
   const breakdownRows = result ? buildProcessCentricPdfBreakdownRows(result, form, quoteType) : []
@@ -313,6 +314,7 @@ export function QuoteBreakdownPreview({
         quoteType,
         displayCurrency,
         result.values.metalMask,
+        showVat,
       )
     : null
 
@@ -395,7 +397,7 @@ export function QuoteBreakdownPreview({
       <div className="space-y-1.5 border-t border-slate-200 bg-white px-4 py-3 text-sm lg:px-6">
         <div className="flex items-center justify-between">
           <span className="font-semibold text-slate-700">
-            {isDomestic ? '대당 단가' : 'Unit Price'}
+            {isDomestic ? `대당 단가${vatSuffix}` : 'Unit Price'}
           </span>
           <span className="font-semibold text-slate-900">
             {previewSummary
@@ -423,39 +425,14 @@ export function QuoteBreakdownPreview({
             </div>
           </>
         ) : null}
-        {showVat && isDomestic && previewSummary?.totalFormatted ? (
-          <>
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="font-medium text-slate-600">{previewLabels.supplyAmount}</span>
-              <span className="font-semibold tabular-nums text-slate-800">
-                {previewSummary.totalFormatted}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="font-medium text-slate-600">{previewLabels.vatAmount}</span>
-              <span className="font-semibold tabular-nums text-slate-800">
-                {'vatFormatted' in previewSummary ? previewSummary.vatFormatted : '-'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-base">
-              <span className="font-bold text-slate-900">{previewLabels.grandTotalVatIncl}</span>
-              <span className="font-bold text-slate-800">
-                {'totalInclFormatted' in previewSummary
-                  ? previewSummary.totalInclFormatted
-                  : previewSummary.totalFormatted}
-              </span>
-            </div>
-          </>
-        ) : (
-          <div className="flex items-center justify-between text-base">
-            <span className="font-bold text-slate-900">
-              {isDomestic ? '최종 합계 금액' : 'Grand Total'}
-            </span>
-            <span className="font-bold text-slate-800">
-              {previewSummary ? previewSummary.totalFormatted : formatAmount(0, quoteType, displayCurrency)}
-            </span>
-          </div>
-        )}
+        <div className="flex items-center justify-between text-base">
+          <span className="font-bold text-slate-900">
+            {isDomestic ? `최종 합계 금액${vatSuffix}` : 'Grand Total'}
+          </span>
+          <span className="font-bold text-slate-800">
+            {previewSummary ? previewSummary.totalFormatted : formatAmount(0, quoteType, displayCurrency)}
+          </span>
+        </div>
       </div>
     </div>
   )

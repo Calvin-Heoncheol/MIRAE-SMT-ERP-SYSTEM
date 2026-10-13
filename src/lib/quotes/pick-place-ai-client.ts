@@ -1,4 +1,5 @@
 import type { PickPlaceComponentCategory } from '@/lib/quotes/parse-altium-pick-place'
+import { normalizeLegacyPickPlaceCategory } from '@/lib/quotes/pick-place-mount-categories'
 import { callQuoteAiJsonPrompt } from '@/lib/quotes/spreadsheet-ai-client'
 import type { PickPlaceAiClassification, PickPlaceAiRowInput } from '@/lib/quotes/pick-place-ai-types'
 
@@ -12,14 +13,12 @@ const VALID_CATEGORIES = new Set<PickPlaceComponentCategory>([
   'dip_general',
   'dip_connector',
   'dip_wire',
-  'wave_general',
-  'wave_connector',
-  'wave_wire',
+  'dip_xlarge',
 ])
 
 function normalizeCategory(value: unknown): PickPlaceComponentCategory | null {
   if (typeof value !== 'string') return null
-  const normalized = value.trim().toLowerCase()
+  const normalized = normalizeLegacyPickPlaceCategory(value.trim().toLowerCase())
   if (!VALID_CATEGORIES.has(normalized as PickPlaceComponentCategory)) return null
   return normalized as PickPlaceComponentCategory
 }
@@ -70,7 +69,7 @@ function buildRowsPrompt(rows: PickPlaceAiRowInput[]) {
   "rows": [
     {
       "designator": "U1",
-      "category": "chip|ic|bga|odd|special|skip|dip_general|dip_connector|dip_wire|wave_general|wave_connector|wave_wire",
+      "category": "chip|ic|bga|odd|special|skip|dip_general|dip_connector|dip_wire|dip_xlarge",
       "icPinCount": 64,
       "bgaBallCount": null,
       "reason": "short Korean reason"
@@ -101,10 +100,10 @@ function buildRowsPrompt(rows: PickPlaceAiRowInput[]) {
     '- special: SMD connectors, modules, switches, crystals',
     '- skip: test points, fiducials, mounting holes, mechanical-only',
     'Through-hole / DIP categories (use when package or MPN indicates THT):',
-    '- dip_general: hand solder small TH parts (1-3 pin)',
-    '- dip_connector: hand solder medium TH (4-10 pin)',
-    '- dip_wire: hand solder large TH (11+ pin)',
-    '- wave_general / wave_connector / wave_wire: wave solder TH parts by pin count',
+    '- dip_general: small TH parts (1-3 pin)',
+    '- dip_connector: medium TH parts (4-10 pin)',
+    '- dip_wire: large TH parts (11-19 pin)',
+    '- dip_xlarge: extra-large TH parts (20+ pin)',
     'Return ONLY valid JSON with a "rows" array. One object per input row.',
     'Use the exact designator from input.',
     'Write reason in Korean.',

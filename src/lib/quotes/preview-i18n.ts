@@ -78,7 +78,6 @@ export type PreviewLabels = {
   loadingPreview: string
   emptyPreview: string
   qtySuffix: string
-  minPlacement: string
   oddParts: string
   specialParts: string
   inspectionCombined: string
@@ -117,13 +116,10 @@ export type PreviewLabels = {
   dipGeneral: string
   dipConnector: string
   dipWire: string
-  waveGeneral: string
-  waveConnector: string
-  waveWire: string
+  dipXLarge: string
   onePcb: string
   oneUnit: string
   oneTime: string
-  minPlacementDesc: (score: number, threshold: number) => string
   partsCount: (count: number) => string
   minutesCount: (minutes: number | string) => string
   formatQty: (qty: number) => string
@@ -159,7 +155,6 @@ const DOMESTIC_LABELS: PreviewLabels = {
   loadingPreview: '미리보기를 불러오는 중...',
   emptyPreview: '왼쪽에서 값을 입력하면 미리보기가 표시됩니다',
   qtySuffix: 'EA',
-  minPlacement: '최소 실장비',
   oddParts: '이형',
   specialParts: '특수/모듈',
   inspectionCombined: 'AOI, X-RAY 및 외관검사',
@@ -197,14 +192,11 @@ const DOMESTIC_LABELS: PreviewLabels = {
   sideDouble: '양면',
   dipGeneral: '수납땜 소형(1~3PIN)',
   dipConnector: '수납땜 중형(4~10PIN)',
-  dipWire: '수납땜 대형(10PIN+)',
-  waveGeneral: 'WAVE 일반(1~3PIN)',
-  waveConnector: 'WAVE 중형(4~10PIN)',
-  waveWire: 'WAVE 대형(10PIN+)',
+  dipWire: '수납땜 대형(11~19PIN)',
+  dipXLarge: '수납땜 초대형(20PIN+)',
   onePcb: '1 PCB',
   oneUnit: '1대',
   oneTime: '1회',
-  minPlacementDesc: (score, threshold) => `${score}점 · ${threshold}점 이하`,
   partsCount: (count) => `${count}개`,
   minutesCount: (minutes) => formatMinutesCountLabel(minutes, '분'),
   formatQty: (qty) => `${qty.toLocaleString('ko-KR')}EA`,
@@ -240,7 +232,6 @@ const EXPORT_LABELS: PreviewLabels = {
   loadingPreview: 'Loading preview...',
   emptyPreview: 'Enter values on the left to preview',
   qtySuffix: ' EA',
-  minPlacement: 'Min Placement Fee',
   oddParts: 'Odd-Form',
   specialParts: 'Special/Module',
   inspectionCombined: 'AOI, X-Ray & Visual Inspection',
@@ -278,14 +269,11 @@ const EXPORT_LABELS: PreviewLabels = {
   sideDouble: 'Double-sided',
   dipGeneral: 'Hand Solder Small (1-3 PIN)',
   dipConnector: 'Hand Solder Medium (4-10 PIN)',
-  dipWire: 'Hand Solder Large (10+ PIN)',
-  waveGeneral: 'Wave Small (1-3 PIN)',
-  waveConnector: 'Wave Medium (4-10 PIN)',
-  waveWire: 'Wave Large (10+ PIN)',
+  dipWire: 'Hand Solder Large (11-19 PIN)',
+  dipXLarge: 'Hand Solder X-Large (20+ PIN)',
   onePcb: '1 PCB',
   oneUnit: '1 unit',
   oneTime: '1 time',
-  minPlacementDesc: (score, threshold) => `${score} pts · ≤${threshold} pts`,
   partsCount: (count) => `${count} pcs`,
   minutesCount: (minutes) => formatMinutesCountLabel(minutes, 'min'),
   formatQty: (qty) => `${qty.toLocaleString('en-US')}${' EA'}`,
@@ -321,7 +309,6 @@ const CHINESE_LABELS: PreviewLabels = {
   loadingPreview: '正在加载预览...',
   emptyPreview: '在左侧输入数值后显示预览',
   qtySuffix: 'EA',
-  minPlacement: '最低贴装费',
   oddParts: '异形',
   specialParts: '特殊/模块',
   inspectionCombined: 'AOI、X-RAY及外观检查',
@@ -359,14 +346,11 @@ const CHINESE_LABELS: PreviewLabels = {
   sideDouble: '双面',
   dipGeneral: '手工焊小型(1~3PIN)',
   dipConnector: '手工焊中型(4~10PIN)',
-  dipWire: '手工焊大型(10PIN+)',
-  waveGeneral: 'WAVE普通(1~3PIN)',
-  waveConnector: 'WAVE中型(4~10PIN)',
-  waveWire: 'WAVE大型(10PIN+)',
+  dipWire: '手工焊大型(11~19PIN)',
+  dipXLarge: '手工焊超大型(20PIN+)',
   onePcb: '1 PCB',
   oneUnit: '1台',
   oneTime: '1次',
-  minPlacementDesc: (score, threshold) => `${score}分 · ${threshold}分以下`,
   partsCount: (count) => `${count}个`,
   minutesCount: (minutes) => formatMinutesCountLabel(minutes, '分钟'),
   formatQty: (qty) => `${qty.toLocaleString('zh-CN')}EA`,
