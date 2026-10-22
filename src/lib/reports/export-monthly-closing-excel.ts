@@ -8,6 +8,7 @@ import {
 
 type ClosingExcelRow = {
   recordDate: string
+  orderNumber: string
   shipmentId: string
   kind: string
   productCode: string
@@ -29,6 +30,7 @@ export async function exportMonthlyClosingExcel(input: ExportMonthlyClosingPdfIn
   const totals = summarizeMonthlyClosingRows(input.rows)
   const rows: ClosingExcelRow[] = input.rows.map((row: MonthlyClosingRow) => ({
     recordDate: row.recordDate || '',
+    orderNumber: row.orderNumber || '',
     shipmentId: row.shipmentId || '',
     kind: monthlyClosingKindLabel(row.kind),
     productCode: row.productCode || '',
@@ -39,6 +41,7 @@ export async function exportMonthlyClosingExcel(input: ExportMonthlyClosingPdfIn
   }))
   rows.push({
     recordDate: '합계',
+    orderNumber: '',
     shipmentId: '',
     kind: '',
     productCode: '',
@@ -56,6 +59,7 @@ export async function exportMonthlyClosingExcel(input: ExportMonthlyClosingPdfIn
     sheetName: '월마감',
     columns: [
       { header: '일자', value: (row: ClosingExcelRow) => row.recordDate, width: 12, cellStyle: totalStyle },
+      { header: '발주번호', value: (row) => row.orderNumber, width: 18, cellStyle: totalStyle },
       { header: '출하번호', value: (row) => row.shipmentId, width: 18, cellStyle: totalStyle },
       { header: '구분', value: (row) => row.kind, width: 10, cellStyle: totalStyle },
       { header: '품목코드', value: (row) => row.productCode, width: 18, cellStyle: totalStyle },

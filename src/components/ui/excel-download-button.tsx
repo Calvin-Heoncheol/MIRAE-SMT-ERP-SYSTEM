@@ -6,10 +6,11 @@ import { ERP_EXCEL_BUTTON_CLASS } from '@/lib/ui/tokens'
 type ExcelDownloadButtonProps = {
   onDownload: () => Promise<void>
   disabled?: boolean
+  label?: string
 }
 
 /** 전 페이지 공통 Excel 내보내기 */
-export function ExcelDownloadButton({ onDownload, disabled = false }: ExcelDownloadButtonProps) {
+export function ExcelDownloadButton({ onDownload, disabled = false, label = 'EXCEL' }: ExcelDownloadButtonProps) {
   const [busy, setBusy] = useState(false)
 
   async function handleClick() {
@@ -29,7 +30,7 @@ export function ExcelDownloadButton({ onDownload, disabled = false }: ExcelDownl
       disabled={disabled || busy}
       className={ERP_EXCEL_BUTTON_CLASS}
     >
-      {busy ? '내보내는 중…' : 'EXCEL'}
+      {busy ? '내보내는 중…' : label}
     </button>
   )
 }

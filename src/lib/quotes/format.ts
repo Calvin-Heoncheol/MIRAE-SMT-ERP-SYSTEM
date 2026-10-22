@@ -180,14 +180,13 @@ export type QuotePreviewSummary = {
   oneTimeFormatted: string | null
 }
 
-/** includeVat 는 국내 견적에만 적용 — 단가·합계 모두 VAT 포함 금액 */
+/** 화면 미리보기용 — 항상 공급가액(VAT 별도). VAT 포함 금액은 PDF에서만 표시 */
 export function formatQuotePreviewSummary(
   grandTotalKrw: number,
   qty: number,
   quoteType: QuoteType,
   displayCurrency: QuoteDisplayCurrency = 'krw',
   oneTimeKrw = 0,
-  includeVat = false,
 ): QuotePreviewSummary {
   if (quoteType === 'export' && resolveQuoteDisplayCurrency(quoteType, displayCurrency) === 'usd') {
     return exportSummaryFromKrw(grandTotalKrw, qty, oneTimeKrw)
@@ -197,7 +196,6 @@ export function formatQuotePreviewSummary(
     grandTotalKrw,
     qty,
     oneTimeKrw,
-    includeVat && quoteType === 'domestic',
   )
   return {
     unitFormatted: formatQuoteKrw(unitKrw),

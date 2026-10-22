@@ -11,9 +11,12 @@ import {
   buildShipmentStatementLinesFromHistory,
   type DeliveryBillingOnlyLine,
 } from '@/lib/delivery/utils'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 
 export type MonthlyClosingRow = {
   recordDate: string
+  /** 발주번호 (고객 PO). 없으면 발주ID */
+  orderNumber: string
   shipmentId: string
   kind: DeliveryRegisterLineKind
   productCode: string
@@ -62,6 +65,7 @@ export function buildMonthlyClosingRows(
         if (quantity <= 0 && amount <= 0) continue
         rows.push({
           recordDate: line.recordDate || group.recordDate,
+          orderNumber: String(line.orderNumber || '').trim(),
           shipmentId,
           kind: 'product',
           productCode: String(line.productCode || '').trim(),
@@ -75,6 +79,16 @@ export function buildMonthlyClosingRows(
     }
 
     if (!group.lines.length) continue
+
+    const poByOrderId = new Map<string, string>()
+    for (const line of group.lines) {
+      const orderId = line.orderNumber.trim()
+      if (orderId && !poByOrderId.get(orderId)) poByOrderId.set(orderId, line.customerPoNumber.trim())
+    }
+    const displayPo = (orderId?: string) => {
+      const id = String(orderId || '').trim()
+      return displayOrderPoNumber(poByOrderId.get(id), id)
+    }
 
     const productHistoryLines = group.lines.filter((line) => !isExtrasOnlyDeliveryStub(line))
     const statementLines = buildShipmentStatementLinesFromHistory({
@@ -102,6 +116,7 @@ export function buildMonthlyClosingRows(
       if (quantity <= 0 && amount <= 0) continue
       rows.push({
         recordDate: group.recordDate,
+        orderNumber: displayPo(line.orderNumber),
         shipmentId,
         kind: line.billingOnly ? (line.material ? 'material' : 'additional_work') : 'product',
         productCode: String(line.productCode || '').trim(),
@@ -118,6 +133,7 @@ export function buildMonthlyClosingRows(
       if (quantity <= 0) continue
       rows.push({
         recordDate: group.recordDate,
+        orderNumber: displayPo(extra.orderNumber),
         shipmentId,
         kind: extra.lineKind,
         productCode: String(extra.productCode || '').trim(),

@@ -47,6 +47,7 @@ export const NAV_ITEMS: NavItem[] = [
       { label: '견적서 등록', href: '/quotations' },
       { label: '발주서 등록', href: '/orders' },
       { label: '출하 및 거래명세서', href: '/delivery/input' },
+      { label: '출하현황', href: '/delivery/status' },
     ],
   },
   {

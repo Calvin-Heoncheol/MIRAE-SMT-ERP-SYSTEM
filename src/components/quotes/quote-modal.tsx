@@ -814,10 +814,8 @@ function QuoteModalContent({
         quoteType,
         displayCurrency,
         result.values.metalMask,
-        form.includeVat,
       )
     : null
-  const liveVatIncluded = form.includeVat && quoteType === 'domestic'
 
   function formatAmount(krw: number) {
     return formatQuoteMoneyByDisplay(krw, quoteType, displayCurrency)
@@ -1210,7 +1208,7 @@ function QuoteModalContent({
               <div className="mb-2 flex items-end justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[11px] font-medium text-slate-500">
-                    대당 단가{liveVatIncluded ? ' (VAT 포함)' : ''}
+                    대당 단가
                   </p>
                   <p className="truncate text-sm font-semibold text-slate-900">
                     {liveSummary?.unitFormatted ?? '-'}
@@ -1223,7 +1221,7 @@ function QuoteModalContent({
                 </div>
                 <div className="min-w-0 text-right">
                   <p className="text-[11px] font-medium text-slate-500">
-                    최종 합계{liveVatIncluded ? ' (VAT 포함)' : ''}
+                    최종 합계
                   </p>
                   <p className="truncate text-base font-bold text-slate-900">
                     {liveSummary?.totalFormatted ?? '-'}
