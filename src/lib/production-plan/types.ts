@@ -41,6 +41,8 @@ export type ProductionPlanBoardRow = {
   remainingQty: number
   /** 연결된 조립 그룹 누적 출하 수량 */
   shippedQty?: number
+  /** SMT·자재 행 — 후공정 계획 대상 조립 그룹 id (후공정 없는 품목은 비어 있음) */
+  postTargetId?: string
   materialReadyQty: number
   materialScheduledQty?: number
   /** 입고예정 병목일(YYYY-MM-DD) */

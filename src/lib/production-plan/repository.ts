@@ -117,6 +117,7 @@ type BoardConfirmRow = {
   confirmed_at: string
   confirmed_by_name: string
   planned_date?: string | null
+  planned_end_date?: string | null
   line_no?: number | null
   team?: string | null
   pcb_side?: string | null
@@ -130,8 +131,10 @@ function normalizeBoardPcbSide(value: string | null | undefined): ProductionPlan
 }
 
 function scheduleFromConfirm(confirm: BoardConfirmRow | undefined) {
+  const plannedDate = String(confirm?.planned_date || '').slice(0, 10)
   return {
-    plannedDate: String(confirm?.planned_date || '').slice(0, 10),
+    plannedDate,
+    plannedEndDate: String(confirm?.planned_end_date || '').slice(0, 10) || plannedDate,
     lineNo:
       confirm?.line_no == null || Number.isNaN(Number(confirm.line_no))
         ? null
@@ -181,8 +184,9 @@ async function fetchConfirmRows(): Promise<
   | { ok: false; reason: 'query'; detail: string }
 > {
   const supabase = createSupabaseClient()
-  const fullSelect =
+  const scheduleSelect =
     'id, scope, order_id, order_line_id, assembly_group_id, confirmed_at, confirmed_by_name, planned_date, line_no, team, pcb_side, planned_quantity'
+  const fullSelect = `${scheduleSelect}, planned_end_date`
   const legacySelect =
     'id, scope, order_id, order_line_id, assembly_group_id, confirmed_at, confirmed_by_name'
 
@@ -196,6 +200,15 @@ async function fetchConfirmRows(): Promise<
       .eq('status', 'confirmed')
     error = full.error
     data = (full.data || null) as BoardConfirmRow[] | null
+  }
+
+  if (error && error.message.includes('planned_end_date')) {
+    const withoutEnd = await supabase
+      .from('production_plan_board_items')
+      .select(scheduleSelect)
+      .eq('status', 'confirmed')
+    error = withoutEnd.error
+    data = (withoutEnd.data || null) as BoardConfirmRow[] | null
   }
 
   if (
@@ -435,6 +448,9 @@ export async function fetchProductionPlanBoard(
   )
 
   const groupIdByOrderLine = buildOrderLineToAssemblyGroupMap(assemblyResult.groups)
+  const postGroupIds = new Set(
+    postOrders.map((line) => line.assemblyGroupId || line.orderLineId).filter(Boolean),
+  )
   const deliveryCounts = deliveryCountsResult.counts
   function shippedQtyForGroup(groupId: string) {
     return Math.max(0, Math.floor(Number(deliveryCounts[groupId]) || 0))
@@ -535,6 +551,10 @@ export async function fetchProductionPlanBoard(
       shippedQty: shippedQtyForGroup(
         line.assemblyGroupId || groupIdByOrderLine.get(line.orderLineId) || '',
       ),
+      postTargetId: (() => {
+        const groupId = line.assemblyGroupId || groupIdByOrderLine.get(line.orderLineId) || ''
+        return groupId && postGroupIds.has(groupId) ? groupId : undefined
+      })(),
       ...hint,
     }
 
@@ -567,6 +587,7 @@ export async function fetchProductionPlanBoard(
           confirmedByName:
             materialConfirms.find((entry) => entry.id === schedule.boardItemId)?.confirmed_by_name || '',
           plannedDate: schedule.plannedDate,
+          plannedEndDate: schedule.plannedEndDate,
           lineNo: schedule.lineNo,
           team: schedule.team,
           pcbSide: schedule.pcbSide,
@@ -930,6 +951,7 @@ export async function confirmProductionPlanItem(
       orderId,
       targetId,
       plannedDate,
+      plannedEndDate,
       plannedQuantity,
       lineNo: null,
       team: '',
@@ -969,6 +991,7 @@ async function saveBoardConfirmation(input: {
   orderId: string
   targetId: string
   plannedDate: string
+  plannedEndDate?: string
   plannedQuantity: number
   lineNo: number | null
   team: string
@@ -977,11 +1000,23 @@ async function saveBoardConfirmation(input: {
   boardItemId?: string
   createBoardIfMissing?: boolean
 }): Promise<ConfirmProductionPlanResult> {
+  const result = await saveBoardConfirmationOnce(input, true)
+  if (!result.ok && result.detail.includes('planned_end_date')) {
+    return saveBoardConfirmationOnce(input, false)
+  }
+  return result
+}
+
+async function saveBoardConfirmationOnce(
+  input: Parameters<typeof saveBoardConfirmation>[0],
+  withEndDate: boolean,
+): Promise<ConfirmProductionPlanResult> {
   const createdBy = await resolveCreatedBySnapshot()
   const supabase = createSupabaseClient()
   const scope = input.scope
 
   const schedulePayload: Record<string, unknown> = {
+    ...(withEndDate ? { planned_end_date: input.plannedEndDate || input.plannedDate } : {}),
     status: 'confirmed',
     confirmed_at: new Date().toISOString(),
     confirmed_by: createdBy.createdBy,

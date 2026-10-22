@@ -168,7 +168,7 @@ export function ProductionPlanScheduleModal({
     sideOptions.find((option) => option.value === values.pcbSide)?.done === true &&
     row.status !== 'confirmed'
 
-  const showScheduleExtras = row.scope === 'smt' || row.scope === 'post'
+  const showScheduleExtras = true
 
   function trySubmit() {
     const plannedQuantity = Math.min(
