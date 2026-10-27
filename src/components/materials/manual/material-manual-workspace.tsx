@@ -14,8 +14,9 @@ import type {
 } from '@/lib/materials/manual/types'
 import {
   fetchMaterialManualPageData,
+  MATERIAL_ACTUAL_INBOUND_SQL_HINT,
   MATERIAL_EXPECTED_INBOUND_SQL_HINT,
-  saveMaterialExpectedInboundDate,
+  saveMaterialInboundDate,
   saveMaterialManualInbound,
   saveMaterialManualOutbound,
 } from '@/lib/materials/manual/repository'
@@ -24,6 +25,7 @@ import {
   filterOrdersByMaterialInbound,
   type MaterialInboundFilter,
 } from '@/lib/materials/manual/utils'
+import { todayYmdSeoul } from '@/lib/orders/utils'
 import { filterProductionOrders } from '@/lib/production-input/utils'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatEmptyListMessage } from '@/lib/ui/tokens'
@@ -60,6 +62,13 @@ export function MaterialManualWorkspace({
   const [savingExpectedLineIds, setSavingExpectedLineIds] = useState<Set<string>>(
     () => new Set(),
   )
+  const [actualInboundByLineId, setActualInboundByLineId] = useState<Record<string, string>>(
+    initialResult.ok ? initialResult.data.actualInboundByLineId : {},
+  )
+  const [actualColumnMissing, setActualColumnMissing] = useState(
+    initialResult.ok ? Boolean(initialResult.data.actualInboundColumnMissing) : false,
+  )
+  const [savingActualLineIds, setSavingActualLineIds] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
     setSelectedKey(initialUiKey)
@@ -114,40 +123,52 @@ export function MaterialManualWorkspace({
     setMetricsByLineId(result.data.metricsByLineId)
     setExpectedInboundByLineId(result.data.expectedInboundByLineId)
     setExpectedTableMissing(Boolean(result.data.expectedInboundTableMissing))
+    setActualInboundByLineId(result.data.actualInboundByLineId)
+    setActualColumnMissing(Boolean(result.data.actualInboundColumnMissing))
   }
 
-  async function handleExpectedInboundChange(order: ProductionOrderLine, expectedDate: string) {
+  async function handleInboundDateChange(
+    field: 'expected' | 'actual',
+    order: ProductionOrderLine,
+    date: string,
+  ) {
     const lineId = order.orderLineId
-    const previous = expectedInboundByLineId[lineId] ?? ''
-    if (previous === expectedDate) return
+    const setDates = field === 'expected' ? setExpectedInboundByLineId : setActualInboundByLineId
+    const setSaving = field === 'expected' ? setSavingExpectedLineIds : setSavingActualLineIds
+    const previous =
+      (field === 'expected' ? expectedInboundByLineId : actualInboundByLineId)[lineId] ?? ''
+    if (previous === date) return
 
-    setExpectedInboundByLineId((current) => {
-      const next = { ...current }
-      if (expectedDate) next[lineId] = expectedDate
-      else delete next[lineId]
-      return next
-    })
-    setSavingExpectedLineIds((current) => new Set(current).add(lineId))
+    function applyDate(value: string) {
+      setDates((current) => {
+        const next = { ...current }
+        if (value) next[lineId] = value
+        else delete next[lineId]
+        return next
+      })
+    }
 
-    const result = await saveMaterialExpectedInboundDate({
+    applyDate(date)
+    setSaving((current) => new Set(current).add(lineId))
+
+    const result = await saveMaterialInboundDate({
       orderId: order.orderId,
       orderLineId: lineId,
-      expectedDate,
+      field,
+      date,
     })
 
-    setSavingExpectedLineIds((current) => {
+    setSaving((current) => {
       const next = new Set(current)
       next.delete(lineId)
       return next
     })
     if (!result.ok) {
-      setExpectedInboundByLineId((current) => {
-        const next = { ...current }
-        if (previous) next[lineId] = previous
-        else delete next[lineId]
-        return next
+      applyDate(previous)
+      notifyAuthOrFailure(result, {
+        toastAllFailures: true,
+        title: `${field === 'expected' ? '예상입고일' : '실제입고일'} 저장 실패`,
       })
-      notifyAuthOrFailure(result, { toastAllFailures: true, title: '예상입고일 저장 실패' })
       setError(result.detail)
       return
     }
@@ -177,7 +198,7 @@ export function MaterialManualWorkspace({
     const payload = {
       orderId: selectedOrder.orderId,
       orderLineId: selectedOrder.orderLineId,
-      recordDate: input.recordDate,
+      recordDate: (isInbound && actualInboundByLineId[selectedOrder.orderLineId]) || todayYmdSeoul(),
       quantity,
     }
     const saveResult = isInbound
@@ -242,6 +263,10 @@ export function MaterialManualWorkspace({
         <div className="mb-3 shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           예상입고일 테이블이 아직 없습니다. {MATERIAL_EXPECTED_INBOUND_SQL_HINT}
         </div>
+      ) : actualColumnMissing ? (
+        <div className="mb-3 shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          실제입고일을 저장하려면 준비가 필요합니다. {MATERIAL_ACTUAL_INBOUND_SQL_HINT}
+        </div>
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
@@ -267,7 +292,16 @@ export function MaterialManualWorkspace({
             expectedInboundByLineId={expectedInboundByLineId}
             savingExpectedLineIds={savingExpectedLineIds}
             onExpectedInboundChange={
-              expectedTableMissing ? undefined : (order, date) => void handleExpectedInboundChange(order, date)
+              expectedTableMissing
+                ? undefined
+                : (order, date) => void handleInboundDateChange('expected', order, date)
+            }
+            actualInboundByLineId={actualInboundByLineId}
+            savingActualLineIds={savingActualLineIds}
+            onActualInboundChange={
+              expectedTableMissing || actualColumnMissing
+                ? undefined
+                : (order, date) => void handleInboundDateChange('actual', order, date)
             }
             emptyMessage={formatEmptyListMessage({
               hasQuery: Boolean(search.trim()) || statusFilter !== 'all',

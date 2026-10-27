@@ -1,40 +1,60 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  ProductionPlanBadgeAssignModal,
+  type PlanBadgeValues,
+} from '@/components/production-plan/production-plan-badge-assign-modal'
+import {
+  ProductionPlanEventModal,
+  type ProductionPlanEventValues,
+} from '@/components/production-plan/production-plan-event-modal'
 import { ProductionPlanFetchError } from '@/components/production-plan/production-plan-fetch-error'
+import { ProductionPlanMonthCalendar } from '@/components/production-plan/production-plan-month-calendar'
 import {
   ProductionPlanOrderPickerModal,
   type ProductionPlanPickerTarget,
 } from '@/components/production-plan/production-plan-order-picker-modal'
 import {
+  planItemFromBoardRow,
+  planItemFromEvent,
+  type PlanCalendarItem,
+} from '@/components/production-plan/production-plan-plan-bars'
+import {
   buildScheduleFormValues,
   ProductionPlanScheduleModal,
   type ProductionPlanScheduleFormValues,
 } from '@/components/production-plan/production-plan-schedule-modal'
-import {
-  ProductionPlanStageScheduleModal,
-  type ProductionPlanStageValues,
-} from '@/components/production-plan/production-plan-stage-schedule-modal'
 import { useDashboardChrome } from '@/components/dashboard/dashboard-chrome'
 import { useToast } from '@/components/ui/toast-provider'
 import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
 import {
-  ProductionPlanWeekGantt,
-  type ProductionPlanGanttSlot,
-} from '@/components/production-plan/production-plan-week-gantt'
-import {
-  addWeeksYmd,
-  formatWeekLabel,
-  getWeekStartYmd,
-  planCoversYmd,
+  addMonthsYmd,
+  buildMonthGrid,
+  formatMonthLabel,
+  getMonthStartYmd,
+  isWeekendYmd,
 } from '@/lib/production-plan/calendar'
-import { getWeekDates } from '@/lib/smt/plan/utils'
+import {
+  deleteProductionPlanEvent,
+  fetchProductionPlanEvents,
+  saveProductionPlanEvent,
+  type FetchProductionPlanEventsResult,
+  type ProductionPlanEvent,
+} from '@/lib/production-plan/events'
+import {
+  PLAN_BADGE_GROUPS,
+  PLAN_BADGE_GROUP_STYLE,
+  PLAN_BADGE_META,
+  isPlanEventKind,
+} from '@/lib/production-plan/plan-badges'
 import {
   confirmProductionPlanItem,
   fetchProductionPlanBoard,
   unconfirmProductionPlanItem,
 } from '@/lib/production-plan/repository'
 import type {
+  ConfirmProductionPlanScheduleInput,
   FetchProductionPlanBoardResult,
   ProductionPlanBoardRow,
 } from '@/lib/production-plan/types'
@@ -43,7 +63,8 @@ import { isProductionPlanScheduleRow } from '@/lib/production-plan/utils'
 
 type ProductionPlanUnifiedWorkspaceProps = {
   initialResult: FetchProductionPlanBoardResult
-  initialWeekStart: string
+  initialEvents: FetchProductionPlanEventsResult
+  initialMonthStart: string
 }
 
 type ModalState =
@@ -54,17 +75,9 @@ type ModalState =
       initialValues: ProductionPlanScheduleFormValues
     }
 
+type AssignModalState = { row: ProductionPlanBoardRow; seedDate: string } | null
+
 const ALL_CUSTOMERS = ''
-
-type SlotDefaults = { lineNo?: number; team?: string }
-
-type StageModalState = ({ row: ProductionPlanBoardRow; seedDate: string } & SlotDefaults) | null
-
-const STAGE_LABELS: Record<ProductionPlanBoardRow['scope'], string> = {
-  material: '자재',
-  smt: 'SMD',
-  post: '후공정',
-}
 
 function ymdDiffDays(from: string, to: string) {
   const a = Date.parse(`${from.slice(0, 10)}T00:00:00Z`)
@@ -75,6 +88,10 @@ function ymdDiffDays(from: string, to: string) {
 
 function customerOf(row: { customer?: string | null }) {
   return String(row.customer || '').trim()
+}
+
+function overlaps(item: PlanCalendarItem, first: string, last: string) {
+  return item.plannedDate <= last && (item.plannedEndDate || item.plannedDate) >= first
 }
 
 const EMPTY_ROW: ProductionPlanBoardRow = {
@@ -112,24 +129,33 @@ const EMPTY_ROW: ProductionPlanBoardRow = {
 
 export function ProductionPlanUnifiedWorkspace({
   initialResult,
-  initialWeekStart,
+  initialEvents,
+  initialMonthStart,
 }: ProductionPlanUnifiedWorkspaceProps) {
-  const [weekStart, setWeekStart] = useState(initialWeekStart)
-  const [pickerSlot, setPickerSlot] = useState<SlotDefaults>({})
+  const [monthStart, setMonthStart] = useState(initialMonthStart)
   const [customer, setCustomer] = useState(ALL_CUSTOMERS)
   const [rows, setRows] = useState<ProductionPlanBoardRow[]>(
     initialResult.ok ? initialResult.data.rows : [],
   )
-  const [error, setError] = useState(initialResult.ok ? '' : initialResult.detail)
+  const [events, setEvents] = useState<ProductionPlanEvent[]>(
+    initialEvents.ok ? initialEvents.events : [],
+  )
+  const [eventsTableMissing, setEventsTableMissing] = useState(
+    initialEvents.ok && initialEvents.tableMissing,
+  )
+  const [error, setError] = useState(
+    !initialResult.ok ? initialResult.detail : !initialEvents.ok ? initialEvents.detail : '',
+  )
   const [refreshing, setRefreshing] = useState(false)
   const [modalSaving, setModalSaving] = useState(false)
   const [modalDeleting, setModalDeleting] = useState(false)
   const [pickerTarget, setPickerTarget] = useState<ProductionPlanPickerTarget | null>(null)
   const [modal, setModal] = useState<ModalState>({ open: false })
-  const [moveSource, setMoveSource] = useState<ProductionPlanBoardRow | null>(null)
+  const [eventModal, setEventModal] = useState<ProductionPlanEvent | null>(null)
+  const [moveSource, setMoveSource] = useState<PlanCalendarItem | null>(null)
   const [moveSaving, setMoveSaving] = useState(false)
-  const [stageModal, setStageModal] = useState<StageModalState>(null)
-  const [stageSaving, setStageSaving] = useState(false)
+  const [assignModal, setAssignModal] = useState<AssignModalState>(null)
+  const [assignSaving, setAssignSaving] = useState(false)
   const toast = useToast()
   const { focusMode, toggleFocusMode, setFocusMode } = useDashboardChrome()
 
@@ -159,19 +185,30 @@ export function ProductionPlanUnifiedWorkspace({
       .map((line) => line.rep)
   }, [rows])
 
-  const weekDates = useMemo(() => getWeekDates(weekStart), [weekStart])
+  const allItems = useMemo(
+    () => [
+      ...rows
+        .filter((row) => isProductionPlanScheduleRow(row) && row.plannedDate)
+        .map(planItemFromBoardRow),
+      ...events.map(planItemFromEvent),
+    ],
+    [rows, events],
+  )
 
-  const allScheduledRows = useMemo(() => {
-    return rows.filter((row) => {
-      if (!isProductionPlanScheduleRow(row) || !row.plannedDate) return false
-      return weekDates.some((ymd) => planCoversYmd(row.plannedDate, row.plannedEndDate, ymd))
-    })
-  }, [rows, weekDates])
+  const monthRange = useMemo(() => {
+    const cells = buildMonthGrid(monthStart)
+    return { first: cells[0]?.ymd ?? monthStart, last: cells[cells.length - 1]?.ymd ?? monthStart }
+  }, [monthStart])
+
+  const monthItems = useMemo(
+    () => allItems.filter((item) => overlaps(item, monthRange.first, monthRange.last)),
+    [allItems, monthRange],
+  )
 
   const customerOptions = useMemo(() => {
     const planCounts = new Map<string, number>()
-    for (const row of allScheduledRows) {
-      const name = customerOf(row)
+    for (const item of monthItems) {
+      const name = customerOf(item)
       if (name) planCounts.set(name, (planCounts.get(name) ?? 0) + 1)
     }
     const names = new Set(planCounts.keys())
@@ -183,7 +220,7 @@ export function ProductionPlanUnifiedWorkspace({
     return [...names]
       .sort((a, b) => a.localeCompare(b, 'ko'))
       .map((name) => ({ name, planCount: planCounts.get(name) ?? 0 }))
-  }, [allScheduledRows, allOrderLines, customer])
+  }, [monthItems, allOrderLines, customer])
 
   const orderLines = useMemo(
     () =>
@@ -191,32 +228,48 @@ export function ProductionPlanUnifiedWorkspace({
     [allOrderLines, customer],
   )
 
-  const scheduledRows = useMemo(
-    () =>
-      customer ? allScheduledRows.filter((row) => customerOf(row) === customer) : allScheduledRows,
-    [allScheduledRows, customer],
+  const visibleItems = useMemo(
+    () => (customer ? monthItems.filter((item) => customerOf(item) === customer) : monthItems),
+    [monthItems, customer],
   )
+
+  const assignExistingItems = useMemo(() => {
+    if (!assignModal) return []
+    const { targetId, postTargetId } = assignModal.row
+    return allItems.filter((item) => {
+      if (item.event) return item.event.orderLineId === targetId
+      const row = item.boardRow
+      if (!row) return false
+      return row.scope === 'post'
+        ? Boolean(postTargetId) && row.targetId === postTargetId
+        : row.targetId === targetId
+    })
+  }, [assignModal, allItems])
 
   const reload = useCallback(async (options?: { background?: boolean }) => {
     const background = options?.background ?? false
-    if (background) {
-      setRefreshing(true)
-    }
+    if (background) setRefreshing(true)
     setError('')
-    const result = await fetchProductionPlanBoard()
-    if (background) {
-      setRefreshing(false)
-    }
-    if (!result.ok) {
-      setError(result.detail)
+    const [boardResult, eventsResult] = await Promise.all([
+      fetchProductionPlanBoard(),
+      fetchProductionPlanEvents(),
+    ])
+    if (background) setRefreshing(false)
+    if (!boardResult.ok) {
+      setError(boardResult.detail)
       return
     }
-    setRows(result.data.rows)
+    setRows(boardResult.data.rows)
+    if (!eventsResult.ok) {
+      setError(eventsResult.detail)
+      return
+    }
+    setEvents(eventsResult.events)
+    setEventsTableMissing(eventsResult.tableMissing)
   }, [])
 
-  function openScheduleModal(row: ProductionPlanBoardRow, dateSeed?: string) {
-    const seed =
-      dateSeed ?? (isProductionPlanScheduleRow(row) ? row.plannedDate.slice(0, 10) : todayYmdSeoul())
+  function openScheduleModal(row: ProductionPlanBoardRow) {
+    const seed = isProductionPlanScheduleRow(row) ? row.plannedDate.slice(0, 10) : todayYmdSeoul()
     setModal({
       open: true,
       row,
@@ -224,92 +277,134 @@ export function ProductionPlanUnifiedWorkspace({
     })
   }
 
+  function handleSelectItem(item: PlanCalendarItem) {
+    if (item.event) setEventModal(item.event)
+    else if (item.boardRow) openScheduleModal(item.boardRow)
+  }
+
+  function handleCellClick(plannedDate: string) {
+    if (moveSource) {
+      void handleMoveTo(plannedDate)
+      return
+    }
+    setPickerTarget({ plannedDate })
+  }
+
   function handlePickOrder(row: ProductionPlanBoardRow) {
     if (!pickerTarget) return
     const seedDate = pickerTarget.plannedDate
     setPickerTarget(null)
-    setStageModal({ row, seedDate, ...pickerSlot })
+    setAssignModal({ row, seedDate })
   }
 
-  function handleGanttCellClick(slot: ProductionPlanGanttSlot) {
-    if (moveSource) {
-      // 다른 공정 줄로는 옮기지 않고 날짜만 반영
-      const sameScope = moveSource.scope === slot.scope
-      void handleMoveTo(slot.plannedDate, sameScope ? { lineNo: slot.lineNo, team: slot.team } : {})
-      return
+  function badgeToConfirmInput(
+    row: ProductionPlanBoardRow,
+    badge: PlanBadgeValues,
+  ): ConfirmProductionPlanScheduleInput {
+    const base = {
+      orderId: row.orderId,
+      plannedDate: badge.plannedDate,
+      plannedEndDate: badge.plannedEndDate,
+      planStatus: 'confirmed' as const,
+      plannedQuantity: badge.plannedQuantity,
     }
-    setPickerSlot({ lineNo: slot.lineNo, team: slot.team })
-    setPickerTarget({ plannedDate: slot.plannedDate })
+    if (badge.kind === 'material_inbound') {
+      return { ...base, scope: 'material', targetId: row.targetId }
+    }
+    if (badge.kind === 'post') {
+      return { ...base, scope: 'post', targetId: row.postTargetId || '', team: badge.team }
+    }
+    return {
+      ...base,
+      scope: 'smt',
+      targetId: row.targetId,
+      lineNo: badge.lineNo,
+      pcbSide: !row.splitPcbSides ? 'SINGLE' : badge.kind === 'smd_second' ? 'BOT' : 'TOP',
+    }
   }
 
-  async function handleStageSubmit(stages: ProductionPlanStageValues[]) {
-    if (!stageModal) return
-    const row = stageModal.row
-    setStageSaving(true)
+  async function handleAssignSubmit(badges: PlanBadgeValues[]) {
+    if (!assignModal) return
+    const row = assignModal.row
+    setAssignSaving(true)
     const saved: string[] = []
-    for (const stage of stages) {
-      const targetId = stage.scope === 'post' ? row.postTargetId || '' : row.targetId
-      const result = await confirmProductionPlanItem({
-        scope: stage.scope,
-        orderId: row.orderId,
-        targetId,
-        plannedDate: stage.plannedDate,
-        plannedEndDate: stage.plannedEndDate,
-        planStatus: 'confirmed',
-        plannedQuantity: stage.plannedQuantity,
-        lineNo: stage.scope === 'smt' ? stage.lineNo : undefined,
-        pcbSide: stage.scope === 'smt' ? (row.splitPcbSides ? 'BOTH' : 'SINGLE') : undefined,
-        team: stage.scope === 'post' ? stage.team : undefined,
-      })
+    for (const badge of badges) {
+      const label = PLAN_BADGE_META[badge.kind].short
+      const result = isPlanEventKind(badge.kind)
+        ? await saveProductionPlanEvent({
+            kind: badge.kind,
+            orderId: row.orderId,
+            orderLineId: row.targetId,
+            plannedDate: badge.plannedDate,
+            plannedEndDate: badge.plannedEndDate,
+            plannedQuantity: badge.plannedQuantity,
+            orderNumber: row.orderNumber,
+            customerPoNumber: row.customerPoNumber,
+            customer: row.customer,
+            productName: row.productName,
+          })
+        : await confirmProductionPlanItem(badgeToConfirmInput(row, badge))
       if (!result.ok) {
-        setStageSaving(false)
+        setAssignSaving(false)
         toast.error(
           '배정 실패',
-          `${saved.length ? `${saved.join('·')}은 저장됐지만 ` : ''}${STAGE_LABELS[stage.scope]} 저장에 실패했습니다. ${result.detail}`,
+          `${saved.length ? `${saved.join('·')}은 저장됐지만 ` : ''}${label} 저장에 실패했습니다. ${result.detail}`,
         )
         await reload({ background: true })
         return
       }
-      saved.push(STAGE_LABELS[stage.scope])
+      saved.push(label)
     }
-    setStageSaving(false)
-    setStageModal(null)
+    setAssignSaving(false)
+    setAssignModal(null)
     toast.success('생산계획', `${saved.join('·')} 일정을 배정했습니다.`)
     await reload({ background: true })
   }
 
-  async function handleMoveTo(plannedDate: string, slot: SlotDefaults = {}) {
-    const row = moveSource
-    if (!row || moveSaving) return
-    const startDate = row.plannedDate.slice(0, 10)
-    const lineNo = row.scope === 'smt' ? (slot.lineNo ?? row.lineNo ?? 1) : undefined
-    const team = row.scope === 'post' ? (slot.team ?? row.team ?? '') : undefined
-    if (
-      plannedDate === startDate &&
-      (row.scope !== 'smt' || lineNo === row.lineNo) &&
-      (row.scope !== 'post' || team === row.team)
-    ) {
+  async function handleMoveTo(plannedDate: string) {
+    const item = moveSource
+    if (!item || moveSaving) return
+    if (plannedDate === item.plannedDate) {
       setMoveSource(null)
       return
     }
-
-    const spanDays = ymdDiffDays(startDate, row.plannedEndDate || startDate)
-    setMoveSaving(true)
-    const result = await confirmProductionPlanItem({
-      scope: row.scope,
-      orderId: row.orderId,
-      targetId: row.targetId,
+    const plannedEndDate = addDaysYmd(
       plannedDate,
-      plannedEndDate: addDaysYmd(plannedDate, spanDays),
-      planStatus: 'confirmed',
-      plannedQuantity: Math.max(1, Math.round(Number(row.plannedQuantity) || 1)),
-      lineNo,
-      pcbSide: row.scope === 'smt' ? (row.pcbSide ?? 'SINGLE') : undefined,
-      team,
-      note: row.note ?? '',
-      planId: row.planId,
-      boardItemId: row.boardItemId,
-    })
+      ymdDiffDays(item.plannedDate, item.plannedEndDate || item.plannedDate),
+    )
+    if (isWeekendYmd(plannedDate) || isWeekendYmd(plannedEndDate)) {
+      toast.error('이동 불가', `종료일(${plannedEndDate})이 주말이 됩니다. 다른 날짜를 선택하세요.`)
+      return
+    }
+
+    setMoveSaving(true)
+    let result: { ok: true } | { ok: false; detail: string }
+    if (item.event) {
+      result = await saveProductionPlanEvent({
+        ...item.event,
+        plannedDate,
+        plannedEndDate,
+      })
+    } else if (item.boardRow) {
+      const row = item.boardRow
+      result = await confirmProductionPlanItem({
+        scope: row.scope,
+        orderId: row.orderId,
+        targetId: row.targetId,
+        plannedDate,
+        plannedEndDate,
+        planStatus: 'confirmed',
+        plannedQuantity: Math.max(1, Math.round(Number(row.plannedQuantity) || 1)),
+        lineNo: row.scope === 'smt' ? (row.lineNo ?? 1) : undefined,
+        pcbSide: row.scope === 'smt' ? (row.pcbSide ?? 'SINGLE') : undefined,
+        team: row.scope === 'post' ? (row.team ?? '') : undefined,
+        note: row.note ?? '',
+        planId: row.planId,
+        boardItemId: row.boardItemId,
+      })
+    } else {
+      result = { ok: true }
+    }
     setMoveSaving(false)
 
     if (!result.ok) {
@@ -377,6 +472,34 @@ export function ProductionPlanUnifiedWorkspace({
     await reload({ background: true })
   }
 
+  async function handleEventSubmit(values: ProductionPlanEventValues) {
+    if (!eventModal) return
+    setModalSaving(true)
+    const result = await saveProductionPlanEvent({ ...eventModal, ...values })
+    setModalSaving(false)
+    if (!result.ok) {
+      toast.error('저장 실패', result.detail)
+      return
+    }
+    setEventModal(null)
+    toast.success('생산계획', '저장했습니다.')
+    await reload({ background: true })
+  }
+
+  async function handleEventDelete() {
+    if (!eventModal) return
+    setModalDeleting(true)
+    const result = await deleteProductionPlanEvent(eventModal.id)
+    setModalDeleting(false)
+    if (!result.ok) {
+      toast.error('삭제 실패', result.detail)
+      return
+    }
+    setEventModal(null)
+    toast.success('생산계획', '일정을 삭제했습니다.')
+    await reload({ background: true })
+  }
+
   if (!initialResult.ok && !rows.length) {
     return <ProductionPlanFetchError result={initialResult} />
   }
@@ -398,7 +521,7 @@ export function ProductionPlanUnifiedWorkspace({
                 }}
                 className="min-w-[10rem] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-800 outline-none focus:border-slate-400"
               >
-                <option value={ALL_CUSTOMERS}>전체 ({allScheduledRows.length})</option>
+                <option value={ALL_CUSTOMERS}>전체 ({monthItems.length})</option>
                 {customerOptions.map((option) => (
                   <option key={option.name} value={option.name}>
                     {option.name} ({option.planCount})
@@ -410,29 +533,29 @@ export function ProductionPlanUnifiedWorkspace({
             <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
               <button
                 type="button"
-                onClick={() => setWeekStart(addWeeksYmd(weekStart, -1))}
-                aria-label="이전 주"
+                onClick={() => setMonthStart(addMonthsYmd(monthStart, -1))}
+                aria-label="이전 달"
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-base font-semibold text-slate-600 hover:bg-slate-50"
               >
                 ‹
               </button>
-              <p className="min-w-[11rem] px-1 text-center text-sm font-bold tabular-nums text-slate-900">
-                {formatWeekLabel(weekStart)}
+              <p className="min-w-[8rem] px-1 text-center text-sm font-bold tabular-nums text-slate-900">
+                {formatMonthLabel(monthStart)}
               </p>
               <button
                 type="button"
-                onClick={() => setWeekStart(addWeeksYmd(weekStart, 1))}
-                aria-label="다음 주"
+                onClick={() => setMonthStart(addMonthsYmd(monthStart, 1))}
+                aria-label="다음 달"
                 className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-base font-semibold text-slate-600 hover:bg-slate-50"
               >
                 ›
               </button>
               <button
                 type="button"
-                onClick={() => setWeekStart(getWeekStartYmd(todayYmdSeoul()))}
+                onClick={() => setMonthStart(getMonthStartYmd(todayYmdSeoul()))}
                 className="ml-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
               >
-                이번 주
+                이번 달
               </button>
               {refreshing ? (
                 <span className="ml-1 text-xs text-slate-400">동기화 중…</span>
@@ -441,18 +564,12 @@ export function ProductionPlanUnifiedWorkspace({
 
             <div className="ml-auto flex items-center gap-3">
               <span className="flex items-center gap-2.5 text-[11px] font-semibold text-slate-500">
-                <span className="flex items-center gap-1">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" aria-hidden />
-                  자재
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-sky-500" aria-hidden />
-                  SMD
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-violet-500" aria-hidden />
-                  후공정
-                </span>
+                {PLAN_BADGE_GROUPS.map(({ group, label }) => (
+                  <span key={group} className="flex items-center gap-1">
+                    <span className={`h-2.5 w-2.5 rounded-sm ${PLAN_BADGE_GROUP_STYLE[group].dot}`} aria-hidden />
+                    {label}
+                  </span>
+                ))}
               </span>
               <button
                 type="button"
@@ -480,13 +597,20 @@ export function ProductionPlanUnifiedWorkspace({
           </div>
         </div>
 
+        {eventsTableMissing ? (
+          <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+            입고예정·입고검사·출하 일정을 저장하려면 Supabase에서{' '}
+            <code className="font-mono">migrate-production-plan-events.sql</code> 을 실행하세요.
+          </div>
+        ) : null}
+
         {moveSource ? (
           <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
             <span className="font-semibold">
-              {moveSource.productName || moveSource.orderNumber} 이동 중
+              {PLAN_BADGE_META[moveSource.kind].short} · {moveSource.productName || moveSource.orderLabel} 이동 중
             </span>
             <span className="text-xs text-amber-700">
-              옮길 칸을 클릭하세요. 같은 공정 줄이면 라인·팀도 바뀌고, 다른 주로 넘겨서 옮길 수도 있습니다. (Esc 취소)
+              옮길 날짜를 클릭하세요. 다른 달로 넘겨서 옮길 수도 있습니다. (Esc 취소)
             </span>
             {moveSaving ? <span className="text-xs text-amber-700">저장 중…</span> : null}
             <button
@@ -499,13 +623,13 @@ export function ProductionPlanUnifiedWorkspace({
           </div>
         ) : null}
 
-        <ProductionPlanWeekGantt
-          weekDates={weekDates}
-          scheduledRows={scheduledRows}
-          onCellClick={handleGanttCellClick}
-          onSelectRow={(row) => openScheduleModal(row)}
+        <ProductionPlanMonthCalendar
+          monthStart={monthStart}
+          items={visibleItems}
+          onCellClick={handleCellClick}
+          onSelectItem={handleSelectItem}
           onStartMove={setMoveSource}
-          movingRowKey={moveSource?.key ?? null}
+          movingKey={moveSource?.key ?? null}
         />
       </div>
 
@@ -517,17 +641,27 @@ export function ProductionPlanUnifiedWorkspace({
         onPick={handlePickOrder}
       />
 
-      {stageModal ? (
-        <ProductionPlanStageScheduleModal
-          key={`${stageModal.row.targetId}:${stageModal.seedDate}:${stageModal.lineNo ?? ''}:${stageModal.team ?? ''}`}
-          row={stageModal.row}
-          seedDate={stageModal.seedDate}
-          defaultLineNo={stageModal.lineNo}
-          defaultTeam={stageModal.team}
-          allRows={rows}
-          saving={stageSaving}
-          onClose={() => setStageModal(null)}
-          onSubmit={handleStageSubmit}
+      {assignModal ? (
+        <ProductionPlanBadgeAssignModal
+          key={`${assignModal.row.targetId}:${assignModal.seedDate}`}
+          row={assignModal.row}
+          seedDate={assignModal.seedDate}
+          existingItems={assignExistingItems}
+          saving={assignSaving}
+          onClose={() => setAssignModal(null)}
+          onSubmit={handleAssignSubmit}
+        />
+      ) : null}
+
+      {eventModal ? (
+        <ProductionPlanEventModal
+          key={eventModal.id}
+          event={eventModal}
+          saving={modalSaving}
+          deleting={modalDeleting}
+          onClose={() => setEventModal(null)}
+          onSubmit={handleEventSubmit}
+          onDelete={handleEventDelete}
         />
       ) : null}
 

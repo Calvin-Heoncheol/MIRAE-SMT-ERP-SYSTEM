@@ -40,15 +40,19 @@ export function isMissingMaterialOrderSetOutboundTable(detail: string) {
 }
 
 function buildInboundByLineId(rows: Awaited<ReturnType<typeof fetchProductionPlanBoard>>) {
-  const map: Record<string, number> = {}
-  if (!rows.ok) return map
+  const totals: Record<string, number> = {}
+  const lastDates: Record<string, string> = {}
+  if (!rows.ok) return { totals, lastDates }
   for (const row of rows.data.rows) {
     if (row.scope !== 'material' || !isProductionPlanScheduleRow(row)) continue
     const lineId = row.targetId.trim()
     if (!lineId) continue
-    map[lineId] = (map[lineId] ?? 0) + Math.max(0, row.plannedQuantity ?? 0)
+    const quantity = Math.max(0, row.plannedQuantity ?? 0)
+    totals[lineId] = (totals[lineId] ?? 0) + quantity
+    const date = row.plannedDate.slice(0, 10)
+    if (quantity > 0 && date && date > (lastDates[lineId] ?? '')) lastDates[lineId] = date
   }
-  return map
+  return { totals, lastDates }
 }
 
 async function fetchOutboundTotalsByLineId(): Promise<
@@ -88,46 +92,69 @@ function isMissingExpectedInboundTable(detail: string) {
   )
 }
 
+export const MATERIAL_ACTUAL_INBOUND_SQL_HINT =
+  'Supabase SQL Editor에서 supabase/migrate-material-actual-inbound-date.sql 을 실행해 주세요.'
+
+function isMissingActualDateColumn(detail: string) {
+  return detail.toLowerCase().includes('actual_date')
+}
+
 async function fetchExpectedInboundByLineId(): Promise<{
   dates: Record<string, string>
+  actualDates: Record<string, string>
   tableMissing: boolean
+  actualColumnMissing: boolean
 }> {
+  const empty = { dates: {}, actualDates: {}, tableMissing: false, actualColumnMissing: false }
   const supabase = createSupabaseClient()
-  if (!supabase) return { dates: {}, tableMissing: false }
+  if (!supabase) return empty
 
-  const { data, error } = await supabase
+  let actualColumnMissing = false
+  let result = await supabase
     .from('material_order_expected_inbound')
-    .select('order_line_id, expected_date')
-  if (error) {
-    return { dates: {}, tableMissing: isMissingExpectedInboundTable(error.message) }
+    .select('order_line_id, expected_date, actual_date')
+  if (result.error && isMissingActualDateColumn(result.error.message)) {
+    actualColumnMissing = true
+    result = (await supabase
+      .from('material_order_expected_inbound')
+      .select('order_line_id, expected_date')) as typeof result
+  }
+  if (result.error) {
+    return { ...empty, tableMissing: isMissingExpectedInboundTable(result.error.message) }
   }
 
   const dates: Record<string, string> = {}
-  for (const row of data || []) {
+  const actualDates: Record<string, string> = {}
+  for (const row of result.data || []) {
     const lineId = String(row.order_line_id || '').trim()
-    const date = String(row.expected_date || '').slice(0, 10)
-    if (lineId && date) dates[lineId] = date
+    if (!lineId) continue
+    const expected = String(row.expected_date || '').slice(0, 10)
+    const actual = String((row as { actual_date?: string | null }).actual_date || '').slice(0, 10)
+    if (expected) dates[lineId] = expected
+    if (actual) actualDates[lineId] = actual
   }
-  return { dates, tableMissing: false }
+  return { dates, actualDates, tableMissing: false, actualColumnMissing }
 }
 
-/** 예상입고일 저장 — 빈 값이면 삭제 */
-export async function saveMaterialExpectedInboundDate(input: {
+/** 예상입고일·실제입고일 저장 — 빈 값이면 해당 날짜만 지움 */
+export async function saveMaterialInboundDate(input: {
   orderId: string
   orderLineId: string
-  expectedDate: string
+  field: 'expected' | 'actual'
+  date: string
 }): Promise<MaterialManualSaveResult> {
   const gate = await assertCanWrite({ module: 'materials', action: 'update' })
   if (!gate.ok) return gate
 
+  const label = input.field === 'expected' ? '예상입고일' : '실제입고일'
   const orderId = input.orderId.trim()
   const orderLineId = input.orderLineId.trim()
-  const expectedDate = String(input.expectedDate || '').trim().slice(0, 10)
+  const date = String(input.date || '').trim().slice(0, 10)
   if (!orderId || !orderLineId) {
     return { ok: false, reason: 'validation', detail: '발주 정보가 올바르지 않습니다.' }
   }
-  if (expectedDate && !/^\d{4}-\d{2}-\d{2}$/.test(expectedDate)) {
-    return { ok: false, reason: 'validation', detail: '예상입고일 형식이 올바르지 않습니다.' }
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return { ok: false, reason: 'validation', detail: `${label} 형식이 올바르지 않습니다.` }
   }
 
   const supabase = createSupabaseClient()
@@ -135,26 +162,32 @@ export async function saveMaterialExpectedInboundDate(input: {
     return { ok: false, reason: 'env', detail: 'Supabase 설정이 없습니다.' }
   }
 
-  const { error } = expectedDate
-    ? await supabase.from('material_order_expected_inbound').upsert(
-        {
-          order_line_id: orderLineId,
-          order_id: orderId,
-          expected_date: expectedDate,
-          updated_at: new Date().toISOString(),
-          updated_by_name: (await resolveCreatedBySnapshot()).createdByName,
-        },
-        { onConflict: 'order_line_id' },
-      )
-    : await supabase
-        .from('material_order_expected_inbound')
-        .delete()
-        .eq('order_line_id', orderLineId)
+  const column = input.field === 'expected' ? 'expected_date' : 'actual_date'
+  let { error } = await supabase.from('material_order_expected_inbound').upsert(
+    {
+      order_line_id: orderLineId,
+      order_id: orderId,
+      [column]: date || null,
+      updated_at: new Date().toISOString(),
+      updated_by_name: (await resolveCreatedBySnapshot()).createdByName,
+    },
+    { onConflict: 'order_line_id' },
+  )
+
+  // 실제입고일 마이그레이션 전 DB — 예상입고일을 비울 때는 행 삭제로 처리
+  if (error && input.field === 'expected' && !date && error.message.includes('expected_date')) {
+    ;({ error } = await supabase
+      .from('material_order_expected_inbound')
+      .delete()
+      .eq('order_line_id', orderLineId))
+  }
 
   if (error) {
     const detail = isMissingExpectedInboundTable(error.message)
       ? `예상입고일 테이블이 없습니다. ${MATERIAL_EXPECTED_INBOUND_SQL_HINT}`
-      : error.message
+      : isMissingActualDateColumn(error.message) || error.message.includes('expected_date')
+        ? `${label} 저장 준비가 안 됐습니다. ${MATERIAL_ACTUAL_INBOUND_SQL_HINT}`
+        : error.message
     return { ok: false, reason: 'query', detail }
   }
   return { ok: true }
@@ -215,7 +248,7 @@ export async function fetchMaterialManualPageData(): Promise<FetchMaterialManual
     return deliveryCountsResult
   }
 
-  const inboundByLineId = buildInboundByLineId(boardResult)
+  const { totals: inboundByLineId, lastDates: lastInboundDates } = buildInboundByLineId(boardResult)
   const groupById = new Map(assemblyResult.groups.map((group) => [group.id, group] as const))
   const lineToGroup = buildOrderLineToAssemblyGroupMap(assemblyResult.groups)
   const metricsByLineId: MaterialManualPageData['metricsByLineId'] = {}
@@ -231,6 +264,7 @@ export async function fetchMaterialManualPageData(): Promise<FetchMaterialManual
       inboundSets: Math.max(inboundByLineId[order.orderLineId] ?? 0, shippedSets),
       outboundSets: Math.max(outboundResult.totals[order.orderLineId] ?? 0, shippedSets),
       shippedSets,
+      lastInboundDate: lastInboundDates[order.orderLineId],
     }
   }
 
@@ -240,7 +274,9 @@ export async function fetchMaterialManualPageData(): Promise<FetchMaterialManual
       orders: inputResult.data.orders,
       metricsByLineId,
       expectedInboundByLineId: expectedInbound.dates,
+      actualInboundByLineId: expectedInbound.actualDates,
       expectedInboundTableMissing: expectedInbound.tableMissing,
+      actualInboundColumnMissing: expectedInbound.actualColumnMissing,
     },
   }
 }

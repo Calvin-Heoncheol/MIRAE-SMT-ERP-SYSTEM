@@ -106,6 +106,14 @@ export function isYmdInWeek(ymd: string, weekStartYmd: string) {
   return date >= start && date <= end
 }
 
+/** 토·일 — 생산계획 배정 불가 */
+export function isWeekendYmd(ymd: string) {
+  const date = parseYmdToLocalDate(ymd.slice(0, 10))
+  if (Number.isNaN(date.getTime())) return false
+  const day = date.getDay()
+  return day === 0 || day === 6
+}
+
 /** 계획 기간이 특정 일자에 걸쳐 있는지 */
 export function planCoversYmd(
   plannedDate: string,

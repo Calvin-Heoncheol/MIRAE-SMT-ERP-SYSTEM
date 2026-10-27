@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
-import { displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
+import { displayOrderPoNumber } from '@/lib/orders/utils'
 import type { ProductionOrderLine } from '@/lib/production-input/types'
 import { formatProductionProductDisplay } from '@/lib/production-input/utils'
 import type {
@@ -13,7 +13,6 @@ import { ERP_FIELD_INPUT_CLASS, ERP_FIELD_LABEL_CLASS } from '@/lib/ui/tokens'
 
 export type MaterialManualSaveInput = {
   kind: MaterialManualHistoryKind
-  recordDate: string
   quantity: number
 }
 
@@ -42,7 +41,6 @@ export function MaterialManualInputPanel({
   embedded = false,
   onSave,
 }: MaterialManualInputPanelProps) {
-  const [recordDate, setRecordDate] = useState(() => todayYmdSeoul())
   const [quantity, setQuantity] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -52,7 +50,6 @@ export function MaterialManualInputPanel({
     setMessage('')
     const ok = await onSave({
       kind,
-      recordDate,
       quantity: Math.floor(Number(quantity) || 0),
     })
     setSaving(false)
@@ -160,16 +157,6 @@ export function MaterialManualInputPanel({
               </p>
             </div>
           </div>
-
-          <label className="block text-sm">
-            <span className={ERP_FIELD_LABEL_CLASS}>일자</span>
-            <input
-              type="date"
-              value={recordDate}
-              onChange={(event) => setRecordDate(event.target.value)}
-              className={ERP_FIELD_INPUT_CLASS}
-            />
-          </label>
 
           <label className="block text-sm">
             <span className={ERP_FIELD_LABEL_CLASS}>

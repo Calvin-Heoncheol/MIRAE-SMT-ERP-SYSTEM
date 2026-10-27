@@ -13,6 +13,7 @@ import {
   formatPlanLoadDetail,
   summarizeLoadEstimates,
 } from '@/lib/production-plan/capacity'
+import { isWeekendYmd } from '@/lib/production-plan/calendar'
 import { validatePostPlanDate } from '@/lib/production-plan/pipeline'
 import {
   isProductionPlanScheduleRow,
@@ -163,6 +164,9 @@ export function ProductionPlanScheduleModal({
     Boolean(values.plannedEndDate) &&
     Boolean(values.plannedDate) &&
     values.plannedEndDate < values.plannedDate
+
+  const weekendPicked =
+    isWeekendYmd(values.plannedDate) || isWeekendYmd(values.plannedEndDate || '')
 
   const selectedSideDone =
     sideOptions.find((option) => option.value === values.pcbSide)?.done === true &&
@@ -410,6 +414,12 @@ export function ProductionPlanScheduleModal({
           />
         </label>
 
+        {weekendPicked ? (
+          <p className="text-xs font-semibold text-rose-600">
+            토요일·일요일은 시작일이나 종료일로 배정할 수 없습니다.
+          </p>
+        ) : null}
+
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-4">
           {onUnassign ? (
             <ErpButton type="button" variant="danger" onClick={onUnassign} disabled={saving || deleting}>
@@ -427,6 +437,7 @@ export function ProductionPlanScheduleModal({
               deleting ||
               !values.plannedDate ||
               endBeforeStart ||
+              weekendPicked ||
               !postDateHint.ok ||
               selectedSideDone ||
               maxQuantity <= 0

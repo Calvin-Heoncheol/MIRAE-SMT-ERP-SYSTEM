@@ -38,6 +38,9 @@ type MaterialManualTableProps = {
   /** 저장 중인 order_line_id */
   savingExpectedLineIds?: Set<string>
   onExpectedInboundChange?: (order: ProductionOrderLine, expectedDate: string) => void
+  actualInboundByLineId?: Record<string, string>
+  savingActualLineIds?: Set<string>
+  onActualInboundChange?: (order: ProductionOrderLine, actualDate: string) => void
 }
 
 function ExpectedInboundCell({
@@ -87,6 +90,54 @@ function ExpectedInboundCell({
         onChange={(event) => onChange?.(order, event.target.value)}
         title={title}
         aria-label="예상입고일"
+        className={`w-[8.5rem] rounded-md border px-1.5 py-1 text-xs tabular-nums outline-none focus:ring-2 focus:ring-amber-200 disabled:opacity-60 ${toneClass}`}
+      />
+    </td>
+  )
+}
+
+function ActualInboundCell({
+  order,
+  value,
+  autoDate,
+  expectedDate,
+  saving,
+  onChange,
+}: {
+  order: ProductionOrderLine
+  value: string
+  /** 직접 입력값이 없을 때 — 입고 기록 중 마지막 입고일 */
+  autoDate?: string
+  expectedDate: string
+  saving: boolean
+  onChange?: (order: ProductionOrderLine, actualDate: string) => void
+}) {
+  const shown = value || autoDate || ''
+  const late = Boolean(shown && expectedDate && shown > expectedDate)
+  const toneClass = late
+    ? 'border-rose-300 bg-rose-50 text-rose-800'
+    : value
+      ? 'border-slate-200 bg-white text-slate-800'
+      : shown
+        ? 'border-dashed border-slate-300 bg-slate-50 text-slate-500'
+        : 'border-dashed border-slate-300 bg-white text-slate-400'
+  const title = late
+    ? `실제입고일이 예상입고일(${expectedDate})보다 늦습니다`
+    : value
+      ? '자재 실제입고일 — 선택하면 바로 저장됩니다'
+      : shown
+        ? '입고 기록 기준 날짜 — 선택하면 실제입고일로 저장됩니다'
+        : '자재 실제입고일 — 선택하면 바로 저장됩니다'
+
+  return (
+    <td className={`${ERP_TABLE_TD_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>
+      <input
+        type="date"
+        value={shown}
+        disabled={!onChange || saving}
+        onChange={(event) => onChange?.(order, event.target.value)}
+        title={title}
+        aria-label="실제입고일"
         className={`w-[8.5rem] rounded-md border px-1.5 py-1 text-xs tabular-nums outline-none focus:ring-2 focus:ring-amber-200 disabled:opacity-60 ${toneClass}`}
       />
     </td>
@@ -169,6 +220,9 @@ export function MaterialManualTable({
   expectedInboundByLineId = {},
   savingExpectedLineIds,
   onExpectedInboundChange,
+  actualInboundByLineId = {},
+  savingActualLineIds,
+  onActualInboundChange,
 }: MaterialManualTableProps) {
   if (!orders.length) {
     return (
@@ -181,7 +235,7 @@ export function MaterialManualTable({
   return (
     <div className={ERP_TABLE_WRAP_CLASS}>
       <div className={ERP_TABLE_SCROLL_CLASS}>
-        <table className={`${ERP_TABLE_CLASS} min-w-[1080px]`}>
+        <table className={`${ERP_TABLE_CLASS} min-w-[1180px]`}>
           <thead className={ERP_TABLE_HEAD_CLASS}>
             <tr>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>발주서</th>
@@ -190,6 +244,7 @@ export function MaterialManualTable({
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>버전</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>납기</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>예상입고일</th>
+              <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>실제입고일</th>
               <th className={ERP_TABLE_TH_CLASS}>입고</th>
               <th className={ERP_TABLE_TH_CLASS}>불출</th>
               <th className={`${ERP_TABLE_TH_CLASS} ${ERP_TABLE_TD_FIXED_CLASS}`}>상태</th>
@@ -249,6 +304,14 @@ export function MaterialManualTable({
                     inboundComplete={inboundComplete}
                     saving={savingExpectedLineIds?.has(order.orderLineId) ?? false}
                     onChange={onExpectedInboundChange}
+                  />
+                  <ActualInboundCell
+                    order={order}
+                    value={actualInboundByLineId[order.orderLineId] ?? ''}
+                    autoDate={metrics.lastInboundDate}
+                    expectedDate={expectedInboundByLineId[order.orderLineId] ?? ''}
+                    saving={savingActualLineIds?.has(order.orderLineId) ?? false}
+                    onChange={onActualInboundChange}
                   />
                   <ProgressCell
                     percent={inboundPercent}

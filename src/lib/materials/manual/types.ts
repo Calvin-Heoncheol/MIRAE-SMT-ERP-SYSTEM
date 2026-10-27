@@ -5,6 +5,8 @@ export type MaterialManualOrderMetrics = {
   outboundSets: number
   /** 출하 수량 환산 세트 — BOM 미등록 품목도 출하분은 입고·불출 완료로 간주 */
   shippedSets?: number
+  /** 입고 기록 중 가장 늦은 입고일 (YYYY-MM-DD) */
+  lastInboundDate?: string
 }
 
 export type MaterialManualPageData = {
@@ -12,8 +14,12 @@ export type MaterialManualPageData = {
   metricsByLineId: Record<string, MaterialManualOrderMetrics>
   /** order_line_id → 예상입고일 (YYYY-MM-DD) */
   expectedInboundByLineId: Record<string, string>
+  /** order_line_id → 실제입고일 (YYYY-MM-DD, 직접 입력값) */
+  actualInboundByLineId: Record<string, string>
   /** material_order_expected_inbound 테이블 미생성 */
   expectedInboundTableMissing?: boolean
+  /** actual_date 컬럼 미생성 */
+  actualInboundColumnMissing?: boolean
 }
 
 export type FetchMaterialManualPageResult =
