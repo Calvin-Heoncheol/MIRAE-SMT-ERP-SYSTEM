@@ -10,19 +10,17 @@ import { joinBomAlternateTokens, splitBomAlternateTokens } from '@/lib/bom/alter
 
 export const BOM_PASTE_COLUMNS = [
   { key: 'partCode', label: '품목코드', required: false },
-  { key: 'name', label: '품목명', required: false },
+  { key: 'alternates', label: '대체코드', required: false },
   { key: 'process', label: '공정', required: false },
-  { key: 'spec', label: '규격', required: false },
-  { key: 'mpn', label: 'MPN', required: false },
+  { key: 'name', label: '품목명/규격', required: false },
   { key: 'quantityPer', label: 'Qty', required: true },
   { key: 'designators', label: 'Designator', required: false },
-  { key: 'alternates', label: '대체', required: false },
 ] as const
 
 export function bomPasteSampleValues(): string[][] {
   return [
-    ['C1608-104K', 'CAP 100nF', 'SMD', '1608 100nF', 'GRM188R71C104KA01D', '2', 'C1,C2', 'C1608-104K-B'],
-    ['', 'RES 10k', 'SMD', '1005 10k', 'RC1005FR-0710KL', '1', 'R1', ''],
+    ['C1608-104K', 'C1608-104K-B', 'SMD', 'CAP 100nF / 1608 100nF / GRM188R71C104KA01D', '2', 'C1,C2'],
+    ['', '', 'SMD', 'RES 10k / 1005 10k / RC1005FR-0710KL', '1', 'R1'],
   ]
 }
 
@@ -66,7 +64,7 @@ type ColumnKey =
 
 const HEADER_ALIASES: Record<ColumnKey, string[]> = {
   partCode: ['품목코드', '자재코드', 'partcode', 'part no', 'partno', 'item code', 'itemcode', 'code'],
-  name: ['품목명', '품명', '자재명', 'description', 'desc', 'name', 'part name'],
+  name: ['품목명', '품명', '자재명', '품목명/규격', 'description', 'desc', 'name', 'part name'],
   process: ['공정', 'process', 'type', '실장', 'mount', 'smd/dip'],
   spec: ['규격', '사양', 'spec', 'specification', 'value', 'package'],
   mpn: ['mpn', 'manufacturer part', 'mfr part', 'part number', 'partnumber', '제조사부품'],
@@ -130,6 +128,18 @@ function defaultHeaderMap(): Record<ColumnKey, number> {
   }
 }
 
+/** 헤더 없는 6열 — 화면 순서 (품목코드·대체코드·공정·품목명/규격·Qty·Designator) */
+function compactHeaderMap(): Partial<Record<ColumnKey, number>> {
+  return {
+    partCode: 0,
+    alternates: 1,
+    process: 2,
+    name: 3,
+    quantityPer: 4,
+    designators: 5,
+  }
+}
+
 export type BomPasteRow = {
   partCode: string
   name: string
@@ -155,15 +165,22 @@ export function parseBomImportRows(rawRows: string[][]): BomPasteRow[] {
 
   const headerMap = detectHeaderMap(rows[0]) || null
   const startIndex = headerMap ? 1 : 0
-  const map = headerMap || defaultHeaderMap()
+  const maxColumns = Math.max(...rows.map((row) => row.length))
+  const map = headerMap || (maxColumns <= 6 ? compactHeaderMap() : defaultHeaderMap())
   const parsed: BomPasteRow[] = []
 
   for (let i = startIndex; i < rows.length; i += 1) {
     const cols = rows[i]
     const partCode = cellAt(cols, map.partCode)
-    const mpn = cellAt(cols, map.mpn)
-    const name = cellAt(cols, map.name)
-    const spec = cellAt(cols, map.spec)
+    let mpn = cellAt(cols, map.mpn)
+    let name = cellAt(cols, map.name)
+    let spec = cellAt(cols, map.spec)
+    if (!spec && !mpn) {
+      const description = parseBomLineDescription(name)
+      name = description.sourceName
+      spec = description.sourceSpec
+      mpn = description.sourceMpn
+    }
     const designators = cellAt(cols, map.designators)
     const alternates = cellAt(cols, map.alternates)
     const process = normalizeBomProcess(cellAt(cols, map.process))
@@ -322,10 +339,8 @@ export function resolveBomPasteRows(
 
 export type BomSpreadsheetColumnKey =
   | 'sourcePartCode'
-  | 'sourceName'
   | 'process'
-  | 'sourceSpec'
-  | 'sourceMpn'
+  | 'sourceDescription'
   | 'quantityPer'
   | 'designators'
   | 'sourceAlternates'
@@ -338,14 +353,41 @@ export const BOM_SPREADSHEET_COLUMNS: Array<{
   align?: 'left' | 'right' | 'center'
 }> = [
   { key: 'sourcePartCode', label: '품목코드', widthClass: 'min-w-[9rem]', mono: true },
-  { key: 'sourceName', label: '품목명', widthClass: 'min-w-[10rem]' },
+  { key: 'sourceAlternates', label: '대체코드', widthClass: 'min-w-[10rem]', mono: true },
   { key: 'process', label: '공정', widthClass: 'w-28', align: 'center' },
-  { key: 'sourceSpec', label: '규격', widthClass: 'min-w-[9rem]' },
-  { key: 'sourceMpn', label: 'MPN', widthClass: 'min-w-[10rem]', mono: true },
+  { key: 'sourceDescription', label: '품목명/규격', widthClass: 'min-w-[24rem]' },
   { key: 'quantityPer', label: 'Qty', widthClass: 'w-24', align: 'right' },
   { key: 'designators', label: 'Designator', widthClass: 'min-w-[9rem]', mono: true },
-  { key: 'sourceAlternates', label: '대체', widthClass: 'min-w-[10rem]', mono: true },
 ]
+
+/** 품목명/규격 칸 구분자 — "1/4W"·"SMD/DIP" 같은 값과 겹치지 않게 앞뒤 공백 포함 */
+const BOM_DESCRIPTION_SEPARATOR = ' / '
+
+/** 품목명 / 규격 / MPN → 한 칸 표시 */
+export function formatBomLineDescription(
+  line: Pick<BomFormLine, 'sourceName' | 'sourceSpec' | 'sourceMpn'>,
+) {
+  return [line.sourceName, line.sourceSpec, line.sourceMpn]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(BOM_DESCRIPTION_SEPARATOR)
+}
+
+/**
+ * 한 칸 입력 → 품목명·규격·MPN.
+ * "품목명 / 규격 / MPN" 형식이면 나누고, 구분자가 없으면 전부 품목명 (AI 분류로 나눔).
+ */
+export function parseBomLineDescription(text: string) {
+  const parts = text
+    .split(BOM_DESCRIPTION_SEPARATOR)
+    .map((part) => part.trim())
+    .filter(Boolean)
+  return {
+    sourceName: parts[0] ?? '',
+    sourceSpec: parts[1] ?? '',
+    sourceMpn: parts.slice(2).join(BOM_DESCRIPTION_SEPARATOR),
+  }
+}
 
 /** 한 열에 세로 붙여넣기 — 행이 부족하면 추가 */
 export function applyBomColumnPaste(input: {
@@ -377,11 +419,13 @@ export function applyBomColumnPaste(input: {
       patched.process = normalizeBomProcess(value)
     } else if (input.columnKey === 'quantityPer') {
       patched.quantityPer = value.replace(/,/g, '').trim() || ''
+    } else if (input.columnKey === 'sourceDescription') {
+      patched = { ...patched, ...parseBomLineDescription(value) }
     } else {
       patched = { ...patched, [input.columnKey]: value }
     }
 
-    if (input.columnKey === 'sourcePartCode' || input.columnKey === 'sourceMpn') {
+    if (input.columnKey === 'sourcePartCode' || input.columnKey === 'sourceDescription') {
       patched = rematchBomFormLine(patched, input.childItems)
     }
     next[index] = patched

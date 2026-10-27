@@ -3,6 +3,8 @@
 import { useRef, useState } from 'react'
 import {
   BOM_SPREADSHEET_COLUMNS,
+  formatBomLineDescription,
+  parseBomLineDescription,
   rematchBomFormLine,
   type BomSpreadsheetColumnKey,
 } from '@/lib/bom/bulk-paste'
@@ -47,14 +49,10 @@ function cellValue(line: BomFormLine, key: BomSpreadsheetColumnKey) {
   switch (key) {
     case 'sourcePartCode':
       return line.sourcePartCode
-    case 'sourceName':
-      return line.sourceName
     case 'process':
       return line.process ? BOM_PROCESS_LABELS[line.process] : ''
-    case 'sourceSpec':
-      return line.sourceSpec
-    case 'sourceMpn':
-      return line.sourceMpn
+    case 'sourceDescription':
+      return formatBomLineDescription(line)
     case 'quantityPer':
       return line.quantityPer
     case 'designators':
@@ -76,6 +74,8 @@ export function BomLinesSpreadsheet({
 }: BomLinesSpreadsheetProps) {
   const tableRef = useRef<HTMLTableElement>(null)
   const [processDraftByKey, setProcessDraftByKey] = useState<Record<string, string>>({})
+  /** 품목명/규격 칸 — 입력 중에는 원문 유지, 확정(blur·Enter) 시 품목명·규격·MPN 으로 나눔 */
+  const [descriptionDraftByKey, setDescriptionDraftByKey] = useState<Record<string, string>>({})
 
   function focusCell(rowIndex: number, columnIndex: number) {
     const root = tableRef.current
@@ -97,11 +97,42 @@ export function BomLinesSpreadsheet({
     })
   }
 
+  function commitDescription(line: BomFormLine, raw: string) {
+    setDescriptionDraftByKey((current) => {
+      if (!(line.key in current)) return current
+      const next = { ...current }
+      delete next[line.key]
+      return next
+    })
+    if (raw === formatBomLineDescription(line)) return
+    const next = rematchBomFormLine({ ...line, ...parseBomLineDescription(raw) }, childItems)
+    onPatchLine(line.key, {
+      childProductId: next.childProductId,
+      sourcePartCode: next.sourcePartCode,
+      sourceName: next.sourceName,
+      sourceMpn: next.sourceMpn,
+      sourceSpec: next.sourceSpec,
+    })
+  }
+
+  function cellDisplayValue(line: BomFormLine, columnKey: BomSpreadsheetColumnKey) {
+    if (columnKey === 'process') return processDraftByKey[line.key] ?? cellValue(line, 'process')
+    if (columnKey === 'sourceDescription') {
+      return descriptionDraftByKey[line.key] ?? cellValue(line, 'sourceDescription')
+    }
+    return cellValue(line, columnKey)
+  }
+
   function handleFieldChange(
     line: BomFormLine,
     columnKey: BomSpreadsheetColumnKey,
     value: string,
   ) {
+    if (columnKey === 'sourceDescription') {
+      setDescriptionDraftByKey((current) => ({ ...current, [line.key]: value }))
+      return
+    }
+
     if (columnKey === 'process') {
       setProcessDraftByKey((current) => ({ ...current, [line.key]: value }))
       const normalized = normalizeBomProcess(value)
@@ -113,7 +144,7 @@ export function BomLinesSpreadsheet({
 
     const patch: Partial<BomFormLine> = { [columnKey]: value }
 
-    if (columnKey === 'sourcePartCode' || columnKey === 'sourceMpn') {
+    if (columnKey === 'sourcePartCode') {
       const next = rematchBomFormLine({ ...line, ...patch }, childItems)
       onPatchLine(line.key, {
         ...patch,
@@ -165,12 +196,14 @@ export function BomLinesSpreadsheet({
   ) {
     if (event.key === 'Enter') {
       event.preventDefault()
-      if (columnKey === 'process') {
-        const line = lines[rowIndex]
-        if (line) {
-          const draft = processDraftByKey[line.key]
-          commitProcess(line, draft ?? cellValue(line, 'process'))
-        }
+      const line = lines[rowIndex]
+      if (line && columnKey === 'process') {
+        const draft = processDraftByKey[line.key]
+        commitProcess(line, draft ?? cellValue(line, 'process'))
+      }
+      if (line && columnKey === 'sourceDescription') {
+        const draft = descriptionDraftByKey[line.key]
+        if (draft !== undefined) commitDescription(line, draft)
       }
       if (rowIndex >= lines.length - 1) {
         onAddLine?.()
@@ -242,7 +275,7 @@ export function BomLinesSpreadsheet({
               qtyIssue && (key === 'quantityPer' || key === 'designators')
                 ? qtyIssueTitle
                 : key === 'sourceAlternates' && unresolvedAlternates.length
-                  ? `미등록 대체: ${unresolvedAlternates.join(', ')}`
+                  ? `미등록 대체코드: ${unresolvedAlternates.join(', ')}`
                   : undefined
 
             return (
@@ -260,7 +293,8 @@ export function BomLinesSpreadsheet({
                       qtyIssue && (column.key === 'quantityPer' || column.key === 'designators')
                         ? 'bg-red-100 text-red-700 ring-1 ring-inset ring-red-400'
                         : (unmatched &&
-                              (column.key === 'sourcePartCode' || column.key === 'sourceMpn')) ||
+                              (column.key === 'sourcePartCode' ||
+                                column.key === 'sourceDescription')) ||
                             (column.key === 'sourceAlternates' && unresolvedAlternates.length)
                           ? 'bg-amber-50'
                           : ''
@@ -272,21 +306,26 @@ export function BomLinesSpreadsheet({
                       type={column.key === 'quantityPer' ? 'number' : 'text'}
                       min={column.key === 'quantityPer' ? 0 : undefined}
                       step={column.key === 'quantityPer' ? 'any' : undefined}
-                      value={
-                        column.key === 'process'
-                          ? (processDraftByKey[line.key] ?? cellValue(line, 'process'))
-                          : cellValue(line, column.key)
-                      }
+                      value={cellDisplayValue(line, column.key)}
                       disabled={disabled}
                       placeholder={column.key === 'process' ? 'SMD/DIP' : undefined}
+                      title={
+                        column.key === 'sourceDescription'
+                          ? '품목명 / 규격 / MPN 순서로 " / " 구분 입력 (구분 없이 넣으면 AI 분류로 나눔)'
+                          : undefined
+                      }
                       onChange={(event) =>
                         handleFieldChange(line, column.key, event.target.value)
                       }
                       onBlur={() => {
-                        if (column.key !== 'process') return
-                        const draft = processDraftByKey[line.key]
-                        if (draft === undefined) return
-                        commitProcess(line, draft)
+                        if (column.key === 'process') {
+                          const draft = processDraftByKey[line.key]
+                          if (draft !== undefined) commitProcess(line, draft)
+                        }
+                        if (column.key === 'sourceDescription') {
+                          const draft = descriptionDraftByKey[line.key]
+                          if (draft !== undefined) commitDescription(line, draft)
+                        }
                       }}
                       onPaste={(event) => handleCellPaste(index, column.key, event)}
                       onKeyDown={(event) =>

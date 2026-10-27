@@ -289,7 +289,7 @@ function BomModalContent({
         ? ` · Designator·Qty 불일치 ${qtyIssueCount}건 (빨간 셀 확인)`
         : ' · Designator·Qty 이상 없음') +
       (unresolvedAlternateCount
-        ? ` · 미등록 대체 ${unresolvedAlternateCount}건 (노란 셀 — 품목등록 후 연결됨)`
+        ? ` · 미등록 대체코드 ${unresolvedAlternateCount}건 (노란 셀 — 품목등록 후 연결됨)`
         : '')
 
     const aiRows = toBomAiRows(form.lines)
@@ -511,10 +511,23 @@ function BomModalContent({
 
   const busy = saving || deleting || versioning || aiLoading
 
-  const filledLineCount = useMemo(
-    () => form.lines.filter((line) => line.childProductId.trim()).length,
-    [form.lines],
-  )
+  /** 종수 = 구성 행 수(미등록 포함), 점수 = Qty 합계 */
+  const bomTotals = useMemo(() => {
+    let kinds = 0
+    let points = 0
+    for (const line of form.lines) {
+      const hasPart =
+        line.childProductId.trim() ||
+        line.sourcePartCode.trim() ||
+        line.sourceMpn.trim() ||
+        line.sourceName.trim()
+      if (!hasPart) continue
+      kinds += 1
+      const qty = Number(line.quantityPer)
+      if (Number.isFinite(qty) && qty > 0) points += qty
+    }
+    return { kinds, points }
+  }, [form.lines])
 
   return (
     <>
@@ -620,7 +633,11 @@ function BomModalContent({
           ) : null}
           {selectedParent ? (
             <span className="pb-2 text-xs text-slate-500">
-              등록 {filledLineCount.toLocaleString('ko-KR')}
+              종수 <b className="font-semibold text-slate-700">{bomTotals.kinds.toLocaleString('ko-KR')}종</b>
+              {' · '}점수{' '}
+              <b className="font-semibold text-slate-700">
+                {bomTotals.points.toLocaleString('ko-KR', { maximumFractionDigits: 3 })}점
+              </b>
               {unmatchedCount > 0
                 ? ` · 미등록 ${unmatchedCount.toLocaleString('ko-KR')}`
                 : ''}

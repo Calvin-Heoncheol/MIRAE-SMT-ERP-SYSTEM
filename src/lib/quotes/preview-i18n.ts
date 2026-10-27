@@ -59,8 +59,8 @@ export type PreviewLabels = {
   colSmdWorkQty: string
   /** 후공정 섹션 — 핀수·작업분 등 */
   colPostWorkQty: string
-  /** 후공정 섹션 — 분당 임률 */
-  colPostRate: string
+  /** 후공정 섹션 제목 옆 — 분당 임률 */
+  postRateNote: (rate: string) => string
   /** SMD·후공정 — 생산수량 */
   colProductionQty: string
   issueDate: string
@@ -138,7 +138,7 @@ const DOMESTIC_LABELS: PreviewLabels = {
   colSmdUnitPrice: '대당 단가',
   colSmdWorkQty: '부품수',
   colPostWorkQty: '소요시간',
-  colPostRate: '분당임률',
+  postRateNote: (rate) => `분당임률 ${rate}`,
   colProductionQty: '생산수량',
   issueDate: '발행일자',
   customer: '고객사',
@@ -215,7 +215,7 @@ const EXPORT_LABELS: PreviewLabels = {
   colSmdUnitPrice: 'Unit Price',
   colSmdWorkQty: 'Parts',
   colPostWorkQty: 'Required Time',
-  colPostRate: 'Rate /min',
+  postRateNote: (rate) => `Rate ${rate} / min`,
   colProductionQty: 'Prod. Qty',
   issueDate: 'Issue Date',
   customer: 'Customer',
@@ -292,7 +292,7 @@ const CHINESE_LABELS: PreviewLabels = {
   colSmdUnitPrice: '单价',
   colSmdWorkQty: '部品数',
   colPostWorkQty: '所需时间',
-  colPostRate: '每分钟费率',
+  postRateNote: (rate) => `每分钟费率 ${rate}`,
   colProductionQty: '生产数量',
   issueDate: '发行日期',
   customer: '客户',
