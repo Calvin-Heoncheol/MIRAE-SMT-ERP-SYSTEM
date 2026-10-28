@@ -33,7 +33,6 @@ import {
   normalizeProductionPlanStatus,
   planOverlapsWeek,
   resolvePlannedEndDate,
-  validatePostAfterSmt,
 } from '@/lib/production-plan/schedule'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import {
@@ -598,17 +597,6 @@ export async function upsertPostProcessProductionPlan(
   }
 
   try {
-    const smtPlansResult = await fetchAllSmtProductionPlans()
-    if (smtPlansResult.ok) {
-      const smtEnds = smtPlansResult.plans
-        .filter((plan) => plan.orderId === orderId)
-        .map((plan) => plan.plannedEndDate || plan.plannedDate)
-      const timing = validatePostAfterSmt({ postStart: plannedDate, smtEndDates: smtEnds })
-      if (!timing.ok) {
-        return { ok: false, reason: 'validation', detail: timing.detail }
-      }
-    }
-
     const supabase = createSupabaseClient()
     const basePayload = {
       order_id: orderId,

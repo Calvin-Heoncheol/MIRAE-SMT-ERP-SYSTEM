@@ -114,6 +114,35 @@ export function isWeekendYmd(ymd: string) {
   return day === 0 || day === 6
 }
 
+/**
+ * 기간 계획 수량을 평일(월~금)에 균등 분배.
+ * 나머지는 앞쪽 날짜부터 1개씩 더하고, 기간에 평일이 없으면 시작일에 전부 둔다.
+ */
+export function splitPlanQuantityByWorkday(
+  plannedDate: string,
+  plannedEndDate: string | undefined,
+  quantity: number,
+): Array<{ date: string; quantity: number }> {
+  const start = plannedDate.slice(0, 10)
+  const rawEnd = (plannedEndDate || plannedDate).slice(0, 10)
+  const end = rawEnd >= start ? rawEnd : start
+  const total = Math.max(0, Math.round(Number(quantity) || 0))
+
+  const workdays: string[] = []
+  for (let day = start; day <= end; day = addDaysYmd(day, 1)) {
+    if (!isWeekendYmd(day)) workdays.push(day)
+    if (workdays.length > 366) break
+  }
+  if (!workdays.length) return [{ date: start, quantity: total }]
+
+  const base = Math.floor(total / workdays.length)
+  const remainder = total - base * workdays.length
+  return workdays.map((date, index) => ({
+    date,
+    quantity: base + (index < remainder ? 1 : 0),
+  }))
+}
+
 /** 계획 기간이 특정 일자에 걸쳐 있는지 */
 export function planCoversYmd(
   plannedDate: string,

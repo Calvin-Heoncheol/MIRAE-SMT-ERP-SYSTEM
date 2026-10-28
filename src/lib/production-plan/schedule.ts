@@ -28,29 +28,3 @@ export function formatPlanDateRangeLabel(start: string, end?: string | null) {
   if (from === to) return from.slice(5).replace('-', '/')
   return `${from.slice(5).replace('-', '/')}~${to.slice(5).replace('-', '/')}`
 }
-
-/**
- * 후공정 시작이 SMT 종료보다 이르면 안 됨.
- * smtEnds: 해당 발주의 SMT 계획 종료일들
- */
-export function validatePostAfterSmt(input: {
-  postStart: string
-  smtEndDates: string[]
-}): { ok: true } | { ok: false; detail: string } {
-  const postStart = String(input.postStart || '').slice(0, 10)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(postStart)) {
-    return { ok: false, detail: '후공정 시작일 형식이 올바르지 않습니다.' }
-  }
-  const ends = input.smtEndDates
-    .map((d) => String(d || '').slice(0, 10))
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-  if (!ends.length) return { ok: true }
-  const latestSmtEnd = ends.reduce((a, b) => (a >= b ? a : b))
-  if (postStart < latestSmtEnd) {
-    return {
-      ok: false,
-      detail: `후공정 시작(${postStart})이 SMT 종료(${latestSmtEnd})보다 빠릅니다. SMT 종료 이후로 잡아 주세요.`,
-    }
-  }
-  return { ok: true }
-}

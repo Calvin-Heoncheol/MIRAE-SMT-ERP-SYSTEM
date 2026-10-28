@@ -303,13 +303,10 @@ export function ProductionPlanScheduleModal({
             className="w-full rounded-lg border border-slate-200 px-3 py-2 tabular-nums"
           />
           <span className="mt-1 block text-xs text-slate-400">최대 {maxQuantity.toLocaleString('ko-KR')}</span>
-          {row.scope === 'post' && row.smtPlannedEndDate ? (
-            <span className="mt-1 block text-xs text-violet-600">
-              SMD 종료 {row.smtPlannedEndDate} 이후부터 배정 가능
-            </span>
-          ) : null}
           {!postDateHint.ok ? (
-            <span className="mt-1 block text-xs font-semibold text-rose-600">{postDateHint.detail}</span>
+            <span className="mt-1 block text-xs font-semibold text-amber-700">
+              SMD 종료({row.smtPlannedEndDate}) 전에 시작합니다 — SMD와 동시 진행으로 저장됩니다.
+            </span>
           ) : null}
         </label>
 
@@ -438,7 +435,6 @@ export function ProductionPlanScheduleModal({
               !values.plannedDate ||
               endBeforeStart ||
               weekendPicked ||
-              !postDateHint.ok ||
               selectedSideDone ||
               maxQuantity <= 0
             }

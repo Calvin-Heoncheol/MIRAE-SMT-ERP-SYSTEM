@@ -1,7 +1,8 @@
-import { addDaysYmd, todayYmdSeoul } from '@/lib/orders/utils'
+import { addDaysYmd, displayOrderPoNumber, todayYmdSeoul } from '@/lib/orders/utils'
 import { buildPostProcessPlanProgressKey } from '@/lib/post-process/count-keys'
 import { fetchAllPostProcessProductionPlans } from '@/lib/post-process/plan/repository'
 import { POST_PROCESS_TEAMS } from '@/lib/post-process/teams'
+import { splitPlanQuantityByWorkday } from '@/lib/production-plan/calendar'
 import { fetchProductionPlanBoard } from '@/lib/production-plan/repository'
 import { isProductionPlanScheduleRow } from '@/lib/production-plan/utils'
 import { fetchProductionStatusPageData } from '@/lib/production-status/repository'
@@ -58,11 +59,27 @@ export type ProductionReportDailyRow = {
   smtPlannedByLine: Record<number, number>
 }
 
+/** 라인(SMT)·팀(후공정) 아래 발주별 계획/실적 */
+export type ProductionReportOrderRow = {
+  /** 'line-{n}' (SMT) 또는 팀 이름 (후공정) — 화면 매트릭스 그룹 key와 동일 */
+  groupKey: string
+  key: string
+  customer: string
+  orderLabel: string
+  productName: string
+  targetQuantity: number
+  /** 공정 단가 (SMT=SMD 단가, 후공정=DIP 세트 단가) — 실적 금액 = 실적 수량 × 단가 */
+  unitPrice: number
+  plannedByDate: Record<string, number>
+  actualByDate: Record<string, number>
+}
+
 export type ProductionReportData = {
   startDate: string
   endDate: string
   /** 기간 내 계획 또는 실적이 있는 SMT 라인 번호 (오름차순) */
   smtLines: number[]
+  orderRows: ProductionReportOrderRow[]
   teams: ProductionReportTeamSummary[]
   daily: ProductionReportDailyRow[]
   details: ProductionReportDetailRow[]
@@ -218,17 +235,22 @@ export async function fetchProductionReportData(
       postRows = (postRecordsResult.data || []) as PostRecordRow[]
     }
 
-    const smtPlansInRange = smtPlansResult.plans.filter(
-      (plan) =>
-        plan.plannedDate >= startDate &&
-        plan.plannedDate <= endDate &&
-        visibleSmtPlanIds.has(plan.id),
+    // 기간 계획은 평일 하루 단위로 쪼개서 집계 (실적도 기간 내 날짜면 모두 인정)
+    function expandToDailyPlans<T extends { plannedDate: string; plannedEndDate: string; plannedQuantity: number }>(
+      plans: T[],
+    ): T[] {
+      return plans.flatMap((plan) =>
+        splitPlanQuantityByWorkday(plan.plannedDate, plan.plannedEndDate, plan.plannedQuantity)
+          .filter((day) => day.date >= startDate && day.date <= endDate)
+          .map((day) => ({ ...plan, plannedDate: day.date, plannedEndDate: day.date, plannedQuantity: day.quantity })),
+      )
+    }
+
+    const smtPlansInRange = expandToDailyPlans(
+      smtPlansResult.plans.filter((plan) => visibleSmtPlanIds.has(plan.id)),
     )
-    const postPlansInRange = postPlansResult.plans.filter(
-      (plan) =>
-        plan.plannedDate >= startDate &&
-        plan.plannedDate <= endDate &&
-        visiblePostPlanIds.has(plan.id),
+    const postPlansInRange = expandToDailyPlans(
+      postPlansResult.plans.filter((plan) => visiblePostPlanIds.has(plan.id)),
     )
 
     /** SMT: 생산계획에 배정된 (일자·발주라인·면·라인) 키 */
@@ -601,6 +623,86 @@ export async function fetchProductionReportData(
       }
     })
 
+    // ── 9. 라인·팀별 발주 행 ───────────────────────────────────
+    const boardInfo = new Map<string, (typeof boardResult.data.rows)[number]>()
+    for (const row of boardResult.data.rows) {
+      const key = `${row.scope}:${row.targetId}`
+      if (!boardInfo.has(key)) boardInfo.set(key, row)
+    }
+
+    const orderRowMap = new Map<string, ProductionReportOrderRow>()
+    function orderRowFor(groupKey: string, scope: 'smt' | 'post', targetId: string) {
+      const key = `${groupKey}|${targetId}`
+      let entry = orderRowMap.get(key)
+      if (!entry) {
+        const info = boardInfo.get(`${scope}:${targetId}`)
+        const lineInfo = scope === 'smt' ? orderLineInfoById.get(targetId) : undefined
+        const groupInfo = scope === 'post' ? groupInfoById.get(targetId) : undefined
+        entry = {
+          groupKey,
+          key,
+          customer: info?.customer || lineInfo?.customer || groupInfo?.customer || '',
+          orderLabel:
+            displayOrderPoNumber(info?.customerPoNumber, info?.orderNumber) ||
+            info?.orderNumber ||
+            lineInfo?.orderId ||
+            groupInfo?.orderId ||
+            '',
+          productName: info?.productName || lineInfo?.productName || groupInfo?.productName || '',
+          targetQuantity: Math.max(0, Math.round(info?.orderQty ?? 0)),
+          unitPrice:
+            scope === 'smt'
+              ? lineInfo
+                ? (priceByProductId.get(lineInfo.productId)?.smd ?? 0)
+                : 0
+              : groupInfo
+                ? resolvePostSetPrice(targetId, groupInfo)
+                : 0,
+          plannedByDate: {},
+          actualByDate: {},
+        }
+        orderRowMap.set(key, entry)
+      }
+      return entry
+    }
+    function addTo(target: Record<string, number>, date: string, quantity: number) {
+      const qty = Math.max(0, Math.floor(Number(quantity) || 0))
+      if (qty <= 0 || date < startDate || date > endDate) return
+      target[date] = (target[date] ?? 0) + qty
+    }
+
+    for (const plan of smtPlansInRange) {
+      const lineNo = Math.floor(Number(plan.lineNo) || 0)
+      if (lineNo < 1 || !plan.orderLineId) continue
+      addTo(orderRowFor(`line-${lineNo}`, 'smt', plan.orderLineId).plannedByDate, plan.plannedDate, plan.plannedQuantity)
+    }
+    for (const row of smtRows) {
+      const lineNo = Math.floor(Number(row.line_no) || 0)
+      const lineId = String(row.order_line_id || '').trim()
+      if (lineNo < 1 || !lineId) continue
+      addTo(orderRowFor(`line-${lineNo}`, 'smt', lineId).actualByDate, String(row.record_date || ''), row.quantity)
+    }
+    for (const plan of postPlansInRange) {
+      if (!plan.assemblyGroupId) continue
+      addTo(
+        orderRowFor(normalizeTeam(plan.team), 'post', plan.assemblyGroupId).plannedByDate,
+        plan.plannedDate,
+        plan.plannedQuantity,
+      )
+    }
+    for (const row of postRows) {
+      const groupId = String(row.assembly_group_id || '').trim()
+      if (!groupId) continue
+      addTo(orderRowFor(normalizeTeam(row.team), 'post', groupId).actualByDate, String(row.record_date || ''), row.quantity)
+    }
+
+    const orderRows = [...orderRowMap.values()].sort(
+      (a, b) =>
+        a.groupKey.localeCompare(b.groupKey, 'ko') ||
+        a.customer.localeCompare(b.customer, 'ko') ||
+        a.orderLabel.localeCompare(b.orderLabel, 'ko'),
+    )
+
     const daily: ProductionReportDailyRow[] = []
     // 안전장치: 잘못된 날짜 형식으로 무한루프 방지 (최대 62일)
     for (
@@ -627,6 +729,7 @@ export async function fetchProductionReportData(
         startDate,
         endDate,
         smtLines: [...smtLineSet].sort((a, b) => a - b),
+        orderRows,
         teams,
         daily,
         details,

@@ -58,10 +58,41 @@ export function ProductionPlanBadgeAssignModal({
     return PLAN_BADGE_META[kind].label
   }
 
+  /** SMD 면별 잔량 = 발주수량 − 이미 배정된 SMT 계획 수량 (BOTH는 양면에 모두 반영) */
+  const smdRemaining = useMemo(() => {
+    const orderQty = Math.max(0, Math.round(row.orderQty || 0))
+    const planned = { smd_first: 0, smd_second: 0 }
+    for (const item of existingItems) {
+      const plan = item.boardRow
+      if (!plan || plan.scope !== 'smt') continue
+      const qty = Math.max(0, plan.plannedQuantity ?? 0)
+      if (plan.pcbSide === 'BOT') planned.smd_second += qty
+      else if (plan.pcbSide === 'BOTH') {
+        planned.smd_first += qty
+        planned.smd_second += qty
+      } else planned.smd_first += qty
+    }
+    return {
+      smd_first: Math.max(0, orderQty - planned.smd_first),
+      smd_second: Math.max(0, orderQty - planned.smd_second),
+    }
+  }, [existingItems, row.orderQty])
+
+  function maxQtyFor(kind: PlanBadgeKind) {
+    return kind === 'smd_first' || kind === 'smd_second' ? smdRemaining[kind] : undefined
+  }
+
   function badgeUnavailable(kind: PlanBadgeKind) {
-    if (kind === 'smd_second') return !row.splitPcbSides
+    if (kind === 'smd_second') return !row.splitPcbSides || smdRemaining.smd_second <= 0
+    if (kind === 'smd_first') return smdRemaining.smd_first <= 0
     if (kind === 'post') return !row.postTargetId
     return false
+  }
+
+  function unavailableReason(kind: PlanBadgeKind) {
+    if (kind === 'post') return '후공정이 없는 품목입니다'
+    if (kind === 'smd_first' || kind === 'smd_second') return '발주 수량만큼 이미 배정됐습니다'
+    return undefined
   }
 
   const existingByKind = useMemo(() => {
@@ -82,7 +113,7 @@ export function ProductionPlanBadgeAssignModal({
               kind,
               plannedDate: seedDate,
               plannedEndDate: seedDate,
-              plannedQuantity: targetQty,
+              plannedQuantity: maxQtyFor(kind) ?? targetQty,
               lineNo: SMT_PLAN_LINE_NOS[0],
               team: POST_PROCESS_TEAMS[0],
             },
@@ -108,7 +139,10 @@ export function ProductionPlanBadgeAssignModal({
     weekendPicked ||
     selected.some(
       (badge) =>
-        !badge.plannedDate || badge.plannedEndDate < badge.plannedDate || badge.plannedQuantity < 1,
+        !badge.plannedDate ||
+        badge.plannedEndDate < badge.plannedDate ||
+        badge.plannedQuantity < 1 ||
+        badge.plannedQuantity > (maxQtyFor(badge.kind) ?? Infinity),
     )
 
   const orderLabel = displayOrderPoNumber(row.customerPoNumber, row.orderNumber) || row.orderNumber
@@ -150,13 +184,19 @@ export function ProductionPlanBadgeAssignModal({
                         type="button"
                         disabled={unavailable}
                         onClick={() => toggle(kind)}
-                        title={unavailable ? '후공정이 없는 품목입니다' : undefined}
+                        title={unavailable ? unavailableReason(kind) : undefined}
                         className={`rounded-full border px-3 py-1 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
                           on ? style.chipOn : style.chipOff
                         }`}
                       >
                         {badgeLabel(kind)}
-                        {existingCount ? (
+                        {kind === 'smd_first' || kind === 'smd_second' ? (
+                          <span className="ml-1 text-[11px] font-medium tabular-nums opacity-75">
+                            {smdRemaining[kind] > 0
+                              ? `잔량 ${smdRemaining[kind].toLocaleString('ko-KR')}`
+                              : '완료'}
+                          </span>
+                        ) : existingCount ? (
                           <span className="ml-1 text-[11px] font-medium opacity-75">
                             ✓{existingCount > 1 ? existingCount : ''}
                           </span>
@@ -206,6 +246,12 @@ export function ProductionPlanBadgeAssignModal({
                     />
                     <ErpNumericInput
                       min={1}
+                      max={maxQtyFor(badge.kind)}
+                      title={
+                        maxQtyFor(badge.kind) != null
+                          ? `최대 ${maxQtyFor(badge.kind)?.toLocaleString('ko-KR')} (잔량)`
+                          : undefined
+                      }
                       value={badge.plannedQuantity}
                       onValueChange={(plannedQuantity) => update(badge.kind, { plannedQuantity })}
                       className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm tabular-nums"

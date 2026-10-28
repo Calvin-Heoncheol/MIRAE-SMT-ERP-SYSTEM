@@ -25,6 +25,7 @@ import {
   type FetchProductionReportResult,
   type ProductionReportDailyRow,
   type ProductionReportDetailRow,
+  type ProductionReportOrderRow,
   type ProductionReportTeamSummary,
 } from '@/lib/reports/production-report'
 import { formatWeekdayLabel, getWeekStartMondayYmd } from '@/lib/smt/plan/utils'
@@ -42,6 +43,9 @@ type ProductionReportWorkspaceProps = {
   weekHref: string
   monthHref: string
 }
+
+/** 발주 섹션당 행 수: 계획 / 실적(수량) / 실적(금액) / 달성률 */
+const METRIC_ROWS = 4
 
 function formatCount(value: number) {
   return value.toLocaleString('ko-KR')
@@ -113,6 +117,8 @@ function buildPlanActualTrendRows(
 
 type MatrixColumn = {
   key: string
+  /** 이 열에 포함된 날짜들 (주간=하루, 월간=그 주의 날짜) */
+  dates: string[]
   label: string
   subLabel: string
   planned: number
@@ -174,6 +180,7 @@ function buildMatrixColumns(
   if (period !== 'month') {
     return daily.map((row) => ({
       key: row.date,
+      dates: [row.date],
       label: formatMonthDay(row.date),
       subLabel: formatWeekdayLabel(row.date),
       planned: teamPlanned(row),
@@ -229,6 +236,7 @@ function buildMatrixColumns(
       const last = bucket.dates[bucket.dates.length - 1]
       return {
         key: weekStart,
+        dates: bucket.dates,
         label: `${index + 1}주차`,
         subLabel: `${formatMonthDay(first)}~${formatMonthDay(last)}`,
         planned: bucket.planned,
@@ -268,7 +276,14 @@ export function ProductionReportWorkspace({
   const trendRows = data ? buildPlanActualTrendRows(data.daily, period, teams) : []
   const matrixColumns = data ? buildMatrixColumns(data.daily, period, teams) : []
   const matrixGroups = buildMatrixGroups(isSmtTeam ? [] : teams, smtLines)
+  const orderRowsByGroup = new Map<string, ProductionReportOrderRow[]>()
+  for (const row of data?.orderRows ?? []) {
+    orderRowsByGroup.set(row.groupKey, [...(orderRowsByGroup.get(row.groupKey) ?? []), row])
+  }
 
+  function sumDates(byDate: Record<string, number>, dates: string[]) {
+    return dates.reduce((sum, date) => sum + (byDate[date] ?? 0), 0)
+  }
   function rateToneClass(planned: number, actual: number) {
     if (planned <= 0) return 'text-slate-400'
     const rate = Math.round((actual / planned) * 100)
@@ -507,11 +522,10 @@ export function ProductionReportWorkspace({
                     >
                       {isSmtTeam ? '라인' : '팀'}
                     </th>
-                    <th
-                      className={`${ERP_TABLE_TH_CLASS} sticky left-[5.5rem] z-20 min-w-[3.5rem] bg-slate-50 text-left`}
-                    >
-                      구분
-                    </th>
+                    <th className={`${ERP_TABLE_TH_CLASS} min-w-[7rem] text-left`}>고객사</th>
+                    <th className={`${ERP_TABLE_TH_CLASS} min-w-[10rem] text-left`}>모델</th>
+                    <th className={`${ERP_TABLE_TH_CLASS} min-w-[5rem] text-right`}>목표수량</th>
+                    <th className={`${ERP_TABLE_TH_CLASS} min-w-[3.5rem] text-left`}>구분</th>
                     {matrixColumns.map((col) => (
                       <th
                         key={col.key}
@@ -530,111 +544,184 @@ export function ProductionReportWorkspace({
                   {matrixGroups.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={matrixColumns.length + 3}
-                        className={`${ERP_TABLE_TD_CLASS} py-8 text-center text-slate-400`}
+                        colSpan={matrixColumns.length + 6}
+                        className={`${ERP_TABLE_TD_CLASS} py-8 text-center text-slate-500`}
                       >
                         이 기간에 라인별 생산계획이 없습니다.
                       </td>
                     </tr>
                   ) : null}
-                  {matrixGroups.map((group) => {
-                    const teamPlannedTotal = matrixColumns.reduce(
-                      (sum, col) => sum + (group.planned(col)),
-                      0,
-                    )
-                    const teamActualTotal = matrixColumns.reduce(
-                      (sum, col) => sum + (group.actual(col)),
-                      0,
-                    )
-                    const metrics = [
-                      {
-                        key: 'plan',
-                        label: '계획',
-                        labelClass: 'text-slate-600',
-                        valueClass: 'text-slate-700',
-                        totalClass: 'font-semibold text-slate-800',
-                        value: (col: (typeof matrixColumns)[number]) => group.planned(col),
-                        total: teamPlannedTotal,
-                        format: (value: number) => (value > 0 ? formatCount(value) : '—'),
-                      },
-                      {
-                        key: 'actual',
-                        label: '실적',
-                        labelClass: 'text-blue-800',
-                        valueClass: 'text-slate-900',
-                        totalClass: 'font-semibold text-slate-900',
-                        value: (col: (typeof matrixColumns)[number]) => group.actual(col),
-                        total: teamActualTotal,
-                        format: (value: number) => (value > 0 ? formatCount(value) : '—'),
-                      },
-                      {
-                        key: 'rate',
-                        label: '달성률',
-                        labelClass: 'text-slate-600',
-                        valueClass: '',
-                        totalClass: rateToneClass(teamPlannedTotal, teamActualTotal),
-                        value: (col: (typeof matrixColumns)[number]) => {
-                          const planned = group.planned(col)
-                          const actual = group.actual(col)
-                          return planned > 0 ? Math.round((actual / planned) * 100) : null
-                        },
-                        total: null as number | null,
-                        format: (value: number | null) => (value == null ? '—' : `${value}%`),
-                      },
-                    ] as const
+                  {matrixGroups.flatMap((group) => {
+                    const orders = orderRowsByGroup.get(group.key) ?? []
+                    // 발주가 있으면 발주서별 섹션, 없으면 라인/팀 단위 섹션 하나
+                    const sections = orders.length
+                      ? orders.map((order) => ({
+                          key: order.key,
+                          info: order as ProductionReportOrderRow | null,
+                          planned: (col: MatrixColumn) => sumDates(order.plannedByDate, col.dates),
+                          actual: (col: MatrixColumn) => sumDates(order.actualByDate, col.dates),
+                          unitPrice: order.unitPrice,
+                        }))
+                      : [
+                          {
+                            key: group.key,
+                            info: null as ProductionReportOrderRow | null,
+                            planned: (col: MatrixColumn) => group.planned(col),
+                            actual: (col: MatrixColumn) => group.actual(col),
+                            unitPrice: 0,
+                          },
+                        ]
 
-                    return metrics.map((metric, metricIndex) => (
-                      <tr
-                        key={`${group.key}-${metric.key}`}
-                        className={`border-t border-slate-100 hover:bg-slate-50/80 ${
-                          metricIndex === 0 ? 'border-t-slate-200' : ''
-                        }`}
-                      >
-                        {metricIndex === 0 ? (
-                          <td
-                            rowSpan={3}
-                            className={`${ERP_TABLE_TD_CLASS} sticky left-0 z-10 border-r border-slate-100 bg-white align-middle font-bold text-slate-900`}
-                          >
-                            {group.label}
-                          </td>
-                        ) : null}
-                        <td
-                          className={`${ERP_TABLE_TD_CLASS} sticky left-[5.5rem] z-10 bg-white font-medium ${metric.labelClass}`}
+                    return sections.flatMap((section, sectionIndex) => {
+                      const plannedTotal = matrixColumns.reduce(
+                        (sum, col) => sum + section.planned(col),
+                        0,
+                      )
+                      const actualTotal = matrixColumns.reduce(
+                        (sum, col) => sum + section.actual(col),
+                        0,
+                      )
+                      const metrics = [
+                        {
+                          key: 'plan',
+                          label: '계획',
+                          labelClass: 'text-slate-600',
+                          valueClass: 'text-slate-700',
+                          totalClass: 'font-semibold text-slate-800',
+                          value: section.planned,
+                          total: plannedTotal as number | null,
+                        },
+                        {
+                          key: 'actual',
+                          label: '실적(수량)',
+                          labelClass: 'text-blue-800',
+                          valueClass: 'text-slate-900',
+                          totalClass: 'font-semibold text-slate-900',
+                          value: section.actual,
+                          total: actualTotal as number | null,
+                        },
+                        {
+                          key: 'amount',
+                          label: '실적(금액)',
+                          labelClass: 'text-emerald-800',
+                          valueClass: 'text-emerald-900',
+                          totalClass: 'font-semibold text-emerald-900',
+                          value: (col: MatrixColumn) =>
+                            Math.round(section.actual(col) * section.unitPrice),
+                          total: Math.round(actualTotal * section.unitPrice) as number | null,
+                        },
+                        {
+                          key: 'rate',
+                          label: '달성률',
+                          labelClass: 'text-slate-600',
+                          valueClass: '',
+                          totalClass: '',
+                          value: null,
+                          total: null as number | null,
+                        },
+                      ]
+
+                      return metrics.map((metric, metricIndex) => (
+                        <tr
+                          key={`${section.key}-${metric.key}`}
+                          className={`border-t hover:bg-slate-50/80 ${
+                            metricIndex > 0
+                              ? 'border-t-slate-100'
+                              : sectionIndex === 0
+                                ? 'border-t-slate-300'
+                                : 'border-t-slate-200'
+                          }`}
                         >
-                          {metric.label}
-                        </td>
-                        {matrixColumns.map((col) => {
-                          if (metric.key === 'rate') {
-                            const planned = group.planned(col)
-                            const actual = group.actual(col)
+                          {sectionIndex === 0 && metricIndex === 0 ? (
+                            <td
+                              rowSpan={sections.length * METRIC_ROWS}
+                              className={`${ERP_TABLE_TD_CLASS} sticky left-0 z-10 border-r border-slate-200 bg-white align-middle font-bold text-slate-900`}
+                            >
+                              {group.label}
+                            </td>
+                          ) : null}
+                          {metricIndex === 0 ? (
+                            section.info ? (
+                              <>
+                                <td
+                                  rowSpan={METRIC_ROWS}
+                                  className={`${ERP_TABLE_TD_CLASS} align-middle font-semibold text-slate-800`}
+                                >
+                                  {section.info.customer || '—'}
+                                </td>
+                                <td
+                                  rowSpan={METRIC_ROWS}
+                                  className={`${ERP_TABLE_TD_CLASS} max-w-[14rem] align-middle`}
+                                  title={
+                                    [section.info.productName, section.info.orderLabel]
+                                      .filter(Boolean)
+                                      .join('\n') || undefined
+                                  }
+                                >
+                                  <span className="line-clamp-2 break-all font-medium text-slate-800">
+                                    {section.info.productName || '—'}
+                                  </span>
+                                  {section.info.orderLabel ? (
+                                    <span className="mt-0.5 block font-mono text-[11px] text-slate-400">
+                                      {section.info.orderLabel}
+                                    </span>
+                                  ) : null}
+                                </td>
+                                <td
+                                  rowSpan={METRIC_ROWS}
+                                  className={`${ERP_TABLE_TD_CLASS} border-r border-slate-100 text-right align-middle font-semibold tabular-nums text-slate-900`}
+                                >
+                                  {section.info.targetQuantity > 0
+                                    ? formatCount(section.info.targetQuantity)
+                                    : '—'}
+                                </td>
+                              </>
+                            ) : (
+                              <td
+                                rowSpan={METRIC_ROWS}
+                                colSpan={3}
+                                className={`${ERP_TABLE_TD_CLASS} border-r border-slate-100`}
+                              />
+                            )
+                          ) : null}
+                          <td className={`${ERP_TABLE_TD_CLASS} font-medium ${metric.labelClass}`}>
+                            {metric.label}
+                          </td>
+                          {matrixColumns.map((col) => {
+                            if (!metric.value) {
+                              const planned = section.planned(col)
+                              const actual = section.actual(col)
+                              return (
+                                <td
+                                  key={`${section.key}-${metric.key}-${col.key}`}
+                                  className={`${ERP_TABLE_TD_CLASS} text-center tabular-nums ${rateToneClass(planned, actual)}`}
+                                >
+                                  {rateLabel(planned, actual)}
+                                </td>
+                              )
+                            }
+                            const value = metric.value(col)
                             return (
                               <td
-                                key={`${group.key}-${metric.key}-${col.key}`}
-                                className={`${ERP_TABLE_TD_CLASS} text-center tabular-nums ${rateToneClass(planned, actual)}`}
+                                key={`${section.key}-${metric.key}-${col.key}`}
+                                className={`${ERP_TABLE_TD_CLASS} text-center tabular-nums ${metric.valueClass}`}
                               >
-                                {rateLabel(planned, actual)}
+                                {value > 0 ? formatCount(value) : '—'}
                               </td>
                             )
-                          }
-                          const value = metric.value(col) as number
-                          return (
-                            <td
-                              key={`${group.key}-${metric.key}-${col.key}`}
-                              className={`${ERP_TABLE_TD_CLASS} text-center tabular-nums ${metric.valueClass}`}
-                            >
-                              {metric.format(value)}
-                            </td>
-                          )
-                        })}
-                        <td
-                          className={`${ERP_TABLE_TD_CLASS} text-center tabular-nums ${metric.totalClass}`}
-                        >
-                          {metric.key === 'rate'
-                            ? rateLabel(teamPlannedTotal, teamActualTotal)
-                            : metric.format(metric.total as number)}
-                        </td>
-                      </tr>
-                    ))
+                          })}
+                          <td
+                            className={`${ERP_TABLE_TD_CLASS} text-center tabular-nums ${metric.totalClass}`}
+                          >
+                            {metric.total == null
+                              ? null
+                              : metric.total > 0
+                                ? formatCount(metric.total)
+                                : '—'}
+                          </td>
+                        </tr>
+                      ))
+                    })
                   })}
                 </tbody>
               </table>
