@@ -12,18 +12,22 @@ import {
   type DeliveryBillingOnlyLine,
 } from '@/lib/delivery/utils'
 import { displayOrderPoNumber } from '@/lib/orders/utils'
+import { DOMESTIC_VAT_RATE } from '@/lib/quotes/format'
 
 export type MonthlyClosingRow = {
   recordDate: string
   /** 발주번호 (고객 PO). 없으면 발주ID */
   orderNumber: string
   shipmentId: string
+  customer: string
   kind: DeliveryRegisterLineKind
   productCode: string
   productName: string
   quantity: number
   unitPrice: number
   amount: number
+  /** true면 unitPrice·amount가 VAT 포함 금액 */
+  vatIncluded?: boolean
 }
 
 export function monthlyClosingKindLabel(kind: DeliveryRegisterLineKind) {
@@ -57,6 +61,7 @@ export function buildMonthlyClosingRows(
 
   for (const group of groups) {
     const shipmentId = String(group.shipmentId || '').trim()
+    const customer = String(group.customer || '').trim()
     if (group.source === 'legacy' && group.legacyGroup) {
       for (const line of group.legacyGroup.lines) {
         const quantity = Math.max(0, Math.floor(Number(line.quantity) || 0))
@@ -67,6 +72,7 @@ export function buildMonthlyClosingRows(
           recordDate: line.recordDate || group.recordDate,
           orderNumber: String(line.orderNumber || '').trim(),
           shipmentId,
+          customer,
           kind: 'product',
           productCode: String(line.productCode || '').trim(),
           productName: line.productName || '—',
@@ -118,6 +124,7 @@ export function buildMonthlyClosingRows(
         recordDate: group.recordDate,
         orderNumber: displayPo(line.orderNumber),
         shipmentId,
+        customer,
         kind: line.billingOnly ? (line.material ? 'material' : 'additional_work') : 'product',
         productCode: String(line.productCode || '').trim(),
         productName: line.productName || '—',
@@ -135,6 +142,7 @@ export function buildMonthlyClosingRows(
         recordDate: group.recordDate,
         orderNumber: displayPo(extra.orderNumber),
         shipmentId,
+        customer,
         kind: extra.lineKind,
         productCode: String(extra.productCode || '').trim(),
         productName: extra.productName || '—',
@@ -155,6 +163,22 @@ export function buildMonthlyClosingRows(
     const byCode = a.productCode.localeCompare(b.productCode, 'ko')
     if (byCode !== 0) return byCode
     return a.productName.localeCompare(b.productName, 'ko')
+  })
+}
+
+/** 거래처 등록에서 VAT 포함인 고객사 행은 단가·합계를 VAT 포함 금액으로 바꾼다 (거래명세서와 같은 반올림) */
+export function applyMonthlyClosingVat(
+  rows: MonthlyClosingRow[],
+  isVatIncludedCustomer: (customer: string) => boolean,
+): MonthlyClosingRow[] {
+  return rows.map((row) => {
+    if (!isVatIncludedCustomer(row.customer)) return row
+    return {
+      ...row,
+      unitPrice: row.unitPrice + Math.round(row.unitPrice * DOMESTIC_VAT_RATE),
+      amount: row.amount + Math.round(row.amount * DOMESTIC_VAT_RATE),
+      vatIncluded: true,
+    }
   })
 }
 

@@ -42,6 +42,7 @@ import { buildDeliveryStatementDataFromTableGroup } from '@/lib/delivery/stateme
 import { printDeliveryStatements } from '@/lib/delivery/print-delivery-statement'
 import { exportMonthlyClosingExcel } from '@/lib/reports/export-monthly-closing-excel'
 import {
+  applyMonthlyClosingVat,
   buildMonthlyClosingRows,
   resolveMonthlyClosingCustomerLabel,
 } from '@/lib/reports/monthly-closing'
@@ -231,11 +232,17 @@ export function DeliveryInputWorkspace({
     setPrintError(null)
 
     try {
-      const rows = buildMonthlyClosingRows(statementGroups, {
-        unitPriceByDeliveryId,
-        billingOnlyLines,
-        productionOrders: orders,
-      })
+      const vatIncludedCustomers = new Set(
+        registerPartners.filter((partner) => partner.includeVat).map((partner) => partner.name.trim()),
+      )
+      const rows = applyMonthlyClosingVat(
+        buildMonthlyClosingRows(statementGroups, {
+          unitPriceByDeliveryId,
+          billingOnlyLines,
+          productionOrders: orders,
+        }),
+        (customer) => vatIncludedCustomers.has(customer),
+      )
 
       if (!rows.length) {
         setPrintError('월 마감 EXCEL로 보낼 출하·명세 내역이 없습니다.')
