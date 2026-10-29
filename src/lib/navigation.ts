@@ -79,7 +79,10 @@ export const NAV_ITEMS: NavItem[] = [
   {
     label: '품질관리',
     href: '/quality/defects',
-    children: [{ label: '불량대처', href: '/quality/defects' }],
+    children: [
+      { label: '불량대처', href: '/quality/defects' },
+      { label: '출하성적서', href: '/quality/inspection-certificates' },
+    ],
   },
   {
     label: '결재서',

@@ -150,22 +150,24 @@ export function ProductionInputPanel({
   const defectCumulative = lockToPlan ? 0 : orderDefectCumulative
   const target = lockToPlan ? planTarget : orderTarget
   const remaining = lockToPlan ? Math.min(planRemaining, orderRemaining) : orderRemaining
+  /** 계획보다 많이 생산할 수 있으므로 등록 한도는 발주 잔량만 본다 */
+  const registerLimit = orderRemaining
   const stacked = getStackedProgressWidths(cumulative, defectCumulative, target)
 
   const lineSelected =
     !showLineSelector || lockToPlan || (lineNo != null && lineNo >= 1 && lineNo <= 7)
   const canRegister =
     Boolean(order) &&
-    (qtyMode === 'defect' || remaining > 0) &&
+    (qtyMode === 'defect' || registerLimit > 0) &&
     lineSelected &&
     (isPostProcess ? Boolean(assemblyGroupId) : Boolean(order?.orderLineId))
 
   const qtyNumber = Math.max(0, Math.floor(Number(qty) || 0))
   const sideLabel = pcbSide === 'TOP' || pcbSide === 'BOT' ? pcbSide : null
   const qtyInputDisabled = !canRegister || saving
-  const presetDisabled = qtyInputDisabled || (isGoodMode && remaining < 1)
+  const presetDisabled = qtyInputDisabled || (isGoodMode && registerLimit < 1)
   const bumpPlusDisabled =
-    qtyInputDisabled || (isGoodMode && qtyNumber >= remaining)
+    qtyInputDisabled || (isGoodMode && qtyNumber >= registerLimit)
 
   const jobLabelPayload = useMemo((): ProductionLabelPayload | null => {
     if (!order) return null
@@ -240,7 +242,7 @@ export function ProductionInputPanel({
 
   function setQtyValue(next: number) {
     const floored = Math.max(0, Math.floor(next))
-    const value = isGoodMode ? Math.min(remaining, floored) : floored
+    const value = isGoodMode ? Math.min(registerLimit, floored) : floored
     setQty(value > 0 ? String(value) : '')
     setMessage(null)
   }
@@ -305,13 +307,11 @@ export function ProductionInputPanel({
         ? undefined
         : trimmedDefectReason
 
-    if (effectiveIsGood && target > 0 && goodQuantity > remaining) {
+    if (effectiveIsGood && orderTarget > 0 && goodQuantity > registerLimit) {
       setMessage({
-        text: lockToPlan
-          ? `계획 남은 수량(${remaining.toLocaleString('ko-KR')})을 초과할 수 없습니다.`
-          : isPostProcess
-            ? `남은 수량(${remaining.toLocaleString('ko-KR')})을 초과할 수 없습니다.`
-            : `${pcbSide} 남은 수량(${remaining.toLocaleString('ko-KR')})을 초과할 수 없습니다.`,
+        text: isPostProcess || pcbSide === 'SINGLE'
+          ? `발주 남은 수량(${registerLimit.toLocaleString('ko-KR')})을 초과할 수 없습니다.`
+          : `${pcbSide} 발주 남은 수량(${registerLimit.toLocaleString('ko-KR')})을 초과할 수 없습니다.`,
         kind: 'err',
       })
       if (scanMode) playScanSound('error')
@@ -777,7 +777,7 @@ export function ProductionInputPanel({
                       <p className="mt-2 text-xs font-medium text-slate-500">
                         {progressComplete
                           ? '목표 수량을 달성했습니다.'
-                          : `${stacked.totalPercent}% 진행 · ${remaining.toLocaleString('ko-KR')}대 더 등록 가능`}
+                          : `${stacked.totalPercent}% 진행 · ${registerLimit.toLocaleString('ko-KR')}대 더 등록 가능`}
                         {defectCumulative > 0
                           ? ` · 불량 ${defectCumulative.toLocaleString('ko-KR')}대`
                           : ''}
@@ -987,7 +987,7 @@ export function ProductionInputPanel({
             ]
               .filter(Boolean)
               .join(' · ')}
-            remaining={remaining}
+            remaining={registerLimit}
             assemblyGroupId={isPostProcess ? assemblyGroupId : undefined}
             team={isPostProcess ? postProcessTeam || postProcessPlan?.team : undefined}
             planId={isPostProcess ? postProcessPlan?.id ?? null : null}
