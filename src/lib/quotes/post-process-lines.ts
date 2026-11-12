@@ -1,9 +1,4 @@
-import {
-  POST_PROCESS_BUFFER_FROM_1000,
-  POST_PROCESS_BUFFER_FROM_2000,
-  POST_PROCESS_BUFFER_FROM_5000,
-  POST_PROCESS_BUFFER_UNDER_1000,
-} from './constants'
+import { getPostProcessBufferRates } from './constants'
 import type { PostProcessLine } from './types'
 
 export type PostProcessLineForm = {
@@ -50,10 +45,11 @@ function parseBoardQty(boardQty?: number | string | null) {
  */
 export function getPostProcessTimeBuffer(boardQty?: number | string | null) {
   const qty = parseBoardQty(boardQty)
-  if (qty >= 5000) return POST_PROCESS_BUFFER_FROM_5000
-  if (qty >= 2000) return POST_PROCESS_BUFFER_FROM_2000
-  if (qty >= 1000) return POST_PROCESS_BUFFER_FROM_1000
-  return POST_PROCESS_BUFFER_UNDER_1000
+  const buffer = getPostProcessBufferRates()
+  if (qty >= 5000) return buffer.from5000
+  if (qty >= 2000) return buffer.from2000
+  if (qty >= 1000) return buffer.from1000
+  return buffer.under1000
 }
 
 /** 수량 구간 기본 여유 % */
@@ -326,30 +322,6 @@ export function resolveCategorizedPostProcessLineForms(post: {
     packingLines: [emptyPostProcessLineForm()],
   }
 }
-
-/** 조립·다운로드·테스트·포장(구) / lines(신) 을 하나의 공정 목록으로 합침 */
-export function resolveUnifiedPostProcessLineForms(post: {
-  lines?: PostProcessLine[]
-  assemblyLines?: PostProcessLine[]
-  downloadLines?: PostProcessLine[]
-  testLines?: PostProcessLine[]
-  packingLines?: PostProcessLine[]
-  postAssembly?: number
-  postDownload?: number
-  postTest?: number
-  postPacking?: number
-}): PostProcessLineForm[] {
-  const categorized = resolveCategorizedPostProcessLineForms(post)
-  const merged = [
-    ...categorized.assemblyLines,
-    ...categorized.downloadLines,
-    ...categorized.testLines,
-    ...categorized.packingLines,
-  ].filter((line) => line.name.trim() || parsePostProcessSeconds(line.seconds) > 0)
-
-  return merged.length > 0 ? merged : [emptyPostProcessLineForm()]
-}
-
 /** 미리보기·저장 행 → 청구 분 (초 입력 우선, 없으면 저장된 minutes) */
 export function resolvePostProcessLineBilledMinutes(
   line: {

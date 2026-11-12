@@ -13,6 +13,7 @@ import { useBusy } from '@/components/ui/busy-provider'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import { useSaveFeedback } from '@/hooks/use-save-feedback'
 import type { AiQuoteDraft } from '@/lib/quotes/ai-quote-draft'
+import type { CurrentQuoteRates } from '@/lib/quotes/rate-repository'
 import type { FetchQuotesResult } from '@/lib/quotes/repository'
 import { updateQuoteStatus } from '@/lib/quotes/repository'
 import type { QuoteListItem, QuoteType } from '@/lib/quotes/types'
@@ -21,6 +22,7 @@ import { ERP_MODULE_ACCENT, formatEmptyListMessage } from '@/lib/ui/tokens'
 
 type QuotationsWorkspaceProps = {
   result: FetchQuotesResult
+  currentRates: CurrentQuoteRates
 }
 
 type ModalState =
@@ -38,7 +40,7 @@ type ModalState =
   | { open: true; variant: 'legacy'; mode: 'create' }
   | { open: true; variant: 'legacy'; mode: 'edit'; quote: QuoteListItem }
 
-export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
+export function QuotationsWorkspace({ result, currentRates }: QuotationsWorkspaceProps) {
   const { afterSave, afterDelete } = useSaveFeedback()
   const busyUi = useBusy()
   const { notifyAuthOrFailure } = useWriteFailureToast()
@@ -47,11 +49,9 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
   const [modalSession, setModalSession] = useState(0)
   const [statusBusyId, setStatusBusyId] = useState<string | null>(null)
 
-  const quotes = result.ok ? result.quotes : []
+  const quotes = useMemo(() => (result.ok ? result.quotes : []), [result])
   const query = search.trim()
   const filtered = useMemo(() => filterQuotesForSearch(quotes, query), [quotes, query])
-  const existingQuoteNumbers = quotes.map((quote) => quote.quoteNumber)
-
   function openCreate(quoteType: QuoteType) {
     setModalSession((value) => value + 1)
     setModal({ open: true, variant: 'standard', mode: 'create', quoteType })
@@ -154,7 +154,6 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
             actionHint: '오른쪽 상단에서 등록하세요',
           })}
           onSelectQuote={openEdit}
-          onCopyQuote={openCopy}
           onToggleStatus={(quote) => void handleToggleStatus(quote)}
           statusBusyId={statusBusyId}
         />
@@ -182,7 +181,7 @@ export function QuotationsWorkspace({ result }: QuotationsWorkspaceProps) {
           quote={modal.mode === 'edit' ? modal.quote : null}
           copyFrom={modal.mode === 'create' ? modal.copyFrom : undefined}
           initialDraft={modal.mode === 'create' ? modal.draft : undefined}
-          existingQuoteNumbers={existingQuoteNumbers}
+          currentRates={currentRates}
           onClose={closeModal}
           onSaved={handleSaved}
           onDeleted={handleDeleted}

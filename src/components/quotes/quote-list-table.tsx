@@ -5,17 +5,18 @@ import { EmptyListState } from '@/components/ui/empty-list-state'
 import { ErpTableHead, ErpTableShell, ErpTableTd, ErpTableTh } from '@/components/ui/erp-table'
 import { formatQuoteMoneyTotal, formatQuoteMoneyUnit } from '@/lib/quotes/format'
 import { resolveSavedQuoteAmounts } from '@/lib/quotes/saved-quote-amounts'
-import { formatQuoteProcessLabel } from '@/lib/quotes/production-flags'
+import { getQuoteProductionFlags } from '@/lib/quotes/production-flags'
+import { buildItemPriceBreakdownFromQuote } from '@/lib/quotes/quote-to-item'
+import { splitAmountByProcess } from '@/lib/items/process-billing'
 import { formatInternalCodeLabel } from '@/lib/orders/utils'
 import { QUOTE_STATUS_LABELS, type QuoteListItem, type QuoteStatus } from '@/lib/quotes/types'
-import { isLegacyQuoteDetail, quoteRegistrantLabel } from '@/lib/quotes/utils'
+import { quoteRegistrantLabel } from '@/lib/quotes/utils'
 import { ERP_CODE_TEXT_CLASS, ERP_TABLE_ROW_CLASS } from '@/lib/ui/tokens'
 
 type QuoteListTableProps = {
   quotes: QuoteListItem[]
   emptyMessage: string
   onSelectQuote?: (quote: QuoteListItem) => void
-  onCopyQuote?: (quote: QuoteListItem) => void
   onToggleStatus?: (quote: QuoteListItem) => void
   statusBusyId?: string | null
 }
@@ -24,8 +25,28 @@ function quoteProductionKind(quote: QuoteListItem): '샘플' | '양산' {
   return quote.detailInfo.settings?.productionKind === '샘플' ? '샘플' : '양산'
 }
 
-function quoteUnitPriceDisplay(quote: QuoteListItem) {
-  return formatQuoteMoneyUnit(resolveSavedQuoteAmounts(quote).unitPrice, quote.quoteType)
+/** 공정별 대당단가 — 후공정 = 후공정 단가, SMD = 나머지 (거래명세서 공정분리와 같은 기준) */
+function quoteProcessUnitPrices(quote: QuoteListItem): { smd: number | null; post: number | null } {
+  const unitPrice = resolveSavedQuoteAmounts(quote).unitPrice
+  const { hasSmd, hasPost } = getQuoteProductionFlags(quote)
+  if (hasSmd && hasPost) {
+    const split = splitAmountByProcess({
+      qty: 1,
+      unitPrice,
+      postUnitPrice: buildItemPriceBreakdownFromQuote(quote).dipUnitPrice,
+    })
+    return { smd: split.smd.unitPrice, post: split.post.unitPrice }
+  }
+  if (hasPost) return { smd: null, post: unitPrice }
+  return { smd: unitPrice, post: null }
+}
+
+function UnitPriceCell({ value, quoteType }: { value: number | null; quoteType: QuoteListItem['quoteType'] }) {
+  return (
+    <ErpTableTd align="right" className="font-semibold tabular-nums text-slate-900">
+      {value == null ? <span className="font-normal text-slate-300">—</span> : formatQuoteMoneyUnit(value, quoteType)}
+    </ErpTableTd>
+  )
 }
 
 function statusButtonClass(status: QuoteStatus) {
@@ -39,7 +60,6 @@ export function QuoteListTable({
   quotes,
   emptyMessage,
   onSelectQuote,
-  onCopyQuote,
   onToggleStatus,
   statusBusyId,
 }: QuoteListTableProps) {
@@ -52,7 +72,7 @@ export function QuoteListTable({
   }
 
   return (
-    <ErpTableShell tableClassName="min-w-[1340px]">
+    <ErpTableShell tableClassName="min-w-[1240px]">
       <ErpTableHead>
         <tr>
           <ErpTableTh>견적일</ErpTableTh>
@@ -60,18 +80,17 @@ export function QuoteListTable({
           <ErpTableTh align="center">구분</ErpTableTh>
           <ErpTableTh>고객사</ErpTableTh>
           <ErpTableTh>제품명</ErpTableTh>
-          <ErpTableTh align="center">공정</ErpTableTh>
-          <ErpTableTh align="right">대당단가</ErpTableTh>
+          <ErpTableTh align="right">SMD</ErpTableTh>
+          <ErpTableTh align="right">후공정</ErpTableTh>
           <ErpTableTh align="right">수량</ErpTableTh>
           <ErpTableTh align="right">총 견적금액</ErpTableTh>
           <ErpTableTh>등록자</ErpTableTh>
           <ErpTableTh align="center">상태</ErpTableTh>
-          <ErpTableTh align="center">복사</ErpTableTh>
         </tr>
       </ErpTableHead>
       <tbody>
         {quotes.map((quote) => {
-          const canCopy = !isLegacyQuoteDetail(quote.detailInfo)
+          const unitPrices = quoteProcessUnitPrices(quote)
           return (
             <tr
               key={quote.quoteNumber}
@@ -91,12 +110,8 @@ export function QuoteListTable({
               <ErpTableTd text="wrap" className="max-w-[200px] text-slate-700">
                 {quote.productName || '-'}
               </ErpTableTd>
-              <ErpTableTd align="center" className="text-slate-700">
-                {formatQuoteProcessLabel(quote)}
-              </ErpTableTd>
-              <ErpTableTd align="right" className="font-semibold tabular-nums text-slate-900">
-                {quoteUnitPriceDisplay(quote)}
-              </ErpTableTd>
+              <UnitPriceCell value={unitPrices.smd} quoteType={quote.quoteType} />
+              <UnitPriceCell value={unitPrices.post} quoteType={quote.quoteType} />
               <ErpTableTd align="right" className="tabular-nums text-slate-700">
                 {quote.boardQty.toLocaleString('ko-KR')}
               </ErpTableTd>
@@ -123,23 +138,6 @@ export function QuoteListTable({
                 >
                   {QUOTE_STATUS_LABELS[quote.quoteStatus]}
                 </button>
-              </ErpTableTd>
-              <ErpTableTd align="center">
-                {canCopy ? (
-                  <button
-                    type="button"
-                    title="이 견적으로 새 견적 작성"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onCopyQuote?.(quote)
-                    }}
-                    className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    복사
-                  </button>
-                ) : (
-                  <span className="text-xs text-slate-300">—</span>
-                )}
               </ErpTableTd>
             </tr>
           )

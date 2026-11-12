@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { PcbDataUpload } from '@/components/quotes/pcb-data-upload'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal, useErpModalRequestClose } from '@/components/ui/erp-modal'
@@ -47,18 +47,6 @@ export function AiQuoteModal({ open, onClose, onContinue }: AiQuoteModalProps) {
   const [pickPlaceAnalysis, setPickPlaceAnalysis] = useState<AltiumPickPlaceAnalysis | null>(null)
   const [bomAnalysis, setBomAnalysis] = useState<AltiumBomAnalysis | null>(null)
   const [childReviewOpen, setChildReviewOpen] = useState(false)
-
-  useEffect(() => {
-    if (!open) return
-    setQuoteType('domestic')
-    const nextSmt = resizeBoardForms([], 1, defaultSmtBoardForm)
-    setSmtForms(nextSmt)
-    setDipForms(syncDipNamesFromSmt(nextSmt, resizeBoardForms([], 1, defaultDipBoardForm)))
-    setProductName('')
-    setPickPlaceAnalysis(null)
-    setBomAnalysis(null)
-    setChildReviewOpen(false)
-  }, [open])
 
   const summary = useMemo(() => {
     const activePickPlace = pickPlaceAnalysis

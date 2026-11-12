@@ -67,9 +67,6 @@ export function detectThroughHoleMount(row: {
   return { isThroughHole: false, strength: 'none' }
 }
 
-/** @deprecated use detectThroughHoleMount */
-const THROUGH_HOLE_HINT = THROUGH_HOLE_FOOTPRINT_HINT
-
 export function emptyPickPlaceDipStats(): AltiumPickPlaceDipStats {
   return {
     dipGeneral: 0,
@@ -89,10 +86,6 @@ export function isPickPlaceSmdCategory(
   category: PickPlaceComponentCategory,
 ): category is PickPlaceSmdCategory {
   return !isPickPlaceDipCategory(category)
-}
-
-export function pickPlaceMountTypeForCategory(category: PickPlaceComponentCategory): PickPlaceMountType {
-  return isPickPlaceDipCategory(category) ? 'dip' : 'smd'
 }
 
 export function pickPlaceProcessLabel(

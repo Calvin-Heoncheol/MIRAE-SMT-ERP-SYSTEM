@@ -94,11 +94,14 @@ export function LegacyQuoteModal({
   const { notifyAuthOrFailure } = useWriteFailureToast()
 
   const [createTab, setCreateTab] = useState<CreateTab>('single')
-  const [form, setForm] = useState<LegacyQuoteFormState>(defaultLegacyQuoteForm)
+  // 모달은 열 때마다 key 로 새로 마운트되므로 초기값은 마운트 시 한 번만 계산
+  const [form, setForm] = useState<LegacyQuoteFormState>(() =>
+    mode === 'edit' && quote ? legacyQuoteFormFromQuote(quote) : defaultLegacyQuoteForm(),
+  )
   const [bulkText, setBulkText] = useState('')
   const [bulkPreview, setBulkPreview] = useState<LegacyQuoteFormState[]>([])
   const [partners, setPartners] = useState<BusinessPartner[]>([])
-  const [partnersLoading, setPartnersLoading] = useState(false)
+  const [partnersLoading, setPartnersLoading] = useState(open)
   const [products, setProducts] = useState<Product[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -106,16 +109,7 @@ export function LegacyQuoteModal({
 
   useEffect(() => {
     if (!open) return
-    setCreateTab('single')
-    setForm(mode === 'edit' && quote ? legacyQuoteFormFromQuote(quote) : defaultLegacyQuoteForm())
-    setBulkText('')
-    setBulkPreview([])
-    setError(null)
-    setSaving(false)
-    setDeleting(false)
-
     let cancelled = false
-    setPartnersLoading(true)
     void Promise.all([fetchSalesBusinessPartners(), fetchProducts()]).then(
       ([partnersResult, productsResult]) => {
         if (cancelled) return
@@ -127,7 +121,7 @@ export function LegacyQuoteModal({
     return () => {
       cancelled = true
     }
-  }, [open, mode, quote])
+  }, [open])
 
   const unitPrice = useMemo(() => legacyQuoteUnitPrice(form), [form])
   const busy = saving || deleting

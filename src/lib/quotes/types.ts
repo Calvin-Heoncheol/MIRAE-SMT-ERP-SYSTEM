@@ -1,4 +1,5 @@
 import type { PaymentTermSnapshot } from '@/lib/partners/payment-term-snapshot'
+import type { QuoteRates } from './constants'
 
 export type QuoteType = 'export' | 'domestic'
 
@@ -7,16 +8,6 @@ export type QuoteStatus = 'draft' | 'confirmed'
 export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
   draft: '미확정',
   confirmed: '확정',
-}
-
-export const QUOTE_TYPE_LABELS: Record<QuoteType, string> = {
-  domestic: '국내',
-  export: '해외',
-}
-
-export const QUOTE_TYPE_BADGE_CLASS: Record<QuoteType, string> = {
-  domestic: 'bg-blue-100 text-blue-800',
-  export: 'bg-teal-100 text-teal-800',
 }
 
 /** 해외용 견적서 미리보기·입력 화면 표시 통화 (기본 KRW, USD 토글 가능) */
@@ -142,6 +133,12 @@ export type QuoteDetailInfo = {
     productCode?: string
     /** 미확정 / 확정 */
     quoteStatus?: QuoteStatus
+    /** 저장 당시 단가표. 없으면(구 견적) DEFAULT_QUOTE_RATES */
+    rates?: QuoteRates
+    /** 저장 당시 단가표 버전 id */
+    ratesVersionId?: string
+    /** 대당단가 반올림 단위(원). 없으면(구 견적) 1원 */
+    unitPriceRoundUnit?: number
     /** 과거 견적 — 대당 비용 (원) */
     legacyCosts?: {
       smd: number
@@ -214,6 +211,10 @@ export type EstimateInput = {
   quoteType?: QuoteType
   existingQuoteNumber?: string
   includeSmd?: boolean
+  /** 계산에 쓸 단가표. 미설정이면 현재 적용 중인 단가표 */
+  rates?: QuoteRates
+  /** 대당단가 반올림 단위(원). 미설정이면 1원 */
+  unitPriceRoundUnit?: number
   /**
    * 원자재·관리비 포함 여부.
    * 미설정 = 포함(구 견적 호환). false 이면 제외.
@@ -274,14 +275,6 @@ export type EstimateResult = {
     orderLevelTotal: number
     /** SMD 실장·검사 (대당 × 수량, SET-UP 제외) */
     smtPlacementTotal: number
-    /** SMD 부자재 — 견적 미포함(항상 0) */
-    smtAuxiliaryMaterial: number
-    /** 후공정 부자재 — 견적에 미포함(항상 0). 필드 호환용 */
-    postAuxiliaryMaterial: number
-    /** 기업이윤 — 견적 미포함(항상 0). 호환용 */
-    postProcessProfit: number
-    /** @deprecated smtAuxiliaryMaterial 과 동일(항상 0) */
-    auxiliaryMaterial: number
     materialManagement: number
     specialDiscount: number
     subtotalBeforeDiscount: number

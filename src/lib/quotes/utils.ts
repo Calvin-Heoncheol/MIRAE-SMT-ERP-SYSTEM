@@ -1,4 +1,5 @@
 import { paymentTermSnapshotFromDbRow } from '@/lib/partners/payment-term-snapshot'
+import { resolveQuoteDetailRates, withQuoteRates } from './constants'
 import {
   defaultPostProcessBufferPercent,
   parsePostProcessBufferPercent,
@@ -10,7 +11,6 @@ import type {
   DipPcbBoard,
   EstimateInput,
   QuoteDetailInfo,
-  QuoteListFilter,
   QuoteListItem,
   QuoteRecord,
   QuoteStatus,
@@ -109,12 +109,6 @@ export function mapQuoteRecord(record: QuoteRecord): QuoteListItem {
 export function quoteRegistrantLabel(quote: Pick<QuoteListItem, 'createdByName' | 'updatedByName'>) {
   return quote.updatedByName.trim() || quote.createdByName.trim() || ''
 }
-
-export function filterQuotes(quotes: QuoteListItem[], filter: QuoteListFilter) {
-  if (filter === 'all') return quotes
-  return quotes.filter((quote) => quote.quoteType === filter)
-}
-
 export function filterQuotesForSearch(quotes: QuoteListItem[], query: string) {
   const q = query.trim().toLowerCase()
   if (!q) return quotes
@@ -143,12 +137,20 @@ export function toEstimateInputFromDetail(
   quote: QuoteListItem,
   overrides: Partial<EstimateInput> = {},
 ): EstimateInput {
+  const rates = overrides.rates ?? resolveQuoteDetailRates(quote.detailInfo)
+  return withQuoteRates(rates, () => ({
+    ...estimateInputFromDetailWithActiveRates(quote),
+    rates,
+    ...overrides,
+  }))
+}
+
+function estimateInputFromDetailWithActiveRates(quote: QuoteListItem): EstimateInput {
   const inputs = quote.detailInfo.inputs || {}
   const settings = quote.detailInfo.settings || {}
   const smtBoards = inputs.smt?.pcbBoards || [defaultSmtPcbBoard(0)]
   const dipBoards = inputs.dip?.dipBoards || [defaultDipPcbBoard(0)]
   const post = inputs.postProcess || {}
-  const productionKind = settings.productionKind === '샘플' ? '샘플' : '양산'
   const categorized = resolveCategorizedPostProcessLineForms(post)
   const bufferPercent =
     parsePostProcessBufferPercent(post.timeBufferPercent) ??
@@ -191,11 +193,6 @@ export function toEstimateInputFromDetail(
     includeMaterialCosts: settings.includeMaterialCosts !== false,
     includeMetalMask: settings.includeMetalMask !== false,
     metalMaskSide: settings.metalMaskSide,
-    ...overrides,
+    unitPriceRoundUnit: settings.unitPriceRoundUnit,
   }
-}
-
-/** 미설정(구 견적) = 자재 비용 포함. 명시적 false 만 제외 */
-export function resolveIncludeMaterialCosts(value?: boolean | null) {
-  return value !== false
 }

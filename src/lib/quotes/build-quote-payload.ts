@@ -14,7 +14,8 @@ import {
   sumPostProcessLineMinutes,
 } from './post-process-lines'
 import type { PostProcessCategory, PostProcessLineForm } from './post-process-lines'
-import { getPostRate } from './constants'
+import { normalizeUnitPriceRoundUnit } from './calculate-estimate'
+import { getActiveQuoteRates, getPostRate, withQuoteRates, type QuoteRates } from './constants'
 
 export type QuoteFormSnapshot = {
   customer: string
@@ -55,6 +56,11 @@ export type QuoteFormSnapshot = {
   postProcessBufferPercent?: string
   /** 조립·다운로드·테스트·포장 순서 */
   postProcessOrder?: PostProcessCategory[]
+  /** 견적에 적용할 단가표. 미설정이면 현재 적용 중인 단가표 */
+  rates?: QuoteRates
+  ratesVersionId?: string
+  /** 대당단가 반올림 단위(원) */
+  unitPriceRoundUnit?: number
 }
 
 export type QuoteRowPayload = {
@@ -75,6 +81,19 @@ export function buildQuoteDetailInfo(
   quoteType: QuoteType,
   quoteStatus: QuoteStatus = 'draft',
 ): QuoteDetailInfo {
+  return withQuoteRates(form.rates, () =>
+    buildQuoteDetailInfoWithActiveRates(form, pcbBoards, dipBoards, result, quoteType, quoteStatus),
+  )
+}
+
+function buildQuoteDetailInfoWithActiveRates(
+  form: QuoteFormSnapshot,
+  pcbBoards: SmtPcbBoard[],
+  dipBoards: DipPcbBoard[],
+  result: EstimateResult,
+  quoteType: QuoteType,
+  quoteStatus: QuoteStatus,
+): QuoteDetailInfo {
   const sanitizedPcbBoards = pcbBoards.map((board) => ({
     ...board,
     aoiEnabled: board.aoiEnabled !== false,
@@ -87,9 +106,6 @@ export function buildQuoteDetailInfo(
   const materialCostPerUnit = includeMaterialCosts ? Number(form.materialCost) || 0 : 0
   const metalMaskCost = Math.max(0, Math.round(result.common.subMaterial || 0))
   const sampleCost = Math.max(0, Math.round(result.common.sampleCost || 0))
-  const auxiliaryMaterialCostPerUnit =
-    (result.common.auxiliaryMaterial || 0) / (qty || 1)
-  const productionKind = form.productionKind === '샘플' ? '샘플' : '양산'
   const postRate = getPostRate(quoteType)
   const boardQty = form.boardQty
   const bufferPercent = form.postProcessBufferPercent
@@ -141,13 +157,11 @@ export function buildQuoteDetailInfo(
       download: postDownload * postRate * qty,
       test: postTest * postRate * qty,
       packing: postPacking * postRate * qty,
-      postProcessProfit: result.common.postProcessProfit || 0,
       materialCost: materialCostPerUnit * qty,
       materialManagementCost: includeMaterialCosts ? result.common.materialManagement : 0,
       setupCost: result.common.smtSetup,
       subMaterialCost: metalMaskCost,
       sampleCost,
-      auxiliaryMaterialCost: result.common.auxiliaryMaterial,
     },
     inputs: {
       smt: {
@@ -195,7 +209,6 @@ export function buildQuoteDetailInfo(
     settings: {
       materialCostPerUnit,
       metalMaskCost,
-      auxiliaryMaterialCostPerUnit,
       smtIncludesSetup: true,
       pcbBoardCount: Number(form.pcbBoardCount) || pcbBoards.length,
       specialDiscount: Number(form.specialDiscount) || 0,
@@ -210,6 +223,11 @@ export function buildQuoteDetailInfo(
       ...(form.metalMaskSide ? { metalMaskSide: form.metalMaskSide } : {}),
       ...(form.productId?.trim() ? { productId: form.productId.trim() } : {}),
       ...(form.productCode?.trim() ? { productCode: form.productCode.trim() } : {}),
+      rates: getActiveQuoteRates(),
+      ...(form.ratesVersionId ? { ratesVersionId: form.ratesVersionId } : {}),
+      ...(normalizeUnitPriceRoundUnit(form.unitPriceRoundUnit) > 1
+        ? { unitPriceRoundUnit: normalizeUnitPriceRoundUnit(form.unitPriceRoundUnit) }
+        : {}),
     },
   }
 }

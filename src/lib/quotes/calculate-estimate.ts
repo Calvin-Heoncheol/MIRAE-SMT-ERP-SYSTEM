@@ -6,16 +6,16 @@ import {
   getDipUnitRates,
   getAoiUnit,
   getPostRate,
-  SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
+  getFirstArticleSecondsPerPart,
+  getMaterialManagementRate,
   getSmtSetupBaseMinutes,
   getSmtSetupMinutesPerPart,
   getSmtSetupRate,
   getSmtUnitRates,
   isMultiSideSmt,
   normalizeSmtSide,
-  RAW_MATERIAL_MANAGEMENT_RATE,
-  computePostProcessProfitAmount,
   toBillingSmtSide,
+  withQuoteRates,
 } from './constants'
 import type {
   DipBoardDetail,
@@ -124,7 +124,7 @@ export function computeSmtSetupBillingBreakdown(
   }
 
   const baseMinutes = getSmtSetupBaseMinutes(smtSide, quoteType)
-  const firstArticleMinutes = (count * SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART) / 60
+  const firstArticleMinutes = (count * getFirstArticleSecondsPerPart()) / 60
   const settingMinutes = count * getSmtSetupMinutesPerPart(quoteType)
   return {
     partCount: count,
@@ -355,10 +355,19 @@ function formatSeoulDate(date = new Date()) {
   return `${year}-${month}-${day}`
 }
 
-export function calculateEstimate(
-  data: EstimateInput,
-  options: { existingQuoteNumbers?: string[] } = {},
-): EstimateResult {
+/** 신규·복사 견적의 대당단가 반올림 단위(원). 저장된 견적은 저장 당시 단위 유지 */
+export const NEW_QUOTE_UNIT_PRICE_ROUND_UNIT = 10
+
+export function normalizeUnitPriceRoundUnit(value: unknown) {
+  const unit = Math.floor(Number(value) || 0)
+  return unit > 1 ? unit : 1
+}
+
+export function calculateEstimate(data: EstimateInput): EstimateResult {
+  return withQuoteRates(data.rates, () => calculateEstimateWithActiveRates(data))
+}
+
+function calculateEstimateWithActiveRates(data: EstimateInput): EstimateResult {
   const qty = Number(data.boardQty) || 0
   const today = formatSeoulDate()
   const quoteType = data.quoteType === 'domestic' ? 'domestic' : 'export'
@@ -404,34 +413,27 @@ export function calculateEstimate(
   const orderLevelTotal = smtSetupAmount + sampleCostTotal
   const dipTotal = dipUnit * qty
   const postProcessTotal = postProcessUnit * qty
-  const dipSectionTotal = dipTotal + postProcessTotal
-  const smtAuxiliaryMaterialTotal = 0
-  /** 후공정 부자재는 견적에 미포함(항상 0). 필드 호환용 */
-  const postAuxiliaryMaterialTotal = 0
-  const auxiliaryMaterialTotal = smtAuxiliaryMaterialTotal
-  /** 기업이윤 — 견적 미포함(항상 0) */
-  const postProcessProfitTotal = computePostProcessProfitAmount(0)
   const laborFinal = smtTotal + dipTotal + postProcessTotal
   const materialManagementTotal =
     data.includeMaterialCosts === false || matTotalRaw <= 0
       ? 0
-      : matTotalRaw * RAW_MATERIAL_MANAGEMENT_RATE
+      : matTotalRaw * getMaterialManagementRate()
 
   const subtotalBeforeDiscount =
     laborFinal +
     matTotalRaw +
     materialManagementTotal +
     metalMaskTotal +
-    sampleCostTotal +
-    auxiliaryMaterialTotal +
-    postProcessProfitTotal
+    sampleCostTotal
   let specialDiscount = Math.max(0, Number(data.specialDiscount) || 0)
   if (specialDiscount > subtotalBeforeDiscount) specialDiscount = subtotalBeforeDiscount
   const rawGrandTotal = subtotalBeforeDiscount - specialDiscount
   const safeQty = qty || 1
   /** 대당(원) 반올림 × 수량 + 메탈마스크(일회성, 대당단가 미포함) = 합계 */
   const metalMaskInTotal = Math.min(metalMaskTotal, Math.max(0, rawGrandTotal))
-  const unitTotal = Math.round((rawGrandTotal - metalMaskInTotal) / safeQty)
+  const roundUnit = normalizeUnitPriceRoundUnit(data.unitPriceRoundUnit)
+  const unitTotal =
+    Math.round((rawGrandTotal - metalMaskInTotal) / safeQty / roundUnit) * roundUnit
   const grandTotal = unitTotal * safeQty + metalMaskInTotal
 
   return {
@@ -465,11 +467,6 @@ export function calculateEstimate(
       sampleCost: sampleCostTotal,
       orderLevelTotal,
       smtPlacementTotal,
-      smtAuxiliaryMaterial: smtAuxiliaryMaterialTotal,
-      postAuxiliaryMaterial: postAuxiliaryMaterialTotal,
-      /** 기업이윤 — 견적 미포함(항상 0) */
-      postProcessProfit: postProcessProfitTotal,
-      auxiliaryMaterial: auxiliaryMaterialTotal,
       materialManagement: materialManagementTotal,
       specialDiscount,
       subtotalBeforeDiscount,

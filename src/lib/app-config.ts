@@ -27,5 +27,5 @@ export const COMPANY_BANK_ACCOUNT = '114-085886-04-011'
 /** 발주서 Confirmation — Swift Code (기업은행) */
 export const COMPANY_BANK_SWIFT = 'IBKOKRSE'
 /** 발주서 Confirmation — 결제조건 */
-export const COMPANY_PAYMENT_TERMS_KO = '매달 20일까지 결제'
-export const COMPANY_PAYMENT_TERMS_EN = 'Payment by the 20th of each month'
+export const COMPANY_PAYMENT_TERMS_KO = '매달 25일까지 결제'
+export const COMPANY_PAYMENT_TERMS_EN = 'Payment by the 25th of each month'

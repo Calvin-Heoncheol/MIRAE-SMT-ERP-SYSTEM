@@ -1,7 +1,4 @@
 import type { LegacyWaveCounts, QuoteType, SmtSide } from './types'
-
-export const SMT_SIDES: SmtSide[] = ['single', 'dual', 'double']
-
 export function normalizeSmtSide(value: unknown): SmtSide {
   if (value === 'dual' || value === 'double' || value === 'single') return value
   return 'single'
@@ -32,18 +29,12 @@ export const SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT = SMT_SETUP_BASE_MINUTES_SINGL
 export const SMT_SETUP_BASE_MINUTES_DOUBLE_DOMESTIC = 90
 /** 양면 기본시간: 해외 = 국내 */
 export const SMT_SETUP_BASE_MINUTES_DOUBLE_EXPORT = SMT_SETUP_BASE_MINUTES_DOUBLE_DOMESTIC
-/** @deprecated getSmtSetupBaseMinutes 사용 */
-export const SMT_SETUP_BASE_MINUTES_SINGLE = SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT
-/** @deprecated getSmtSetupBaseMinutes 사용 */
-export const SMT_SETUP_BASE_MINUTES_DOUBLE = SMT_SETUP_BASE_MINUTES_DOUBLE_EXPORT
 /** 초품검사: 종(부품 종수)당 20초 */
 export const SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART = 20
 /** SETTING: 국내 종(부품 종수)당 2분 */
 export const SMT_SETUP_MINUTES_PER_PART_DOMESTIC = 2
 /** SETTING: 해외 = 국내 */
 export const SMT_SETUP_MINUTES_PER_PART_EXPORT = SMT_SETUP_MINUTES_PER_PART_DOMESTIC
-/** @deprecated getSmtSetupMinutesPerPart 사용 */
-export const SMT_SETUP_MINUTES_PER_PART = SMT_SETUP_MINUTES_PER_PART_EXPORT
 /** 후공정 임율: 국내 ₩460/분 */
 export const POST_RATE_DOMESTIC = 460
 /** 후공정 임율: 해외 ₩800/분 */
@@ -58,8 +49,6 @@ export const POST_RATE_CORPORATE_PROFIT = 35
 export const POST_RATE_ADMIN = 25
 /** 분당임률 구성 — 해외 대응비 (수출 서류·포장·커뮤니케이션 등, 해외용만) */
 export const POST_RATE_EXPORT_SURCHARGE = POST_RATE_EXPORT - POST_RATE_DOMESTIC
-/** @deprecated POST_RATE_CORPORATE_PROFIT 사용 */
-export const POST_RATE_MIN_PROFIT = POST_RATE_CORPORATE_PROFIT
 /** 후공정 작업시간 여유 — 생산수량 1,000대 미만 30% */
 export const POST_PROCESS_BUFFER_UNDER_1000 = 0.3
 /** 후공정 작업시간 여유 — 1,000대 이상 25% */
@@ -68,14 +57,6 @@ export const POST_PROCESS_BUFFER_FROM_1000 = 0.25
 export const POST_PROCESS_BUFFER_FROM_2000 = 0.2
 /** 후공정 작업시간 여유 — 5,000대 이상 15% */
 export const POST_PROCESS_BUFFER_FROM_5000 = 0.15
-/** @deprecated getPostProcessTimeBuffer(boardQty) 사용 */
-export const POST_PROCESS_SAMPLE_BUFFER = POST_PROCESS_BUFFER_UNDER_1000
-/** @deprecated getPostProcessTimeBuffer(boardQty) 사용 */
-export const POST_PROCESS_MASS_BUFFER = POST_PROCESS_BUFFER_UNDER_1000
-/** @deprecated 견적에서 기업이윤 미사용 — 항상 0 */
-export const POST_PROCESS_PROFIT_RATE = 0
-/** @deprecated getPostRate 사용 */
-export const POST_RATE = POST_RATE_EXPORT
 
 /** CHIP 단가: 국내 ₩6/개 */
 export const SMT_UNIT_CHIP_DOMESTIC = 6
@@ -85,14 +66,10 @@ export const SMT_UNIT_CHIP_EXPORT = 10
 export const SMT_UNIT_ODD_DOMESTIC = 20
 /** 이형 단가: 해외 ₩35/개 */
 export const SMT_UNIT_ODD_EXPORT = 35
-/** @deprecated getSmtUnitRates 사용 */
-export const SMT_UNIT_ODD = SMT_UNIT_ODD_EXPORT
 /** 특수모듈 단가: 국내 ₩100/개 */
 export const SMT_UNIT_SPECIAL_DOMESTIC = 100
 /** 특수모듈 단가: 해외 ₩175/개 */
 export const SMT_UNIT_SPECIAL_EXPORT = 175
-/** @deprecated getSmtUnitRates 사용 */
-export const SMT_UNIT_SPECIAL = SMT_UNIT_SPECIAL_DOMESTIC
 /** IC PIN 단가: 국내 ₩2/PIN */
 export const SMT_UNIT_IC_PIN_DOMESTIC = 2
 /** IC PIN 단가: 해외 ₩3.5/PIN */
@@ -101,29 +78,11 @@ export const SMT_UNIT_IC_PIN_EXPORT = 3.5
 export const SMT_UNIT_BGA_BALL_DOMESTIC = 2.5
 /** BGA BALL 단가: 해외 ₩4/BALL */
 export const SMT_UNIT_BGA_BALL_EXPORT = 4
-/** @deprecated getSmtUnitRates 사용 */
-export const SMT_UNIT_CHIP = SMT_UNIT_CHIP_EXPORT
-/** @deprecated getSmtUnitRates 사용 */
-export const SMT_UNIT_IC_PIN = SMT_UNIT_IC_PIN_EXPORT
-/** @deprecated getSmtUnitRates 사용 */
-export const SMT_UNIT_BGA_BALL = SMT_UNIT_BGA_BALL_EXPORT
 
 /** AOI 검사 PCB당: 국내 ₩100 (양면은 2배) */
 export const AOI_UNIT = 100
 /** AOI 검사 PCB당: 해외 ₩150 (양면은 2배) */
 export const AOI_UNIT_EXPORT = 150
-/** PCB 세척 PCB당 */
-export const PCB_WASH_UNIT = 100
-/** @deprecated AOI·세척 개별 옵션으로 대체 */
-export const INSPECTION_UNIT_SINGLE = AOI_UNIT
-export const INSPECTION_UNIT_DOUBLE = AOI_UNIT * 2
-/** SET-UP 기본시간 설명 (견적서 표시용) */
-export const SMT_SETUP_BASE_TIME_DESCRIPTION =
-  'Loader/Unloader · Screen Print & SPI · Reflow Profile 측정'
-/** SET-UP 초품검사 설명 (견적서 표시용) */
-export const SMT_SETUP_FIRST_ARTICLE_DESCRIPTION = 'BOM 실장 확인 및 LCR 측정'
-/** SET-UP SETTING 설명 (견적서 표시용) */
-export const SMT_SETUP_SETTING_DESCRIPTION = '부품 피더 장착 및 좌표확인'
 
 export const DIP_UNIT = {
   dipGeneral: 250,
@@ -144,7 +103,7 @@ export const DIP_UNIT_EXPORT: DipUnitRates = {
 }
 
 export function getDipUnitRates(quoteType: QuoteType): DipUnitRates {
-  return quoteType === 'domestic' ? DIP_UNIT : DIP_UNIT_EXPORT
+  return activeRateSet(quoteType).dip
 }
 
 /** 예전 견적의 WAVE 수량을 같은 크기의 수납땜 수량에 합산 */
@@ -168,19 +127,6 @@ export function foldLegacyWaveCounts(
 /** 관리비: 원자재 비용의 10% */
 export const RAW_MATERIAL_MANAGEMENT_RATE = 0.1
 
-/** @deprecated 견적에서 SMD 부자재(10%) 미사용 — 항상 0 */
-export const AUXILIARY_MATERIAL_RATE = 0
-
-/** SMD 부자재 — 견적 미포함(항상 0). 필드·호출부 호환용 */
-export function computeAuxiliaryMaterialAmount(_baseAmount: number) {
-  return 0
-}
-
-/** 기업이윤 — 견적 미포함(항상 0). 필드·호출부 호환용 */
-export function computePostProcessProfitAmount(_baseAmount: number) {
-  return 0
-}
-
 /** 메탈마스크: 단면 */
 export const METAL_MASK_COST_SINGLE = 110_000
 /** 메탈마스크: 양면 */
@@ -189,10 +135,218 @@ export const METAL_MASK_COST_DOUBLE = 220_000
 export const SAMPLE_COST_SINGLE = 200_000
 /** 샘플 비용 (일회성) — 양면·듀얼 */
 export const SAMPLE_COST_DOUBLE = 300_000
-/** @deprecated SAMPLE_COST_SINGLE 과 동일 */
-export const SAMPLE_COST = SAMPLE_COST_SINGLE
 /** 샘플 비용 적용 기준 수량 (미만) */
 export const SAMPLE_QTY_THRESHOLD = 200
+
+export type SmtUnitRates = {
+  chip: number
+  odd: number
+  special: number
+  icPin: number
+  bgaBall: number
+}
+
+/** 국내/해외별 단가 */
+export type QuoteRateSet = {
+  setupRate: number
+  setupBaseMinutesSingle: number
+  setupBaseMinutesDouble: number
+  setupMinutesPerPart: number
+  postRate: number
+  smt: SmtUnitRates
+  /** AOI 단면 PCB당 (양면은 2배) */
+  aoi: number
+  dip: DipUnitRates
+}
+
+/** 견적 단가표 — 견적 저장 시 detail_info.settings.rates 로 함께 저장 */
+export type QuoteRates = {
+  domestic: QuoteRateSet
+  export: QuoteRateSet
+  firstArticleSecondsPerPart: number
+  metalMaskSingle: number
+  metalMaskDouble: number
+  sampleCostSingle: number
+  sampleCostDouble: number
+  sampleQtyThreshold: number
+  /** 원자재 관리비율 (0.1 = 10%) */
+  materialManagementRate: number
+  /** 후공정 시간 여유율 (0.3 = 30%) */
+  postBuffer: {
+    under1000: number
+    from1000: number
+    from2000: number
+    from5000: number
+  }
+}
+
+/**
+ * 단가표가 저장되지 않은 기존 견적의 계산 기준.
+ * 기존 견적 금액이 바뀌므로 이 값은 수정하지 말고, 단가 변경은 견적 단가 관리에서 할 것.
+ */
+export const DEFAULT_QUOTE_RATES: QuoteRates = Object.freeze({
+  domestic: {
+    setupRate: SMT_SETUP_RATE_DOMESTIC,
+    setupBaseMinutesSingle: SMT_SETUP_BASE_MINUTES_SINGLE_DOMESTIC,
+    setupBaseMinutesDouble: SMT_SETUP_BASE_MINUTES_DOUBLE_DOMESTIC,
+    setupMinutesPerPart: SMT_SETUP_MINUTES_PER_PART_DOMESTIC,
+    postRate: POST_RATE_DOMESTIC,
+    smt: {
+      chip: SMT_UNIT_CHIP_DOMESTIC,
+      odd: SMT_UNIT_ODD_DOMESTIC,
+      special: SMT_UNIT_SPECIAL_DOMESTIC,
+      icPin: SMT_UNIT_IC_PIN_DOMESTIC,
+      bgaBall: SMT_UNIT_BGA_BALL_DOMESTIC,
+    },
+    aoi: AOI_UNIT,
+    dip: { ...DIP_UNIT },
+  },
+  export: {
+    setupRate: SMT_SETUP_RATE_EXPORT,
+    setupBaseMinutesSingle: SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT,
+    setupBaseMinutesDouble: SMT_SETUP_BASE_MINUTES_DOUBLE_EXPORT,
+    setupMinutesPerPart: SMT_SETUP_MINUTES_PER_PART_EXPORT,
+    postRate: POST_RATE_EXPORT,
+    smt: {
+      chip: SMT_UNIT_CHIP_EXPORT,
+      odd: SMT_UNIT_ODD_EXPORT,
+      special: SMT_UNIT_SPECIAL_EXPORT,
+      icPin: SMT_UNIT_IC_PIN_EXPORT,
+      bgaBall: SMT_UNIT_BGA_BALL_EXPORT,
+    },
+    aoi: AOI_UNIT_EXPORT,
+    dip: { ...DIP_UNIT_EXPORT },
+  },
+  firstArticleSecondsPerPart: SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
+  metalMaskSingle: METAL_MASK_COST_SINGLE,
+  metalMaskDouble: METAL_MASK_COST_DOUBLE,
+  sampleCostSingle: SAMPLE_COST_SINGLE,
+  sampleCostDouble: SAMPLE_COST_DOUBLE,
+  sampleQtyThreshold: SAMPLE_QTY_THRESHOLD,
+  materialManagementRate: RAW_MATERIAL_MANAGEMENT_RATE,
+  postBuffer: {
+    under1000: POST_PROCESS_BUFFER_UNDER_1000,
+    from1000: POST_PROCESS_BUFFER_FROM_1000,
+    from2000: POST_PROCESS_BUFFER_FROM_2000,
+    from5000: POST_PROCESS_BUFFER_FROM_5000,
+  },
+})
+
+function rateNumber(value: unknown, fallback: number) {
+  const n = typeof value === 'string' && value.trim() !== '' ? Number(value) : value
+  return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : fallback
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function normalizeNumberRecord<T extends Record<string, number>>(raw: unknown, fallback: T): T {
+  const source = asRecord(raw)
+  const next = { ...fallback }
+  for (const key of Object.keys(fallback) as Array<keyof T & string>) {
+    next[key] = rateNumber(source[key], fallback[key]) as T[typeof key]
+  }
+  return next
+}
+
+function normalizeQuoteRateSet(raw: unknown, fallback: QuoteRateSet): QuoteRateSet {
+  const source = asRecord(raw)
+  return {
+    setupRate: rateNumber(source.setupRate, fallback.setupRate),
+    setupBaseMinutesSingle: rateNumber(source.setupBaseMinutesSingle, fallback.setupBaseMinutesSingle),
+    setupBaseMinutesDouble: rateNumber(source.setupBaseMinutesDouble, fallback.setupBaseMinutesDouble),
+    setupMinutesPerPart: rateNumber(source.setupMinutesPerPart, fallback.setupMinutesPerPart),
+    postRate: rateNumber(source.postRate, fallback.postRate),
+    smt: normalizeNumberRecord(source.smt, fallback.smt),
+    aoi: rateNumber(source.aoi, fallback.aoi),
+    dip: normalizeNumberRecord(source.dip, fallback.dip),
+  }
+}
+
+const normalizedRates = new WeakSet<object>()
+
+/** 저장된 JSON 단가표를 검증. 빠지거나 잘못된 값은 fallback 으로 채움 */
+export function normalizeQuoteRates(raw: unknown, fallback: QuoteRates = DEFAULT_QUOTE_RATES): QuoteRates {
+  if (raw && typeof raw === 'object' && normalizedRates.has(raw)) return raw as QuoteRates
+  const source = asRecord(raw)
+  const rates: QuoteRates = {
+    domestic: normalizeQuoteRateSet(source.domestic, fallback.domestic),
+    export: normalizeQuoteRateSet(source.export, fallback.export),
+    firstArticleSecondsPerPart: rateNumber(source.firstArticleSecondsPerPart, fallback.firstArticleSecondsPerPart),
+    metalMaskSingle: rateNumber(source.metalMaskSingle, fallback.metalMaskSingle),
+    metalMaskDouble: rateNumber(source.metalMaskDouble, fallback.metalMaskDouble),
+    sampleCostSingle: rateNumber(source.sampleCostSingle, fallback.sampleCostSingle),
+    sampleCostDouble: rateNumber(source.sampleCostDouble, fallback.sampleCostDouble),
+    sampleQtyThreshold: rateNumber(source.sampleQtyThreshold, fallback.sampleQtyThreshold),
+    materialManagementRate: rateNumber(source.materialManagementRate, fallback.materialManagementRate),
+    postBuffer: normalizeNumberRecord(source.postBuffer, fallback.postBuffer),
+  }
+  normalizedRates.add(rates)
+  return rates
+}
+
+/** 저장된 견적의 단가표. 단가표가 없는 구 견적은 DEFAULT_QUOTE_RATES 로 고정 */
+export function resolveQuoteDetailRates(
+  detailInfo?: { settings?: { rates?: unknown } | null } | null,
+): QuoteRates {
+  const saved = detailInfo?.settings?.rates
+  return saved ? normalizeQuoteRates(saved) : DEFAULT_QUOTE_RATES
+}
+
+let activeQuoteRates: QuoteRates = DEFAULT_QUOTE_RATES
+
+/** 단가 조회 함수(getPostRate 등)가 현재 사용하는 단가표 */
+export function getActiveQuoteRates(): QuoteRates {
+  return activeQuoteRates
+}
+
+/** 견적 모달처럼 렌더 전체에 단가표를 적용할 때 사용. null 이면 기본값 */
+export function setActiveQuoteRates(rates: QuoteRates | null | undefined) {
+  activeQuoteRates = rates ? normalizeQuoteRates(rates) : DEFAULT_QUOTE_RATES
+}
+
+/** fn 실행 동안만 단가표를 바꿔 적용 (동기 함수 전용) */
+export function withQuoteRates<T>(rates: QuoteRates | null | undefined, fn: () => T): T {
+  if (!rates) return fn()
+  const previous = activeQuoteRates
+  activeQuoteRates = normalizeQuoteRates(rates)
+  try {
+    return fn()
+  } finally {
+    activeQuoteRates = previous
+  }
+}
+
+function activeRateSet(quoteType: QuoteType): QuoteRateSet {
+  return quoteType === 'domestic' ? activeQuoteRates.domestic : activeQuoteRates.export
+}
+
+export function getFirstArticleSecondsPerPart() {
+  return activeQuoteRates.firstArticleSecondsPerPart
+}
+
+export function getMaterialManagementRate() {
+  return activeQuoteRates.materialManagementRate
+}
+
+export function getPostProcessBufferRates() {
+  return activeQuoteRates.postBuffer
+}
+
+export function getMetalMaskCost(side: MetalMaskSide) {
+  return side === 'double' ? activeQuoteRates.metalMaskDouble : activeQuoteRates.metalMaskSingle
+}
+
+export function getSampleCostSettings() {
+  return {
+    single: activeQuoteRates.sampleCostSingle,
+    double: activeQuoteRates.sampleCostDouble,
+    qtyThreshold: activeQuoteRates.sampleQtyThreshold,
+  }
+}
 
 /** PCB 중 하나라도 듀얼·양면이면 true */
 export function hasAnyDoubleSidedSmt(
@@ -203,7 +357,7 @@ export function hasAnyDoubleSidedSmt(
 }
 
 export function sampleCostForBoards(boards?: Array<{ smtSide?: SmtSide | string }> | null) {
-  return hasAnyDoubleSidedSmt(boards) ? SAMPLE_COST_DOUBLE : SAMPLE_COST_SINGLE
+  return hasAnyDoubleSidedSmt(boards) ? activeQuoteRates.sampleCostDouble : activeQuoteRates.sampleCostSingle
 }
 
 /** 생산수량 200대 미만 또는 구분=샘플이면 샘플 비용 (금액은 고정, 수량과 무관) */
@@ -214,13 +368,13 @@ export function computeSampleCostTotal(
 ) {
   const safeQty = Math.floor(Number(qty) || 0)
   const byKind = productionKind === '샘플'
-  const byQty = safeQty > 0 && safeQty < SAMPLE_QTY_THRESHOLD
+  const byQty = safeQty > 0 && safeQty < activeQuoteRates.sampleQtyThreshold
   if (!byKind && !byQty) return 0
   return sampleCostForBoards(boards)
 }
 
 export function metalMaskCostForSide(side: SmtSide | string | undefined) {
-  return toBillingSmtSide(side) === 'double' ? METAL_MASK_COST_DOUBLE : METAL_MASK_COST_SINGLE
+  return getMetalMaskCost(toBillingSmtSide(side))
 }
 
 export type MetalMaskSide = 'single' | 'double'
@@ -245,68 +399,36 @@ export function computeMetalMaskCostTotal(
 ) {
   if (!includeSmd || boards.length === 0) return 0
   if (side) {
-    return boards.length * (side === 'double' ? METAL_MASK_COST_DOUBLE : METAL_MASK_COST_SINGLE)
+    return boards.length * getMetalMaskCost(side)
   }
   return boards.reduce((sum, board) => sum + metalMaskCostForSide(board.smtSide), 0)
 }
 
 export function getSmtSetupRate(quoteType: QuoteType) {
-  return quoteType === 'domestic' ? SMT_SETUP_RATE_DOMESTIC : SMT_SETUP_RATE_EXPORT
+  return activeRateSet(quoteType).setupRate
 }
 
 export function getSmtSetupMinutesPerPart(quoteType: QuoteType) {
-  return quoteType === 'domestic'
-    ? SMT_SETUP_MINUTES_PER_PART_DOMESTIC
-    : SMT_SETUP_MINUTES_PER_PART_EXPORT
+  return activeRateSet(quoteType).setupMinutesPerPart
 }
 
 export function getPostRate(quoteType: QuoteType) {
-  return quoteType === 'domestic' ? POST_RATE_DOMESTIC : POST_RATE_EXPORT
+  return activeRateSet(quoteType).postRate
 }
 
-export function getSmtUnitRates(quoteType: QuoteType) {
-  if (quoteType === 'domestic') {
-    return {
-      chip: SMT_UNIT_CHIP_DOMESTIC,
-      odd: SMT_UNIT_ODD_DOMESTIC,
-      special: SMT_UNIT_SPECIAL_DOMESTIC,
-      icPin: SMT_UNIT_IC_PIN_DOMESTIC,
-      bgaBall: SMT_UNIT_BGA_BALL_DOMESTIC,
-    }
-  }
-  return {
-    chip: SMT_UNIT_CHIP_EXPORT,
-    odd: SMT_UNIT_ODD_EXPORT,
-    special: SMT_UNIT_SPECIAL_EXPORT,
-    icPin: SMT_UNIT_IC_PIN_EXPORT,
-    bgaBall: SMT_UNIT_BGA_BALL_EXPORT,
-  }
+export function getSmtUnitRates(quoteType: QuoteType): SmtUnitRates {
+  return activeRateSet(quoteType).smt
 }
 
 export function getSmtSetupBaseMinutes(
   smtSide: SmtSide | 'single' | 'double',
   quoteType: QuoteType = 'export',
 ) {
-  const billingSide = toBillingSmtSide(smtSide)
-  if (quoteType === 'domestic') {
-    return billingSide === 'double'
-      ? SMT_SETUP_BASE_MINUTES_DOUBLE_DOMESTIC
-      : SMT_SETUP_BASE_MINUTES_SINGLE_DOMESTIC
-  }
-  return billingSide === 'double'
-    ? SMT_SETUP_BASE_MINUTES_DOUBLE_EXPORT
-    : SMT_SETUP_BASE_MINUTES_SINGLE_EXPORT
+  const set = activeRateSet(quoteType)
+  return toBillingSmtSide(smtSide) === 'double' ? set.setupBaseMinutesDouble : set.setupBaseMinutesSingle
 }
 
 export function getAoiUnit(smtSide: SmtSide | 'single' | 'double', quoteType: QuoteType) {
-  const unit = quoteType === 'domestic' ? AOI_UNIT : AOI_UNIT_EXPORT
+  const unit = activeRateSet(quoteType).aoi
   return toBillingSmtSide(smtSide) === 'double' ? unit * 2 : unit
-}
-
-/** @deprecated getAoiUnit 사용 */
-export function getBoardInspectionUnit(
-  smtSide: SmtSide | 'single' | 'double',
-  quoteType: QuoteType = 'domestic',
-) {
-  return getAoiUnit(smtSide, quoteType)
 }

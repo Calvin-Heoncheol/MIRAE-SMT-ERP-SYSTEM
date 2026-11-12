@@ -44,8 +44,8 @@ type ProductionReportWorkspaceProps = {
   monthHref: string
 }
 
-/** 발주 섹션당 행 수: 계획 / 실적(수량) / 실적(금액) / 달성률 */
-const METRIC_ROWS = 4
+/** 발주 섹션당 행 수: 계획 / 실적(수량) / 달성률 */
+const METRIC_ROWS = 3
 
 function formatCount(value: number) {
   return value.toLocaleString('ko-KR')
@@ -560,7 +560,6 @@ export function ProductionReportWorkspace({
                           info: order as ProductionReportOrderRow | null,
                           planned: (col: MatrixColumn) => sumDates(order.plannedByDate, col.dates),
                           actual: (col: MatrixColumn) => sumDates(order.actualByDate, col.dates),
-                          unitPrice: order.unitPrice,
                         }))
                       : [
                           {
@@ -568,7 +567,6 @@ export function ProductionReportWorkspace({
                             info: null as ProductionReportOrderRow | null,
                             planned: (col: MatrixColumn) => group.planned(col),
                             actual: (col: MatrixColumn) => group.actual(col),
-                            unitPrice: 0,
                           },
                         ]
 
@@ -599,16 +597,6 @@ export function ProductionReportWorkspace({
                           totalClass: 'font-semibold text-slate-900',
                           value: section.actual,
                           total: actualTotal as number | null,
-                        },
-                        {
-                          key: 'amount',
-                          label: '실적(금액)',
-                          labelClass: 'text-emerald-800',
-                          valueClass: 'text-emerald-900',
-                          totalClass: 'font-semibold text-emerald-900',
-                          value: (col: MatrixColumn) =>
-                            Math.round(section.actual(col) * section.unitPrice),
-                          total: Math.round(actualTotal * section.unitPrice) as number | null,
                         },
                         {
                           key: 'rate',

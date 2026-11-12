@@ -307,8 +307,20 @@ export function QuoteBreakdownPreview({
         quoteType,
         displayCurrency,
         result.values.metalMask,
+        pdfVatIncluded,
       )
     : null
+  const supplySummary =
+    result && pdfVatIncluded
+      ? formatQuotePreviewSummary(
+          result.values.grandTotal,
+          result.qty || 1,
+          quoteType,
+          displayCurrency,
+          result.values.metalMask,
+        )
+      : null
+  const vatSuffix = pdfVatIncluded ? ' (VAT 포함)' : ''
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
@@ -389,7 +401,7 @@ export function QuoteBreakdownPreview({
       <div className="space-y-1.5 border-t border-slate-200 bg-white px-4 py-3 text-sm lg:px-6">
         <div className="flex items-center justify-between">
           <span className="font-semibold text-slate-700">
-            {isDomestic ? '대당 단가' : 'Unit Price'}
+            {isDomestic ? `대당 단가${vatSuffix}` : 'Unit Price'}
           </span>
           <span className="font-semibold text-slate-900">
             {previewSummary
@@ -397,6 +409,14 @@ export function QuoteBreakdownPreview({
               : formatAmount(0, quoteType, displayCurrency)}
           </span>
         </div>
+        {supplySummary ? (
+          <div className="flex items-center justify-between text-[13px]">
+            <span className="font-medium text-slate-600">대당 단가 (VAT 미포함)</span>
+            <span className="font-semibold tabular-nums text-slate-800">
+              {supplySummary.unitFormatted}
+            </span>
+          </div>
+        ) : null}
         {previewSummary?.oneTimeFormatted ? (
           <>
             <div className="flex items-center justify-between text-[13px]">
@@ -419,15 +439,15 @@ export function QuoteBreakdownPreview({
         ) : null}
         <div className="flex items-center justify-between text-base">
           <span className="font-bold text-slate-900">
-            {isDomestic ? '최종 합계 금액' : 'Grand Total'}
+            {isDomestic ? `최종 합계 금액${vatSuffix}` : 'Grand Total'}
           </span>
           <span className="font-bold text-slate-800">
             {previewSummary ? previewSummary.totalFormatted : formatAmount(0, quoteType, displayCurrency)}
           </span>
         </div>
-        {pdfVatIncluded ? (
+        {supplySummary ? (
           <p className="text-right text-[11px] text-slate-500">
-            VAT 별도 금액입니다. PDF 견적서에는 VAT 포함 금액으로 표시됩니다.
+            공급가액 합계 {supplySummary.totalFormatted} (위 세부 산정내역은 VAT 별도)
           </p>
         ) : null}
       </div>

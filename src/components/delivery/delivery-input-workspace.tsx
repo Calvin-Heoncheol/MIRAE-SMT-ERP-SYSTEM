@@ -9,7 +9,7 @@ import { DeliveryRegisterModal } from '@/components/delivery/delivery-register-m
 import { SalesStatementEditModal } from '@/components/reports/sales-statement-edit-modal'
 import { ProductionFetchError } from '@/components/production-input/production-fetch-error'
 import { DateRangeFilter } from '@/components/ui/date-range-filter'
-import { ExcelDownloadButton } from '@/components/ui/excel-download-button'
+import { MonthlyClosingMenu, type MonthlyClosingFormat } from '@/components/delivery/monthly-closing-menu'
 import { FetchErrorBanner } from '@/components/ui/fetch-error-banner'
 import { PageShell } from '@/components/ui/page-shell'
 import { PdfDownloadButton } from '@/components/ui/pdf-download-button'
@@ -41,6 +41,7 @@ import {
 import { buildDeliveryStatementDataFromTableGroup } from '@/lib/delivery/statement-from-group'
 import { printDeliveryStatements } from '@/lib/delivery/print-delivery-statement'
 import { exportMonthlyClosingExcel } from '@/lib/reports/export-monthly-closing-excel'
+import { exportMonthlyClosingPdf } from '@/lib/reports/export-monthly-closing-pdf'
 import {
   applyMonthlyClosingVat,
   buildMonthlyClosingRows,
@@ -227,7 +228,8 @@ export function DeliveryInputWorkspace({
     }
   }
 
-  async function handleMonthlyClosingExport() {
+  async function handleMonthlyClosingExport(format: MonthlyClosingFormat) {
+    const formatLabel = format === 'pdf' ? 'PDF' : 'EXCEL'
     setClosingExporting(true)
     setPrintError(null)
 
@@ -245,15 +247,37 @@ export function DeliveryInputWorkspace({
       )
 
       if (!rows.length) {
-        setPrintError('월 마감 EXCEL로 보낼 출하·명세 내역이 없습니다.')
+        setPrintError(`월 마감 ${formatLabel}로 보낼 출하·명세 내역이 없습니다.`)
         return
       }
 
       const customer = resolveMonthlyClosingCustomerLabel(statementGroups, search)
-      await exportMonthlyClosingExcel({ rows, customer, startDate, endDate })
+      const partner = registerPartners.find((item) => item.name.trim() === customer.trim())
+      const input = {
+        rows,
+        customer,
+        startDate,
+        endDate,
+        language: partner?.documentLanguage,
+        customerInfo: partner
+          ? {
+              businessRegNo: partner.businessRegNo,
+              representativeName: partner.representativeName,
+              address: partner.address,
+              phone: partner.phone,
+            }
+          : undefined,
+      }
+      if (format === 'pdf') {
+        if (!exportMonthlyClosingPdf(input)) {
+          setPrintError('인쇄 창을 열 수 없습니다. 브라우저 팝업 차단을 해제한 뒤 다시 시도해 주세요.')
+        }
+      } else {
+        await exportMonthlyClosingExcel(input)
+      }
     } catch (error) {
       setPrintError(
-        `월 마감 EXCEL을 만들지 못했습니다. ${error instanceof Error ? error.message : ''}`.trim(),
+        `월 마감 ${formatLabel}을 만들지 못했습니다. ${error instanceof Error ? error.message : ''}`.trim(),
       )
     } finally {
       setClosingExporting(false)
@@ -438,10 +462,9 @@ export function DeliveryInputWorkspace({
                 disabled={printing || closingExporting || statementGroups.length === 0}
                 label={printing ? '준비 중…' : '거래명세서'}
               />
-              <ExcelDownloadButton
-                onDownload={handleMonthlyClosingExport}
+              <MonthlyClosingMenu
+                onExport={handleMonthlyClosingExport}
                 disabled={printing || closingExporting || statementGroups.length === 0}
-                label="월 마감"
               />
               <DeliveryRegisterMenu onOpenRegister={() => openRegister()} />
             </>

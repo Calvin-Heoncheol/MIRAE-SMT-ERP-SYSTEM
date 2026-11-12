@@ -44,12 +44,6 @@ export function exportPage1SummaryAmounts(grandTotalKrw: number, qty: number, on
 export function formatExportSummaryUsd(usd: number) {
   return formatUsdAmount(roundExportSummaryUsd(usd), EXPORT_USD_SUMMARY_FRACTION_DIGITS)
 }
-
-/** @deprecated Use formatExportSummaryUsd */
-export function formatExportUnitPrice(usd: number) {
-  return formatExportSummaryUsd(usd)
-}
-
 export function formatQuoteKrw(krw: number) {
   const value = roundDomesticKrw(krw)
   return `₩${value.toLocaleString('ko-KR', {
@@ -180,13 +174,14 @@ export type QuotePreviewSummary = {
   oneTimeFormatted: string | null
 }
 
-/** 화면 미리보기용 — 항상 공급가액(VAT 별도). VAT 포함 금액은 PDF에서만 표시 */
+/** 화면 미리보기용 — PDF 1페이지 요약과 같은 금액. includeVat 는 국내용만 적용 */
 export function formatQuotePreviewSummary(
   grandTotalKrw: number,
   qty: number,
   quoteType: QuoteType,
   displayCurrency: QuoteDisplayCurrency = 'krw',
   oneTimeKrw = 0,
+  includeVat = false,
 ): QuotePreviewSummary {
   if (quoteType === 'export' && resolveQuoteDisplayCurrency(quoteType, displayCurrency) === 'usd') {
     return exportSummaryFromKrw(grandTotalKrw, qty, oneTimeKrw)
@@ -196,6 +191,7 @@ export function formatQuotePreviewSummary(
     grandTotalKrw,
     qty,
     oneTimeKrw,
+    quoteType === 'domestic' && includeVat,
   )
   return {
     unitFormatted: formatQuoteKrw(unitKrw),
@@ -228,11 +224,6 @@ export function quoteUnitPriceKrw(quote: {
     quoteMetalMaskAmount(quote.detailInfo),
   ).unitKrw
 }
-
-export function inferQuoteTypeFromNumber(quoteNumber: string): QuoteType {
-  return quoteNumber.startsWith('MSK') ? 'domestic' : 'export'
-}
-
 export const QUOTE_VALIDITY_DAYS = 14
 
 export function formatQuoteValidUntil(issueDate: string, validDays = QUOTE_VALIDITY_DAYS) {

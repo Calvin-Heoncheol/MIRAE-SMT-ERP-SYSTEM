@@ -1,11 +1,4 @@
-import { displayItemProcessingUnitPrice } from '@/lib/items/utils'
-import type { ItemFormState } from '@/lib/items/form-state'
-import { smtSideToItemPcbSide } from '@/lib/items/smt-quote-parts'
-import {
-  deriveItemProcessType,
-  type ItemPcbSideMode,
-  type ItemProcessType,
-} from '@/lib/items/types'
+import type { ItemProcessType } from '@/lib/items/types'
 import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
 import { legacyQuoteFormFromQuote } from '@/lib/quotes/legacy-quote'
 import { getQuoteProductionFlags } from '@/lib/quotes/production-flags'
@@ -34,12 +27,6 @@ export function processTypeFromQuote(quote: QuoteListItem): ItemProcessType {
   if (flags.hasSmd) return 'smt'
   if (flags.hasPost) return 'post'
   return ''
-}
-
-function pcbSideFromQuote(quote: QuoteListItem): ItemPcbSideMode {
-  const boards = quote.detailInfo.inputs?.smt?.pcbBoards
-  const side = boards?.[0]?.smtSide ?? quote.detailInfo.inputs?.smt?.smtSide
-  return smtSideToItemPcbSide(side) || 'single'
 }
 
 export function buildItemPriceBreakdownFromQuote(quote: QuoteListItem): ItemPriceBreakdownFromQuote {
@@ -84,12 +71,7 @@ export function buildItemPriceBreakdownFromQuote(quote: QuoteListItem): ItemPric
   const estimate = calculateEstimate(toEstimateInputFromDetail(quote))
   const setupUnitPrice = money(estimate.common.smtSetup)
   const smdUnitPrice = money((money(estimate.values.smt) - setupUnitPrice) / qty)
-  const dipUnitPrice = money(
-    (money(estimate.values.dip) +
-      money(estimate.values.postProcess) +
-      money(estimate.common.postProcessProfit)) /
-      qty,
-  )
+  const dipUnitPrice = money((money(estimate.values.dip) + money(estimate.values.postProcess)) / qty)
   const materialUnitPrice = money(
     (Number(settings.materialCostPerUnit) || 0) +
       quotePerUnitTotal(estimate.common.materialManagement, qty),
@@ -98,39 +80,8 @@ export function buildItemPriceBreakdownFromQuote(quote: QuoteListItem): ItemPric
   return { setupUnitPrice, smdUnitPrice, dipUnitPrice, materialUnitPrice }
 }
 
-export function displayItemFormUnitPrice(
-  form: Pick<
-    ItemFormState,
-    'unitPrice' | 'setupUnitPrice' | 'smdUnitPrice' | 'dipUnitPrice' | 'materialUnitPrice'
-  >,
-) {
-  return displayItemProcessingUnitPrice(form)
-}
-
 export function formatQuoteOptionLabel(quote: QuoteListItem) {
   const status = quote.quoteStatus === 'confirmed' ? '확정' : '미확정'
   return `${quote.quoteNumber} · ${quote.productName} · ${quote.quoteDate} · ${status}`
 }
 
-export function buildItemDefaultsFromQuote(quote: QuoteListItem): Partial<ItemFormState> {
-  const { setupUnitPrice, smdUnitPrice, dipUnitPrice, materialUnitPrice } =
-    buildItemPriceBreakdownFromQuote(quote)
-
-  const processType =
-    processTypeFromQuote(quote) || deriveItemProcessType(smdUnitPrice, dipUnitPrice)
-
-  return {
-    baselineQuoteId: quote.quoteId,
-    baselineQuoteLabel: formatQuoteOptionLabel(quote),
-    customerName: quote.customer || '',
-    name: quote.productName || '',
-    processType,
-    pcbSideMode: pcbSideFromQuote(quote),
-    setupUnitPrice,
-    smdUnitPrice,
-    dipUnitPrice,
-    materialUnitPrice,
-    materialCostLines: [],
-    unitPrice: smdUnitPrice + dipUnitPrice,
-  }
-}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ErpButton } from '@/components/ui/erp-button'
 import { ErpModal } from '@/components/ui/erp-modal'
 import type { DipBoardForm } from '@/lib/quotes/form-state'
@@ -146,26 +146,28 @@ function BomLineRow({ line }: { line: AltiumBomAnalysis['lines'][number] }) {
   )
 }
 
-export function BomReviewModal({
-  open,
+export function BomReviewModal(props: BomReviewModalProps) {
+  if (!props.open || !props.analysis) return null
+  return (
+    <BomReviewModalContent
+      key={`${props.analysis.fileName}|${props.pickPlaceAnalysis?.fileName ?? ''}`}
+      {...props}
+      analysis={props.analysis}
+    />
+  )
+}
+
+function BomReviewModalContent({
   analysis,
   pickPlaceAnalysis,
   boardIndex = 0,
   dipForms,
   onClose,
   onApply,
-}: BomReviewModalProps) {
-  const [view, setView] = useState<'lines' | 'crossref'>('lines')
+}: BomReviewModalProps & { analysis: AltiumBomAnalysis }) {
+  const [view, setView] = useState<'lines' | 'crossref'>(pickPlaceAnalysis ? 'crossref' : 'lines')
   const [showAllCrossRef, setShowAllCrossRef] = useState(false)
   const [applyDipSuggestion, setApplyDipSuggestion] = useState(true)
-
-  useEffect(() => {
-    if (open) {
-      setView(pickPlaceAnalysis ? 'crossref' : 'lines')
-      setShowAllCrossRef(false)
-      setApplyDipSuggestion(true)
-    }
-  }, [open, analysis?.fileName, pickPlaceAnalysis?.fileName])
 
   const crossRef = useMemo(() => {
     if (!analysis || !pickPlaceAnalysis) return null
@@ -183,15 +185,12 @@ export function BomReviewModal({
     return crossRef.rows.filter((row) => row.status !== 'matched')
   }, [crossRef, showAllCrossRef])
 
-  if (!open || !analysis) return null
-
   const currentAnalysis = analysis
 
   function handleApply() {
     let nextDipForms: DipBoardForm[] | undefined
 
     if (applyDipSuggestion && dipSuggestion && dipForms[boardIndex]) {
-      const board = dipForms[boardIndex]!
       nextDipForms = dipForms.map((item, index) =>
         index === boardIndex
           ? {

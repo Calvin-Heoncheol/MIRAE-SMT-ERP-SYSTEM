@@ -27,8 +27,7 @@ export type MonthlyClosingRow = {
   unitPrice: number
   amount: number
   /** true면 unitPrice·amount가 VAT 포함 금액 */
-  vatIncluded?: boolean
-}
+  vatIncluded?: boolean}
 
 export function monthlyClosingKindLabel(kind: DeliveryRegisterLineKind) {
   return deliveryRegisterLineKindLabel(kind)
@@ -177,8 +176,7 @@ export function applyMonthlyClosingVat(
       ...row,
       unitPrice: row.unitPrice + Math.round(row.unitPrice * DOMESTIC_VAT_RATE),
       amount: row.amount + Math.round(row.amount * DOMESTIC_VAT_RATE),
-      vatIncluded: true,
-    }
+      vatIncluded: true,    }
   })
 }
 

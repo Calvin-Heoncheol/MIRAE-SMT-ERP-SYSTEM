@@ -133,26 +133,6 @@ export function formatQuoteProcessTypeCodes(
   return `(${codes.join(', ')})`
 }
 
-/** 미리보기·작성 중 — 금액/라인 기준 공정 코드 */
-export function formatQuoteProcessTypeCodesFromParts(input: {
-  hasSmd?: boolean
-  hasSoldering?: boolean
-  hasAssembly?: boolean
-  hasDownload?: boolean
-  hasTest?: boolean
-  hasPacking?: boolean
-}) {
-  const codes: QuoteProcessTypeCode[] = []
-  if (input.hasSmd) codes.push('SMD')
-  if (input.hasSoldering) codes.push('SOLDERING')
-  if (input.hasAssembly) codes.push('ASSEMBLY')
-  if (input.hasDownload) codes.push('DOWNLOAD')
-  if (input.hasTest) codes.push('TEST')
-  if (input.hasPacking) codes.push('PACKING')
-  if (!codes.length) return '—'
-  return `(${codes.join(', ')})`
-}
-
 export function processTypeIncludesSmt(processType: ProductProcessType | null | undefined) {
   const value = processType || ''
   return value === 'smt' || value === 'smt_post'

@@ -290,7 +290,3 @@ export function parseBomRows(
   }
 }
 
-export function formatAltiumBomSummary(analysis: AltiumBomAnalysis) {
-  const { summary } = analysis
-  return `BOM ${summary.lineCount}라인 · ${summary.designatorCount}개 부품위치`
-}

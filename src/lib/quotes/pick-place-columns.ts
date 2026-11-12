@@ -288,35 +288,6 @@ export function fillMissingPickPlaceColumns(
   return next
 }
 
-/** @deprecated use parsePickPlaceSide from canonical-pick-place */
-export function normalizePickPlaceLayer(value: string, hasLayerColumn: boolean) {
-  if (!hasLayerColumn) return 'TopLayer'
-
-  const raw = value.trim().toLowerCase()
-  if (!raw) return 'TopLayer'
-  if (raw === 't' || raw === '1' || raw === 'top' || raw.includes('top') || raw === 'primary' || raw === '앞') {
-    return 'TopLayer'
-  }
-  if (
-    raw === 'b' ||
-    raw === '2' ||
-    raw === 'bot' ||
-    raw === 'bottom' ||
-    raw === 'm' ||
-    raw === 'mirrored' ||
-    raw === 'mirror' ||
-    raw.includes('bottom') ||
-    raw.includes('bot') ||
-    raw === 'secondary' ||
-    raw === '뒤'
-  ) {
-    return 'BottomLayer'
-  }
-  if (raw.includes('top')) return 'TopLayer'
-  if (raw.includes('bot')) return 'BottomLayer'
-  return value
-}
-
 export function formatPickPlaceColumnMappingNote(header: string[], columns: PickPlaceColumnMap) {
   const labels: string[] = []
   for (const index of [
@@ -337,15 +308,3 @@ export function formatPickPlaceColumnMappingNote(header: string[], columns: Pick
   return `AI 컬럼 매핑: ${labels.join(', ')}`
 }
 
-export function formatDetectedColumns(columns: PickPlaceColumnMap, header: string[]) {
-  const parts = [
-    header[columns.designator] || '?',
-    columns.layer >= 0 ? header[columns.layer] : null,
-    columns.package >= 0 ? header[columns.package] : null,
-    columns.value >= 0 ? header[columns.value] : null,
-    columns.mpn >= 0 ? header[columns.mpn] : null,
-    header[columns.x],
-    header[columns.y],
-  ].filter(Boolean)
-  return parts.join(', ')
-}

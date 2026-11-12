@@ -22,7 +22,8 @@ function storedAmounts(quote: QuoteListItem): SavedQuoteAmounts {
 }
 
 /**
- * 저장 견적의 대당단가·합계 — 모달·미리보기·PDF 와 같은 현재 계산식으로 재산정.
+ * 저장 견적의 대당단가·합계 — 모달·미리보기·PDF 와 같은 계산식으로 재산정.
+ * 단가는 견적에 저장된 단가표(구 견적은 DEFAULT_QUOTE_RATES)를 쓰므로 단가 변경에 영향받지 않음.
  * 과거(legacy) 견적이나 재계산 실패 시 저장된 total_amount 기준.
  */
 export function resolveSavedQuoteAmounts(quote: QuoteListItem): SavedQuoteAmounts {

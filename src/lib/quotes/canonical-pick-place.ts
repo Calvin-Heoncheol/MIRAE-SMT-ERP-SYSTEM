@@ -53,19 +53,3 @@ export function formatPickPlaceSideLabel(side: PickPlaceSide, rawLayer?: string)
   return rawLayer?.trim() || '?'
 }
 
-/** @deprecated use package */
-export function pickPlacePackage(row: PickPlaceRowLike) {
-  return row.package || row.footprint || ''
-}
-
-/** @deprecated use value */
-export function pickPlaceValue(row: PickPlaceRowLike) {
-  return row.value || row.comment || ''
-}
-
-type PickPlaceRowLike = {
-  package?: string
-  footprint?: string
-  value?: string
-  comment?: string
-}

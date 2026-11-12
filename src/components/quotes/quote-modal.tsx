@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCanDeleteRecords, useAuthProfile } from '@/components/auth/auth-profile-provider'
 import { CustomerCombobox } from '@/components/orders/customer-combobox'
 import { ProductCombobox } from '@/components/orders/product-combobox'
@@ -20,37 +20,31 @@ import { useErpConfirm } from '@/components/ui/erp-confirm'
 import { useWriteFailureToast } from '@/hooks/use-write-failure-toast'
 import {
   computeSampleCostTotal,
+  DEFAULT_QUOTE_RATES,
   defaultMetalMaskSide,
   getPostRate,
-  normalizeMetalMaskSide,
-  type MetalMaskSide,
+  normalizeQuoteRates,
+  resolveQuoteDetailRates,
+  setActiveQuoteRates,
 } from '@/lib/quotes/constants'
-import { calculateEstimate } from '@/lib/quotes/calculate-estimate'
+import { diffQuoteRates } from '@/lib/quotes/rate-fields'
+import type { CurrentQuoteRates } from '@/lib/quotes/rate-repository'
 import { buildQuoteRowPayload } from '@/lib/quotes/build-quote-payload'
 import type { QuoteRowPayload } from '@/lib/quotes/build-quote-payload'
 import { formatQuoteMoneyByDisplay, formatQuotePreviewSummary } from '@/lib/quotes/format'
-import { todayYmdSeoul } from '@/lib/orders/utils'
 import {
   defaultDipBoardForm,
   defaultSmtBoardForm,
   dipBoardFormToModel,
-  dipBoardToForm,
   resizeBoardForms,
   smtBoardFormToModel,
-  smtBoardToForm,
   type DipBoardForm,
   type SmtBoardForm,
 } from '@/lib/quotes/form-state'
 import {
-  DEFAULT_POST_PROCESS_ORDER,
   defaultPostProcessBufferPercent,
-  emptyPostProcessLineForm,
-  normalizePostProcessOrder,
-  parsePostProcessBufferPercent,
-  resolveCategorizedPostProcessLineForms,
   sumPostProcessBilledMinutes,
   type PostProcessCategory,
-  type PostProcessLineForm,
 } from '@/lib/quotes/post-process-lines'
 import { createQuote, deleteQuotes, updateQuote } from '@/lib/quotes/repository'
 import { exportQuotesToPdf } from '@/lib/quotes/export-quote-pdf'
@@ -62,8 +56,7 @@ import type {
   QuoteStatus,
   QuoteType,
 } from '@/lib/quotes/types'
-import { normalizeQuoteStatus, toEstimateInputFromDetail } from '@/lib/quotes/utils'
-import { foldLegacyWaveCounts } from '@/lib/quotes/constants'
+import { normalizeQuoteStatus } from '@/lib/quotes/utils'
 import { fetchSalesBusinessPartners } from '@/lib/partners/repository'
 import {
   EMPTY_PAYMENT_TERM_SNAPSHOT,
@@ -73,10 +66,19 @@ import type { BusinessPartner } from '@/lib/partners/types'
 import { resolvePartnerFromInput } from '@/lib/partners/utils'
 import { fetchProducts } from '@/lib/products/repository'
 import type { Product } from '@/lib/products/types'
-import { formatProductOptionLabel, findProductById, resolveOrderLineProduct } from '@/lib/products/utils'
+import { formatProductOptionLabel } from '@/lib/products/utils'
 import { buildOrderPayloadFromQuote } from '@/lib/orders/from-quote'
 import { createOrder } from '@/lib/orders/repository'
 import { ERP_ERROR_TEXT_CLASS, ERP_FIELD_INPUT_CLASS } from '@/lib/ui/tokens'
+import {
+  applyAiQuoteDraft,
+  clampPcbCount,
+  computeEstimate,
+  createInitialState,
+  fillProductFromList,
+  syncDipNamesFromSmt,
+  type FormState,
+} from '@/lib/quotes/quote-modal-state'
 
 type QuoteModalProps = {
   open: boolean
@@ -86,44 +88,13 @@ type QuoteModalProps = {
   /** 기존 견적 내용으로 새 견적 작성 */
   copyFrom?: QuoteListItem | null
   initialDraft?: AiQuoteDraft
-  existingQuoteNumbers?: string[]
+  /** 신규·복사 작성에 적용할 현재 단가표 */
+  currentRates?: CurrentQuoteRates
   onClose: () => void
   onSaved?: (message?: string) => void
   onDeleted?: (message?: string) => void
   /** 수정 모드에서 이 견적으로 새 작성 */
   onCopyRequest?: (quote: QuoteListItem) => void
-}
-
-type FormState = {
-  customer: string
-  productCode: string
-  productName: string
-  productId: string
-  /** 견적일 (YYYY-MM-DD) */
-  quoteDate: string
-  boardQty: string
-  pcbBoardCount: string
-  productionKind: '샘플' | '양산'
-  /** true = VAT 포함 표시 */
-  includeVat: boolean
-  assemblyLines: PostProcessLineForm[]
-  downloadLines: PostProcessLineForm[]
-  testLines: PostProcessLineForm[]
-  packingLines: PostProcessLineForm[]
-  /** 후공정 시간 여유 % */
-  postProcessBufferPercent: string
-  /** 조립·다운로드·테스트·포장 순서 */
-  postProcessOrder: PostProcessCategory[]
-  materialCost: string
-  specialDiscount: string
-  includeSmd: boolean
-  includeDip: boolean
-  /** 원자재·관리비 포함 (견적 자재 섹션) */
-  includeMaterialCosts: boolean
-  /** 메탈마스크 포함 (발주 1회, SET-UP) */
-  includeMetalMask: boolean
-  /** 메탈마스크 단면/양면 — 미설정이면 보드 면 기준 */
-  metalMaskSide?: MetalMaskSide
 }
 
 const POST_PROCESS_EDITORS: Record<
@@ -136,250 +107,13 @@ const POST_PROCESS_EDITORS: Record<
   packing: { title: '포장', field: 'packingLines' },
 }
 
-const INITIAL_FORM: FormState = {
-  customer: '',
-  productCode: '',
-  productName: '',
-  productId: '',
-  quoteDate: todayYmdSeoul(),
-  boardQty: '1000',
-  pcbBoardCount: '1',
-  productionKind: '양산',
-  includeVat: false,
-  assemblyLines: [emptyPostProcessLineForm()],
-  downloadLines: [emptyPostProcessLineForm()],
-  testLines: [emptyPostProcessLineForm()],
-  packingLines: [emptyPostProcessLineForm()],
-  postProcessBufferPercent: String(defaultPostProcessBufferPercent(1000)),
-  postProcessOrder: DEFAULT_POST_PROCESS_ORDER,
-  materialCost: '0',
-  specialDiscount: '0',
-  includeSmd: true,
-  includeDip: true,
-  includeMaterialCosts: true,
-  includeMetalMask: true,
-}
-
-function inferIncludeFlags(quote: QuoteListItem): { includeSmd: boolean; includeDip: boolean } {
-  const settings = quote.detailInfo.settings || {}
-  if (typeof settings.includeSmd === 'boolean' || typeof settings.includeDip === 'boolean') {
-    return {
-      includeSmd: Boolean(settings.includeSmd),
-      includeDip: Boolean(settings.includeDip),
-    }
-  }
-
-  const amounts = quote.detailInfo.amounts
-  const post = quote.detailInfo.inputs?.postProcess || {}
-  const hasSmd =
-    (amounts?.smt || 0) > 0 ||
-    Boolean(quote.detailInfo.inputs?.smt?.pcbBoards?.some((board) => board.chip || board.icPin || board.bga))
-  const hasPostLines =
-    Boolean(post.lines?.length) ||
-    Boolean(post.assemblyLines?.length) ||
-    Boolean(post.downloadLines?.length) ||
-    Boolean(post.testLines?.length) ||
-    Boolean(post.packingLines?.length)
-  const hasDip =
-    (amounts?.dip || 0) > 0 ||
-    (amounts?.assembly || 0) > 0 ||
-    (amounts?.download || 0) > 0 ||
-    (post.postAssembly || 0) > 0 ||
-    (post.postDownload || 0) > 0 ||
-    (post.postTest || 0) > 0 ||
-    (post.postPacking || 0) > 0 ||
-    hasPostLines ||
-    Boolean(
-      quote.detailInfo.inputs?.dip?.dipBoards?.some(
-        (board) => {
-          const counts = foldLegacyWaveCounts(board)
-          return counts.dipGeneral || counts.dipConnector || counts.dipWire || counts.dipXLarge
-        },
-      ),
-    )
-
-  // 기존 견적(플래그 없음)은 섹션을 열어 두어 편집 가능
-  return {
-    includeSmd: hasSmd || !hasDip,
-    includeDip: hasDip || !hasSmd,
-  }
-}
-
-function clampPcbCount(value: string) {
-  const parsed = Math.floor(Number(value) || 1)
-  return String(Math.min(20, Math.max(1, parsed)))
-}
-
-function syncDipNamesFromSmt(smtForms: SmtBoardForm[], dipForms: DipBoardForm[]) {
-  return dipForms.map((dip, index) => ({
-    ...dip,
-    pcbName: smtForms[index]?.pcbName.trim() || dip.pcbName || `PCB ${index + 1}`,
-  }))
-}
-
-function buildStateFromQuote(quote: QuoteListItem) {
-  const input = toEstimateInputFromDetail(quote)
-  const flags = inferIncludeFlags(quote)
-  const pcbBoardCount = String(input.pcbBoardCount || input.pcbBoards?.length || 1)
-  const smtForms = input.pcbBoards?.length
-    ? input.pcbBoards.map(smtBoardToForm)
-    : [defaultSmtBoardForm(0)]
-  const dipForms = syncDipNamesFromSmt(
-    smtForms,
-    input.dipBoards?.length ? input.dipBoards.map(dipBoardToForm) : [defaultDipBoardForm(0)],
-  )
-  const post = quote.detailInfo.inputs?.postProcess || {}
-  const categorized = resolveCategorizedPostProcessLineForms(post)
-  const boardQty = String(quote.boardQty || 1000)
-  const bufferPercent =
-    parsePostProcessBufferPercent(post.timeBufferPercent) ??
-    defaultPostProcessBufferPercent(boardQty)
-
-  return {
-    form: {
-      customer: quote.customer,
-      productCode: String(quote.detailInfo.settings?.productCode || '').trim(),
-      productName: quote.productName,
-      productId: quote.detailInfo.settings?.productId || '',
-      quoteDate: quote.quoteDate || todayYmdSeoul(),
-      boardQty,
-      pcbBoardCount,
-      productionKind:
-        quote.detailInfo.settings?.productionKind === '샘플'
-          ? ('샘플' as const)
-          : ('양산' as const),
-      includeVat: quote.detailInfo.settings?.includeVat === true,
-      assemblyLines: categorized.assemblyLines,
-      downloadLines: categorized.downloadLines,
-      testLines: categorized.testLines,
-      packingLines: categorized.packingLines,
-      postProcessBufferPercent: String(bufferPercent),
-      postProcessOrder: normalizePostProcessOrder(post.order),
-      materialCost: String(input.materialCost || 0),
-      specialDiscount: String(input.specialDiscount || 0),
-      includeSmd: flags.includeSmd,
-      includeDip: flags.includeDip,
-      includeMaterialCosts: quote.detailInfo.settings?.includeMaterialCosts !== false,
-      includeMetalMask: quote.detailInfo.settings?.includeMetalMask !== false,
-      metalMaskSide: normalizeMetalMaskSide(quote.detailInfo.settings?.metalMaskSide),
-    } satisfies FormState,
-    smtForms,
-    dipForms,
-  }
-}
-
-function createInitialState(
-  mode: 'create' | 'edit',
-  quote?: QuoteListItem | null,
-  copyFrom?: QuoteListItem | null,
-) {
-  if (mode === 'edit' && quote) return buildStateFromQuote(quote)
-  if (mode === 'create' && copyFrom) return buildStateFromQuote(copyFrom)
-
-  const count = Number(INITIAL_FORM.pcbBoardCount)
-  const smtForms = resizeBoardForms([], count, defaultSmtBoardForm)
-  const dipForms = syncDipNamesFromSmt(smtForms, resizeBoardForms([], count, defaultDipBoardForm))
-
-  return {
-    form: INITIAL_FORM,
-    smtForms,
-    dipForms,
-  }
-}
-
-function computeEstimate(
-  form: FormState,
-  smtForms: SmtBoardForm[],
-  dipForms: DipBoardForm[],
-  quoteType: QuoteType,
-  options: {
-    mode: 'create' | 'edit'
-    quote?: QuoteListItem | null
-    existingQuoteNumbers?: string[]
-  },
-): EstimateResult {
-  const pcbCount = Number(clampPcbCount(form.pcbBoardCount))
-  const pcbBoards = smtForms.map(smtBoardFormToModel)
-  const dipBoards = dipForms.map((dip, index) =>
-    dipBoardFormToModel({
-      ...dip,
-      pcbName: smtForms[index]?.pcbName.trim() || dip.pcbName,
-    }),
-  )
-
-  const postAssembly = sumPostProcessBilledMinutes(
-    form.assemblyLines,
-    form.boardQty,
-    form.postProcessBufferPercent,
-  )
-  const postDownload = sumPostProcessBilledMinutes(
-    form.downloadLines,
-    form.boardQty,
-    form.postProcessBufferPercent,
-  )
-  const postTest = sumPostProcessBilledMinutes(
-    form.testLines,
-    form.boardQty,
-    form.postProcessBufferPercent,
-  )
-  const postPacking = sumPostProcessBilledMinutes(
-    form.packingLines,
-    form.boardQty,
-    form.postProcessBufferPercent,
-  )
-
-  return calculateEstimate(
-    {
-      boardQty: form.boardQty,
-      materialCost: form.materialCost,
-      includeMetalMask: form.includeMetalMask,
-      metalMaskSide: form.metalMaskSide,
-      productionKind: form.productionKind,
-      postAssembly,
-      postDownload,
-      postTest,
-      postPacking,
-      specialDiscount: form.specialDiscount,
-      pcbBoardCount: pcbCount,
-      pcbBoards,
-      dipBoards,
-      quoteType,
-      existingQuoteNumber: options.mode === 'edit' ? options.quote?.quoteNumber : undefined,
-      includeSmd: true,
-      includeMaterialCosts: form.includeMaterialCosts,
-    },
-    { existingQuoteNumbers: options.existingQuoteNumbers },
-  )
-}
-
-function applyAiQuoteDraft(
-  base: ReturnType<typeof createInitialState>,
-  draft: AiQuoteDraft,
-): ReturnType<typeof createInitialState> {
-  const hasDipCounts = draft.dipForms.some(
-    (board) => Number(board.dipGeneral) > 0 || Number(board.dipConnector) > 0,
-  )
-
-  return {
-    form: {
-      ...base.form,
-      productName: draft.productName || base.form.productName,
-      includeSmd: true,
-      includeDip: hasDipCounts || base.form.includeDip,
-      includeMaterialCosts: Boolean(draft.bomAnalysis) || base.form.includeMaterialCosts,
-    },
-    smtForms: draft.smtForms.length ? draft.smtForms : base.smtForms,
-    dipForms: draft.dipForms.length ? draft.dipForms : base.dipForms,
-  }
-}
-
 function QuoteModalContent({
   mode,
   quoteType,
   quote,
   copyFrom,
   initialDraft,
-  existingQuoteNumbers = [],
+  currentRates,
   onClose,
   onSaved,
   onDeleted,
@@ -389,8 +123,33 @@ function QuoteModalContent({
   const confirm = useErpConfirm()
   const { profile } = useAuthProfile()
   const contactEmail = String(profile?.email || '').trim()
-  const initial = createInitialState(mode, quote, copyFrom)
-  const seeded = mode === 'create' && initialDraft ? applyAiQuoteDraft(initial, initialDraft) : initial
+  const latestRates = useMemo(
+    () => normalizeQuoteRates(currentRates?.rates ?? DEFAULT_QUOTE_RATES),
+    [currentRates?.rates],
+  )
+  const savedRates = useMemo(
+    () => (mode === 'edit' && quote ? resolveQuoteDetailRates(quote.detailInfo) : null),
+    [mode, quote],
+  )
+  const [applyLatestRates, setApplyLatestRates] = useState(false)
+  const quoteRates = savedRates && !applyLatestRates ? savedRates : latestRates
+  const quoteRatesVersionId =
+    savedRates && !applyLatestRates
+      ? quote?.detailInfo.settings?.ratesVersionId
+      : currentRates?.versionId ?? undefined
+  const savedRateChanges = useMemo(
+    () => (savedRates ? diffQuoteRates(savedRates, latestRates) : []),
+    [savedRates, latestRates],
+  )
+  // 하위 입력 폼·미리보기가 getPostRate 등으로 이 견적의 단가표를 읽도록 렌더마다 적용
+  setActiveQuoteRates(quoteRates)
+  useEffect(() => () => setActiveQuoteRates(null), [])
+
+  // 모달은 대상(견적·복사·초안)마다 key 로 새로 마운트되므로 초기값은 마운트 시 한 번만 계산
+  const [seeded] = useState(() => {
+    const initial = createInitialState(mode, quote, copyFrom)
+    return mode === 'create' && initialDraft ? applyAiQuoteDraft(initial, initialDraft) : initial
+  })
   const [form, setForm] = useState<FormState>(seeded.form)
   const [smtForms, setSmtForms] = useState(seeded.smtForms)
   const [dipForms, setDipForms] = useState(seeded.dipForms)
@@ -398,7 +157,7 @@ function QuoteModalContent({
     computeEstimate(seeded.form, seeded.smtForms, seeded.dipForms, quoteType, {
       mode,
       quote,
-      existingQuoteNumbers,
+      rates: quoteRates,
     }),
   )
   const [saving, setSaving] = useState(false)
@@ -407,8 +166,8 @@ function QuoteModalContent({
   const [displayCurrency, setDisplayCurrency] = useState<QuoteDisplayCurrency>('krw')
   const [openSections, setOpenSections] = useState({
     smt: true,
-    dip: false,
-    material: false,
+    dip: mode !== 'edit',
+    material: mode !== 'edit',
   })
   const [salesPartners, setSalesPartners] = useState<BusinessPartner[]>([])
   const [partnersLoading, setPartnersLoading] = useState(true)
@@ -432,47 +191,23 @@ function QuoteModalContent({
 
   useEffect(() => {
     let cancelled = false
-    setPartnersLoading(true)
     void Promise.all([fetchSalesBusinessPartners(), fetchProducts()]).then(
       ([partnersResult, productsResult]) => {
         if (cancelled) return
         setPartnersLoading(false)
         if (partnersResult.ok) setSalesPartners(partnersResult.partners)
-        if (productsResult.ok) setProducts(productsResult.products)
+        if (productsResult.ok) {
+          setProducts(productsResult.products)
+          if (productsResult.products.length) {
+            setForm((current) => fillProductFromList(current, productsResult.products))
+          }
+        }
       },
     )
     return () => {
       cancelled = true
     }
   }, [])
-
-  useEffect(() => {
-    if (!products.length) return
-    setForm((current) => {
-      if (current.productCode.trim()) return current
-      const byId = current.productId.trim()
-        ? findProductById(products, current.productId)
-        : null
-      if (byId) {
-        return {
-          ...current,
-          productCode: byId.productCode,
-          productId: byId.id,
-        }
-      }
-      if (!current.productName.trim()) return current
-      const byName = resolveOrderLineProduct(products, current.customer, {
-        productId: current.productId || null,
-        productName: current.productName,
-      })
-      if (!byName) return current
-      return {
-        ...current,
-        productCode: byName.productCode,
-        productId: byName.id,
-      }
-    })
-  }, [products, mode, quote?.quoteId, copyFrom?.quoteId])
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -488,28 +223,6 @@ function QuoteModalContent({
     }
   }, [busy, onClose])
 
-  useEffect(() => {
-    const next = createInitialState(mode, quote, copyFrom)
-    const resolved = mode === 'create' && initialDraft ? applyAiQuoteDraft(next, initialDraft) : next
-    setForm(resolved.form)
-    setSmtForms(resolved.smtForms)
-    setDipForms(resolved.dipForms)
-    setResult(
-      computeEstimate(resolved.form, resolved.smtForms, resolved.dipForms, quoteType, {
-        mode,
-        quote,
-        existingQuoteNumbers,
-      }),
-    )
-    setSaveError(null)
-    setOpenSections({
-      smt: true,
-      dip: mode !== 'edit',
-      material: mode !== 'edit',
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 모달 대상 변경 시 폼 리셋
-  }, [mode, quote?.quoteNumber, copyFrom?.quoteNumber, quoteType, initialDraft])
-
   // 생성·수정 공통: 입력 변경 시 미리보기 자동 갱신
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -517,13 +230,13 @@ function QuoteModalContent({
         computeEstimate(form, smtForms, dipForms, quoteType, {
           mode,
           quote,
-          existingQuoteNumbers,
+          rates: quoteRates,
         }),
       )
     }, 250)
 
     return () => window.clearTimeout(timer)
-  }, [mode, quote?.quoteNumber, form, smtForms, dipForms, quoteType, existingQuoteNumbers, quote])
+  }, [mode, quote?.quoteNumber, form, smtForms, dipForms, quoteType, quote, quoteRates])
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -592,16 +305,26 @@ function QuoteModalContent({
     onSaved?.(message)
   }
 
-  function buildSavePayload(quoteStatus: QuoteStatus) {
-    const estimate =
-      result ??
-      computeEstimate(form, smtForms, dipForms, quoteType, {
-        mode,
-        quote,
-        existingQuoteNumbers,
-      })
+  function buildRatedQuoteRowPayload(quoteStatus: QuoteStatus) {
+    const estimate = computeEstimate(form, smtForms, dipForms, quoteType, {
+      mode,
+      quote,
+      rates: quoteRates,
+    })
     const { pcbBoards, dipBoards } = collectBoardModels()
-    return buildQuoteRowPayload(form, pcbBoards, dipBoards, estimate, quoteType, quoteStatus)
+    const payload = buildQuoteRowPayload(
+      { ...form, rates: quoteRates, ratesVersionId: quoteRatesVersionId },
+      pcbBoards,
+      dipBoards,
+      estimate,
+      quoteType,
+      quoteStatus,
+    )
+    return { estimate, payload }
+  }
+
+  function buildSavePayload(quoteStatus: QuoteStatus) {
+    return buildRatedQuoteRowPayload(quoteStatus).payload
   }
 
   async function handleSave() {
@@ -621,15 +344,7 @@ function QuoteModalContent({
   }
 
   function buildExportQuoteSnapshot(): QuoteListItem | null {
-    const estimate =
-      result ??
-      computeEstimate(form, smtForms, dipForms, quoteType, {
-        mode,
-        quote,
-        existingQuoteNumbers,
-      })
-    const { pcbBoards, dipBoards } = collectBoardModels()
-    const payload = buildQuoteRowPayload(form, pcbBoards, dipBoards, estimate, quoteType, currentStatus)
+    const { estimate, payload } = buildRatedQuoteRowPayload(currentStatus)
     const partner = resolvePartnerFromInput(salesPartners, payload.customer)
 
     return {
@@ -793,8 +508,7 @@ function QuoteModalContent({
   const smdPlacementTotal = result?.common.smtPlacementTotal || 0
   const smdLaborTotal = (result?.common.smtLaborPerUnit || 0) * qty
   const smdInspectionTotal = (result?.common.smtInspectionPerUnit || 0) * qty
-  const smdSectionTotal =
-    smdPlacementTotal + (result?.common.smtAuxiliaryMaterial || 0)
+  const smdSectionTotal = smdPlacementTotal
   const dipSectionTotal =
     (result?.values.dip || 0) +
     (result?.values.postProcess || 0)
@@ -814,8 +528,10 @@ function QuoteModalContent({
         quoteType,
         displayCurrency,
         result.values.metalMask,
+        form.includeVat,
       )
     : null
+  const liveVatSuffix = isDomestic && form.includeVat ? ' (VAT 포함)' : ''
 
   function formatAmount(krw: number) {
     return formatQuoteMoneyByDisplay(krw, quoteType, displayCurrency)
@@ -857,6 +573,24 @@ function QuoteModalContent({
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
           <div className="flex min-h-0 flex-col border-slate-200 lg:border-r">
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {savedRates && savedRateChanges.length ? (
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">
+                  <span>
+                    {applyLatestRates
+                      ? '현재 단가를 적용해 다시 계산 중입니다. 저장하면 이 단가로 바뀝니다.'
+                      : `저장 당시 단가로 계산 중입니다. 현재 단가와 ${savedRateChanges.length}개 항목이 다릅니다.`}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setApplyLatestRates((value) => !value)}
+                    className="rounded-md border border-amber-300 bg-white px-2.5 py-1 font-semibold text-amber-800 hover:bg-amber-100"
+                    title={savedRateChanges.map((change) => `${change.label} ${change.from}→${change.to}`).join('\n')}
+                  >
+                    {applyLatestRates ? '저장 당시 단가로 되돌리기' : '현재 단가 적용'}
+                  </button>
+                </div>
+              ) : null}
               <section className="mb-3 rounded-xl border border-slate-200 p-3.5">
                 <h3 className="mb-3 text-sm font-bold text-slate-900">기본 정보</h3>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1208,7 +942,7 @@ function QuoteModalContent({
               <div className="mb-2 flex items-end justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[11px] font-medium text-slate-500">
-                    대당 단가
+                    대당 단가{liveVatSuffix}
                   </p>
                   <p className="truncate text-sm font-semibold text-slate-900">
                     {liveSummary?.unitFormatted ?? '-'}
@@ -1221,7 +955,7 @@ function QuoteModalContent({
                 </div>
                 <div className="min-w-0 text-right">
                   <p className="text-[11px] font-medium text-slate-500">
-                    최종 합계
+                    최종 합계{liveVatSuffix}
                   </p>
                   <p className="truncate text-base font-bold text-slate-900">
                     {liveSummary?.totalFormatted ?? '-'}

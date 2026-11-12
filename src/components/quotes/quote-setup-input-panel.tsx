@@ -2,14 +2,7 @@
 
 import { SmtPcbBoardForm } from '@/components/quotes/smt-pcb-board-form'
 import type { SmtBoardForm } from '@/lib/quotes/form-state'
-import {
-  METAL_MASK_COST_DOUBLE,
-  METAL_MASK_COST_SINGLE,
-  SAMPLE_COST_DOUBLE,
-  SAMPLE_COST_SINGLE,
-  SAMPLE_QTY_THRESHOLD,
-  type MetalMaskSide,
-} from '@/lib/quotes/constants'
+import { getMetalMaskCost, getSampleCostSettings, type MetalMaskSide } from '@/lib/quotes/constants'
 import {
   buildQuoteSetupDetailRows,
   formatPreviewRowDescription,
@@ -58,6 +51,7 @@ export function QuoteSetupInputPanel({
 }: QuoteSetupInputPanelProps) {
   const setupRows = result ? buildQuoteSetupDetailRows(result, quoteType) : []
   const isDomestic = quoteType === 'domestic'
+  const sampleCost = getSampleCostSettings()
 
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200">
@@ -163,10 +157,10 @@ export function QuoteSetupInputPanel({
               aria-label={isDomestic ? '메탈마스크 단면/양면' : 'Metal mask side'}
             >
               <option value="single">
-                {isDomestic ? '단면' : 'Single'} {METAL_MASK_COST_SINGLE.toLocaleString('ko-KR')}
+                {isDomestic ? '단면' : 'Single'} {getMetalMaskCost('single').toLocaleString('ko-KR')}
               </option>
               <option value="double">
-                {isDomestic ? '양면' : 'Double'} {METAL_MASK_COST_DOUBLE.toLocaleString('ko-KR')}
+                {isDomestic ? '양면' : 'Double'} {getMetalMaskCost('double').toLocaleString('ko-KR')}
               </option>
             </select>
             {smtForms.length > 1 ? (
@@ -185,9 +179,9 @@ export function QuoteSetupInputPanel({
                 {isDomestic ? '샘플 비용' : 'Sample Fee'}
               </span>
               <p className="mt-0.5 text-[11px] text-slate-500">
-                일회성 · 생산수량 {SAMPLE_QTY_THRESHOLD.toLocaleString('ko-KR')}대 미만 · 단면{' '}
-                {SAMPLE_COST_SINGLE.toLocaleString('ko-KR')} / 양면·듀얼{' '}
-                {SAMPLE_COST_DOUBLE.toLocaleString('ko-KR')}
+                일회성 · 생산수량 {sampleCost.qtyThreshold.toLocaleString('ko-KR')}대 미만 · 단면{' '}
+                {sampleCost.single.toLocaleString('ko-KR')} / 양면·듀얼{' '}
+                {sampleCost.double.toLocaleString('ko-KR')}
               </p>
             </div>
             <span className="font-semibold tabular-nums text-slate-900">

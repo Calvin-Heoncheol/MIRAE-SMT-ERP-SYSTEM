@@ -4,13 +4,13 @@ import type { ReactNode } from 'react'
 import { QuoteNumericInput } from '@/components/quotes/quote-numeric-input'
 import {
   getAoiUnit,
+  getFirstArticleSecondsPerPart,
   getSmtSetupBaseMinutes,
   getSmtSetupMinutesPerPart,
   getSmtSetupRate,
   getSmtUnitRates,
   isMultiSideSmt,
   normalizeSmtSide,
-  SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART,
   toBillingSmtSide,
 } from '@/lib/quotes/constants'
 import {
@@ -307,7 +307,7 @@ export function SmtPcbBoardForm({
 
             <div className="mt-2 space-y-1 text-[11px] text-slate-400">
               <p>
-                기본 {setupBaseMinutes}분 + 초품 {SMT_SETUP_FIRST_ARTICLE_SECONDS_PER_PART}초/종 +{' '}
+                기본 {setupBaseMinutes}분 + 초품 {getFirstArticleSecondsPerPart()}초/종 +{' '}
                 {quoteType === 'domestic' ? '세팅' : 'SETTING'} {setupMinutesPerPart}분/종
               </p>
               {partCount > 0 ? (

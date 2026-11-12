@@ -90,14 +90,11 @@ export type PreviewLabels = {
   download: string
   test: string
   packing: string
-  corporateProfit: string
-  corporateProfitDesc: string
   materials: string
   orderLevelCosts: string
   other: string
   rawMaterial: string
   managementFee: string
-  auxiliaryMaterial: string
   subMaterial: string
   metalMask: string
   sampleCost: string
@@ -167,14 +164,11 @@ const DOMESTIC_LABELS: PreviewLabels = {
   download: '다운로드',
   test: '테스트',
   packing: '포장',
-  corporateProfit: '기업이윤',
-  corporateProfitDesc: '제조비용(SMD+후공정)의 10%',
   materials: '자재',
   orderLevelCosts: '건당 비용 (발주 1회)',
   other: '기타',
   rawMaterial: '원자재 비용',
   managementFee: '관리비',
-  auxiliaryMaterial: '부자재 비용',
   subMaterial: '메탈마스크 비용 (일회성)',
   metalMask: '메탈마스크 비용 (일회성)',
   sampleCost: '샘플 비용',
@@ -244,14 +238,11 @@ const EXPORT_LABELS: PreviewLabels = {
   download: 'Download',
   test: 'Test',
   packing: 'Packing',
-  corporateProfit: 'Corporate Profit',
-  corporateProfitDesc: '10% of manufacturing cost (SMD + post-process)',
   materials: 'Materials',
   orderLevelCosts: 'Order-Level Costs (per PO)',
   other: 'Other',
   rawMaterial: 'Raw Material Cost',
   managementFee: 'Management Fee',
-  auxiliaryMaterial: 'Auxiliary Material Cost',
   subMaterial: 'SMT Stencil Cost (one-time)',
   metalMask: 'SMT Stencil Cost (one-time)',
   sampleCost: 'Sample Fee',
@@ -321,14 +312,11 @@ const CHINESE_LABELS: PreviewLabels = {
   download: '下载',
   test: '测试',
   packing: '包装',
-  corporateProfit: '企业利润',
-  corporateProfitDesc: '制造成本(SMD+后工序)的10%',
   materials: '材料',
   orderLevelCosts: '按订单费用 (每单1次)',
   other: '其他',
   rawMaterial: '原材料费用',
   managementFee: '管理费',
-  auxiliaryMaterial: '辅材费用',
   subMaterial: '钢网费用 (一次性)',
   metalMask: '钢网费用 (一次性)',
   sampleCost: '样品费用',
@@ -415,14 +403,3 @@ export function breakdownSmtPlacementSubtitle(labelType: QuoteLabelType) {
   return 'Placement & Inspection'
 }
 
-export function breakdownBoardColLabelLocalized(labelType: QuoteLabelType) {
-  if (labelType === 'zh') return '板卡'
-  if (labelType === 'domestic') return '보드'
-  return 'BOARD'
-}
-
-export function pdfSummarySectionLabelLocalized(label: string, labelType: QuoteLabelType) {
-  if (labelType === 'domestic') return label
-  if (labelType === 'zh') return label
-  return label.toUpperCase()
-}

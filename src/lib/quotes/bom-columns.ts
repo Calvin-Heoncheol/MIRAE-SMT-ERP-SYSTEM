@@ -374,14 +374,3 @@ export function formatBomColumnMappingNote(header: string[], columns: BomColumnM
   return `인식된 컬럼: ${labels.join(', ')}`
 }
 
-/** @deprecated use formatBomColumnMappingNote */
-export function formatBomDetectedColumns(columns: BomColumnMap, header: string[]) {
-  const parts = [
-    header[columns.designator] || '?',
-    columns.footprint >= 0 ? header[columns.footprint] : null,
-    columns.comment >= 0 ? header[columns.comment] : null,
-    columns.quantity >= 0 ? header[columns.quantity] : null,
-    columns.mpn >= 0 ? header[columns.mpn] : null,
-  ].filter(Boolean)
-  return parts.join(', ')
-}
