@@ -57,7 +57,7 @@ export function resolvePickPlaceColumnsFromAi(
     description: findHeaderColumnByName(header, payload.columns.description),
     mpn: findHeaderColumnByName(header, payload.columns.mpn),
   }
-  const columns = fillMissingPickPlaceColumns(header, aiColumns)
+  const columns = fillMissingPickPlaceColumns(header, aiColumns, rows, headerIndex)
 
   return {
     headerIndex,

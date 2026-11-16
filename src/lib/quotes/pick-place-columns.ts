@@ -22,10 +22,135 @@ function normalizeHeaderKey(value: string) {
 function headerMatches(cell: string, aliases: string[]) {
   const key = normalizeHeaderKey(cell)
   if (!key) return false
+  // Allegro place.txt의 embedded_layer는 보통 비어 있고, 실제 면 정보는 mirror 컬럼에 있음
+  if (key.includes('embedded') && aliases.includes('mirror')) return false
   return aliases.some((alias) => {
     if (alias.length <= 2) return key === alias
     return key === alias || key.includes(alias) || alias.includes(key)
   })
+}
+
+function looksLikeLayerSideValue(value: string) {
+  const raw = value.trim().toLowerCase()
+  if (!raw) return false
+  return (
+    raw === 'm' ||
+    raw === 'mirror' ||
+    raw === 'mirrored' ||
+    raw === 't' ||
+    raw === 'b' ||
+    raw === 'top' ||
+    raw === 'bot' ||
+    raw === 'bottom' ||
+    raw === '1' ||
+    raw === '2' ||
+    raw.includes('top') ||
+    raw.includes('bot') ||
+    raw === 'primary' ||
+    raw === 'secondary' ||
+    raw === '앞' ||
+    raw === '뒤'
+  )
+}
+
+/** Allegro mirror(빈칸=TOP, m=BOT)처럼 빈 값도 TOP으로 쓰는 컬럼인지 */
+function isMirrorStyleLayerHeader(cell: string) {
+  const key = normalizeHeaderKey(cell)
+  return key === 'mirror' || key === 'symmirror' || key.endsWith('mirror')
+}
+
+function scoreLayerColumnCandidate(
+  headerCell: string,
+  rows: string[][],
+  headerIndex: number,
+  colIndex: number,
+) {
+  const key = normalizeHeaderKey(headerCell)
+  let score = 0
+  if (isMirrorStyleLayerHeader(headerCell)) score += 8
+  else if (key === 'side' || key === 'layer' || key === 'topbottom' || key === 'tb') score += 4
+  else if (headerMatches(headerCell, LAYER_ALIASES)) score += 2
+  if (key.includes('embedded')) score -= 12
+
+  let topish = 0
+  let bottomish = 0
+  let other = 0
+  const end = Math.min(rows.length, headerIndex + 40)
+  for (let rowIndex = headerIndex + 1; rowIndex < end; rowIndex += 1) {
+    const value = String(rows[rowIndex]?.[colIndex] ?? '').trim()
+    if (!value) {
+      if (isMirrorStyleLayerHeader(headerCell)) topish += 1
+      continue
+    }
+    const lower = value.toLowerCase()
+    if (
+      lower === 'm' ||
+      lower === 'mirror' ||
+      lower === 'mirrored' ||
+      lower === 'b' ||
+      lower === 'bot' ||
+      lower === 'bottom' ||
+      lower === '2' ||
+      lower.includes('bot') ||
+      lower === 'secondary' ||
+      lower === '뒤'
+    ) {
+      bottomish += 1
+    } else if (
+      lower === 't' ||
+      lower === 'top' ||
+      lower === '1' ||
+      lower.includes('top') ||
+      lower === 'primary' ||
+      lower === '앞'
+    ) {
+      topish += 1
+    } else if (looksLikeLayerSideValue(value)) {
+      other += 1
+    } else {
+      other += 1
+    }
+  }
+
+  if (bottomish > 0 && topish > 0) score += 20
+  else if (bottomish > 0) score += 12
+  else if (topish > 0) score += 3
+  score -= other
+  return score
+}
+
+/** 여러 layer 후보 중 mirror 등 실제 면 신호가 있는 컬럼을 고른다 */
+export function preferBestPickPlaceLayerColumn(
+  header: string[],
+  rows: string[][],
+  headerIndex: number,
+  currentLayer: number,
+  used: Set<number>,
+) {
+  const candidates = new Set<number>()
+  if (currentLayer >= 0) candidates.add(currentLayer)
+  for (let index = 0; index < header.length; index += 1) {
+    if (used.has(index) && index !== currentLayer) continue
+    if (headerMatches(header[index] ?? '', LAYER_ALIASES) || isMirrorStyleLayerHeader(header[index] ?? '')) {
+      candidates.add(index)
+    }
+  }
+  // AI가 embedded_layer를 골랐어도 mirror 후보를 다시 넣는다
+  for (let index = 0; index < header.length; index += 1) {
+    if (used.has(index) && index !== currentLayer) continue
+    if (isMirrorStyleLayerHeader(header[index] ?? '')) candidates.add(index)
+  }
+
+  let bestIndex = currentLayer
+  let bestScore = currentLayer >= 0 ? scoreLayerColumnCandidate(header[currentLayer] ?? '', rows, headerIndex, currentLayer) : -999
+  for (const index of candidates) {
+    const score = scoreLayerColumnCandidate(header[index] ?? '', rows, headerIndex, index)
+    if (score > bestScore) {
+      bestScore = score
+      bestIndex = index
+    }
+  }
+  return bestIndex
 }
 
 function findColumn(header: string[], aliases: string[]) {
@@ -211,7 +336,8 @@ export function detectPickPlaceHeader(rows: string[][]): { headerIndex: number; 
     if (designatorScore < 0.35) continue
 
     const used = new Set([designator, x, y])
-    const layer = findColumnExcluding(header, LAYER_ALIASES, used)
+    const layerGuess = findColumnExcluding(header, LAYER_ALIASES, used)
+    const layer = preferBestPickPlaceLayerColumn(header, rows, i, layerGuess, used)
     if (layer >= 0) used.add(layer)
     const pkg = findColumnExcluding(header, PACKAGE_ALIASES, used)
     if (pkg >= 0) used.add(pkg)
@@ -260,6 +386,8 @@ export function detectPickPlaceHeader(rows: string[][]): { headerIndex: number; 
 export function fillMissingPickPlaceColumns(
   header: string[],
   columns: PickPlaceColumnMap,
+  rows: string[][] = [],
+  headerIndex = 0,
 ): PickPlaceColumnMap {
   const used = new Set(
     Object.values(columns).filter((index) => index >= 0),
@@ -279,6 +407,8 @@ export function fillMissingPickPlaceColumns(
   }
 
   fillOptional('layer', LAYER_ALIASES)
+  next.layer = preferBestPickPlaceLayerColumn(header, rows, headerIndex, next.layer, used)
+  if (next.layer >= 0) used.add(next.layer)
   fillOptional('package', PACKAGE_ALIASES)
   fillOptional('value', VALUE_ALIASES)
   fillOptional('rotation', ROTATION_ALIASES)

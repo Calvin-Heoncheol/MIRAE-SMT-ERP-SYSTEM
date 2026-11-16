@@ -36,6 +36,17 @@ function pickPlaceParseMetaRatio(analysis: AltiumPickPlaceAnalysis) {
   return withMeta / rows.length
 }
 
+/** TOP/BOT 면 분포 점수 — Allegro mirror 등 면 컬럼을 제대로 읽었는지 */
+function pickPlaceSideSignalScore(analysis: AltiumPickPlaceAnalysis) {
+  const rows = analysis.classifiedRows.filter((row) => row.category !== 'skip')
+  if (!rows.length) return 0
+  const top = rows.filter((row) => row.side === 'top').length
+  const bottom = rows.filter((row) => row.side === 'bottom').length
+  if (top > 0 && bottom > 0) return 2 + bottom / rows.length
+  if (analysis.summary.smtSide === 'double' || analysis.summary.smtSide === 'dual') return 1.5
+  return bottom > 0 ? 1 : 0
+}
+
 async function withBomNormalization(result: AltiumBomParseResult): Promise<AltiumBomParseResult> {
   if (!result.ok) return result
   const analysis = await normalizeBomAnalysisWithAi(result.analysis)
@@ -62,6 +73,11 @@ export async function parsePickPlaceRowsWithAiFallback(
   })
 
   if (aiResult.ok && rulesResult.ok) {
+    const aiSide = pickPlaceSideSignalScore(aiResult.analysis)
+    const rulesSide = pickPlaceSideSignalScore(rulesResult.analysis)
+    // AI가 embedded_layer 같은 빈 컬럼을 면으로 잡으면 양면→단면으로 깨짐 → 규칙 우선
+    if (rulesSide > aiSide + 0.5) return rulesResult
+
     const aiMeta = pickPlaceParseMetaRatio(aiResult.analysis)
     const rulesMeta = pickPlaceParseMetaRatio(rulesResult.analysis)
     if (rulesMeta > aiMeta + 0.15) return rulesResult
